@@ -1,6 +1,6 @@
 import { ContextManager } from "../ContextManager"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { expect } from "chai"
+import { describe, it, beforeEach, expect } from "vitest"
 
 describe("ContextManager", () => {
 	function createMessages(count: number): Anthropic.Messages.MessageParam[] {
@@ -34,24 +34,24 @@ describe("ContextManager", () => {
 			const messages = createMessages(11)
 			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
-			expect(result).to.deep.equal([1, 4])
+			expect(result).toEqual([1, 4])
 		})
 
 		it("first truncation with quarter keep", () => {
 			const messages = createMessages(11)
 			const result = contextManager.getNextTruncationRange(messages, undefined, "quarter")
 
-			expect(result).to.deep.equal([1, 6])
+			expect(result).toEqual([1, 6])
 		})
 
 		it("sequential truncation with half keep", () => {
 			const messages = createMessages(21)
 			const firstRange = contextManager.getNextTruncationRange(messages, undefined, "half")
-			expect(firstRange).to.deep.equal([1, 10])
+			expect(firstRange).toEqual([1, 10])
 
 			// Pass the previous range for sequential truncation
 			const secondRange = contextManager.getNextTruncationRange(messages, firstRange, "half")
-			expect(secondRange).to.deep.equal([1, 14])
+			expect(secondRange).toEqual([1, 14])
 		})
 
 		it("sequential truncation with quarter keep", () => {
@@ -60,8 +60,8 @@ describe("ContextManager", () => {
 
 			const secondRange = contextManager.getNextTruncationRange(messages, firstRange, "quarter")
 
-			expect(secondRange[0]).to.equal(1)
-			expect(secondRange[1]).to.be.greaterThan(firstRange[1])
+			expect(secondRange[0]).toBe(1)
+			expect(secondRange[1]).toBeGreaterThan(firstRange[1])
 		})
 
 		it("ensures the last message in range is a user message", () => {
@@ -70,18 +70,18 @@ describe("ContextManager", () => {
 
 			// Check if the message at the end of range is a user message
 			const lastRemovedMessage = messages[result[1]]
-			expect(lastRemovedMessage.role).to.equal("user")
+			expect(lastRemovedMessage.role).toBe("user")
 
 			// Check if the next message after the range is an assistant message
 			const nextMessage = messages[result[1] + 1]
-			expect(nextMessage.role).to.equal("assistant")
+			expect(nextMessage.role).toBe("assistant")
 		})
 
 		it("handles small message arrays", () => {
 			const messages = createMessages(3)
 			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
-			expect(result).to.deep.equal([1, 0])
+			expect(result).toEqual([1, 0])
 		})
 
 		it("preserves the message structure when truncating", () => {
@@ -92,10 +92,10 @@ describe("ContextManager", () => {
 			const effectiveMessages = [...messages.slice(0, result[0]), ...messages.slice(result[1] + 1)]
 
 			// Check first message and alternating pattern
-			expect(effectiveMessages[0].role).to.equal("user")
+			expect(effectiveMessages[0].role).toBe("user")
 			for (let i = 1; i < effectiveMessages.length; i++) {
 				const expectedRole = i % 2 === 1 ? "assistant" : "user"
-				expect(effectiveMessages[i].role).to.equal(expectedRole)
+				expect(effectiveMessages[i].role).toBe(expectedRole)
 			}
 		})
 	})
@@ -111,7 +111,7 @@ describe("ContextManager", () => {
 			const messages = createMessages(3)
 
 			const result = contextManager.getTruncatedMessages(messages, undefined)
-			expect(result).to.deep.equal(messages)
+			expect(result).toEqual(messages)
 		})
 
 		it("correctly removes messages in the specified range", () => {
@@ -120,9 +120,9 @@ describe("ContextManager", () => {
 			const range: [number, number] = [1, 3]
 			const result = contextManager.getTruncatedMessages(messages, range)
 
-			expect(result).to.have.lengthOf(2)
-			expect(result[0]).to.deep.equal(messages[0])
-			expect(result[1]).to.deep.equal(messages[4])
+			expect(result).toHaveLength(2)
+			expect(result[0]).toEqual(messages[0])
+			expect(result[1]).toEqual(messages[4])
 		})
 
 		it("works with a range that starts at the first message after task", () => {
@@ -131,9 +131,9 @@ describe("ContextManager", () => {
 			const range: [number, number] = [1, 2]
 			const result = contextManager.getTruncatedMessages(messages, range)
 
-			expect(result).to.have.lengthOf(2)
-			expect(result[0]).to.deep.equal(messages[0])
-			expect(result[1]).to.deep.equal(messages[3])
+			expect(result).toHaveLength(2)
+			expect(result[0]).toEqual(messages[0])
+			expect(result[1]).toEqual(messages[3])
 		})
 
 		it("correctly handles removing a range while preserving alternation pattern", () => {
@@ -142,14 +142,14 @@ describe("ContextManager", () => {
 			const range: [number, number] = [1, 2]
 			const result = contextManager.getTruncatedMessages(messages, range)
 
-			expect(result).to.have.lengthOf(3)
-			expect(result[0]).to.deep.equal(messages[0])
-			expect(result[1]).to.deep.equal(messages[3])
-			expect(result[2]).to.deep.equal(messages[4])
+			expect(result).toHaveLength(3)
+			expect(result[0]).toEqual(messages[0])
+			expect(result[1]).toEqual(messages[3])
+			expect(result[2]).toEqual(messages[4])
 
-			expect(result[0].role).to.equal("user")
-			expect(result[1].role).to.equal("assistant")
-			expect(result[2].role).to.equal("user")
+			expect(result[0].role).toBe("user")
+			expect(result[1].role).toBe("assistant")
+			expect(result[2].role).toBe("user")
 		})
 	})
 })

@@ -1,9 +1,8 @@
-import { ClineIgnoreController } from "./ClineIgnoreController"
+import { ClineIgnoreController } from "../ClineIgnoreController"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
-import { after, beforeEach, describe, it } from "mocha"
-import "should"
+import { describe, it, beforeEach, afterAll, expect } from "vitest"
 
 describe("ClineIgnoreController", () => {
 	let tempDir: string
@@ -26,7 +25,7 @@ describe("ClineIgnoreController", () => {
 		await controller.initialize()
 	})
 
-	after(async () => {
+	afterAll(async () => {
 		// Clean up temp directory
 		await fs.rm(tempDir, { recursive: true, force: true })
 	})
@@ -38,7 +37,7 @@ describe("ClineIgnoreController", () => {
 		// 		controller.validateAccess(".git/config"),
 		// 		controller.validateAccess("node_modules/package.json"),
 		// 	]
-		// 	results.forEach((result) => result.should.be.false())
+		// 	results.forEach((result) => expect(result).toBe(false))
 		// })
 
 		it("should allow access to regular files", async () => {
@@ -47,12 +46,12 @@ describe("ClineIgnoreController", () => {
 				controller.validateAccess("README.md"),
 				controller.validateAccess("package.json"),
 			]
-			results.forEach((result) => result.should.be.true())
+			results.forEach((result) => expect(result).toBe(true))
 		})
 
 		it("should block access to .clineignore file", async () => {
 			const result = controller.validateAccess(".clineignore")
-			result.should.be.false()
+			expect(result).toBe(false)
 		})
 	})
 
@@ -65,7 +64,7 @@ describe("ClineIgnoreController", () => {
 				controller.validateAccess("nested/deep/file.secret"),
 				controller.validateAccess("private/nested/deep/file.txt"),
 			]
-			results.forEach((result) => result.should.be.false())
+			results.forEach((result) => expect(result).toBe(false))
 		})
 
 		it("should allow access to non-ignored files", async () => {
@@ -76,7 +75,7 @@ describe("ClineIgnoreController", () => {
 				controller.validateAccess("nested/deep/file.txt"),
 				controller.validateAccess("not-private/data.txt"),
 			]
-			results.forEach((result) => result.should.be.true())
+			results.forEach((result) => expect(result).toBe(true))
 		})
 
 		it("should handle pattern edge cases", async () => {
@@ -94,9 +93,9 @@ describe("ClineIgnoreController", () => {
 				controller.validateAccess("script.tmp"), // Should be false (extension match)
 			]
 
-			results[0].should.be.false() // data-123.json
-			results[1].should.be.true() // data.json
-			results[2].should.be.false() // script.tmp
+			expect(results[0]).toBe(false) // data-123.json
+			expect(results[1]).toBe(true) // data.json
+			expect(results[2]).toBe(false) // script.tmp
 		})
 
 		// ToDo: handle negation patterns successfully
@@ -136,16 +135,16 @@ describe("ClineIgnoreController", () => {
 		// 		controller.validateAccess("assets/public/data.json"), // Should be true (in negated public/)
 		// 	]
 
-		// 	results[0].should.be.false() // temp/file.txt
-		// 	results[1].should.be.true() // temp/allowed/file.txt
-		// 	results[2].should.be.true() // temp/allowed/nested/file.txt
-		// 	results[3].should.be.false() // docs/guide.md
-		// 	results[4].should.be.true() // docs/README.md
-		// 	results[5].should.be.true() // docs/CONTRIBUTING.md
-		// 	results[6].should.be.false() // docs/api/guide.md
-		// 	results[7].should.be.false() // assets/logo.png
-		// 	results[8].should.be.true() // assets/public/logo.png
-		// 	results[9].should.be.true() // assets/public/data.json
+		// 	expect(results[0]).toBe(false) // temp/file.txt
+		// 	expect(results[1]).toBe(true) // temp/allowed/file.txt
+		// 	expect(results[2]).toBe(true) // temp/allowed/nested/file.txt
+		// 	expect(results[3]).toBe(false) // docs/guide.md
+		// 	expect(results[4]).toBe(true) // docs/README.md
+		// 	expect(results[5]).toBe(true) // docs/CONTRIBUTING.md
+		// 	expect(results[6]).toBe(false) // docs/api/guide.md
+		// 	expect(results[7]).toBe(false) // assets/logo.png
+		// 	expect(results[8]).toBe(true) // assets/public/logo.png
+		// 	expect(results[9]).toBe(true) // assets/public/data.json
 		// })
 
 		it("should handle comments in .clineignore", async () => {
@@ -159,7 +158,7 @@ describe("ClineIgnoreController", () => {
 			await controller.initialize()
 
 			const result = controller.validateAccess("test.secret")
-			result.should.be.false()
+			expect(result).toBe(false)
 		})
 	})
 
@@ -168,36 +167,36 @@ describe("ClineIgnoreController", () => {
 			// Test absolute path that should be allowed
 			const allowedPath = path.join(tempDir, "src/file.ts")
 			const allowedResult = controller.validateAccess(allowedPath)
-			allowedResult.should.be.true()
+			expect(allowedResult).toBe(true)
 
 			// Test absolute path that matches an ignore pattern (*.secret)
 			const ignoredPath = path.join(tempDir, "config.secret")
 			const ignoredResult = controller.validateAccess(ignoredPath)
-			ignoredResult.should.be.false()
+			expect(ignoredResult).toBe(false)
 
 			// Test absolute path in ignored directory (private/)
 			const ignoredDirPath = path.join(tempDir, "private/data.txt")
 			const ignoredDirResult = controller.validateAccess(ignoredDirPath)
-			ignoredDirResult.should.be.false()
+			expect(ignoredDirResult).toBe(false)
 		})
 
 		it("should handle relative paths and match ignore patterns", async () => {
 			// Test relative path that should be allowed
 			const allowedResult = controller.validateAccess("./src/file.ts")
-			allowedResult.should.be.true()
+			expect(allowedResult).toBe(true)
 
 			// Test relative path that matches an ignore pattern (*.secret)
 			const ignoredResult = controller.validateAccess("./config.secret")
-			ignoredResult.should.be.false()
+			expect(ignoredResult).toBe(false)
 
 			// Test relative path in ignored directory (private/)
 			const ignoredDirResult = controller.validateAccess("./private/data.txt")
-			ignoredDirResult.should.be.false()
+			expect(ignoredDirResult).toBe(false)
 		})
 
 		it("should normalize paths with backslashes", async () => {
 			const result = controller.validateAccess("src\\file.ts")
-			result.should.be.true()
+			expect(result).toBe(true)
 		})
 	})
 
@@ -206,7 +205,7 @@ describe("ClineIgnoreController", () => {
 			const paths = ["src/index.ts", ".env", "lib/utils.ts", ".git/config", "dist/bundle.js"]
 
 			const filtered = controller.filterPaths(paths)
-			filtered.should.deepEqual(["src/index.ts", "lib/utils.ts", "dist/bundle.js"])
+			expect(filtered).toEqual(["src/index.ts", "lib/utils.ts", "dist/bundle.js"])
 		})
 	})
 
@@ -214,7 +213,7 @@ describe("ClineIgnoreController", () => {
 		it("should handle invalid paths", async () => {
 			// Test with an invalid path containing null byte
 			const result = controller.validateAccess("\0invalid")
-			result.should.be.true()
+			expect(result).toBe(true)
 		})
 
 		it("should handle missing .clineignore gracefully", async () => {
@@ -226,7 +225,7 @@ describe("ClineIgnoreController", () => {
 				const controller = new ClineIgnoreController(emptyDir)
 				await controller.initialize()
 				const result = controller.validateAccess("file.txt")
-				result.should.be.true()
+				expect(result).toBe(true)
 			} finally {
 				await fs.rm(emptyDir, { recursive: true, force: true })
 			}
@@ -239,7 +238,7 @@ describe("ClineIgnoreController", () => {
 			await controller.initialize()
 
 			const result = controller.validateAccess("regular-file.txt")
-			result.should.be.true()
+			expect(result).toBe(true)
 		})
 	})
 })

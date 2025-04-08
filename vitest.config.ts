@@ -12,7 +12,6 @@ export default defineConfig({
 			reporter: ["text", "json", "html"],
 			exclude: ["webview-ui/**/*"], // Exclude webview-ui from coverage
 		},
-		setupFiles: ["./src/test/setupTests.ts"],
 	},
 	resolve: {
 		alias: {
