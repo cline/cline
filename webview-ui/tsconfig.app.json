@@ -32,5 +32,4 @@
 		}
 	},
 	"include": ["src"]
-	// Removed exclude for __tests__ to allow TS server to type-check test files
 }

@@ -29,6 +29,4 @@ describe("Announcement", () => {
 		expect(screen.getByText(/Enhanced MCP Support:/)).toBeInTheDocument()
 	})
 
-	// Removed tests for text "See it in action here." and "See a demo here."
-	// as they are no longer present in the v2.0 announcement content.
 })
