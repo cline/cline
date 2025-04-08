@@ -1,7 +1,6 @@
-import { describe, it } from "mocha"
-import "should"
-import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "./cost"
-import { ModelInfo } from "../shared/api"
+import { describe, it, expect } from "vitest"
+import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "../cost"
+import { ModelInfo } from "../../shared/api"
 
 describe("Cost Utilities", () => {
 	describe("calculateApiCostAnthropic", () => {
@@ -16,7 +15,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 1000 = 0.003
 			// Output: (15.0 / 1_000_000) * 500 = 0.0075
 			// Total: 0.003 + 0.0075 = 0.0105
-			cost.should.equal(0.0105)
+			expect(cost).toBe(0.0105)
 		})
 
 		it("should handle missing prices", () => {
@@ -26,7 +25,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostAnthropic(modelInfo, 1000, 500)
-			cost.should.equal(0)
+			expect(cost).toBe(0)
 		})
 
 		it("should use real model configuration (Claude 3.5 Sonnet)", () => {
@@ -48,7 +47,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 2000 = 0.006
 			// Output: (15.0 / 1_000_000) * 1000 = 0.015
 			// Total: 0.005625 + 0.00015 + 0.006 + 0.015 = 0.026775
-			cost.should.equal(0.026775)
+			expect(cost).toBe(0.026775)
 		})
 
 		it("should handle zero token counts", () => {
@@ -61,7 +60,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostAnthropic(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
+			expect(cost).toBe(0)
 		})
 	})
 
@@ -77,7 +76,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 1000 = 0.003
 			// Output: (15.0 / 1_000_000) * 500 = 0.0075
 			// Total: 0.003 + 0.0075 = 0.0105
-			cost.should.equal(0.0105)
+			expect(cost).toBe(0.0105)
 		})
 
 		it("should handle missing prices", () => {
@@ -87,7 +86,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostOpenAI(modelInfo, 1000, 500)
-			cost.should.equal(0)
+			expect(cost).toBe(0)
 		})
 
 		it("should use real model configuration (Claude 3.5 Sonnet)", () => {
@@ -109,7 +108,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * (2100 - 1500 - 500) = 0.0003
 			// Output: (15.0 / 1_000_000) * 1000 = 0.015
 			// Total: 0.005625 + 0.00015 + 0.0003 + 0.015 = 0.021075
-			cost.should.equal(0.021075)
+			expect(cost).toBe(0.021075)
 		})
 
 		it("should handle zero token counts", () => {
@@ -122,7 +121,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostOpenAI(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
+			expect(cost).toBe(0)
 		})
 	})
 })
