@@ -72,11 +72,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
 	const enabledActionsList = (() => {
-		const safeCommandsEnabled = enabledActions.some((action) => action.shortName === "Safe Commands")
-		const allCommandsEnabled = enabledActions.some((action) => action.shortName === "All Commands")
+		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
+		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands")
 
 		const otherActions = enabledActions
-			.filter((action) => action.shortName !== "Safe Commands" && action.shortName !== "All Commands")
+			.filter((action) => action.id !== "executeSafeCommands" && action.id !== "executeAllCommands")
 			.map((action) => action.shortName)
 
 		if (allCommandsEnabled) {
