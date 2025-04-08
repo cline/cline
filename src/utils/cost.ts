@@ -10,25 +10,30 @@ function calculateApiCostInternal(
 ): number {
 	// Determine effective input price
 	let effectiveInputPrice = modelInfo.inputPrice || 0
-	if (modelInfo.inputPriceTiers && totalInputTokensForPricing !== undefined) {
+	if (modelInfo.inputPriceTiers && modelInfo.inputPriceTiers.length > 0 && totalInputTokensForPricing !== undefined) {
+		// Ensure tiers are sorted by tokenLimit ascending before finding
+		const sortedInputTiers = [...modelInfo.inputPriceTiers].sort((a, b) => a.tokenLimit - b.tokenLimit)
 		// Find the first tier where the total input tokens are less than or equal to the limit
-		const tier = modelInfo.inputPriceTiers.find((t) => totalInputTokensForPricing! <= t.tokenLimit)
+		const tier = sortedInputTiers.find((t) => totalInputTokensForPricing! <= t.tokenLimit)
 		if (tier) {
 			effectiveInputPrice = tier.price
 		} else {
 			// Should ideally not happen if Infinity is used for the last tier, but fallback just in case
-			effectiveInputPrice = modelInfo.inputPriceTiers[modelInfo.inputPriceTiers.length - 1]?.price || 0
+			effectiveInputPrice = sortedInputTiers[sortedInputTiers.length - 1]?.price || 0
 		}
 	}
 
 	// Determine effective output price (based on total *input* tokens for pricing)
 	let effectiveOutputPrice = modelInfo.outputPrice || 0
-	if (modelInfo.outputPriceTiers && totalInputTokensForPricing !== undefined) {
-		const tier = modelInfo.outputPriceTiers.find((t) => totalInputTokensForPricing! <= t.tokenLimit)
+	if (modelInfo.outputPriceTiers && modelInfo.outputPriceTiers.length > 0 && totalInputTokensForPricing !== undefined) {
+		// Ensure tiers are sorted by tokenLimit ascending before finding
+		const sortedOutputTiers = [...modelInfo.outputPriceTiers].sort((a, b) => a.tokenLimit - b.tokenLimit)
+		const tier = sortedOutputTiers.find((t) => totalInputTokensForPricing! <= t.tokenLimit)
 		if (tier) {
 			effectiveOutputPrice = tier.price
 		} else {
-			effectiveOutputPrice = modelInfo.outputPriceTiers[modelInfo.outputPriceTiers.length - 1]?.price || 0
+			// Should ideally not happen if Infinity is used for the last tier, but fallback just in case
+			effectiveOutputPrice = sortedOutputTiers[sortedOutputTiers.length - 1]?.price || 0
 		}
 	}
 
