@@ -26,7 +26,7 @@ describe("TerminalCommandApprovalSettings", () => {
 			actions: {
 				readFiles: false,
 				editFiles: false,
-				executeCommands: false,
+				executeSafeCommands: false,
 				executeAllCommands: false,
 				useBrowser: false,
 				useMcp: false,
@@ -55,7 +55,7 @@ describe("TerminalCommandApprovalSettings", () => {
 						if (requiresApproval) {
 							return task.autoApprovalSettings.actions.executeAllCommands
 						}
-						return task.autoApprovalSettings.actions.executeCommands
+						return task.autoApprovalSettings.actions.executeSafeCommands
 					case "browser_action":
 						return task.autoApprovalSettings.actions.useBrowser
 					case "use_mcp_tool":
@@ -79,7 +79,7 @@ describe("TerminalCommandApprovalSettings", () => {
 			enabled: false,
 			actions: {
 				...autoApprovalSettings.actions,
-				executeCommands: true,
+				executeSafeCommands: true,
 				executeAllCommands: true,
 			},
 		}
@@ -100,7 +100,7 @@ describe("TerminalCommandApprovalSettings", () => {
 			enabled: true,
 			actions: {
 				...autoApprovalSettings.actions,
-				executeCommands: false,
+				executeSafeCommands: false,
 				executeAllCommands: false,
 			},
 		}
@@ -121,7 +121,7 @@ describe("TerminalCommandApprovalSettings", () => {
 			enabled: true,
 			actions: {
 				...autoApprovalSettings.actions,
-				executeCommands: true,
+				executeSafeCommands: true,
 				executeAllCommands: false,
 			},
 		}
@@ -142,7 +142,7 @@ describe("TerminalCommandApprovalSettings", () => {
 			enabled: true,
 			actions: {
 				...autoApprovalSettings.actions,
-				executeCommands: true,
+				executeSafeCommands: true,
 				executeAllCommands: true,
 			},
 		}
@@ -164,7 +164,7 @@ describe("TerminalCommandApprovalSettings", () => {
 			actions: {
 				readFiles: true,
 				editFiles: false,
-				executeCommands: true,
+				executeSafeCommands: true,
 				executeAllCommands: false,
 				useBrowser: false,
 				useMcp: false,

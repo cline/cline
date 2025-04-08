@@ -1134,7 +1134,7 @@ export class Task {
 		}
 	}
 
-	shouldAutoApproveTool(toolName: ToolUseName, CommandRequiresApprovalPerLLM?: boolean): boolean {
+	shouldAutoApproveTool(toolName: ToolUseName): any {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case "read_file":
@@ -1146,13 +1146,10 @@ export class Task {
 				case "replace_in_file":
 					return this.autoApprovalSettings.actions.editFiles
 				case "execute_command":
-					if (CommandRequiresApprovalPerLLM === true) {
-						return (
-							this.autoApprovalSettings.actions.executeCommands &&
-							this.autoApprovalSettings.actions.executeAllCommands
-						)
-					}
-					return this.autoApprovalSettings.actions.executeCommands
+					return [
+						this.autoApprovalSettings.actions.executeSafeCommands,
+						this.autoApprovalSettings.actions.executeAllCommands,
+					]
 				case "browser_action":
 					return this.autoApprovalSettings.actions.useBrowser
 				case "access_mcp_resource":
@@ -2371,9 +2368,12 @@ export class Task {
 
 								let didAutoApprove = false
 
+								console.log("Tuples from approval settings: ", this.shouldAutoApproveTool(block.name))
+								console.log("Requires approval per LLM: ", requiresApprovalPerLLM)
+
 								if (
-									(!requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)) ||
-									(requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name, requiresApprovalPerLLM))
+									(!requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)[0]) ||
+									(requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)[1])
 								) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)

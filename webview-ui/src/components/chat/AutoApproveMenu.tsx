@@ -38,7 +38,7 @@ const ACTION_METADATA: {
 		description: "Allows modification of any files on your computer.",
 	},
 	{
-		id: "executeCommands",
+		id: "executeSafeCommands",
 		label: "Execute safe commands",
 		shortName: "Safe Commands",
 		description:
@@ -108,21 +108,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			const newActions = {
 				...autoApprovalSettings.actions,
 				[actionId]: value,
-			}
-
-			// If disabling executeAllCommands, ensure executeCommands remains disabled
-			if (actionId === "executeAllCommands" && !value) {
-				newActions.executeCommands = false
-			}
-
-			// If disabling executeCommands, also disable executeAllCommands
-			if (actionId === "executeCommands" && !value) {
-				newActions.executeAllCommands = false
-			}
-
-			// Ensure executeAllCommands can't be enabled if executeCommands is disabled
-			if (actionId === "executeAllCommands" && value && !newActions.executeCommands) {
-				newActions.executeAllCommands = false
 			}
 
 			// Check if this will result in any enabled actions
@@ -269,7 +254,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					{ACTION_METADATA.map((action) => {
 						if (action.id === "executeAllCommands") {
 							return (
-								<AnimatedSection key={action.id} show={autoApprovalSettings.actions.executeCommands}>
+								<AnimatedSection key={action.id} show={autoApprovalSettings.actions.executeSafeCommands}>
 									<div
 										style={{
 											margin: "6px 0",
