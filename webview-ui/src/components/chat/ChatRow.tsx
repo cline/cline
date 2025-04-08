@@ -36,6 +36,7 @@ import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
+	transition: background-color 0.2s ease-in-out; // Add transition for smooth background change
 
 	&:hover ${CheckpointControls} {
 		opacity: 1;
@@ -60,9 +61,13 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	rowIndex: number
+	hoveredRowIndex: number | null
+	setHoveredRowIndex: React.Dispatch<React.SetStateAction<number | null>>
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps
+	extends Omit<ChatRowProps, "onHeightChange" | "rowIndex" | "hoveredRowIndex" | "setHoveredRowIndex"> {}
 
 export const ProgressIndicator = () => (
 	<div
@@ -95,7 +100,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage } = props
+		const { isLast, onHeightChange, message, lastModifiedMessage, rowIndex, hoveredRowIndex, setHoveredRowIndex } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
@@ -117,8 +122,15 @@ const ChatRow = memo(
 				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
 		}
 
+		const isHovered = hoveredRowIndex === rowIndex
+
 		const [chatrow, { height }] = useSize(
-			<ChatRowContainer>
+			<ChatRowContainer
+				onMouseEnter={() => setHoveredRowIndex(rowIndex)}
+				onMouseLeave={() => setHoveredRowIndex(null)}
+				style={{
+					backgroundColor: isHovered ? "var(--vscode-list-hoverBackground)" : "transparent",
+				}}>
 				<ChatRowContent {...props} />
 				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
 			</ChatRowContainer>,
