@@ -4101,7 +4101,7 @@ Search/Replace content with multi edits:
 :start_line:1
 :end_line:2
 -------
-def calculate_sum(items):
+def calculate_total(items):
     sum = 0
 =======
 def calculate_sum(items):
