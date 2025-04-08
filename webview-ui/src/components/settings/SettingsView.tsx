@@ -154,7 +154,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				{/* Tabs container */}
 				{planActSeparateModelsSetting ? (
 					<div className="border border-solid border-[var(--vscode-panel-border)] rounded-md p-[10px] mb-5 bg-[var(--vscode-panel-background)]">
-						<div className="flex gap-[1px] mb-[10px] -mt-2 border-b border-solid border-[var(--vscode-panel-border)]">
+						<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
 							<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
 								Plan Mode
 							</TabButton>
