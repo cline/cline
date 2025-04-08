@@ -78,6 +78,8 @@ export interface ApiHandlerOptions {
 export type ApiConfiguration = ApiHandlerOptions & {
     apiProvider?: ApiProvider
     completionApiProvider?: CompletionApiProvider
+    posthogPersonalApiKey?: string
+    posthogHost?: string
 }
 
 // Models

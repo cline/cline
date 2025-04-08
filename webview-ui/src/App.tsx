@@ -61,7 +61,7 @@ const AppContent = () => {
 
     return (
         <>
-            {showWelcome ? (
+            {showWelcome && !showSettings ? (
                 <WelcomeView />
             ) : (
                 <>

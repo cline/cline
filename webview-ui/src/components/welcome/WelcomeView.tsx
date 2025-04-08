@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeLink } from '@vscode/webview-ui-toolkit/react'
+import { VSCodeButton, VSCodeDivider } from '@vscode/webview-ui-toolkit/react'
 import { useEffect, useState } from 'react'
 import { useExtensionState } from '../../context/ExtensionStateContext'
 import { validateApiConfiguration } from '../../utils/validate'
@@ -6,21 +6,29 @@ import { vscode } from '../../utils/vscode'
 import ApiOptions from '../settings/ApiOptions'
 import PostHogLogoWhite from '../../assets/PostHogLogoWhite'
 import AutocompleteOptions from '../settings/AutocompleteOptions'
+import PostHogConfigOptions from '../settings/PostHogConfigOptions'
 
 const WelcomeView = () => {
-    const { apiConfiguration } = useExtensionState()
+    const { apiConfiguration, setApiConfiguration } = useExtensionState()
     const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
     const [showApiOptions, setShowApiOptions] = useState(false)
 
     const disableLetsGoButton = apiErrorMessage != null
 
     const handleSubmit = () => {
-        vscode.postMessage({ type: 'apiConfiguration', apiConfiguration })
+        setApiConfiguration({
+            ...apiConfiguration,
+            apiKey: 'test',
+        })
     }
 
     useEffect(() => {
         setApiErrorMessage(validateApiConfiguration(apiConfiguration))
     }, [apiConfiguration])
+
+    const hasPersonalApiKey = !!apiConfiguration?.posthogPersonalApiKey
+
+    console.log('hasPersonalApiKey', hasPersonalApiKey)
 
     return (
         <div
@@ -46,49 +54,56 @@ const WelcomeView = () => {
                 <div style={{ display: 'flex', justifyContent: 'center', margin: '20px 0' }}>
                     <PostHogLogoWhite className="size-16" />
                 </div>
-                <p>
-                    I can do all kinds of tasks thanks to breakthroughs in{' '}
-                    <VSCodeLink href="https://www.anthropic.com/claude/sonnet" style={{ display: 'inline' }}>
-                        Claude 3.7 Sonnet's
-                    </VSCodeLink>
-                    agentic coding capabilities and access to tools that let me create & edit files, explore complex
-                    projects, use a browser, and execute terminal commands <i>(with your permission, of course)</i>. I
-                    can even use MCP to create new tools and extend my own capabilities.
-                </p>
+                <p>I'm here to help you build a successful product.</p>
+                <p>I can help you write code and respond to questions about your product and users.</p>
+                <p>Let's get started.</p>
+                <VSCodeDivider style={{ margin: '20px 0' }} />
 
-                <p style={{ color: 'var(--vscode-descriptionForeground)' }}>
-                    Sign up for an account to get started for free, or use an API key that provides access to models
-                    like Claude 3.7 Sonnet.
-                </p>
+                {!hasPersonalApiKey && <PostHogConfigOptions />}
 
-                {!showApiOptions && (
-                    <VSCodeButton
-                        appearance="secondary"
-                        onClick={() => setShowApiOptions(!showApiOptions)}
-                        style={{ marginTop: 10, width: '100%' }}
-                    >
-                        Use your own API key
-                    </VSCodeButton>
-                )}
+                {hasPersonalApiKey && (
+                    <>
+                        <VSCodeButton
+                            onClick={() => {
+                                setApiConfiguration({
+                                    ...apiConfiguration,
+                                    apiKey: 'test',
+                                })
+                            }}
+                        >
+                            Use test API key
+                        </VSCodeButton>
 
-                <div style={{ marginTop: '18px' }}>
-                    {showApiOptions && (
-                        <div>
-                            <ApiOptions showModelOptions={false} />
-                            <AutocompleteOptions />
+                        {!showApiOptions && (
                             <VSCodeButton
-                                onClick={handleSubmit}
-                                disabled={disableLetsGoButton}
-                                style={{ marginTop: '3px' }}
+                                appearance="secondary"
+                                onClick={() => setShowApiOptions(!showApiOptions)}
+                                style={{ marginTop: 10, width: '100%' }}
                             >
-                                Let's go!
+                                Use your own API key
                             </VSCodeButton>
-                            {apiErrorMessage && (
-                                <p style={{ color: 'var(--vscode-errorForeground)' }}>{apiErrorMessage}</p>
+                        )}
+
+                        <div style={{ marginTop: '18px' }}>
+                            {showApiOptions && (
+                                <div>
+                                    <ApiOptions showModelOptions={false} />
+                                    <AutocompleteOptions />
+                                    <VSCodeButton
+                                        onClick={handleSubmit}
+                                        disabled={disableLetsGoButton}
+                                        style={{ marginTop: '3px' }}
+                                    >
+                                        Let's go!
+                                    </VSCodeButton>
+                                    {apiErrorMessage && (
+                                        <p style={{ color: 'var(--vscode-errorForeground)' }}>{apiErrorMessage}</p>
+                                    )}
+                                </div>
                             )}
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
             </div>
         </div>
     )

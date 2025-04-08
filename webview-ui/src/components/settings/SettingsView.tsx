@@ -11,6 +11,7 @@ import DocumentationOptions from './DocumentationOptions'
 import AutocompleteOptions from './AutocompleteOptions'
 import AutoApproveMenu from './AutoApproveMenu'
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from '../../utils/vscStyles'
+import PostHogConfigOptions from './PostHogConfigOptions'
 const { IS_DEV } = process.env
 
 type SettingsTab = 'privacy' | 'rules' | 'api' | 'features' | 'advanced'
@@ -67,7 +68,7 @@ const SettingsView = () => {
         // uses someVar and anotherVar
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [someVar])
-	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
+    If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
     */
 
     const handleMessage = useCallback(
@@ -258,7 +259,19 @@ const SettingsView = () => {
 
     const FeaturesSettings = () => (
         <>
-            <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px' }}>Auto-Approval</h3>
+            <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px' }}>PostHog Configuration</h3>
+            <div
+                style={{
+                    height: '0.5px',
+                    background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
+                    marginBottom: '15px',
+                    opacity: 0.2,
+                }}
+            />
+            <PostHogConfigOptions />
+            <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginTop: '5px', marginBottom: '5px' }}>
+                Auto-Approval
+            </h3>
             <AutoApproveMenu />
             <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px', marginTop: '5px' }}>
                 Auto-Complete

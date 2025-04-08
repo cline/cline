@@ -90,6 +90,7 @@ export const ExtensionStateContextProvider: React.FC<{
                           config.xaiApiKey,
                           config.sambanovaApiKey,
                           config.codestralApiKey,
+                          config.posthogPersonalApiKey,
                       ].some((key) => key !== undefined)
                     : false
                 setShowWelcome(!hasKey)

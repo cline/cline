@@ -67,6 +67,7 @@ type SecretKey =
     | 'sambanovaApiKey'
     | 'inkeepApiKey'
     | 'codestralApiKey'
+    | 'posthogPersonalApiKey'
 type GlobalStateKey =
     | 'apiProvider'
     | 'completionApiProvider'
@@ -114,7 +115,7 @@ type GlobalStateKey =
     | 'thinkingBudgetTokens'
     | 'planActSeparateModelsSetting'
     | 'enableTabAutocomplete'
-
+    | 'posthogHost'
 export class PostHogProvider implements vscode.WebviewViewProvider {
     public static readonly sideBarId = 'posthog.SidebarProvider' // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
     public static readonly tabPanelId = 'posthog.TabPanelProvider'
@@ -1177,6 +1178,8 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             sambanovaApiKey,
             inkeepApiKey,
             codestralApiKey,
+            posthogPersonalApiKey,
+            posthogHost,
         } = apiConfiguration
         await this.updateGlobalState('apiProvider', apiProvider)
         await this.updateGlobalState('apiModelId', apiModelId)
@@ -1228,6 +1231,8 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         await this.storeSecret('sambanovaApiKey', sambanovaApiKey)
         await this.storeSecret('inkeepApiKey', inkeepApiKey)
         await this.storeSecret('codestralApiKey', codestralApiKey)
+        await this.storeSecret('posthogPersonalApiKey', posthogPersonalApiKey)
+        await this.updateGlobalState('posthogHost', posthogHost)
         if (this.posthog) {
             this.posthog.api = buildApiHandler(apiConfiguration)
         }
@@ -1934,6 +1939,8 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             enableTabAutocomplete,
             inkeepApiKey,
             codestralApiKey,
+            posthogPersonalApiKey,
+            posthogHost,
         ] = await Promise.all([
             this.getGlobalState('apiProvider') as Promise<ApiProvider | undefined>,
             this.getGlobalState('completionApiProvider') as Promise<CompletionApiProvider | undefined>,
@@ -2002,6 +2009,8 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             this.getGlobalState('enableTabAutocomplete') as Promise<boolean | undefined>,
             this.getSecret('inkeepApiKey') as Promise<string | undefined>,
             this.getSecret('codestralApiKey') as Promise<string | undefined>,
+            this.getSecret('posthogPersonalApiKey') as Promise<string | undefined>,
+            this.getGlobalState('posthogHost') as Promise<string | undefined>,
         ])
 
         let apiProvider: ApiProvider
@@ -2100,6 +2109,8 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                 sambanovaApiKey,
                 inkeepApiKey,
                 codestralApiKey,
+                posthogPersonalApiKey,
+                posthogHost,
             },
             customInstructions,
             taskHistory,
@@ -2248,6 +2259,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             'sambanovaApiKey',
             'inkeepApiKey',
             'codestralApiKey',
+            'posthogPersonalApiKey',
         ]
         for (const key of secretKeys) {
             await this.storeSecret(key, undefined)
