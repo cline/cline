@@ -39,7 +39,7 @@ async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ file
 		const files = await fs
 			.readdir(dirPath, { withFileTypes: true, recursive: true })
 			.then((files) => files.filter((file) => file.isFile()))
-			.then((files) => files.map((file) => path.resolve(dirPath, file.name)))
+			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
 
 		const fileContents = await Promise.all(
 			files.map(async (file) => {

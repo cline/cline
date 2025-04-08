@@ -127,8 +127,8 @@ describe("loadRuleFiles", () => {
 
 		// Simulate listing files
 		readdirMock.mockResolvedValueOnce([
-			{ name: "file1.txt", isFile: () => true },
-			{ name: "file2.txt", isFile: () => true },
+			{ name: "file1.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules" },
+			{ name: "file2.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules" },
 		] as any)
 
 		statMock.mockImplementation(
@@ -200,6 +200,80 @@ describe("loadRuleFiles", () => {
 
 		const result = await loadRuleFiles("/fake/path")
 		expect(result).toBe("\n# Rules from .roorules:\nroo rules content\n")
+	})
+
+	it("should read files from nested subdirectories in .roo/rules/", async () => {
+		// Simulate .roo/rules directory exists
+		statMock.mockResolvedValueOnce({
+			isDirectory: jest.fn().mockReturnValue(true),
+		} as any)
+
+		// Simulate listing files including subdirectories
+		readdirMock.mockResolvedValueOnce([
+			{ name: "subdir", isFile: () => false, isDirectory: () => true, parentPath: "/fake/path/.roo/rules" },
+			{ name: "root.txt", isFile: () => true, isDirectory: () => false, parentPath: "/fake/path/.roo/rules" },
+			{
+				name: "nested1.txt",
+				isFile: () => true,
+				isDirectory: () => false,
+				parentPath: "/fake/path/.roo/rules/subdir",
+			},
+			{
+				name: "nested2.txt",
+				isFile: () => true,
+				isDirectory: () => false,
+				parentPath: "/fake/path/.roo/rules/subdir/subdir2",
+			},
+		] as any)
+
+		statMock.mockImplementation((path: string) => {
+			if (path.endsWith("txt")) {
+				return Promise.resolve({
+					isFile: jest.fn().mockReturnValue(true),
+					isDirectory: jest.fn().mockReturnValue(false),
+				} as any)
+			}
+			return Promise.resolve({
+				isFile: jest.fn().mockReturnValue(false),
+				isDirectory: jest.fn().mockReturnValue(true),
+			} as any)
+		})
+
+		readFileMock.mockImplementation((filePath: PathLike) => {
+			const path = filePath.toString()
+			if (path === "/fake/path/.roo/rules/root.txt") {
+				return Promise.resolve("root file content")
+			}
+			if (path === "/fake/path/.roo/rules/subdir/nested1.txt") {
+				return Promise.resolve("nested file 1 content")
+			}
+			if (path === "/fake/path/.roo/rules/subdir/subdir2/nested2.txt") {
+				return Promise.resolve("nested file 2 content")
+			}
+			return Promise.reject({ code: "ENOENT" })
+		})
+
+		const result = await loadRuleFiles("/fake/path")
+
+		// Check root file content
+		expect(result).toContain("# Rules from /fake/path/.roo/rules/root.txt:")
+		expect(result).toContain("root file content")
+
+		// Check nested files content
+		expect(result).toContain("# Rules from /fake/path/.roo/rules/subdir/nested1.txt:")
+		expect(result).toContain("nested file 1 content")
+		expect(result).toContain("# Rules from /fake/path/.roo/rules/subdir/subdir2/nested2.txt:")
+		expect(result).toContain("nested file 2 content")
+
+		// Verify correct paths were checked
+		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules/root.txt")
+		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules/subdir/nested1.txt")
+		expect(statMock).toHaveBeenCalledWith("/fake/path/.roo/rules/subdir/subdir2/nested2.txt")
+
+		// Verify files were read with correct paths
+		expect(readFileMock).toHaveBeenCalledWith("/fake/path/.roo/rules/root.txt", "utf-8")
+		expect(readFileMock).toHaveBeenCalledWith("/fake/path/.roo/rules/subdir/nested1.txt", "utf-8")
+		expect(readFileMock).toHaveBeenCalledWith("/fake/path/.roo/rules/subdir/subdir2/nested2.txt", "utf-8")
 	})
 })
 
@@ -321,8 +395,8 @@ describe("addCustomInstructions", () => {
 
 		// Simulate listing files
 		readdirMock.mockResolvedValueOnce([
-			{ name: "rule1.txt", isFile: () => true },
-			{ name: "rule2.txt", isFile: () => true },
+			{ name: "rule1.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules-test-mode" },
+			{ name: "rule2.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules-test-mode" },
 		] as any)
 
 		statMock.mockImplementation(
@@ -422,7 +496,9 @@ describe("addCustomInstructions", () => {
 		)
 
 		// Simulate directory has files
-		readdirMock.mockResolvedValueOnce([{ name: "rule1.txt", isFile: () => true }] as any)
+		readdirMock.mockResolvedValueOnce([
+			{ name: "rule1.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules-test-mode" },
+		] as any)
 		readFileMock.mockReset()
 
 		// Set up stat mock for checking files
@@ -515,9 +591,9 @@ describe("Rules directory reading", () => {
 
 		// Simulate listing files
 		readdirMock.mockResolvedValueOnce([
-			{ name: "file1.txt", isFile: () => true },
-			{ name: "file2.txt", isFile: () => true },
-			{ name: "file3.txt", isFile: () => true },
+			{ name: "file1.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules" },
+			{ name: "file2.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules" },
+			{ name: "file3.txt", isFile: () => true, parentPath: "/fake/path/.roo/rules" },
 		] as any)
 
 		statMock.mockImplementation((path) => {
