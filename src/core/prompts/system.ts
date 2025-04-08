@@ -352,7 +352,7 @@ return (
 </diff>
 </replace_in_file>
 
-## Example 6: Requesting to use an MCP tool
+## Example 5: Requesting to use an MCP tool
 
 <use_mcp_tool>
 <server_name>weather-server</server_name>
@@ -365,7 +365,7 @@ return (
 </arguments>
 </use_mcp_tool>
 
-## Example 7: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
+## Example 6: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
 
 <use_mcp_tool>
 <server_name>github.com/modelcontextprotocol/servers/tree/main/src/github</server_name>
