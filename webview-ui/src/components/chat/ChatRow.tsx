@@ -48,9 +48,16 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	rowIndex: number
+	hoveredRowIndex: number | null
+	setHoveredRowIndex: React.Dispatch<React.SetStateAction<number | null>>
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps
+	extends Omit<ChatRowProps, "onHeightChange" | "rowIndex" | "hoveredRowIndex" | "setHoveredRowIndex"> {
+	rowIndex: number
+	hoveredRowIndex: number | null
+}
 
 export const ProgressIndicator = () => (
 	<div
@@ -83,32 +90,23 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage } = props
+		const { isLast, onHeightChange, message, lastModifiedMessage, rowIndex, hoveredRowIndex, setHoveredRowIndex } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
-
-		// NOTE: for tools that are interrupted and not responded to (approved or rejected) there won't be a checkpoint hash
-		let shouldShowCheckpoints =
-			message.lastCheckpointHash != null &&
-			(message.say === "tool" ||
-				message.ask === "tool" ||
-				message.say === "command" ||
-				message.ask === "command" ||
-				// message.say === "completion_result" ||
-				// message.ask === "completion_result" ||
-				message.say === "use_mcp_server" ||
-				message.ask === "use_mcp_server")
-
-		if (shouldShowCheckpoints && isLast) {
-			shouldShowCheckpoints =
-				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
-		}
+		const isCheckpointMessage = message.say === "checkpoint_created"
+		// Determine if the checkpoint marker *would* be shown based on hover state
+		const isHoverRelevant = hoveredRowIndex === rowIndex - 1 || hoveredRowIndex === rowIndex
 
 		const [chatrow, { height }] = useSize(
-			<ChatRowContainer>
-				<ChatRowContent {...props} />
-				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
+			<ChatRowContainer
+				style={{
+					padding: isCheckpointMessage && !message.isCheckpointCheckedOut && !isHoverRelevant ? 0 : undefined, // Reset padding if it's a checkpoint message and not hovered
+					minHeight: isCheckpointMessage && !message.isCheckpointCheckedOut && !isHoverRelevant ? 1 : undefined, // Ensure min height of 1px to prevent virtuoso error
+				}}
+				onMouseEnter={() => setHoveredRowIndex(rowIndex)}
+				onMouseLeave={() => setHoveredRowIndex(null)}>
+				<ChatRowContent {...props} rowIndex={rowIndex} hoveredRowIndex={hoveredRowIndex} />
 			</ChatRowContainer>,
 		)
 
@@ -134,7 +132,15 @@ const ChatRow = memo(
 
 export default ChatRow
 
-export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+export const ChatRowContent = ({
+	message,
+	isExpanded,
+	onToggleExpand,
+	lastModifiedMessage,
+	isLast,
+	rowIndex,
+	hoveredRowIndex,
+}: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -984,9 +990,15 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						</>
 					)
 				case "checkpoint_created":
+					const shouldShow = hoveredRowIndex === rowIndex - 1 || hoveredRowIndex === rowIndex
+
 					return (
 						<>
-							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
+							<CheckmarkControl
+								messageTs={message.ts}
+								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
+								shouldShow={shouldShow}
+							/>
 						</>
 					)
 				case "load_mcp_documentation":
