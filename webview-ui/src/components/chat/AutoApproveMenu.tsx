@@ -35,6 +35,12 @@ const ACTION_METADATA: {
 		id: "editFiles",
 		label: "Edit files",
 		shortName: "Edit",
+		description: "Allows modification of files within your workspace.",
+	},
+	{
+		id: "editFilesExternally",
+		label: "Edit external files",
+		shortName: "EditExternal",
 		description: "Allows modification of any files on your computer.",
 	},
 	{
