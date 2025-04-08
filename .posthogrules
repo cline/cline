@@ -507,4 +507,4 @@ Contributions to the PostHog extension are welcome! Please follow these guidelin
 
 When adding new tools or API providers, follow the existing patterns in the `src/integrations/` and `src/api/providers/` directories, respectively. Ensure that your code is well-documented and includes appropriate error handling.
 
-The `.posthogignore` file allows users to specify files and directories that PostHog should not access. When implementing new features, respect the `.posthogignore` rules and ensure that your code does not attempt to read or modify ignored files.
+The `.gitignore` file allows users to specify files and directories that PostHog should not access. When implementing new features, respect the rules in `.gitignore` and ensure that your code does not attempt to read or modify ignored files.

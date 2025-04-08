@@ -10,13 +10,11 @@ describe('PostHogIgnoreController', () => {
     let controller: PostHogIgnoreController
 
     beforeEach(async () => {
-        // Create a temp directory for testing
         tempDir = path.join(os.tmpdir(), `llm-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
         await fs.mkdir(tempDir)
 
-        // Create default .posthogignore file
         await fs.writeFile(
-            path.join(tempDir, '.posthogignore'),
+            path.join(tempDir, '.gitignore'),
             [
                 '.env',
                 '*.secret',
@@ -34,20 +32,10 @@ describe('PostHogIgnoreController', () => {
     })
 
     after(async () => {
-        // Clean up temp directory
         await fs.rm(tempDir, { recursive: true, force: true })
     })
 
     describe('Default Patterns', () => {
-        // it("should block access to common ignored files", async () => {
-        // 	const results = [
-        // 		controller.validateAccess(".env"),
-        // 		controller.validateAccess(".git/config"),
-        // 		controller.validateAccess("node_modules/package.json"),
-        // 	]
-        // 	results.forEach((result) => result.should.be.false())
-        // })
-
         it('should allow access to regular files', async () => {
             const results = [
                 controller.validateAccess('src/index.ts'),
@@ -57,8 +45,8 @@ describe('PostHogIgnoreController', () => {
             results.forEach((result) => result.should.be.true())
         })
 
-        it('should block access to .posthogignore file', async () => {
-            const result = controller.validateAccess('.posthogignore')
+        it('should block access to .gitignore file', async () => {
+            const result = controller.validateAccess('.gitignore')
             result.should.be.false()
         })
     })
@@ -88,7 +76,7 @@ describe('PostHogIgnoreController', () => {
 
         it('should handle pattern edge cases', async () => {
             await fs.writeFile(
-                path.join(tempDir, '.posthogignore'),
+                path.join(tempDir, '.gitignore'),
                 ['*.secret', 'private/', '*.tmp', 'data-*.json', 'temp/*'].join('\n')
             )
 
@@ -96,69 +84,83 @@ describe('PostHogIgnoreController', () => {
             await controller.initialize()
 
             const results = [
-                controller.validateAccess('data-123.json'), // Should be false (wildcard)
-                controller.validateAccess('data.json'), // Should be true (doesn't match pattern)
-                controller.validateAccess('script.tmp'), // Should be false (extension match)
+                controller.validateAccess('data-123.json'),
+                controller.validateAccess('data.json'),
+                controller.validateAccess('script.tmp'),
             ]
 
-            results[0].should.be.false() // data-123.json
-            results[1].should.be.true() // data.json
-            results[2].should.be.false() // script.tmp
+            results[0].should.be.false()
+            results[1].should.be.true()
+            results[2].should.be.false()
         })
 
-        // ToDo: handle negation patterns successfully
-
-        // it("should handle negation patterns", async () => {
-        // 	await fs.writeFile(
-        // 		path.join(tempDir, ".posthogignore"),
-        // 		[
-        // 			"temp/*", // Ignore everything in temp
-        // 			"!temp/allowed/*", // But allow files in temp/allowed
-        // 			"docs/**/*.md", // Ignore all markdown files in docs
-        // 			"!docs/README.md", // Except README.md
-        // 			"!docs/CONTRIBUTING.md", // And CONTRIBUTING.md
-        // 			"assets/", // Ignore all assets
-        // 			"!assets/public/", // Except public assets
-        // 			"!assets/public/*.png", // Specifically allow PNGs in public assets
-        // 		].join("\n"),
-        // 	)
-
-        // 	controller = new PostHogIgnoreController(tempDir)
-
-        // 	const results = [
-        // 		// Basic negation
-        // 		controller.validateAccess("temp/file.txt"), // Should be false (in temp/)
-        // 		controller.validateAccess("temp/allowed/file.txt"), // Should be true (negated)
-        // 		controller.validateAccess("temp/allowed/nested/file.txt"), // Should be true (negated with nested)
-
-        // 		// Multiple negations in same path
-        // 		controller.validateAccess("docs/guide.md"), // Should be false (matches docs/**/*.md)
-        // 		controller.validateAccess("docs/README.md"), // Should be true (negated)
-        // 		controller.validateAccess("docs/CONTRIBUTING.md"), // Should be true (negated)
-        // 		controller.validateAccess("docs/api/guide.md"), // Should be false (nested markdown)
-
-        // 		// Nested negations
-        // 		controller.validateAccess("assets/logo.png"), // Should be false (in assets/)
-        // 		controller.validateAccess("assets/public/logo.png"), // Should be true (negated and matches *.png)
-        // 		controller.validateAccess("assets/public/data.json"), // Should be true (in negated public/)
-        // 	]
-
-        // 	results[0].should.be.false() // temp/file.txt
-        // 	results[1].should.be.true() // temp/allowed/file.txt
-        // 	results[2].should.be.true() // temp/allowed/nested/file.txt
-        // 	results[3].should.be.false() // docs/guide.md
-        // 	results[4].should.be.true() // docs/README.md
-        // 	results[5].should.be.true() // docs/CONTRIBUTING.md
-        // 	results[6].should.be.false() // docs/api/guide.md
-        // 	results[7].should.be.false() // assets/logo.png
-        // 	results[8].should.be.true() // assets/public/logo.png
-        // 	results[9].should.be.true() // assets/public/data.json
-        // })
-
-        it('should handle comments in .posthogignore', async () => {
-            // Create a new .posthogignore with comments
+        it('should handle nested directory patterns', async () => {
             await fs.writeFile(
-                path.join(tempDir, '.posthogignore'),
+                path.join(tempDir, '.gitignore'),
+                ['src/**/test/', 'dist/**/*.map', '**/node_modules/**'].join('\n')
+            )
+
+            controller = new PostHogIgnoreController(tempDir)
+            await controller.initialize()
+
+            const testPaths = [
+                'src/components/test/Component.tsx',
+                'src/components/Component.tsx',
+                'dist/main.js.map',
+                'dist/main.js',
+                'node_modules/react/index.js',
+                'src/node_modules/local/index.js',
+            ]
+
+            const results = testPaths.map((testPath) => {
+                const result = controller.validateAccess(testPath)
+                const absolutePath = path.resolve(tempDir, testPath)
+                const relativePath = path.relative(tempDir, absolutePath).toPosix()
+                console.log(
+                    `Testing path: ${testPath}, absolute: ${absolutePath}, relative: ${relativePath}, result: ${result}`
+                )
+                return result
+            })
+
+            results[0].should.be.false() // src/components/test/Component.tsx
+            results[1].should.be.true() // src/components/Component.tsx
+            results[2].should.be.false() // dist/main.js.map
+            results[3].should.be.true() // dist/main.js
+            results[4].should.be.false() // node_modules/react/index.js
+            results[5].should.be.false() // src/node_modules/local/index.js
+        })
+
+        it('should handle complex pattern combinations', async () => {
+            await fs.writeFile(
+                path.join(tempDir, '.gitignore'),
+                ['*.log', 'logs/', '*.tmp', 'temp/', '**/build/', 'coverage/', '*.min.js', '*.min.css'].join('\n')
+            )
+
+            controller = new PostHogIgnoreController(tempDir)
+            await controller.initialize()
+
+            const results = [
+                controller.validateAccess('app.log'), // Should be false (matches *.log)
+                controller.validateAccess('logs/error.log'), // Should be false (matches logs/)
+                controller.validateAccess('temp/data.tmp'), // Should be false (matches both *.tmp and temp/)
+                controller.validateAccess('src/build/index.js'), // Should be false (matches **/build/)
+                controller.validateAccess('coverage/lcov.info'), // Should be false (matches coverage/)
+                controller.validateAccess('dist/app.min.js'), // Should be false (matches *.min.js)
+                controller.validateAccess('dist/styles.min.css'), // Should be false (matches *.min.css)
+                controller.validateAccess('src/index.js'), // Should be true
+                controller.validateAccess('styles.css'), // Should be true
+            ]
+
+            results.forEach((result, i) => {
+                const expected = i < 7 ? false : true
+                result.should.equal(expected, `Test case ${i} failed`)
+            })
+        })
+
+        it('should handle comments in .gitignore', async () => {
+            // Create a new .gitignore with comments
+            await fs.writeFile(
+                path.join(tempDir, '.gitignore'),
                 ['# Comment line', '*.secret', 'private/', 'temp.*'].join('\n')
             )
 
@@ -224,8 +226,8 @@ describe('PostHogIgnoreController', () => {
             result.should.be.true()
         })
 
-        it('should handle missing .posthogignore gracefully', async () => {
-            // Create a new controller in a directory without .posthogignore
+        it('should handle missing .gitignore gracefully', async () => {
+            // Create a new controller in a directory without .gitignore
             const emptyDir = path.join(os.tmpdir(), `llm-test-empty-${Date.now()}`)
             await fs.mkdir(emptyDir)
 
@@ -239,8 +241,8 @@ describe('PostHogIgnoreController', () => {
             }
         })
 
-        it('should handle empty .posthogignore', async () => {
-            await fs.writeFile(path.join(tempDir, '.posthogignore'), '')
+        it('should handle empty .gitignore', async () => {
+            await fs.writeFile(path.join(tempDir, '.gitignore'), '')
 
             controller = new PostHogIgnoreController(tempDir)
             await controller.initialize()

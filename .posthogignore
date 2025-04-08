@@ -9,3 +9,5 @@ tmp
 .DS_Store
 
 pnpm-lock.yaml
+
+.posthogignore
