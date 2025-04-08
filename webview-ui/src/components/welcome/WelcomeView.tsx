@@ -16,10 +16,7 @@ const WelcomeView = () => {
     const disableLetsGoButton = apiErrorMessage != null
 
     const handleSubmit = () => {
-        setApiConfiguration({
-            ...apiConfiguration,
-            apiKey: 'test',
-        })
+        vscode.postMessage({ type: 'apiConfiguration', apiConfiguration })
     }
 
     useEffect(() => {
