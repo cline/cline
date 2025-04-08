@@ -29,10 +29,14 @@ const ServersToggleModal: React.FC = () => {
 
 			setArrowPosition(rightPosition)
 			setMenuPosition(buttonRect.top + 1)
-
-			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
 		}
 	}, [isVisible, viewportWidth, viewportHeight])
+
+	useEffect(() => {
+		if (isVisible) {
+			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
+		}
+	}, [isVisible])
 
 	return (
 		<div ref={modalRef}>
