@@ -113,8 +113,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			// Check if this will result in any enabled actions
 			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
 
-			console.log(newActions)
-
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {

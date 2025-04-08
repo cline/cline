@@ -2368,9 +2368,6 @@ export class Task {
 
 								let didAutoApprove = false
 
-								console.log("Tuples from approval settings: ", this.shouldAutoApproveTool(block.name))
-								console.log("Requires approval per LLM: ", requiresApprovalPerLLM)
-
 								if (
 									(!requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)[0]) ||
 									(requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)[1])
