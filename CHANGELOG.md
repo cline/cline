@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.10.0
+## [3.10.0]
 
 -   867a697: context management for file reads
 -   73c64d9: Add modal for toggling MCP servers to the chat area
