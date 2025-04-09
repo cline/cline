@@ -36,15 +36,12 @@ PostHog is an open-source product analytics platform that helps teams understand
 
 Before implementing any PostHog features, you should always check if PostHog is already installed in the project or not.
 
-If PostHog is not already installed, you can use the search_docs tool to search the PostHog documentation for the installation instructions for the current project.
-
-If the project is a Next.js or React project, you can use the following command to install PostHog:
-
-\`\`\`
-npx @posthog/wizard@latest --default
-\`\`\`
-
-When you have installed PostHog, you should run the project if possible and if it is a web application test it using the browser_action tool to ensure it is working correctly and make any necessary adjustments if not.
+Rules:
+- If there are multiple apps in the repository, you should ask the user which app they want to install PostHog in before going ahead with the installation, each option should be in the format of \`app_name (e.g. \`frontend\`, \`backend\`, \`api\`, etc.\`) [framework_name (e.g. \`Next.js\`, \`Express\`, \`Django\`, etc.)]\`.
+- If there is only one app in the repository, you should install PostHog in that app.
+- If the project is a Next.js or React project, you should use the following command to install PostHog: \`npx @posthog/wizard@latest --default\`, otherwise you should use the search_docs tool to search the PostHog documentation for the installation instructions for the current project.
+- You should only install PostHog in one application at a time, so if you need to install it in multiple applications, you should do so in a separate task.
+- If the application is a web application, you must test the installation using the browser_action tool to ensure it is working correctly and make any necessary adjustments to fix the installation if not. You should not consider the installation complete until this is done.
 
 ## Adding tracking to new features
 

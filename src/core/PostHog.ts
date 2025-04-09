@@ -1354,6 +1354,8 @@ export class PostHog {
 
         let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
 
+        console.log('systemPrompt', systemPrompt)
+
         let settingsCustomInstructions = this.customInstructions?.trim()
         const preferredLanguage = getLanguageKey(
             vscode.workspace.getConfiguration('posthog').get<LanguageDisplay>('preferredLanguage')
