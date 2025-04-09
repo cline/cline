@@ -406,9 +406,6 @@ export function activate(context: vscode.ExtensionContext) {
 // since vscode doesn't support hot reload for extensions
 const { IS_DEV, DEV_WORKSPACE_FOLDER, IS_TEST } = process.env
 
-// Reference to the test server
-let testServer: ReturnType<typeof createTestServer> | undefined
-
 // This method is called when your extension is deactivated
 export function deactivate() {
 	// Shutdown the test server if it exists
@@ -432,6 +429,5 @@ if (IS_DEV && IS_DEV !== "false") {
 
 // Set up test server if in test mode
 if (IS_TEST && IS_TEST === "true") {
-	// Create and start the test server
-	testServer = createTestServer()
+	createTestServer()
 }

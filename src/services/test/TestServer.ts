@@ -63,6 +63,13 @@ export function createTestServer(): http.Server {
 					// Clear any existing task
 					await visibleWebview.controller.clearTask()
 
+					// Ensure we're in Act mode before initiating the task
+					const { chatSettings } = await visibleWebview.controller.getStateToPostToWebview()
+					if (chatSettings.mode === "plan") {
+						// Switch to Act mode if currently in Plan mode
+						await visibleWebview.controller.togglePlanActModeWithChatSettings({ mode: "act" })
+					}
+
 					// Initiate the new task
 					const taskId = await visibleWebview.controller.initClineWithTask(task)
 
