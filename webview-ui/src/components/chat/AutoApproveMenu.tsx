@@ -26,47 +26,52 @@ const ACTION_METADATA: {
 	description: string
 }[] = [
 	{
-		id: "readFiles",
-		label: "Read files and directories",
-		shortName: "Read",
-		description: "Allows access to read any file on your computer.",
+		id: "readFilesLocally",
+		label: "Read local files and directories",
+		shortName: "Read Local",
+		description: "Allows Cline to read files within your workspace.",
+	},
+	{
+		id: "readFilesExternally",
+		label: "Read files and directories anywhere",
+		shortName: "Read External",
+		description: "Allows Cline to read any file on your computer.",
 	},
 	{
 		id: "editFilesLocally",
 		label: "Edit files",
 		shortName: "Edit",
-		description: "Allows modification of files within your workspace.",
+		description: "Allows Cline to modify files within your workspace.",
 	},
 	{
 		id: "editFilesExternally",
 		label: "Edit external files",
 		shortName: "Edit (External)",
-		description: "Allows modification of any files on your computer.",
+		description: "Allows Cline to modify any file on your computer.",
 	},
 	{
 		id: "executeSafeCommands",
 		label: "Execute safe commands",
 		shortName: "Safe Commands",
-		description:
-			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
+		description: "Allows execution of safe terminal commands.",
 	},
 	{
 		id: "executeAllCommands",
 		label: "Execute all commands",
 		shortName: "All Commands",
-		description: "Allows execution of all terminal commands. Use at your own risk.",
+		description: "Allows execution of all terminal commands.",
 	},
 	{
 		id: "useBrowser",
 		label: "Use the browser",
 		shortName: "Browser",
-		description: "Allows ability to launch and interact with any website in a headless browser.",
+		description: "Allows Cline to launch and interact with websites in a browser.",
 	},
 	{
 		id: "useMcp",
 		label: "Use MCP servers",
 		shortName: "MCP",
-		description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
+		description: "Allows Cline to use configured MCP servers which may modify filesystem or interact with APIs.",
 	},
 ]
 
@@ -78,30 +83,35 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
 	const enabledActionsList = (() => {
-		// When nested auto-approve options are used, display the more permissive one (command execution and file editing)
-		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
-		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands")
+		// When nested auto-approve options are used, display the more permissive one (file reads, edits, and commands)
+		const readFilesEnabled = enabledActions.some((action) => action.id === "readFilesLocally")
+		const readFilesExternallyEnabled = enabledActions.some((action) => action.id === "readFilesExternally")
+
 		const editFilesEnabled = enabledActions.some((action) => action.id === "editFilesLocally")
 		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally")
 
+		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
+		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands")
 		// Filter out the potentially nested options so we don't display them twice
 		const otherActions = enabledActions
 			.filter(
 				(action) =>
-					action.id !== "executeSafeCommands" &&
-					action.id !== "executeAllCommands" &&
+					action.id !== "readFilesLocally" &&
+					action.id !== "readFilesExternally" &&
 					action.id !== "editFilesLocally" &&
-					action.id !== "editFilesExternally",
+					action.id !== "editFilesExternally" &&
+					action.id !== "executeSafeCommands" &&
+					action.id !== "executeAllCommands",
 			)
 			.map((action) => action.shortName)
 
 		const labels = []
 
-		// Handle command execution labels
-		if (allCommandsEnabled) {
-			labels.push("All Commands")
-		} else if (safeCommandsEnabled) {
-			labels.push("Safe Commands")
+		// Handle read editing labels
+		if (readFilesExternallyEnabled) {
+			labels.push("Read (External)")
+		} else if (readFilesEnabled) {
+			labels.push("Read")
 		}
 
 		// Handle file editing labels
@@ -109,6 +119,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			labels.push("Edit (External)")
 		} else if (editFilesEnabled) {
 			labels.push("Edit")
+		}
+
+		// Handle command execution labels
+		if (allCommandsEnabled) {
+			labels.push("All Commands")
+		} else if (safeCommandsEnabled) {
+			labels.push("Safe Commands")
 		}
 
 		// Add remaining actions
@@ -277,9 +294,20 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						caution and only enable if you understand the risks.
 					</div>
 					{ACTION_METADATA.map((action) => {
-						// Handle both executeAllCommands and editFilesExternally as animated sub-options
-						if (action.id === "executeAllCommands" || action.id === "editFilesExternally") {
-							const parentAction = action.id === "executeAllCommands" ? "executeSafeCommands" : "editFilesLocally"
+						// Handle readFilesExternally, editFilesExternally, and executeAllCommands as animated sub-options
+						if (
+							action.id === "executeAllCommands" ||
+							action.id === "editFilesExternally" ||
+							action.id === "readFilesExternally"
+						) {
+							//const parentAction = action.id === "executeAllCommands" ? "executeSafeCommands" : "editFilesLocally"
+
+							const parentAction =
+								action.id === "executeAllCommands"
+									? "executeSafeCommands"
+									: action.id === "readFilesExternally"
+										? "readFilesLocally"
+										: "editFilesLocally"
 							return (
 								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction]}>
 									<div
@@ -311,7 +339,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							<div
 								key={action.id}
 								style={{
-									margin: "6px 0",
+									margin: "3px 0",
 								}}>
 								<VSCodeCheckbox
 									checked={autoApprovalSettings.actions[action.id]}
