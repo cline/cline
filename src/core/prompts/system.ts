@@ -36,11 +36,12 @@ Rules:
 1. If there are multiple apps in the repository, you should ask the user which app they want to install PostHog in before going ahead with the installation, each option should be in the format of \`app_name (e.g. \`frontend\`, \`backend\`, \`api\`, etc.\`) [framework_name (e.g. \`Next.js\`, \`Express\`, \`Django\`, etc.)]\`.
 2. If there is only one app in the repository, you should install PostHog in that app.
 3. If the project is a Next.js or React project, you should use the following command to install PostHog: \`npx @posthog/wizard@latest --default\`, otherwise you should use the search_docs tool to search the PostHog documentation for the installation instructions for the current project.
-4. When using the \`npx @posthog/wizard@latest --default\` command, you should use the \`proceed_immediately\` parameter set to \`false\` to ensure the command runs to completion before continuing with the task. This is so you can test the completed installation.
+4. When using the \`npx @posthog/wizard@latest --default\` command, you should use the \`proceed_while_running\` parameter set to \`block\` to ensure the command runs to completion before continuing with the task. This is so you can test the completed installation. You should also set the \`requires_approval\` parameter to \`false\` to avoid asking the user to approve the command. If the user cancels the command, ask them if they want to try again with the installation wizard or try installing manually. If they choose manually, you should use the search_docs tool to search the PostHog documentation for the installation instructions for the current project.
 5. You should only install PostHog in one application at a time, so if you need to install it in multiple applications, you should do so in a separate task.
 6. If the application is a web application, you MUST test the installation using the browser_action tool to ensure it is working correctly and make any necessary adjustments to fix the installation if not. An installation is complete if you can:
-    a. Run the application successfully using the browser_action tool
-    b. Verify that the PostHog installation makes network requests that have successful status codes.
+    a. Run the development server using the \`execute_command\` tool with \`proceed_while_running\` parameter to \`proceed\` to allow you to continue while the server is running and \`requires_approval\` parameter as \`false\`.
+    b. Test the installation by visiting the application in the browser using the \`browser_action\` tool.
+    c. Use the console to check if the installation is working correctly. Verify that the PostHog installation makes network requests to PostHog that you would expect and that have successful status codes. Examples of expected requests include /decide/ for feature flags (occurs on page load) and /e/ for event capture (occurs when a user takes an action), but there may be others.
 
     If an installation is not complete, you should attempt to make the necessary changes to fix the installation. If you cannot fix the installation, you should ask the user to try to fix the installation themselves and give them any context they need to do so.
 
@@ -88,12 +89,12 @@ Description: Request to execute a CLI command on the system. Use this when you n
 Parameters:
 - command: (required) The CLI command to execute. This should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions.
 - requires_approval: (required) A boolean indicating whether this command requires explicit user approval before execution in case the user has auto-approve mode enabled. Set to 'true' for potentially impactful operations like installing/uninstalling packages, deleting/overwriting files, system configuration changes, network operations, or any commands that could have unintended side effects. Set to 'false' for safe operations like reading files/directories, running development servers, building projects, and other non-destructive operations.
-- proceed_immediately: (required) A boolean indicating whether to continue the task without waiting for the command to complete. Useful for long running commands like running the development server that should not block the task from continuing.
+- proceed_while_running: (required) One of 'proceed', 'ask', or 'block'. If 'proceed', the task will continue without waiting for the command to complete. If 'ask', the user will be asked if they would like to proceed while the command is running. If 'block', the task will wait for the command to complete before continuing and will not allow any other tools to be used until the command has completed.
 Usage:
 <execute_command>
 <command>Your command here</command>
 <requires_approval>true or false</requires_approval>
-<proceed_immediately>true or false</proceed_immediately>
+<proceed_while_running>proceed or ask or block</proceed_while_running>
 </execute_command>
 
 ## read_file
@@ -335,7 +336,7 @@ Tracking conventions discovered in the codebase.
 <execute_command>
 <command>npm run dev</command>
 <requires_approval>false</requires_approval>
-<proceed_immediately>true</proceed_immediately>
+<proceed_while_running>proceed</proceed_while_running>
 </execute_command>
 
 ## Example 2: Requesting to create a new file

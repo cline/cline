@@ -73,6 +73,8 @@ import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnor
 import { PostHogProvider } from './webview/PostHogProvider'
 import { InkeepHandler } from '../api/providers/inkeep'
 import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-capture-calls'
+import { validateSchemaWithDefault } from '../shared/validation'
+import { z } from 'zod'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1192,7 +1194,10 @@ export class PostHog {
 
     // Tools
 
-    async executeCommandTool(command: string, proceedImmediately: boolean = false): Promise<[boolean, ToolResponse]> {
+    async executeCommandTool(
+        command: string,
+        proceedWhileRunning: 'proceed' | 'ask' | 'block' = 'ask'
+    ): Promise<[boolean, ToolResponse]> {
         const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
         terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
         const process = this.terminalManager.runCommand(terminalInfo, command)
@@ -1201,12 +1206,18 @@ export class PostHog {
         let didContinue = false
         const sendCommandOutput = async (line: string): Promise<void> => {
             try {
-                if (proceedImmediately) {
+                if (proceedWhileRunning === 'proceed') {
                     this.say('command_output', line)
                     didContinue = true
                     process.continue()
                     return
                 }
+
+                if (proceedWhileRunning === 'block') {
+                    this.say('command_output', line)
+                    return
+                }
+
                 const { response, text, images } = await this.ask('command_output', line)
                 if (response === 'yesButtonClicked') {
                     // proceed while running
@@ -2571,10 +2582,17 @@ export class PostHog {
                     }
                     case 'execute_command': {
                         const command: string | undefined = block.params.command
-                        const requiresApprovalRaw: string | undefined = block.params.requires_approval
-                        const proceedImmediatelyRaw: string | undefined = block.params.proceed_immediately
-                        const requiresApproval = requiresApprovalRaw?.toLowerCase() === 'true'
-                        const proceedImmediately = proceedImmediatelyRaw?.toLowerCase() === 'true'
+                        const requiresApprovalString = validateSchemaWithDefault(
+                            z.enum(['true', 'false']),
+                            block.params.requires_approval,
+                            'false'
+                        )
+                        const requiresApproval = requiresApprovalString === 'true'
+                        const proceedWhileRunning = validateSchemaWithDefault(
+                            z.enum(['proceed', 'ask', 'block']),
+                            block.params.proceed_while_running,
+                            'ask'
+                        )
 
                         try {
                             if (block.partial) {
@@ -2603,7 +2621,8 @@ export class PostHog {
 
                                 break
                             }
-                            if (!requiresApprovalRaw) {
+
+                            if (!block.params.requires_approval) {
                                 this.consecutiveMistakeCount++
                                 pushToolResult(
                                     await this.sayAndCreateMissingParamError('execute_command', 'requires_approval')
@@ -2611,9 +2630,11 @@ export class PostHog {
 
                                 break
                             }
+
                             this.consecutiveMistakeCount = 0
 
                             const ignoredFileAttemptedToAccess = this.posthogIgnoreController.validateCommand(command)
+
                             if (ignoredFileAttemptedToAccess) {
                                 await this.say('posthogignore_error', ignoredFileAttemptedToAccess)
                                 pushToolResult(
@@ -2659,7 +2680,7 @@ export class PostHog {
                                 }, 30_000)
                             }
 
-                            const [userRejected, result] = await this.executeCommandTool(command, proceedImmediately)
+                            const [userRejected, result] = await this.executeCommandTool(command, proceedWhileRunning)
                             if (timeoutId) {
                                 clearTimeout(timeoutId)
                             }
@@ -2677,6 +2698,7 @@ export class PostHog {
                             break
                         } catch (error) {
                             await handleError('executing command', error)
+                            break
                         }
                     }
                     case 'add_capture_calls': {

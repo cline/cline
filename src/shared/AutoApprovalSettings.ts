@@ -16,7 +16,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
     actions: {
         readFiles: true,
         editFiles: false,
-        executeCommands: false,
+        executeCommands: true, // The agent will still ask for approval if it thinks it needs to - defaulting to this improves the experience greatly
         useBrowser: true,
         useMcp: false,
     },
