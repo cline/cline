@@ -1,5 +1,5 @@
+import { streamLines } from '../../../api/utils/stream'
 import { AutocompleteHelperVars } from '../../util/AutocompleteHelperVars'
-import { streamLines } from '../../util/stream'
 
 import { stopAtStartOf, stopAtStopTokens } from './charStream'
 import {

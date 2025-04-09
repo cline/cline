@@ -20,8 +20,6 @@ class PostHogTelemetryClient {
             COMPLETED: 'task.completed',
             // Tracks when a message is sent in a conversation
             CONVERSATION_TURN: 'task.conversation_turn',
-            // Tracks token consumption for cost and usage analysis
-            TOKEN_USAGE: 'task.tokens',
             // Tracks switches between plan and act modes
             MODE_SWITCH: 'task.mode',
             // Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
@@ -208,26 +206,6 @@ class PostHogTelemetryClient {
         this.capture({
             event: PostHogTelemetryClient.EVENTS.TASK.CONVERSATION_TURN,
             properties,
-        })
-    }
-
-    /**
-     * TODO
-     * Records token usage metrics for cost tracking and usage analysis
-     * @param taskId Unique identifier for the task
-     * @param tokensIn Number of input tokens consumed
-     * @param tokensOut Number of output tokens generated
-     * @param model The model used for token calculation
-     */
-    public captureTokenUsage(taskId: string, tokensIn: number, tokensOut: number, model: string) {
-        this.capture({
-            event: PostHogTelemetryClient.EVENTS.TASK.TOKEN_USAGE,
-            properties: {
-                taskId,
-                tokensIn,
-                tokensOut,
-                model,
-            },
         })
     }
 

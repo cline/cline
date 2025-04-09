@@ -13,10 +13,10 @@ import { PostHogMessage } from './ExtensionMessage'
  * @example
  * const messages = [
  *   { type: "say", say: "api_req_started", text: '{"request":"GET /api/data"}', ts: 1000 },
- *   { type: "say", say: "api_req_finished", text: '{"cost":0.005}', ts: 1001 }
+ *   { type: "say", say: "api_req_finished", ts: 1001 }
  * ];
  * const result = combineApiRequests(messages);
- * // Result: [{ type: "say", say: "api_req_started", text: '{"request":"GET /api/data","cost":0.005}', ts: 1000 }]
+ * // Result: [{ type: "say", say: "api_req_started", text: '{"request":"GET /api/data"}', ts: 1000 }]
  */
 export function combineApiRequests(messages: PostHogMessage[]): PostHogMessage[] {
     const combinedApiRequests: PostHogMessage[] = []

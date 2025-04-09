@@ -20,7 +20,7 @@ import {
     spriteUrl,
     standardAccessories,
 } from './sprites/sprites'
-import { range, sampleOne, shouldIgnoreInput } from '../../../utils/utils'
+import { range, sampleOne, shouldIgnoreInput } from '../../utils/utils'
 
 export const X_FRAMES = SPRITE_SHEET_WIDTH / SPRITE_SIZE
 export const FPS = 24

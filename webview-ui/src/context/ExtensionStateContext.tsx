@@ -2,12 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useEvent } from 'react-use'
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from '../../../src/shared/AutoApprovalSettings'
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from '../../../src/shared/ExtensionMessage'
-import {
-    ApiConfiguration,
-    ModelInfo,
-    openRouterDefaultModelId,
-    openRouterDefaultModelInfo,
-} from '../../../src/shared/api'
+import { ApiConfiguration } from '../../../src/shared/api'
 import { findLastIndex } from '../../../src/shared/array'
 import { McpServer } from '../../../src/shared/mcp'
 import { convertTextMateToHljs } from '../utils/textMateToHljs'
@@ -20,8 +15,6 @@ interface ExtensionStateContextType extends ExtensionState {
     didHydrateState: boolean
     showWelcome: boolean
     theme: any
-    openRouterModels: Record<string, ModelInfo>
-    openAiModels: string[]
     mcpServers: McpServer[]
     filePaths: string[]
     totalTasksSize: number | null
@@ -54,12 +47,8 @@ export const ExtensionStateContextProvider: React.FC<{
     const [showWelcome, setShowWelcome] = useState(false)
     const [theme, setTheme] = useState<any>(undefined)
     const [filePaths, setFilePaths] = useState<string[]>([])
-    const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
-        [openRouterDefaultModelId]: openRouterDefaultModelInfo,
-    })
     const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 
-    const [openAiModels, setOpenAiModels] = useState<string[]>([])
     const [mcpServers, setMcpServers] = useState<McpServer[]>([])
     const handleMessage = useCallback((event: MessageEvent) => {
         const message: ExtensionMessage = event.data
@@ -68,30 +57,7 @@ export const ExtensionStateContextProvider: React.FC<{
                 console.log('state', message.state)
                 setState(message.state!)
                 const config = message.state?.apiConfiguration
-                const hasKey = config
-                    ? [
-                          config.apiKey,
-                          config.openRouterApiKey,
-                          config.awsRegion,
-                          config.vertexProjectId,
-                          config.openAiApiKey,
-                          config.ollamaModelId,
-                          config.lmStudioModelId,
-                          config.liteLlmApiKey,
-                          config.geminiApiKey,
-                          config.openAiNativeApiKey,
-                          config.deepSeekApiKey,
-                          config.requestyApiKey,
-                          config.togetherApiKey,
-                          config.qwenApiKey,
-                          config.mistralApiKey,
-                          config.vsCodeLmModelSelector,
-                          config.asksageApiKey,
-                          config.xaiApiKey,
-                          config.sambanovaApiKey,
-                          config.codestralApiKey,
-                      ].some((key) => key !== undefined)
-                    : false
+                const hasKey = config ? config.posthogApiKey : false
                 setShowWelcome(!hasKey)
                 setDidHydrateState(true)
                 break
@@ -120,19 +86,6 @@ export const ExtensionStateContextProvider: React.FC<{
                 })
                 break
             }
-            case 'openRouterModels': {
-                const updatedModels = message.openRouterModels ?? {}
-                setOpenRouterModels({
-                    [openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
-                    ...updatedModels,
-                })
-                break
-            }
-            case 'openAiModels': {
-                const updatedModels = message.openAiModels ?? []
-                setOpenAiModels(updatedModels)
-                break
-            }
             case 'mcpServers': {
                 setMcpServers(message.mcpServers ?? [])
                 break
@@ -155,8 +108,6 @@ export const ExtensionStateContextProvider: React.FC<{
         didHydrateState,
         showWelcome,
         theme,
-        openRouterModels,
-        openAiModels,
         mcpServers,
         filePaths,
         totalTasksSize,

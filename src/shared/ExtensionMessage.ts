@@ -15,18 +15,12 @@ export interface ExtensionMessage {
         | 'action'
         | 'state'
         | 'selectedImages'
-        | 'ollamaModels'
-        | 'lmStudioModels'
         | 'theme'
         | 'workspaceUpdated'
         | 'invoke'
         | 'partialMessage'
-        | 'openRouterModels'
-        | 'openAiModels'
         | 'mcpServers'
         | 'relinquishControl'
-        | 'vsCodeLmModels'
-        | 'requestVsCodeLmModels'
         | 'authCallback'
         | 'commitSearchResults'
         | 'openGraphData'
@@ -44,13 +38,8 @@ export interface ExtensionMessage {
     invoke?: Invoke
     state?: ExtensionState
     images?: string[]
-    ollamaModels?: string[]
-    lmStudioModels?: string[]
-    vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
     filePaths?: string[]
     partialMessage?: PostHogMessage
-    openRouterModels?: Record<string, ModelInfo>
-    openAiModels?: string[]
     mcpServers?: McpServer[]
     customToken?: string
     error?: string
@@ -213,7 +202,7 @@ export interface PostHogApiReqInfo {
     tokensOut?: number
     cacheWrites?: number
     cacheReads?: number
-    cost?: number
+    success?: boolean
     cancelReason?: PostHogApiReqCancelReason
     streamingFailedMessage?: string
 }

@@ -25,6 +25,7 @@ import ChatTextArea from './ChatTextArea'
 import TaskHeader from './TaskHeader'
 import TelemetryBanner from '../common/TelemetryBanner'
 import Intro from './Intro'
+import PostHogConfigOptions from '../settings/PostHogConfigOptions'
 
 interface ChatViewProps {
     isHidden: boolean
@@ -34,7 +35,13 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
-    const { posthogMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
+    const {
+        posthogMessages: messages,
+        taskHistory,
+        apiConfiguration,
+        telemetrySetting,
+        showWelcome,
+    } = useExtensionState()
 
     //const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
     const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see PostHog.abort)
@@ -246,8 +253,8 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
         } else {
             const lastApiReqStarted = findLast(modifiedMessages, (message) => message.say === 'api_req_started')
             if (lastApiReqStarted && lastApiReqStarted.text != null && lastApiReqStarted.say === 'api_req_started') {
-                const cost = JSON.parse(lastApiReqStarted.text).cost
-                if (cost === undefined) {
+                const success = JSON.parse(lastApiReqStarted.text).success
+                if (success === undefined) {
                     // api request has not finished yet
                     return true
                 }
@@ -508,7 +515,7 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
             switch (message.say) {
                 case 'api_req_finished': // combineApiRequests removes this from modifiedMessages anyways
                 case 'api_req_retried': // this message is used to update the latest api_req_started that the request was retried
-                case 'deleted_api_reqs': // aggregated api_req metrics from deleted messages
+                case 'deleted_api_reqs':
                     return false
                 case 'text':
                     // Sometimes posthog returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
@@ -793,24 +800,33 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
                     {telemetrySetting === 'unset' && <TelemetryBanner />}
 
                     <Intro />
-                    {taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
-                    <ChatTextArea
-                        ref={textAreaRef}
-                        inputValue={inputValue}
-                        setInputValue={setInputValue}
-                        textAreaDisabled={textAreaDisabled}
-                        placeholderText={placeholderText}
-                        selectedImages={selectedImages}
-                        setSelectedImages={setSelectedImages}
-                        onSend={() => handleSendMessage(inputValue, selectedImages)}
-                        onSelectImages={selectImages}
-                        shouldDisableImages={shouldDisableImages}
-                        onHeightChange={() => {
-                            if (isAtBottom) {
-                                scrollToBottomAuto()
-                            }
-                        }}
-                    />
+                    {showWelcome && (
+                        <div style={{ marginTop: '18px', padding: '0 20px' }}>
+                            <PostHogConfigOptions />
+                        </div>
+                    )}
+                    {!showWelcome && (
+                        <>
+                            {taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+                            <ChatTextArea
+                                ref={textAreaRef}
+                                inputValue={inputValue}
+                                setInputValue={setInputValue}
+                                textAreaDisabled={textAreaDisabled}
+                                placeholderText={placeholderText}
+                                selectedImages={selectedImages}
+                                setSelectedImages={setSelectedImages}
+                                onSend={() => handleSendMessage(inputValue, selectedImages)}
+                                onSelectImages={selectImages}
+                                shouldDisableImages={shouldDisableImages}
+                                onHeightChange={() => {
+                                    if (isAtBottom) {
+                                        scrollToBottomAuto()
+                                    }
+                                }}
+                            />
+                        </>
+                    )}
                 </div>
             )}
 
