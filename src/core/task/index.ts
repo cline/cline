@@ -1957,12 +1957,34 @@ export class Task {
 								// Track file read operation
 								await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
-								pushToolResult(content)
+								// Format the result as XML
+								let xmlResult: string
+								if (content === "") {
+									// Empty file case
+									xmlResult = `<file><path>${relPath}</path><content/><notice>File is empty</notice></file>`
+								} else {
+									// Normal file with content
+									xmlResult = `<file><path>${relPath}</path><content>\n${content}\n</content></file>`
+								}
+
+								pushToolResult(xmlResult)
 
 								break
 							}
 						} catch (error) {
-							await handleError("reading file", error)
+							const errorMessage = error instanceof Error ? error.message : JSON.stringify(serializeError(error))
+							// Show error in UI (similar to what handleError would do)
+							await this.say(
+								"error",
+								`Error reading file:\n${errorMessage ?? JSON.stringify(serializeError(error), null, 2)}`,
+							)
+
+							// Ensure relPath is defined for the XML, even in error cases
+							const safeRelPath = relPath || "unknown_path"
+							// Format error as XML without content tag
+							const errorXml = `<file><path>${safeRelPath}</path><error>${errorMessage}</error></file>`
+
+							pushToolResult(errorXml)
 
 							break
 						}
