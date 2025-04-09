@@ -30,6 +30,7 @@ import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
 import SuccessButton from "@/components/common/SuccessButton"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
+import NewTaskPreview from "./NewTaskPreview"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 
 const ChatRowContainer = styled.div`
@@ -1246,6 +1247,21 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									isActive={isLast && lastModifiedMessage?.ask === "followup"}
 								/>
 							</div>
+						</>
+					)
+				case "new_task":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-new-file"
+									style={{
+										color: normalColor,
+										marginBottom: "-1.5px",
+									}}></span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to start a new task:</span>
+							</div>
+							<NewTaskPreview context={message.text || ""} />
 						</>
 					)
 				case "plan_mode_respond": {
