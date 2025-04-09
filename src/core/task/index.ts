@@ -66,6 +66,8 @@ import { parseMentions } from ".././mentions"
 import { formatResponse } from ".././prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
 import { FileContextTracker } from "../context-tracking/FileContextTracker"
+import { ModelContextTracker } from "../context-tracking/ModelContextTracker"
+
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
@@ -78,6 +80,7 @@ import {
 	saveApiConversationHistory,
 	saveClineMessages,
 	GlobalFileNames,
+	getTaskMetadata,
 } from "../storage/disk"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -119,8 +122,9 @@ export class Task {
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
-	// File tracking
+	// Metadata tracking
 	private fileContextTracker: FileContextTracker
+	private modelContextTracker: ModelContextTracker
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -175,7 +179,7 @@ export class Task {
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
-
+		this.modelContextTracker = new ModelContextTracker(controller, this.taskId)
 		// Now that taskId is initialized, we can build the API handler
 		this.api = buildApiHandler({
 			...apiConfiguration,
@@ -3070,6 +3074,10 @@ export class Task {
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
+		}
+
+		if (this.apiProvider && this.api.getModel().id) {
+			await this.modelContextTracker.recordModelUsage(this.apiProvider, this.api.getModel().id, this.chatSettings.mode)
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
