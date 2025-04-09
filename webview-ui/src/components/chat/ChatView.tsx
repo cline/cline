@@ -195,6 +195,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							setDidClickCancel(false)
 							break
+						case "new_task":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("new_task")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Start New Task with Context")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -224,7 +231,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "mcp_server_response":
 						case "completion_result":
 						case "tool":
-						case "load_mcp_documentation":
 							break
 					}
 					break
@@ -296,6 +302,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_task":
 						case "resume_completed_task":
 						case "mistake_limit_reached":
+						case "new_task": // user can provide feedback or reject the new task suggestion
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
@@ -361,6 +368,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					// extension waiting for feedback. but we can just present a new task button
 					startNewTask()
 					break
+				case "new_task":
+					console.info("new task button clicked!", { lastMessage, messages, clineAsk, text })
+					vscode.postMessage({
+						type: "newTask",
+						text: lastMessage?.text,
+					})
+					break
 			}
 			setTextAreaDisabled(true)
 			setClineAsk(undefined)
@@ -369,7 +383,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
-		[clineAsk, startNewTask],
+		[clineAsk, startNewTask, lastMessage],
 	)
 
 	const handleSecondaryButtonClick = useCallback(
@@ -457,12 +471,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "addToInput":
 					setInputValue((prevValue) => {
 						const newText = message.text ?? ""
-						return prevValue ? `${prevValue}\n${newText}` : newText
+						const newTextWithNewline = newText + "\n"
+						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
 					})
 					// Add scroll to bottom after state update
+					// Auto focus the input and start the cursor on a new linefor easy typing
 					setTimeout(() => {
 						if (textAreaRef.current) {
 							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
+							textAreaRef.current.focus()
 						}
 					}, 0)
 					break

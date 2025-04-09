@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.9.2",
+	"version": "3.10.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -118,6 +118,16 @@
 				"category": "Cline"
 			}
 		],
+		"keybindings": [
+			{
+				"command": "cline.addToChat",
+				"key": "cmd+'",
+				"mac": "cmd+'",
+				"win": "ctrl+'",
+				"linux": "ctrl+'",
+				"when": "editorHasSelection"
+			}
+		],
 		"menus": {
 			"view/title": [
 				{
@@ -214,6 +224,21 @@
 					},
 					"description": "Settings for VSCode Language Model API"
 				},
+				"cline.mcp.mode": {
+					"type": "string",
+					"enum": [
+						"full",
+						"server-use-only",
+						"off"
+					],
+					"enumDescriptions": [
+						"Enable all MCP functionality (server use and build instructions)",
+						"Enable MCP server use only (excludes instructions about building MCP servers)",
+						"Disable all MCP functionality"
+					],
+					"default": "full",
+					"description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
+				},
 				"cline.enableCheckpoints": {
 					"type": "boolean",
 					"default": true,
@@ -286,8 +311,9 @@
 		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
-		"test": "vscode-test",
+		"test": "npm-run-all test:unit test:integration",
 		"test:ci": "node scripts/test-ci.js",
+		"test:integration": "vscode-test",
 		"test:unit": "TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
 		"test:coverage": "vscode-test --coverage",
 		"install:all": "npm install && cd webview-ui && npm install",

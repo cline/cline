@@ -30,6 +30,7 @@ import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
 import SuccessButton from "@/components/common/SuccessButton"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
+import NewTaskPreview from "./NewTaskPreview"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 
 const ChatRowContainer = styled.div`
@@ -989,21 +990,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
 						</>
 					)
-				case "load_mcp_documentation":
-					return (
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								color: "var(--vscode-foreground)",
-								opacity: 0.7,
-								fontSize: 12,
-								padding: "4px 0",
-							}}>
-							<i className="codicon codicon-book" style={{ marginRight: 6 }} />
-							Loading MCP documentation
-						</div>
-					)
 				case "completion_result":
 					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 					const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
@@ -1246,6 +1232,21 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									isActive={isLast && lastModifiedMessage?.ask === "followup"}
 								/>
 							</div>
+						</>
+					)
+				case "new_task":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-new-file"
+									style={{
+										color: normalColor,
+										marginBottom: "-1.5px",
+									}}></span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to start a new task:</span>
+							</div>
+							<NewTaskPreview context={message.text || ""} />
 						</>
 					)
 				case "plan_mode_respond": {

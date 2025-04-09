@@ -13,6 +13,7 @@ import { ApiHandler, buildApiHandler } from "../../api"
 import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
+import { getContextWindowInfo } from "../context-management/context-window-utils"
 import { ApiStream } from "../../api/transform/stream"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
@@ -78,7 +79,6 @@ import {
 	saveClineMessages,
 	GlobalFileNames,
 } from "../storage/disk"
-import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -326,6 +326,12 @@ export class Task {
 						(message.conversationHistoryIndex || 0) + 2,
 					) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
 					await this.overwriteApiConversationHistory(newConversationHistory)
+
+					// update the context history state
+					await this.contextManager.truncateContextHistory(
+						message.ts,
+						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+					)
 
 					// aggregate deleted api reqs info so we don't lose costs/tokens
 					const deletedMessages = this.clineMessages.slice(messageIndex + 1)
@@ -858,6 +864,9 @@ export class Task {
 		// This is important in case the user deletes messages without resuming the task first
 		this.apiConversationHistory = await getSavedApiConversationHistory(this.getContext(), this.taskId)
 
+		// load the context history state
+		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.getContext(), this.taskId))
+
 		const lastClineMessage = this.clineMessages
 			.slice()
 			.reverse()
@@ -1260,12 +1269,13 @@ export class Task {
 				preferredLanguageInstructions,
 			)
 		}
-		const contextManagementMetadata = this.contextManager.getNewContextMessagesAndMetadata(
+		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
 			this.clineMessages,
 			this.api,
 			this.conversationHistoryDeletedRange,
 			previousApiReqIndex,
+			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
@@ -1461,10 +1471,10 @@ export class Task {
 							return `[${block.name} for '${block.params.question}']`
 						case "plan_mode_respond":
 							return `[${block.name}]`
-						case "load_mcp_documentation":
-							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
+						case "new_task":
+							return `[${block.name} for creating a new task]`
 					}
 				}
 
@@ -2733,6 +2743,51 @@ export class Task {
 							break
 						}
 					}
+					case "new_task": {
+						const context: string | undefined = block.params.context
+						try {
+							if (block.partial) {
+								await this.ask("new_task", removeClosingTag("context", context), block.partial).catch(() => {})
+								break
+							} else {
+								if (!context) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("new_task", "context"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle: "Cline wants to start a new task...",
+										message: `Cline is suggesting to start a new task with: ${context}`,
+									})
+								}
+
+								const { text, images } = await this.ask("new_task", context, false)
+
+								// If the user provided a response, treat it as feedback
+								if (text || images?.length) {
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										formatResponse.toolResult(
+											`The user provided feedback instead of creating a new task:\n<feedback>\n${text}\n</feedback>`,
+											images,
+										),
+									)
+								} else {
+									// If no response, the user clicked the "Create New Task" button
+									pushToolResult(
+										formatResponse.toolResult(`The user has created a new task with the provided context.`),
+									)
+								}
+								break
+							}
+						} catch (error) {
+							await handleError("creating new task", error)
+							break
+						}
+					}
 					case "plan_mode_respond": {
 						const response: string | undefined = block.params.response
 						const optionsRaw: string | undefined = block.params.options
@@ -2814,28 +2869,6 @@ export class Task {
 						} catch (error) {
 							await handleError("responding to inquiry", error)
 							//
-							break
-						}
-					}
-					case "load_mcp_documentation": {
-						try {
-							if (block.partial) {
-								// shouldn't happen
-								break
-							} else {
-								await this.say("load_mcp_documentation", "", undefined, false)
-
-								const mcpHub = this.controllerRef.deref()?.mcpHub
-								if (!mcpHub) {
-									throw new Error("MCP hub not available")
-								}
-
-								pushToolResult(await loadMcpDocumentation(mcpHub))
-
-								break
-							}
-						} catch (error) {
-							await handleError("loading MCP documentation", error)
 							break
 						}
 					}
@@ -3617,6 +3650,36 @@ export class Task {
 				details += result
 			}
 		}
+
+		// Add context window usage information
+		const { contextWindow, maxAllowedSize } = getContextWindowInfo(this.api)
+
+		// Get the token count from the most recent API request to accurately reflect context management
+		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
+			if (!msg.text) {
+				return 0
+			}
+			try {
+				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
+				return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+			} catch (e) {
+				return 0
+			}
+		}
+
+		const modifiedMessages = combineApiRequests(combineCommandSequences(this.clineMessages.slice(1)))
+		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
+			if (msg.say !== "api_req_started") {
+				return false
+			}
+			return getTotalTokensFromApiReqMessage(msg) > 0
+		})
+
+		const lastApiReqTotalTokens = lastApiReqMessage ? getTotalTokensFromApiReqMessage(lastApiReqMessage) : 0
+		const usagePercentage = Math.round((lastApiReqTotalTokens / contextWindow) * 100)
+
+		details += "\n# Context Window Usage"
+		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
 
 		details += "\n\n# Current Mode"
 		if (this.chatSettings.mode === "plan") {
