@@ -1488,8 +1488,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
 							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
 							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
-								<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-							)}
+							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+						)}
 
 						<ModelInfoView
 							selectedModelId={selectedModelId}
