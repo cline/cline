@@ -29,6 +29,17 @@ export class ModelContextTracker {
 			metadata.model_usage = []
 		}
 
+		// check to see if the last entry is the same as the new one
+		const lastEntry = metadata.model_usage[metadata.model_usage.length - 1]
+		if (
+			lastEntry &&
+			lastEntry.model_id === modelId &&
+			lastEntry.model_provider_id === apiProviderId &&
+			lastEntry.mode === mode
+		) {
+			return
+		}
+
 		metadata.model_usage.push({
 			ts: Date.now(),
 			model_id: modelId,
