@@ -70,16 +70,44 @@ export class AwsBedrockHandler implements ApiHandler {
 			max_tokens: model.info.maxTokens || 8192,
 			temperature: reasoningOn ? undefined : 0,
 			system: systemPrompt,
-			messages: messages.map((message) => {
+			messages: messages.map((message, index) => {
 				// Convert message content to the format expected by Bedrock
 				let formattedContent: any[] = []
 
 				if (typeof message.content === "string") {
-					formattedContent = [{ type: "text", text: message.content }]
+					// For string content, create a text content object
+					// Add cache_control for last and second-last user messages if prompt caching is enabled
+					if (
+						(index === lastUserMsgIndex || index === secondLastMsgUserIndex) &&
+						this.options.awsBedrockUsePromptCache === true
+					) {
+						formattedContent = [
+							{
+								type: "text",
+								text: message.content,
+								cache_control: { type: "ephemeral" },
+							},
+						]
+					} else {
+						formattedContent = [{ type: "text", text: message.content }]
+					}
 				} else {
+					// For array content, map each item
 					formattedContent = message.content
-						.map((item) => {
+						.map((item, contentIndex) => {
 							if (item.type === "text") {
+								// Add cache_control for last and second-last user messages if prompt caching is enabled
+								if (
+									(index === lastUserMsgIndex || index === secondLastMsgUserIndex) &&
+									contentIndex === message.content.length - 1 &&
+									this.options.awsBedrockUsePromptCache === true
+								) {
+									return {
+										type: "text",
+										text: item.text,
+										cache_control: { type: "ephemeral" },
+									}
+								}
 								return { type: "text", text: item.text }
 							} else if (item.type === "image") {
 								// Handle image content
@@ -134,7 +162,6 @@ export class AwsBedrockHandler implements ApiHandler {
 		const response = await client.send(command)
 
 		if (response.body) {
-			let isFirstChunk = true
 			let outputTokens = 0
 			let inputTokens = 0
 			let cacheReadTokens = 0
