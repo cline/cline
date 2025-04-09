@@ -10,8 +10,16 @@ export interface FileMetadataEntry {
 	user_edit_date?: number | null
 }
 
+export interface ModelMetadataEntry {
+	ts: number
+	model_id: string
+	model_provider_id: string
+	mode: string
+}
+
 export interface TaskMetadata {
 	files_in_context: FileMetadataEntry[]
+	model_usage: ModelMetadataEntry[]
 }
 
 // Interface for the controller to avoid direct dependency

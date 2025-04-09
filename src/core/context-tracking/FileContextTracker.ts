@@ -1,7 +1,7 @@
 import * as path from "path"
 import * as vscode from "vscode"
 import { getTaskMetadata, saveTaskMetadata } from "../storage/disk"
-import type { FileMetadataEntry, ControllerLike } from "./FileContextTrackerTypes"
+import type { FileMetadataEntry, ControllerLike } from "./ContextTrackerTypes"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
