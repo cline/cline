@@ -90,7 +90,7 @@ export class PremHandler implements ApiHandler {
 			model: this.modelId,
 			messages: [{ role: "system", content: systemPrompt }, ...formattedMessages],
 			stream: true,
-			temperature: 0.7,
+			temperature: this.options.temperature || 0.7,
 		}
 
 		const response = await this.fetchWithAuth("/v1/chat/completions", {
