@@ -9,6 +9,7 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
+import * as http from "http"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -397,12 +398,6 @@ export function activate(context: vscode.ExtensionContext) {
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {
-	telemetryService.shutdown()
-	Logger.log("Cline extension deactivated")
-}
-
 // TODO: Find a solution for automatically removing DEV related content from production builds.
 //  This type of code is fine in production to keep. We just will want to remove it from production builds
 //  to bring down built asset sizes.
@@ -411,6 +406,22 @@ export function deactivate() {
 // since vscode doesn't support hot reload for extensions
 const { IS_DEV, DEV_WORKSPACE_FOLDER, IS_TEST } = process.env
 
+// Create an HTTP server for test automation when in test mode
+let testServer: http.Server | undefined
+
+// This method is called when your extension is deactivated
+export function deactivate() {
+	// Shutdown the test server if it exists
+	if (testServer) {
+		testServer.close()
+		Logger.log("Test server shut down")
+	}
+
+	telemetryService.shutdown()
+	Logger.log("Cline extension deactivated")
+}
+
+// Set up development mode file watcher
 if (IS_DEV && IS_DEV !== "false") {
 	assert(DEV_WORKSPACE_FOLDER, "DEV_WORKSPACE_FOLDER must be set in development")
 	const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(DEV_WORKSPACE_FOLDER, "src/**/*"))
@@ -419,5 +430,89 @@ if (IS_DEV && IS_DEV !== "false") {
 		console.info(`${scheme} ${path} changed. Reloading VSCode...`)
 
 		vscode.commands.executeCommand("workbench.action.reloadWindow")
+	})
+}
+
+// Set up test server if in test mode
+if (IS_TEST && IS_TEST === "true") {
+	const PORT = 9876
+
+	testServer = http.createServer((req, res) => {
+		// Set CORS headers
+		res.setHeader("Access-Control-Allow-Origin", "*")
+		res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
+		res.setHeader("Access-Control-Allow-Headers", "Content-Type")
+
+		// Handle preflight requests
+		if (req.method === "OPTIONS") {
+			res.writeHead(204)
+			res.end()
+			return
+		}
+
+		// Only handle POST requests to /task
+		if (req.method !== "POST" || req.url !== "/task") {
+			res.writeHead(404)
+			res.end(JSON.stringify({ error: "Not found" }))
+			return
+		}
+
+		// Parse the request body
+		let body = ""
+		req.on("data", (chunk) => {
+			body += chunk.toString()
+		})
+
+		req.on("end", async () => {
+			try {
+				// Parse the JSON body
+				const { task } = JSON.parse(body)
+
+				if (!task) {
+					res.writeHead(400)
+					res.end(JSON.stringify({ error: "Missing task parameter" }))
+					return
+				}
+
+				// Get a visible webview instance
+				const visibleWebview = WebviewProvider.getVisibleInstance()
+				if (!visibleWebview || !visibleWebview.controller) {
+					res.writeHead(500)
+					res.end(JSON.stringify({ error: "No active Cline instance found" }))
+					return
+				}
+
+				// Initiate a new task
+				Logger.log(`Test server initiating task: ${task}`)
+
+				try {
+					// Clear any existing task
+					await visibleWebview.controller.clearTask()
+
+					// Initiate the new task
+					const taskId = await visibleWebview.controller.initClineWithTask(task)
+
+					// Return success response with the task ID
+					res.writeHead(200, { "Content-Type": "application/json" })
+					res.end(JSON.stringify({ success: true, taskId }))
+				} catch (error) {
+					Logger.log(`Error initiating task: ${error}`)
+					res.writeHead(500)
+					res.end(JSON.stringify({ error: `Failed to initiate task: ${error}` }))
+				}
+			} catch (error) {
+				res.writeHead(400)
+				res.end(JSON.stringify({ error: `Invalid JSON: ${error}` }))
+			}
+		})
+	})
+
+	testServer.listen(PORT, () => {
+		Logger.log(`Test server listening on port ${PORT}`)
+	})
+
+	// Handle server errors
+	testServer.on("error", (error) => {
+		Logger.log(`Test server error: ${error}`)
 	})
 }
