@@ -845,7 +845,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		newUserContent.push({
 			type: "text",
 			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${this.cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
+				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
 					wasRecent
 						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 						: ""
@@ -1059,7 +1059,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			const newWorkingDir = terminalInfo.getCurrentWorkingDirectory()
 
 			if (newWorkingDir !== workingDir) {
-				workingDirInfo += `; command changed working directory for this terminal to '${newWorkingDir.toPosix()} so be aware that future commands will be executed from this directory`
+				workingDirInfo += `\nNOTICE: Your command changed the working directory for this terminal to '${newWorkingDir.toPosix()}' so you MUST adjust future commands accordingly because they will be executed in this directory`
 			}
 
 			const outputInfo = `\nOutput:\n${result}`
@@ -2321,7 +2321,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		}
 
 		if (includeFileDetails) {
-			details += `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
+			details += `\n\n# Current Workspace Directory (${this.cwd.toPosix()}) Files\n`
 			const isDesktop = arePathsEqual(this.cwd, path.join(os.homedir(), "Desktop"))
 			if (isDesktop) {
 				// don't want to immediately access desktop since it would show permission popup

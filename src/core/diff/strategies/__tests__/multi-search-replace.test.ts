@@ -2269,10 +2269,10 @@ function two() {
 			strategy = new MultiSearchReplaceDiffStrategy()
 		})
 
-		it("should include the current working directory", async () => {
+		it("should include the current workspace directory", async () => {
 			const cwd = "/test/dir"
 			const description = await strategy.getToolDescription({ cwd })
-			expect(description).toContain(`relative to the current working directory ${cwd}`)
+			expect(description).toContain(`relative to the current workspace directory ${cwd}`)
 		})
 
 		it("should include required format elements", async () => {
