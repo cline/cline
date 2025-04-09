@@ -36,13 +36,36 @@ async function directoryExists(dirPath: string): Promise<boolean> {
  */
 async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ filename: string; content: string }>> {
 	try {
-		const files = await fs
-			.readdir(dirPath, { withFileTypes: true, recursive: true })
-			.then((files) => files.filter((file) => file.isFile()))
-			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
+		const entries = await fs.readdir(dirPath, { withFileTypes: true, recursive: true })
+
+		// Process all entries - regular files and symlinks that might point to files
+		const filePaths: string[] = []
+
+		for (const entry of entries) {
+			const fullPath = path.resolve(entry.parentPath || dirPath, entry.name)
+			if (entry.isFile()) {
+				// Regular file
+				filePaths.push(fullPath)
+			} else if (entry.isSymbolicLink()) {
+				try {
+					// Get the symlink target
+					const linkTarget = await fs.readlink(fullPath)
+					// Resolve the target path (relative to the symlink location)
+					const resolvedTarget = path.resolve(path.dirname(fullPath), linkTarget)
+
+					// Check if the target is a file
+					const stats = await fs.stat(resolvedTarget)
+					if (stats.isFile()) {
+						filePaths.push(resolvedTarget)
+					}
+				} catch (err) {
+					// Skip invalid symlinks
+				}
+			}
+		}
 
 		const fileContents = await Promise.all(
-			files.map(async (file) => {
+			filePaths.map(async (file) => {
 				try {
 					// Check if it's a file (not a directory)
 					const stats = await fs.stat(file)
