@@ -233,6 +233,20 @@ Your final result description here
 <command>Command to demonstrate result (optional)</command>
 </attempt_completion>
 
+## new_task
+Description: Request to create a new task with preloaded context. The user will be presented with a preview of the context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.
+Parameters:
+- context: (required) The context to preload the new task with. This should include:
+  * Comprehensively explain what has been accomplished in the current task - mention specific file names that are relevant
+  * The specific next steps or focus for the new task - mention specific file names that are relevant
+  * Any critical information needed to continue the work
+  * Clear indication of how this new task relates to the overall workflow
+  * This should be akin to a long handoff file, enough for a totally new developer to be able to pick up where you left off and know exactly what to do next and which files to look at.
+Usage:
+<new_task>
+<context>context to preload new task with</context>
+</new_task>
+
 ## plan_mode_respond
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
 Parameters:
@@ -284,7 +298,25 @@ Usage:
 </content>
 </write_to_file>
 
-## Example 3: Requesting to make targeted edits to a file
+## Example 3: Creating a new task
+
+<new_task>
+<context>
+Authentication System Implementation:
+- We've implemented the basic user model with email/password
+- Password hashing is working with bcrypt
+- Login endpoint is functional with proper validation
+- JWT token generation is implemented
+
+Next Steps:
+- Implement refresh token functionality
+- Add token validation middleware
+- Create password reset flow
+- Implement role-based access control
+</context>
+</new_task>
+
+## Example 4: Requesting to make targeted edits to a file
 
 <replace_in_file>
 <path>src/components/App.tsx</path>
@@ -319,7 +351,7 @@ return (
 </diff>
 </replace_in_file>
 
-## Example 4: Requesting to use an MCP tool
+## Example 5: Requesting to use an MCP tool
 
 <use_mcp_tool>
 <server_name>weather-server</server_name>
@@ -332,7 +364,7 @@ return (
 </arguments>
 </use_mcp_tool>
 
-## Example 5: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
+## Example 6: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
 
 <use_mcp_tool>
 <server_name>github.com/modelcontextprotocol/servers/tree/main/src/github</server_name>

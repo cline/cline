@@ -4,6 +4,12 @@ import * as path from "path"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
+	duplicateFileReadNotice: () =>
+		`[[NOTE] This file read has been removed to save space in the context window. Refer to the latest file read for the most up to date version of this file.]`,
+
+	contextTruncationNotice: () =>
+		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task and the most recent exchanges have been retained for continuity, while intermediate conversation history has been removed. Please keep this in mind as you continue assisting the user.`,
+
 	toolDenied: () => `The user denied this operation.`,
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
@@ -124,8 +130,8 @@ Otherwise, if you have not completed the task and do not need additional informa
 		cwd: string,
 		wasRecent: boolean | 0 | undefined,
 		responseText?: string,
-	) => {
-		return `[TASK RESUMPTION] ${
+	): [string, string] => {
+		const taskResumptionMessage = `[TASK RESUMPTION] ${
 			mode === "plan"
 				? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in PLAN MODE, so rather than continuing the task, you must respond to the user's message.`
 				: `This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.`
@@ -133,13 +139,17 @@ Otherwise, if you have not completed the task and do not need additional informa
 			wasRecent
 				? "\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 				: ""
-		}${
+		}`
+
+		const userResponseMessage = `${
 			responseText
-				? `\n\n${mode === "plan" ? "New message to respond to with plan_mode_respond tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
+				? `${mode === "plan" ? "New message to respond to with plan_mode_respond tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
 				: mode === "plan"
 					? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
 					: ""
 		}`
+
+		return [taskResumptionMessage, userResponseMessage]
 	},
 
 	planModeInstructions: () => {
@@ -199,6 +209,9 @@ Otherwise, if you have not completed the task and do not need additional informa
 
 	clineRulesFileInstructions: (cwd: string, content: string) =>
 		`# .clinerules\n\nThe following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
+
+	newTaskContext: (context: string) =>
+		`Cline wants to start a new task with the following context:\n\n${context}\n\nClick "Start New Task" to start a new task with this context preloaded.`,
 }
 
 // to avoid circular dependency
