@@ -16,6 +16,19 @@
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
 			}
+		},
+		{
+			"name": "Run Extension (Test Mode)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"preLaunchTask": "${defaultBuildTask}",
+			"env": {
+				"IS_DEV": "true",
+				"IS_TEST": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
+			}
 		}
 	]
 }
