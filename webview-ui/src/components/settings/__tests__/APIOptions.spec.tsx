@@ -1,13 +1,22 @@
 import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
 import ApiOptions from "../ApiOptions"
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 
-vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
-	const actual = await importOriginal()
+// Define proper typing for the global vscode object
+declare global {
+	interface Window {
+		vscode: {
+			postMessage: (message: any) => void
+		}
+	}
+}
+
+// First mock setup for "requesty" provider
+vi.mock("../../../context/ExtensionStateContext", async () => {
+	const actual = (await vi.importActual("../../../context/ExtensionStateContext")) as any
 	return {
 		...(actual || {}),
-		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
 				apiProvider: "requesty",
@@ -20,13 +29,13 @@ vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	}
 })
 
-describe("ApiOptions Component", () => {
-	vi.clearAllMocks()
+describe("ApiOptions Component - Requesty", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		//@ts-expect-error - vscode is not defined in the global namespace in test environment
-		global.vscode = { postMessage: mockPostMessage } as any
+		vi.clearAllMocks()
+		// Use window.vscode instead of global.vscode
+		window.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Requesty API Key input", () => {
@@ -50,11 +59,14 @@ describe("ApiOptions Component", () => {
 	})
 })
 
-vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
-	const actual = await importOriginal()
+// Reset the mock before creating a new one
+vi.resetModules()
+
+// Second mock setup for "together" provider
+vi.mock("../../../context/ExtensionStateContext", async () => {
+	const actual = (await vi.importActual("../../../context/ExtensionStateContext")) as any
 	return {
 		...(actual || {}),
-		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
 				apiProvider: "together",
@@ -67,13 +79,12 @@ vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	}
 })
 
-describe("ApiOptions Component", () => {
-	vi.clearAllMocks()
+describe("ApiOptions Component - Together", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		//@ts-expect-error - vscode is not defined in the global namespace in test environment
-		global.vscode = { postMessage: mockPostMessage } as any
+		vi.clearAllMocks()
+		window.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Together API Key input", () => {
@@ -97,8 +108,12 @@ describe("ApiOptions Component", () => {
 	})
 })
 
-vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
-	const actual = await importOriginal()
+// Reset the mock before creating a new one
+vi.resetModules()
+
+// Third mock setup for "openai" provider
+vi.mock("../../../context/ExtensionStateContext", async () => {
+	const actual = (await vi.importActual("../../../context/ExtensionStateContext")) as any
 	return {
 		...(actual || {}),
 		useExtensionState: vi.fn(() => ({
@@ -118,8 +133,7 @@ describe("OpenApiInfoOptions", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
-		//@ts-expect-error - vscode is not defined in the global namespace in test environment
-		global.vscode = { postMessage: mockPostMessage }
+		window.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders OpenAI Supports Images input", () => {

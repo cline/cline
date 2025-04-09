@@ -19,6 +19,7 @@ export type SecretKey =
 	| "asksageApiKey"
 	| "xaiApiKey"
 	| "sambanovaApiKey"
+	| "shengsuanyunApiKey"
 export type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
