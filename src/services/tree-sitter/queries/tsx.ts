@@ -4,7 +4,19 @@ import typescriptQuery from "./typescript"
  * Tree-sitter Query for TSX Files:
  *    Combines TypeScript queries with TSX-specific React component queries
  *
- * This query captures various TypeScript and React component definitions in TSX files.
+ * This query captures various TypeScript and React component definitions in TSX files,
+ * as well as advanced TypeScript language constructs.
+ *
+ * SUPPORTED LANGUAGE CONSTRUCTS:
+ * - React Components (Function, Arrow, Class)
+ * - Higher Order Components
+ * - JSX Elements and Expressions
+ * - React Hooks
+ * - Context Providers/Consumers
+ * - React-specific Decorators
+ *
+ * Note: Generic TypeScript constructs like Utility Types, Async Functions,
+ * Class Members, Enums, and Namespaces are defined in typescript.ts
  *
  * TSX COMPONENT STRUCTURE:
  *
@@ -182,4 +194,31 @@ export default `${typescriptQuery}
   alternative: (jsx_self_closing_element
     name: (identifier) @component)) @definition.conditional_component
   (#match? @component "^[A-Z]")
+
+; Enhanced TypeScript Support - React-specific patterns only
+; Method Definitions specific to React components
+(method_definition
+  name: (property_identifier) @name.definition.method) @definition.method
+
+; React Hooks
+(variable_declaration
+  (variable_declarator
+    name: (array_pattern) @name.definition.hook
+    value: (call_expression
+      function: (identifier) @hook_name))) @definition.hook
+  (#match? @hook_name "^use[A-Z]")
+
+; Custom Hooks
+(function_declaration
+  name: (identifier) @name.definition.custom_hook) @definition.custom_hook
+  (#match? @name.definition.custom_hook "^use[A-Z]")
+
+; Context Providers and Consumers
+(variable_declaration
+  (variable_declarator
+    name: (identifier) @name.definition.context
+    value: (member_expression))) @definition.context
+
+; React-specific decorators
+(decorator) @definition.decorator
 `

@@ -8,6 +8,11 @@
 - switch/case statements with complex case blocks
 - enum declarations with members
 - namespace declarations
+- utility types
+- class members and properties
+- constructor methods
+- getter/setter methods
+- async functions and arrow functions
 */
 export default `
 (function_signature
@@ -88,4 +93,31 @@ export default `
 (type_alias_declaration
   name: (type_identifier) @name.definition.type
   type_parameters: (type_parameters)?) @definition.type
+
+; Utility Types
+(type_alias_declaration
+  name: (type_identifier) @name.definition.utility_type) @definition.utility_type
+
+; Class Members and Properties
+(public_field_definition
+  name: (property_identifier) @name.definition.property) @definition.property
+
+; Constructor
+(method_definition
+  name: (property_identifier) @name.definition.constructor
+  (#eq? @name.definition.constructor "constructor")) @definition.constructor
+
+; Getter/Setter Methods
+(method_definition
+  name: (property_identifier) @name.definition.accessor) @definition.accessor
+
+; Async Functions
+(function_declaration
+  name: (identifier) @name.definition.async_function) @definition.async_function
+
+; Async Arrow Functions
+(variable_declaration
+  (variable_declarator
+    name: (identifier) @name.definition.async_arrow
+    value: (arrow_function))) @definition.async_arrow
 `

@@ -7,8 +7,9 @@ import { loadRequiredLanguageParsers } from "../languageParser"
 import tsxQuery from "../queries/tsx"
 import { initializeTreeSitter, testParseSourceCodeDefinitions, inspectTreeStructure, debugLog } from "./helpers"
 
-// Sample component content
+// Sample component content with enhanced TypeScript language constructs
 const sampleTsxContent = `
+// Original components
 interface VSCodeCheckboxProps {
   checked: boolean
   onChange: (checked: boolean) => void
@@ -66,7 +67,236 @@ const TemperatureControl = ({
     </>
   )
 }
-}`
+
+// Utility Types
+type User = {
+  id: string;
+  username: string;
+  password: string;
+  email: string;
+}
+
+// Partial - Makes all properties optional
+type PartialUser = Partial<User>;
+
+// Required - Makes all properties required
+type RequiredConfig = Required<{theme?: string, showHeader?: boolean}>;
+
+// Readonly - Makes all properties readonly
+type ReadonlyState = Readonly<{count: number, status: string}>;
+
+// Function Overloads
+function process(value: string): string;
+function process(value: number): number;
+function process(value: boolean): boolean;
+function process(value: any): any {
+  return value;
+}
+
+// Async Function
+async function fetchData(url: string): Promise<Response> {
+  const response = await fetch(url);
+  return response;
+}
+
+// Async Arrow Function
+const fetchUser = async (id: string): Promise<User> => {
+  const response = await fetch(\`/api/users/\${id}\`);
+  return response.json();
+};
+
+// Class with Members and Properties
+class AdvancedComponent {
+  // Public property
+  public name: string;
+  
+  // Private property
+  private _count: number = 0;
+  
+  // Protected property
+  protected status: 'active' | 'inactive' = 'active';
+  
+  // Readonly property
+  readonly id: string;
+  
+  // Static property
+  static defaultProps = {
+    theme: 'light',
+    showHeader: true
+  };
+  
+  // Constructor
+  constructor(name: string, id: string) {
+    this.name = name;
+    this.id = id;
+  }
+  
+  // Getter method
+  get count(): number {
+    return this._count;
+  }
+  
+  // Setter method
+  set count(value: number) {
+    if (value >= 0) {
+      this._count = value;
+    }
+  }
+  
+  // Public method
+  public updateName(newName: string): void {
+    this.name = newName;
+  }
+}
+
+// React Hooks and Context
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+// Create a context
+const ThemeContext = createContext({
+  theme: 'light',
+  toggleTheme: () => {}
+});
+
+// Context provider and consumer
+const ThemeProvider = ThemeContext.Provider;
+const ThemeConsumer = ThemeContext.Consumer;
+
+// Custom hook using context
+function useTheme() {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
+}
+
+// Component using hooks
+function ThemeToggler() {
+  // useState hook
+  const [theme, setTheme] = useState('light');
+  
+  // useEffect hook
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    return () => {
+      delete document.body.dataset.theme;
+    };
+  }, [theme]);
+  
+  return (
+    <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+      Switch to {theme === 'light' ? 'dark' : 'light'} theme
+    </button>
+  );
+}
+
+// Decorator Example
+@Component({
+  selector: 'app-root',
+  template: '<div>App Component</div>'
+})
+class AppComponent {
+  title = 'My App';
+  
+  @Input()
+  data: string[] = [];
+}
+
+// Enum Declaration
+enum LogLevel {
+  Error = 1,
+  Warning = 2,
+  Info = 3,
+  Debug = 4
+}
+
+// Namespace Declaration
+namespace Validation {
+  export function isValidEmail(email: string): boolean {
+    return email.includes('@');
+  }
+  
+  export function isValidPhone(phone: string): boolean {
+    return phone.length >= 10;
+  }
+}
+
+// Complex Nested Components and Member Expressions
+export const ComplexComponent = () => {
+  return (
+    <CustomHeader
+      title="Test"
+      subtitle={
+        <span className="text-gray-500">
+          Nested <strong>content</strong>
+        </span>
+      }
+    />
+  );
+};
+
+export const NestedSelectors = () => (
+  <section>
+    <Select.Option>
+      <Group.Item>
+        <Text.Body>Deeply nested</Text.Body>
+      </Group.Item>
+    </Select.Option>
+  </section>
+);
+
+// Template Literal Types
+type EventName<T extends string> = \`on\${Capitalize<T>}\`;
+type CSSProperty<T extends string> = \`--\${T}\` | \`-webkit-\${T}\` | \`-moz-\${T}\` | \`-ms-\${T}\`;
+type RouteParams<T extends string> = T extends \`\${string}:\${infer Param}/\${infer Rest}\`
+  ? { [K in Param | keyof RouteParams<Rest>]: string }
+  : T extends \`\${string}:\${infer Param}\`
+  ? { [K in Param]: string }
+  : {};
+
+// Conditional Types
+type ReturnType<T> = T extends (...args: any[]) => infer R ? R : never;
+type Parameters<T> = T extends (...args: infer P) => any ? P : never;
+type InstanceType<T> = T extends new (...args: any[]) => infer R ? R : never;
+type IsFunction<T> = T extends (...args: any[]) => any ? true : false;
+
+// Generic Components with Constraints
+type ComplexProps<T> = {
+  data: T[];
+  render: (item: T) => React.ReactNode;
+};
+
+export const GenericList = <T extends { id: string }>({
+  data,
+  render
+}: ComplexProps<T>) => (
+  <div>
+    {data.map(item => render(item))}
+  </div>
+);
+
+export const ConditionalComponent = ({ condition }) =>
+  condition ? (
+    <PrimaryContent>
+      <h1>Main Content</h1>
+    </PrimaryContent>
+  ) : (
+    <FallbackContent />
+  );
+
+// Dictionary Interface with Constrained Key Types
+interface Dictionary<K extends string | number, V> {
+  get(key: K): V | undefined;
+  set(key: K, value: V): void;
+  has(key: K): boolean;
+}
+
+type KeyValuePair<K extends string | number, V> = {
+  key: K;
+  value: V;
+};
+`
 
 // We'll use the debug test to test the parser directly
 
