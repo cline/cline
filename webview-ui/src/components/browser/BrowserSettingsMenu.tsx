@@ -41,11 +41,10 @@ export const BrowserSettingsMenu = () => {
 	// Get actual connection info from the browser session using gRPC
 	useEffect(() => {
 		// Function to fetch connection info
-		const fetchConnectionInfo = async () => {
+		(async () => {
 			try {
-				const request = GetBrowserConnectionInfoRequest.create({})
 				console.log("[DEBUG] SENDING BROWSER CONNECTION INFO REQUEST")
-				const info = await browserService.getBrowserConnectionInfo(request)
+				const info = await browserService.getBrowserConnectionInfo({})
 				console.log("[DEBUG] GOT BROWSER REPLY:", info, typeof info)
 				setConnectionInfo({
 					isConnected: info.isConnected,
@@ -55,10 +54,7 @@ export const BrowserSettingsMenu = () => {
 			} catch (error) {
 				console.error("Error fetching browser connection info:", error)
 			}
-		}
-
-		// Fetch connection info when component mounts
-		fetchConnectionInfo()
+		})()
 
 		// No need for message event listeners anymore!
 	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled])
