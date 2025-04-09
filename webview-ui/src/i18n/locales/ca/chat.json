@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo vol crear una nova subtasca en mode <code>{{mode}}</code>:",
-		"wantsToFinish": "Roo vol finalitzar aquesta subtasca"
+		"wantsToFinish": "Roo vol finalitzar aquesta subtasca",
+		"newTaskContent": "Instruccions de la subtasca",
+		"completionContent": "Subtasca completada",
+		"resultContent": "Resultats de la subtasca",
+		"defaultResult": "Si us plau, continua amb la següent tasca.",
+		"completionInstructions": "Subtasca completada! Pots revisar els resultats i suggerir correccions o següents passos. Si tot sembla correcte, confirma per tornar el resultat a la tasca principal."
 	},
 	"questions": {
 		"hasQuestion": "Roo té una pregunta:"

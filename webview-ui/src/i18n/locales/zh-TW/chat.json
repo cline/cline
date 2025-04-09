@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo 想要在 <code>{{mode}}</code> 模式下建立新的子工作：",
-		"wantsToFinish": "Roo 想要完成此子工作"
+		"wantsToFinish": "Roo 想要完成此子工作",
+		"newTaskContent": "子工作指示",
+		"completionContent": "子工作已完成",
+		"resultContent": "子工作結果",
+		"defaultResult": "請繼續下一個工作。",
+		"completionInstructions": "子工作已完成！您可以檢閱結果並提出修正或下一步建議。如果一切看起來良好，請確認以將結果傳回主工作。"
 	},
 	"questions": {
 		"hasQuestion": "Roo 有一個問題："

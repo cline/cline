@@ -518,7 +518,7 @@ export const ChatRowContent = ({
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("new-file")}
+							{toolIcon("tasklist")}
 							<span style={{ fontWeight: "bold" }}>
 								<Trans
 									i18nKey="chat:subtasks.wantsToCreate"
@@ -527,8 +527,33 @@ export const ChatRowContent = ({
 								/>
 							</span>
 						</div>
-						<div style={{ paddingLeft: "26px", marginTop: "4px" }}>
-							<code>{tool.content}</code>
+						<div
+							style={{
+								marginTop: "4px",
+								backgroundColor: "var(--vscode-badge-background)",
+								border: "1px solid var(--vscode-badge-background)",
+								borderRadius: "4px 4px 0 0",
+								overflow: "hidden",
+								marginBottom: "2px",
+							}}>
+							<div
+								style={{
+									padding: "9px 10px 9px 14px",
+									backgroundColor: "var(--vscode-badge-background)",
+									borderBottom: "1px solid var(--vscode-editorGroup-border)",
+									fontWeight: "bold",
+									fontSize: "var(--vscode-font-size)",
+									color: "var(--vscode-badge-foreground)",
+									display: "flex",
+									alignItems: "center",
+									gap: "6px",
+								}}>
+								<span className="codicon codicon-arrow-right"></span>
+								{t("chat:subtasks.newTaskContent")}
+							</div>
+							<div style={{ padding: "12px 16px", backgroundColor: "var(--vscode-editor-background)" }}>
+								<MarkdownBlock markdown={tool.content} />
+							</div>
 						</div>
 					</>
 				)
@@ -536,11 +561,36 @@ export const ChatRowContent = ({
 				return (
 					<>
 						<div style={headerStyle}>
-							{toolIcon("checklist")}
+							{toolIcon("check-all")}
 							<span style={{ fontWeight: "bold" }}>{t("chat:subtasks.wantsToFinish")}</span>
 						</div>
-						<div style={{ paddingLeft: "26px", marginTop: "4px" }}>
-							<code>{tool.content}</code>
+						<div
+							style={{
+								marginTop: "4px",
+								backgroundColor: "var(--vscode-editor-background)",
+								border: "1px solid var(--vscode-badge-background)",
+								borderRadius: "4px",
+								overflow: "hidden",
+								marginBottom: "8px",
+							}}>
+							<div
+								style={{
+									padding: "9px 10px 9px 14px",
+									backgroundColor: "var(--vscode-badge-background)",
+									borderBottom: "1px solid var(--vscode-editorGroup-border)",
+									fontWeight: "bold",
+									fontSize: "var(--vscode-font-size)",
+									color: "var(--vscode-badge-foreground)",
+									display: "flex",
+									alignItems: "center",
+									gap: "6px",
+								}}>
+								<span className="codicon codicon-check"></span>
+								{t("chat:subtasks.completionContent")}
+							</div>
+							<div style={{ padding: "12px 16px", backgroundColor: "var(--vscode-editor-background)" }}>
+								<MarkdownBlock markdown={t("chat:subtasks.completionInstructions")} />
+							</div>
 						</div>
 					</>
 				)
@@ -552,6 +602,43 @@ export const ChatRowContent = ({
 	switch (message.type) {
 		case "say":
 			switch (message.say) {
+				case "subtask_result":
+					return (
+						<div>
+							<div
+								style={{
+									marginTop: "0px",
+									backgroundColor: "var(--vscode-badge-background)",
+									border: "1px solid var(--vscode-badge-background)",
+									borderRadius: "0 0 4px 4px",
+									overflow: "hidden",
+									marginBottom: "8px",
+								}}>
+								<div
+									style={{
+										padding: "9px 10px 9px 14px",
+										backgroundColor: "var(--vscode-badge-background)",
+										borderBottom: "1px solid var(--vscode-editorGroup-border)",
+										fontWeight: "bold",
+										fontSize: "var(--vscode-font-size)",
+										color: "var(--vscode-badge-foreground)",
+										display: "flex",
+										alignItems: "center",
+										gap: "6px",
+									}}>
+									<span className="codicon codicon-arrow-left"></span>
+									{t("chat:subtasks.resultContent")}
+								</div>
+								<div
+									style={{
+										padding: "12px 16px",
+										backgroundColor: "var(--vscode-editor-background)",
+									}}>
+									<MarkdownBlock markdown={message.text} />
+								</div>
+							</div>
+						</div>
+					)
 				case "reasoning":
 					return (
 						<ReasoningBlock

@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo veut créer une nouvelle sous-tâche en mode <code>{{mode}}</code> :",
-		"wantsToFinish": "Roo veut terminer cette sous-tâche"
+		"wantsToFinish": "Roo veut terminer cette sous-tâche",
+		"newTaskContent": "Instructions de la sous-tâche",
+		"completionContent": "Sous-tâche terminée",
+		"resultContent": "Résultats de la sous-tâche",
+		"defaultResult": "Veuillez continuer avec la tâche suivante.",
+		"completionInstructions": "Sous-tâche terminée ! Vous pouvez examiner les résultats et suggérer des corrections ou les prochaines étapes. Si tout semble bon, confirmez pour retourner le résultat à la tâche parente."
 	},
 	"questions": {
 		"hasQuestion": "Roo a une question :"

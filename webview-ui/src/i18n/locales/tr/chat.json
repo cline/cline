@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo <code>{{mode}}</code> modunda yeni bir alt görev oluşturmak istiyor:",
-		"wantsToFinish": "Roo bu alt görevi bitirmek istiyor"
+		"wantsToFinish": "Roo bu alt görevi bitirmek istiyor",
+		"newTaskContent": "Alt Görev Talimatları",
+		"completionContent": "Alt Görev Tamamlandı",
+		"resultContent": "Alt Görev Sonuçları",
+		"defaultResult": "Lütfen sonraki göreve devam edin.",
+		"completionInstructions": "Alt görev tamamlandı! Sonuçları inceleyebilir ve düzeltmeler veya sonraki adımlar önerebilirsiniz. Her şey iyi görünüyorsa, sonucu üst göreve döndürmek için onaylayın."
 	},
 	"questions": {
 		"hasQuestion": "Roo'nun bir sorusu var:"

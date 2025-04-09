@@ -142,7 +142,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo wants to create a new subtask in {{mode}} mode:",
-		"wantsToFinish": "Roo wants to finish this subtask"
+		"wantsToFinish": "Roo wants to finish this subtask",
+		"newTaskContent": "Subtask Instructions",
+		"completionContent": "Subtask Completed",
+		"resultContent": "Subtask Results",
+		"defaultResult": "Please continue to the next task.",
+		"completionInstructions": "Subtask completed! You can review the results and suggest any corrections or next steps. If everything looks good, confirm to return the result to the parent task."
 	},
 	"questions": {
 		"hasQuestion": "Roo has a question:"

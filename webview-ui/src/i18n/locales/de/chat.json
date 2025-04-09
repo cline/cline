@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo möchte eine neue Teilaufgabe im <code>{{mode}}</code>-Modus erstellen:",
-		"wantsToFinish": "Roo möchte diese Teilaufgabe abschließen"
+		"wantsToFinish": "Roo möchte diese Teilaufgabe abschließen",
+		"newTaskContent": "Teilaufgabenanweisungen",
+		"completionContent": "Teilaufgabe abgeschlossen",
+		"resultContent": "Teilaufgabenergebnisse",
+		"defaultResult": "Bitte fahre mit der nächsten Aufgabe fort.",
+		"completionInstructions": "Teilaufgabe abgeschlossen! Du kannst die Ergebnisse überprüfen und Korrekturen oder nächste Schritte vorschlagen. Wenn alles gut aussieht, bestätige, um das Ergebnis an die übergeordnete Aufgabe zurückzugeben."
 	},
 	"questions": {
 		"hasQuestion": "Roo hat eine Frage:"

@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo想在<code>{{mode}}</code>模式下创建新子任务:",
-		"wantsToFinish": "Roo想完成此子任务"
+		"wantsToFinish": "Roo想完成此子任务",
+		"newTaskContent": "子任务说明",
+		"completionContent": "子任务已完成",
+		"resultContent": "子任务结果",
+		"defaultResult": "请继续下一个任务。",
+		"completionInstructions": "子任务已完成！您可以查看结果并提出修改或下一步建议。如果一切正常，请确认以将结果返回给主任务。"
 	},
 	"questions": {
 		"hasQuestion": "Roo有一个问题:"

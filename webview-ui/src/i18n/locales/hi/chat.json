@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo <code>{{mode}}</code> मोड में एक नया उपकार्य बनाना चाहता है:",
-		"wantsToFinish": "Roo इस उपकार्य को समाप्त करना चाहता है"
+		"wantsToFinish": "Roo इस उपकार्य को समाप्त करना चाहता है",
+		"newTaskContent": "उपकार्य निर्देश",
+		"completionContent": "उपकार्य पूर्ण",
+		"resultContent": "उपकार्य परिणाम",
+		"defaultResult": "कृपया अगले कार्य पर जारी रखें।",
+		"completionInstructions": "उपकार्य पूर्ण! आप परिणामों की समीक्षा कर सकते हैं और सुधार या अगले चरण सुझा सकते हैं। यदि सब कुछ ठीक लगता है, तो मुख्य कार्य को परिणाम वापस करने के लिए पुष्टि करें।"
 	},
 	"questions": {
 		"hasQuestion": "Roo का एक प्रश्न है:"

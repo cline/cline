@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo가 <code>{{mode}}</code> 모드에서 새 하위 작업을 만들고 싶어합니다:",
-		"wantsToFinish": "Roo가 이 하위 작업을 완료하고 싶어합니다"
+		"wantsToFinish": "Roo가 이 하위 작업을 완료하고 싶어합니다",
+		"newTaskContent": "하위 작업 지침",
+		"completionContent": "하위 작업 완료",
+		"resultContent": "하위 작업 결과",
+		"defaultResult": "다음 작업을 계속 진행해주세요.",
+		"completionInstructions": "하위 작업 완료! 결과를 검토하고 수정 사항이나 다음 단계를 제안할 수 있습니다. 모든 것이 괜찮아 보이면, 부모 작업에 결과를 반환하기 위해 확인해주세요."
 	},
 	"questions": {
 		"hasQuestion": "Roo에게 질문이 있습니다:"

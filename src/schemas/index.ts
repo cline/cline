@@ -739,6 +739,7 @@ export const clineSays = [
 	"mcp_server_response",
 	"new_task_started",
 	"new_task",
+	"subtask_result",
 	"checkpoint_saved",
 	"rooignore_error",
 ] as const

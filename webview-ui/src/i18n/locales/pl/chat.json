@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo chce utworzyć nowe podzadanie w trybie <code>{{mode}}</code>:",
-		"wantsToFinish": "Roo chce zakończyć to podzadanie"
+		"wantsToFinish": "Roo chce zakończyć to podzadanie",
+		"newTaskContent": "Instrukcje podzadania",
+		"completionContent": "Podzadanie zakończone",
+		"resultContent": "Wyniki podzadania",
+		"defaultResult": "Proszę kontynuować następne zadanie.",
+		"completionInstructions": "Podzadanie zakończone! Możesz przejrzeć wyniki i zasugerować poprawki lub następne kroki. Jeśli wszystko wygląda dobrze, potwierdź, aby zwrócić wynik do zadania nadrzędnego."
 	},
 	"questions": {
 		"hasQuestion": "Roo ma pytanie:"

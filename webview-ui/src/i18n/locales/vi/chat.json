@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo muốn tạo một nhiệm vụ phụ mới trong chế độ <code>{{mode}}</code>:",
-		"wantsToFinish": "Roo muốn hoàn thành nhiệm vụ phụ này"
+		"wantsToFinish": "Roo muốn hoàn thành nhiệm vụ phụ này",
+		"newTaskContent": "Hướng dẫn nhiệm vụ phụ",
+		"completionContent": "Nhiệm vụ phụ đã hoàn thành",
+		"resultContent": "Kết quả nhiệm vụ phụ",
+		"defaultResult": "Vui lòng tiếp tục với nhiệm vụ tiếp theo.",
+		"completionInstructions": "Nhiệm vụ phụ đã hoàn thành! Bạn có thể xem lại kết quả và đề xuất các sửa đổi hoặc bước tiếp theo. Nếu mọi thứ có vẻ tốt, hãy xác nhận để trả kết quả về nhiệm vụ chính."
 	},
 	"questions": {
 		"hasQuestion": "Roo có một câu hỏi:"

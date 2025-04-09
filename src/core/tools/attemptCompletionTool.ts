@@ -102,7 +102,7 @@ export async function attemptCompletionTool(
 				}
 
 				// tell the provider to remove the current subtask and resume the previous task in the stack
-				await cline.providerRef.deref()?.finishSubTask(`Task complete: ${lastMessage?.text}`)
+				await cline.providerRef.deref()?.finishSubTask(lastMessage?.text ?? "")
 				return
 			}
 

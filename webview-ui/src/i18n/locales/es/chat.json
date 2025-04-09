@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo quiere crear una nueva subtarea en modo <code>{{mode}}</code>:",
-		"wantsToFinish": "Roo quiere finalizar esta subtarea"
+		"wantsToFinish": "Roo quiere finalizar esta subtarea",
+		"newTaskContent": "Instrucciones de la subtarea",
+		"completionContent": "Subtarea completada",
+		"resultContent": "Resultados de la subtarea",
+		"defaultResult": "Por favor, continúa con la siguiente tarea.",
+		"completionInstructions": "¡Subtarea completada! Puedes revisar los resultados y sugerir correcciones o próximos pasos. Si todo se ve bien, confirma para devolver el resultado a la tarea principal."
 	},
 	"questions": {
 		"hasQuestion": "Roo tiene una pregunta:"

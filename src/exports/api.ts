@@ -152,7 +152,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	}
 
 	public async clearCurrentTask(lastMessage?: string) {
-		await this.sidebarProvider.finishSubTask(lastMessage)
+		await this.sidebarProvider.finishSubTask(lastMessage ?? "")
 		await this.sidebarProvider.postStateToWebview()
 	}
 

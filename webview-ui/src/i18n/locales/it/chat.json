@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Roo vuole creare una nuova sottoattività in modalità <code>{{mode}}</code>:",
-		"wantsToFinish": "Roo vuole completare questa sottoattività"
+		"wantsToFinish": "Roo vuole completare questa sottoattività",
+		"newTaskContent": "Istruzioni sottoattività",
+		"completionContent": "Sottoattività completata",
+		"resultContent": "Risultati sottoattività",
+		"defaultResult": "Per favore continua con la prossima attività.",
+		"completionInstructions": "Sottoattività completata! Puoi rivedere i risultati e suggerire correzioni o prossimi passi. Se tutto sembra a posto, conferma per restituire il risultato all'attività principale."
 	},
 	"questions": {
 		"hasQuestion": "Roo ha una domanda:"

@@ -384,6 +384,7 @@ type ClineMessage = {
 				| "mcp_server_response"
 				| "new_task_started"
 				| "new_task"
+				| "subtask_result"
 				| "checkpoint_saved"
 				| "rooignore_error"
 		  )
@@ -463,6 +464,7 @@ type RooCodeEvents = {
 							| "mcp_server_response"
 							| "new_task_started"
 							| "new_task"
+							| "subtask_result"
 							| "checkpoint_saved"
 							| "rooignore_error"
 					  )

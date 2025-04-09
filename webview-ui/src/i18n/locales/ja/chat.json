@@ -144,7 +144,12 @@
 	},
 	"subtasks": {
 		"wantsToCreate": "Rooは<code>{{mode}}</code>モードで新しいサブタスクを作成したい:",
-		"wantsToFinish": "Rooはこのサブタスクを終了したい"
+		"wantsToFinish": "Rooはこのサブタスクを終了したい",
+		"newTaskContent": "サブタスク指示",
+		"completionContent": "サブタスク完了",
+		"resultContent": "サブタスク結果",
+		"defaultResult": "次のタスクに進んでください。",
+		"completionInstructions": "サブタスク完了！結果を確認し、修正や次のステップを提案できます。問題なければ、親タスクに結果を返すために確認してください。"
 	},
 	"questions": {
 		"hasQuestion": "Rooは質問があります:"
