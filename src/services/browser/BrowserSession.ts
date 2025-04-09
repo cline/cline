@@ -104,7 +104,7 @@ export class BrowserSession {
     // }
 
     // /**
-    //  * Helper to detect user’s default Chrome data dir.
+    //  * Helper to detect user's default Chrome data dir.
     //  * Adjust for OS if needed.
     //  */
     // private getDefaultChromeUserDataDir(): string {
@@ -194,9 +194,20 @@ export class BrowserSession {
             lastLogTs = Date.now()
         }
 
+        const responseListener = (response: any) => {
+            const request = response.request()
+            if (request.resourceType() === 'fetch' || request.resourceType() === 'xhr') {
+                const networkLog = `[${request.method()}] ${request.url()} (${response.status()})`
+                console.log(networkLog)
+                logs.push(networkLog)
+                lastLogTs = Date.now()
+            }
+        }
+
         // Add the listeners
         this.page.on('console', consoleListener)
         this.page.on('pageerror', errorListener)
+        this.page.on('response', responseListener)
 
         try {
             await action(this.page)
@@ -242,9 +253,10 @@ export class BrowserSession {
             throw new Error('Failed to take screenshot.')
         }
 
-        // this.page.removeAllListeners() <- causes the page to crash!
+        // Clean up all listeners
         this.page.off('console', consoleListener)
         this.page.off('pageerror', errorListener)
+        this.page.off('response', responseListener)
 
         return {
             screenshot,

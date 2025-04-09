@@ -11,7 +11,7 @@ const SuggestedTasks = ({ setInputValue, handleSendMessage }: SuggestedTasksProp
         {
             title: 'Install PostHog',
             description: 'Set up PostHog analytics in your project',
-            command: 'Install PostHog in the users project using the tools available to you',
+            command: 'Install PostHog in the current project.',
         },
     ]
 
