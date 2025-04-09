@@ -40,7 +40,7 @@ Rules:
 5. You should only install PostHog in one application at a time, so if you need to install it in multiple applications, you should do so in a separate task.
 6. If the application is a web application, you MUST test the installation using the browser_action tool to ensure it is working correctly and make any necessary adjustments to fix the installation if not. An installation is complete if you can:
     a. Run the development server using the \`execute_command\` tool with \`proceed_while_running\` parameter to \`proceed\` to allow you to continue while the server is running and \`requires_approval\` parameter as \`false\`.
-    b. Test the installation by visiting the application in the browser using the \`browser_action\` tool.
+    b. Test the installation by visiting the application in the browser using the \`browser_action\` tool. You should append \`?__posthog_debug=true\` to any URL that you visit to enable debug mode.
     c. Use the console to check if the installation is working correctly. Verify that the PostHog installation makes network requests to PostHog that you would expect and that have successful status codes. Examples of expected requests include /decide/ for feature flags (occurs on page load) and /e/ for event capture (occurs when a user takes an action), but there may be others.
 
     If an installation is not complete, you should attempt to make the necessary changes to fix the installation. If you cannot fix the installation, you should ask the user to try to fix the installation themselves and give them any context they need to do so.
