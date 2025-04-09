@@ -19,6 +19,8 @@ import {
 } from './autocomplete/statusBar'
 import { PostHogApiProvider } from './api/provider'
 import { autocompleteDefaultModelId } from './shared/api'
+import { CodeAnalyzer } from './analysis/codeAnalyzer'
+import { debounce } from './utils/debounce'
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -433,6 +435,44 @@ export async function activate(context: vscode.ExtensionContext) {
                 quickPick.dispose()
             })
             quickPick.show()
+        })
+    )
+
+    // Initialize code analyzer
+    const analyzer = new CodeAnalyzer()
+
+    // Create debounced analysis function
+    const debouncedAnalyze = debounce(async () => {
+        const usages = await analyzer.analyzeWorkspace()
+        sidebarProvider.postMessageToWebview({
+            type: 'usageUpdated',
+            usage: usages,
+        })
+    }, 1000) // 1 second debounce
+
+    // Listen for editor open events
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(() => {
+            debouncedAnalyze()
+        })
+    )
+
+    // Listen for document change events
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeTextDocument(() => {
+            debouncedAnalyze()
+        })
+    )
+
+    // Initial analysis
+    debouncedAnalyze()
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('posthog.analysisButtonClicked', () => {
+            sidebarProvider.postMessageToWebview({
+                type: 'action',
+                action: 'analysisButtonClicked',
+            })
         })
     )
 

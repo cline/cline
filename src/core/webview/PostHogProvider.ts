@@ -822,8 +822,23 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                         this.postMessageToWebview({ type: 'relinquishControl' })
                         break
                     }
-                    // Add more switch case statements here as more webview message commands
-                    // are created within the webview context (i.e. inside media/main.js)
+                    case 'openFileAtUsageLocation': {
+                        const { usage } = message
+                        if (usage) {
+                            const uri = vscode.Uri.file(usage.file)
+                            vscode.workspace.openTextDocument(uri).then((doc) => {
+                                vscode.window.showTextDocument(doc, {
+                                    selection: new vscode.Range(
+                                        usage.line - 1,
+                                        usage.column,
+                                        usage.line - 1,
+                                        usage.column + usage.context.length
+                                    ),
+                                })
+                            })
+                        }
+                        break
+                    }
                 }
             },
             null,

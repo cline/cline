@@ -78,6 +78,11 @@
                 "icon": "$(history)"
             },
             {
+                "command": "posthog.analysisButtonClicked",
+                "title": "Usage Analysis",
+                "icon": "$(graph)"
+            },
+            {
                 "command": "posthog.popoutButtonClicked",
                 "title": "Open in Editor",
                 "icon": "$(link-external)"
@@ -127,23 +132,28 @@
                     "when": "view == posthog.SidebarProvider"
                 },
                 {
-                    "command": "posthog.mcpButtonClicked",
+                    "command": "posthog.analysisButtonClicked",
                     "group": "navigation@2",
                     "when": "view == posthog.SidebarProvider"
                 },
                 {
-                    "command": "posthog.historyButtonClicked",
+                    "command": "posthog.mcpButtonClicked",
                     "group": "navigation@3",
                     "when": "view == posthog.SidebarProvider"
                 },
                 {
-                    "command": "posthog.popoutButtonClicked",
+                    "command": "posthog.historyButtonClicked",
                     "group": "navigation@4",
                     "when": "view == posthog.SidebarProvider"
                 },
                 {
-                    "command": "posthog.openDocumentation",
+                    "command": "posthog.popoutButtonClicked",
                     "group": "navigation@5",
+                    "when": "view == posthog.SidebarProvider"
+                },
+                {
+                    "command": "posthog.openDocumentation",
+                    "group": "navigation@6",
                     "when": "view == posthog.SidebarProvider"
                 },
                 {
