@@ -8,19 +8,18 @@ import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { createGrpcClient } from "@/utils/grpc-client"
 import { BrowserService } from "@/utils/browser-service"
-import { GetBrowserConnectionInfoRequest } from "@/proto/browser"
+import { GetBrowserConnectionInfoRequest } from "@shared/proto/browser"
 
 // Create the client with explicit typing
 interface BrowserServiceClient {
-  getBrowserConnectionInfo: (request: GetBrowserConnectionInfoRequest) => Promise<{
-    isConnected: boolean;
-    isRemote: boolean;
-    host: string;
-  }>;
+	getBrowserConnectionInfo: (request: GetBrowserConnectionInfoRequest) => Promise<{
+		isConnected: boolean
+		isRemote: boolean
+		host: string
+	}>
 }
 
-const browserService = createGrpcClient(BrowserService) as BrowserServiceClient;
-
+const browserService = createGrpcClient(BrowserService) as BrowserServiceClient
 
 interface ConnectionInfo {
 	isConnected: boolean
@@ -44,23 +43,25 @@ export const BrowserSettingsMenu = () => {
 		// Function to fetch connection info
 		const fetchConnectionInfo = async () => {
 			try {
-				const request = GetBrowserConnectionInfoRequest.create({});
-				const info = await browserService.getBrowserConnectionInfo(request);
+				const request = GetBrowserConnectionInfoRequest.create({})
+				console.log("[DEBUG] SENDING BROWSER CONNECTION INFO REQUEST")
+				const info = await browserService.getBrowserConnectionInfo(request)
+				console.log("[DEBUG] GOT BROWSER REPLY:", info, typeof info)
 				setConnectionInfo({
 					isConnected: info.isConnected,
 					isRemote: info.isRemote,
 					host: info.host,
-				});
+				})
 			} catch (error) {
-				console.error("Error fetching browser connection info:", error);
+				console.error("Error fetching browser connection info:", error)
 			}
-		};
-		
+		}
+
 		// Fetch connection info when component mounts
-		fetchConnectionInfo();
-		
+		fetchConnectionInfo()
+
 		// No need for message event listeners anymore!
-	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled]);
+	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled])
 
 	// Close popover when clicking outside
 	useEffect(() => {
@@ -104,19 +105,19 @@ export const BrowserSettingsMenu = () => {
 		if (!showInfoPopover) {
 			const fetchConnectionInfo = async () => {
 				try {
-					const request = GetBrowserConnectionInfoRequest.create({});
-					const info = await browserService.getBrowserConnectionInfo(request);
+					const request = GetBrowserConnectionInfoRequest.create({})
+					const info = await browserService.getBrowserConnectionInfo(request)
 					setConnectionInfo({
 						isConnected: info.isConnected,
 						isRemote: info.isRemote,
 						host: info.host,
-					});
+					})
 				} catch (error) {
-					console.error("Error fetching browser connection info:", error);
+					console.error("Error fetching browser connection info:", error)
 				}
-			};
-			
-			fetchConnectionInfo();
+			}
+
+			fetchConnectionInfo()
 		}
 	}
 
@@ -145,26 +146,26 @@ export const BrowserSettingsMenu = () => {
 		// Function to fetch connection info
 		const fetchConnectionInfo = async () => {
 			try {
-				const request = GetBrowserConnectionInfoRequest.create({});
-				const info = await browserService.getBrowserConnectionInfo(request);
+				const request = GetBrowserConnectionInfoRequest.create({})
+				const info = await browserService.getBrowserConnectionInfo(request)
 				setConnectionInfo({
 					isConnected: info.isConnected,
 					isRemote: info.isRemote,
 					host: info.host,
-				});
+				})
 			} catch (error) {
-				console.error("Error fetching browser connection info:", error);
+				console.error("Error fetching browser connection info:", error)
 			}
-		};
-		
+		}
+
 		// Request connection info immediately
-		fetchConnectionInfo();
+		fetchConnectionInfo()
 
 		// Set up interval to refresh every second
-		const intervalId = setInterval(fetchConnectionInfo, 1000);
+		const intervalId = setInterval(fetchConnectionInfo, 1000)
 
-		return () => clearInterval(intervalId);
-	}, []);
+		return () => clearInterval(intervalId)
+	}, [])
 
 	return (
 		<div ref={containerRef} style={{ position: "relative", marginTop: "-1px", display: "flex" }}>

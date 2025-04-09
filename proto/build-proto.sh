@@ -9,7 +9,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Define output directories
-TS_OUT_DIR="$ROOT_DIR/src/proto"
+TS_OUT_DIR="$ROOT_DIR/src/shared/proto"
 
 # Create the output directories if they don't exist
 mkdir -p "$TS_OUT_DIR"
@@ -25,7 +25,7 @@ find "$SCRIPT_DIR" -name "*.proto" -type f | while read -r proto_file; do
   protoc \
     --plugin=protoc-gen-ts_proto="$ROOT_DIR/node_modules/.bin/protoc-gen-ts_proto" \
     --ts_proto_out="$TS_OUT_DIR" \
-    --ts_proto_opt=outputServices=grpc-js,env=node,esModuleInterop=true \
+    --ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages \
     --proto_path="$SCRIPT_DIR" \
     "$proto_file"
 done

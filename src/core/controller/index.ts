@@ -58,7 +58,7 @@ export class Controller {
 	private postMessage: (message: any) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
-	private task?: Task
+	task?: Task
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService

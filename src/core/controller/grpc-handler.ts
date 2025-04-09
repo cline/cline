@@ -1,4 +1,4 @@
-import { BrowserConnectionInfo, GetBrowserConnectionInfoRequest } from "../../proto/browser";
+import { BrowserConnectionInfo, GetBrowserConnectionInfoRequest } from "../../shared/proto/browser";
 import { Controller } from "./index";
 import { getAllExtensionState } from "../storage/state";
 import { ExtensionMessage } from "../../shared/ExtensionMessage";
@@ -62,16 +62,32 @@ export class GrpcHandler {
    */
   private async getBrowserConnectionInfo(request: GetBrowserConnectionInfoRequest): Promise<BrowserConnectionInfo> {
     try {
-      // Since we can't directly use the browser session,
-      // we'll use the current browser settings as a fallback
+      // Get browser settings from extension state
       const { browserSettings } = await getAllExtensionState(this.controller.context);
       
+      // Check if there's an active browser session by using the controller's handleWebviewMessage approach
+      // This is similar to what's done in controller/index.ts for the "getBrowserConnectionInfo" message
+      if (this.controller.task?.browserSession) {
+        // Access the browser session through the controller's task property
+        // Using indexer notation to access private property
+        const browserSession = this.controller.task.browserSession;
+        const connectionInfo = browserSession.getConnectionInfo();
+        
+        // Convert from BrowserSession.BrowserConnectionInfo to proto.BrowserConnectionInfo
+        return {
+          isConnected: connectionInfo.isConnected,
+          isRemote: connectionInfo.isRemote,
+          host: connectionInfo.host || "" // Ensure host is never undefined
+        };
+      }
+      
+      // Fallback to browser settings if no active browser session
       return {
-        isConnected: false, // We can't know this for sure without direct access
+        isConnected: false,
         isRemote: !!browserSettings.remoteBrowserEnabled,
         host: browserSettings.remoteBrowserHost || ""
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error getting browser connection info:", error);
       return {
         isConnected: false,

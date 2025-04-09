@@ -1,4 +1,4 @@
-import { BrowserServiceService, GetBrowserConnectionInfoRequest, BrowserConnectionInfo } from "../proto/browser";
+import { GetBrowserConnectionInfoRequest, BrowserConnectionInfo } from "@shared/proto/browser";
 
 // Create a wrapper for the BrowserServiceService that matches the ProtoService interface
 export const BrowserService = {
