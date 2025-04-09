@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+package cline;
+
+option go_package = "github.com/cline/intelligence-engine/pkg/proto";
+
+// AIProvider service for AI model provider interactions
+service AIProviderService {
+  // List available AI providers
+  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
+  
+  // Get provider models
+  rpc GetProviderModels(GetProviderModelsRequest) returns (GetProviderModelsResponse);
+  
+  // Complete a prompt (non-streaming)
+  rpc CompletePrompt(CompletePromptRequest) returns (CompletePromptResponse);
+  
+  // Stream a completion
+  rpc StreamCompletion(CompletePromptRequest) returns (stream CompletionChunk);
+  
+  // Configure a provider
+  rpc ConfigureProvider(ConfigureProviderRequest) returns (ConfigureProviderResponse);
+}
+
+// Request to list providers
+message ListProvidersRequest {
+  bool include_configured_only = 1; // Only include providers that have been configured
+}
+
+// Response with list of providers
+message ListProvidersResponse {
+  repeated AIProvider providers = 1; // Available AI providers
+  string error = 2;                 // Error message if any
+}
+
+// AI provider information
+message AIProvider {
+  string id = 1;                    // Provider ID (e.g., "openai", "anthropic")
+  string name = 2;                  // Display name
+  bool is_configured = 3;           // Whether the provider is configured
+  repeated string available_models = 4; // Available models for this provider
+  int32 max_context_window = 5;     // Maximum context window size (in tokens)
+  ProviderCapabilities capabilities = 6; // Provider capabilities
+}
+
+// Provider capabilities
+message ProviderCapabilities {
+  bool supports_streaming = 1;      // Whether the provider supports streaming
+  bool supports_vision = 2;         // Whether the provider supports vision models
+  bool supports_json_mode = 3;      // Whether the provider supports JSON mode
+  bool supports_function_calling = 4; // Whether the provider supports function calling
+}
+
+// Request to get provider models
+message GetProviderModelsRequest {
+  string provider_id = 1;           // Provider ID
+}
+
+// Response with provider models
+message GetProviderModelsResponse {
+  repeated Model models = 1;        // Available models
+  string error = 2;                 // Error message if any
+}
+
+// Model information
+message Model {
+  string id = 1;                    // Model ID
+  string display_name = 2;          // Display name
+  int32 max_tokens = 3;             // Maximum token count
+  bool supports_vision = 4;         // Whether the model supports vision
+  int32 max_context_window = 5;     // Maximum context window size (in tokens)
+  float tokens_per_minute = 6;      // Tokens processed per minute (approximate)
+  float cost_per_1k_tokens_input = 7;  // Cost per 1000 input tokens
+  float cost_per_1k_tokens_output = 8; // Cost per 1000 output tokens
+}
+
+// Request to complete a prompt
+message CompletePromptRequest {
+  string provider_id = 1;           // Provider ID
+  string model_id = 2;              // Model ID
+  repeated Message messages = 3;    // Conversation messages
+  float temperature = 4;            // Temperature (0.0-2.0)
+  int32 max_tokens = 5;             // Maximum tokens to generate
+  repeated string stop_sequences = 6; // Sequences that stop generation
+  ProviderOptions options = 7;      // Provider-specific options
+}
+
+// Message in a conversation
+message Message {
+  string role = 1;                  // Role (system, user, assistant, tool)
+  string content = 2;               // Text content
+  repeated AttachmentContent attachments = 3; // Attachments (images, etc.)
+  string name = 4;                  // Name (for tool messages)
+  ToolCall tool_call = 5;           // Tool call information
+  ToolResult tool_result = 6;       // Tool result information
+}
+
+// Attachment content (for images, etc.)
+message AttachmentContent {
+  string type = 1;                  // Type of attachment (image, audio, etc.)
+  bytes data = 2;                   // Binary data
+  string url = 3;                   // URL (alternative to data)
+  string mime_type = 4;             // MIME type
+}
+
+// Tool call information
+message ToolCall {
+  string id = 1;                    // Tool call ID
+  string name = 2;                  // Tool name
+  string arguments = 3;             // Tool arguments (JSON)
+}
+
+// Tool result information
+message ToolResult {
+  string id = 1;                    // Tool call ID
+  string result = 2;                // Tool result
+}
+
+// Provider-specific options
+message ProviderOptions {
+  bool json_mode = 1;               // Whether to use JSON mode
+  repeated Tool tools = 2;          // Available tools
+  map<string, string> extra_options = 3; // Extra provider-specific options
+}
+
+// Tool definition
+message Tool {
+  string name = 1;                  // Tool name
+  string description = 2;           // Tool description
+  string schema = 3;                // Tool schema (JSON Schema)
+}
+
+// Response from completing a prompt
+message CompletePromptResponse {
+  string completion = 1;            // Completion text
+  int32 prompt_tokens = 2;          // Number of tokens in the prompt
+  int32 completion_tokens = 3;      // Number of tokens in the completion
+  string error = 4;                 // Error message if any
+  float cost = 5;                   // Cost of the completion
+}
+
+// Chunk for streaming completion
+message CompletionChunk {
+  string delta = 1;                 // Text delta
+  bool is_final = 2;                // Whether this is the final chunk
+  string error = 3;                 // Error message if any
+  int32 prompt_tokens = 4;          // Number of tokens in the prompt (only in final chunk)
+  int32 completion_tokens = 5;      // Number of tokens in the completion (only in final chunk)
+  float cost = 6;                   // Cost of the completion (only in final chunk)
+}
+
+// Request to configure a provider
+message ConfigureProviderRequest {
+  string provider_id = 1;           // Provider ID
+  map<string, string> credentials = 2; // Provider credentials
+  map<string, string> settings = 3; // Provider settings
+}
+
+// Response from configuring a provider
+message ConfigureProviderResponse {
+  bool success = 1;                 // Whether the configuration was successful
+  string error = 2;                 // Error message if any
+}

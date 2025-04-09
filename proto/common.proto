@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package cline;
+
+option go_package = "github.com/cline/intelligence-engine/pkg/proto";
+
+// Common empty message for responses that don't need to return data
+message Empty {
+}

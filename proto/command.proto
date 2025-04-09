@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package cline;
+
+import "common.proto";
+
+option go_package = "github.com/cline/intelligence-engine/pkg/proto";
+
+// Command service for executing terminal commands
+service CommandService {
+  // Execute a command in the specified directory
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
+  
+  // Get status of a running command
+  rpc GetCommandStatus(CommandStatusRequest) returns (CommandStatusResponse);
+  
+  // Stream output from a running command
+  rpc StreamCommandOutput(CommandStatusRequest) returns (stream CommandOutputChunk);
+  
+  // Kill a running command
+  rpc KillCommand(CommandStatusRequest) returns (Empty);
+  
+  // Write input to a running command's stdin
+  rpc WriteCommandInput(WriteCommandInputRequest) returns (Empty);
+}
+
+// Request to execute a command
+message ExecuteCommandRequest {
+  string command = 1;           // The command to execute
+  string working_directory = 2; // The working directory
+  bool require_approval = 3;    // Whether the command requires user approval
+}
+
+// Response from executing a command
+message ExecuteCommandResponse {
+  string command_id = 1;        // Unique ID for the command execution
+  string initial_output = 2;    // Initial output from the command
+  bool is_running = 3;          // Whether the command is still running
+}
+
+// Request to get command status
+message CommandStatusRequest {
+  string command_id = 1;        // The ID of the command
+}
+
+// Response with command status
+message CommandStatusResponse {
+  string command_id = 1;        // The ID of the command
+  bool is_running = 2;          // Whether the command is still running
+  int32 exit_code = 3;          // Exit code if command has completed
+  string output = 4;            // Current accumulated output
+  string error = 5;             // Error message if any
+}
+
+// Chunk of command output for streaming
+message CommandOutputChunk {
+  string command_id = 1;        // The ID of the command
+  string output_chunk = 2;      // The chunk of output
+  bool is_stderr = 3;           // Whether this chunk is from stderr
+  bool command_completed = 4;   // Whether the command has completed
+  int32 exit_code = 5;          // Exit code if command has completed
+}
+
+// Request to write input to a command's stdin
+message WriteCommandInputRequest {
+  string command_id = 1;        // The ID of the command
+  string input = 2;             // The input to write
+  bool include_newline = 3;     // Whether to include a newline at the end
+}

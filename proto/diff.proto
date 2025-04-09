@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package cline;
+
+option go_package = "github.com/cline/intelligence-engine/pkg/proto";
+
+// DiffService for managing file diffs and version control operations
+service DiffService {
+  // Create a diff between two file contents
+  rpc CreateDiff(CreateDiffRequest) returns (DiffResponse);
+  
+  // Apply a diff to a file
+  rpc ApplyDiff(ApplyDiffRequest) returns (ApplyDiffResponse);
+  
+  // Create a checkpoint (commit changes)
+  rpc CreateCheckpoint(CreateCheckpointRequest) returns (CreateCheckpointResponse);
+  
+  // List checkpoints
+  rpc ListCheckpoints(ListCheckpointsRequest) returns (ListCheckpointsResponse);
+  
+  // Restore to a checkpoint
+  rpc RestoreCheckpoint(RestoreCheckpointRequest) returns (RestoreCheckpointResponse);
+  
+  // Compare two checkpoints
+  rpc CompareCheckpoints(CompareCheckpointsRequest) returns (CompareCheckpointsResponse);
+}
+
+// Request to create a diff
+message CreateDiffRequest {
+  string original_content = 1;     // Original file content
+  string modified_content = 2;     // Modified file content
+  string path = 3;                 // File path (optional)
+}
+
+// Response with diff information
+message DiffResponse {
+  string diff = 1;                 // The diff in unified format
+  repeated FileDiff file_diffs = 2; // Individual file diffs
+  string error = 3;                // Error message if any
+}
+
+// Individual file diff
+message FileDiff {
+  string path = 1;                 // File path
+  repeated Hunk hunks = 2;         // Diff hunks
+}
+
+// Diff hunk
+message Hunk {
+  int32 original_start = 1;        // Start line in original
+  int32 original_count = 2;        // Number of lines in original
+  int32 modified_start = 3;        // Start line in modified
+  int32 modified_count = 4;        // Number of lines in modified
+  repeated Line lines = 5;         // Diff lines
+}
+
+// Diff line
+message Line {
+  enum Type {
+    CONTEXT = 0;
+    ADDITION = 1;
+    DELETION = 2;
+  }
+  Type type = 1;                   // Line type
+  string content = 2;              // Line content
+}
+
+// Request to apply a diff
+message ApplyDiffRequest {
+  string path = 1;                 // File path
+  string diff = 2;                 // The diff to apply
+  bool dry_run = 3;                // If true, don't actually apply the diff
+}
+
+// Response from applying a diff
+message ApplyDiffResponse {
+  bool success = 1;                // Whether the diff was applied successfully
+  string result_content = 2;       // Resulting content after applying the diff
+  string error = 3;                // Error message if any
+}
+
+// Request to create a checkpoint
+message CreateCheckpointRequest {
+  string message = 1;              // Checkpoint message
+  repeated string files = 2;       // Files to include (empty means all changes)
+  string task_id = 3;              // Task ID (optional)
+}
+
+// Response from creating a checkpoint
+message CreateCheckpointResponse {
+  bool success = 1;                // Whether the checkpoint was created successfully
+  string checkpoint_id = 2;        // ID of the created checkpoint
+  string error = 3;                // Error message if any
+}
+
+// Request to list checkpoints
+message ListCheckpointsRequest {
+  string task_id = 1;              // Task ID (optional)
+  int32 limit = 2;                 // Maximum number of checkpoints to return
+}
+
+// Response with list of checkpoints
+message ListCheckpointsResponse {
+  repeated Checkpoint checkpoints = 1; // List of checkpoints
+  string error = 2;                // Error message if any
+}
+
+// Checkpoint information
+message Checkpoint {
+  string id = 1;                   // Checkpoint ID
+  string message = 2;              // Checkpoint message
+  string task_id = 3;              // Task ID
+  int64 timestamp = 4;             // Timestamp (Unix time)
+  repeated string changed_files = 5; // Files changed in this checkpoint
+}
+
+// Request to restore a checkpoint
+message RestoreCheckpointRequest {
+  string checkpoint_id = 1;        // Checkpoint ID
+  bool force = 2;                  // Whether to force restore even if there are conflicts
+}
+
+// Response from restoring a checkpoint
+message RestoreCheckpointResponse {
+  bool success = 1;                // Whether the checkpoint was restored successfully
+  string error = 2;                // Error message if any
+}
+
+// Request to compare two checkpoints
+message CompareCheckpointsRequest {
+  string base_checkpoint_id = 1;   // Base checkpoint ID
+  string target_checkpoint_id = 2; // Target checkpoint ID
+}
+
+// Response from comparing two checkpoints
+message CompareCheckpointsResponse {
+  repeated FileDiff file_diffs = 1; // Diffs for changed files
+  string error = 2;                // Error message if any
+}
