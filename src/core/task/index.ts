@@ -938,15 +938,19 @@ export class Task {
 			responseText,
 		)
 
-		newUserContent.push({
-			type: "text",
-			text: taskResumptionMessage,
-		})
+		if (taskResumptionMessage !== "") {
+			newUserContent.push({
+				type: "text",
+				text: taskResumptionMessage,
+			})
+		}
 
-		newUserContent.push({
-			type: "text",
-			text: userResponseMessage,
-		})
+		if (userResponseMessage !== "") {
+			newUserContent.push({
+				type: "text",
+				text: userResponseMessage,
+			})
+		}
 
 		if (responseImages && responseImages.length > 0) {
 			newUserContent.push(...formatResponse.imageBlocks(responseImages))
