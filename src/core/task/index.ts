@@ -1740,69 +1740,38 @@ export class Task {
 								content: diff || content,
 							}
 
-							//console.log("autoApproveTool ", this.shouldAutoApproveTool(block.name))
+							// get paths and detect local
+							const absolutePath = path.resolve(cwd, relPath)
+							const isLocalEdit = absolutePath.startsWith(cwd)
 
-							console.log("cwd: ", cwd)
-							console.log("relPath :", relPath)
-							console.log("absolutePath: ", path.resolve(cwd, relPath))
+							// get auto approve settings for both controls
+							const autoApproveResult = this.shouldAutoApproveTool(block.name)
+							const [autoApproveEditLocal, autoApproveEditExternal] = Array.isArray(autoApproveResult)
+								? autoApproveResult
+								: [autoApproveResult, false]
+
+							var shouldAutoApproveEdit = false
+
+							if (isLocalEdit && autoApproveEditLocal) {
+								// local edit
+								shouldAutoApproveEdit = true
+							} else if (!isLocalEdit && autoApproveEditLocal && autoApproveEditExternal) {
+								// external edit
+								shouldAutoApproveEdit = true
+							} else {
+								// not auto approved
+								shouldAutoApproveEdit = false
+							}
 
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
 
-								// First we need to get the cwd and confirm if the edit path contains it.
-								// If it does, we consider this to be a local edit
-								// If it does not, it is an external edit and we will need to check the external auto approve
-
-								// get paths and detect local
-								const absolutePath = path.resolve(cwd, relPath)
-								const isLocalEdit = absolutePath.startsWith(cwd)
-
-								console.log("isLocalEdit: ", isLocalEdit)
-
-								// get auto approve settings for both controls
-								const autoApproveResult = this.shouldAutoApproveTool(block.name)
-								const [autoApproveEditLocal, autoApproveEditExternal] = Array.isArray(autoApproveResult)
-									? autoApproveResult
-									: [autoApproveResult, false]
-
-								//if (
-								//	(!requiresApprovalPerLLM && autoApproveSafe) ||
-								//	(requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)
-								//) {
-								//	this.removeLastPartialMessageIfExistsWithType("ask", "command")
-								//	await this.say("command", command, undefined, false)
-								//	this.consecutiveAutoApprovedRequestsCount++
-								//	didAutoApprove = true
-
-								console.log("AutoApproveResult: ", autoApproveResult)
-
-								var shouldAutoApproveEdit = false
-
-								if (isLocalEdit && autoApproveEditLocal) {
-									// local edit
-									shouldAutoApproveEdit = true
-								} else if (!isLocalEdit && autoApproveEditLocal && autoApproveEditExternal) {
-									// external edit
-									shouldAutoApproveEdit = true
-								} else {
-									// not auto approved
-									shouldAutoApproveEdit = false
-								}
-
-								console.log("AutoApprove Edit Local: ", autoApproveEditLocal)
-								console.log("AutoApprove Edit External: ", autoApproveEditExternal)
-
-								console.log("shouldAutoAproveEdit result: ", shouldAutoApproveEdit)
-
-								// LFG
-								if (shouldAutoApproveEdit) {
+								if (shouldAutoApproveEdit === true) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
-									console.log("auto approve tool A")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									console.log("auto approve tool B")
 									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								// update editor
@@ -1863,7 +1832,7 @@ export class Task {
 									// : undefined,
 								} satisfies ClineSayTool)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (shouldAutoApproveEdit === true) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
