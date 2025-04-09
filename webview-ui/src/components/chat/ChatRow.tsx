@@ -17,6 +17,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
+import { useChatRowStyles } from "@/hooks/useChatRowStyles"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
@@ -94,16 +95,12 @@ const ChatRow = memo(
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
-		const isCheckpointMessage = message.say === "checkpoint_created"
-		// Determine if the checkpoint marker *would* be shown based on hover state
-		const isHoverRelevant = hoveredRowIndex === rowIndex - 1 || hoveredRowIndex === rowIndex
+		// Calculate dynamic styles using the custom hook
+		const { padding, minHeight } = useChatRowStyles(message, hoveredRowIndex, rowIndex)
 
 		const [chatrow, { height }] = useSize(
 			<ChatRowContainer
-				style={{
-					padding: isCheckpointMessage && !message.isCheckpointCheckedOut && !isHoverRelevant ? 0 : undefined, // Reset padding if it's a checkpoint message and not hovered
-					minHeight: isCheckpointMessage && !message.isCheckpointCheckedOut && !isHoverRelevant ? 1 : undefined, // Ensure min height of 1px to prevent virtuoso error
-				}}
+				style={{ padding, minHeight }}
 				onMouseEnter={() => setHoveredRowIndex(rowIndex)}
 				onMouseLeave={() => setHoveredRowIndex(null)}>
 				<ChatRowContent {...props} rowIndex={rowIndex} hoveredRowIndex={hoveredRowIndex} />
