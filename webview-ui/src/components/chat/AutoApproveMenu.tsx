@@ -32,7 +32,7 @@ const ACTION_METADATA: {
 		description: "Allows access to read any file on your computer.",
 	},
 	{
-		id: "editFiles",
+		id: "editFilesLocally",
 		label: "Edit files",
 		shortName: "Edit",
 		description: "Allows modification of files within your workspace.",
@@ -81,7 +81,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		// Handle special cases for command execution and file editing
 		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
 		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands")
-		const editFilesEnabled = enabledActions.some((action) => action.id === "editFiles")
+		const editFilesEnabled = enabledActions.some((action) => action.id === "editFilesLocally")
 		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally")
 
 		const otherActions = enabledActions
@@ -89,7 +89,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				(action) =>
 					action.id !== "executeSafeCommands" &&
 					action.id !== "executeAllCommands" &&
-					action.id !== "editFiles" &&
+					action.id !== "editFilesLocally" &&
 					action.id !== "editFilesExternally",
 			)
 			.map((action) => action.shortName)
@@ -278,7 +278,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					{ACTION_METADATA.map((action) => {
 						// Handle both executeAllCommands and editFilesExternally as animated sub-options
 						if (action.id === "executeAllCommands" || action.id === "editFilesExternally") {
-							const parentAction = action.id === "executeAllCommands" ? "executeSafeCommands" : "editFiles"
+							const parentAction = action.id === "executeAllCommands" ? "executeSafeCommands" : "editFilesLocally"
 							return (
 								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction]}>
 									<div

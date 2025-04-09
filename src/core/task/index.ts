@@ -1181,7 +1181,10 @@ export class Task {
 					return this.autoApprovalSettings.actions.readFiles
 				case "write_to_file":
 				case "replace_in_file":
-					return [this.autoApprovalSettings.actions.editFiles, this.autoApprovalSettings.actions.editFilesExternally]
+					return [
+						this.autoApprovalSettings.actions.editFilesLocally,
+						this.autoApprovalSettings.actions.editFilesExternally,
+					]
 				case "execute_command":
 					return [
 						this.autoApprovalSettings.actions.executeSafeCommands,
@@ -1648,14 +1651,6 @@ export class Task {
 							break
 						}
 
-						//const isEditPathExternal = this.clineIgnoreController.validateAccess(relPath)  // Replace this with a check to confirm that the path contains the full cwd value
-						//if (isEditPathExternal) {
-						//	await this.say("clineignore_error", relPath)
-						//	pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(relPath)))
-						//
-						//	break
-						//}
-
 						// Check if file exists using cached map or fs.access
 						let fileExists: boolean
 						if (this.diffViewProvider.editType !== undefined) {
@@ -1740,11 +1735,11 @@ export class Task {
 								content: diff || content,
 							}
 
-							// get paths and detect local
+							// Get workspace path, and check to see if the request edits are local or external
 							const absolutePath = path.resolve(cwd, relPath)
 							const isLocalEdit = absolutePath.startsWith(cwd)
 
-							// get auto approve settings for both controls
+							// Get auto-approve settings for local and external edits
 							const autoApproveResult = this.shouldAutoApproveTool(block.name)
 							const [autoApproveEditLocal, autoApproveEditExternal] = Array.isArray(autoApproveResult)
 								? autoApproveResult
@@ -1753,13 +1748,13 @@ export class Task {
 							var shouldAutoApproveEdit = false
 
 							if (isLocalEdit && autoApproveEditLocal) {
-								// local edit
+								// This is a local edit within the users workspace, and they have auto-approval enabled for local edits
 								shouldAutoApproveEdit = true
 							} else if (!isLocalEdit && autoApproveEditLocal && autoApproveEditExternal) {
-								// external edit
+								// This is an external edit, but the user has auto-approval enabled for both local and external edits
 								shouldAutoApproveEdit = true
 							} else {
-								// not auto approved
+								// Auto-approval is disabled and the user will need to approve all edits
 								shouldAutoApproveEdit = false
 							}
 

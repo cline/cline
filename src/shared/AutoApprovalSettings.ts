@@ -4,7 +4,7 @@ export interface AutoApprovalSettings {
 	// Individual action permissions
 	actions: {
 		readFiles: boolean // Read files and directories
-		editFiles: boolean // Edit files
+		editFilesLocally: boolean // Edit files
 		editFilesExternally: boolean // Edit files
 		executeSafeCommands: boolean // Execute safe commands
 		executeAllCommands: boolean // Execute all commands
@@ -20,7 +20,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	enabled: false,
 	actions: {
 		readFiles: false,
-		editFiles: false,
+		editFilesLocally: false,
 		editFilesExternally: false,
 		executeSafeCommands: false,
 		executeAllCommands: false,
