@@ -1348,6 +1348,15 @@ export const xaiModels = {
 		outputPrice: 10.0,
 		description: "X AI's Grok-2 model (version 1212) with 131K context window",
 	},
+	"grok-3": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 model (version 1212) with 131K context window",
+	},
 	"grok-2-vision-latest": {
 		maxTokens: 8192,
 		contextWindow: 32768,
