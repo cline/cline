@@ -36,7 +36,7 @@ import { getExercises } from "./exercises.js"
 type TaskResult = { success: boolean; retry: boolean }
 type TaskPromise = Promise<TaskResult>
 
-const MAX_CONCURRENCY = 20
+const MAX_CONCURRENCY = 5
 const TASK_TIMEOUT = 10 * 60 * 1_000
 const UNIT_TEST_TIMEOUT = 60 * 1_000
 
@@ -115,8 +115,9 @@ const run = async (toolbox: GluegunToolbox) => {
 
 	// Retries aren't implemented yet, but the return values are set up to
 	// support them.
-	const processTask = async (task: Task) => {
+	const processTask = async (task: Task, delay = 0) => {
 		if (task.finishedAt === null) {
+			await new Promise((resolve) => setTimeout(resolve, delay))
 			const { retry } = await runExercise({ run, task, server })
 
 			if (retry) {
@@ -141,12 +142,15 @@ const run = async (toolbox: GluegunToolbox) => {
 		}
 	}
 
+	let delay = 0
 	for (const task of tasks) {
-		const promise = processTask(task)
+		const promise = processTask(task, delay)
+		delay = delay + 5_000
 		runningPromises.push(promise)
 		promise.then(() => processTaskResult(task, promise))
 
-		if (runningPromises.length > MAX_CONCURRENCY) {
+		if (runningPromises.length >= MAX_CONCURRENCY) {
+			delay = 0
 			await Promise.race(runningPromises)
 		}
 	}
