@@ -51,8 +51,8 @@ export class BrowserSession {
         const stats: PCRStats = chromeExecutablePath
             ? { puppeteer: require('puppeteer-core'), executablePath: chromeExecutablePath }
             : // if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-            // if it does exist it will return the path to existing chromium
-            await PCR({ downloadPath: puppeteerDir })
+              // if it does exist it will return the path to existing chromium
+              await PCR({ downloadPath: puppeteerDir })
 
         return stats
     }
@@ -170,7 +170,7 @@ export class BrowserSession {
         const stats = await this.ensureChromiumExists()
         this.browser = await stats.puppeteer.launch({
             args: [
-                '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'
+                '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
             ],
             executablePath: stats.executablePath,
             defaultViewport: this.browserSettings.viewport,
@@ -183,10 +183,9 @@ export class BrowserSession {
             // Override webdriver flag to bypass PostHog bot detection
             await this.page.evaluateOnNewDocument(() => {
                 Object.defineProperty(navigator, 'webdriver', {
-                    get: () => false
-                });
-
-            });
+                    get: () => false,
+                })
+            })
         }
 
         this.setupPageListeners()
@@ -195,7 +194,7 @@ export class BrowserSession {
     async closeBrowser(): Promise<BrowserActionResult> {
         if (this.browser || this.page) {
             console.log('closing browser...')
-            await this.browser?.close().catch(() => { })
+            await this.browser?.close().catch(() => {})
             this.browser = undefined
             this.page = undefined
             this.currentMousePosition = undefined
@@ -223,7 +222,7 @@ export class BrowserSession {
         await pWaitFor(() => Date.now() - this.lastLogTs >= 2000, {
             timeout: 5_000,
             interval: 100,
-        }).catch(() => { })
+        }).catch(() => {})
 
         let options: ScreenshotOptions = {
             encoding: 'base64',
@@ -247,9 +246,6 @@ export class BrowserSession {
         if (!screenshotBase64) {
             throw new Error('Failed to take screenshot.')
         }
-
-        console.log('logs: ', this.logs)
-        console.log('current url: ', this.page.url())
 
         return {
             screenshot,
@@ -328,7 +324,7 @@ export class BrowserSession {
                         waitUntil: ['domcontentloaded', 'networkidle2'],
                         timeout: 7000,
                     })
-                    .catch(() => { })
+                    .catch(() => {})
                 await this.waitTillHTMLStable(page)
             }
 

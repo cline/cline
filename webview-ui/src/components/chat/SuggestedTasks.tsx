@@ -17,10 +17,9 @@ const SuggestedTasks = ({ setInputValue, handleSendMessage }: SuggestedTasksProp
 
     const handleTaskClick = (command: string) => {
         setInputValue(command)
-        // Small delay to ensure the input value is set before sending
         setTimeout(() => {
             handleSendMessage(command, [])
-        }, 0)
+        }, 100)
     }
 
     return (
