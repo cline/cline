@@ -1574,6 +1574,21 @@ export const formatPrice = (price: number) => {
 	}).format(price)
 }
 
+// Returns an array of formatted tier strings
+const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): string[] => {
+	if (!tiers || tiers.length === 0) {
+		return []
+	}
+	return tiers.map((tier, index, arr) => {
+		const prevLimit = index > 0 ? arr[index - 1].tokenLimit : 0
+		const limitText =
+			tier.tokenLimit === Infinity
+				? `> ${prevLimit.toLocaleString()}` // Assumes sorted and Infinity is last
+				: `<= ${tier.tokenLimit.toLocaleString()}`
+		return `${formatPrice(tier.price)}/million tokens (${limitText} tokens)`
+	})
+}
+
 export const ModelInfoView = ({
 	selectedModelId,
 	modelInfo,
@@ -1588,6 +1603,42 @@ export const ModelInfoView = ({
 	isPopup?: boolean
 }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+
+	// Create elements for tiered pricing separately
+	const inputPriceElement = modelInfo.inputPriceTiers ? (
+		<Fragment key="inputPriceTiers">
+			<span style={{ fontWeight: 500 }}>Input price:</span>
+			<br />
+			{formatTiers(modelInfo.inputPriceTiers).map((tierString, i, arr) => (
+				<Fragment key={`inputTierFrag${i}`}>
+					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
+					{i < arr.length - 1 && <br />}
+				</Fragment>
+			))}
+		</Fragment>
+	) : modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 ? (
+		<span key="inputPrice">
+			<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
+		</span>
+	) : null
+
+	const outputPriceElement = modelInfo.outputPriceTiers ? (
+		<Fragment key="outputPriceTiers">
+			<span style={{ fontWeight: 500 }}>Output price:</span>
+			<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
+			<br />
+			{formatTiers(modelInfo.outputPriceTiers).map((tierString, i, arr) => (
+				<Fragment key={`outputTierFrag${i}`}>
+					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
+					{i < arr.length - 1 && <br />}
+				</Fragment>
+			))}
+		</Fragment>
+	) : modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 ? (
+		<span key="outputPrice">
+			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
+		</span>
+	) : null
 
 	const infoItems = [
 		modelInfo.description && (
@@ -1624,11 +1675,7 @@ export const ModelInfoView = ({
 				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
 			</span>
 		),
-		modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 && (
-			<span key="inputPrice">
-				<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
-			</span>
-		),
+		inputPriceElement, // Add the generated input price block
 		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
 			<span key="cacheWritesPrice">
 				<span style={{ fontWeight: 500 }}>Cache writes price:</span> {formatPrice(modelInfo.cacheWritesPrice || 0)}
@@ -1641,11 +1688,7 @@ export const ModelInfoView = ({
 				tokens
 			</span>
 		),
-		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
-			<span key="outputPrice">
-				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
-			</span>
-		),
+		outputPriceElement, // Add the generated output price block
 		isGemini && (
 			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
 				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute. After that,
