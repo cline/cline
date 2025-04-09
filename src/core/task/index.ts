@@ -946,16 +946,27 @@ export class Task {
 
 		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
 
-		newUserContent.push({
-			type: "text",
-			text: formatResponse.taskResumption(
-				this.chatSettings?.mode === "plan" ? "plan" : "act",
-				agoText,
-				cwd,
-				wasRecent,
-				responseText,
-			),
-		})
+		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
+			this.chatSettings?.mode === "plan" ? "plan" : "act",
+			agoText,
+			cwd,
+			wasRecent,
+			responseText,
+		)
+
+		if (taskResumptionMessage !== "") {
+			newUserContent.push({
+				type: "text",
+				text: taskResumptionMessage,
+			})
+		}
+
+		if (userResponseMessage !== "") {
+			newUserContent.push({
+				type: "text",
+				text: userResponseMessage,
+			})
+		}
 
 		if (responseImages && responseImages.length > 0) {
 			newUserContent.push(...formatResponse.imageBlocks(responseImages))
