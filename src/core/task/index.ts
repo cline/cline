@@ -1178,7 +1178,10 @@ export class Task {
 				case "list_files":
 				case "list_code_definition_names":
 				case "search_files":
-					return this.autoApprovalSettings.actions.readFiles
+					return [
+						this.autoApprovalSettings.actions.readFilesLocally,
+						this.autoApprovalSettings.actions.readFilesExternally,
+					]
 				case "write_to_file":
 				case "replace_in_file":
 					return [
