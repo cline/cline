@@ -25,6 +25,10 @@ export class ModelContextTracker {
 		const context = this.context()
 		const metadata = await getTaskMetadata(context, this.taskId)
 
+		if (!metadata.model_usage) {
+			metadata.model_usage = []
+		}
+
 		metadata.model_usage.push({
 			ts: Date.now(),
 			model_id: modelId,
