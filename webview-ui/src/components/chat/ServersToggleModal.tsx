@@ -85,7 +85,7 @@ const ServersToggleModal: React.FC = () => {
 								setIsVisible(false)
 							}}>
 							Manage Servers
-							<span className="codicon codicon-link-external ml-1 text-[10px]"></span>
+							<span className="codicon codicon-gear ml-1 text-[10px]"></span>
 						</VSCodeButton>
 					</div>
 
