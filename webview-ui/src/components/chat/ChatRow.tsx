@@ -990,21 +990,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
 						</>
 					)
-				case "load_mcp_documentation":
-					return (
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								color: "var(--vscode-foreground)",
-								opacity: 0.7,
-								fontSize: 12,
-								padding: "4px 0",
-							}}>
-							<i className="codicon codicon-book" style={{ marginRight: 6 }} />
-							Loading MCP documentation
-						</div>
-					)
 				case "completion_result":
 					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 					const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
