@@ -45,7 +45,8 @@ export async function readFileTool(
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
-				pushToolResult(await cline.sayAndCreateMissingParamError("read_file", "path"))
+				const errorMsg = await cline.sayAndCreateMissingParamError("read_file", "path")
+				pushToolResult(`<file><path></path><error>${errorMsg}</error></file>`)
 				return
 			}
 
@@ -66,7 +67,7 @@ export async function readFileTool(
 					// Invalid start_line
 					cline.consecutiveMistakeCount++
 					await cline.say("error", `Failed to parse start_line: ${startLineStr}`)
-					pushToolResult(formatResponse.toolError("Invalid start_line value"))
+					pushToolResult(`<file><path>${relPath}</path><error>Invalid start_line value</error></file>`)
 					return
 				}
 				startLine -= 1 // Convert to 0-based index
@@ -80,7 +81,7 @@ export async function readFileTool(
 					// Invalid end_line
 					cline.consecutiveMistakeCount++
 					await cline.say("error", `Failed to parse end_line: ${endLineStr}`)
-					pushToolResult(formatResponse.toolError("Invalid end_line value"))
+					pushToolResult(`<file><path>${relPath}</path><error>Invalid end_line value</error></file>`)
 					return
 				}
 
@@ -91,8 +92,8 @@ export async function readFileTool(
 			const accessAllowed = cline.rooIgnoreController?.validateAccess(relPath)
 			if (!accessAllowed) {
 				await cline.say("rooignore_error", relPath)
-				pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(relPath)))
-
+				const errorMsg = formatResponse.rooIgnoreError(relPath)
+				pushToolResult(`<file><path>${relPath}</path><error>${errorMsg}</error></file>`)
 				return
 			}
 
@@ -159,23 +160,69 @@ export async function readFileTool(
 				content = res[0].length > 0 ? addLineNumbers(res[0]) : ""
 				const result = res[1]
 				if (result) {
-					sourceCodeDef = `\n\n${result}`
+					sourceCodeDef = `${result}`
 				}
 			} else {
 				// Read entire file
 				content = await extractTextFromFile(absolutePath)
 			}
 
+			// Create variables to store XML components
+			let xmlInfo = ""
+			let contentTag = ""
+
 			// Add truncation notice if applicable
 			if (isFileTruncated) {
-				content += `\n\n[Showing only ${maxReadFileLine} of ${totalLines} total lines. Use start_line and end_line if you need to read more]${sourceCodeDef}`
+				xmlInfo += `<notice>Showing only ${maxReadFileLine} of ${totalLines} total lines. Use start_line and end_line if you need to read more</notice>\n`
+
+				// Add source code definitions if available
+				if (sourceCodeDef) {
+					xmlInfo += `<list_code_definition_names>${sourceCodeDef}</list_code_definition_names>\n`
+				}
+			}
+
+			// Empty files (zero lines)
+			if (content === "" && totalLines === 0) {
+				// Always add self-closing content tag and notice for empty files
+				contentTag = `<content/>`
+				xmlInfo += `<notice>File is empty</notice>\n`
+			}
+			// Range reads should always show content regardless of maxReadFileLine
+			else if (isRangeRead) {
+				// Create content tag with line range information
+				let lineRangeAttr = ""
+				const displayStartLine = startLine !== undefined ? startLine + 1 : 1
+				const displayEndLine = endLine !== undefined ? endLine + 1 : totalLines
+				lineRangeAttr = ` lines="${displayStartLine}-${displayEndLine}"`
+
+				// Maintain exact format expected by tests
+				contentTag = `<content${lineRangeAttr}>\n${content}</content>\n`
+			}
+			// maxReadFileLine=0 for non-range reads
+			else if (maxReadFileLine === 0) {
+				// Skip content tag for maxReadFileLine=0 (definitions only mode)
+				contentTag = ""
+			}
+			// Normal case: non-empty files with content (non-range reads)
+			else {
+				// For non-range reads, always show line range
+				let lines = totalLines
+				if (maxReadFileLine >= 0 && totalLines > maxReadFileLine) {
+					lines = maxReadFileLine
+				}
+				const lineRangeAttr = ` lines="1-${lines}"`
+
+				// Maintain exact format expected by tests
+				contentTag = `<content${lineRangeAttr}>\n${content}</content>\n`
 			}
 
 			// Format the result into the required XML structure
-			const xmlResult = `<file>\n  <path>${relPath}</path>\n  <content>\n${content}\n  </content>\n</file>`
+			const xmlResult = `<file><path>${relPath}</path>\n${contentTag}${xmlInfo}</file>`
 			pushToolResult(xmlResult)
 		}
 	} catch (error) {
+		const errorMsg = error instanceof Error ? error.message : String(error)
+		pushToolResult(`<file><path>${relPath || ""}</path><error>Error reading file: ${errorMsg}</error></file>`)
 		await handleError("reading file", error)
 	}
 }

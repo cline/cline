@@ -9,31 +9,62 @@ import {
 describe("addLineNumbers", () => {
 	it("should add line numbers starting from 1 by default", () => {
 		const input = "line 1\nline 2\nline 3"
-		const expected = "1 | line 1\n2 | line 2\n3 | line 3"
+		const expected = "1 | line 1\n2 | line 2\n3 | line 3\n"
 		expect(addLineNumbers(input)).toBe(expected)
 	})
 
 	it("should add line numbers starting from specified line number", () => {
 		const input = "line 1\nline 2\nline 3"
-		const expected = "10 | line 1\n11 | line 2\n12 | line 3"
+		const expected = "10 | line 1\n11 | line 2\n12 | line 3\n"
 		expect(addLineNumbers(input, 10)).toBe(expected)
 	})
 
 	it("should handle empty content", () => {
-		expect(addLineNumbers("")).toBe("1 | ")
-		expect(addLineNumbers("", 5)).toBe("5 | ")
+		expect(addLineNumbers("")).toBe("")
+		expect(addLineNumbers("", 5)).toBe("5 | \n")
 	})
 
 	it("should handle single line content", () => {
-		expect(addLineNumbers("single line")).toBe("1 | single line")
-		expect(addLineNumbers("single line", 42)).toBe("42 | single line")
+		expect(addLineNumbers("single line")).toBe("1 | single line\n")
+		expect(addLineNumbers("single line", 42)).toBe("42 | single line\n")
 	})
 
 	it("should pad line numbers based on the highest line number", () => {
 		const input = "line 1\nline 2"
 		// When starting from 99, highest line will be 100, so needs 3 spaces padding
-		const expected = " 99 | line 1\n100 | line 2"
+		const expected = " 99 | line 1\n100 | line 2\n"
 		expect(addLineNumbers(input, 99)).toBe(expected)
+	})
+
+	it("should preserve trailing newline without adding extra line numbers", () => {
+		const input = "line 1\nline 2\n"
+		const expected = "1 | line 1\n2 | line 2\n"
+		expect(addLineNumbers(input)).toBe(expected)
+	})
+
+	it("should handle multiple blank lines correctly", () => {
+		const input = "line 1\n\n\n\nline 2"
+		const expected = "1 | line 1\n2 | \n3 | \n4 | \n5 | line 2\n"
+		expect(addLineNumbers(input)).toBe(expected)
+	})
+
+	it("should handle multiple trailing newlines correctly", () => {
+		const input = "line 1\nline 2\n\n\n"
+		const expected = "1 | line 1\n2 | line 2\n3 | \n4 | \n"
+		expect(addLineNumbers(input)).toBe(expected)
+	})
+
+	it("should handle numbered trailing newline correctly", () => {
+		const input = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\n\n"
+		const expected =
+			" 1 | Line 1\n 2 | Line 2\n 3 | Line 3\n 4 | Line 4\n 5 | Line 5\n 6 | Line 6\n 7 | Line 7\n 8 | Line 8\n 9 | Line 9\n10 | Line 10\n11 | \n"
+		expect(addLineNumbers(input)).toBe(expected)
+	})
+
+	it("should handle only blank lines with offset correctly", () => {
+		const input = "\n\n\n"
+		const expected = "10 | \n11 | \n12 | \n"
+		expect(addLineNumbers(input, 10)).toBe(expected)
 	})
 })
 

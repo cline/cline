@@ -55,14 +55,29 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 }
 
 export function addLineNumbers(content: string, startLine: number = 1): string {
+	// If content is empty, return empty string - empty files should not have line numbers
+	// If content is empty but startLine > 1, return "startLine | " because we know the file is not empty
+	// but the content is empty at that line offset
+	if (content === "") {
+		return startLine === 1 ? "" : `${startLine} | \n`
+	}
+
+	// Split into lines and handle trailing newlines
 	const lines = content.split("\n")
+	const lastLineEmpty = lines[lines.length - 1] === ""
+	if (lastLineEmpty) {
+		lines.pop()
+	}
+
 	const maxLineNumberWidth = String(startLine + lines.length - 1).length
-	return lines
+	const numberedContent = lines
 		.map((line, index) => {
 			const lineNumber = String(startLine + index).padStart(maxLineNumberWidth, " ")
 			return `${lineNumber} | ${line}`
 		})
 		.join("\n")
+
+	return numberedContent + "\n"
 }
 // Checks if every line in the content has line numbers prefixed (e.g., "1 | content" or "123 | content")
 // Line numbers must be followed by a single pipe character (not double pipes)
