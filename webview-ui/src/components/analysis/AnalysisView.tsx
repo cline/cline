@@ -91,48 +91,63 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({ onDone }) => {
                 <VSCodeButton onClick={onDone}>Done</VSCodeButton>
             </div>
             <div className="file-list">
-                {fileGroups.map((group) => (
-                    <div key={group.filePath} className="file-group">
-                        <div
-                            className={`file-header ${expandedFiles.has(group.filePath) ? 'expanded' : ''}`}
-                            onClick={() => toggleFile(group.filePath)}
-                        >
-                            <div className="tree-toggle" />
-                            <span className="codicon codicon-file file-icon"></span>
-                            <span className="file-name">{group.filePath.split('/').pop()}</span>
-                            {group.warningCount > 0 && <VSCodeBadge>{group.warningCount}</VSCodeBadge>}
-                        </div>
-                        {expandedFiles.has(group.filePath) && (
-                            <div className="usage-list">
-                                {group.usages.map((usage, index) => (
-                                    <div className="usage-item-container">
-                                        <div key={index} className="usage-item">
-                                            <div className="usage-header">
-                                                <span className="usage-type">{usage.type}</span>
-                                                <span className="usage-context">{usage.context}</span>
-                                            </div>
-                                            {usage.warning && (
-                                                <div className="warning-details">
-                                                    {usage.warning.split(';').map((w, i) => (
-                                                        <div key={i} className="warning-item">
-                                                            ⚠️ {w.trim()}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="open-file-button-container">
-                                            <span
-                                                className="open-file-button codicon codicon-open-preview"
-                                                onClick={() => onOpenFile(usage)}
-                                            ></span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                {fileGroups.length === 0 ? (
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
+                            color: 'var(--vscode-foreground)',
+                            opacity: 0.7,
+                        }}
+                    >
+                        No PostHog usage found in the current folder
                     </div>
-                ))}
+                ) : (
+                    fileGroups.map((group) => (
+                        <div key={group.filePath} className="file-group">
+                            <div
+                                className={`file-header ${expandedFiles.has(group.filePath) ? 'expanded' : ''}`}
+                                onClick={() => toggleFile(group.filePath)}
+                            >
+                                <div className="tree-toggle" />
+                                <span className="codicon codicon-file file-icon"></span>
+                                <span className="file-name">{group.filePath.split('/').pop()}</span>
+                                {group.warningCount > 0 && <VSCodeBadge>{group.warningCount}</VSCodeBadge>}
+                            </div>
+                            {expandedFiles.has(group.filePath) && (
+                                <div className="usage-list">
+                                    {group.usages.map((usage, index) => (
+                                        <div className="usage-item-container">
+                                            <div key={index} className="usage-item">
+                                                <div className="usage-header">
+                                                    <span className="usage-type">{usage.type}</span>
+                                                    <span className="usage-context">{usage.context}</span>
+                                                </div>
+                                                {usage.warning && (
+                                                    <div className="warning-details">
+                                                        {usage.warning.split(';').map((w, i) => (
+                                                            <div key={i} className="warning-item">
+                                                                ⚠️ {w.trim()}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="open-file-button-container">
+                                                <span
+                                                    className="open-file-button codicon codicon-open-preview"
+                                                    onClick={() => onOpenFile(usage)}
+                                                ></span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     )
