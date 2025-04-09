@@ -20,6 +20,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "shengsuanyun"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -74,6 +75,7 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	sambanovaApiKey?: string
+	shengsuanyunApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1474,5 +1476,75 @@ export const sambanovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 1.0,
 		outputPrice: 1.5,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// ShengSuanYun
+// https://router.shengsuanyun.com/model
+export type ShengSuanYunModelId = keyof typeof shengsuanyunModels
+export const shengsuanyunDefaultModelId: ShengSuanYunModelId = "deepseek/deepseek-v3"
+export const shengsuanyunModels = {
+	"anthropic/claude-3.7-sonnet": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		inputPrice: 3, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		outputPrice: 15,
+	},
+	"anthropic/claude-3.7-sonnet:thinking": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 15,
+	},
+	"google/gemini-2.0-flash-001": {
+		maxTokens: 8_000,
+		contextWindow: 1000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+	},
+	"deepseek/deepseek-v3": {
+		maxTokens: 164_000,
+		contextWindow: 164_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 0.89,
+	},
+	"deepseek/deepseek-r1": {
+		maxTokens: 16_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 1.1,
+	},
+	"qwen/qwen-plus": {
+		maxTokens: 8_000,
+		contextWindow: 33_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.48,
+		outputPrice: 0.96,
+	},
+	"qwen/qvq-72b": {
+		maxTokens: 8_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		outputPrice: 4.94,
+	},
+	"meta-llama/llama-3.3-70b-instruct": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.12,
+		outputPrice: 0.3,
 	},
 } as const satisfies Record<string, ModelInfo>

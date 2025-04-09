@@ -925,6 +925,7 @@ export class Controller {
 				case "openai-native":
 				case "qwen":
 				case "deepseek":
+				case "shengsuanyun":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "openrouter":
@@ -971,6 +972,7 @@ export class Controller {
 					case "openai-native":
 					case "qwen":
 					case "deepseek":
+					case "shengsuanyun":
 						await updateGlobalState(this.context, "apiModelId", newModelId)
 						break
 					case "openrouter":
