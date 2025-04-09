@@ -16,7 +16,6 @@ import { outputChannelLog } from "./log"
 export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	private readonly outputChannel: vscode.OutputChannel
 	private readonly sidebarProvider: ClineProvider
-	private tabProvider?: ClineProvider
 	private readonly context: vscode.ExtensionContext
 	private readonly ipc?: IpcServer
 	private readonly taskMap = new Map<string, ClineProvider>()
@@ -100,13 +99,11 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			await vscode.commands.executeCommand("workbench.action.files.revert")
 			await vscode.commands.executeCommand("workbench.action.closeAllEditors")
 
-			if (!this.tabProvider) {
-				this.tabProvider = await openClineInNewTab({ context: this.context, outputChannel: this.outputChannel })
-				this.registerListeners(this.tabProvider)
-			}
-
-			provider = this.tabProvider
+			provider = await openClineInNewTab({ context: this.context, outputChannel: this.outputChannel })
+			this.registerListeners(provider)
 		} else {
+			await vscode.commands.executeCommand("roo-cline.SidebarProvider.focus")
+
 			provider = this.sidebarProvider
 		}
 
@@ -234,10 +231,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			throw new Error(`Profile with name "${name}" does not exist`)
 		}
 
-		await this.setConfiguration({
-			...currentSettings,
-			currentApiConfigName: profile.name,
-		})
+		await this.setConfiguration({ ...currentSettings, currentApiConfigName: profile.name })
 	}
 
 	public getActiveProfile() {
