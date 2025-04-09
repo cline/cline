@@ -109,6 +109,8 @@
 		"glamaApiKey": "Glama API 키",
 		"getGlamaApiKey": "Glama API 키 받기",
 		"useCustomBaseUrl": "사용자 정의 기본 URL 사용",
+		"useHostHeader": "사용자 정의 Host 헤더 사용",
+		"useLegacyFormat": "레거시 OpenAI API 형식 사용",
 		"requestyApiKey": "Requesty API 키",
 		"getRequestyApiKey": "Requesty API 키 받기",
 		"openRouterTransformsText": "프롬프트와 메시지 체인을 컨텍스트 크기로 압축 (<a>OpenRouter Transforms</a>)",

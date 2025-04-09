@@ -109,6 +109,8 @@
 		"glamaApiKey": "Clave API de Glama",
 		"getGlamaApiKey": "Obtener clave API de Glama",
 		"useCustomBaseUrl": "Usar URL base personalizada",
+		"useHostHeader": "Usar encabezado Host personalizado",
+		"useLegacyFormat": "Usar formato API de OpenAI heredado",
 		"requestyApiKey": "Clave API de Requesty",
 		"getRequestyApiKey": "Obtener clave API de Requesty",
 		"openRouterTransformsText": "Comprimir prompts y cadenas de mensajes al tamaño del contexto (<a>Transformaciones de OpenRouter</a>)",

@@ -55,10 +55,20 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				baseURL,
 				apiKey,
 				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-				defaultHeaders,
+				defaultHeaders: {
+					...defaultHeaders,
+					...(this.options.openAiHostHeader ? { Host: this.options.openAiHostHeader } : {}),
+				},
 			})
 		} else {
-			this.client = new OpenAI({ baseURL, apiKey, defaultHeaders })
+			this.client = new OpenAI({
+				baseURL,
+				apiKey,
+				defaultHeaders: {
+					...defaultHeaders,
+					...(this.options.openAiHostHeader ? { Host: this.options.openAiHostHeader } : {}),
+				},
+			})
 		}
 	}
 
@@ -67,6 +77,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 		const modelUrl = this.options.openAiBaseUrl ?? ""
 		const modelId = this.options.openAiModelId ?? ""
 		const enabledR1Format = this.options.openAiR1FormatEnabled ?? false
+		const enabledLegacyFormat = this.options.openAiLegacyFormat ?? false
 		const isAzureAiInference = this._isAzureAiInference(modelUrl)
 		const urlHost = this._getUrlHost(modelUrl)
 		const deepseekReasoner = modelId.includes("deepseek-reasoner") || enabledR1Format
@@ -85,7 +96,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			let convertedMessages
 			if (deepseekReasoner) {
 				convertedMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-			} else if (ark) {
+			} else if (ark || enabledLegacyFormat) {
 				convertedMessages = [systemMessage, ...convertToSimpleMessages(messages)]
 			} else {
 				if (modelInfo.supportsPromptCache) {
@@ -190,7 +201,9 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				model: modelId,
 				messages: deepseekReasoner
 					? convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-					: [systemMessage, ...convertToOpenAiMessages(messages)],
+					: enabledLegacyFormat
+						? [systemMessage, ...convertToSimpleMessages(messages)]
+						: [systemMessage, ...convertToOpenAiMessages(messages)],
 			}
 
 			const response = await this.client.chat.completions.create(
@@ -330,7 +343,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 	}
 }
 
-export async function getOpenAiModels(baseUrl?: string, apiKey?: string) {
+export async function getOpenAiModels(baseUrl?: string, apiKey?: string, hostHeader?: string) {
 	try {
 		if (!baseUrl) {
 			return []
@@ -341,9 +354,18 @@ export async function getOpenAiModels(baseUrl?: string, apiKey?: string) {
 		}
 
 		const config: Record<string, any> = {}
+		const headers: Record<string, string> = {}
 
 		if (apiKey) {
-			config["headers"] = { Authorization: `Bearer ${apiKey}` }
+			headers["Authorization"] = `Bearer ${apiKey}`
+		}
+
+		if (hostHeader) {
+			headers["Host"] = hostHeader
+		}
+
+		if (Object.keys(headers).length > 0) {
+			config["headers"] = headers
 		}
 
 		const response = await axios.get(`${baseUrl}/models`, config)

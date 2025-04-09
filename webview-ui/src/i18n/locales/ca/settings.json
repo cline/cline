@@ -105,6 +105,8 @@
 		"awsCustomArnDesc": "Assegureu-vos que la regió a l'ARN coincideix amb la regió d'AWS seleccionada anteriorment.",
 		"apiKeyStorageNotice": "Les claus API s'emmagatzemen de forma segura a l'Emmagatzematge Secret de VSCode",
 		"useCustomBaseUrl": "Utilitzar URL base personalitzada",
+		"useHostHeader": "Utilitzar capçalera Host personalitzada",
+		"useLegacyFormat": "Utilitzar el format d'API OpenAI antic",
 		"openRouterTransformsText": "Comprimir prompts i cadenes de missatges a la mida del context (<a>Transformacions d'OpenRouter</a>)",
 		"model": "Model",
 		"getOpenRouterApiKey": "Obtenir clau API d'OpenRouter",

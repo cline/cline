@@ -109,6 +109,8 @@
 		"glamaApiKey": "Khóa API Glama",
 		"getGlamaApiKey": "Lấy khóa API Glama",
 		"useCustomBaseUrl": "Sử dụng URL cơ sở tùy chỉnh",
+		"useHostHeader": "Sử dụng tiêu đề Host tùy chỉnh",
+		"useLegacyFormat": "Sử dụng định dạng API OpenAI cũ",
 		"requestyApiKey": "Khóa API Requesty",
 		"getRequestyApiKey": "Lấy khóa API Requesty",
 		"anthropicApiKey": "Khóa API Anthropic",

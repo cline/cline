@@ -109,6 +109,8 @@
 		"glamaApiKey": "Glama API Anahtarı",
 		"getGlamaApiKey": "Glama API Anahtarı Al",
 		"useCustomBaseUrl": "Özel temel URL kullan",
+		"useHostHeader": "Özel Host başlığı kullan",
+		"useLegacyFormat": "Eski OpenAI API formatını kullan",
 		"requestyApiKey": "Requesty API Anahtarı",
 		"getRequestyApiKey": "Requesty API Anahtarı Al",
 		"openRouterTransformsText": "İstem ve mesaj zincirlerini bağlam boyutuna sıkıştır (<a>OpenRouter Dönüşümleri</a>)",

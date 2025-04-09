@@ -109,6 +109,8 @@
 		"glamaApiKey": "Glama APIキー",
 		"getGlamaApiKey": "Glama APIキーを取得",
 		"useCustomBaseUrl": "カスタムベースURLを使用",
+		"useHostHeader": "カスタムHostヘッダーを使用",
+		"useLegacyFormat": "レガシーOpenAI API形式を使用",
 		"requestyApiKey": "Requesty APIキー",
 		"getRequestyApiKey": "Requesty APIキーを取得",
 		"openRouterTransformsText": "プロンプトとメッセージチェーンをコンテキストサイズに圧縮 (<a>OpenRouter Transforms</a>)",

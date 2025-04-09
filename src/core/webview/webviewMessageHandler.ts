@@ -423,7 +423,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			break
 		case "refreshOpenAiModels":
 			if (message?.values?.baseUrl && message?.values?.apiKey) {
-				const openAiModels = await getOpenAiModels(message?.values?.baseUrl, message?.values?.apiKey)
+				const openAiModels = await getOpenAiModels(
+					message?.values?.baseUrl,
+					message?.values?.apiKey,
+					message?.values?.hostHeader,
+				)
 				provider.postMessageToWebview({ type: "openAiModels", openAiModels })
 			}
 
