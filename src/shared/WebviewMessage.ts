@@ -81,6 +81,7 @@ export interface WebviewMessage {
 		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
 		| "toggleFavoriteModel"
+		| "grpc_request"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	uris?: string[] // Used for getRelativePaths
@@ -117,6 +118,12 @@ export interface WebviewMessage {
 	query?: string
 	// For toggleFavoriteModel
 	modelId?: string
+	grpc_request?: {
+		service: string
+		method: string
+		message: any // JSON serialized protobuf message
+		request_id: string // For correlating requests and responses
+	}
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

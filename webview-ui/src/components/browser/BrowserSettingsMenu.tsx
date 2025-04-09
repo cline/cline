@@ -6,6 +6,21 @@ import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import { createGrpcClient } from "@/utils/grpc-client"
+import { BrowserService } from "@/utils/browser-service"
+import { GetBrowserConnectionInfoRequest } from "@/proto/browser"
+
+// Create the client with explicit typing
+interface BrowserServiceClient {
+  getBrowserConnectionInfo: (request: GetBrowserConnectionInfoRequest) => Promise<{
+    isConnected: boolean;
+    isRemote: boolean;
+    host: string;
+  }>;
+}
+
+const browserService = createGrpcClient(BrowserService) as BrowserServiceClient;
+
 
 interface ConnectionInfo {
 	isConnected: boolean
@@ -24,30 +39,28 @@ export const BrowserSettingsMenu = () => {
 	})
 	const popoverRef = useRef<HTMLDivElement>(null)
 
-	// Get actual connection info from the browser session
+	// Get actual connection info from the browser session using gRPC
 	useEffect(() => {
-		// Request connection info when component mounts
-		vscode.postMessage({
-			type: "getBrowserConnectionInfo",
-		})
-
-		// Listen for connection info updates
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "browserConnectionInfo") {
+		// Function to fetch connection info
+		const fetchConnectionInfo = async () => {
+			try {
+				const request = GetBrowserConnectionInfoRequest.create({});
+				const info = await browserService.getBrowserConnectionInfo(request);
 				setConnectionInfo({
-					isConnected: message.isConnected,
-					isRemote: message.isRemote,
-					host: message.host,
-				})
+					isConnected: info.isConnected,
+					isRemote: info.isRemote,
+					host: info.host,
+				});
+			} catch (error) {
+				console.error("Error fetching browser connection info:", error);
 			}
-		}
-
-		window.addEventListener("message", handleMessage)
-		return () => {
-			window.removeEventListener("message", handleMessage)
-		}
-	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled])
+		};
+		
+		// Fetch connection info when component mounts
+		fetchConnectionInfo();
+		
+		// No need for message event listeners anymore!
+	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled]);
 
 	// Close popover when clicking outside
 	useEffect(() => {
@@ -87,11 +100,23 @@ export const BrowserSettingsMenu = () => {
 	const toggleInfoPopover = () => {
 		setShowInfoPopover(!showInfoPopover)
 
-		// Request updated connection info when opening the popover
+		// Request updated connection info when opening the popover using gRPC
 		if (!showInfoPopover) {
-			vscode.postMessage({
-				type: "getBrowserConnectionInfo",
-			})
+			const fetchConnectionInfo = async () => {
+				try {
+					const request = GetBrowserConnectionInfoRequest.create({});
+					const info = await browserService.getBrowserConnectionInfo(request);
+					setConnectionInfo({
+						isConnected: info.isConnected,
+						isRemote: info.isRemote,
+						host: info.host,
+					});
+				} catch (error) {
+					console.error("Error fetching browser connection info:", error);
+				}
+			};
+			
+			fetchConnectionInfo();
 		}
 	}
 
@@ -115,22 +140,31 @@ export const BrowserSettingsMenu = () => {
 		}
 	}
 
-	// Check connection status every second to keep icon in sync
+	// Check connection status every second to keep icon in sync using gRPC
 	useEffect(() => {
+		// Function to fetch connection info
+		const fetchConnectionInfo = async () => {
+			try {
+				const request = GetBrowserConnectionInfoRequest.create({});
+				const info = await browserService.getBrowserConnectionInfo(request);
+				setConnectionInfo({
+					isConnected: info.isConnected,
+					isRemote: info.isRemote,
+					host: info.host,
+				});
+			} catch (error) {
+				console.error("Error fetching browser connection info:", error);
+			}
+		};
+		
 		// Request connection info immediately
-		vscode.postMessage({
-			type: "getBrowserConnectionInfo",
-		})
+		fetchConnectionInfo();
 
 		// Set up interval to refresh every second
-		const intervalId = setInterval(() => {
-			vscode.postMessage({
-				type: "getBrowserConnectionInfo",
-			})
-		}, 1000)
+		const intervalId = setInterval(fetchConnectionInfo, 1000);
 
-		return () => clearInterval(intervalId)
-	}, [])
+		return () => clearInterval(intervalId);
+	}, []);
 
 	return (
 		<div ref={containerRef} style={{ position: "relative", marginTop: "-1px", display: "flex" }}>

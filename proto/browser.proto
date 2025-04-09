@@ -2,70 +2,19 @@ syntax = "proto3";
 
 package cline;
 
-option go_package = "github.com/cline/intelligence-engine/pkg/proto";
-
-// Browser service for browser automation
+// Service definition for browser-related operations
 service BrowserService {
-  // Launch a browser and navigate to a URL
-  rpc LaunchBrowser(LaunchBrowserRequest) returns (BrowserActionResponse);
-  
-  // Click at coordinates in the browser
-  rpc ClickBrowser(ClickBrowserRequest) returns (BrowserActionResponse);
-  
-  // Type text in the browser
-  rpc TypeBrowser(TypeBrowserRequest) returns (BrowserActionResponse);
-  
-  // Scroll the browser
-  rpc ScrollBrowser(ScrollBrowserRequest) returns (BrowserActionResponse);
-  
-  // Close the browser
-  rpc CloseBrowser(CloseBrowserRequest) returns (BrowserActionResponse);
+  // Get information about the current browser connection
+  rpc GetBrowserConnectionInfo(GetBrowserConnectionInfoRequest) returns (BrowserConnectionInfo);
 }
 
-// Request to launch a browser
-message LaunchBrowserRequest {
-  string url = 1;               // URL to navigate to
-  int32 width = 2;              // Browser window width (default: 900)
-  int32 height = 3;             // Browser window height (default: 600)
+// Empty request message for GetBrowserConnectionInfo
+message GetBrowserConnectionInfoRequest {
 }
 
-// Request to click in the browser
-message ClickBrowserRequest {
-  string session_id = 1;        // Browser session ID
-  int32 x = 2;                  // X coordinate
-  int32 y = 3;                  // Y coordinate
-}
-
-// Request to type text in the browser
-message TypeBrowserRequest {
-  string session_id = 1;        // Browser session ID
-  string text = 2;              // Text to type
-}
-
-// Request to scroll the browser
-message ScrollBrowserRequest {
-  string session_id = 1;        // Browser session ID
-  string direction = 2;         // Direction to scroll (up, down)
-  int32 amount = 3;             // Amount to scroll in pixels
-}
-
-// Request to close the browser
-message CloseBrowserRequest {
-  string session_id = 1;        // Browser session ID
-}
-
-// Response from a browser action
-message BrowserActionResponse {
-  string session_id = 1;                  // Browser session ID
-  bytes screenshot = 2;                   // Screenshot as bytes
-  repeated ConsoleLogEntry console_log = 3; // Console log entries
-  bool success = 4;                       // Whether the action was successful
-  string error = 5;                       // Error message if any
-}
-
-// Console log entry
-message ConsoleLogEntry {
-  string level = 1;             // Log level (info, warning, error)
-  string text = 2;              // Log text
-  int64 timestamp = 3;          // Log timestamp
+// Response message containing browser connection information
+message BrowserConnectionInfo {
+  bool is_connected = 1;
+  bool is_remote = 2;
+  string host = 3; // Optional, may be empty
 }
