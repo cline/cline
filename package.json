@@ -94,6 +94,10 @@
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.testTargonPrompt",
+				"title": "Test Targon Prompt"
 			}
 		],
 		"menus": {
@@ -306,7 +310,7 @@
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"ollama": "^0.5.13",
 		"open-graph-scraper": "^6.9.0",
-		"openai": "^4.91.1",
+		"openai": "^4.92.1",
 		"os-name": "^6.0.0",
 		"p-timeout": "^6.1.4",
 		"p-wait-for": "^5.0.2",

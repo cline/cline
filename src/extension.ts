@@ -9,6 +9,8 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
+import axios from "axios"
+import https from "https"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -120,6 +122,43 @@ export function activate(context: vscode.ExtensionContext) {
 				type: "action",
 				action: "accountLoginClicked",
 			})
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.testTargonPrompt", async () => {
+			const TARGON_API_KEY = "sn4_r7l7s99cslvz7oscawdm5zf8jmsh"
+
+			const agent = new https.Agent({
+				rejectUnauthorized: false,
+				servername: "api.targon.com",
+			})
+
+			try {
+				const response = await axios.post(
+					"https://api.targon.com/v1/chat/completions",
+					{
+						model: "deepseek-ai/DeepSeek-R1",
+						messages: [{ role: "user", content: "Say hello from inside Cline!" }],
+						stream: false,
+					},
+					{
+						headers: {
+							Authorization: `Bearer ${TARGON_API_KEY}`,
+							"Content-Type": "application/json",
+						},
+						httpsAgent: new (require("https").Agent)({
+							rejectUnauthorized: false, // remove if not needed later
+						}),
+					},
+				)
+
+				const output = response.data?.choices?.[0]?.message?.content || "No content returned"
+				vscode.window.showInformationMessage(`Targon says: ${output}`)
+			} catch (err: any) {
+				console.error("Targon error:", err)
+				vscode.window.showErrorMessage("Failed to reach Targon API: " + (err.message || err.toString()))
+			}
 		}),
 	)
 
