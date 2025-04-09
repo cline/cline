@@ -744,14 +744,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
         // Get model display name
         const modelDisplayName = useMemo(() => {
-            const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration)
+            const { selectedModelId } = normalizeApiConfiguration(apiConfiguration)
             const unknownModel = 'unknown'
             if (!apiConfiguration) return unknownModel
-            switch (selectedProvider) {
-                case 'anthropic':
-                default:
-                    return `${selectedProvider}:${selectedModelId}`
-            }
+            return selectedModelId
         }, [apiConfiguration])
 
         // Calculate arrow position and menu position based on button location

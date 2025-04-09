@@ -157,7 +157,11 @@ export async function activate(context: vscode.ExtensionContext) {
                 // }
                 // Default to codestral
                 const state = await sidebarProvider.getState()
-                return new PostHogApiProvider(autocompleteDefaultModelId, state.apiConfiguration.posthogApiKey)
+                return new PostHogApiProvider(
+                    autocompleteDefaultModelId,
+                    state.apiConfiguration.posthogHost,
+                    state.apiConfiguration.posthogApiKey
+                )
             })
         )
     )

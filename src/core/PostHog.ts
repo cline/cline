@@ -155,7 +155,11 @@ export class PostHog {
         this.autoApprovalSettings = autoApprovalSettings
         this.browserSettings = browserSettings
         this.chatSettings = chatSettings
-        this.inkeepHandler = new PostHogApiProvider('inkeep-qa', apiConfiguration.posthogApiKey)
+        this.inkeepHandler = new PostHogApiProvider(
+            'inkeep-qa',
+            apiConfiguration.posthogHost,
+            apiConfiguration.posthogApiKey
+        )
         if (historyItem) {
             this.taskId = historyItem.id
             this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange

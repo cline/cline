@@ -4,17 +4,19 @@ import { ApiStreamChunk, streamSse } from './utils/stream'
 import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ModelInfo } from '../shared/api'
 
 export class PostHogApiProvider {
-    private apiBase = process.env.IS_DEV
-        ? 'http://localhost:8010/api/llm_proxy/'
-        : 'https://us.posthog.com/api/llm_proxy/'
+    private apiBase: string
     apiKey?: string
     model: string
     thinking?: boolean
 
-    constructor(model: string, apiKey?: string, thinking: boolean = false) {
+    constructor(model: string, host?: string, apiKey?: string, thinking: boolean = false) {
         this.apiKey = apiKey
         this.model = model
         this.thinking = thinking
+        if (!host) {
+            host = 'us.posthog.com'
+        }
+        this.apiBase = process.env.IS_DEV ? 'http://localhost:8010/api/llm_proxy/' : `https://${host}/api/llm_proxy/`
     }
 
     async *stream(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): AsyncGenerator<ApiStreamChunk> {

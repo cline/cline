@@ -890,6 +890,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                     const { apiConfiguration: updatedApiConfiguration } = await this.getState()
                     this.posthog.api = new PostHogApiProvider(
                         updatedApiConfiguration.apiModelId,
+                        updatedApiConfiguration.posthogHost,
                         updatedApiConfiguration.posthogApiKey,
                         updatedApiConfiguration.thinkingEnabled
                     )
@@ -956,13 +957,28 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
 
     async updateApiConfiguration(apiConfiguration: ApiConfiguration) {
         const { apiProvider, apiModelId, posthogApiKey, thinkingEnabled, posthogHost } = apiConfiguration
-        await this.updateGlobalState('apiProvider', apiProvider)
-        await this.updateGlobalState('apiModelId', apiModelId)
-        await this.updateGlobalState('posthogHost', posthogHost)
-        await this.storeSecret('posthogApiKey', posthogApiKey)
-        await this.updateGlobalState('thinkingEnabled', thinkingEnabled)
-        if (this.posthog && apiModelId) {
-            this.posthog.api = new PostHogApiProvider(apiModelId, posthogApiKey)
+        if (apiProvider) {
+            await this.updateGlobalState('apiProvider', apiProvider)
+        }
+        if (apiModelId) {
+            await this.updateGlobalState('apiModelId', apiModelId)
+        }
+        if (posthogHost) {
+            await this.updateGlobalState('posthogHost', posthogHost)
+        }
+        if (posthogApiKey) {
+            await this.storeSecret('posthogApiKey', posthogApiKey)
+        }
+        if (thinkingEnabled !== undefined) {
+            await this.updateGlobalState('thinkingEnabled', thinkingEnabled)
+        }
+        const { apiConfiguration: updatedApiConfiguration } = await this.getState()
+        if (this.posthog) {
+            this.posthog.api = new PostHogApiProvider(
+                updatedApiConfiguration.apiModelId,
+                updatedApiConfiguration.posthogHost,
+                updatedApiConfiguration.posthogApiKey
+            )
         }
     }
 
