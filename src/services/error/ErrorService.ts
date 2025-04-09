@@ -13,6 +13,6 @@ export class ErrorService {
 
 	static logMessage(message: string, level: "error" | "warning" | "log" | "debug" | "info" = "log"): void {
 		// Log a message to Sentry
-		Sentry.captureMessage(message)
+		Sentry.captureMessage(message, { level })
 	}
 }
