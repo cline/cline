@@ -147,7 +147,8 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}),
 			...(reasoningOn && { thinking: { type: "enabled", budget_tokens: budget_tokens } }),
-			...(this.options.awsBedrockUsePromptCache === true && { cache_control: { type: "ephemeral" } }),
+			// Remove top-level cache_control as it's not supported in the current API version
+			// Individual message content items can still have cache_control
 		}
 
 		// Create the command for streaming
