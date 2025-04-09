@@ -78,12 +78,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
 	const enabledActionsList = (() => {
-		// Handle special cases for command execution and file editing
+		// When nested auto-approve options are used, display the more permissive one (command execution and file editing)
 		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
 		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands")
 		const editFilesEnabled = enabledActions.some((action) => action.id === "editFilesLocally")
 		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally")
 
+		// Filter out the potentially nested options so we don't display them twice
 		const otherActions = enabledActions
 			.filter(
 				(action) =>
