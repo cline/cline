@@ -121,8 +121,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isHoveredN
 
 	useEvent("message", handleMessage)
 
-	// Hide the control if the checkpoint is not the currently restored one AND the user is not hovering near it.
-	// This keeps the UI clean but ensures the controls appear on hover for interaction.
+	// Hide checkpoint if it is not the currently restored one AND the user is not hovering near it.
+	// This keeps the UI clean but ensures the checkpoint appear on hover for interaction.
 	const shouldHideCheckpoint = !isCheckpointCheckedOut && !isHoveredNearCheckpoint
 	if (shouldHideCheckpoint) {
 		return null
