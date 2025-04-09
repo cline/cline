@@ -2,17 +2,13 @@ syntax = "proto3";
 
 package cline;
 
-// Service definition for browser-related operations
 service BrowserService {
-  // Get information about the current browser connection
   rpc GetBrowserConnectionInfo(GetBrowserConnectionInfoRequest) returns (BrowserConnectionInfo);
 }
 
-// Empty request message for GetBrowserConnectionInfo
 message GetBrowserConnectionInfoRequest {
 }
 
-// Response message containing browser connection information
 message BrowserConnectionInfo {
   bool is_connected = 1;
   bool is_remote = 2;
