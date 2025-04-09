@@ -987,14 +987,15 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "checkpoint_created":
-					const shouldShow = hoveredRowIndex === rowIndex - 1 || hoveredRowIndex === rowIndex
+					// Determine if the hover is near the checkpoint marker's visual position (either on the preceding row or the checkpoint row itself)
+					const isHoveredNearCheckpoint = hoveredRowIndex === rowIndex - 1 || hoveredRowIndex === rowIndex
 
 					return (
 						<>
 							<CheckmarkControl
 								messageTs={message.ts}
 								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
-								shouldShow={shouldShow}
+								isHoveredNearCheckpoint={isHoveredNearCheckpoint}
 							/>
 						</>
 					)
