@@ -25,6 +25,7 @@ import ChatTextArea from './ChatTextArea'
 import TaskHeader from './TaskHeader'
 import TelemetryBanner from '../common/TelemetryBanner'
 import Intro from './Intro'
+import SuggestedTasks from './SuggestedTasks'
 
 interface ChatViewProps {
     isHidden: boolean
@@ -304,8 +305,8 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
     }, [])
 
     /*
-	This logic depends on the useEffect[messages] above to set posthogAsk, after which buttons are shown and we then send an askResponse to the extension.
-	*/
+    This logic depends on the useEffect[messages] above to set posthogAsk, after which buttons are shown and we then send an askResponse to the extension.
+    */
     const handlePrimaryButtonClick = useCallback(
         (text?: string, images?: string[]) => {
             const trimmedInput = text?.trim()
@@ -794,6 +795,8 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
 
                     <Intro />
                     {taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+                    <SuggestedTasks setInputValue={setInputValue} handleSendMessage={handleSendMessage} />
+
                     <ChatTextArea
                         ref={textAreaRef}
                         inputValue={inputValue}

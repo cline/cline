@@ -79,7 +79,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
             <div style={{ padding: '0px 20px 0 20px' }}>
                 {taskHistory
                     .filter((item) => item.ts && item.task)
-                    .slice(0, 3)
+                    .slice(0, 2)
                     .map((item) => (
                         <div
                             key={item.id}
