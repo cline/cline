@@ -9,7 +9,6 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
-import * as Sentry from "@sentry/browser"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -27,11 +26,6 @@ let outputChannel: vscode.OutputChannel
 export function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
-
-	// Initialize sentry
-	Sentry.init({
-		dsn: "https://7936780e3f0f0290fcf8d4a395c249b7@o4509028819664896.ingest.us.sentry.io/4509052955983872",
-	})
 
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
