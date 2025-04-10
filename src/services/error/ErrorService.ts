@@ -67,7 +67,8 @@ export class ErrorService {
 
 	static logException(error: Error): void {
 		// Don't log if telemetry is off
-		if (!ErrorService.serviceEnabled) {
+		const isUserManuallyOptedIn = telemetryService.isTelemetryEnabled()
+		if (!isUserManuallyOptedIn || !ErrorService.isEnabled()) {
 			return
 		}
 		// Log the error to Sentry
@@ -76,7 +77,8 @@ export class ErrorService {
 
 	static logMessage(message: string, level: "error" | "warning" | "log" | "debug" | "info" = "log"): void {
 		// Don't log if telemetry is off
-		if (!ErrorService.serviceEnabled) {
+		const isUserManuallyOptedIn = telemetryService.isTelemetryEnabled()
+		if (!isUserManuallyOptedIn || !ErrorService.serviceEnabled) {
 			return
 		}
 		if (ErrorService.serviceLevel === "error" && level === "error") {
