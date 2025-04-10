@@ -137,6 +137,46 @@ describe("stripLineNumbers", () => {
 		const expected = "line one\nline two\nline three"
 		expect(stripLineNumbers(input)).toBe(expected)
 	})
+
+	describe("aggressive mode", () => {
+		it("should strip content with just a pipe character", () => {
+			const input = "| line one\n| line two\n| line three"
+			const expected = "line one\nline two\nline three"
+			expect(stripLineNumbers(input, true)).toBe(expected)
+		})
+
+		it("should strip content with mixed formats in aggressive mode", () => {
+			const input = "1 | line one\n| line two\n123 | line three"
+			const expected = "line one\nline two\nline three"
+			expect(stripLineNumbers(input, true)).toBe(expected)
+		})
+
+		it("should not strip content with pipe characters not at start in aggressive mode", () => {
+			const input = "text | more text\nx | y"
+			expect(stripLineNumbers(input, true)).toBe(input)
+		})
+
+		it("should handle empty content in aggressive mode", () => {
+			expect(stripLineNumbers("", true)).toBe("")
+		})
+
+		it("should preserve padding after pipe in aggressive mode", () => {
+			const input = "|  line with extra spaces\n1 |  indented content"
+			const expected = " line with extra spaces\n indented content"
+			expect(stripLineNumbers(input, true)).toBe(expected)
+		})
+
+		it("should preserve windows-style line endings in aggressive mode", () => {
+			const input = "| line one\r\n| line two\r\n| line three"
+			const expected = "line one\r\nline two\r\nline three"
+			expect(stripLineNumbers(input, true)).toBe(expected)
+		})
+
+		it("should not affect regular content when using aggressive mode", () => {
+			const input = "regular line\nanother line\nno pipes here"
+			expect(stripLineNumbers(input, true)).toBe(input)
+		})
+	})
 })
 
 describe("truncateOutput", () => {
