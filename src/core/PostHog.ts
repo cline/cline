@@ -144,6 +144,7 @@ export class PostHog {
         this.completionApiProvider = apiConfiguration.completionApiProvider
         this.api = new PostHogApiProvider(
             apiConfiguration.apiModelId ?? anthropicDefaultModelId,
+            apiConfiguration.posthogHost,
             apiConfiguration.posthogApiKey
         )
         this.terminalManager = new TerminalManager()
