@@ -1757,7 +1757,7 @@ export class Task {
 								content: diff || content,
 							}
 
-							// Get workspace path, and check to see if the request edits are local or external
+							// Get workspace path, and check to see if the requested edits are local or external
 							const absolutePath = path.resolve(cwd, relPath)
 							const isLocalEdit = absolutePath.startsWith(cwd)
 
@@ -1962,8 +1962,8 @@ export class Task {
 							tool: "readFile",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
-						// Get workspace path, and check to see if the request edits are local or external
 
+						// Get workspace path, and check to see if the requested reads are local or external
 						if (relPath) {
 							const absolutePath = path.resolve(cwd, relPath)
 							var isLocalRead = absolutePath.startsWith(cwd)
@@ -1971,7 +1971,7 @@ export class Task {
 							isLocalRead = false
 						}
 
-						// Get auto-approve settings for local and external edits
+						// Get auto-approve settings for local and external reads
 						const autoApproveResult = this.shouldAutoApproveTool(block.name)
 						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
 							? autoApproveResult
@@ -2068,7 +2068,7 @@ export class Task {
 							isLocalRead = false
 						}
 
-						// Get auto-approve settings for local and external edits
+						// Get auto-approve settings for local and external reads
 						const autoApproveResult = this.shouldAutoApproveTool(block.name)
 						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
 							? autoApproveResult
@@ -2158,7 +2158,7 @@ export class Task {
 							isLocalRead = false
 						}
 
-						// Get auto-approve settings for local and external edits
+						// Get auto-approve settings for local and external reads
 						const autoApproveResult = this.shouldAutoApproveTool(block.name)
 						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
 							? autoApproveResult
@@ -2249,13 +2249,12 @@ export class Task {
 							isLocalRead = false
 						}
 
-						// Get auto-approve settings for local and external edits
+						// Get auto-approve settings for local and external reads
 						const autoApproveResult = this.shouldAutoApproveTool(block.name)
 						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
 							? autoApproveResult
 							: [autoApproveResult, false]
 
-						////
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
