@@ -180,7 +180,7 @@
 			}
 		},
 		"customModel": {
-			"capabilities": "自定义模型配置注意事项：<br>• 确保兼容OpenAI接口规范<br>• 错误配置可能导致功能异常<br>• 价格参数影响费用统计",
+			"capabilities": "自定义模型配置注意事项：\n• 确保兼容OpenAI接口规范\n• 错误配置可能导致功能异常\n• 价格参数影响费用统计",
 			"maxTokens": {
 				"label": "最大输出Token数",
 				"description": "模型在响应中可以生成的最大Token数。（指定 -1 允许服务器设置最大Token数。）"
