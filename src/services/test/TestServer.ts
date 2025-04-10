@@ -8,9 +8,10 @@ let messageCatcherDisposable: vscode.Disposable | undefined
 
 /**
  * Creates and starts an HTTP server for test automation
+ * @param webviewProvider The webview provider instance to use for message catching
  * @returns The created HTTP server instance
  */
-export function createTestServer(): http.Server {
+export function createTestServer(webviewProvider?: WebviewProvider): http.Server {
 	const PORT = 9876
 
 	testServer = http.createServer((req, res) => {
@@ -99,12 +100,16 @@ export function createTestServer(): http.Server {
 		Logger.log(`Test server error: ${error}`)
 	})
 
-	// Set up message catcher for the visible webview instance
-	const visibleWebview = WebviewProvider.getVisibleInstance()
-	if (visibleWebview) {
-		messageCatcherDisposable = createMessageCatcher(visibleWebview)
+	// Set up message catcher for the provided webview instance or try to get the visible one
+	if (webviewProvider) {
+		messageCatcherDisposable = createMessageCatcher(webviewProvider)
 	} else {
-		Logger.log("No visible webview instance found for message catcher")
+		const visibleWebview = WebviewProvider.getVisibleInstance()
+		if (visibleWebview) {
+			messageCatcherDisposable = createMessageCatcher(visibleWebview)
+		} else {
+			Logger.log("No visible webview instance found for message catcher")
+		}
 	}
 
 	return testServer
