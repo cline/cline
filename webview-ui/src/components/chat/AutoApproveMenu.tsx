@@ -34,38 +34,39 @@ const ACTION_METADATA: {
 	{
 		id: "readFilesExternally",
 		label: "Read files and directories anywhere",
-		shortName: "Read External",
+		shortName: "Read (all)",
 		description: "Allows Cline to read any file on your computer.",
 	},
 	{
 		id: "editFilesLocally",
-		label: "Edit files",
+		label: "Edit local files",
 		shortName: "Edit",
 		description: "Allows Cline to modify files within your workspace.",
 	},
 	{
 		id: "editFilesExternally",
-		label: "Edit external files",
-		shortName: "Edit (External)",
+		label: "Edit files anywhere",
+		shortName: "Edit (all))",
 		description: "Allows Cline to modify any file on your computer.",
 	},
 	{
 		id: "executeSafeCommands",
 		label: "Execute safe commands",
 		shortName: "Safe Commands",
-		description: "Allows execution of safe terminal commands.",
+		description:
+			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
 	},
 	{
 		id: "executeAllCommands",
 		label: "Execute all commands",
 		shortName: "All Commands",
-		description: "Allows execution of all terminal commands.",
+		description: "Allows execution of all terminal commands. Use at your own risk.",
 	},
 	{
 		id: "useBrowser",
 		label: "Use the browser",
 		shortName: "Browser",
-		description: "Allows Cline to launch and interact with websites in a browser.",
+		description: "Allows ability to launch and interact with any website in a browser.",
 	},
 	{
 		id: "useMcp",
@@ -312,7 +313,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction]}>
 									<div
 										style={{
-											margin: "6px 0",
+											margin: "3px 0",
 											marginLeft: "28px",
 										}}>
 										<VSCodeCheckbox
@@ -339,7 +340,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							<div
 								key={action.id}
 								style={{
-									margin: "3px 0",
+									margin: "6px 0",
 								}}>
 								<VSCodeCheckbox
 									checked={autoApprovalSettings.actions[action.id]}
