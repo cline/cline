@@ -301,6 +301,10 @@
 		"shellIntegrationTimeout": {
 			"label": "Terminal shell integration timeout",
 			"description": "Maximum time to wait for shell integration to initialize before executing commands. For users with long shell startup times, this value may need to be increased if you see \"Shell Integration Unavailable\" errors in the terminal."
+		},
+		"commandDelay": {
+			"label": "Terminal command delay",
+			"description": "Delay in milliseconds to add after command execution. The default setting of 0 disables the delay completely. This can help ensure command output is fully captured in terminals with timing issues. In most terminals it is implemented by setting `PROMPT_COMMAND='sleep N'` and Powershell appends `start-sleep` to the end of each command. Originally was workaround for VSCode bug#237208 and may not be needed."
 		}
 	},
 	"advanced": {

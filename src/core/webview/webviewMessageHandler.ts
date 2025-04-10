@@ -736,6 +736,13 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				Terminal.setShellIntegrationTimeout(message.value)
 			}
 			break
+		case "terminalCommandDelay":
+			await updateGlobalState("terminalCommandDelay", message.value)
+			await provider.postStateToWebview()
+			if (message.value !== undefined) {
+				Terminal.setCommandDelay(message.value)
+			}
+			break
 		case "mode":
 			await provider.handleModeSwitch(message.text as Mode)
 			break

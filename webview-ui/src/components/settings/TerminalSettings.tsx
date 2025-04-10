@@ -12,12 +12,16 @@ import { Section } from "./Section"
 type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	terminalOutputLineLimit?: number
 	terminalShellIntegrationTimeout?: number
-	setCachedStateField: SetCachedStateField<"terminalOutputLineLimit" | "terminalShellIntegrationTimeout">
+	terminalCommandDelay?: number
+	setCachedStateField: SetCachedStateField<
+		"terminalOutputLineLimit" | "terminalShellIntegrationTimeout" | "terminalCommandDelay"
+	>
 }
 
 export const TerminalSettings = ({
 	terminalOutputLineLimit,
 	terminalShellIntegrationTimeout,
+	terminalCommandDelay,
 	setCachedStateField,
 	className,
 	...props
@@ -73,6 +77,25 @@ export const TerminalSettings = ({
 					</div>
 					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:terminal.shellIntegrationTimeout.description")}
+					</div>
+				</div>
+
+				<div>
+					<label className="block font-medium mb-1">{t("settings:terminal.commandDelay.label")}</label>
+					<div className="flex items-center gap-2">
+						<Slider
+							min={0}
+							max={1000}
+							step={10}
+							value={[terminalCommandDelay ?? 0]}
+							onValueChange={([value]) =>
+								setCachedStateField("terminalCommandDelay", Math.min(1000, Math.max(0, value)))
+							}
+						/>
+						<span className="w-10">{terminalCommandDelay ?? 50}ms</span>
+					</div>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						{t("settings:terminal.commandDelay.description")}
 					</div>
 				</div>
 			</Section>

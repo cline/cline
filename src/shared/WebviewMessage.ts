@@ -82,6 +82,7 @@ export interface WebviewMessage {
 		| "deleteMessage"
 		| "terminalOutputLineLimit"
 		| "terminalShellIntegrationTimeout"
+		| "terminalCommandDelay"
 		| "mcpEnabled"
 		| "enableMcpServerCreation"
 		| "searchCommits"

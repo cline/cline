@@ -301,6 +301,10 @@
 		"shellIntegrationTimeout": {
 			"label": "Limit czasu integracji powłoki terminala",
 			"description": "Maksymalny czas oczekiwania na inicjalizację integracji powłoki przed wykonaniem poleceń. Dla użytkowników z długim czasem uruchamiania powłoki, ta wartość może wymagać zwiększenia, jeśli widzisz błędy \"Shell Integration Unavailable\" w terminalu."
+		},
+		"commandDelay": {
+			"label": "Opóźnienie poleceń terminala",
+			"description": "Opóźnienie w milisekundach dodawane po wykonaniu polecenia. Domyślne ustawienie 0 całkowicie wyłącza opóźnienie. Może to pomóc w zapewnieniu pełnego przechwytywania wyjścia poleceń w terminalach z problemami z synchronizacją. W większości terminali jest to implementowane przez ustawienie `PROMPT_COMMAND='sleep N'`, a PowerShell dodaje `start-sleep` na końcu każdego polecenia. Pierwotnie było to obejście błędu VSCode#237208 i może nie być potrzebne."
 		}
 	},
 	"advanced": {

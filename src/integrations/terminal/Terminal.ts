@@ -7,6 +7,7 @@ export const TERMINAL_SHELL_INTEGRATION_TIMEOUT = 5000
 
 export class Terminal {
 	private static shellIntegrationTimeout: number = TERMINAL_SHELL_INTEGRATION_TIMEOUT
+	private static commandDelay: number = 0
 
 	public terminal: vscode.Terminal
 	public busy: boolean
@@ -258,6 +259,22 @@ export class Terminal {
 
 	public static getShellIntegrationTimeout(): number {
 		return Terminal.shellIntegrationTimeout
+	}
+
+	/**
+	 * Sets the command delay in milliseconds
+	 * @param delayMs The delay in milliseconds
+	 */
+	public static setCommandDelay(delayMs: number): void {
+		Terminal.commandDelay = delayMs
+	}
+
+	/**
+	 * Gets the command delay in milliseconds
+	 * @returns The command delay in milliseconds
+	 */
+	public static getCommandDelay(): number {
+		return Terminal.commandDelay
 	}
 
 	public static compressTerminalOutput(input: string, lineLimit: number): string {

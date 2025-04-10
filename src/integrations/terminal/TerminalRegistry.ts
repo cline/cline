@@ -109,22 +109,27 @@ export class TerminalRegistry {
 	}
 
 	static createTerminal(cwd: string | vscode.Uri): Terminal {
+		const env: Record<string, string> = {
+			PAGER: "cat",
+
+			// VTE must be disabled because it prevents the prompt command from executing
+			// See https://wiki.gnome.org/Apps/Terminal/VTE
+			VTE_VERSION: "0",
+		}
+
+		// VSCode bug#237208: Command output can be lost due to a race between completion
+		// sequences and consumers. Add delay via PROMPT_COMMAND to ensure the
+		// \x1b]633;D escape sequence arrives after command output is processed.
+		// Only add this if commandDelay is not zero
+		if (Terminal.getCommandDelay() > 0) {
+			env.PROMPT_COMMAND = `sleep ${Terminal.getCommandDelay() / 1000}`
+		}
+
 		const terminal = vscode.window.createTerminal({
 			cwd,
 			name: "Roo Code",
 			iconPath: new vscode.ThemeIcon("rocket"),
-			env: {
-				PAGER: "cat",
-
-				// VSCode bug#237208: Command output can be lost due to a race between completion
-				// sequences and consumers. Add 50ms delay via PROMPT_COMMAND to ensure the
-				// \x1b]633;D escape sequence arrives after command output is processed.
-				PROMPT_COMMAND: "sleep 0.050",
-
-				// VTE must be disabled because it prevents the prompt command above from executing
-				// See https://wiki.gnome.org/Apps/Terminal/VTE
-				VTE_VERSION: "0",
-			},
+			env,
 		})
 
 		const cwdString = cwd.toString()

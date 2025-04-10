@@ -301,6 +301,10 @@
 		"shellIntegrationTimeout": {
 			"label": "Tempo limite de integração do shell do terminal",
 			"description": "Tempo máximo de espera para a inicialização da integração do shell antes de executar comandos. Para usuários com tempos de inicialização de shell longos, este valor pode precisar ser aumentado se você vir erros \"Shell Integration Unavailable\" no terminal."
+		},
+		"commandDelay": {
+			"label": "Atraso de comando do terminal",
+			"description": "Atraso em milissegundos para adicionar após a execução do comando. A configuração padrão de 0 desativa completamente o atraso. Isso pode ajudar a garantir que a saída do comando seja totalmente capturada em terminais com problemas de temporização. Na maioria dos terminais, isso é implementado definindo `PROMPT_COMMAND='sleep N'` e o PowerShell adiciona `start-sleep` ao final de cada comando. Originalmente era uma solução para o bug VSCode#237208 e pode não ser necessário."
 		}
 	},
 	"advanced": {
