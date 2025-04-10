@@ -609,7 +609,7 @@ export class CodeAnalyzer {
 
     private showWarnings(usages: PostHogUsage[]) {
         const diagnosticMap = new Map<string, vscode.Diagnostic[]>()
-        const SIMILARITY_THRESHOLD = 0.7
+        const SIMILARITY_THRESHOLD = 0.85
 
         // First pass: Check for similar events and update usage objects
         for (const usage of usages) {

@@ -450,13 +450,6 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     }, 1000) // 1 second debounce
 
-    // Listen for editor open events
-    context.subscriptions.push(
-        vscode.window.onDidChangeActiveTextEditor(() => {
-            debouncedAnalyze()
-        })
-    )
-
     // Listen for document change events
     context.subscriptions.push(
         vscode.workspace.onDidChangeTextDocument(() => {
