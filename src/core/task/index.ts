@@ -334,7 +334,7 @@ export class Task {
 					// update the context history state
 					// await this.contextManager.truncateContextHistory(
 					// 	message.ts,
-					//  message.conversationHistoryIndex + 1,
+					//  (message.conversationHistoryIndex || 0) + 1,
 					// 	await ensureTaskDirectoryExists(this.getContext(), this.taskId),
 					// )
 
