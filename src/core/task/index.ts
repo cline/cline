@@ -3087,8 +3087,11 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
+		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
 		if (this.apiProvider && this.api.getModel().id) {
-			await this.modelContextTracker.recordModelUsage(this.apiProvider, this.api.getModel().id, this.chatSettings.mode)
+			try {
+				await this.modelContextTracker.recordModelUsage(this.apiProvider, this.api.getModel().id, this.chatSettings.mode)
+			} catch {}
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
