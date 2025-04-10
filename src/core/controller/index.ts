@@ -575,7 +575,7 @@ export class Controller {
 				break
 			}
 			case "showMcpView": {
-				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
+				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked", tab: message.tab || undefined })
 				break
 			}
 			case "openMcpSettings": {
