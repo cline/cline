@@ -1,6 +1,6 @@
 import * as path from "path"
 import * as vscode from "vscode"
-import { getTaskMetadata, saveTaskMetadata } from "../storage/disk"
+import { getTaskMetadata, saveTaskMetadata } from "../../storage/disk"
 import type { FileMetadataEntry, ControllerLike } from "./ContextTrackerTypes"
 
 // This class is responsible for tracking file operations that may result in stale context.
