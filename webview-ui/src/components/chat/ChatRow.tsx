@@ -48,18 +48,12 @@ interface ChatRowProps {
 	isExpanded: boolean
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClineMessage
+	isFirst: boolean
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
-	rowIndex: number
-	hoveredRowIndex: number | null
-	setHoveredRowIndex: React.Dispatch<React.SetStateAction<number | null>>
 }
 
-interface ChatRowContentProps
-	extends Omit<ChatRowProps, "onHeightChange" | "rowIndex" | "hoveredRowIndex" | "setHoveredRowIndex"> {
-	rowIndex: number
-	hoveredRowIndex: number | null
-}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "isFirst"> {}
 
 export const ProgressIndicator = () => (
 	<div
@@ -92,23 +86,40 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage, rowIndex, hoveredRowIndex, setHoveredRowIndex } = props
+		const { isLast, isFirst, onHeightChange, message } = props
 		// Store the previous height to compare with the current height
-		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
 		// Calculate dynamic styles using the custom hook
-		const { padding, minHeight } = useChatRowStyles(message, hoveredRowIndex, rowIndex)
+		const { ...chatRowStyles } = useChatRowStyles(message)
 
+		const isCheckpointMessage = message.say === "checkpoint_created"
+
+		// Special handling for first row checkpoint
+		const checkpointStyles = useMemo(() => {
+			if (isCheckpointMessage) {
+				// Apply additional styles for first row checkpoints
+				if (isFirst) {
+					return {
+						...chatRowStyles,
+						marginTop: "3px", // Add a small margin to ensure visibility
+					}
+				}
+				return chatRowStyles
+			}
+			return chatRowStyles
+		}, [chatRowStyles, isCheckpointMessage, isFirst])
+
+		// ChatRowContainer with updated styles
 		const [chatrow, { height }] = useSize(
-			<ChatRowContainer
-				style={{ padding, minHeight }}
-				onMouseEnter={() => setHoveredRowIndex(rowIndex)}
-				onMouseLeave={() => setHoveredRowIndex(null)}>
-				<ChatRowContent {...props} rowIndex={rowIndex} hoveredRowIndex={hoveredRowIndex} />
+			<ChatRowContainer style={checkpointStyles}>
+				<ChatRowContent {...props} />
 			</ChatRowContainer>,
 		)
 
 		useEffect(() => {
+			// Skip height change effects for checkpoint messages
+			if (isCheckpointMessage) return
+
 			// used for partials command output etc.
 			// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
 			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
@@ -119,9 +130,8 @@ const ChatRow = memo(
 				}
 				prevHeightRef.current = height
 			}
-		}, [height, isLast, onHeightChange, message])
+		}, [height, isLast, onHeightChange, message, isCheckpointMessage])
 
-		// we cannot return null as virtuoso does not support it so we use a separate visibleMessages array to filter out messages that should not be rendered
 		return chatrow
 	},
 	// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
@@ -130,15 +140,7 @@ const ChatRow = memo(
 
 export default ChatRow
 
-export const ChatRowContent = ({
-	message,
-	isExpanded,
-	onToggleExpand,
-	lastModifiedMessage,
-	isLast,
-	rowIndex,
-	hoveredRowIndex,
-}: ChatRowContentProps) => {
+export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -988,15 +990,12 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "checkpoint_created":
-					// Determine if the hover is near the checkpoint marker's visual position (either on the preceding row or the checkpoint row itself)
-					const isHoveredNearCheckpoint = hoveredRowIndex === rowIndex - 1 || hoveredRowIndex === rowIndex
-
 					return (
 						<>
 							<CheckmarkControl
 								messageTs={message.ts}
 								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
-								isHoveredNearCheckpoint={isHoveredNearCheckpoint}
+								isLastRow={isLast}
 							/>
 						</>
 					)
