@@ -109,14 +109,14 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 		// Handle read editing labels
 		if (readFilesExternallyEnabled) {
-			labels.push("Read (External)")
+			labels.push("Read (All)")
 		} else if (readFilesEnabled) {
 			labels.push("Read")
 		}
 
 		// Handle file editing labels
 		if (editFilesExternallyEnabled) {
-			labels.push("Edit (External)")
+			labels.push("Edit (All)")
 		} else if (editFilesEnabled) {
 			labels.push("Edit")
 		}

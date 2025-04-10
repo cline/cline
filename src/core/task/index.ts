@@ -1170,8 +1170,8 @@ export class Task {
 	}
 
 	// Check if the tool should be auto-approved based on the settings
-	// Returns bool for most tools, tuple for execute_command (and future nested auto appoved settings)
-	CheckAutoApproveSettings(toolName: ToolUseName): boolean | [boolean, boolean] {
+	// Returns bool for most tools, and tuple for tools with nested settings
+	ShouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case "read_file":
@@ -1203,16 +1203,20 @@ export class Task {
 		return false
 	}
 
-	ShouldAutoApproveTool(blockname: ToolUseName, autoApproveActionpath: string | undefined): boolean {
+	// Check if the tool should be auto-approved based on the settings
+	// and the path of the action. Returns true if the tool should be auto-approved
+	// based on the user's settings and the path of the action.
+	ShouldAutoApproveToolWithPath(blockname: ToolUseName, autoApproveActionpath: string | undefined): boolean {
 		if (autoApproveActionpath) {
 			const absolutePath = path.resolve(cwd, autoApproveActionpath)
 			var isLocalRead = absolutePath.startsWith(cwd)
 		} else {
+			// If we do not get a path for some reason, default to a (safer) false return
 			isLocalRead = false
 		}
 
 		// Get auto-approve settings for local and external edits
-		const autoApproveResult = this.CheckAutoApproveSettings(blockname)
+		const autoApproveResult = this.ShouldAutoApproveTool(blockname)
 		const [autoApproveLocal, autoApproveExternal] = Array.isArray(autoApproveResult)
 			? autoApproveResult
 			: [autoApproveResult, false]
@@ -1764,7 +1768,7 @@ export class Task {
 							const isLocalEdit = absolutePath.startsWith(cwd)
 
 							// Get auto-approve settings for local and external edits
-							const autoApproveResult = this.CheckAutoApproveSettings(block.name)
+							const autoApproveResult = this.ShouldAutoApproveTool(block.name)
 							const [autoApproveEditLocal, autoApproveEditExternal] = Array.isArray(autoApproveResult)
 								? autoApproveResult
 								: [autoApproveResult, false]
@@ -1971,7 +1975,7 @@ export class Task {
 									...sharedMessageProps,
 									content: undefined,
 								} satisfies ClineSayTool)
-								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -2001,7 +2005,7 @@ export class Task {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
-								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2049,7 +2053,7 @@ export class Task {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -2080,7 +2084,7 @@ export class Task {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2120,7 +2124,7 @@ export class Task {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -2148,7 +2152,7 @@ export class Task {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2192,7 +2196,7 @@ export class Task {
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -2228,7 +2232,7 @@ export class Task {
 									...sharedMessageProps,
 									content: results,
 								} satisfies ClineSayTool)
-								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2274,7 +2278,7 @@ export class Task {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									if (this.CheckAutoApproveSettings(block.name)) {
+									if (this.ShouldAutoApproveTool(block.name)) {
 										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say(
 											"browser_action_launch",
@@ -2315,7 +2319,7 @@ export class Task {
 									}
 									this.consecutiveMistakeCount = 0
 
-									if (this.CheckAutoApproveSettings(block.name)) {
+									if (this.ShouldAutoApproveTool(block.name)) {
 										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say("browser_action_launch", url, undefined, false)
 										this.consecutiveAutoApprovedRequestsCount++
@@ -2438,7 +2442,7 @@ export class Task {
 
 						try {
 							if (block.partial) {
-								if (this.CheckAutoApproveSettings(block.name)) {
+								if (this.ShouldAutoApproveTool(block.name)) {
 									// since depending on an upcoming parameter, requiresApproval this may become an ask - we cant partially stream a say prematurely. So in this particular case we have to wait for the requiresApproval parameter to be completed before presenting it.
 									// await this.say(
 									// 	"command",
@@ -2487,7 +2491,7 @@ export class Task {
 
 								// If the model says this command is safe and auto aproval for safe commands is true, execute the command
 								// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
-								const autoApproveResult = this.CheckAutoApproveSettings(block.name)
+								const autoApproveResult = this.ShouldAutoApproveTool(block.name)
 								const [autoApproveSafe, autoApproveAll] = Array.isArray(autoApproveResult)
 									? autoApproveResult
 									: [autoApproveResult, false]
@@ -2508,7 +2512,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-											`${this.CheckAutoApproveSettings(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+											`${this.ShouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										break
@@ -2563,7 +2567,7 @@ export class Task {
 									arguments: removeClosingTag("arguments", mcp_arguments),
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.CheckAutoApproveSettings(block.name)) {
+								if (this.ShouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
@@ -2623,7 +2627,7 @@ export class Task {
 									?.mcpHub?.connections?.find((conn) => conn.server.name === server_name)
 									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
 
-								if (this.CheckAutoApproveSettings(block.name) && isToolAutoApproved) {
+								if (this.ShouldAutoApproveTool(block.name) && isToolAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2684,7 +2688,7 @@ export class Task {
 									uri: removeClosingTag("uri", uri),
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.CheckAutoApproveSettings(block.name)) {
+								if (this.ShouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
@@ -2713,7 +2717,7 @@ export class Task {
 									uri,
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.CheckAutoApproveSettings(block.name)) {
+								if (this.ShouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
