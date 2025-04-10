@@ -1831,7 +1831,6 @@ export class Task {
 									// 	)
 									// : undefined,
 								} satisfies ClineSayTool)
-
 								if (this.ShouldAutoApproveToolWithPath(block.name, relPath)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
