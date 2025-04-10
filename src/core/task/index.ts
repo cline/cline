@@ -1763,34 +1763,11 @@ export class Task {
 								content: diff || content,
 							}
 
-							// Get workspace path, and check to see if the requested edits are local or external
-							const absolutePath = path.resolve(cwd, relPath)
-							const isLocalEdit = absolutePath.startsWith(cwd)
-
-							// Get auto-approve settings for local and external edits
-							const autoApproveResult = this.ShouldAutoApproveTool(block.name)
-							const [autoApproveEditLocal, autoApproveEditExternal] = Array.isArray(autoApproveResult)
-								? autoApproveResult
-								: [autoApproveResult, false]
-
-							var shouldAutoApproveEdit = false
-
-							if (isLocalEdit && autoApproveEditLocal) {
-								// This is a local edit within the users workspace, and they have auto-approval enabled for local edits
-								shouldAutoApproveEdit = true
-							} else if (!isLocalEdit && autoApproveEditLocal && autoApproveEditExternal) {
-								// This is an external edit, but the user has auto-approval enabled for both local and external edits
-								shouldAutoApproveEdit = true
-							} else {
-								// Auto-approval is disabled and the user will need to approve all edits
-								shouldAutoApproveEdit = false
-							}
-
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
 
-								if (shouldAutoApproveEdit === true) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, relPath)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -1855,7 +1832,7 @@ export class Task {
 									// : undefined,
 								} satisfies ClineSayTool)
 
-								if (shouldAutoApproveEdit === true) {
+								if (this.ShouldAutoApproveToolWithPath(block.name, relPath)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
