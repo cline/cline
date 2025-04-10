@@ -83,7 +83,6 @@ export class ErrorService {
 		}
 		// Log the message if allowed
 		Sentry.captureMessage(message, { level })
-		return
 	}
 
 	static isEnabled(): boolean {
