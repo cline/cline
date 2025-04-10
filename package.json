@@ -1,7 +1,7 @@
 {
 	"name": "roo-cline",
-	"displayName": "Roo Code (prev. Roo Cline)",
-	"description": "A whole dev team of AI agents in your editor.",
+	"displayName": "Roo Code",
+	"description": "A whole dev team of AI agents in your editor. Previously Roo Cline.",
 	"publisher": "RooVeterinaryInc",
 	"version": "3.11.12",
 	"icon": "assets/icons/icon.png",
