@@ -78,7 +78,7 @@ export class ErrorService {
 	static logMessage(message: string, level: "error" | "warning" | "log" | "debug" | "info" = "log"): void {
 		// Don't log if telemetry is off
 		const isUserManuallyOptedIn = telemetryService.isTelemetryEnabled()
-		if (!isUserManuallyOptedIn || !ErrorService.serviceEnabled) {
+		if (!isUserManuallyOptedIn || !ErrorService.isEnabled()) {
 			return
 		}
 		if (ErrorService.serviceLevel === "error" && level === "error") {
