@@ -1,12 +1,12 @@
 import * as Sentry from "@sentry/browser"
 import * as vscode from "vscode"
+import { telemetryService } from "../telemetry/TelemetryService"
 import * as pkg from "../../../package.json"
 
 let telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
 let isTelemetryEnabled = ["all", "error", "crash"].includes(telemetryLevel)
 
 vscode.workspace.onDidChangeConfiguration(() => {
-	console.log("Config Changed")
 	telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
 	isTelemetryEnabled = ["all", "error"].includes(telemetryLevel)
 	ErrorService.toggleEnabled(isTelemetryEnabled)
@@ -27,7 +27,7 @@ export class ErrorService {
 			release: `cline@${pkg.version}`,
 			integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
 			beforeSend(event) {
-				if (ErrorService.isEnabled()) {
+				if (ErrorService.isEnabled() && telemetryService.isTelemetryEnabled()) {
 					return event
 				}
 				return null
