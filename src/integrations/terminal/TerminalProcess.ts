@@ -95,7 +95,6 @@ export interface ExitCodeDetails {
 	coreDumpPossible?: boolean
 }
 import { Terminal } from "./Terminal"
-import { TerminalRegistry } from "./TerminalRegistry"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -140,7 +139,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.once("no_shell_integration", () => {
 			if (this.terminalInfo) {
 				console.log(`no_shell_integration received for terminal ${this.terminalInfo.id}`)
-				TerminalRegistry.removeTerminal(this.terminalInfo.id)
+				this.emit("completed", "<no shell integration>")
+				this.terminalInfo.busy = false
+				this.terminalInfo.setActiveStream(undefined)
+				this.continue()
 			}
 		})
 	}
