@@ -352,4 +352,44 @@ describe("OpenAiHandler", () => {
 			)
 		})
 	})
+
+	describe("Grok xAI Provider", () => {
+		const grokOptions = {
+			...mockOptions,
+			openAiBaseUrl: "https://api.x.ai/v1",
+			openAiModelId: "grok-1",
+		}
+
+		it("should initialize with Grok xAI configuration", () => {
+			const grokHandler = new OpenAiHandler(grokOptions)
+			expect(grokHandler).toBeInstanceOf(OpenAiHandler)
+			expect(grokHandler.getModel().id).toBe(grokOptions.openAiModelId)
+		})
+
+		it("should exclude stream_options when streaming with Grok xAI", async () => {
+			const grokHandler = new OpenAiHandler(grokOptions)
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Hello!",
+				},
+			]
+
+			const stream = grokHandler.createMessage(systemPrompt, messages)
+			await stream.next()
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: grokOptions.openAiModelId,
+					stream: true,
+				}),
+				{},
+			)
+
+			const mockCalls = mockCreate.mock.calls
+			const lastCall = mockCalls[mockCalls.length - 1]
+			expect(lastCall[0]).not.toHaveProperty("stream_options")
+		})
+	})
 })
