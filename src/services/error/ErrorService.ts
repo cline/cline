@@ -80,6 +80,7 @@ export class ErrorService {
 		if (ErrorService.serviceLevel === "error" && level === "error") {
 			// Log the message if allowed
 			Sentry.captureMessage(message, { level })
+			return
 		}
 		// Log the message if allowed
 		Sentry.captureMessage(message, { level })
