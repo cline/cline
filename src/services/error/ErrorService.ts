@@ -65,7 +65,7 @@ export class ErrorService {
 
 	static logException(error: Error): void {
 		// Don't log if telemetry is off
-		if (ErrorService.serviceLevel === "off") {
+		if (ErrorService. serviceEnabled) {
 			return
 		}
 		// Log the error to Sentry
