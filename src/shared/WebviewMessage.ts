@@ -5,6 +5,7 @@ import { ChatSettings } from './ChatSettings'
 import { UserInfo } from './UserInfo'
 import { ChatContent } from './ChatContent'
 import { TelemetrySetting } from './TelemetrySetting'
+import { PostHogUsage } from '../analysis/codeAnalyzer'
 
 export interface WebviewMessage {
     type:
@@ -48,6 +49,7 @@ export interface WebviewMessage {
         | 'clearAllTaskHistory'
         | 'optionsResponse'
         | 'requestTotalTasksSize'
+        | 'openFileAtUsageLocation'
     // | "relaunchChromeDebugMode"
     text?: string
     disabled?: boolean
@@ -74,6 +76,7 @@ export interface WebviewMessage {
     telemetrySetting?: TelemetrySetting
     enableTabAutocomplete?: boolean
     customInstructionsSetting?: string
+    usage?: PostHogUsage
 }
 
 export type PostHogAskResponse = 'yesButtonClicked' | 'noButtonClicked' | 'messageResponse'

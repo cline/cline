@@ -10,6 +10,7 @@ import { vscode } from '../utils/vscode'
 import { DEFAULT_BROWSER_SETTINGS } from '../../../src/shared/BrowserSettings'
 import { DEFAULT_CHAT_SETTINGS } from '../../../src/shared/ChatSettings'
 import { TelemetrySetting } from '../../../src/shared/TelemetrySetting'
+import { PostHogUsage } from '../../../src/analysis/codeAnalyzer'
 
 interface ExtensionStateContextType extends ExtensionState {
     didHydrateState: boolean
@@ -18,6 +19,7 @@ interface ExtensionStateContextType extends ExtensionState {
     mcpServers: McpServer[]
     filePaths: string[]
     totalTasksSize: number | null
+    posthogUsage: PostHogUsage[]
     setApiConfiguration: (config: ApiConfiguration) => void
     setCustomInstructions: (value?: string) => void
     setTelemetrySetting: (value: TelemetrySetting) => void
@@ -48,6 +50,7 @@ export const ExtensionStateContextProvider: React.FC<{
     const [theme, setTheme] = useState<any>(undefined)
     const [filePaths, setFilePaths] = useState<string[]>([])
     const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
+    const [posthogUsage, setPosthogUsage] = useState<PostHogUsage[]>([])
 
     const [mcpServers, setMcpServers] = useState<McpServer[]>([])
     const handleMessage = useCallback((event: MessageEvent) => {
@@ -94,6 +97,10 @@ export const ExtensionStateContextProvider: React.FC<{
                 setTotalTasksSize(message.totalTasksSize ?? null)
                 break
             }
+            case 'usageUpdated': {
+                setPosthogUsage(message.usage ?? [])
+                break
+            }
         }
     }, [])
 
@@ -111,6 +118,7 @@ export const ExtensionStateContextProvider: React.FC<{
         mcpServers,
         filePaths,
         totalTasksSize,
+        posthogUsage,
         setApiConfiguration: (value) => {
             setState((prevState) => ({
                 ...prevState,
