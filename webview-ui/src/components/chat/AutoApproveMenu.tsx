@@ -46,7 +46,7 @@ const ACTION_METADATA: {
 	{
 		id: "editFilesExternally",
 		label: "Edit files anywhere",
-		shortName: "Edit (all))",
+		shortName: "Edit (all)",
 		description: "Allows Cline to modify any file on your computer.",
 	},
 	{
