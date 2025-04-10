@@ -81,6 +81,7 @@ import {
 	GlobalFileNames,
 	getTaskMetadata,
 } from "../storage/disk"
+import { getClineRules } from "../context/instructions/user-instructions/cline-rules"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1230,38 +1231,8 @@ export class Task {
 			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
-		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
-		let clineRulesFileInstructions: string | undefined
-		if (await fileExistsAtPath(clineRulesFilePath)) {
-			if (await isDirectory(clineRulesFilePath)) {
-				try {
-					// Read all files in the .clinerules/ directory.
-					const ruleFiles = await fs
-						.readdir(clineRulesFilePath, { withFileTypes: true, recursive: true })
-						.then((files) => files.filter((file) => file.isFile()))
-						.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
-					const ruleFilesTotalContent = await Promise.all(
-						ruleFiles.map(async (file) => {
-							const ruleFilePath = path.resolve(clineRulesFilePath, file)
-							const ruleFilePathRelative = path.relative(cwd, ruleFilePath)
-							return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
-						}),
-					).then((contents) => contents.join("\n\n"))
-					clineRulesFileInstructions = formatResponse.clineRulesDirectoryInstructions(cwd, ruleFilesTotalContent)
-				} catch {
-					console.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
-				}
-			} else {
-				try {
-					const ruleFileContent = (await fs.readFile(clineRulesFilePath, "utf8")).trim()
-					if (ruleFileContent) {
-						clineRulesFileInstructions = formatResponse.clineRulesFileInstructions(cwd, ruleFileContent)
-					}
-				} catch {
-					console.error(`Failed to read .clinerules file at ${clineRulesFilePath}`)
-				}
-			}
-		}
+
+		const clineRulesFileInstructions = await getClineRules(cwd)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
