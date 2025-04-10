@@ -1,22 +1,91 @@
 import * as Sentry from "@sentry/browser"
+import * as vscode from "vscode"
 import * as pkg from "../../../package.json"
 
-// Initialize sentry
-Sentry.init({
-	dsn: "https://7936780e3f0f0290fcf8d4a395c249b7@o4509028819664896.ingest.us.sentry.io/4509052955983872",
-	environment: process.env.NODE_ENV,
-	release: `cline@${pkg.version}`,
-	integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+let telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
+let isTelemetryEnabled = ["all", "error", "crash"].includes(telemetryLevel)
+
+vscode.workspace.onDidChangeConfiguration(() => {
+	console.log("Config Changed")
+	telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
+	isTelemetryEnabled = ["all", "error"].includes(telemetryLevel)
+	ErrorService.toggleEnabled(isTelemetryEnabled)
+	if (isTelemetryEnabled) {
+		ErrorService.setLevel(telemetryLevel as "error" | "all")
+	}
 })
 
 export class ErrorService {
+	private static serviceEnabled: boolean
+	private static serviceLevel: string
+
+	static initialize() {
+		// Initialize sentry
+		Sentry.init({
+			dsn: "https://7936780e3f0f0290fcf8d4a395c249b7@o4509028819664896.ingest.us.sentry.io/4509052955983872",
+			environment: process.env.NODE_ENV,
+			release: `cline@${pkg.version}`,
+			integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+			beforeSend(event) {
+				if (ErrorService.isEnabled()) {
+					return event
+				}
+				return null
+			},
+		})
+
+		ErrorService.toggleEnabled(true)
+		ErrorService.setLevel("error")
+	}
+
+	static toggleEnabled(state: boolean) {
+		if (state === false) {
+			ErrorService.serviceEnabled = false
+			return
+		}
+		// If we are trying to enable the service, check that we are allowed to.
+		if (isTelemetryEnabled) {
+			ErrorService.serviceEnabled = true
+		}
+	}
+
+	static setLevel(level: "error" | "all") {
+		switch (telemetryLevel) {
+			case "error": {
+				if (level === "error") {
+					ErrorService.serviceLevel = level
+				}
+				break
+			}
+			default: {
+				ErrorService.serviceLevel = level
+			}
+		}
+	}
+
 	static logException(error: Error): void {
+		// Don't log if telemetry is off
+		if (ErrorService.serviceLevel === "off") {
+			return
+		}
 		// Log the error to Sentry
 		Sentry.captureException(error)
 	}
 
 	static logMessage(message: string, level: "error" | "warning" | "log" | "debug" | "info" = "log"): void {
-		// Log a message to Sentry
+		// Don't log if telemetry is off
+		if (ErrorService.serviceLevel === "off") {
+			return
+		}
+		if (ErrorService.serviceLevel === "error" && level === "error") {
+			// Log the message if allowed
+			Sentry.captureMessage(message, { level })
+		}
+		// Log the message if allowed
 		Sentry.captureMessage(message, { level })
+	}
+
+	static isEnabled(): boolean {
+		return ErrorService.serviceEnabled
 	}
 }
