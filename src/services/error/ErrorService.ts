@@ -4,7 +4,7 @@ import { telemetryService } from "../telemetry/TelemetryService"
 import * as pkg from "../../../package.json"
 
 let telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
-let isTelemetryEnabled = ["all", "error", "crash"].includes(telemetryLevel)
+let isTelemetryEnabled = ["all", "error"].includes(telemetryLevel)
 
 vscode.workspace.onDidChangeConfiguration(() => {
 	telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
