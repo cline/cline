@@ -1968,20 +1968,6 @@ export class Task {
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
 
-						// Get workspace path, and check to see if the requested reads are local or external
-						if (relPath) {
-							const absolutePath = path.resolve(cwd, relPath)
-							var isLocalRead = absolutePath.startsWith(cwd)
-						} else {
-							isLocalRead = false
-						}
-
-						// Get auto-approve settings for local and external reads
-						const autoApproveResult = this.shouldAutoApproveTool(block.name)
-						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-							? autoApproveResult
-							: [autoApproveResult, false]
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
@@ -2061,19 +2047,6 @@ export class Task {
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
 
-						if (relDirPath) {
-							const absolutePath = path.resolve(cwd, relDirPath)
-							var isLocalRead = absolutePath.startsWith(cwd)
-						} else {
-							isLocalRead = false
-						}
-
-						// Get auto-approve settings for local and external reads
-						const autoApproveResult = this.shouldAutoApproveTool(block.name)
-						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-							? autoApproveResult
-							: [autoApproveResult, false]
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
@@ -2145,19 +2118,6 @@ export class Task {
 							tool: "listCodeDefinitionNames",
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
-
-						if (relDirPath) {
-							const absolutePath = path.resolve(cwd, relDirPath)
-							var isLocalRead = absolutePath.startsWith(cwd)
-						} else {
-							isLocalRead = false
-						}
-
-						// Get auto-approve settings for local and external reads
-						const autoApproveResult = this.shouldAutoApproveTool(block.name)
-						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-							? autoApproveResult
-							: [autoApproveResult, false]
 
 						try {
 							if (block.partial) {
@@ -2231,19 +2191,6 @@ export class Task {
 							regex: removeClosingTag("regex", regex),
 							filePattern: removeClosingTag("file_pattern", filePattern),
 						}
-
-						if (relDirPath) {
-							const absolutePath = path.resolve(cwd, relDirPath)
-							var isLocalRead = absolutePath.startsWith(cwd)
-						} else {
-							isLocalRead = false
-						}
-
-						// Get auto-approve settings for local and external reads
-						const autoApproveResult = this.shouldAutoApproveTool(block.name)
-						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-							? autoApproveResult
-							: [autoApproveResult, false]
 
 						try {
 							if (block.partial) {
@@ -2335,7 +2282,7 @@ export class Task {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									if (this.shouldAutoApproveTool(block.name)) {
+									if (this.CheckAutoApproveSettings(block.name)) {
 										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say(
 											"browser_action_launch",
@@ -2376,7 +2323,7 @@ export class Task {
 									}
 									this.consecutiveMistakeCount = 0
 
-									if (this.shouldAutoApproveTool(block.name)) {
+									if (this.CheckAutoApproveSettings(block.name)) {
 										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say("browser_action_launch", url, undefined, false)
 										this.consecutiveAutoApprovedRequestsCount++
@@ -2499,7 +2446,7 @@ export class Task {
 
 						try {
 							if (block.partial) {
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (this.CheckAutoApproveSettings(block.name)) {
 									// since depending on an upcoming parameter, requiresApproval this may become an ask - we cant partially stream a say prematurely. So in this particular case we have to wait for the requiresApproval parameter to be completed before presenting it.
 									// await this.say(
 									// 	"command",
@@ -2548,7 +2495,7 @@ export class Task {
 
 								// If the model says this command is safe and auto aproval for safe commands is true, execute the command
 								// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
-								const autoApproveResult = this.shouldAutoApproveTool(block.name)
+								const autoApproveResult = this.CheckAutoApproveSettings(block.name)
 								const [autoApproveSafe, autoApproveAll] = Array.isArray(autoApproveResult)
 									? autoApproveResult
 									: [autoApproveResult, false]
@@ -2569,7 +2516,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+											`${this.CheckAutoApproveSettings(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										await this.saveCheckpoint()
@@ -2625,7 +2572,7 @@ export class Task {
 									arguments: removeClosingTag("arguments", mcp_arguments),
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (this.CheckAutoApproveSettings(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
@@ -2684,7 +2631,7 @@ export class Task {
 									?.find((conn) => conn.server.name === server_name)
 									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
 
-								if (this.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
+								if (this.CheckAutoApproveSettings(block.name) && isToolAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2744,7 +2691,7 @@ export class Task {
 									uri: removeClosingTag("uri", uri),
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (this.CheckAutoApproveSettings(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
@@ -2773,7 +2720,7 @@ export class Task {
 									uri,
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (this.CheckAutoApproveSettings(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
