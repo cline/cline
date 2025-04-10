@@ -10,6 +10,7 @@ export type McpServer = {
 	tools?: McpTool[]
 	resources?: McpResource[]
 	resourceTemplates?: McpResourceTemplate[]
+	prompts?: McpPrompt[]
 	disabled?: boolean
 	timeout?: number
 }
@@ -104,4 +105,34 @@ export interface McpDownloadResponse {
 	readmeContent: string
 	llmsInstallationContent: string
 	requiresApiKey: boolean
+}
+
+export type McpPrompt = {
+	name: string
+	description?: string
+	arguments?: Array<{
+		name: string
+		description?: string
+		required?: boolean
+	}>
+}
+
+export type McpPromptResponse = {
+	_meta?: Record<string, any>
+	description?: string
+	messages: Array<{
+		role: "user" | "assistant"
+		content: {
+			type: "text" | "image" | "resource"
+			text?: string
+			data?: string
+			mimeType?: string
+			resource?: {
+				uri: string
+				mimeType?: string
+				text?: string
+				blob?: string
+			}
+		}
+	}>
 }

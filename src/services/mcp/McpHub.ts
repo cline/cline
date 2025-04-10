@@ -2,6 +2,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
 	CallToolResultSchema,
+	GetPromptResultSchema,
+	ListPromptsResultSchema,
 	ListResourcesResultSchema,
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
@@ -18,6 +20,8 @@ import { Controller } from "../../core/controller"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
+	McpPrompt,
+	McpPromptResponse,
 	McpResource,
 	McpResourceResponse,
 	McpResourceTemplate,
@@ -290,10 +294,11 @@ export class McpHub {
 			connection.server.status = "connected"
 			connection.server.error = ""
 
-			// Initial fetch of tools and resources
+			// Initial fetch of tools, resources, and prompts
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)
 			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+			connection.server.prompts = await this.fetchPromptsList(name)
 		} catch (error) {
 			// Update status with error
 			const connection = this.connections.find((conn) => conn.server.name === name)
@@ -365,6 +370,20 @@ export class McpHub {
 			return response?.resourceTemplates || []
 		} catch (error) {
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			return []
+		}
+	}
+
+	private async fetchPromptsList(serverName: string): Promise<McpPrompt[]> {
+		try {
+			const response = await this.connections
+				.find((conn) => conn.server.name === serverName)
+				?.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
+					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				})
+			return response?.prompts || []
+		} catch (error) {
+			// console.error(`Failed to fetch prompts for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -559,6 +578,44 @@ export class McpHub {
 				},
 			},
 			ReadResourceResultSchema,
+		)
+	}
+
+	async getPrompt(
+		serverName: string,
+		promptName: string,
+		promptArguments?: Record<string, unknown>,
+	): Promise<McpPromptResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled`)
+		}
+
+		let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
+
+		try {
+			const config = JSON.parse(connection.server.config)
+			const parsedConfig = ServerConfigSchema.parse(config)
+			timeout = secondsToMs(parsedConfig.timeout)
+		} catch (error) {
+			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+		}
+
+		return await connection.client.request(
+			{
+				method: "prompts/get",
+				params: {
+					name: promptName,
+					arguments: promptArguments,
+				},
+			},
+			GetPromptResultSchema,
+			{
+				timeout,
+			},
 		)
 	}
 
