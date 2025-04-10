@@ -117,9 +117,9 @@ export function createTestServer(): http.Server {
  */
 export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.Disposable {
 	Logger.log("Cline message catcher registered")
-	
+
 	if (webviewProvider && webviewProvider.controller) {
-		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview;
+		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
 		webviewProvider.controller.postMessageToWebview = async (message) => {
 			console.log("Cline message received:", message)
 			return originalPostMessageToWebview.call(webviewProvider.controller, message)
@@ -143,7 +143,7 @@ export function shutdownTestServer() {
 		Logger.log("Test server shut down")
 		testServer = undefined
 	}
-	
+
 	// Dispose of the message catcher if it exists
 	if (messageCatcherDisposable) {
 		messageCatcherDisposable.dispose()
