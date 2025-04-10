@@ -1171,7 +1171,7 @@ export class Task {
 
 	// Check if the tool should be auto-approved based on the settings
 	// Returns bool for most tools, tuple for execute_command (and future nested auto appoved settings)
-	shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
+	CheckAutoApproveSettings(toolName: ToolUseName): boolean | [boolean, boolean] {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case "read_file":
@@ -1203,24 +1203,26 @@ export class Task {
 		return false
 	}
 
-	//autoApproveToolPathChecker(blockname: ToolUseName, path : string) : boolean {
-	//
-	//	if (path) {
-	//		const absolutePath = path.resolve(cwd, path)
-	//		var isLocalRead = absolutePath.startsWith(cwd)
-	//	}
-	//	else {
-	//		isLocalRead = false
-	//	}
-	//
-	//	// Get auto-approve settings for local and external edits
-	//	const autoApproveResult = this.shouldAutoApproveTool(blockname)
-	//	const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-	//		? autoApproveResult
-	//		: [autoApproveResult, false]
-	//
-	//
-	//}
+	ShouldAutoApproveTool(blockname: ToolUseName, autoApproveActionpath: string | undefined): boolean {
+		if (autoApproveActionpath) {
+			const absolutePath = path.resolve(cwd, autoApproveActionpath)
+			var isLocalRead = absolutePath.startsWith(cwd)
+		} else {
+			isLocalRead = false
+		}
+
+		// Get auto-approve settings for local and external edits
+		const autoApproveResult = this.CheckAutoApproveSettings(blockname)
+		const [autoApproveLocal, autoApproveExternal] = Array.isArray(autoApproveResult)
+			? autoApproveResult
+			: [autoApproveResult, false]
+
+		if ((isLocalRead && autoApproveLocal) || (!isLocalRead && autoApproveLocal && autoApproveExternal)) {
+			return true
+		} else {
+			return false
+		}
+	}
 
 	private formatErrorWithStatusCode(error: any): string {
 		const statusCode = error.status || error.statusCode || (error.response && error.response.status)
@@ -1762,7 +1764,7 @@ export class Task {
 							const isLocalEdit = absolutePath.startsWith(cwd)
 
 							// Get auto-approve settings for local and external edits
-							const autoApproveResult = this.shouldAutoApproveTool(block.name)
+							const autoApproveResult = this.CheckAutoApproveSettings(block.name)
 							const [autoApproveEditLocal, autoApproveEditExternal] = Array.isArray(autoApproveResult)
 								? autoApproveResult
 								: [autoApproveResult, false]
@@ -1963,30 +1965,13 @@ export class Task {
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
 
-						// Get workspace path, and check to see if the requested reads are local or external
-						if (relPath) {
-							const absolutePath = path.resolve(cwd, relPath)
-							var isLocalRead = absolutePath.startsWith(cwd)
-						} else {
-							isLocalRead = false
-						}
-
-						// Get auto-approve settings for local and external reads
-						const autoApproveResult = this.shouldAutoApproveTool(block.name)
-						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-							? autoApproveResult
-							: [autoApproveResult, false]
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: undefined,
 								} satisfies ClineSayTool)
-								if (
-									(isLocalRead && autoApproveReadLocal) ||
-									(!isLocalRead && autoApproveReadLocal && autoApproveReadExternal)
-								) {
+								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -2016,10 +2001,7 @@ export class Task {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
-								if (
-									(isLocalRead && autoApproveReadLocal) ||
-									(!isLocalRead && autoApproveReadLocal && autoApproveReadExternal)
-								) {
+								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2061,29 +2043,13 @@ export class Task {
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
 
-						if (relDirPath) {
-							const absolutePath = path.resolve(cwd, relDirPath)
-							var isLocalRead = absolutePath.startsWith(cwd)
-						} else {
-							isLocalRead = false
-						}
-
-						// Get auto-approve settings for local and external reads
-						const autoApproveResult = this.shouldAutoApproveTool(block.name)
-						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-							? autoApproveResult
-							: [autoApproveResult, false]
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (
-									(isLocalRead && autoApproveReadLocal) ||
-									(!isLocalRead && autoApproveReadLocal && autoApproveReadExternal)
-								) {
+								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -2114,10 +2080,7 @@ export class Task {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (
-									(isLocalRead && autoApproveReadLocal) ||
-									(!isLocalRead && autoApproveReadLocal && autoApproveReadExternal)
-								) {
+								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2151,29 +2114,13 @@ export class Task {
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
 
-						if (relDirPath) {
-							const absolutePath = path.resolve(cwd, relDirPath)
-							var isLocalRead = absolutePath.startsWith(cwd)
-						} else {
-							isLocalRead = false
-						}
-
-						// Get auto-approve settings for local and external reads
-						const autoApproveResult = this.shouldAutoApproveTool(block.name)
-						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-							? autoApproveResult
-							: [autoApproveResult, false]
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (
-									(isLocalRead && autoApproveReadLocal) ||
-									(!isLocalRead && autoApproveReadLocal && autoApproveReadExternal)
-								) {
+								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -2201,10 +2148,7 @@ export class Task {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (
-									(isLocalRead && autoApproveReadLocal) ||
-									(!isLocalRead && autoApproveReadLocal && autoApproveReadExternal)
-								) {
+								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2242,29 +2186,13 @@ export class Task {
 							filePattern: removeClosingTag("file_pattern", filePattern),
 						}
 
-						if (relDirPath) {
-							const absolutePath = path.resolve(cwd, relDirPath)
-							var isLocalRead = absolutePath.startsWith(cwd)
-						} else {
-							isLocalRead = false
-						}
-
-						// Get auto-approve settings for local and external reads
-						const autoApproveResult = this.shouldAutoApproveTool(block.name)
-						const [autoApproveReadLocal, autoApproveReadExternal] = Array.isArray(autoApproveResult)
-							? autoApproveResult
-							: [autoApproveResult, false]
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
 								} satisfies ClineSayTool)
-								if (
-									(isLocalRead && autoApproveReadLocal) ||
-									(!isLocalRead && autoApproveReadLocal && autoApproveReadExternal)
-								) {
+								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -2300,10 +2228,7 @@ export class Task {
 									...sharedMessageProps,
 									content: results,
 								} satisfies ClineSayTool)
-								if (
-									(isLocalRead && autoApproveReadLocal) ||
-									(!isLocalRead && autoApproveReadLocal && autoApproveReadExternal)
-								) {
+								if (this.ShouldAutoApproveTool(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2349,7 +2274,7 @@ export class Task {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									if (this.shouldAutoApproveTool(block.name)) {
+									if (this.CheckAutoApproveSettings(block.name)) {
 										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say(
 											"browser_action_launch",
@@ -2390,7 +2315,7 @@ export class Task {
 									}
 									this.consecutiveMistakeCount = 0
 
-									if (this.shouldAutoApproveTool(block.name)) {
+									if (this.CheckAutoApproveSettings(block.name)) {
 										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say("browser_action_launch", url, undefined, false)
 										this.consecutiveAutoApprovedRequestsCount++
@@ -2513,7 +2438,7 @@ export class Task {
 
 						try {
 							if (block.partial) {
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (this.CheckAutoApproveSettings(block.name)) {
 									// since depending on an upcoming parameter, requiresApproval this may become an ask - we cant partially stream a say prematurely. So in this particular case we have to wait for the requiresApproval parameter to be completed before presenting it.
 									// await this.say(
 									// 	"command",
@@ -2562,7 +2487,7 @@ export class Task {
 
 								// If the model says this command is safe and auto aproval for safe commands is true, execute the command
 								// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
-								const autoApproveResult = this.shouldAutoApproveTool(block.name)
+								const autoApproveResult = this.CheckAutoApproveSettings(block.name)
 								const [autoApproveSafe, autoApproveAll] = Array.isArray(autoApproveResult)
 									? autoApproveResult
 									: [autoApproveResult, false]
@@ -2583,7 +2508,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+											`${this.CheckAutoApproveSettings(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										break
@@ -2638,7 +2563,7 @@ export class Task {
 									arguments: removeClosingTag("arguments", mcp_arguments),
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (this.CheckAutoApproveSettings(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
@@ -2698,7 +2623,7 @@ export class Task {
 									?.mcpHub?.connections?.find((conn) => conn.server.name === server_name)
 									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
 
-								if (this.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
+								if (this.CheckAutoApproveSettings(block.name) && isToolAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2759,7 +2684,7 @@ export class Task {
 									uri: removeClosingTag("uri", uri),
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (this.CheckAutoApproveSettings(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
@@ -2788,7 +2713,7 @@ export class Task {
 									uri,
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								if (this.CheckAutoApproveSettings(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
