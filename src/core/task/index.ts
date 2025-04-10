@@ -1945,7 +1945,6 @@ export class Task {
 							tool: "readFile",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 						}
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
@@ -2023,7 +2022,6 @@ export class Task {
 							tool: !recursive ? "listFilesTopLevel" : "listFilesRecursive",
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
@@ -2094,7 +2092,6 @@ export class Task {
 							tool: "listCodeDefinitionNames",
 							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
 						}
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
@@ -2166,7 +2163,6 @@ export class Task {
 							regex: removeClosingTag("regex", regex),
 							filePattern: removeClosingTag("file_pattern", filePattern),
 						}
-
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
