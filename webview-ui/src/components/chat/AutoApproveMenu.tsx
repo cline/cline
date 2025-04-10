@@ -109,21 +109,21 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		const labels = []
 
 		// Handle read editing labels
-		if (readFilesExternallyEnabled) {
+		if (readFilesExternallyEnabled && readFilesEnabled) {
 			labels.push("Read (All)")
 		} else if (readFilesEnabled) {
 			labels.push("Read")
 		}
 
 		// Handle file editing labels
-		if (editFilesExternallyEnabled) {
+		if (editFilesExternallyEnabled && editFilesEnabled) {
 			labels.push("Edit (All)")
 		} else if (editFilesEnabled) {
 			labels.push("Edit")
 		}
 
 		// Handle command execution labels
-		if (allCommandsEnabled) {
+		if (allCommandsEnabled && safeCommandsEnabled) {
 			labels.push("All Commands")
 		} else if (safeCommandsEnabled) {
 			labels.push("Safe Commands")
@@ -301,8 +301,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							action.id === "editFilesExternally" ||
 							action.id === "readFilesExternally"
 						) {
-							//const parentAction = action.id === "executeAllCommands" ? "executeSafeCommands" : "editFilesLocally"
-
 							const parentAction =
 								action.id === "executeAllCommands"
 									? "executeSafeCommands"
