@@ -74,9 +74,9 @@ export class ContextManager {
 
 				// Update to properly reconstruct the tuple structure
 				return new Map(
-					serializedUpdates.map(([messageIndex, [numberValue, innerMapArray]]) => [
+					serializedUpdates.map(([messageIndex, [editType, innerMapArray]]) => [
 						messageIndex,
-						[numberValue, new Map(innerMapArray)],
+						[editType, new Map(innerMapArray)],
 					]),
 				)
 			}
@@ -92,7 +92,7 @@ export class ContextManager {
 	private async saveContextHistory(taskDirectory: string) {
 		try {
 			const serializedUpdates: SerializedContextHistory = Array.from(this.contextHistoryUpdates.entries()).map(
-				([messageIndex, [numberValue, innerMap]]) => [messageIndex, [numberValue, Array.from(innerMap.entries())]],
+				([messageIndex, [editType, innerMap]]) => [messageIndex, [editType, Array.from(innerMap.entries())]],
 			)
 
 			await fs.writeFile(
@@ -281,6 +281,9 @@ export class ContextManager {
 			if (!innerTuple) {
 				continue
 			}
+			if (innerTuple[0] === EditType.NO_FILE_READ) {
+				continue
+			}
 
 			// because we are altering this, we need a deep copy
 			messagesToUpdate[arrayIndex] = cloneDeep(messagesToUpdate[arrayIndex])
@@ -310,9 +313,10 @@ export class ContextManager {
 
 	/**
 	 * removes all context history updates that occurred after the specified timestamp and saves to disk
+	 * we also remove any cached results at indices greater than the index this is associated with
 	 */
-	async truncateContextHistory(timestamp: number, taskDirectory: string): Promise<void> {
-		this.truncateContextHistoryAtTimestamp(this.contextHistoryUpdates, timestamp)
+	async truncateContextHistory(timestamp: number, index: number, taskDirectory: string): Promise<void> {
+		this.truncateContextHistoryAtTimestampAndIndex(this.contextHistoryUpdates, timestamp, index)
 
 		// save the modified context history to disk
 		await this.saveContextHistory(taskDirectory)
@@ -320,15 +324,24 @@ export class ContextManager {
 
 	/**
 	 * alters the context history to remove all alterations after a given timestamp
-	 * removes the index if there are no alterations there anymore, both outer and inner indices
+	 * we also remove all cached inputs at indices above index as these will be removed from history
 	 */
-	private truncateContextHistoryAtTimestamp(
+	private truncateContextHistoryAtTimestampAndIndex(
 		contextHistory: Map<number, [number, Map<number, ContextUpdate[]>]>,
 		timestamp: number,
+		index: number,
 	): void {
-		for (const [messageIndex, [_, innerMap]] of contextHistory) {
+		for (const [messageIndex, [editType, innerMap]] of contextHistory) {
 			// track which blockIndices to delete
 			const blockIndicesToDelete: number[] = []
+
+			// delete the cached value if its outside our newly truncated messages, otherwise dont need to process it
+			if (editType === EditType.NO_FILE_READ) {
+				if (messageIndex > index) {
+					contextHistory.delete(messageIndex)
+				}
+				continue
+			}
 
 			// loop over the innerIndices of the messages in this block
 			for (const [blockIndex, updates] of innerMap) {
@@ -432,6 +445,7 @@ export class ContextManager {
 		for (let i = startFromIndex; i < apiMessages.length; i++) {
 			let thisExistingFileReads: string[] = []
 
+			// can be a cached result or an actual update
 			if (this.contextHistoryUpdates.has(i)) {
 				const innerTuple = this.contextHistoryUpdates.get(i)
 
@@ -463,6 +477,7 @@ export class ContextManager {
 						}
 					} else {
 						// for all other cases we can assume that we dont need to check this again
+						// this includes cached no-file-reads or other file read types
 						continue
 					}
 				}
@@ -502,6 +517,8 @@ export class ContextManager {
 								)
 								if (hasFileRead) {
 									messageFilePaths.set(i, filePaths) // all file paths in this string
+								} else {
+									this.contextHistoryUpdates.set(i, [EditType.NO_FILE_READ, new Map()])
 								}
 							}
 						}
@@ -748,9 +765,9 @@ export class ContextManager {
 				continue
 			}
 
-			// hasExistingAlterations checks whether the outer idnex has any changes
-			// hasExistingAlterations will also include the alterations we just made
-			const hasExistingAlterations = this.contextHistoryUpdates.has(i)
+			// hasExistingContextHistory checks whether the outer index has any changes or has been checked previously for filereads
+			// hasExistingContextHistory will also include the alterations we just made just prior to this call
+			const hasExistingContextHistory = this.contextHistoryUpdates.has(i)
 			const hasNewAlterations = uniqueFileReadIndices.has(i)
 
 			if (Array.isArray(message.content)) {
@@ -760,34 +777,46 @@ export class ContextManager {
 
 					if (block.type === "text" && block.text) {
 						// true if we just altered it, or it was altered before
-						if (hasExistingAlterations) {
+						// this can also be true if we cached that there are no file reads here
+						if (hasExistingContextHistory) {
 							const innerTuple = this.contextHistoryUpdates.get(i)
-							const updates = innerTuple?.[1].get(blockIndex) // updated text for this inner index
 
-							if (updates && updates.length > 0) {
-								// exists if we have an update for the message at this index
-								const latestUpdate = updates[updates.length - 1]
+							if (innerTuple) {
+								const thisEditType = innerTuple[0]
 
-								// if block was just altered, then calculate savings
-								if (hasNewAlterations) {
-									let originalTextLength
-									if (updates.length > 1) {
-										originalTextLength = updates[updates.length - 2][2][0].length // handles case if we have multiple updates for same text block
-									} else {
-										originalTextLength = block.text.length
-									}
-
-									const newTextLength = latestUpdate[2][0].length // replacement text
-									totalCharactersSaved += originalTextLength - newTextLength
-
-									totalCharCount += originalTextLength
+								if (thisEditType === EditType.NO_FILE_READ) {
+									// no file change
+									totalCharCount += block.text.length
 								} else {
-									// meaning there was an update to this text previously, but we didnt just alter it
-									totalCharCount += latestUpdate[2][0].length
+									// token savings edit
+									const updates = innerTuple[1].get(blockIndex) // updated text for this inner index
+
+									if (updates && updates.length > 0) {
+										// exists if we have an update for the message at this index
+										const latestUpdate = updates[updates.length - 1]
+
+										// if block was just altered, then calculate savings
+										if (hasNewAlterations) {
+											let originalTextLength
+											if (updates.length > 1) {
+												originalTextLength = updates[updates.length - 2][2][0].length // handles case if we have multiple updates for same text block
+											} else {
+												originalTextLength = block.text.length
+											}
+
+											const newTextLength = latestUpdate[2][0].length // replacement text
+											totalCharactersSaved += originalTextLength - newTextLength
+
+											totalCharCount += originalTextLength
+										} else {
+											// meaning there was an update to this text previously, but we didnt just alter it
+											totalCharCount += latestUpdate[2][0].length
+										}
+									} else {
+										// reach here if there was one inner index with an update, but now we are at a different index, so updates is not defined
+										totalCharCount += block.text.length
+									}
 								}
-							} else {
-								// reach here if there was one inner index with an update, but now we are at a different index, so updates is not defined
-								totalCharCount += block.text.length
 							}
 						} else {
 							// reach here if there's no alterations for this outer index, meaning each inner index wont have any changes either
