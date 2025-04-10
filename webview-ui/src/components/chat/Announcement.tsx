@@ -59,7 +59,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<li>
 					Drag and drop files/folders into chat by holding <code>Shift</code> while dragging it into the chat field.
 				</li>
-				<li>Reduces system prompt token size by 30% by dynamically loading MCP documentation only when needed.</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>

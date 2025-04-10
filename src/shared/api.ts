@@ -1319,8 +1319,44 @@ export const askSageModels = {
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
-export const xaiDefaultModelId: XAIModelId = "grok-2-latest"
+export const xaiDefaultModelId: XAIModelId = "grok-3-beta"
 export const xaiModels = {
+	"grok-3-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description: "X AI's Grok-3 beta model with 131K context window",
+	},
+	"grok-3-fast-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "X AI's Grok-3 fast beta model with 131K context window",
+	},
+	"grok-3-mini-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.5,
+		description: "X AI's Grok-3 mini beta model with 131K context window",
+	},
+	"grok-3-mini-fast-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 4.0,
+		description: "X AI's Grok-3 mini fast beta model with 131K context window",
+	},
 	"grok-2-latest": {
 		maxTokens: 8192,
 		contextWindow: 131072,
