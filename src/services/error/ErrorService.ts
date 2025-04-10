@@ -27,7 +27,9 @@ export class ErrorService {
 			release: `cline@${pkg.version}`,
 			integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
 			beforeSend(event) {
-				if (ErrorService.isEnabled() && telemetryService.isTelemetryEnabled()) {
+				// TelemetryService keeps track of whether the user has opted in to telemetry/error reporting
+				const isUserManuallyOptedIn = telemetryService.isTelemetryEnabled()
+				if (isUserManuallyOptedIn && ErrorService.isEnabled()) {
 					return event
 				}
 				return null
