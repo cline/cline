@@ -5,6 +5,7 @@ import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./ty
 import { formatResponse } from "../prompts/responses"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import path from "path"
+import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import { fileExistsAtPath } from "../../utils/fs"
 import { insertGroups } from "../diff/insert-groups"
 import delay from "delay"
@@ -127,6 +128,11 @@ export async function insertContentTool(
 		}
 
 		const { newProblemsMessage, userEdits, finalContent } = await cline.diffViewProvider.saveChanges()
+
+		// Track file edit operation
+		if (relPath) {
+			await cline.getFileContextTracker().trackFileContext(relPath, "roo_edited" as RecordSource)
+		}
 		cline.didEditFile = true
 
 		if (!userEdits) {

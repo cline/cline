@@ -16,6 +16,16 @@ import { ApiStreamChunk } from "../../api/transform/stream"
 // Mock RooIgnoreController
 jest.mock("../ignore/RooIgnoreController")
 
+// Mock storagePathManager to prevent dynamic import issues
+jest.mock("../../shared/storagePathManager", () => ({
+	getTaskDirectoryPath: jest.fn().mockImplementation((globalStoragePath, taskId) => {
+		return Promise.resolve(`${globalStoragePath}/tasks/${taskId}`)
+	}),
+	getSettingsDirectoryPath: jest.fn().mockImplementation((globalStoragePath) => {
+		return Promise.resolve(`${globalStoragePath}/settings`)
+	}),
+}))
+
 // Mock fileExistsAtPath
 jest.mock("../../utils/fs", () => ({
 	fileExistsAtPath: jest.fn().mockImplementation((filePath) => {
@@ -941,6 +951,7 @@ describe("Cline", () => {
 						"<task>Text with @/some/path in task tags</task>",
 						expect.any(String),
 						expect.any(Object),
+						expect.any(Object),
 					)
 
 					// Feedback tag content should be processed
@@ -950,6 +961,7 @@ describe("Cline", () => {
 					expect(mockParseMentions).toHaveBeenCalledWith(
 						"<feedback>Check @/some/path</feedback>",
 						expect.any(String),
+						expect.any(Object),
 						expect.any(Object),
 					)
 

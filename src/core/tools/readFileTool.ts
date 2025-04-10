@@ -5,6 +5,7 @@ import { ToolUse } from "../assistant-message"
 import { formatResponse } from "../prompts/responses"
 import { t } from "../../i18n"
 import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { getReadablePath } from "../../utils/path"
 import { countFileLines } from "../../integrations/misc/line-counter"
@@ -214,6 +215,11 @@ export async function readFileTool(
 
 				// Maintain exact format expected by tests
 				contentTag = `<content${lineRangeAttr}>\n${content}</content>\n`
+			}
+
+			// Track file read operation
+			if (relPath) {
+				await cline.getFileContextTracker().trackFileContext(relPath, "read_tool" as RecordSource)
 			}
 
 			// Format the result into the required XML structure

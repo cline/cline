@@ -9,6 +9,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { addLineNumbers } from "../../integrations/misc/extract-text"
 import path from "path"
 import fs from "fs/promises"
+import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 
 export async function applyDiffTool(
 	cline: Cline,
@@ -138,6 +139,10 @@ export async function applyDiffTool(
 			}
 
 			const { newProblemsMessage, userEdits, finalContent } = await cline.diffViewProvider.saveChanges()
+			// Track file edit operation
+			if (relPath) {
+				await cline.getFileContextTracker().trackFileContext(relPath, "roo_edited" as RecordSource)
+			}
 			cline.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 			let partFailHint = ""
 			if (diffResult.failParts && diffResult.failParts.length > 0) {

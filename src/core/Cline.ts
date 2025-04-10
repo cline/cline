@@ -53,6 +53,7 @@ import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual } from "../utils/path"
 import { parseMentions } from "./mentions"
+import { FileContextTracker } from "./context-tracking/FileContextTracker"
 import { RooIgnoreController } from "./ignore/RooIgnoreController"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
@@ -130,6 +131,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 	readonly apiConfiguration: ApiConfiguration
 	api: ApiHandler
+	private fileContextTracker: FileContextTracker
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	didEditFile: boolean = false
@@ -201,14 +203,15 @@ export class Cline extends EventEmitter<ClineEvents> {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
 
-		this.rooIgnoreController = new RooIgnoreController(this.cwd)
-		this.rooIgnoreController.initialize().catch((error) => {
-			console.error("Failed to initialize RooIgnoreController:", error)
-		})
-
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
 		this.instanceId = crypto.randomUUID().slice(0, 8)
 		this.taskNumber = -1
+
+		this.rooIgnoreController = new RooIgnoreController(this.cwd)
+		this.fileContextTracker = new FileContextTracker(provider, this.taskId)
+		this.rooIgnoreController.initialize().catch((error) => {
+			console.error("Failed to initialize RooIgnoreController:", error)
+		})
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
@@ -929,6 +932,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
 		this.rooIgnoreController?.dispose()
+		this.fileContextTracker.dispose()
 
 		// If we're not streaming then `abortStream` (which reverts the diff
 		// view changes) won't be called, so we need to revert the changes here.
@@ -1322,8 +1326,6 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 		const block = cloneDeep(this.assistantMessageContent[this.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 
-		let isCheckpointPossible = false
-
 		switch (block.type) {
 			case "text": {
 				if (this.didRejectTool || this.didAlreadyUseTool) {
@@ -1460,7 +1462,6 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 					// Flag a checkpoint as possible since we've used a tool
 					// which may have changed the file system.
-					isCheckpointPossible = true
 				}
 
 				const askApproval = async (
@@ -1583,6 +1584,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 						break
 					case "read_file":
 						await readFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+
 						break
 					case "fetch_instructions":
 						await fetchInstructionsTool(this, block, askApproval, handleError, pushToolResult)
@@ -1662,7 +1664,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 				break
 		}
 
-		if (isCheckpointPossible) {
+		const recentlyModifiedFiles = this.fileContextTracker.getAndClearCheckpointPossibleFile()
+		if (recentlyModifiedFiles.length > 0) {
+			// TODO: we can track what file changes were made and only checkpoint those files, this will be save storage
 			this.checkpointSave()
 		}
 
@@ -1783,18 +1787,17 @@ export class Cline extends EventEmitter<ClineEvents> {
 		)
 
 		const [parsedUserContent, environmentDetails] = await this.loadContext(userContent, includeFileDetails)
-		userContent = parsedUserContent
 		// add environment details as its own text block, separate from tool results
-		userContent.push({ type: "text", text: environmentDetails })
+		const finalUserContent = [...parsedUserContent, { type: "text", text: environmentDetails }] as UserContent
 
-		await this.addToApiConversationHistory({ role: "user", content: userContent })
+		await this.addToApiConversationHistory({ role: "user", content: finalUserContent })
 		telemetryService.captureConversationMessage(this.taskId, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
-			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
+			request: finalUserContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
 
 		await this.saveClineMessages()
@@ -2045,62 +2048,73 @@ export class Cline extends EventEmitter<ClineEvents> {
 	}
 
 	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
-		return await Promise.all([
-			// Process userContent array, which contains various block types:
-			// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
-			// We need to apply parseMentions() to:
-			// 1. All TextBlockParam's text (first user message with task)
-			// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions)
-			Promise.all(
-				userContent.map(async (block) => {
-					const shouldProcessMentions = (text: string) =>
-						text.includes("<task>") || text.includes("<feedback>")
+		// Process userContent array, which contains various block types:
+		// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
+		// We need to apply parseMentions() to:
+		// 1. All TextBlockParam's text (first user message with task)
+		// 2. ToolResultBlockParam's content/context text arrays if it contains "<feedback>" (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions)
+		const parsedUserContent = await Promise.all(
+			userContent.map(async (block) => {
+				const shouldProcessMentions = (text: string) => text.includes("<task>") || text.includes("<feedback>")
 
-					if (block.type === "text") {
-						if (shouldProcessMentions(block.text)) {
-							return {
-								...block,
-								text: await parseMentions(block.text, this.cwd, this.urlContentFetcher),
-							}
+				if (block.type === "text") {
+					if (shouldProcessMentions(block.text)) {
+						return {
+							...block,
+							text: await parseMentions(
+								block.text,
+								this.cwd,
+								this.urlContentFetcher,
+								this.fileContextTracker,
+							),
 						}
-						return block
-					} else if (block.type === "tool_result") {
-						if (typeof block.content === "string") {
-							if (shouldProcessMentions(block.content)) {
-								return {
-									...block,
-									content: await parseMentions(block.content, this.cwd, this.urlContentFetcher),
-								}
-							}
-							return block
-						} else if (Array.isArray(block.content)) {
-							const parsedContent = await Promise.all(
-								block.content.map(async (contentBlock) => {
-									if (contentBlock.type === "text" && shouldProcessMentions(contentBlock.text)) {
-										return {
-											...contentBlock,
-											text: await parseMentions(
-												contentBlock.text,
-												this.cwd,
-												this.urlContentFetcher,
-											),
-										}
-									}
-									return contentBlock
-								}),
-							)
-							return {
-								...block,
-								content: parsedContent,
-							}
-						}
-						return block
 					}
 					return block
-				}),
-			),
-			this.getEnvironmentDetails(includeFileDetails),
-		])
+				} else if (block.type === "tool_result") {
+					if (typeof block.content === "string") {
+						if (shouldProcessMentions(block.content)) {
+							return {
+								...block,
+								content: await parseMentions(
+									block.content,
+									this.cwd,
+									this.urlContentFetcher,
+									this.fileContextTracker,
+								),
+							}
+						}
+						return block
+					} else if (Array.isArray(block.content)) {
+						const parsedContent = await Promise.all(
+							block.content.map(async (contentBlock) => {
+								if (contentBlock.type === "text" && shouldProcessMentions(contentBlock.text)) {
+									return {
+										...contentBlock,
+										text: await parseMentions(
+											contentBlock.text,
+											this.cwd,
+											this.urlContentFetcher,
+											this.fileContextTracker,
+										),
+									}
+								}
+								return contentBlock
+							}),
+						)
+						return {
+							...block,
+							content: parsedContent,
+						}
+					}
+					return block
+				}
+				return block
+			}),
+		)
+
+		const environmentDetails = await this.getEnvironmentDetails(includeFileDetails)
+
+		return [parsedUserContent, environmentDetails]
 	}
 
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
@@ -2250,6 +2264,16 @@ export class Cline extends EventEmitter<ClineEvents> {
 		// } else {
 		// 	details += "\n(No errors detected)"
 		// }
+
+		// Add recently modified files section
+		const recentlyModifiedFiles = this.fileContextTracker.getAndClearRecentlyModifiedFiles()
+		if (recentlyModifiedFiles.length > 0) {
+			details +=
+				"\n\n# Recently Modified Files\nThese files have been modified since you last accessed them (file was just edited so you may need to re-read it before editing):"
+			for (const filePath of recentlyModifiedFiles) {
+				details += `\n${filePath}`
+			}
+		}
 
 		if (terminalDetails) {
 			details += terminalDetails
@@ -2618,5 +2642,10 @@ export class Cline extends EventEmitter<ClineEvents> {
 			this.providerRef.deref()?.log("[checkpointRestore] disabling checkpoints for this task")
 			this.enableCheckpoints = false
 		}
+	}
+
+	// Public accessor for fileContextTracker
+	public getFileContextTracker(): FileContextTracker {
+		return this.fileContextTracker
 	}
 }

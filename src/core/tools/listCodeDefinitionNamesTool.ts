@@ -7,6 +7,7 @@ import { getReadablePath } from "../../utils/path"
 import path from "path"
 import fs from "fs/promises"
 import { parseSourceCodeForDefinitionsTopLevel, parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
+import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 
 export async function listCodeDefinitionNamesTool(
 	cline: Cline,
@@ -58,6 +59,9 @@ export async function listCodeDefinitionNamesTool(
 			const didApprove = await askApproval("tool", completeMessage)
 			if (!didApprove) {
 				return
+			}
+			if (relPath) {
+				await cline.getFileContextTracker().trackFileContext(relPath, "read_tool" as RecordSource)
 			}
 			pushToolResult(result)
 			return

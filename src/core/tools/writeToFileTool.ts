@@ -5,6 +5,7 @@ import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { ToolUse } from "../assistant-message"
 import { formatResponse } from "../prompts/responses"
 import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import path from "path"
 import { fileExistsAtPath } from "../../utils/fs"
 import { addLineNumbers, stripLineNumbers } from "../../integrations/misc/extract-text"
@@ -173,6 +174,11 @@ export async function writeToFileTool(
 				return
 			}
 			const { newProblemsMessage, userEdits, finalContent } = await cline.diffViewProvider.saveChanges()
+
+			// Track file edit operation
+			if (relPath) {
+				await cline.getFileContextTracker().trackFileContext(relPath, "roo_edited" as RecordSource)
+			}
 			cline.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 			if (userEdits) {
 				await cline.say(
