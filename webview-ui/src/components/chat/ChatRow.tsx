@@ -132,6 +132,7 @@ const ChatRow = memo(
 			}
 		}, [height, isLast, onHeightChange, message, isCheckpointMessage])
 
+		// we cannot return null as virtuoso does not support it so we use a separate visibleMessages array to filter out messages that should not be rendered
 		return chatrow
 	},
 	// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
