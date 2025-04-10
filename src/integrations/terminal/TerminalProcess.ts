@@ -254,12 +254,16 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// Emit no_shell_integration event with descriptive message
 					this.emit(
 						"no_shell_integration",
-						"VSCE shell integration stream did not start within 3 seconds. Terminal problem?",
+						`VSCE shell integration stream did not start within ${Terminal.getShellIntegrationTimeout() / 1000} seconds. Terminal problem?`,
 					)
 
 					// Reject with descriptive error
-					reject(new Error("VSCE shell integration stream did not start within 3 seconds."))
-				}, 3000)
+					reject(
+						new Error(
+							`VSCE shell integration stream did not start within ${Terminal.getShellIntegrationTimeout() / 1000} seconds.`,
+						),
+					)
+				}, Terminal.getShellIntegrationTimeout())
 
 				// Clean up timeout if stream becomes available
 				this.once("stream_available", (stream: AsyncIterable<string>) => {

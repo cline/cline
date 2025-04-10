@@ -256,6 +256,10 @@ export class Terminal {
 		Terminal.shellIntegrationTimeout = timeoutMs
 	}
 
+	public static getShellIntegrationTimeout(): number {
+		return Terminal.shellIntegrationTimeout
+	}
+
 	public static compressTerminalOutput(input: string, lineLimit: number): string {
 		return truncateOutput(applyRunLengthEncoding(input), lineLimit)
 	}
