@@ -2282,7 +2282,7 @@ export class Task {
 						try {
 							if (block.partial) {
 								if (action === "launch") {
-									if (this.ShouldAutoApproveTool(block.name)) {
+									if (this.shouldAutoApproveTool(block.name)) {
 										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say(
 											"browser_action_launch",
@@ -2323,7 +2323,7 @@ export class Task {
 									}
 									this.consecutiveMistakeCount = 0
 
-									if (this.ShouldAutoApproveTool(block.name)) {
+									if (this.shouldAutoApproveTool(block.name)) {
 										this.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 										await this.say("browser_action_launch", url, undefined, false)
 										this.consecutiveAutoApprovedRequestsCount++
@@ -2446,7 +2446,7 @@ export class Task {
 
 						try {
 							if (block.partial) {
-								if (this.ShouldAutoApproveTool(block.name)) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									// since depending on an upcoming parameter, requiresApproval this may become an ask - we cant partially stream a say prematurely. So in this particular case we have to wait for the requiresApproval parameter to be completed before presenting it.
 									// await this.say(
 									// 	"command",
@@ -2495,7 +2495,7 @@ export class Task {
 
 								// If the model says this command is safe and auto aproval for safe commands is true, execute the command
 								// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
-								const autoApproveResult = this.ShouldAutoApproveTool(block.name)
+								const autoApproveResult = this.shouldAutoApproveTool(block.name)
 								const [autoApproveSafe, autoApproveAll] = Array.isArray(autoApproveResult)
 									? autoApproveResult
 									: [autoApproveResult, false]
@@ -2516,7 +2516,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-											`${this.ShouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										await this.saveCheckpoint()
@@ -2572,7 +2572,7 @@ export class Task {
 									arguments: removeClosingTag("arguments", mcp_arguments),
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.ShouldAutoApproveTool(block.name)) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
@@ -2631,7 +2631,7 @@ export class Task {
 									?.find((conn) => conn.server.name === server_name)
 									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
 
-								if (this.ShouldAutoApproveTool(block.name) && isToolAutoApproved) {
+								if (this.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2691,7 +2691,7 @@ export class Task {
 									uri: removeClosingTag("uri", uri),
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.ShouldAutoApproveTool(block.name)) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
@@ -2720,7 +2720,7 @@ export class Task {
 									uri,
 								} satisfies ClineAskUseMcpServer)
 
-								if (this.ShouldAutoApproveTool(block.name)) {
+								if (this.shouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 									await this.say("use_mcp_server", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
