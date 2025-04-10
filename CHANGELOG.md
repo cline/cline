@@ -1,10 +1,16 @@
 # Changelog
 
+## [3.11.0]
+
+-   Redesign checkpoint UI to declutter chat view by using a subtle indicator line that expands to a popover on hover, with a new date indicator for when it was created
+-   Add support for xAI's provider's Grok 3 models
+-   Add more robust error tracking for users opted in to telemetry (thank you for helping us make Cline better!)
+
 ## [3.10.1]
 
 -   Add CMD+' keyboard shortcut to add selected text to Cline
 -   Cline now auto focuses the text field when using 'Add to Cline' shortcut
--   Add new 'Create New Task' tool to let Cline start a new task autonomously! 
+-   Add new 'Create New Task' tool to let Cline start a new task autonomously!
 -   Fix Mermaid diagram issues
 -   Fix Gemini provider cost calculation to take new tiered pricing structure into account
 
