@@ -116,6 +116,11 @@
 				"command": "cline.fixWithCline",
 				"title": "Fix with Cline",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.focusChatInput",
+				"title": "Focus on Chat Input",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [

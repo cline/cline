@@ -393,6 +393,17 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register the focusChatInput command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.focusChatInput", () => {
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			visibleWebview?.controller.postMessageToWebview({
+				type: "action",
+				action: "focusChatInput",
+			})
+		}),
+	)
+
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 

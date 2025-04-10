@@ -457,6 +457,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "action":
 					switch (message.action!) {
 						case "didBecomeVisible":
+						case "focusChatInput":
 							if (!isHidden && !textAreaDisabled && !enableButtons) {
 								textAreaRef.current?.focus()
 							}
