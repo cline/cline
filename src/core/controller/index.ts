@@ -1368,6 +1368,7 @@ export class Controller {
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
 - Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
 - Create the directory for the new MCP server before starting installation.
+- Make sure you read the user's existing cline_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
 - Use commands aligned with the user's shell and operating system best practices.
 - The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
 - Once installed, demonstrate the server's capabilities by using one of its tools.
