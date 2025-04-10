@@ -84,14 +84,21 @@ export type ApiConfiguration = ApiHandlerOptions & {
 
 // Models
 
+interface PriceTier {
+	tokenLimit: number // Upper limit (inclusive) of *input* tokens for this price. Use Infinity for the highest tier.
+	price: number // Price per million tokens for this tier.
+}
+
 export interface ModelInfo {
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
 	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
-	inputPrice?: number
-	outputPrice?: number
+	inputPrice?: number // Keep for non-tiered input models
+	inputPriceTiers?: PriceTier[] // Add for tiered input pricing
+	outputPrice?: number // Keep for non-tiered output models
+	outputPriceTiers?: PriceTier[] // Add for tiered output pricing
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
@@ -386,8 +393,16 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 1.25,
-		outputPrice: 10,
+		// inputPrice: 1.25, // Removed
+		// outputPrice: 10, // Removed
+		inputPriceTiers: [
+			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
+		],
+		outputPriceTiers: [
+			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
+		],
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
@@ -476,8 +491,14 @@ export const geminiModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 1.25,
-		outputPrice: 10,
+		inputPriceTiers: [
+			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
+		],
+		outputPriceTiers: [
+			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
+		],
 	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
@@ -1300,8 +1321,44 @@ export const askSageModels = {
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
-export const xaiDefaultModelId: XAIModelId = "grok-2-latest"
+export const xaiDefaultModelId: XAIModelId = "grok-3-beta"
 export const xaiModels = {
+	"grok-3-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description: "X AI's Grok-3 beta model with 131K context window",
+	},
+	"grok-3-fast-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "X AI's Grok-3 fast beta model with 131K context window",
+	},
+	"grok-3-mini-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.5,
+		description: "X AI's Grok-3 mini beta model with 131K context window",
+	},
+	"grok-3-mini-fast-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 4.0,
+		description: "X AI's Grok-3 mini fast beta model with 131K context window",
+	},
 	"grok-2-latest": {
 		maxTokens: 8192,
 		contextWindow: 131072,

@@ -53,9 +53,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>Easily Toggle MCP's:</b> New modal in the chat area to easily enable/disable MCP servers.
 				</li>
 				<li>
+					<b>Smarter Context Management:</b> When hitting context window limits, old file contents are removed
+					first–preserving narrative integrity and reducing Cline getting stuck in loops.
+				</li>
+				<li>
 					Drag and drop files/folders into chat by holding <code>Shift</code> while dragging it into the chat field.
 				</li>
-				<li>Reduces system prompt token size by 30% by dynamically loading MCP documentation only when needed.</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>

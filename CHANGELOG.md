@@ -1,14 +1,21 @@
 # Changelog
 
+## [3.10.1]
+
+-   Add CMD+' keyboard shortcut to add selected text to Cline
+-   Cline now auto focuses the text field when using 'Add to Cline' shortcut
+-   Add new 'Create New Task' tool to let Cline start a new task autonomously! 
+-   Fix Mermaid diagram issues
+-   Fix Gemini provider cost calculation to take new tiered pricing structure into account
+
 ## [3.10.0]
 
 -   Add setting to let browser tool use local Chrome via remote debugging, enabling session-based browsing. Replaces sessionless Chromium, unlocking debugging and productivity workflows tied to your real browser state.
--   Add new auto-approve option to approve *ALL* commands (use at your own risk!)
+-   Add new auto-approve option to approve _ALL_ commands (use at your own risk!)
 -   Add modal in the chat area to more easily enable or disable MCP servers
 -   Add drag and drop of file/folders into cline chat (Thanks eljapi!)
 -   Add prompt caching for LiteLLM + Claude (Thanks sammcj!)
 -   Add Improved context management
--   Reduce system prompt size by dynamically loading MCP documentation only when needed
 -   Fix MCP auto approve toggle issues being out of sync with settings
 
 ## [3.9.2]

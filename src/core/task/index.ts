@@ -66,6 +66,8 @@ import { parseMentions } from ".././mentions"
 import { formatResponse } from ".././prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
 import { FileContextTracker } from "../context-tracking/FileContextTracker"
+import { ModelContextTracker } from "../context-tracking/ModelContextTracker"
+
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
@@ -78,8 +80,8 @@ import {
 	saveApiConversationHistory,
 	saveClineMessages,
 	GlobalFileNames,
+	getTaskMetadata,
 } from "../storage/disk"
-import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -120,8 +122,9 @@ export class Task {
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
-	// File tracking
+	// Metadata tracking
 	private fileContextTracker: FileContextTracker
+	private modelContextTracker: ModelContextTracker
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -176,7 +179,7 @@ export class Task {
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
-
+		this.modelContextTracker = new ModelContextTracker(controller, this.taskId)
 		// Now that taskId is initialized, we can build the API handler
 		this.api = buildApiHandler({
 			...apiConfiguration,
@@ -951,15 +954,19 @@ export class Task {
 			responseText,
 		)
 
-		newUserContent.push({
-			type: "text",
-			text: taskResumptionMessage,
-		})
+		if (taskResumptionMessage !== "") {
+			newUserContent.push({
+				type: "text",
+				text: taskResumptionMessage,
+			})
+		}
 
-		newUserContent.push({
-			type: "text",
-			text: userResponseMessage,
-		})
+		if (userResponseMessage !== "") {
+			newUserContent.push({
+				type: "text",
+				text: userResponseMessage,
+			})
+		}
 
 		if (responseImages && responseImages.length > 0) {
 			newUserContent.push(...formatResponse.imageBlocks(responseImages))
@@ -1478,8 +1485,6 @@ export class Task {
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
 						case "plan_mode_respond":
-							return `[${block.name}]`
-						case "load_mcp_documentation":
 							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
@@ -2770,7 +2775,7 @@ export class Task {
 								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 									showSystemNotification({
 										subtitle: "Cline wants to start a new task...",
-										message: "Cline is suggesting to start a new task with preloaded context.",
+										message: `Cline is suggesting to start a new task with: ${context}`,
 									})
 								}
 
@@ -2879,28 +2884,6 @@ export class Task {
 						} catch (error) {
 							await handleError("responding to inquiry", error)
 							//
-							break
-						}
-					}
-					case "load_mcp_documentation": {
-						try {
-							if (block.partial) {
-								// shouldn't happen
-								break
-							} else {
-								await this.say("load_mcp_documentation", "", undefined, false)
-
-								const mcpHub = this.controllerRef.deref()?.mcpHub
-								if (!mcpHub) {
-									throw new Error("MCP hub not available")
-								}
-
-								pushToolResult(await loadMcpDocumentation(mcpHub))
-
-								break
-							}
-						} catch (error) {
-							await handleError("loading MCP documentation", error)
 							break
 						}
 					}
@@ -3102,6 +3085,10 @@ export class Task {
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
+		}
+
+		if (this.apiProvider && this.api.getModel().id) {
+			await this.modelContextTracker.recordModelUsage(this.apiProvider, this.api.getModel().id, this.chatSettings.mode)
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
@@ -3710,7 +3697,7 @@ export class Task {
 		const lastApiReqTotalTokens = lastApiReqMessage ? getTotalTokensFromApiReqMessage(lastApiReqMessage) : 0
 		const usagePercentage = Math.round((lastApiReqTotalTokens / contextWindow) * 100)
 
-		details += "\n# Context Window Usage"
+		details += "\n\n# Context Window Usage"
 		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
 
 		details += "\n\n# Current Mode"
