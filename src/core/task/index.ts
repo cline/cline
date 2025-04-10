@@ -905,6 +905,7 @@ export class Task {
 		let responseImages: string[] | undefined
 		if (response === "messageResponse") {
 			await this.say("user_feedback", text, images)
+			await this.saveCheckpoint()
 			responseText = text
 			responseImages = images
 		}
@@ -1167,6 +1168,7 @@ export class Task {
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images)
+			await this.saveCheckpoint()
 			return [
 				true,
 				formatResponse.toolResult(
@@ -1588,6 +1590,7 @@ export class Task {
 						if (text || images?.length) {
 							pushAdditionalToolFeedback(text, images)
 							await this.say("user_feedback", text, images)
+							await this.saveCheckpoint()
 						}
 						this.didRejectTool = true // Prevent further tool uses in this message
 						return false
@@ -1596,6 +1599,7 @@ export class Task {
 						if (text || images?.length) {
 							pushAdditionalToolFeedback(text, images)
 							await this.say("user_feedback", text, images)
+							await this.saveCheckpoint()
 						}
 						return true
 					}
@@ -1669,7 +1673,7 @@ export class Task {
 						if (!accessAllowed) {
 							await this.say("clineignore_error", relPath)
 							pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(relPath)))
-
+							await this.saveCheckpoint()
 							break
 						}
 
@@ -1725,6 +1729,7 @@ export class Task {
 									)
 									await this.diffViewProvider.revertChanges()
 									await this.diffViewProvider.reset()
+									await this.saveCheckpoint()
 									break
 								}
 							} else if (content) {
@@ -1789,14 +1794,14 @@ export class Task {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("replace_in_file", "diff"))
 									await this.diffViewProvider.reset()
-
+									await this.saveCheckpoint()
 									break
 								}
 								if (block.name === "write_to_file" && !content) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
 									await this.diffViewProvider.reset()
-
+									await this.saveCheckpoint()
 									break
 								}
 
@@ -1855,6 +1860,7 @@ export class Task {
 										if (text || images?.length) {
 											pushAdditionalToolFeedback(text, images)
 											await this.say("user_feedback", text, images)
+											await this.saveCheckpoint()
 										}
 										this.didRejectTool = true
 										didApprove = false
@@ -1864,12 +1870,14 @@ export class Task {
 										if (text || images?.length) {
 											pushAdditionalToolFeedback(text, images)
 											await this.say("user_feedback", text, images)
+											await this.saveCheckpoint()
 										}
 										telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 									}
 
 									if (!didApprove) {
 										await this.diffViewProvider.revertChanges()
+										await this.saveCheckpoint()
 										break
 									}
 								}
@@ -1930,7 +1938,7 @@ export class Task {
 							await handleError("writing file", error)
 							await this.diffViewProvider.revertChanges()
 							await this.diffViewProvider.reset()
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -1959,7 +1967,7 @@ export class Task {
 								if (!relPath) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("read_file", "path"))
-
+									await this.saveCheckpoint()
 									break
 								}
 
@@ -1967,7 +1975,7 @@ export class Task {
 								if (!accessAllowed) {
 									await this.say("clineignore_error", relPath)
 									pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(relPath)))
-
+									await this.saveCheckpoint()
 									break
 								}
 
@@ -1990,6 +1998,7 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
+										await this.saveCheckpoint()
 										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 										break
 									}
@@ -2002,12 +2011,12 @@ export class Task {
 								await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
 								pushToolResult(content)
-
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("reading file", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2038,7 +2047,7 @@ export class Task {
 								if (!relDirPath) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("list_files", "path"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -2070,18 +2079,19 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
+										await this.saveCheckpoint()
 										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 										break
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
 								pushToolResult(result)
-
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("listing files", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2110,7 +2120,7 @@ export class Task {
 								if (!relDirPath) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("list_code_definition_names", "path"))
-
+									await this.saveCheckpoint()
 									break
 								}
 
@@ -2139,18 +2149,19 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
+										await this.saveCheckpoint()
 										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 										break
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
 								pushToolResult(result)
-
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("parsing source code definitions", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2183,13 +2194,13 @@ export class Task {
 								if (!relDirPath) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "path"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								if (!regex) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "regex"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -2220,18 +2231,19 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
+										await this.saveCheckpoint()
 										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 										break
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
 								pushToolResult(results)
-
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("searching files", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2247,6 +2259,7 @@ export class Task {
 								this.consecutiveMistakeCount++
 								pushToolResult(await this.sayAndCreateMissingParamError("browser_action", "action"))
 								await this.browserSession.closeBrowser()
+								await this.saveCheckpoint()
 							}
 							break
 						}
@@ -2290,7 +2303,7 @@ export class Task {
 										this.consecutiveMistakeCount++
 										pushToolResult(await this.sayAndCreateMissingParamError("browser_action", "url"))
 										await this.browserSession.closeBrowser()
-
+										await this.saveCheckpoint()
 										break
 									}
 									this.consecutiveMistakeCount = 0
@@ -2306,6 +2319,7 @@ export class Task {
 										this.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")
 										const didApprove = await askApproval("browser_action_launch", url)
 										if (!didApprove) {
+											await this.saveCheckpoint()
 											break
 										}
 									}
@@ -2331,7 +2345,7 @@ export class Task {
 												await this.sayAndCreateMissingParamError("browser_action", "coordinate"),
 											)
 											await this.browserSession.closeBrowser()
-
+											await this.saveCheckpoint()
 											break // can't be within an inner switch
 										}
 									}
@@ -2340,7 +2354,7 @@ export class Task {
 											this.consecutiveMistakeCount++
 											pushToolResult(await this.sayAndCreateMissingParamError("browser_action", "text"))
 											await this.browserSession.closeBrowser()
-
+											await this.saveCheckpoint()
 											break
 										}
 									}
@@ -2389,7 +2403,7 @@ export class Task {
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
 										)
-
+										await this.saveCheckpoint()
 										break
 									case "close":
 										pushToolResult(
@@ -2397,7 +2411,7 @@ export class Task {
 												`The browser has been closed. You may now proceed to using other tools.`,
 											),
 										)
-
+										await this.saveCheckpoint()
 										break
 								}
 
@@ -2406,7 +2420,7 @@ export class Task {
 						} catch (error) {
 							await this.browserSession.closeBrowser() // if any error occurs, the browser session is terminated
 							await handleError("executing browser action", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2434,7 +2448,7 @@ export class Task {
 								if (!command) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("execute_command", "command"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								if (!requiresApprovalRaw) {
@@ -2442,7 +2456,7 @@ export class Task {
 									pushToolResult(
 										await this.sayAndCreateMissingParamError("execute_command", "requires_approval"),
 									)
-
+									await this.saveCheckpoint()
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -2490,6 +2504,7 @@ export class Task {
 											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
+										await this.saveCheckpoint()
 										break
 									}
 								}
@@ -2525,7 +2540,7 @@ export class Task {
 							}
 						} catch (error) {
 							await handleError("executing command", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2555,13 +2570,13 @@ export class Task {
 								if (!server_name) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("use_mcp_tool", "server_name"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								if (!tool_name) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("use_mcp_tool", "tool_name"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								// arguments are optional, but if they are provided they must be valid JSON
@@ -2585,7 +2600,7 @@ export class Task {
 												formatResponse.invalidMcpToolArgumentError(server_name, tool_name),
 											),
 										)
-
+										await this.saveCheckpoint()
 										break
 									}
 								}
@@ -2612,6 +2627,7 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
 									if (!didApprove) {
+										await this.saveCheckpoint()
 										break
 									}
 								}
@@ -2645,7 +2661,7 @@ export class Task {
 							}
 						} catch (error) {
 							await handleError("executing MCP tool", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2673,13 +2689,13 @@ export class Task {
 								if (!server_name) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("access_mcp_resource", "server_name"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								if (!uri) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("access_mcp_resource", "uri"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -2700,6 +2716,7 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 									const didApprove = await askApproval("use_mcp_server", completeMessage)
 									if (!didApprove) {
+										await this.saveCheckpoint()
 										break
 									}
 								}
@@ -2719,12 +2736,12 @@ export class Task {
 										.join("\n\n") || "(Empty response)"
 								await this.say("mcp_server_response", resourceResultPretty)
 								pushToolResult(formatResponse.toolResult(resourceResultPretty))
-
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("accessing MCP resource", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2743,7 +2760,7 @@ export class Task {
 								if (!question) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("ask_followup_question", "question"))
-
+									await this.saveCheckpoint()
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -2780,12 +2797,12 @@ export class Task {
 								}
 
 								pushToolResult(formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images))
-
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("asking question", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2799,6 +2816,7 @@ export class Task {
 								if (!context) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("new_task", "context"))
+									await this.saveCheckpoint()
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -2827,10 +2845,12 @@ export class Task {
 										formatResponse.toolResult(`The user has created a new task with the provided context.`),
 									)
 								}
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("creating new task", error)
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -2891,6 +2911,7 @@ export class Task {
 									if (text || images?.length) {
 										telemetryService.captureOptionsIgnored(this.taskId, options.length, "plan")
 										await this.say("user_feedback", text ?? "", images)
+										await this.saveCheckpoint()
 									}
 								}
 
@@ -3037,12 +3058,14 @@ export class Task {
 									// complete command message
 									const didApprove = await askApproval("command", command)
 									if (!didApprove) {
+										await this.saveCheckpoint()
 										break
 									}
 									const [userRejected, execCommandResult] = await this.executeCommandTool(command!)
 									if (userRejected) {
 										this.didRejectTool = true
 										pushToolResult(execCommandResult)
+										await this.saveCheckpoint()
 										break
 									}
 									// user didn't reject, but the command may have output
@@ -3061,6 +3084,7 @@ export class Task {
 									break
 								}
 								await this.say("user_feedback", text ?? "", images)
+								await this.saveCheckpoint()
 
 								const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 								if (commandResult) {
@@ -3089,7 +3113,7 @@ export class Task {
 							}
 						} catch (error) {
 							await handleError("attempting completion", error)
-
+							await this.saveCheckpoint()
 							break
 						}
 					}

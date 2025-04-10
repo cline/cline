@@ -77,7 +77,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
-	const [hoveredRowIndex, setHoveredRowIndex] = useState<number | null>(null)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -789,22 +788,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					onToggleExpand={() => toggleRowExpansion(messageOrGroup.ts)}
 					lastModifiedMessage={modifiedMessages.at(-1)}
 					isLast={index === groupedMessages.length - 1}
+					isFirst={index === 0}
 					onHeightChange={handleRowHeightChange}
-					rowIndex={index}
-					hoveredRowIndex={hoveredRowIndex}
-					setHoveredRowIndex={setHoveredRowIndex}
 				/>
 			)
 		},
-		[
-			expandedRows,
-			modifiedMessages,
-			groupedMessages.length,
-			toggleRowExpansion,
-			handleRowHeightChange,
-			hoveredRowIndex,
-			setHoveredRowIndex,
-		],
+		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
 	)
 
 	return (
