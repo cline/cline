@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { getTaskMetadata, saveTaskMetadata } from "../storage/disk"
+import { getTaskMetadata, saveTaskMetadata } from "../../storage/disk"
 import type { ControllerLike } from "./ContextTrackerTypes"
 
 export class ModelContextTracker {

@@ -13,7 +13,6 @@ import { ApiHandler, buildApiHandler } from "../../api"
 import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
-import { getContextWindowInfo } from "../context-management/context-window-utils"
 import { ApiStream } from "../../api/transform/stream"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
@@ -60,18 +59,18 @@ import { arePathsEqual, getReadablePath } from "../../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
 import { constructNewFileContent } from ".././assistant-message/diff"
-import { ContextManager } from ".././context-management/ContextManager"
+import { ContextManager } from ".././context/context-management/ContextManager"
 import { ClineIgnoreController } from ".././ignore/ClineIgnoreController"
 import { parseMentions } from ".././mentions"
 import { formatResponse } from ".././prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
-import { FileContextTracker } from "../context-tracking/FileContextTracker"
-import { ModelContextTracker } from "../context-tracking/ModelContextTracker"
-
+import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
+import { ModelContextTracker } from "../context/context-tracking/ModelContextTracker"
+import { getContextWindowInfo } from "../context/context-management/context-window-utils"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
-} from "../context-management/context-error-handling"
+} from "../context/context-management/context-error-handling"
 import { Controller } from "../controller"
 import {
 	ensureTaskDirectoryExists,
