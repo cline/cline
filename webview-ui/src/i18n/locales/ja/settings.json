@@ -101,7 +101,7 @@
 		"searchPlaceholder": "プロファイルを検索",
 		"noMatchFound": "一致するプロファイルが見つかりません",
 		"vscodeLmDescription": "VS Code言語モデルAPIを使用すると、他のVS Code拡張機能（GitHub Copilotなど）が提供するモデルを実行できます。最も簡単な方法は、VS Code MarketplaceからCopilotおよびCopilot Chat拡張機能をインストールすることです。",
-		"awsCustomArnUse": "使用したいモデルの有効なAWS Bedrock ARNを入力してください。形式の例:",
+		"awsCustomArnUse": "使用したいモデルの有効なAmazon Bedrock ARNを入力してください。形式の例:",
 		"awsCustomArnDesc": "ARN内のリージョンが上で選択したAWSリージョンと一致していることを確認してください。",
 		"openRouterApiKey": "OpenRouter APIキー",
 		"getOpenRouterApiKey": "OpenRouter APIキーを取得",
@@ -403,7 +403,7 @@
 	},
 	"validation": {
 		"apiKey": "有効なAPIキーを入力してください。",
-		"awsRegion": "AWS Bedrockを使用するにはリージョンを選択してください。",
+		"awsRegion": "Amazon Bedrockを使用するにはリージョンを選択してください。",
 		"googleCloud": "有効なGoogle CloudプロジェクトIDとリージョンを入力してください。",
 		"modelId": "有効なモデルIDを入力してください。",
 		"modelSelector": "有効なモデルセレクターを入力してください。",

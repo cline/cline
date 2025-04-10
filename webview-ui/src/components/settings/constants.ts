@@ -28,7 +28,7 @@ export const PROVIDERS = [
 	{ value: "openai-native", label: "OpenAI" },
 	{ value: "openai", label: "OpenAI Compatible" },
 	{ value: "vertex", label: "GCP Vertex AI" },
-	{ value: "bedrock", label: "AWS Bedrock" },
+	{ value: "bedrock", label: "Amazon Bedrock" },
 	{ value: "glama", label: "Glama" },
 	{ value: "vscode-lm", label: "VS Code LM API" },
 	{ value: "mistral", label: "Mistral" },

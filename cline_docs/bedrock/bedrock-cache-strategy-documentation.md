@@ -1,6 +1,6 @@
 # Cache Strategy Documentation
 
-This document provides an overview of the cache strategy implementation for AWS Bedrock in the Roo-Code project, including class relationships and sequence diagrams.
+This document provides an overview of the cache strategy implementation for Amazon Bedrock in the Roo-Code project, including class relationships and sequence diagrams.
 
 ## Class Relationship Diagram
 
@@ -89,7 +89,7 @@ sequenceDiagram
     participant Client as Client Code
     participant Bedrock as AwsBedrockHandler
     participant Strategy as MultiPointStrategy
-    participant AWS as AWS Bedrock Service
+    participant AWS as Amazon Bedrock Service
 
     Client->>Bedrock: createMessage(systemPrompt, messages)
     Note over Bedrock: Generate conversationId to track cache points
@@ -143,7 +143,7 @@ sequenceDiagram
 
 ### Cache Strategy
 
-The cache strategy system is designed to optimize the placement of cache points in AWS Bedrock API requests. Cache points allow the service to reuse previously processed parts of the prompt, reducing token usage and improving response times.
+The cache strategy system is designed to optimize the placement of cache points in Amazon Bedrock API requests. Cache points allow the service to reuse previously processed parts of the prompt, reducing token usage and improving response times.
 
 - **MultiPointStrategy**: Upon first MR of Bedrock caching, this strategy is used for all cache point placement scenarios. It distributes cache points throughout the conversation to maximize caching efficiency, whether the model supports one or multiple cache points.
 
@@ -180,14 +180,14 @@ The simplified approach ensures that:
 
 The examples in this document reflect this optimized implementation.
 
-### Integration with AWS Bedrock
+### Integration with Amazon Bedrock
 
 The AwsBedrockHandler class integrates with the cache strategies by:
 
 1. Determining if the model supports prompt caching
 2. Creating the appropriate strategy based on model capabilities
 3. Applying the strategy to format messages with optimal cache points
-4. Sending the formatted request to AWS Bedrock
+4. Sending the formatted request to Amazon Bedrock
 5. Processing and returning the response
 
 ## Usage Considerations

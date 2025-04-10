@@ -99,7 +99,7 @@
 		"createProfile": "建立設定檔",
 		"cannotDeleteOnlyProfile": "無法刪除唯一的設定檔",
 		"vscodeLmDescription": "VS Code 語言模型 API 可以讓您使用其他擴充功能（如 GitHub Copilot）提供的模型。最簡單的方式是從 VS Code Marketplace 安裝 Copilot 和 Copilot Chat 擴充套件。",
-		"awsCustomArnUse": "輸入您要使用的模型的有效 AWS Bedrock ARN。格式範例：",
+		"awsCustomArnUse": "輸入您要使用的模型的有效 Amazon Bedrock ARN。格式範例：",
 		"awsCustomArnDesc": "確保 ARN 中的區域與您上面選擇的 AWS 區域相符。",
 		"searchPlaceholder": "搜尋設定檔",
 		"noMatchFound": "找不到符合的設定檔",
@@ -402,7 +402,7 @@
 	},
 	"validation": {
 		"apiKey": "請提供有效的 API 金鑰。",
-		"awsRegion": "請選擇要用於 AWS Bedrock 的區域。",
+		"awsRegion": "請選擇要用於 Amazon Bedrock 的區域。",
 		"googleCloud": "請提供有效的 Google Cloud 專案 ID 和區域。",
 		"modelId": "請提供有效的模型 ID。",
 		"modelSelector": "請提供有效的模型選擇器。",

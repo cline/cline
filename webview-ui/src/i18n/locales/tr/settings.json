@@ -101,7 +101,7 @@
 		"searchPlaceholder": "Profilleri ara",
 		"noMatchFound": "Eşleşen profil bulunamadı",
 		"vscodeLmDescription": "VS Code Dil Modeli API'si, diğer VS Code uzantıları tarafından sağlanan modelleri çalıştırmanıza olanak tanır (GitHub Copilot dahil ancak bunlarla sınırlı değildir). Başlamanın en kolay yolu, VS Code Marketplace'ten Copilot ve Copilot Chat uzantılarını yüklemektir.",
-		"awsCustomArnUse": "Kullanmak istediğiniz model için geçerli bir AWS Bedrock ARN'si girin. Format örnekleri:",
+		"awsCustomArnUse": "Kullanmak istediğiniz model için geçerli bir Amazon Bedrock ARN'si girin. Format örnekleri:",
 		"awsCustomArnDesc": "ARN içindeki bölgenin yukarıda seçilen AWS Bölgesiyle eşleştiğinden emin olun.",
 		"openRouterApiKey": "OpenRouter API Anahtarı",
 		"getOpenRouterApiKey": "OpenRouter API Anahtarı Al",
@@ -403,7 +403,7 @@
 	},
 	"validation": {
 		"apiKey": "Geçerli bir API anahtarı sağlamalısınız.",
-		"awsRegion": "AWS Bedrock kullanmak için bir bölge seçmelisiniz.",
+		"awsRegion": "Amazon Bedrock kullanmak için bir bölge seçmelisiniz.",
 		"googleCloud": "Geçerli bir Google Cloud proje kimliği ve bölge sağlamalısınız.",
 		"modelId": "Geçerli bir model kimliği sağlamalısınız.",
 		"modelSelector": "Geçerli bir model seçici sağlamalısınız.",

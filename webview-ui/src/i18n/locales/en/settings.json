@@ -101,7 +101,7 @@
 		"searchPlaceholder": "Search profiles",
 		"noMatchFound": "No matching profiles found",
 		"vscodeLmDescription": " The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot). The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.",
-		"awsCustomArnUse": "Enter a valid AWS Bedrock ARN for the model you want to use. Format examples:",
+		"awsCustomArnUse": "Enter a valid Amazon Bedrock ARN for the model you want to use. Format examples:",
 		"awsCustomArnDesc": "Make sure the region in the ARN matches your selected AWS Region above.",
 		"openRouterApiKey": "OpenRouter API Key",
 		"getOpenRouterApiKey": "Get OpenRouter API Key",
@@ -402,7 +402,7 @@
 	},
 	"validation": {
 		"apiKey": "You must provide a valid API key.",
-		"awsRegion": "You must choose a region to use with AWS Bedrock.",
+		"awsRegion": "You must choose a region to use with Amazon Bedrock.",
 		"googleCloud": "You must provide a valid Google Cloud Project ID and Region.",
 		"modelId": "You must provide a valid model ID.",
 		"modelSelector": "You must provide a valid model selector.",

@@ -2,7 +2,7 @@
  * AWS Region information mapping
  * Maps region prefixes to their full region IDs and descriptions
  */
-export const AWS_BEDROCK_REGION_INFO: Record<
+export const AMAZON_BEDROCK_REGION_INFO: Record<
 	string,
 	{
 		regionId: string
@@ -69,7 +69,7 @@ export const AWS_BEDROCK_REGION_INFO: Record<
 }
 
 // Extract unique region IDs from REGION_INFO and create the AWS_REGIONS array
-export const AWS_REGIONS = Object.values(AWS_BEDROCK_REGION_INFO)
+export const AWS_REGIONS = Object.values(AMAZON_BEDROCK_REGION_INFO)
 	// Extract all region IDs
 	.map((info) => ({ value: info.regionId, label: info.regionId }))
 	// Filter to unique region IDs (remove duplicates)

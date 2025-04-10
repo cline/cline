@@ -101,7 +101,7 @@
 		"searchPlaceholder": "프로필 검색",
 		"noMatchFound": "일치하는 프로필이 없습니다",
 		"vscodeLmDescription": "VS Code 언어 모델 API를 사용하면 GitHub Copilot을 포함한 기타 VS Code 확장 프로그램이 제공하는 모델을 실행할 수 있습니다. 시작하려면 VS Code 마켓플레이스에서 Copilot 및 Copilot Chat 확장 프로그램을 설치하는 것이 가장 쉽습니다.",
-		"awsCustomArnUse": "사용하려는 모델의 유효한 AWS Bedrock ARN을 입력하세요. 형식 예시:",
+		"awsCustomArnUse": "사용하려는 모델의 유효한 Amazon Bedrock ARN을 입력하세요. 형식 예시:",
 		"awsCustomArnDesc": "ARN의 리전이 위에서 선택한 AWS 리전과 일치하는지 확인하세요.",
 		"openRouterApiKey": "OpenRouter API 키",
 		"getOpenRouterApiKey": "OpenRouter API 키 받기",
@@ -403,7 +403,7 @@
 	},
 	"validation": {
 		"apiKey": "유효한 API 키를 입력해야 합니다.",
-		"awsRegion": "AWS Bedrock을 사용하려면 리전을 선택해야 합니다.",
+		"awsRegion": "Amazon Bedrock을 사용하려면 리전을 선택해야 합니다.",
 		"googleCloud": "유효한 Google Cloud 프로젝트 ID와 리전을 입력해야 합니다.",
 		"modelId": "유효한 모델 ID를 입력해야 합니다.",
 		"modelSelector": "유효한 모델 선택기를 입력해야 합니다.",

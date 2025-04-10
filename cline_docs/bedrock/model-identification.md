@@ -1,6 +1,6 @@
 # Bedrock Model Identification
 
-This document explains how model information is identified and managed in the AWS Bedrock provider implementation (`bedrock.ts`). It focuses on the sequence of operations that determine the `costModelConfig` property, which is crucial for token counting, pricing, and other features.
+This document explains how model information is identified and managed in the Amazon Bedrock provider implementation (`bedrock.ts`). It focuses on the sequence of operations that determine the `costModelConfig` property, which is crucial for token counting, pricing, and other features.
 
 ## Model Identification Flow
 

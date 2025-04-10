@@ -24,7 +24,7 @@ body:
         - OpenAI
         - OpenAI Compatible
         - GCP Vertex AI
-        - AWS Bedrock
+        - Amazon Bedrock
         - Requesty
         - Glama
         - VS Code LM API

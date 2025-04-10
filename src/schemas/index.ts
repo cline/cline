@@ -319,7 +319,7 @@ export const providerSettingsSchema = z.object({
 	openRouterBaseUrl: z.string().optional(),
 	openRouterSpecificProvider: z.string().optional(),
 	openRouterUseMiddleOutTransform: z.boolean().optional(),
-	// AWS Bedrock
+	// Amazon Bedrock
 	awsAccessKey: z.string().optional(),
 	awsSecretKey: z.string().optional(),
 	awsSessionToken: z.string().optional(),
@@ -414,7 +414,7 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	openRouterBaseUrl: undefined,
 	openRouterSpecificProvider: undefined,
 	openRouterUseMiddleOutTransform: undefined,
-	// AWS Bedrock
+	// Amazon Bedrock
 	awsAccessKey: undefined,
 	awsSecretKey: undefined,
 	awsSessionToken: undefined,

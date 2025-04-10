@@ -22,7 +22,7 @@ import { Message, SystemContentBlock } from "@aws-sdk/client-bedrock-runtime"
 // New cache-related imports
 import { MultiPointStrategy } from "../transform/cache-strategy/multi-point-strategy"
 import { ModelInfo as CacheModelInfo } from "../transform/cache-strategy/types"
-import { AWS_BEDROCK_REGION_INFO } from "../../shared/aws_regions"
+import { AMAZON_BEDROCK_REGION_INFO } from "../../shared/aws_regions"
 
 const BEDROCK_DEFAULT_TEMPERATURE = 0.3
 const BEDROCK_MAX_TOKENS = 4096
@@ -495,7 +495,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 	private parseArn(arn: string, region?: string) {
 		/*
-		 * VIA Roo analysis: platform-independent Regex. It's designed to parse AWS Bedrock ARNs and doesn't rely on any platform-specific features
+		 * VIA Roo analysis: platform-independent Regex. It's designed to parse Amazon Bedrock ARNs and doesn't rely on any platform-specific features
 		 * like file path separators, line endings, or case sensitivity behaviors. The forward slashes in the regex are properly escaped and
 		 * represent literal characters in the AWS ARN format, not filesystem paths. This regex will function consistently across Windows,
 		 * macOS, Linux, and any other operating system where JavaScript runs.
@@ -562,7 +562,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			region: undefined,
 			modelType: undefined,
 			modelId: undefined,
-			errorMessage: "Invalid ARN format. ARN should follow the AWS Bedrock ARN pattern.",
+			errorMessage: "Invalid ARN format. ARN should follow the Amazon Bedrock ARN pattern.",
 			crossRegionInference: false,
 		}
 	}
@@ -700,16 +700,16 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 	/************************************************************************************
 	 *
-	 *     AWS REGIONS
+	 *     AMAZON REGIONS
 	 *
 	 *************************************************************************************/
 
 	private static getPrefixList(): string[] {
-		return Object.keys(AWS_BEDROCK_REGION_INFO)
+		return Object.keys(AMAZON_BEDROCK_REGION_INFO)
 	}
 
 	private static getPrefixForRegion(region: string): string | undefined {
-		for (const [prefix, info] of Object.entries(AWS_BEDROCK_REGION_INFO)) {
+		for (const [prefix, info] of Object.entries(AMAZON_BEDROCK_REGION_INFO)) {
 			if (info.pattern && region.startsWith(info.pattern)) {
 				return prefix
 			}
@@ -718,7 +718,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 	}
 
 	private static prefixIsMultiRegion(arnPrefix: string): boolean {
-		for (const [prefix, info] of Object.entries(AWS_BEDROCK_REGION_INFO)) {
+		for (const [prefix, info] of Object.entries(AMAZON_BEDROCK_REGION_INFO)) {
 			if (arnPrefix === prefix) {
 				if (info?.multiRegion) return info.multiRegion
 				else return false
@@ -791,7 +791,7 @@ Suggestions:
 2. Split your request into smaller chunks
 3. Use a model with a larger context window
 4. If rate limited, reduce request frequency
-5. Check your AWS Bedrock quotas and limits`,
+5. Check your Amazon Bedrock quotas and limits`,
 			logLevel: "error",
 		},
 		ON_DEMAND_NOT_SUPPORTED: {

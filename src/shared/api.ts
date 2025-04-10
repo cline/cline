@@ -77,8 +77,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.03,
 	},
 } as const satisfies Record<string, ModelInfo> // as const assertion makes the object deeply readonly
-
-// AWS Bedrock
+// Amazon Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export interface MessageContent {
 	type: "text" | "image" | "video" | "tool_use" | "tool_result"

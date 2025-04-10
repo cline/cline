@@ -82,7 +82,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 	return undefined
 }
 /**
- * Validates an AWS Bedrock ARN format and optionally checks if the region in the ARN matches the provided region
+ * Validates an Amazon Bedrock ARN format and optionally checks if the region in the ARN matches the provided region
  * @param arn The ARN string to validate
  * @param region Optional region to check against the ARN's region
  * @returns An object with validation results: { isValid, arnRegion, errorMessage }

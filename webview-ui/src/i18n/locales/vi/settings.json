@@ -101,7 +101,7 @@
 		"searchPlaceholder": "Tìm kiếm hồ sơ",
 		"noMatchFound": "Không tìm thấy hồ sơ phù hợp",
 		"vscodeLmDescription": "API Mô hình Ngôn ngữ VS Code cho phép bạn chạy các mô hình được cung cấp bởi các tiện ích mở rộng khác của VS Code (bao gồm nhưng không giới hạn ở GitHub Copilot). Cách dễ nhất để bắt đầu là cài đặt các tiện ích mở rộng Copilot và Copilot Chat từ VS Code Marketplace.",
-		"awsCustomArnUse": "Nhập một ARN AWS Bedrock hợp lệ cho mô hình bạn muốn sử dụng. Ví dụ về định dạng:",
+		"awsCustomArnUse": "Nhập một ARN Amazon Bedrock hợp lệ cho mô hình bạn muốn sử dụng. Ví dụ về định dạng:",
 		"awsCustomArnDesc": "Đảm bảo rằng vùng trong ARN khớp với vùng AWS đã chọn ở trên.",
 		"openRouterApiKey": "Khóa API OpenRouter",
 		"getOpenRouterApiKey": "Lấy khóa API OpenRouter",
@@ -403,7 +403,7 @@
 	},
 	"validation": {
 		"apiKey": "Bạn phải cung cấp khóa API hợp lệ.",
-		"awsRegion": "Bạn phải chọn một vùng để sử dụng AWS Bedrock.",
+		"awsRegion": "Bạn phải chọn một vùng để sử dụng Amazon Bedrock.",
 		"googleCloud": "Bạn phải cung cấp ID dự án và vùng Google Cloud hợp lệ.",
 		"modelId": "Bạn phải cung cấp ID mô hình hợp lệ.",
 		"modelSelector": "Bạn phải cung cấp bộ chọn mô hình hợp lệ.",

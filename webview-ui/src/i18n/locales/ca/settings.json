@@ -101,7 +101,7 @@
 		"searchPlaceholder": "Cerca perfils",
 		"noMatchFound": "No s'han trobat perfils coincidents",
 		"vscodeLmDescription": "L'API del model de llenguatge de VS Code us permet executar models proporcionats per altres extensions de VS Code (incloent-hi, però no limitat a, GitHub Copilot). La manera més senzilla de començar és instal·lar les extensions Copilot i Copilot Chat des del VS Code Marketplace.",
-		"awsCustomArnUse": "Introduïu un ARN vàlid d'AWS Bedrock per al model que voleu utilitzar. Exemples de format:",
+		"awsCustomArnUse": "Introduïu un ARN vàlid d'Amazon Bedrock per al model que voleu utilitzar. Exemples de format:",
 		"awsCustomArnDesc": "Assegureu-vos que la regió a l'ARN coincideix amb la regió d'AWS seleccionada anteriorment.",
 		"apiKeyStorageNotice": "Les claus API s'emmagatzemen de forma segura a l'Emmagatzematge Secret de VSCode",
 		"useCustomBaseUrl": "Utilitzar URL base personalitzada",
@@ -403,7 +403,7 @@
 	},
 	"validation": {
 		"apiKey": "Heu de proporcionar una clau API vàlida.",
-		"awsRegion": "Heu de triar una regió per utilitzar AWS Bedrock.",
+		"awsRegion": "Heu de triar una regió per utilitzar Amazon Bedrock.",
 		"googleCloud": "Heu de proporcionar un ID de projecte i regió de Google Cloud vàlids.",
 		"modelId": "Heu de proporcionar un ID de model vàlid.",
 		"modelSelector": "Heu de proporcionar un selector de model vàlid.",
