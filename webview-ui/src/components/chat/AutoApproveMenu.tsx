@@ -338,7 +338,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							<div
 								key={action.id}
 								style={{
-									margin: "3px 0",
+									margin: "6px 0",
 								}}>
 								<VSCodeCheckbox
 									checked={autoApprovalSettings.actions[action.id]}
