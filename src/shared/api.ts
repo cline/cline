@@ -1439,6 +1439,14 @@ const fallbackSambanovaModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"DeepSeek-R1": {
+		maxTokens: 4096,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"DeepSeek-R1-Distill-Llama-70B": {
 		maxTokens: 4096,
 		contextWindow: 32_000,
