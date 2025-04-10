@@ -290,11 +290,16 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				(defaultWindowsShellProfile === null ||
 					(defaultWindowsShellProfile as string)?.toLowerCase().includes("powershell"))
 			if (isPowerShell) {
-				let commandToExecute = `${command} ; "(Roo/PS Workaround: ${this.terminalInfo.cmdCounter++})" > $null`
+				let commandToExecute = command
+
+				// Only add the PowerShell counter workaround if enabled
+				if (Terminal.getPowershellCounter()) {
+					commandToExecute += ` ; "(Roo/PS Workaround: ${this.terminalInfo.cmdCounter++})" > $null`
+				}
 
 				// Only add the sleep command if the command delay is greater than 0
 				if (Terminal.getCommandDelay() > 0) {
-					commandToExecute += `; start-sleep -milliseconds ${Terminal.getCommandDelay()}`
+					commandToExecute += ` ; start-sleep -milliseconds ${Terminal.getCommandDelay()}`
 				}
 
 				terminal.shellIntegration.executeCommand(commandToExecute)

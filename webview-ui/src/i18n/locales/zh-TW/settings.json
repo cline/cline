@@ -305,6 +305,10 @@
 		"commandDelay": {
 			"label": "終端機命令延遲",
 			"description": "命令執行後添加的延遲時間（毫秒）。預設值為 0 時完全停用延遲。這可以幫助確保在有計時問題的終端機中完整擷取命令輸出。在大多數終端機中，這是透過設定 `PROMPT_COMMAND='sleep N'` 實現的，而 PowerShell 會在每個命令結尾加入 `start-sleep`。最初是為了解決 VSCode 錯誤#237208，現在可能不再需要。"
+		},
+		"powershellCounter": {
+			"label": "啟用 PowerShell 計數器解決方案",
+			"description": "啟用後，會在 PowerShell 命令中加入計數器以確保命令正確執行。這有助於解決可能存在輸出擷取問題的 PowerShell 終端機。"
 		}
 	},
 	"advanced": {

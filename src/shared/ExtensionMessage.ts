@@ -154,6 +154,7 @@ export type ExtensionState = Pick<
 	| "terminalOutputLineLimit"
 	| "terminalShellIntegrationTimeout"
 	| "terminalCommandDelay"
+	| "terminalPowershellCounter"
 	| "diffEnabled"
 	| "fuzzyMatchThreshold"
 	// | "experiments" // Optional in GlobalSettings, required here.

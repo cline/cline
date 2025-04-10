@@ -1,6 +1,7 @@
 import { HTMLAttributes } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { SquareTerminal } from "lucide-react"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 import { cn } from "@/lib/utils"
 import { Slider } from "@/components/ui"
@@ -13,8 +14,12 @@ type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	terminalOutputLineLimit?: number
 	terminalShellIntegrationTimeout?: number
 	terminalCommandDelay?: number
+	terminalPowershellCounter?: boolean
 	setCachedStateField: SetCachedStateField<
-		"terminalOutputLineLimit" | "terminalShellIntegrationTimeout" | "terminalCommandDelay"
+		| "terminalOutputLineLimit"
+		| "terminalShellIntegrationTimeout"
+		| "terminalCommandDelay"
+		| "terminalPowershellCounter"
 	>
 }
 
@@ -22,6 +27,7 @@ export const TerminalSettings = ({
 	terminalOutputLineLimit,
 	terminalShellIntegrationTimeout,
 	terminalCommandDelay,
+	terminalPowershellCounter,
 	setCachedStateField,
 	className,
 	...props
@@ -96,6 +102,18 @@ export const TerminalSettings = ({
 					</div>
 					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:terminal.commandDelay.description")}
+					</div>
+				</div>
+
+				<div>
+					<VSCodeCheckbox
+						checked={terminalPowershellCounter ?? false}
+						onChange={(e: any) => setCachedStateField("terminalPowershellCounter", e.target.checked)}
+						data-testid="terminal-powershell-counter-checkbox">
+						<span className="font-medium">{t("settings:terminal.powershellCounter.label")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						{t("settings:terminal.powershellCounter.description")}
 					</div>
 				</div>
 			</Section>

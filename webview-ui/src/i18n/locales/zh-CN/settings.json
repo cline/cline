@@ -305,6 +305,10 @@
 		"commandDelay": {
 			"label": "终端命令延迟",
 			"description": "命令执行后添加的延迟时间（毫秒）。默认设置为 0 时完全禁用延迟。这可以帮助确保在有计时问题的终端中完全捕获命令输出。在大多数终端中，这是通过设置 `PROMPT_COMMAND='sleep N'` 实现的，而 PowerShell 会在每个命令末尾添加 `start-sleep`。最初是为了解决 VSCode 错误#237208，现在可能不再需要。"
+		},
+		"powershellCounter": {
+			"label": "启用 PowerShell 计数器解决方案",
+			"description": "启用后，会在 PowerShell 命令中添加计数器以确保命令正确执行。这有助于解决可能存在输出捕获问题的 PowerShell 终端。"
 		}
 	},
 	"advanced": {

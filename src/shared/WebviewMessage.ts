@@ -83,6 +83,7 @@ export interface WebviewMessage {
 		| "terminalOutputLineLimit"
 		| "terminalShellIntegrationTimeout"
 		| "terminalCommandDelay"
+		| "terminalPowershellCounter"
 		| "mcpEnabled"
 		| "enableMcpServerCreation"
 		| "searchCommits"

@@ -305,6 +305,10 @@
 		"commandDelay": {
 			"label": "Ritardo comando terminale",
 			"description": "Ritardo in millisecondi da aggiungere dopo l'esecuzione del comando. L'impostazione predefinita di 0 disabilita completamente il ritardo. Questo può aiutare a garantire che l'output del comando sia catturato completamente nei terminali con problemi di temporizzazione. Nella maggior parte dei terminali viene implementato impostando `PROMPT_COMMAND='sleep N'` e Powershell aggiunge `start-sleep` alla fine di ogni comando. In origine era una soluzione per il bug VSCode#237208 e potrebbe non essere necessario."
+		},
+		"powershellCounter": {
+			"label": "Abilita soluzione temporanea contatore PowerShell",
+			"description": "Quando abilitato, aggiunge un contatore ai comandi PowerShell per garantire la corretta esecuzione dei comandi. Questo aiuta con i terminali PowerShell che potrebbero avere problemi con la cattura dell'output."
 		}
 	},
 	"advanced": {

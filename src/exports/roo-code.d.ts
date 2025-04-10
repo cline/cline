@@ -267,6 +267,7 @@ type GlobalSettings = {
 	terminalOutputLineLimit?: number | undefined
 	terminalShellIntegrationTimeout?: number | undefined
 	terminalCommandDelay?: number | undefined
+	terminalPowershellCounter?: boolean | undefined
 	rateLimitSeconds?: number | undefined
 	diffEnabled?: boolean | undefined
 	fuzzyMatchThreshold?: number | undefined

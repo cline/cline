@@ -305,6 +305,10 @@
 		"commandDelay": {
 			"label": "Độ trễ lệnh terminal",
 			"description": "Độ trễ tính bằng mili giây để thêm vào sau khi thực hiện lệnh. Cài đặt mặc định là 0 sẽ tắt hoàn toàn độ trễ. Điều này có thể giúp đảm bảo đầu ra lệnh được ghi lại đầy đủ trong các terminal có vấn đề về thời gian. Trong hầu hết các terminal, điều này được thực hiện bằng cách đặt `PROMPT_COMMAND='sleep N'` và PowerShell thêm `start-sleep` vào cuối mỗi lệnh. Ban đầu là giải pháp cho lỗi VSCode#237208 và có thể không cần thiết."
+		},
+		"powershellCounter": {
+			"label": "Bật giải pháp bộ đếm PowerShell",
+			"description": "Khi được bật, thêm một bộ đếm vào các lệnh PowerShell để đảm bảo thực thi lệnh chính xác. Điều này giúp ích với các terminal PowerShell có thể gặp vấn đề về ghi lại đầu ra."
 		}
 	},
 	"advanced": {

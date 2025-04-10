@@ -8,6 +8,7 @@ export const TERMINAL_SHELL_INTEGRATION_TIMEOUT = 5000
 export class Terminal {
 	private static shellIntegrationTimeout: number = TERMINAL_SHELL_INTEGRATION_TIMEOUT
 	private static commandDelay: number = 0
+	private static powershellCounter: boolean = false
 
 	public terminal: vscode.Terminal
 	public busy: boolean
@@ -275,6 +276,22 @@ export class Terminal {
 	 */
 	public static getCommandDelay(): number {
 		return Terminal.commandDelay
+	}
+
+	/**
+	 * Sets whether to use the PowerShell counter workaround
+	 * @param enabled Whether to enable the PowerShell counter workaround
+	 */
+	public static setPowershellCounter(enabled: boolean): void {
+		Terminal.powershellCounter = enabled
+	}
+
+	/**
+	 * Gets whether to use the PowerShell counter workaround
+	 * @returns Whether the PowerShell counter workaround is enabled
+	 */
+	public static getPowershellCounter(): boolean {
+		return Terminal.powershellCounter
 	}
 
 	public static compressTerminalOutput(input: string, lineLimit: number): string {

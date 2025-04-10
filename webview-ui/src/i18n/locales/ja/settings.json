@@ -305,6 +305,10 @@
 		"commandDelay": {
 			"label": "ターミナルコマンド遅延",
 			"description": "コマンド実行後に追加する遅延時間（ミリ秒）。デフォルト設定の0は遅延を完全に無効にします。これはタイミングの問題があるターミナルでコマンド出力を完全にキャプチャするのに役立ちます。ほとんどのターミナルでは`PROMPT_COMMAND='sleep N'`を設定することで実装され、PowerShellは各コマンドの最後に`start-sleep`を追加します。元々はVSCodeバグ#237208の回避策で、必要ない場合があります。"
+		},
+		"powershellCounter": {
+			"label": "PowerShellカウンター回避策を有効化",
+			"description": "有効にすると、PowerShellコマンドにカウンターを追加して、コマンドの正しい実行を確保します。これは出力のキャプチャに問題がある可能性のあるPowerShellターミナルで役立ちます。"
 		}
 	},
 	"advanced": {

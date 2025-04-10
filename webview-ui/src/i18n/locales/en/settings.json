@@ -305,6 +305,10 @@
 		"commandDelay": {
 			"label": "Terminal command delay",
 			"description": "Delay in milliseconds to add after command execution. The default setting of 0 disables the delay completely. This can help ensure command output is fully captured in terminals with timing issues. In most terminals it is implemented by setting `PROMPT_COMMAND='sleep N'` and Powershell appends `start-sleep` to the end of each command. Originally was workaround for VSCode bug#237208 and may not be needed."
+		},
+		"powershellCounter": {
+			"label": "Enable PowerShell counter workaround",
+			"description": "When enabled, adds a counter to PowerShell commands to ensure proper command execution. This helps with PowerShell terminals that might have issues with command output capture."
 		}
 	},
 	"advanced": {
