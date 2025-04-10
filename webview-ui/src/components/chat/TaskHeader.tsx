@@ -1,14 +1,14 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { formatLargeNumber } from "../../utils/format"
-import { formatSize } from "../../utils/size"
-import { vscode } from "../../utils/vscode"
-import Thumbnails from "../common/Thumbnails"
-import { normalizeApiConfiguration } from "../settings/ApiOptions"
+import { mentionRegexGlobal } from "@shared/context-mentions"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { formatLargeNumber } from "@/utils/format"
+import { formatSize } from "@/utils/format"
+import { vscode } from "@/utils/vscode"
+import Thumbnails from "@/components/common/Thumbnails"
+import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 
 interface TaskHeaderProps {
 	task: ClineMessage

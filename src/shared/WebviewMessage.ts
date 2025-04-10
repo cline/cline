@@ -35,6 +35,10 @@ export interface WebviewMessage {
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
+		| "discoverBrowser"
+		| "testBrowserConnection"
+		| "browserConnectionResult"
+		| "browserRelaunchResult"
 		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
@@ -66,9 +70,17 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
+		| "relaunchChromeDebugMode"
 		| "taskFeedback"
+		| "getBrowserConnectionInfo"
+		| "getDetectedChromePath"
+		| "detectedChromePath"
+		| "scrollToSettings"
+		| "getRelativePaths" // Handles single and multiple URI resolution
+		| "searchFiles"
 	// | "relaunchChromeDebugMode"
 	text?: string
+	uris?: string[] // Used for getRelativePaths
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
@@ -97,6 +109,8 @@ export interface WebviewMessage {
 	customInstructionsSetting?: string
 	// For task feedback
 	feedbackType?: TaskFeedbackType
+	mentionsRequestId?: string
+	query?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

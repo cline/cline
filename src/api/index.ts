@@ -16,6 +16,7 @@ import { TogetherHandler } from "./providers/together"
 import { NebiusHandler } from "./providers/nebius"
 import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
+import { DoubaoHandler } from "./providers/doubao"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { ClineHandler } from "./providers/cline"
 import { LiteLlmHandler } from "./providers/litellm"
@@ -62,6 +63,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new TogetherHandler(options)
 		case "qwen":
 			return new QwenHandler(options)
+		case "doubao":
+			return new DoubaoHandler(options)
 		case "mistral":
 			return new MistralHandler(options)
 		case "vscode-lm":

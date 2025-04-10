@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
-import { useDebounceEffect } from "../../utils/useDebounceEffect"
+import { useDebounceEffect } from "@/utils/useDebounceEffect"
 import styled from "styled-components"
-import { vscode } from "../../utils/vscode"
+import { vscode } from "@/utils/vscode"
 
 const MERMAID_THEME = {
 	background: "#1e1e1e", // VS Code dark theme background
@@ -174,7 +174,10 @@ async function svgToPng(svgEl: SVGElement): Promise<string> {
 
 	const serializer = new XMLSerializer()
 	const svgString = serializer.serializeToString(svgClone)
-	const svgDataUrl = "data:image/svg+xml;base64," + btoa(decodeURIComponent(encodeURIComponent(svgString)))
+	const encoder = new TextEncoder()
+	const bytes = encoder.encode(svgString)
+	const base64 = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""))
+	const svgDataUrl = `data:image/svg+xml;base64,${base64}`
 
 	return new Promise((resolve, reject) => {
 		const img = new Image()

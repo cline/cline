@@ -41,7 +41,15 @@ export interface ExtensionMessage {
 		| "userCreditsPayments"
 		| "totalTasksSize"
 		| "addToInput"
+		| "browserConnectionResult"
+		| "browserConnectionInfo"
+		| "detectedChromePath"
+		| "scrollToSettings"
+		| "browserRelaunchResult"
+		| "relativePathsResponse" // Handles single and multiple path responses
+		| "fileSearchResults"
 	text?: string
+	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"
@@ -81,6 +89,18 @@ export interface ExtensionMessage {
 	userCreditsUsage?: UsageTransaction[]
 	userCreditsPayments?: PaymentTransaction[]
 	totalTasksSize?: number | null
+	success?: boolean
+	endpoint?: string
+	isBundled?: boolean
+	isConnected?: boolean
+	isRemote?: boolean
+	host?: string
+	mentionsRequestId?: string
+	results?: Array<{
+		path: string
+		type: "file" | "folder"
+		label?: string
+	}>
 	addRemoteServerResult?: {
 		success: boolean
 		serverName: string
@@ -98,6 +118,7 @@ export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
+	remoteBrowserHost?: string
 	chatSettings: ChatSettings
 	checkpointTrackerErrorMessage?: string
 	clineMessages: ClineMessage[]
@@ -148,6 +169,7 @@ export type ClineAsk =
 	| "auto_approval_max_req_reached"
 	| "browser_action_launch"
 	| "use_mcp_server"
+	| "new_task"
 
 export type ClineSay =
 	| "task"
@@ -208,6 +230,12 @@ export type BrowserActionResult = {
 	currentMousePosition?: string
 }
 
+export interface BrowserConnectionInfo {
+	isConnected: boolean
+	isRemote: boolean
+	host?: string
+}
+
 export interface ClineAskUseMcpServer {
 	serverName: string
 	type: "use_mcp_tool" | "access_mcp_resource"
@@ -226,6 +254,10 @@ export interface ClineAskQuestion {
 	question: string
 	options?: string[]
 	selected?: string
+}
+
+export interface ClineAskNewTask {
+	context: string
 }
 
 export interface ClineApiReqInfo {

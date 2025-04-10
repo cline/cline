@@ -86,6 +86,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		togetherApiKey,
 		togetherModelId,
 		qwenApiKey,
+		doubaoApiKey,
 		mistralApiKey,
 		azureApiVersion,
 		openRouterModelId,
@@ -100,6 +101,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
+		liteLlmUsePromptCache,
 		userInfo,
 		previousModeApiProvider,
 		previousModeModelId,
@@ -152,6 +154,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "togetherApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "togetherModelId") as Promise<string | undefined>,
 		getSecret(context, "qwenApiKey") as Promise<string | undefined>,
+		getSecret(context, "doubaoApiKey") as Promise<string | undefined>,
 		getSecret(context, "mistralApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "azureApiVersion") as Promise<string | undefined>,
 		getGlobalState(context, "openRouterModelId") as Promise<string | undefined>,
@@ -166,6 +169,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		getGlobalState(context, "liteLlmBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "liteLlmUsePromptCache") as Promise<boolean | undefined>,
 		getGlobalState(context, "userInfo") as Promise<UserInfo | undefined>,
 		getGlobalState(context, "previousModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "previousModeModelId") as Promise<string | undefined>,
@@ -258,6 +262,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			togetherModelId,
 			qwenApiKey,
 			qwenApiLine,
+			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
 			openRouterModelId,
@@ -269,6 +274,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			liteLlmBaseUrl,
 			liteLlmModelId,
 			liteLlmApiKey,
+			liteLlmUsePromptCache,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -280,7 +286,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		customInstructions,
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
-		browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
+		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 		userInfo,
 		previousModeApiProvider,
@@ -329,6 +335,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		togetherApiKey,
 		togetherModelId,
 		qwenApiKey,
+		doubaoApiKey,
 		mistralApiKey,
 		azureApiVersion,
 		openRouterModelId,
@@ -338,6 +345,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		liteLlmBaseUrl,
 		liteLlmModelId,
 		liteLlmApiKey,
+		liteLlmUsePromptCache,
 		qwenApiLine,
 		asksageApiKey,
 		asksageApiUrl,
@@ -379,6 +387,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "requestyApiKey", requestyApiKey)
 	await storeSecret(context, "togetherApiKey", togetherApiKey)
 	await storeSecret(context, "qwenApiKey", qwenApiKey)
+	await storeSecret(context, "doubaoApiKey", doubaoApiKey)
 	await storeSecret(context, "mistralApiKey", mistralApiKey)
 	await storeSecret(context, "liteLlmApiKey", liteLlmApiKey)
 	await storeSecret(context, "xaiApiKey", xaiApiKey)
@@ -389,6 +398,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
 	await updateGlobalState(context, "liteLlmBaseUrl", liteLlmBaseUrl)
 	await updateGlobalState(context, "liteLlmModelId", liteLlmModelId)
+	await updateGlobalState(context, "liteLlmUsePromptCache", liteLlmUsePromptCache)
 	await updateGlobalState(context, "qwenApiLine", qwenApiLine)
 	await updateGlobalState(context, "requestyModelId", requestyModelId)
 	await updateGlobalState(context, "togetherModelId", togetherModelId)
@@ -418,6 +428,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"requestyApiKey",
 		"togetherApiKey",
 		"qwenApiKey",
+		"doubaoApiKey",
 		"mistralApiKey",
 		"clineApiKey",
 		"liteLlmApiKey",

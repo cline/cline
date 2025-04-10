@@ -43,7 +43,11 @@ import {
 	updateGlobalState,
 } from "../storage/state"
 import { WebviewProvider } from "../webview"
+import { BrowserSession } from "../../services/browser/BrowserSession"
 import { GlobalFileNames } from "../storage/disk"
+import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
+import { searchWorkspaceFiles } from "../../services/search/file-search"
+import { getWorkspacePath } from "../../utils/path"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -57,7 +61,7 @@ export class Controller {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
-	private latestAnnouncementId = "march-22-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "april-7-2025" // update to some unique identifier when we add a new announcement
 	private webviewProviderRef: WeakRef<WebviewProvider>
 
 	constructor(
@@ -277,12 +281,135 @@ export class Controller {
 				break
 			case "browserSettings":
 				if (message.browserSettings) {
+					// remoteBrowserEnabled now means "enable remote browser connection"
+					// commenting out since this is being done in BrowserSettingsSection updateRemoteBrowserEnabled
+					// if (!message.browserSettings.remoteBrowserEnabled) {
+					// 	// If disabling remote browser connection, clear the remoteBrowserHost
+					// 	message.browserSettings.remoteBrowserHost = undefined
+					// }
 					await updateGlobalState(this.context, "browserSettings", message.browserSettings)
 					if (this.task) {
 						this.task.browserSettings = message.browserSettings
 						this.task.browserSession.browserSettings = message.browserSettings
 					}
 					await this.postStateToWebview()
+				}
+				break
+			case "getBrowserConnectionInfo":
+				try {
+					// Get the current browser session from Cline if it exists
+					if (this.task?.browserSession) {
+						const connectionInfo = this.task.browserSession.getConnectionInfo()
+						await this.postMessageToWebview({
+							type: "browserConnectionInfo",
+							isConnected: connectionInfo.isConnected,
+							isRemote: connectionInfo.isRemote,
+							host: connectionInfo.host,
+						})
+					} else {
+						// If no active browser session, just return the settings
+						const { browserSettings } = await getAllExtensionState(this.context)
+						await this.postMessageToWebview({
+							type: "browserConnectionInfo",
+							isConnected: false,
+							isRemote: !!browserSettings.remoteBrowserEnabled,
+							host: browserSettings.remoteBrowserHost,
+						})
+					}
+				} catch (error) {
+					console.error("Error getting browser connection info:", error)
+					await this.postMessageToWebview({
+						type: "browserConnectionInfo",
+						isConnected: false,
+						isRemote: false,
+					})
+				}
+				break
+			case "testBrowserConnection":
+				try {
+					const { browserSettings } = await getAllExtensionState(this.context)
+					const browserSession = new BrowserSession(this.context, browserSettings)
+					// If no text is provided, try auto-discovery
+					if (!message.text) {
+						try {
+							const discoveredHost = await discoverChromeInstances()
+							if (discoveredHost) {
+								// Test the connection to the discovered host
+								const result = await browserSession.testConnection(discoveredHost)
+								// Send the result back to the webview
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: result.success,
+									text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
+									endpoint: result.endpoint,
+								})
+							} else {
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: false,
+									text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+								})
+							}
+						} catch (error) {
+							await this.postMessageToWebview({
+								type: "browserConnectionResult",
+								success: false,
+								text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
+							})
+						}
+					} else {
+						// Test the provided URL
+						const result = await browserSession.testConnection(message.text)
+
+						// Send the result back to the webview
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: result.success,
+							text: result.message,
+							endpoint: result.endpoint,
+						})
+					}
+				} catch (error) {
+					await this.postMessageToWebview({
+						type: "browserConnectionResult",
+						success: false,
+						text: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
+					})
+				}
+				break
+			case "discoverBrowser":
+				try {
+					const discoveredHost = await discoverChromeInstances()
+
+					if (discoveredHost) {
+						// Don't update the remoteBrowserHost state when auto-discovering
+						// This way we don't override the user's preference
+
+						// Test the connection to get the endpoint
+						const { browserSettings } = await getAllExtensionState(this.context)
+						const browserSession = new BrowserSession(this.context, browserSettings)
+						const result = await browserSession.testConnection(discoveredHost)
+
+						// Send the result back to the webview
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: true,
+							text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
+							endpoint: result.endpoint,
+						})
+					} else {
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: false,
+							text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+						})
+					}
+				} catch (error) {
+					await this.postMessageToWebview({
+						type: "browserConnectionResult",
+						success: false,
+						text: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
+					})
 				}
 				break
 			case "togglePlanActMode":
@@ -297,11 +424,11 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			// case "relaunchChromeDebugMode":
-			// 	if (this.task) {
-			// 		this.task.browserSession.relaunchChromeDebugMode()
-			// 	}
-			// 	break
+			case "relaunchChromeDebugMode":
+				const { browserSettings } = await getAllExtensionState(this.context)
+				const browserSession = new BrowserSession(this.context, browserSettings)
+				await browserSession.relaunchChromeDebugMode(this)
+				break
 			case "askResponse":
 				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 				break
@@ -621,6 +748,13 @@ export class Controller {
 				})
 				break
 			}
+			case "scrollToSettings": {
+				await this.postMessageToWebview({
+					type: "scrollToSettings",
+					text: message.text,
+				})
+				break
+			}
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
 					await this.updateTelemetrySetting(message.telemetrySetting)
@@ -659,6 +793,100 @@ export class Controller {
 				await this.postStateToWebview()
 				this.refreshTotalTasksSize()
 				this.postMessageToWebview({ type: "relinquishControl" })
+				break
+			}
+			case "getDetectedChromePath": {
+				try {
+					const { browserSettings } = await getAllExtensionState(this.context)
+					const browserSession = new BrowserSession(this.context, browserSettings)
+					const { path, isBundled } = await browserSession.getDetectedChromePath()
+					await this.postMessageToWebview({
+						type: "detectedChromePath",
+						text: path,
+						isBundled,
+					})
+				} catch (error) {
+					console.error("Error getting detected Chrome path:", error)
+				}
+				break
+			}
+			case "getRelativePaths": {
+				if (message.uris && message.uris.length > 0) {
+					const resolvedPaths = await Promise.all(
+						message.uris.map(async (uriString) => {
+							try {
+								const fileUri = vscode.Uri.parse(uriString, true)
+								const relativePath = vscode.workspace.asRelativePath(fileUri, false)
+
+								if (path.isAbsolute(relativePath)) {
+									console.warn(`Dropped file ${relativePath} is outside the workspace. Sending original path.`)
+									return fileUri.fsPath.replace(/\\/g, "/")
+								} else {
+									let finalPath = "/" + relativePath.replace(/\\/g, "/")
+									try {
+										const stat = await vscode.workspace.fs.stat(fileUri)
+										if (stat.type === vscode.FileType.Directory) {
+											finalPath += "/"
+										}
+									} catch (statError) {
+										console.error(`Error stating file ${fileUri.fsPath}:`, statError)
+									}
+									return finalPath
+								}
+							} catch (error) {
+								console.error(`Error calculating relative path for ${uriString}:`, error)
+								return null
+							}
+						}),
+					)
+					await this.postMessageToWebview({
+						type: "relativePathsResponse",
+						paths: resolvedPaths,
+					})
+				}
+				break
+			}
+			case "searchFiles": {
+				const workspacePath = getWorkspacePath()
+
+				if (!workspacePath) {
+					// Handle case where workspace path is not available
+					await this.postMessageToWebview({
+						type: "fileSearchResults",
+						results: [],
+						mentionsRequestId: message.mentionsRequestId,
+						error: "No workspace path available",
+					})
+					break
+				}
+				try {
+					// Call file search service with query from message
+					const results = await searchWorkspaceFiles(
+						message.query || "",
+						workspacePath,
+						20, // Use default limit, as filtering is now done in the backend
+					)
+
+					// debug logging to be removed
+					//console.log(`controller/index.ts: Search results: ${results.length}`)
+
+					// Send results back to webview
+					await this.postMessageToWebview({
+						type: "fileSearchResults",
+						results,
+						mentionsRequestId: message.mentionsRequestId,
+					})
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : String(error)
+
+					// Send error response to webview
+					await this.postMessageToWebview({
+						type: "fileSearchResults",
+						results: [],
+						error: errorMessage,
+						mentionsRequestId: message.mentionsRequestId,
+					})
+				}
 				break
 			}
 			// Add more switch case statements here as more webview message commands
@@ -1476,6 +1704,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		taskDirPath: string
 		apiConversationHistoryFilePath: string
 		uiMessagesFilePath: string
+		contextHistoryFilePath: string
+		taskMetadataFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
 		const history = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
@@ -1484,6 +1714,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
 			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
 			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
+			const contextHistoryFilePath = path.join(taskDirPath, GlobalFileNames.contextHistory)
+			const taskMetadataFilePath = path.join(taskDirPath, GlobalFileNames.taskMetadata)
 			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 			if (fileExists) {
 				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
@@ -1492,6 +1724,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 					taskDirPath,
 					apiConversationHistoryFilePath,
 					uiMessagesFilePath,
+					contextHistoryFilePath,
+					taskMetadataFilePath,
 					apiConversationHistory,
 				}
 			}
@@ -1563,22 +1797,28 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				console.debug("cleared task")
 			}
 
-			const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
-
+			const {
+				taskDirPath,
+				apiConversationHistoryFilePath,
+				uiMessagesFilePath,
+				contextHistoryFilePath,
+				taskMetadataFilePath,
+			} = await this.getTaskWithId(id)
+			const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
 			const updatedTaskHistory = await this.deleteTaskFromState(id)
 
 			// Delete the task files
-			const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-			if (apiConversationHistoryFileExists) {
-				await fs.unlink(apiConversationHistoryFilePath)
-			}
-			const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
-			if (uiMessagesFileExists) {
-				await fs.unlink(uiMessagesFilePath)
-			}
-			const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-			if (await fileExistsAtPath(legacyMessagesFilePath)) {
-				await fs.unlink(legacyMessagesFilePath)
+			for (const filePath of [
+				apiConversationHistoryFilePath,
+				uiMessagesFilePath,
+				contextHistoryFilePath,
+				taskMetadataFilePath,
+				legacyMessagesFilePath,
+			]) {
+				const fileExists = await fileExistsAtPath(filePath)
+				if (fileExists) {
+					await fs.unlink(filePath)
+				}
 			}
 
 			await fs.rmdir(taskDirPath) // succeeds if the dir is empty

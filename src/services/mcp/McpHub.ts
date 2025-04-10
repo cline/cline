@@ -627,7 +627,12 @@ export class McpHub {
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
-			if (connection) {
+			if (connection && connection.server.tools) {
+				// Update the autoApprove property of each tool in the in-memory server object
+				connection.server.tools = connection.server.tools.map((tool) => ({
+					...tool,
+					autoApprove: autoApprove.includes(tool.name),
+				}))
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {

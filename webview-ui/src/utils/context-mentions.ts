@@ -1,5 +1,12 @@
-import { mentionRegex } from "../../../src/shared/context-mentions"
+import { mentionRegex } from "@shared/context-mentions"
 import { Fzf } from "fzf"
+import * as path from "path"
+
+export interface SearchResult {
+	path: string
+	type: "file" | "folder"
+	label?: string
+}
 
 export function insertMention(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
@@ -22,6 +29,14 @@ export function insertMention(text: string, position: number, value: string): { 
 		mentionIndex = position
 	}
 
+	return { newValue, mentionIndex }
+}
+
+export function insertMentionDirectly(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
+	const beforeCursor = text.slice(0, position)
+	const afterCursor = text.slice(position)
+	const newValue = beforeCursor + "@" + value + " " + afterCursor
+	const mentionIndex = position
 	return { newValue, mentionIndex }
 }
 
@@ -64,6 +79,7 @@ export function getContextMenuOptions(
 	query: string,
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
+	dynamicSearchResults: SearchResult[] = [],
 ): ContextMenuQueryItem[] {
 	const workingChanges: ContextMenuQueryItem = {
 		type: ContextMenuOptionType.Git,
@@ -77,7 +93,7 @@ export function getContextMenuOptions(
 			const files = queryItems
 				.filter((item) => item.type === ContextMenuOptionType.File)
 				.map((item) => ({
-					type: ContextMenuOptionType.File,
+					type: item.type,
 					value: item.value,
 				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
@@ -172,14 +188,34 @@ export function getContextMenuOptions(
 			item.type !== ContextMenuOptionType.Git,
 	)
 
-	// Combine suggestions with matching items in the desired order
+	const searchResultItems = dynamicSearchResults.map((result) => {
+		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+		const item = {
+			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+			value: formattedPath,
+			label: result.label || path.basename(result.path),
+			description: formattedPath,
+		}
+		return item
+	})
+
+	// If we have dynamic search results, prioritize those
+	if (dynamicSearchResults.length > 0) {
+		// Only show suggestions and dynamic results
+		const allItems = [...suggestions, ...searchResultItems]
+		return allItems.length > 0 ? allItems : [{ type: ContextMenuOptionType.NoResults }]
+	}
+
+	// Otherwise fall back to local fuzzy search
 	if (suggestions.length > 0 || matchingItems.length > 0) {
 		const allItems = [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
 
-		// Remove duplicates based on type and value
+		// Remove duplicates - normalize paths by ensuring all have leading slashes
 		const seen = new Set()
 		const deduped = allItems.filter((item) => {
-			const key = `${item.type}-${item.value}`
+			// Normalize paths for deduplication by ensuring leading slashes
+			const normalizedValue = item.value && !item.value.startsWith("/") ? `/${item.value}` : item.value
+			const key = `${item.type}-${normalizedValue}`
 			if (seen.has(key)) {
 				return false
 			}
@@ -187,7 +223,7 @@ export function getContextMenuOptions(
 			return true
 		})
 
-		return deduped
+		return deduped.length > 0 ? deduped : [{ type: ContextMenuOptionType.NoResults }]
 	}
 
 	return [{ type: ContextMenuOptionType.NoResults }]

@@ -47,12 +47,15 @@ import {
 	nebiusModels,
 	sambanovaModels,
 	sambanovaDefaultModelId,
-} from "../../../../src/shared/api"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
+	doubaoModels,
+	doubaoDefaultModelId,
+	liteLlmModelInfoSaneDefaults,
+} from "@shared/api"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 
@@ -208,6 +211,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
+					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
@@ -428,6 +432,37 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "doubao" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.doubaoApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("doubaoApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Doubao API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.doubaoApiKey && (
+							<VSCodeLink
+								href="https://console.volcengine.com/home"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Doubao API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
 			{selectedProvider === "mistral" && (
 				<div>
 					<VSCodeTextField
@@ -638,7 +673,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 											awsBedrockUsePromptCache: isChecked,
 										})
 									}}>
-									Use prompt caching (Beta)
+									Use prompt caching
 								</VSCodeCheckbox>
 							</>
 						)}
@@ -1209,13 +1244,35 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 
+					<div style={{ display: "flex", flexDirection: "column", marginTop: 10, marginBottom: 10 }}>
+						{selectedModelInfo.supportsPromptCache && (
+							<>
+								<VSCodeCheckbox
+									checked={apiConfiguration?.liteLlmUsePromptCache || false}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setApiConfiguration({
+											...apiConfiguration,
+											liteLlmUsePromptCache: isChecked,
+										})
+									}}
+									style={{ fontWeight: 500, color: "var(--vscode-charts-green)" }}>
+									Use prompt caching (GA)
+								</VSCodeCheckbox>
+								<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-charts-green)" }}>
+									Prompt caching requires a supported provider and model
+								</p>
+							</>
+						)}
+					</div>
+
 					<>
 						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						<p
 							style={{
 								fontSize: "12px",
 								marginTop: "5px",
-								color: "var(--vscode-charts-green)",
+								color: "var(--vscode-descriptionForeground)",
 							}}>
 							Extended thinking is available for models as Sonnet-3-7, o3-mini, Deepseek R1, etc. More info on{" "}
 							<VSCodeLink
@@ -1523,6 +1580,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								createDropdown(
 									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
 								)}
+							{selectedProvider === "doubao" && createDropdown(doubaoModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
@@ -1577,6 +1635,21 @@ export const formatPrice = (price: number) => {
 	}).format(price)
 }
 
+// Returns an array of formatted tier strings
+const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): string[] => {
+	if (!tiers || tiers.length === 0) {
+		return []
+	}
+	return tiers.map((tier, index, arr) => {
+		const prevLimit = index > 0 ? arr[index - 1].tokenLimit : 0
+		const limitText =
+			tier.tokenLimit === Infinity
+				? `> ${prevLimit.toLocaleString()}` // Assumes sorted and Infinity is last
+				: `<= ${tier.tokenLimit.toLocaleString()}`
+		return `${formatPrice(tier.price)}/million tokens (${limitText} tokens)`
+	})
+}
+
 export const ModelInfoView = ({
 	selectedModelId,
 	modelInfo,
@@ -1591,6 +1664,42 @@ export const ModelInfoView = ({
 	isPopup?: boolean
 }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+
+	// Create elements for tiered pricing separately
+	const inputPriceElement = modelInfo.inputPriceTiers ? (
+		<Fragment key="inputPriceTiers">
+			<span style={{ fontWeight: 500 }}>Input price:</span>
+			<br />
+			{formatTiers(modelInfo.inputPriceTiers).map((tierString, i, arr) => (
+				<Fragment key={`inputTierFrag${i}`}>
+					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
+					{i < arr.length - 1 && <br />}
+				</Fragment>
+			))}
+		</Fragment>
+	) : modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 ? (
+		<span key="inputPrice">
+			<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
+		</span>
+	) : null
+
+	const outputPriceElement = modelInfo.outputPriceTiers ? (
+		<Fragment key="outputPriceTiers">
+			<span style={{ fontWeight: 500 }}>Output price:</span>
+			<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
+			<br />
+			{formatTiers(modelInfo.outputPriceTiers).map((tierString, i, arr) => (
+				<Fragment key={`outputTierFrag${i}`}>
+					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
+					{i < arr.length - 1 && <br />}
+				</Fragment>
+			))}
+		</Fragment>
+	) : modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 ? (
+		<span key="outputPrice">
+			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
+		</span>
+	) : null
 
 	const infoItems = [
 		modelInfo.description && (
@@ -1627,11 +1736,7 @@ export const ModelInfoView = ({
 				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
 			</span>
 		),
-		modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 && (
-			<span key="inputPrice">
-				<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
-			</span>
-		),
+		inputPriceElement, // Add the generated input price block
 		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
 			<span key="cacheWritesPrice">
 				<span style={{ fontWeight: 500 }}>Cache writes price:</span> {formatPrice(modelInfo.cacheWritesPrice || 0)}
@@ -1644,11 +1749,7 @@ export const ModelInfoView = ({
 				tokens
 			</span>
 		),
-		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
-			<span key="outputPrice">
-				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
-			</span>
-		),
+		outputPriceElement, // Add the generated output price block
 		isGemini && (
 			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
 				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute. After that,
@@ -1747,6 +1848,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			const qwenDefaultId =
 				apiConfiguration?.qwenApiLine === "china" ? mainlandQwenDefaultModelId : internationalQwenDefaultModelId
 			return getProviderData(qwenModels, qwenDefaultId)
+		case "doubao":
+			return getProviderData(doubaoModels, doubaoDefaultModelId)
 		case "mistral":
 			return getProviderData(mistralModels, mistralDefaultModelId)
 		case "asksage":
@@ -1802,7 +1905,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.liteLlmModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: liteLlmModelInfoSaneDefaults,
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)

@@ -239,6 +239,20 @@ Your final result description here
 <command>Command to demonstrate result (optional)</command>
 </attempt_completion>
 
+## new_task
+Description: Request to create a new task with preloaded context. The user will be presented with a preview of the context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.
+Parameters:
+- context: (required) The context to preload the new task with. This should include:
+  * Comprehensively explain what has been accomplished in the current task - mention specific file names that are relevant
+  * The specific next steps or focus for the new task - mention specific file names that are relevant
+  * Any critical information needed to continue the work
+  * Clear indication of how this new task relates to the overall workflow
+  * This should be akin to a long handoff file, enough for a totally new developer to be able to pick up where you left off and know exactly what to do next and which files to look at.
+Usage:
+<new_task>
+<context>context to preload new task with</context>
+</new_task>
+
 ## plan_mode_respond
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
 Parameters:
@@ -251,6 +265,13 @@ Usage:
 Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
 </options>
 </plan_mode_respond>
+
+## load_mcp_documentation
+Description: Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server (the user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with \`use_mcp_tool\` and \`access_mcp_resource\`). The documentation provides detailed information about the MCP server creation process, including setup instructions, best practices, and examples.
+Parameters: None
+Usage:
+<load_mcp_documentation>
+</load_mcp_documentation>
 
 # Tool Use Examples
 

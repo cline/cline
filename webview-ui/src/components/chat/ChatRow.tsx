@@ -12,25 +12,27 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 	ExtensionMessage,
-} from "../../../../src/shared/ExtensionMessage"
-import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "../../utils/mcp"
-import { vscode } from "../../utils/vscode"
-import { CheckmarkControl } from "../common/CheckmarkControl"
+} from "@shared/ExtensionMessage"
+import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
+import { vscode } from "@/utils/vscode"
+import { useChatRowStyles } from "@/hooks/useChatRowStyles"
+import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import MarkdownBlock from "../common/MarkdownBlock"
-import Thumbnails from "../common/Thumbnails"
-import McpResourceRow from "../mcp/McpResourceRow"
-import McpToolRow from "../mcp/McpToolRow"
-import McpResponseDisplay from "../mcp/McpResponseDisplay"
-import CreditLimitError from "./CreditLimitError"
-import { OptionsButtons } from "./OptionsButtons"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import MarkdownBlock from "@/components/common/MarkdownBlock"
+import Thumbnails from "@/components/common/Thumbnails"
+import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
+import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
+import CreditLimitError from "@/components/chat/CreditLimitError"
+import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
-import SuccessButton from "../common/SuccessButton"
-import TaskFeedbackButtons from "./TaskFeedbackButtons"
+import SuccessButton from "@/components/common/SuccessButton"
+import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
+import NewTaskPreview from "./NewTaskPreview"
+import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -46,11 +48,12 @@ interface ChatRowProps {
 	isExpanded: boolean
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClineMessage
+	isFirst: boolean
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "isFirst"> {}
 
 export const ProgressIndicator = () => (
 	<div
@@ -83,36 +86,40 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage } = props
+		const { isLast, isFirst, onHeightChange, message } = props
 		// Store the previous height to compare with the current height
-		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
+		// Calculate dynamic styles using the custom hook
+		const { ...chatRowStyles } = useChatRowStyles(message)
 
-		// NOTE: for tools that are interrupted and not responded to (approved or rejected) there won't be a checkpoint hash
-		let shouldShowCheckpoints =
-			message.lastCheckpointHash != null &&
-			(message.say === "tool" ||
-				message.ask === "tool" ||
-				message.say === "command" ||
-				message.ask === "command" ||
-				// message.say === "completion_result" ||
-				// message.ask === "completion_result" ||
-				message.say === "use_mcp_server" ||
-				message.ask === "use_mcp_server")
+		const isCheckpointMessage = message.say === "checkpoint_created"
 
-		if (shouldShowCheckpoints && isLast) {
-			shouldShowCheckpoints =
-				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
-		}
+		// Special handling for first row checkpoint
+		const checkpointStyles = useMemo(() => {
+			if (isCheckpointMessage) {
+				// Apply additional styles for first row checkpoints
+				if (isFirst) {
+					return {
+						...chatRowStyles,
+						marginTop: "3px", // Add a small margin to ensure visibility
+					}
+				}
+				return chatRowStyles
+			}
+			return chatRowStyles
+		}, [chatRowStyles, isCheckpointMessage, isFirst])
 
+		// ChatRowContainer with updated styles
 		const [chatrow, { height }] = useSize(
-			<ChatRowContainer>
+			<ChatRowContainer style={checkpointStyles}>
 				<ChatRowContent {...props} />
-				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
 			</ChatRowContainer>,
 		)
 
 		useEffect(() => {
+			// Skip height change effects for checkpoint messages
+			if (isCheckpointMessage) return
+
 			// used for partials command output etc.
 			// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
 			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
@@ -123,7 +130,7 @@ const ChatRow = memo(
 				}
 				prevHeightRef.current = height
 			}
-		}, [height, isLast, onHeightChange, message])
+		}, [height, isLast, onHeightChange, message, isCheckpointMessage])
 
 		// we cannot return null as virtuoso does not support it so we use a separate visibleMessages array to filter out messages that should not be rendered
 		return chatrow
@@ -986,7 +993,11 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "checkpoint_created":
 					return (
 						<>
-							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
+							<CheckmarkControl
+								messageTs={message.ts}
+								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
+								isLastRow={isLast}
+							/>
 						</>
 					)
 				case "completion_result":
@@ -1231,6 +1242,21 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									isActive={isLast && lastModifiedMessage?.ask === "followup"}
 								/>
 							</div>
+						</>
+					)
+				case "new_task":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-new-file"
+									style={{
+										color: normalColor,
+										marginBottom: "-1.5px",
+									}}></span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to start a new task:</span>
+							</div>
+							<NewTaskPreview context={message.text || ""} />
 						</>
 					)
 				case "plan_mode_respond": {
