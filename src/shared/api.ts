@@ -1321,33 +1321,6 @@ export const askSageModels = {
 export type XAIModelId = keyof typeof xaiModels
 export const xaiDefaultModelId: XAIModelId = "grok-2-latest"
 export const xaiModels = {
-	"grok-2-latest": {
-		maxTokens: 8192,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2.0,
-		outputPrice: 10.0,
-		description: "X AI's Grok-2 model - latest version with 131K context window",
-	},
-	"grok-2": {
-		maxTokens: 8192,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2.0,
-		outputPrice: 10.0,
-		description: "X AI's Grok-2 model with 131K context window",
-	},
-	"grok-2-1212": {
-		maxTokens: 8192,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2.0,
-		outputPrice: 10.0,
-		description: "X AI's Grok-2 model (version 1212) with 131K context window",
-	},
 	"grok-3-beta": {
 		maxTokens: 8192,
 		contextWindow: 131072,
@@ -1383,6 +1356,33 @@ export const xaiModels = {
 		inputPrice: 0.6,
 		outputPrice: 4.0,
 		description: "X AI's Grok-3 mini fast beta model with 131K context window",
+	},
+	"grok-2-latest": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 model - latest version with 131K context window",
+	},
+	"grok-2": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 model with 131K context window",
+	},
+	"grok-2-1212": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 model (version 1212) with 131K context window",
 	},
 	"grok-2-vision-latest": {
 		maxTokens: 8192,
