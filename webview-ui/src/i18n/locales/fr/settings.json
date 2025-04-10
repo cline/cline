@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "Activer le contournement du compteur PowerShell",
 			"description": "Lorsqu'activé, ajoute un compteur aux commandes PowerShell pour assurer une exécution correcte des commandes. Cela aide avec les terminaux PowerShell qui peuvent avoir des problèmes de capture de sortie."
+		},
+		"zshClearEolMark": {
+			"label": "Effacer la marque de fin de ligne ZSH",
+			"description": "Lorsqu'activé, efface la marque de fin de ligne ZSH en définissant PROMPT_EOL_MARK=''. Cela évite les problèmes d'interprétation de la sortie des commandes lorsqu'elle se termine par des caractères spéciaux comme '%'."
 		}
 	},
 	"advanced": {

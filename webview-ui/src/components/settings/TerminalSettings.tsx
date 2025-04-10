@@ -15,11 +15,13 @@ type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	terminalShellIntegrationTimeout?: number
 	terminalCommandDelay?: number
 	terminalPowershellCounter?: boolean
+	terminalZshClearEolMark?: boolean
 	setCachedStateField: SetCachedStateField<
 		| "terminalOutputLineLimit"
 		| "terminalShellIntegrationTimeout"
 		| "terminalCommandDelay"
 		| "terminalPowershellCounter"
+		| "terminalZshClearEolMark"
 	>
 }
 
@@ -28,6 +30,7 @@ export const TerminalSettings = ({
 	terminalShellIntegrationTimeout,
 	terminalCommandDelay,
 	terminalPowershellCounter,
+	terminalZshClearEolMark,
 	setCachedStateField,
 	className,
 	...props
@@ -114,6 +117,18 @@ export const TerminalSettings = ({
 					</VSCodeCheckbox>
 					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:terminal.powershellCounter.description")}
+					</div>
+				</div>
+
+				<div>
+					<VSCodeCheckbox
+						checked={terminalZshClearEolMark ?? true}
+						onChange={(e: any) => setCachedStateField("terminalZshClearEolMark", e.target.checked)}
+						data-testid="terminal-zsh-clear-eol-mark-checkbox">
+						<span className="font-medium">{t("settings:terminal.zshClearEolMark.label")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						{t("settings:terminal.zshClearEolMark.description")}
 					</div>
 				</div>
 			</Section>

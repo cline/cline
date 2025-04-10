@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "Abilita soluzione temporanea contatore PowerShell",
 			"description": "Quando abilitato, aggiunge un contatore ai comandi PowerShell per garantire la corretta esecuzione dei comandi. Questo aiuta con i terminali PowerShell che potrebbero avere problemi con la cattura dell'output."
+		},
+		"zshClearEolMark": {
+			"label": "Cancella marcatore fine riga ZSH",
+			"description": "Quando abilitato, cancella il marcatore di fine riga ZSH impostando PROMPT_EOL_MARK=''. Questo previene problemi con l'interpretazione dell'output dei comandi quando termina con caratteri speciali come '%'."
 		}
 	},
 	"advanced": {

@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "Bật giải pháp bộ đếm PowerShell",
 			"description": "Khi được bật, thêm một bộ đếm vào các lệnh PowerShell để đảm bảo thực thi lệnh chính xác. Điều này giúp ích với các terminal PowerShell có thể gặp vấn đề về ghi lại đầu ra."
+		},
+		"zshClearEolMark": {
+			"label": "Xóa dấu cuối dòng ZSH",
+			"description": "Khi được bật, xóa dấu cuối dòng ZSH bằng cách đặt PROMPT_EOL_MARK=''. Điều này ngăn chặn các vấn đề về diễn giải đầu ra lệnh khi kết thúc bằng các ký tự đặc biệt như '%'."
 		}
 	},
 	"advanced": {

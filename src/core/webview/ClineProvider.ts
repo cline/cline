@@ -351,11 +351,23 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		}
 
 		// Initialize out-of-scope variables that need to recieve persistent global state values
-		this.getState().then(({ soundEnabled, terminalShellIntegrationTimeout, terminalCommandDelay }) => {
-			setSoundEnabled(soundEnabled ?? false)
-			Terminal.setShellIntegrationTimeout(terminalShellIntegrationTimeout ?? TERMINAL_SHELL_INTEGRATION_TIMEOUT)
-			Terminal.setCommandDelay(terminalCommandDelay ?? 0)
-		})
+		this.getState().then(
+			({
+				soundEnabled,
+				terminalShellIntegrationTimeout,
+				terminalCommandDelay,
+				terminalZshClearEolMark,
+				terminalPowershellCounter,
+			}) => {
+				setSoundEnabled(soundEnabled ?? false)
+				Terminal.setShellIntegrationTimeout(
+					terminalShellIntegrationTimeout ?? TERMINAL_SHELL_INTEGRATION_TIMEOUT,
+				)
+				Terminal.setCommandDelay(terminalCommandDelay ?? 0)
+				Terminal.setTerminalZshClearEolMark(terminalZshClearEolMark ?? true)
+				Terminal.setPowershellCounter(terminalPowershellCounter ?? false)
+			},
+		)
 
 		// Initialize tts enabled state
 		this.getState().then(({ ttsEnabled }) => {
@@ -1200,6 +1212,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			terminalShellIntegrationTimeout,
 			terminalCommandDelay,
 			terminalPowershellCounter,
+			terminalZshClearEolMark,
 			fuzzyMatchThreshold,
 			mcpEnabled,
 			enableMcpServerCreation,
@@ -1269,6 +1282,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? TERMINAL_SHELL_INTEGRATION_TIMEOUT,
 			terminalCommandDelay: terminalCommandDelay ?? 0,
 			terminalPowershellCounter: terminalPowershellCounter ?? false,
+			terminalZshClearEolMark: terminalZshClearEolMark ?? true,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			mcpEnabled: mcpEnabled ?? true,
 			enableMcpServerCreation: enableMcpServerCreation ?? true,
@@ -1357,6 +1371,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				stateValues.terminalShellIntegrationTimeout ?? TERMINAL_SHELL_INTEGRATION_TIMEOUT,
 			terminalCommandDelay: stateValues.terminalCommandDelay ?? 0,
 			terminalPowershellCounter: stateValues.terminalPowershellCounter ?? false,
+			terminalZshClearEolMark: stateValues.terminalZshClearEolMark ?? true,
 			mode: stateValues.mode ?? defaultModeSlug,
 			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,

@@ -750,6 +750,13 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				Terminal.setPowershellCounter(message.bool)
 			}
 			break
+		case "terminalZshClearEolMark":
+			await updateGlobalState("terminalZshClearEolMark", message.bool)
+			await provider.postStateToWebview()
+			if (message.bool !== undefined) {
+				Terminal.setTerminalZshClearEolMark(message.bool)
+			}
+			break
 		case "mode":
 			await provider.handleModeSwitch(message.text as Mode)
 			break

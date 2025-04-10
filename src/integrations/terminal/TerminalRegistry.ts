@@ -125,6 +125,12 @@ export class TerminalRegistry {
 			env.PROMPT_COMMAND = `sleep ${Terminal.getCommandDelay() / 1000}`
 		}
 
+		// Clear the ZSH EOL mark to prevent issues with command output interpretation
+		// when output ends with special characters like '%'
+		if (Terminal.getTerminalZshClearEolMark()) {
+			env.PROMPT_EOL_MARK = ""
+		}
+
 		const terminal = vscode.window.createTerminal({
 			cwd,
 			name: "Roo Code",

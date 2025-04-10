@@ -33,6 +33,7 @@ describe("TerminalRegistry", () => {
 				env: {
 					PAGER: "cat",
 					VTE_VERSION: "0",
+					PROMPT_EOL_MARK: "",
 				},
 			})
 		})
@@ -53,6 +54,7 @@ describe("TerminalRegistry", () => {
 						PAGER: "cat",
 						PROMPT_COMMAND: "sleep 0.05",
 						VTE_VERSION: "0",
+						PROMPT_EOL_MARK: "",
 					},
 				})
 			} finally {

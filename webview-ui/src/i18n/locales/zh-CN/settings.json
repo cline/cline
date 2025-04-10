@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "启用 PowerShell 计数器解决方案",
 			"description": "启用后，会在 PowerShell 命令中添加计数器以确保命令正确执行。这有助于解决可能存在输出捕获问题的 PowerShell 终端。"
+		},
+		"zshClearEolMark": {
+			"label": "清除 ZSH 行尾标记",
+			"description": "启用后，通过设置 PROMPT_EOL_MARK='' 清除 ZSH 行尾标记。这可以防止命令输出以特殊字符（如 '%'）结尾时的解析问题。"
 		}
 	},
 	"advanced": {

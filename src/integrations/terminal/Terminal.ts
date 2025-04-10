@@ -9,6 +9,7 @@ export class Terminal {
 	private static shellIntegrationTimeout: number = TERMINAL_SHELL_INTEGRATION_TIMEOUT
 	private static commandDelay: number = 0
 	private static powershellCounter: boolean = false
+	private static terminalZshClearEolMark: boolean = true
 
 	public terminal: vscode.Terminal
 	public busy: boolean
@@ -292,6 +293,22 @@ export class Terminal {
 	 */
 	public static getPowershellCounter(): boolean {
 		return Terminal.powershellCounter
+	}
+
+	/**
+	 * Sets whether to clear the ZSH EOL mark
+	 * @param enabled Whether to clear the ZSH EOL mark
+	 */
+	public static setTerminalZshClearEolMark(enabled: boolean): void {
+		Terminal.terminalZshClearEolMark = enabled
+	}
+
+	/**
+	 * Gets whether to clear the ZSH EOL mark
+	 * @returns Whether the ZSH EOL mark clearing is enabled
+	 */
+	public static getTerminalZshClearEolMark(): boolean {
+		return Terminal.terminalZshClearEolMark
 	}
 
 	public static compressTerminalOutput(input: string, lineLimit: number): string {

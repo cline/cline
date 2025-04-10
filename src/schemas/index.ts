@@ -534,6 +534,7 @@ export const globalSettingsSchema = z.object({
 	terminalShellIntegrationTimeout: z.number().optional(),
 	terminalCommandDelay: z.number().optional(),
 	terminalPowershellCounter: z.boolean().optional(),
+	terminalZshClearEolMark: z.boolean().optional(),
 
 	rateLimitSeconds: z.number().optional(),
 	diffEnabled: z.boolean().optional(),
@@ -606,6 +607,7 @@ const globalSettingsRecord: GlobalSettingsRecord = {
 	terminalShellIntegrationTimeout: undefined,
 	terminalCommandDelay: undefined,
 	terminalPowershellCounter: undefined,
+	terminalZshClearEolMark: undefined,
 
 	rateLimitSeconds: undefined,
 	diffEnabled: undefined,

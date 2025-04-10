@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "啟用 PowerShell 計數器解決方案",
 			"description": "啟用後，會在 PowerShell 命令中加入計數器以確保命令正確執行。這有助於解決可能存在輸出擷取問題的 PowerShell 終端機。"
+		},
+		"zshClearEolMark": {
+			"label": "清除 ZSH 行尾標記",
+			"description": "啟用後，透過設定 PROMPT_EOL_MARK='' 清除 ZSH 行尾標記。這可以防止命令輸出以特殊字元（如 '%'）結尾時的解析問題。"
 		}
 	},
 	"advanced": {

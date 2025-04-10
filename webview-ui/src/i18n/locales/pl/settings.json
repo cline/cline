@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "Włącz obejście licznika PowerShell",
 			"description": "Po włączeniu dodaje licznik do poleceń PowerShell, aby zapewnić prawidłowe wykonanie poleceń. Pomaga to w terminalach PowerShell, które mogą mieć problemy z przechwytywaniem wyjścia."
+		},
+		"zshClearEolMark": {
+			"label": "Wyczyść znacznik końca linii ZSH",
+			"description": "Po włączeniu czyści znacznik końca linii ZSH poprzez ustawienie PROMPT_EOL_MARK=''. Zapobiega to problemom z interpretacją wyjścia poleceń, gdy kończy się ono znakami specjalnymi jak '%'."
 		}
 	},
 	"advanced": {

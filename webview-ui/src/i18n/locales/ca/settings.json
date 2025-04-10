@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "Habilita la solució temporal del comptador PowerShell",
 			"description": "Quan està habilitat, afegeix un comptador a les comandes PowerShell per assegurar l'execució correcta de les comandes. Això ajuda amb els terminals PowerShell que poden tenir problemes amb la captura de sortida."
+		},
+		"zshClearEolMark": {
+			"label": "Neteja la marca EOL de ZSH",
+			"description": "Quan està habilitat, neteja la marca de final de línia de ZSH establint PROMPT_EOL_MARK=''. Això evita problemes amb la interpretació de la sortida de comandes quan acaba amb caràcters especials com '%'."
 		}
 	},
 	"advanced": {

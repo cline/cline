@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "Habilitar solución temporal del contador de PowerShell",
 			"description": "Cuando está habilitado, agrega un contador a los comandos de PowerShell para garantizar la ejecución correcta de los comandos. Esto ayuda con las terminales PowerShell que pueden tener problemas con la captura de salida de comandos."
+		},
+		"zshClearEolMark": {
+			"label": "Limpiar marca de fin de línea de ZSH",
+			"description": "Cuando está habilitado, limpia la marca de fin de línea de ZSH estableciendo PROMPT_EOL_MARK=''. Esto evita problemas con la interpretación de la salida de comandos cuando termina con caracteres especiales como '%'."
 		}
 	},
 	"advanced": {

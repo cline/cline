@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "PowerShell-Zähler-Workaround aktivieren",
 			"description": "Wenn aktiviert, fügt einen Zähler zu PowerShell-Befehlen hinzu, um die korrekte Befehlsausführung sicherzustellen. Dies hilft bei PowerShell-Terminals, die Probleme mit der Ausgabeerfassung haben könnten."
+		},
+		"zshClearEolMark": {
+			"label": "ZSH-Zeilenende-Markierung löschen",
+			"description": "Wenn aktiviert, wird die ZSH-Zeilenende-Markierung durch Setzen von PROMPT_EOL_MARK='' gelöscht. Dies verhindert Probleme bei der Interpretation der Befehlsausgabe, wenn diese mit Sonderzeichen wie '%' endet."
 		}
 	},
 	"advanced": {

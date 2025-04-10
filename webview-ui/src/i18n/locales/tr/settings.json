@@ -309,6 +309,10 @@
 		"powershellCounter": {
 			"label": "PowerShell sayaç geçici çözümünü etkinleştir",
 			"description": "Etkinleştirildiğinde, komutların doğru şekilde yürütülmesini sağlamak için PowerShell komutlarına bir sayaç ekler. Bu, çıktı yakalama sorunları yaşayabilecek PowerShell terminallerinde yardımcı olur."
+		},
+		"zshClearEolMark": {
+			"label": "ZSH satır sonu işaretini temizle",
+			"description": "Etkinleştirildiğinde, PROMPT_EOL_MARK='' ayarlanarak ZSH satır sonu işaretini temizler. Bu, '%' gibi özel karakterlerle biten komut çıktılarının yorumlanmasında sorun yaşanmasını önler."
 		}
 	},
 	"advanced": {
