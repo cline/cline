@@ -98,7 +98,6 @@ export class AutocompleteLoggingService {
             fileExtension: getUriFileExtension(outcome.filepath),
             maxPromptTokens: outcome.maxPromptTokens,
             modelName: outcome.modelName,
-            modelProvider: outcome.modelProvider,
             multilineCompletions: outcome.multilineCompletions,
             time: outcome.time,
             useRecentlyEdited: outcome.useRecentlyEdited,

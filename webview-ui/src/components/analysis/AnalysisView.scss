@@ -1,0 +1,145 @@
+.analysis-view {
+    padding: 0px;
+    font-family: var(--vscode-font-family);
+    color: var(--vscode-foreground);
+}
+
+.file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 10px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.file-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.file-header {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    background-color: var(--vscode-sideBar-background);
+    cursor: pointer;
+    user-select: none;
+    height: 22px;
+}
+
+.file-header:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.tree-toggle {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+    color: var(--vscode-foreground);
+}
+
+.tree-toggle::before {
+    content: '▶';
+    font-size: 10px;
+    transition: transform 0.1s ease;
+}
+
+.file-header.expanded .tree-toggle::before {
+    transform: rotate(90deg);
+}
+
+.file-icon {
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-name {
+    flex: 1;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.usage-list {
+    margin-left: 20px;
+    padding-left: 8px;
+    border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
+}
+
+.usage-item {
+    margin: 2px 0;
+    padding: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+    width: 90%;
+}
+
+.usage-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.usage-type {
+    font-weight: 500;
+    color: var(--vscode-textLink-foreground);
+    font-size: 13px;
+}
+
+.usage-context {
+    font-family: var(--vscode-editor-font-family);
+    font-size: 13px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.warning-icon {
+    color: var(--vscode-editorWarning-foreground);
+}
+
+.warning-details {
+    background-color: var(--vscode-editorWarning-background);
+    border-radius: 4px;
+    font-size: 13px;
+    margin-left: 10px;
+}
+
+.warning-item {
+    margin: 4px 0;
+}
+
+.usage-item-container {
+    display: flex;
+    justify-content: space-between;
+}
+
+.open-file-button-container {
+    position: relative;
+    flex-grow: 1;
+    height: 100%;
+    margin-top: 5px;
+    margin-right: 5px;
+}
+
+.open-file-button {
+    position: absolute;
+    right: 5px;
+    top: 0;
+    cursor: pointer;
+}
+
+.open-file-button:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}

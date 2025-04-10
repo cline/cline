@@ -144,10 +144,10 @@ export const ChatRowContent = ({
     const { mcpServers } = useExtensionState()
     const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
-    const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
+    const [success, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
         if (message.text != null && message.say === 'api_req_started') {
             const info: PostHogApiReqInfo = JSON.parse(message.text)
-            return [info.cost, info.cancelReason, info.streamingFailedMessage]
+            return [info.success, info.cancelReason, info.streamingFailedMessage]
         }
         return [undefined, undefined, undefined]
     }, [message.text, message.say])
@@ -292,7 +292,7 @@ export const ChatRowContent = ({
                         ) : (
                             getIconSpan('error', errorColor)
                         )
-                    ) : cost != null ? (
+                    ) : success != null ? (
                         getIconSpan('check', successColor)
                     ) : apiRequestFailedMessage ? (
                         getIconSpan('error', errorColor)
@@ -308,7 +308,7 @@ export const ChatRowContent = ({
                             )
                         }
 
-                        if (cost != null) {
+                        if (success != null) {
                             return <span style={{ color: normalColor, fontWeight: 'bold' }}>API Request</span>
                         }
 
@@ -335,7 +335,7 @@ export const ChatRowContent = ({
         }
     }, [
         type,
-        cost,
+        success,
         apiRequestFailedMessage,
         isCommandExecuting,
         apiReqCancelReason,

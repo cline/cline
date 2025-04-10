@@ -83,8 +83,6 @@ export function registerTaskCommands(context: vscode.ExtensionContext, provider:
                             tokensOut: Math.floor(200 + Math.random() * 1800), // Random token count from 200-2000
                             cacheWrites: i % 3 === 0 ? Math.floor(50 + Math.random() * 150) : undefined, // Only add cache writes to every 3rd task
                             cacheReads: i % 3 === 0 ? Math.floor(20 + Math.random() * 80) : undefined, // Only add cache reads to every 3rd task
-                            totalCost: Number((0.0001 + Math.random() * 0.01).toFixed(5)), // Random cost from $0.0001 to $0.0101
-                            size: 1024 * 1024, // 1MB
                         }
 
                         // Update task history in global state
