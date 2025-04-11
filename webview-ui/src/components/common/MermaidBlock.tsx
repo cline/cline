@@ -141,11 +141,11 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 	}
 
 	const handleCopyCode = () => {
-	try {
-		await navigator.clipboard.writeText(code)
-	} catch (err) {
-		console.error('Copy failed', err)
-	}
+		try {
+			await navigator.clipboard.writeText(code)
+		} catch (err) {
+			console.error("Copy failed", err)
+		}
 	}
 
 	return (
