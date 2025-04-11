@@ -42,6 +42,7 @@ export type GlobalStateKey =
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
+	| "anthropicEnable128kOutputBeta"
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"

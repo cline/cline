@@ -31,7 +31,11 @@ export class VertexHandler implements ApiHandler {
 		const modelId = model.id
 
 		if (modelId.includes("claude")) {
-			let budget_tokens = this.options.thinkingBudgetTokens || 0
+			const maxTokens =
+				this.options.anthropicEnable128kOutputBeta && modelId === "claude-3-7-sonnet@20250219"
+					? 128000
+					: model.info.maxTokens || 8192
+			const budget_tokens = this.options.thinkingBudgetTokens || 0
 			const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 			let stream
@@ -53,7 +57,7 @@ export class VertexHandler implements ApiHandler {
 					stream = await this.clientAnthropic.beta.messages.create(
 						{
 							model: modelId,
-							max_tokens: model.info.maxTokens || 8192,
+							max_tokens: maxTokens,
 							thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 							temperature: reasoningOn ? undefined : 0,
 							system: [
@@ -105,9 +109,11 @@ export class VertexHandler implements ApiHandler {
 							}),
 							stream: true,
 						},
-						{
-							headers: {},
-						},
+						this.options.anthropicEnable128kOutputBeta
+							? {
+									headers: { "anthropic-beta": "output-128k-2025-02-19" },
+								}
+							: undefined,
 					)
 					break
 				}

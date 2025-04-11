@@ -1,4 +1,4 @@
-import { memo, useState } from "react"
+import { memo, useState, useEffect } from "react"
 import { anthropicModels, ApiConfiguration } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
@@ -85,16 +85,40 @@ interface ThinkingBudgetSliderProps {
 }
 
 const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
-	const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
-	const maxSliderValue = Math.floor(maxTokens * MAX_PERCENTAGE)
+	// Determine max tokens based on whether the 128k beta is enabled (used for both Anthropic and Vertex providers)
+	const use128kBeta = apiConfiguration?.anthropicEnable128kOutputBeta ?? false
+	const baseMaxTokens = use128kBeta ? 128000 : anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
+	const maxSliderValue = Math.floor(baseMaxTokens * MAX_PERCENTAGE)
 	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
 
-	// Add local state for the slider value
-	const [localValue, setLocalValue] = useState(apiConfiguration?.thinkingBudgetTokens || 0)
+	const initialValue = apiConfiguration?.thinkingBudgetTokens || 0
+	const [localValue, setLocalValue] = useState(Math.min(initialValue, maxSliderValue))
+
+	useEffect(() => {
+		if (isEnabled) {
+			if (!use128kBeta && localValue > maxSliderValue) {
+				// If 128k beta is disabled and current value exceeds the new max:
+				// Reset to the minimum valid value
+				const resetValue = MIN_VALID_TOKENS
+				setLocalValue(resetValue)
+				setApiConfiguration({
+					...apiConfiguration,
+					thinkingBudgetTokens: resetValue,
+				})
+			} else if (localValue > maxSliderValue) {
+				// If value somehow exceeds max (e.g., after toggling), cap it
+				setLocalValue(maxSliderValue)
+				setApiConfiguration({
+					...apiConfiguration,
+					thinkingBudgetTokens: maxSliderValue,
+				})
+			}
+		}
+	}, [use128kBeta, maxSliderValue, isEnabled, setApiConfiguration, apiConfiguration])
 
 	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
-		setLocalValue(value)
+		setLocalValue(Math.min(value, maxSliderValue))
 	}
 
 	const handleSliderComplete = () => {
@@ -124,7 +148,7 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 				<>
 					<LabelContainer>
 						<Label htmlFor="thinking-budget-slider">
-							<strong>Budget:</strong> {localValue.toLocaleString()} tokens
+							<strong>Thinking Budget:</strong> {localValue.toLocaleString()} tokens
 						</Label>
 					</LabelContainer>
 					<RangeInput

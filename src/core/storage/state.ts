@@ -119,6 +119,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sambanovaApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
+		anthropicEnable128kOutputBeta,
 	] = await Promise.all([
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
@@ -187,6 +188,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
+		getGlobalState(context, "anthropicEnable128kOutputBeta") as Promise<boolean | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -281,6 +283,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			xaiApiKey,
 			sambanovaApiKey,
 			favoritedModelIds,
+			anthropicEnable128kOutputBeta,
 		},
 		lastShownAnnouncementId,
 		customInstructions,
@@ -355,6 +358,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		clineApiKey,
 		sambanovaApiKey,
 		favoritedModelIds,
+		anthropicEnable128kOutputBeta,
 	} = apiConfiguration
 	await updateGlobalState(context, "apiProvider", apiProvider)
 	await updateGlobalState(context, "apiModelId", apiModelId)
@@ -409,6 +413,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "clineApiKey", clineApiKey)
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
+	await updateGlobalState(context, "anthropicEnable128kOutputBeta", anthropicEnable128kOutputBeta)
 }
 
 export async function resetExtensionState(context: vscode.ExtensionContext) {

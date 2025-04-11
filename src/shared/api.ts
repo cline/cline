@@ -74,6 +74,7 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	anthropicEnable128kOutputBeta?: boolean
 	sambanovaApiKey?: string
 }
 

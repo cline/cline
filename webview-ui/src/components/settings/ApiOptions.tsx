@@ -1531,7 +1531,26 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
 							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
 							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
-							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+							<>
+								{/* 128k Beta Checkbox for providers with Claude 3.7 Sonnet */}
+								{(selectedProvider === "anthropic" || selectedProvider === "vertex") && (
+									<VSCodeCheckbox
+										checked={apiConfiguration?.anthropicEnable128kOutputBeta ?? false}
+										onChange={(e: any) => {
+											const isChecked = (e.target as HTMLInputElement).checked
+											setApiConfiguration({
+												...apiConfiguration,
+												anthropicEnable128kOutputBeta: isChecked,
+											})
+										}}>
+										Enable 128k Output (Beta)
+									</VSCodeCheckbox>
+								)}
+								<ThinkingBudgetSlider
+									apiConfiguration={apiConfiguration}
+									setApiConfiguration={setApiConfiguration}
+								/>
+							</>
 						)}
 
 						<ModelInfoView
@@ -1831,6 +1850,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
+		// eslint-disable-next-line no-duplicate-case
 		case "requesty":
 			return {
 				selectedProvider: provider,

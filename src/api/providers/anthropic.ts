@@ -22,7 +22,10 @@ export class AnthropicHandler implements ApiHandler {
 		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 		const modelId = model.id
-
+		const maxTokens =
+			this.options.anthropicEnable128kOutputBeta && modelId === "claude-3-7-sonnet-20250219"
+				? 128000
+				: model.info.maxTokens || 8192
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
@@ -46,7 +49,7 @@ export class AnthropicHandler implements ApiHandler {
 					{
 						model: modelId,
 						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-						max_tokens: model.info.maxTokens || 8192,
+						max_tokens: maxTokens,
 						// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
 						// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
 						temperature: reasoningOn ? undefined : 0,
@@ -95,17 +98,24 @@ export class AnthropicHandler implements ApiHandler {
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
+						// Check if this model supports beta features:
+						// https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-output-capabilities-beta
 						switch (modelId) {
 							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
-							case "claude-3-haiku-20240307":
+							case "claude-3-haiku-20240307": {
+								const betaFeatures = ["prompt-caching-2024-07-31"]
+								if (this.options.anthropicEnable128kOutputBeta && modelId === "claude-3-7-sonnet-20250219") {
+									betaFeatures.push("output-128k-2025-02-19")
+								}
 								return {
 									headers: {
-										"anthropic-beta": "prompt-caching-2024-07-31",
+										"anthropic-beta": betaFeatures.join(","),
 									},
 								}
+							}
 							default:
 								return undefined
 						}
