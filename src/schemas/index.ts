@@ -742,6 +742,7 @@ export const clineSays = [
 	"subtask_result",
 	"checkpoint_saved",
 	"rooignore_error",
+	"diff_error",
 ] as const
 
 export const clineSaySchema = z.enum(clineSays)

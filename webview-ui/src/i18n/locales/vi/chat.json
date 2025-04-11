@@ -83,6 +83,9 @@
 	"edit": "Chỉnh sửa...",
 	"forNextMode": "cho chế độ tiếp theo",
 	"error": "Lỗi",
+	"diffError": {
+		"title": "Chỉnh sửa không thành công"
+	},
 	"troubleMessage": "Roo đang gặp sự cố...",
 	"apiRequest": {
 		"title": "Yêu cầu API",

@@ -83,6 +83,9 @@
 	"edit": "编辑...",
 	"forNextMode": "用于下一个模式",
 	"error": "错误",
+	"diffError": {
+		"title": "编辑失败"
+	},
 	"troubleMessage": "Roo遇到问题...",
 	"apiRequest": {
 		"title": "API请求",

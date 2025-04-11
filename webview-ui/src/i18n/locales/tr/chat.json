@@ -83,6 +83,9 @@
 	"edit": "Düzenle...",
 	"forNextMode": "sonraki mod için",
 	"error": "Hata",
+	"diffError": {
+		"title": "Düzenleme Başarısız"
+	},
 	"troubleMessage": "Roo sorun yaşıyor...",
 	"apiRequest": {
 		"title": "API İsteği",

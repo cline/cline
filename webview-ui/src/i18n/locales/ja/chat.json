@@ -83,6 +83,9 @@
 	"edit": "編集...",
 	"forNextMode": "次のモード用",
 	"error": "エラー",
+	"diffError": {
+		"title": "編集に失敗しました"
+	},
 	"troubleMessage": "Rooに問題が発生しています...",
 	"apiRequest": {
 		"title": "APIリクエスト",

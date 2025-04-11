@@ -83,6 +83,9 @@
 	"edit": "संपादित करें...",
 	"forNextMode": "अगले मोड के लिए",
 	"error": "त्रुटि",
+	"diffError": {
+		"title": "संपादन असफल"
+	},
 	"troubleMessage": "Roo को समस्या हो रही है...",
 	"apiRequest": {
 		"title": "API अनुरोध",

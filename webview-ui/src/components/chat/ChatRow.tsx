@@ -86,6 +86,9 @@ export const ChatRowContent = ({
 	const { t } = useTranslation()
 	const { mcpServers, alwaysAllowMcp, currentCheckpoint } = useExtensionState()
 	const [reasoningCollapsed, setReasoningCollapsed] = useState(true)
+	const [isDiffErrorExpanded, setIsDiffErrorExpanded] = useState(false)
+	const [showCopySuccess, setShowCopySuccess] = useState(false)
+	const { copyWithFeedback } = useCopyToClipboard()
 
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text !== null && message.text !== undefined && message.say === "api_req_started") {
@@ -602,6 +605,98 @@ export const ChatRowContent = ({
 	switch (message.type) {
 		case "say":
 			switch (message.say) {
+				case "diff_error":
+					return (
+						<div>
+							<div
+								style={{
+									marginTop: "0px",
+									overflow: "hidden",
+									marginBottom: "8px",
+								}}>
+								<div
+									style={{
+										borderBottom: isDiffErrorExpanded
+											? "1px solid var(--vscode-editorGroup-border)"
+											: "none",
+										fontWeight: "normal",
+										fontSize: "var(--vscode-font-size)",
+										color: "var(--vscode-editor-foreground)",
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "space-between",
+										cursor: "pointer",
+									}}
+									onClick={() => setIsDiffErrorExpanded(!isDiffErrorExpanded)}>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "10px",
+											flexGrow: 1,
+										}}>
+										<span
+											className="codicon codicon-warning"
+											style={{
+												color: "var(--vscode-editorWarning-foreground)",
+												opacity: 0.8,
+												fontSize: 16,
+												marginBottom: "-1.5px",
+											}}></span>
+										<span style={{ fontWeight: "bold" }}>{t("chat:diffError.title")}</span>
+									</div>
+									<div style={{ display: "flex", alignItems: "center" }}>
+										<VSCodeButton
+											appearance="icon"
+											style={{
+												padding: "3px",
+												height: "24px",
+												marginRight: "4px",
+												color: "var(--vscode-editor-foreground)",
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
+												background: "transparent",
+											}}
+											onClick={(e) => {
+												e.stopPropagation()
+
+												// Call copyWithFeedback and handle the Promise
+												copyWithFeedback(message.text || "").then((success) => {
+													if (success) {
+														// Show checkmark
+														setShowCopySuccess(true)
+
+														// Reset after a brief delay
+														setTimeout(() => {
+															setShowCopySuccess(false)
+														}, 1000)
+													}
+												})
+											}}>
+											<span
+												className={`codicon codicon-${showCopySuccess ? "check" : "copy"}`}></span>
+										</VSCodeButton>
+										<span
+											className={`codicon codicon-chevron-${isDiffErrorExpanded ? "up" : "down"}`}></span>
+									</div>
+								</div>
+								{isDiffErrorExpanded && (
+									<div
+										style={{
+											padding: "8px",
+											backgroundColor: "var(--vscode-editor-background)",
+											borderTop: "none",
+										}}>
+										<CodeBlock
+											source={`${"```"}plaintext\n${message.text || ""}\n${"```"}`}
+											forceWrap={true}
+										/>
+									</div>
+								)}
+							</div>
+						</div>
+					)
 				case "subtask_result":
 					return (
 						<div>

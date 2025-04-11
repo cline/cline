@@ -83,6 +83,9 @@
 	"edit": "Editar...",
 	"forNextMode": "para o próximo modo",
 	"error": "Erro",
+	"diffError": {
+		"title": "Edição mal-sucedida"
+	},
 	"troubleMessage": "Roo está tendo problemas...",
 	"apiRequest": {
 		"title": "Requisição API",

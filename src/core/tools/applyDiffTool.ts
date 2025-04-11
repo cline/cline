@@ -108,7 +108,7 @@ export async function applyDiffTool(
 				}
 
 				if (currentCount >= 2) {
-					await cline.say("error", formattedError)
+					await cline.say("diff_error", formattedError)
 				}
 				pushToolResult(formattedError)
 				return
