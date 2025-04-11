@@ -44,7 +44,7 @@ export interface ExtensionMessage {
 		| "addToInput"
 		| "browserConnectionResult"
 		| "browserConnectionInfo"
-		| "detectedChromePath"
+		| "detectedBrowserPath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses
@@ -97,6 +97,7 @@ export interface ExtensionMessage {
 	isConnected?: boolean
 	isRemote?: boolean
 	host?: string
+	browserExecutable?: string
 	mentionsRequestId?: string
 	results?: Array<{
 		path: string
@@ -237,6 +238,7 @@ export interface BrowserConnectionInfo {
 	isConnected: boolean
 	isRemote: boolean
 	host?: string
+	browserExecutable?: string
 }
 
 export interface ClineAskUseMcpServer {

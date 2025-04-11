@@ -17,7 +17,7 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "../../services/account/ClineAccountService"
-import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
+import { discoverBrowserInstances } from "../../services/browser/BrowserDiscovery"
 import { BrowserSession } from "../../services/browser/BrowserSession"
 import { McpHub } from "../../services/mcp/McpHub"
 import { searchWorkspaceFiles } from "../../services/search/file-search"
@@ -304,12 +304,13 @@ export class Controller {
 				try {
 					// Get the current browser session from Cline if it exists
 					if (this.task?.browserSession) {
-						const connectionInfo = this.task.browserSession.getConnectionInfo()
+						const connectionInfo = await this.task.browserSession.getConnectionInfo()
 						await this.postMessageToWebview({
 							type: "browserConnectionInfo",
 							isConnected: connectionInfo.isConnected,
 							isRemote: connectionInfo.isRemote,
 							host: connectionInfo.host,
+							browserExecutable: connectionInfo.browserExecutable,
 						})
 					} else {
 						// If no active browser session, just return the settings
@@ -337,7 +338,7 @@ export class Controller {
 					// If no text is provided, try auto-discovery
 					if (!message.text) {
 						try {
-							const discoveredHost = await discoverChromeInstances()
+							const discoveredHost = await discoverBrowserInstances()
 							if (discoveredHost) {
 								// Test the connection to the discovered host
 								const result = await browserSession.testConnection(discoveredHost)
@@ -384,7 +385,7 @@ export class Controller {
 				break
 			case "discoverBrowser":
 				try {
-					const discoveredHost = await discoverChromeInstances()
+					const discoveredHost = await discoverBrowserInstances()
 
 					if (discoveredHost) {
 						// Don't update the remoteBrowserHost state when auto-discovering
@@ -429,10 +430,10 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			case "relaunchChromeDebugMode":
+			case "relaunchBrowserDebugMode":
 				const { browserSettings } = await getAllExtensionState(this.context)
 				const browserSession = new BrowserSession(this.context, browserSettings)
-				await browserSession.relaunchChromeDebugMode(this)
+				await browserSession.relaunchBrowserDebugMode(this)
 				break
 			case "askResponse":
 				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
@@ -803,13 +804,13 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
-			case "getDetectedChromePath": {
+			case "getDetectedBrowserPath": {
 				try {
 					const { browserSettings } = await getAllExtensionState(this.context)
 					const browserSession = new BrowserSession(this.context, browserSettings)
-					const { path, isBundled } = await browserSession.getDetectedChromePath()
+					const { path, isBundled } = await browserSession.getDetectedBrowserPath()
 					await this.postMessageToWebview({
-						type: "detectedChromePath",
+						type: "detectedBrowserPath",
 						text: path,
 						isBundled,
 					})

@@ -83,7 +83,7 @@ export const BrowserSettingsSection: React.FC = () => {
 	// Request detected Chrome path on mount
 	useEffect(() => {
 		vscode.postMessage({
-			type: "getDetectedChromePath",
+			type: "getDetectedBrowserPath",
 		})
 	}, [])
 
@@ -180,13 +180,13 @@ export const BrowserSettingsSection: React.FC = () => {
 		return () => clearInterval(pollInterval)
 	}, [browserSettings.remoteBrowserEnabled, checkConnectionOnce])
 
-	const relaunchChromeDebugMode = () => {
+	const relaunchBrowserDebugMode = () => {
 		setDebugMode(true)
 		setRelaunchResult(null)
 		// The connection status will be automatically updated by our polling
 
 		vscode.postMessage({
-			type: "relaunchChromeDebugMode",
+			type: "relaunchBrowserDebugMode",
 		})
 	}
 
@@ -275,7 +275,7 @@ export const BrowserSettingsSection: React.FC = () => {
 
 						{shouldShowRelaunchButton && (
 							<div style={{ display: "flex", gap: "10px", marginBottom: 8, justifyContent: "center" }}>
-								<VSCodeButton style={{ flex: 1 }} disabled={debugMode} onClick={relaunchChromeDebugMode}>
+								<VSCodeButton style={{ flex: 1 }} disabled={debugMode} onClick={relaunchBrowserDebugMode}>
 									{debugMode ? "Relaunching Browser..." : "Relaunch Browser with Debug Mode"}
 								</VSCodeButton>
 							</div>
