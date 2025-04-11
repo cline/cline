@@ -78,6 +78,7 @@ export interface ApiHandlerOptions {
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
+	favoritedModelIds?: string[]
 }
 
 // Models

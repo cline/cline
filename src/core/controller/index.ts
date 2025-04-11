@@ -61,7 +61,7 @@ export class Controller {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
-	private latestAnnouncementId = "april-7-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "april-10-2025" // update to some unique identifier when we add a new announcement
 	private webviewProviderRef: WeakRef<WebviewProvider>
 
 	constructor(
@@ -575,7 +575,7 @@ export class Controller {
 				break
 			}
 			case "showMcpView": {
-				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
+				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked", tab: message.tab || undefined })
 				break
 			}
 			case "openMcpSettings": {
@@ -886,6 +886,27 @@ export class Controller {
 						error: errorMessage,
 						mentionsRequestId: message.mentionsRequestId,
 					})
+				}
+				break
+			}
+			case "toggleFavoriteModel": {
+				if (message.modelId) {
+					const { apiConfiguration } = await getAllExtensionState(this.context)
+					const favoritedModelIds = apiConfiguration.favoritedModelIds || []
+
+					// Toggle favorite status
+					const updatedFavorites = favoritedModelIds.includes(message.modelId)
+						? favoritedModelIds.filter((id) => id !== message.modelId)
+						: [...favoritedModelIds, message.modelId]
+
+					await updateGlobalState(this.context, "favoritedModelIds", updatedFavorites)
+
+					// Capture telemetry for model favorite toggle
+					const isFavorited = !favoritedModelIds.includes(message.modelId)
+					telemetryService.captureModelFavoritesUsage(message.modelId, isFavorited)
+
+					// Post state to webview without changing any other configuration
+					await this.postStateToWebview()
 				}
 				break
 			}
@@ -1368,6 +1389,7 @@ export class Controller {
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
 - Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
 - Create the directory for the new MCP server before starting installation.
+- Make sure you read the user's existing cline_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
 - Use commands aligned with the user's shell and operating system best practices.
 - The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
 - Once installed, demonstrate the server's capabilities by using one of its tools.
@@ -1704,6 +1726,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		taskDirPath: string
 		apiConversationHistoryFilePath: string
 		uiMessagesFilePath: string
+		contextHistoryFilePath: string
+		taskMetadataFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
 		const history = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
@@ -1712,6 +1736,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
 			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
 			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
+			const contextHistoryFilePath = path.join(taskDirPath, GlobalFileNames.contextHistory)
+			const taskMetadataFilePath = path.join(taskDirPath, GlobalFileNames.taskMetadata)
 			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
 			if (fileExists) {
 				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
@@ -1720,6 +1746,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 					taskDirPath,
 					apiConversationHistoryFilePath,
 					uiMessagesFilePath,
+					contextHistoryFilePath,
+					taskMetadataFilePath,
 					apiConversationHistory,
 				}
 			}
@@ -1791,22 +1819,28 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				console.debug("cleared task")
 			}
 
-			const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
-
+			const {
+				taskDirPath,
+				apiConversationHistoryFilePath,
+				uiMessagesFilePath,
+				contextHistoryFilePath,
+				taskMetadataFilePath,
+			} = await this.getTaskWithId(id)
+			const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
 			const updatedTaskHistory = await this.deleteTaskFromState(id)
 
 			// Delete the task files
-			const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-			if (apiConversationHistoryFileExists) {
-				await fs.unlink(apiConversationHistoryFilePath)
-			}
-			const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
-			if (uiMessagesFileExists) {
-				await fs.unlink(uiMessagesFilePath)
-			}
-			const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-			if (await fileExistsAtPath(legacyMessagesFilePath)) {
-				await fs.unlink(legacyMessagesFilePath)
+			for (const filePath of [
+				apiConversationHistoryFilePath,
+				uiMessagesFilePath,
+				contextHistoryFilePath,
+				taskMetadataFilePath,
+				legacyMessagesFilePath,
+			]) {
+				const fileExists = await fileExistsAtPath(filePath)
+				if (fileExists) {
+					await fs.unlink(filePath)
+				}
 			}
 
 			await fs.rmdir(taskDirPath) // succeeds if the dir is empty

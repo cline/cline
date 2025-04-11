@@ -67,3 +67,4 @@ export type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+	| "favoritedModelIds"

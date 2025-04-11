@@ -5,6 +5,7 @@ import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
@@ -78,6 +79,7 @@ export interface WebviewMessage {
 		| "scrollToSettings"
 		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
+		| "toggleFavoriteModel"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	uris?: string[] // Used for getRelativePaths
@@ -93,6 +95,7 @@ export interface WebviewMessage {
 	chatContent?: ChatContent
 	mcpId?: string
 	timeout?: number
+	tab?: McpViewTab
 	// For toggleToolAutoApprove
 	serverName?: string
 	serverUrl?: string
@@ -111,6 +114,8 @@ export interface WebviewMessage {
 	feedbackType?: TaskFeedbackType
 	mentionsRequestId?: string
 	query?: string
+	// For toggleFavoriteModel
+	modelId?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
