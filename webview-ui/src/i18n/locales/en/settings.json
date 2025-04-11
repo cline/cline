@@ -321,6 +321,10 @@
 		"zshP10k": {
 			"label": "Enable Powerlevel10k integration",
 			"description": "When enabled, sets POWERLEVEL9K_TERM_SHELL_INTEGRATION=true to enable Powerlevel10k shell integration features. (experimental)"
+		},
+		"zdotdir": {
+			"label": "Enable ZDOTDIR handling",
+			"description": "When enabled, creates a temporary directory for ZDOTDIR to handle zsh shell integration properly. This ensures VSCode shell integration works correctly with zsh while preserving your zsh configuration. (experimental)"
 		}
 	},
 	"advanced": {

@@ -771,6 +771,13 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				Terminal.setTerminalZshP10k(message.bool)
 			}
 			break
+		case "terminalZdotdir":
+			await updateGlobalState("terminalZdotdir", message.bool)
+			await provider.postStateToWebview()
+			if (message.bool !== undefined) {
+				Terminal.setTerminalZdotdir(message.bool)
+			}
+			break
 		case "mode":
 			await provider.handleModeSwitch(message.text as Mode)
 			break

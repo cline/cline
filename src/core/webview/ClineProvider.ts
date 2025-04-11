@@ -360,6 +360,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				terminalZshOhMy,
 				terminalZshP10k,
 				terminalPowershellCounter,
+				terminalZdotdir,
 			}) => {
 				setSoundEnabled(soundEnabled ?? false)
 				Terminal.setShellIntegrationTimeout(
@@ -370,6 +371,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				Terminal.setTerminalZshOhMy(terminalZshOhMy ?? false)
 				Terminal.setTerminalZshP10k(terminalZshP10k ?? false)
 				Terminal.setPowershellCounter(terminalPowershellCounter ?? false)
+				Terminal.setTerminalZdotdir(terminalZdotdir ?? false)
 			},
 		)
 
@@ -1219,6 +1221,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			terminalZshClearEolMark,
 			terminalZshOhMy,
 			terminalZshP10k,
+			terminalZdotdir,
 			fuzzyMatchThreshold,
 			mcpEnabled,
 			enableMcpServerCreation,
@@ -1291,6 +1294,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			terminalZshClearEolMark: terminalZshClearEolMark ?? true,
 			terminalZshOhMy: terminalZshOhMy ?? false,
 			terminalZshP10k: terminalZshP10k ?? false,
+			terminalZdotdir: terminalZdotdir ?? false,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			mcpEnabled: mcpEnabled ?? true,
 			enableMcpServerCreation: enableMcpServerCreation ?? true,
@@ -1382,6 +1386,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			terminalZshClearEolMark: stateValues.terminalZshClearEolMark ?? true,
 			terminalZshOhMy: stateValues.terminalZshOhMy ?? false,
 			terminalZshP10k: stateValues.terminalZshP10k ?? false,
+			terminalZdotdir: stateValues.terminalZdotdir ?? false,
 			mode: stateValues.mode ?? defaultModeSlug,
 			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,

@@ -13,6 +13,7 @@ jest.mock("vscode", () => ({
 				exitStatus: undefined,
 			}
 		},
+		onDidCloseTerminal: jest.fn().mockReturnValue({ dispose: jest.fn() }),
 	},
 	ThemeIcon: jest.fn(),
 }))

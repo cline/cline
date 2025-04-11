@@ -302,6 +302,10 @@
 			"label": "Thời gian chờ tích hợp shell terminal",
 			"description": "Thời gian tối đa để chờ tích hợp shell khởi tạo trước khi thực hiện lệnh. Đối với người dùng có thời gian khởi động shell dài, giá trị này có thể cần được tăng lên nếu bạn thấy lỗi \"Shell Integration Unavailable\" trong terminal."
 		},
+		"zdotdir": {
+			"label": "Bật xử lý ZDOTDIR",
+			"description": "Khi được bật, tạo thư mục tạm thời cho ZDOTDIR để xử lý tích hợp shell zsh một cách chính xác. Điều này đảm bảo tích hợp shell VSCode hoạt động chính xác với zsh trong khi vẫn giữ nguyên cấu hình zsh của bạn. (thử nghiệm)"
+		},
 		"commandDelay": {
 			"label": "Độ trễ lệnh terminal",
 			"description": "Độ trễ tính bằng mili giây để thêm vào sau khi thực hiện lệnh. Cài đặt mặc định là 0 sẽ tắt hoàn toàn độ trễ. Điều này có thể giúp đảm bảo đầu ra lệnh được ghi lại đầy đủ trong các terminal có vấn đề về thời gian. Trong hầu hết các terminal, điều này được thực hiện bằng cách đặt `PROMPT_COMMAND='sleep N'` và PowerShell thêm `start-sleep` vào cuối mỗi lệnh. Ban đầu là giải pháp cho lỗi VSCode#237208 và có thể không cần thiết."

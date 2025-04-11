@@ -18,6 +18,7 @@ type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	terminalZshClearEolMark?: boolean
 	terminalZshOhMy?: boolean
 	terminalZshP10k?: boolean
+	terminalZdotdir?: boolean
 	setCachedStateField: SetCachedStateField<
 		| "terminalOutputLineLimit"
 		| "terminalShellIntegrationTimeout"
@@ -26,6 +27,7 @@ type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "terminalZshClearEolMark"
 		| "terminalZshOhMy"
 		| "terminalZshP10k"
+		| "terminalZdotdir"
 	>
 }
 
@@ -37,6 +39,7 @@ export const TerminalSettings = ({
 	terminalZshClearEolMark,
 	terminalZshOhMy,
 	terminalZshP10k,
+	terminalZdotdir,
 	setCachedStateField,
 	className,
 	...props
@@ -159,6 +162,18 @@ export const TerminalSettings = ({
 					</VSCodeCheckbox>
 					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:terminal.zshP10k.description")}
+					</div>
+				</div>
+
+				<div>
+					<VSCodeCheckbox
+						checked={terminalZdotdir ?? false}
+						onChange={(e: any) => setCachedStateField("terminalZdotdir", e.target.checked)}
+						data-testid="terminal-zdotdir-checkbox">
+						<span className="font-medium">{t("settings:terminal.zdotdir.label")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						{t("settings:terminal.zdotdir.description")}
 					</div>
 				</div>
 			</Section>

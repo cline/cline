@@ -87,6 +87,7 @@ export interface WebviewMessage {
 		| "terminalZshClearEolMark"
 		| "terminalZshOhMy"
 		| "terminalZshP10k"
+		| "terminalZdotdir"
 		| "mcpEnabled"
 		| "enableMcpServerCreation"
 		| "searchCommits"

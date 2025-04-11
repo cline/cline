@@ -274,6 +274,7 @@ type GlobalSettings = {
 	terminalZshClearEolMark?: boolean | undefined
 	terminalZshOhMy?: boolean | undefined
 	terminalZshP10k?: boolean | undefined
+	terminalZdotdir?: boolean | undefined
 	rateLimitSeconds?: number | undefined
 	diffEnabled?: boolean | undefined
 	fuzzyMatchThreshold?: number | undefined

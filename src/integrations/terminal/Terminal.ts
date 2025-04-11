@@ -2,6 +2,8 @@ import * as vscode from "vscode"
 import pWaitFor from "p-wait-for"
 import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { truncateOutput, applyRunLengthEncoding } from "../misc/extract-text"
+// Import TerminalRegistry here to avoid circular dependencies
+const { TerminalRegistry } = require("./TerminalRegistry")
 
 export const TERMINAL_SHELL_INTEGRATION_TIMEOUT = 5000
 
@@ -12,6 +14,7 @@ export class Terminal {
 	private static terminalZshClearEolMark: boolean = true
 	private static terminalZshOhMy: boolean = false
 	private static terminalZshP10k: boolean = false
+	private static terminalZdotdir: boolean = false
 
 	public terminal: vscode.Terminal
 	public busy: boolean
@@ -185,10 +188,16 @@ export class Terminal {
 			// Wait for shell integration before executing the command
 			pWaitFor(() => this.terminal.shellIntegration !== undefined, { timeout: Terminal.shellIntegrationTimeout })
 				.then(() => {
+					// Clean up temporary directory if shell integration is available, zsh did its job:
+					TerminalRegistry.zshCleanupTmpDir(this.id)
+
+					// Run the command in the terminal
 					process.run(command)
 				})
 				.catch(() => {
 					console.log(`[Terminal ${this.id}] Shell integration not available. Command execution aborted.`)
+					// Clean up temporary directory if shell integration is not available
+					TerminalRegistry.zshCleanupTmpDir(this.id)
 					process.emit(
 						"no_shell_integration",
 						`Shell integration initialization sequence '\\x1b]633;A' was not received within ${Terminal.shellIntegrationTimeout / 1000}s. Shell integration has been disabled for this terminal instance. Increase the timeout in the settings if necessary.`,
@@ -347,5 +356,21 @@ export class Terminal {
 
 	public static compressTerminalOutput(input: string, lineLimit: number): string {
 		return truncateOutput(applyRunLengthEncoding(input), lineLimit)
+	}
+
+	/**
+	 * Sets whether to enable ZDOTDIR handling for zsh
+	 * @param enabled Whether to enable ZDOTDIR handling
+	 */
+	public static setTerminalZdotdir(enabled: boolean): void {
+		Terminal.terminalZdotdir = enabled
+	}
+
+	/**
+	 * Gets whether ZDOTDIR handling is enabled
+	 * @returns Whether ZDOTDIR handling is enabled
+	 */
+	public static getTerminalZdotdir(): boolean {
+		return Terminal.terminalZdotdir
 	}
 }

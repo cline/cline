@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import * as path from "path"
 import { arePathsEqual } from "../../utils/path"
 import { Terminal } from "./Terminal"
 import { TerminalProcess } from "./TerminalProcess"
@@ -9,6 +10,7 @@ export class TerminalRegistry {
 	private static terminals: Terminal[] = []
 	private static nextTerminalId = 1
 	private static disposables: vscode.Disposable[] = []
+	private static terminalTmpDirs: Map<number, string> = new Map()
 	private static isInitialized = false
 
 	static initialize() {
@@ -16,6 +18,18 @@ export class TerminalRegistry {
 			throw new Error("TerminalRegistry.initialize() should only be called once")
 		}
 		this.isInitialized = true
+
+		// Register handler for terminal close events to clean up temporary directories
+		const closeDisposable = vscode.window.onDidCloseTerminal((terminal) => {
+			const terminalInfo = this.getTerminalByVSCETerminal(terminal)
+			if (terminalInfo) {
+				// Clean up temporary directory if it exists
+				if (this.terminalTmpDirs.has(terminalInfo.id)) {
+					this.zshCleanupTmpDir(terminalInfo.id)
+				}
+			}
+		})
+		this.disposables.push(closeDisposable)
 
 		try {
 			// onDidStartTerminalShellExecution
@@ -141,6 +155,11 @@ export class TerminalRegistry {
 			env.PROMPT_EOL_MARK = ""
 		}
 
+		// Handle ZDOTDIR for zsh if enabled
+		if (Terminal.getTerminalZdotdir()) {
+			env.ZDOTDIR = this.zshInitTmpDir(env)
+		}
+
 		const terminal = vscode.window.createTerminal({
 			cwd,
 			name: "Roo Code",
@@ -150,6 +169,13 @@ export class TerminalRegistry {
 
 		const cwdString = cwd.toString()
 		const newTerminal = new Terminal(this.nextTerminalId++, terminal, cwdString)
+
+		if (Terminal.getTerminalZdotdir()) {
+			this.terminalTmpDirs.set(newTerminal.id, env.ZDOTDIR)
+			console.info(
+				`[TerminalRegistry] Stored temporary directory path for terminal ${newTerminal.id}: ${env.ZDOTDIR}`,
+			)
+		}
 
 		this.terminals.push(newTerminal)
 		return newTerminal
@@ -191,6 +217,8 @@ export class TerminalRegistry {
 	}
 
 	static removeTerminal(id: number) {
+		this.zshCleanupTmpDir(id)
+
 		this.terminals = this.terminals.filter((t) => t.id !== id)
 	}
 
@@ -279,8 +307,154 @@ export class TerminalRegistry {
 	}
 
 	static cleanup() {
+		// Clean up all temporary directories
+		this.terminalTmpDirs.forEach((_, terminalId) => {
+			this.zshCleanupTmpDir(terminalId)
+		})
+		this.terminalTmpDirs.clear()
+
 		this.disposables.forEach((disposable) => disposable.dispose())
 		this.disposables = []
+	}
+
+	/**
+	 * Gets the path to the shell integration script for a given shell type
+	 * @param shell The shell type
+	 * @returns The path to the shell integration script
+	 */
+	private static getShellIntegrationPath(shell: "bash" | "pwsh" | "zsh" | "fish"): string {
+		let filename: string
+
+		switch (shell) {
+			case "bash":
+				filename = "shellIntegration-bash.sh"
+				break
+			case "pwsh":
+				filename = "shellIntegration.ps1"
+				break
+			case "zsh":
+				filename = "shellIntegration-rc.zsh"
+				break
+			case "fish":
+				filename = "shellIntegration.fish"
+				break
+			default:
+				throw new Error(`Invalid shell type: ${shell}`)
+		}
+
+		// This is the same path used by the CLI command
+		return path.join(
+			vscode.env.appRoot,
+			"out",
+			"vs",
+			"workbench",
+			"contrib",
+			"terminal",
+			"common",
+			"scripts",
+			filename,
+		)
+	}
+
+	/**
+	 * Initialize a temporary directory for ZDOTDIR
+	 * @param env The environment variables object to modify
+	 * @returns The path to the temporary directory
+	 */
+	private static zshInitTmpDir(env: Record<string, string>): string {
+		// Create a temporary directory with the sticky bit set for security
+		const os = require("os")
+		const path = require("path")
+		const tmpDir = path.join(os.tmpdir(), `roo-zdotdir-${Math.random().toString(36).substring(2, 15)}`)
+		console.info(`[TerminalRegistry] Creating temporary directory for ZDOTDIR: ${tmpDir}`)
+
+		// Save original ZDOTDIR as ROO_ZDOTDIR
+		if (process.env.ZDOTDIR) {
+			env.ROO_ZDOTDIR = process.env.ZDOTDIR
+		}
+
+		// Create the temporary directory
+		vscode.workspace.fs
+			.createDirectory(vscode.Uri.file(tmpDir))
+			.then(() => {
+				console.info(`[TerminalRegistry] Created temporary directory for ZDOTDIR at ${tmpDir}`)
+
+				// Create .zshrc in the temporary directory
+				const zshrcPath = `${tmpDir}/.zshrc`
+
+				// Get the path to the shell integration script
+				const shellIntegrationPath = this.getShellIntegrationPath("zsh")
+
+				const zshrcContent = `
+source "${shellIntegrationPath}"
+ZDOTDIR=\${ROO_ZDOTDIR:-$HOME}
+unset ROO_ZDOTDIR
+[ -f "$ZDOTDIR/.zshenv" ] && source "$ZDOTDIR/.zshenv"
+[ -f "$ZDOTDIR/.zprofile" ] && source "$ZDOTDIR/.zprofile"
+[ -f "$ZDOTDIR/.zshrc" ] && source "$ZDOTDIR/.zshrc"
+[ -f "$ZDOTDIR/.zlogin" ] && source "$ZDOTDIR/.zlogin"
+[ "$ZDOTDIR" = "$HOME" ] && unset ZDOTDIR
+`
+				console.info(`[TerminalRegistry] Creating .zshrc file at ${zshrcPath} with content:\n${zshrcContent}`)
+				vscode.workspace.fs.writeFile(vscode.Uri.file(zshrcPath), Buffer.from(zshrcContent)).then(
+					// Success handler
+					() => {
+						console.info(`[TerminalRegistry] Successfully created .zshrc file at ${zshrcPath}`)
+					},
+					// Error handler
+					(error: Error) => {
+						console.error(`[TerminalRegistry] Error creating .zshrc file at ${zshrcPath}: ${error}`)
+					},
+				)
+			})
+			.then(undefined, (error: Error) => {
+				console.error(`[TerminalRegistry] Error creating temporary directory at ${tmpDir}: ${error}`)
+			})
+
+		return tmpDir
+	}
+
+	/**
+	 * Clean up a temporary directory used for ZDOTDIR
+	 */
+	private static zshCleanupTmpDir(terminalId: number): boolean {
+		const tmpDir = this.terminalTmpDirs.get(terminalId)
+		if (!tmpDir) {
+			return false
+		}
+
+		const logPrefix = `[TerminalRegistry] Cleaning up temporary directory for terminal ${terminalId}`
+		console.info(`${logPrefix}: ${tmpDir}`)
+
+		try {
+			// Use fs to remove the directory and its contents
+			const fs = require("fs")
+			const path = require("path")
+
+			// Remove .zshrc file
+			const zshrcPath = path.join(tmpDir, ".zshrc")
+			if (fs.existsSync(zshrcPath)) {
+				console.info(`${logPrefix}: Removing .zshrc file at ${zshrcPath}`)
+				fs.unlinkSync(zshrcPath)
+			}
+
+			// Remove the directory
+			if (fs.existsSync(tmpDir)) {
+				console.info(`${logPrefix}: Removing directory at ${tmpDir}`)
+				fs.rmdirSync(tmpDir)
+			}
+
+			// Remove it from the map
+			this.terminalTmpDirs.delete(terminalId)
+			console.info(`${logPrefix}: Removed terminal ${terminalId} from temporary directory map`)
+
+			return true
+		} catch (error: unknown) {
+			console.error(
+				`[TerminalRegistry] Error cleaning up temporary directory ${tmpDir}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+			return false
+		}
 	}
 
 	/**

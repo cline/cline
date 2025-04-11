@@ -302,6 +302,10 @@
 			"label": "Timeout integrazione shell del terminale",
 			"description": "Tempo massimo di attesa per l'inizializzazione dell'integrazione della shell prima di eseguire i comandi. Per gli utenti con tempi di avvio della shell lunghi, questo valore potrebbe dover essere aumentato se si vedono errori \"Shell Integration Unavailable\" nel terminale."
 		},
+		"zdotdir": {
+			"label": "Abilita gestione ZDOTDIR",
+			"description": "Quando abilitato, crea una directory temporanea per ZDOTDIR per gestire correttamente l'integrazione della shell zsh. Questo assicura che l'integrazione della shell VSCode funzioni correttamente con zsh mantenendo la tua configurazione zsh. (sperimentale)"
+		},
 		"commandDelay": {
 			"label": "Ritardo comando terminale",
 			"description": "Ritardo in millisecondi da aggiungere dopo l'esecuzione del comando. L'impostazione predefinita di 0 disabilita completamente il ritardo. Questo può aiutare a garantire che l'output del comando sia catturato completamente nei terminali con problemi di temporizzazione. Nella maggior parte dei terminali viene implementato impostando `PROMPT_COMMAND='sleep N'` e Powershell aggiunge `start-sleep` alla fine di ogni comando. In origine era una soluzione per il bug VSCode#237208 e potrebbe non essere necessario."
