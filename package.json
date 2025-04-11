@@ -43,6 +43,18 @@
     "activationEvents": [],
     "main": "./dist/extension.js",
     "contributes": {
+        "themes": [
+            {
+                "label": "PostHog Light",
+                "uiTheme": "vs",
+                "path": "./themes/posthog-light.json"
+            },
+            {
+                "label": "PostHog Dark",
+                "uiTheme": "vs-dark",
+                "path": "./themes/posthog-dark.json"
+            }
+        ],
         "viewsContainers": {
             "activitybar": [
                 {
