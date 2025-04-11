@@ -1,14 +1,18 @@
 import { vscode } from "./vscode"
 import { v4 as uuidv4 } from "uuid"
 
-// Generic type for any protobuf service
+// Generic type for any protobuf service definition
 type ProtoService = {
-	serviceName: string
+	name: string
+	fullName: string
 	methods: {
 		[key: string]: {
 			name: string
 			requestType: any
 			responseType: any
+			requestStream: boolean
+			responseStream: boolean
+			options: any
 		}
 	}
 }
@@ -55,7 +59,7 @@ export function createGrpcClient<T>(service: ProtoService): T {
 				vscode.postMessage({
 					type: "grpc_request",
 					grpc_request: {
-						service: service.serviceName,
+						service: service.fullName,
 						method: method.name,
 						message: encodedRequest, // Convert protobuf to JSON
 						request_id: requestId,

@@ -7,7 +7,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { createGrpcClient } from "@/utils/grpc-client"
-import { BrowserService } from "@/utils/browser-service"
+import { BrowserServiceDefinition } from "@shared/proto/browser"
 import { EmptyRequest } from "@shared/proto/common"
 
 // Create the client with explicit typing
@@ -19,7 +19,7 @@ interface BrowserServiceClient {
 	}>
 }
 
-const browserService = createGrpcClient(BrowserService) as BrowserServiceClient
+const browserService = createGrpcClient(BrowserServiceDefinition) as BrowserServiceClient
 
 interface ConnectionInfo {
 	isConnected: boolean

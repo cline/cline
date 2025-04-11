@@ -115,7 +115,7 @@ export const BrowserServiceDefinition = {
   fullName: "cline.BrowserService",
   methods: {
     getBrowserConnectionInfo: {
-      name: "GetBrowserConnectionInfo",
+      name: "getBrowserConnectionInfo",
       requestType: EmptyRequest,
       requestStream: false,
       responseType: BrowserConnectionInfo,

@@ -5,7 +5,7 @@ package cline;
 import "common.proto";
 
 service BrowserService {
-  rpc GetBrowserConnectionInfo(EmptyRequest) returns (BrowserConnectionInfo);
+  rpc getBrowserConnectionInfo(EmptyRequest) returns (BrowserConnectionInfo);
 }
 
 message BrowserConnectionInfo {
