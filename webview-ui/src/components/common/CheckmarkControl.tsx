@@ -27,15 +27,6 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 	const [isLineHovered, setIsLineHovered] = useState(false)
 	const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-	// Cleanup timer on unmount
-	useEffect(() => {
-		return () => {
-			if (hideTimerRef.current) {
-				clearTimeout(hideTimerRef.current)
-			}
-		}
-	}, [])
-
 	const { refs, floatingStyles, update, placement } = useFloating({
 		placement: "bottom-end",
 		middleware: [
