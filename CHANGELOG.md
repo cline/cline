@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.12.0
+
+### Minor Changes
+
+-   fb037a0: better prompting around downloading mcp servers to not overwrite existing server configs
+-   ccc8e47: Added auto-approve options for edits/reads outside of the users workspace
+-   47aecdf: Add button to open config to MCP toggle modal
+-   3b8be75: Enhance Ollama provider with retry mechanism, timeout handling, and improved error handling. This change adds robust error handling, automatic retries, timeout handling, and improved stream processing to the Ollama provider, making it more reliable and preventing the infinite "thinking" problem. Tests are now skipped if Ollama is not running locally.
+-   238654e: Add more models support for doubao
+-   6f9cf8a: Switch clinerules file to a directory
+-   17314cb: Adds favorite toggles for models when using the Cline & OpenRouter providers
+
+### Patch Changes
+
+-   17314cb: Added telemetry for model favoriting
+-   7969ba2: Remove WeakRef usage
+-   a00f24e: Add model info to the Requesty provider
+
 ## [3.11.0]
 
 -   Redesign checkpoint UI to declutter chat view by using a subtle indicator line that expands to a popover on hover, with a new date indicator for when it was created
