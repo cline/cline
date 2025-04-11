@@ -41,7 +41,7 @@ interface ChatTextAreaProps {
 }
 
 interface GitCommit {
-	type: ContextMenuOptionType
+	type: ContextMenuOptionType.Git
 	value: string
 	label: string
 	description: string
