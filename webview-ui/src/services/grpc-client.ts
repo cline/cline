@@ -22,7 +22,7 @@ type ProtoService = {
 // Define a generic type that extracts method signatures from a service definition
 type GrpcClientType<T extends ProtoService> = {
 	[K in keyof T["methods"]]: (
-		request: InstanceType<T["methods"][K]["requestType"]>
+		request: InstanceType<T["methods"][K]["requestType"]>,
 	) => Promise<InstanceType<T["methods"][K]["responseType"]>>
 }
 

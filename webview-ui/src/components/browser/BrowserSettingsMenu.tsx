@@ -28,7 +28,7 @@ export const BrowserSettingsMenu = () => {
 	// Get actual connection info from the browser session using gRPC
 	useEffect(() => {
 		// Function to fetch connection info
-		(async () => {
+		;(async () => {
 			try {
 				console.log("[DEBUG] SENDING BROWSER CONNECTION INFO REQUEST")
 				const info = await BrowserServiceClient.getBrowserConnectionInfo({})

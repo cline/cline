@@ -5,187 +5,189 @@
 // source: common.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
 
-export const protobufPackage = "cline";
+export const protobufPackage = "cline"
 
-export interface Metadata {
-}
+export interface Metadata {}
 
 export interface EmptyRequest {
-  metadata?: Metadata | undefined;
+	metadata?: Metadata | undefined
 }
 
-export interface Empty {
-}
+export interface Empty {}
 
 function createBaseMetadata(): Metadata {
-  return {};
+	return {}
 }
 
 export const Metadata: MessageFns<Metadata> = {
-  encode(_: Metadata, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
+	encode(_: Metadata, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		return writer
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): Metadata {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseMetadata();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+	decode(input: BinaryReader | Uint8Array, length?: number): Metadata {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseMetadata()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
 
-  fromJSON(_: any): Metadata {
-    return {};
-  },
+	fromJSON(_: any): Metadata {
+		return {}
+	},
 
-  toJSON(_: Metadata): unknown {
-    const obj: any = {};
-    return obj;
-  },
+	toJSON(_: Metadata): unknown {
+		const obj: any = {}
+		return obj
+	},
 
-  create<I extends Exact<DeepPartial<Metadata>, I>>(base?: I): Metadata {
-    return Metadata.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<Metadata>, I>>(_: I): Metadata {
-    const message = createBaseMetadata();
-    return message;
-  },
-};
+	create<I extends Exact<DeepPartial<Metadata>, I>>(base?: I): Metadata {
+		return Metadata.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<Metadata>, I>>(_: I): Metadata {
+		const message = createBaseMetadata()
+		return message
+	},
+}
 
 function createBaseEmptyRequest(): EmptyRequest {
-  return { metadata: undefined };
+	return { metadata: undefined }
 }
 
 export const EmptyRequest: MessageFns<EmptyRequest> = {
-  encode(message: EmptyRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.metadata !== undefined) {
-      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
+	encode(message: EmptyRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		return writer
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): EmptyRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseEmptyRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
+	decode(input: BinaryReader | Uint8Array, length?: number): EmptyRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseEmptyRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
 
-          message.metadata = Metadata.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
 
-  fromJSON(object: any): EmptyRequest {
-    return { metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined };
-  },
+	fromJSON(object: any): EmptyRequest {
+		return { metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined }
+	},
 
-  toJSON(message: EmptyRequest): unknown {
-    const obj: any = {};
-    if (message.metadata !== undefined) {
-      obj.metadata = Metadata.toJSON(message.metadata);
-    }
-    return obj;
-  },
+	toJSON(message: EmptyRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		return obj
+	},
 
-  create<I extends Exact<DeepPartial<EmptyRequest>, I>>(base?: I): EmptyRequest {
-    return EmptyRequest.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<EmptyRequest>, I>>(object: I): EmptyRequest {
-    const message = createBaseEmptyRequest();
-    message.metadata = (object.metadata !== undefined && object.metadata !== null)
-      ? Metadata.fromPartial(object.metadata)
-      : undefined;
-    return message;
-  },
-};
+	create<I extends Exact<DeepPartial<EmptyRequest>, I>>(base?: I): EmptyRequest {
+		return EmptyRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<EmptyRequest>, I>>(object: I): EmptyRequest {
+		const message = createBaseEmptyRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		return message
+	},
+}
 
 function createBaseEmpty(): Empty {
-  return {};
+	return {}
 }
 
 export const Empty: MessageFns<Empty> = {
-  encode(_: Empty, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    return writer;
-  },
+	encode(_: Empty, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		return writer
+	},
 
-  decode(input: BinaryReader | Uint8Array, length?: number): Empty {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseEmpty();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
+	decode(input: BinaryReader | Uint8Array, length?: number): Empty {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseEmpty()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
 
-  fromJSON(_: any): Empty {
-    return {};
-  },
+	fromJSON(_: any): Empty {
+		return {}
+	},
 
-  toJSON(_: Empty): unknown {
-    const obj: any = {};
-    return obj;
-  },
+	toJSON(_: Empty): unknown {
+		const obj: any = {}
+		return obj
+	},
 
-  create<I extends Exact<DeepPartial<Empty>, I>>(base?: I): Empty {
-    return Empty.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<Empty>, I>>(_: I): Empty {
-    const message = createBaseEmpty();
-    return message;
-  },
-};
+	create<I extends Exact<DeepPartial<Empty>, I>>(base?: I): Empty {
+		return Empty.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<Empty>, I>>(_: I): Empty {
+		const message = createBaseEmpty()
+		return message
+	},
+}
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+	? T
+	: T extends globalThis.Array<infer U>
+		? globalThis.Array<DeepPartial<U>>
+		: T extends ReadonlyArray<infer U>
+			? ReadonlyArray<DeepPartial<U>>
+			: T extends {}
+				? { [K in keyof T]?: DeepPartial<T[K]> }
+				: Partial<T>
 
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+type KeysOfUnion<T> = T extends T ? keyof T : never
+export type Exact<P, I extends P> = P extends Builtin
+	? P
+	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
 
 function isSet(value: any): boolean {
-  return value !== null && value !== undefined;
+	return value !== null && value !== undefined
 }
 
 export interface MessageFns<T> {
-  encode(message: T, writer?: BinaryWriter): BinaryWriter;
-  decode(input: BinaryReader | Uint8Array, length?: number): T;
-  fromJSON(object: any): T;
-  toJSON(message: T): unknown;
-  create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
-  fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
+	encode(message: T, writer?: BinaryWriter): BinaryWriter
+	decode(input: BinaryReader | Uint8Array, length?: number): T
+	fromJSON(object: any): T
+	toJSON(message: T): unknown
+	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T
+	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T
 }

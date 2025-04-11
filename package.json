@@ -17,7 +17,14 @@
 		"url": "https://github.com/cline/cline"
 	},
 	"homepage": "https://cline.bot",
-	"categories": ["AI", "Chat", "Programming Languages", "Education", "Snippets", "Testing"],
+	"categories": [
+		"AI",
+		"Chat",
+		"Programming Languages",
+		"Education",
+		"Snippets",
+		"Testing"
+	],
 	"keywords": [
 		"cline",
 		"claude",
@@ -219,7 +226,11 @@
 				},
 				"cline.mcp.mode": {
 					"type": "string",
-					"enum": ["full", "server-use-only", "off"],
+					"enum": [
+						"full",
+						"server-use-only",
+						"off"
+					],
 					"enumDescriptions": [
 						"Enable all MCP functionality (server use and build instructions)",
 						"Enable MCP server use only (excludes instructions about building MCP servers)",
@@ -240,7 +251,11 @@
 				},
 				"cline.modelSettings.o3Mini.reasoningEffort": {
 					"type": "string",
-					"enum": ["low", "medium", "high"],
+					"enum": [
+						"low",
+						"medium",
+						"high"
+					],
 					"default": "medium",
 					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
 				},
