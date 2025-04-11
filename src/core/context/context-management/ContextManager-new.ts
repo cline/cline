@@ -342,7 +342,6 @@ export class ContextManager {
 				}
 				continue
 			}
-
 			// loop over the innerIndices of the messages in this block
 			for (const [blockIndex, updates] of innerMap) {
 				// updates ordered by timestamp, so find cutoff point by iterating from right to left
