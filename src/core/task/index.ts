@@ -223,12 +223,23 @@ export class Task {
 			this.startTask(task, images)
 		}
 
+		// Initialize provider and telemetry
+		this.initializeProviderAndTelemetry(historyItem)
+	}
+
+	// Get the current provider from global state to ensure we're using the latest provider
+	private async getCurrentProviderId(): Promise<string> {
+		return (await getGlobalState(this.getContext(), "apiProvider")) as string
+	}
+
+	private async initializeProviderAndTelemetry(historyItem?: HistoryItem) {
+		const currentProviderId = await this.getCurrentProviderId()
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, this.apiProvider)
+			telemetryService.captureTaskRestarted(this.taskId, currentProviderId)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, this.apiProvider)
+			telemetryService.captureTaskCreated(this.taskId, currentProviderId)
 		}
 	}
 
@@ -3157,7 +3168,7 @@ export class Task {
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
 		// Get the current provider from global state to ensure we're using the latest provider
 		// This is needed because apiProvider is readonly and may not reflect provider changes during a chat
-		const currentProviderId = (await getGlobalState(this.getContext(), "apiProvider")) as string
+		const currentProviderId = await this.getCurrentProviderId()
 		if (currentProviderId && this.api.getModel().id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)
