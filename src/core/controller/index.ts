@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
+import type { AxiosRequestConfig } from "axios"
 import crypto from "crypto"
 import { execa } from "execa"
 import fs from "fs/promises"
@@ -20,7 +21,6 @@ import { ClineAccountService } from "../../services/account/ClineAccountService"
 import { McpHub } from "../../services/mcp/McpHub"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "../../shared/api"
-import { findLast } from "../../shared/array"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
@@ -1440,7 +1440,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				return []
 			}
 
-			const config: Record<string, any> = {}
+			const config: AxiosRequestConfig = {}
 			if (apiKey) {
 				config["headers"] = { Authorization: `Bearer ${apiKey}` }
 			}
