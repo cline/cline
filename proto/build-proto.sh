@@ -8,6 +8,22 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Get the root directory of the project
 ROOT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 
+# Check if protoc is installed
+if ! command -v protoc &> /dev/null; then
+  echo "Error: protoc is not installed or not in PATH"
+  echo "Please install Protocol Buffers compiler (protoc) before running this script."
+  echo "Installation instructions: https://grpc.io/docs/protoc-installation/"
+  exit 1
+fi
+
+# Check if ts-proto plugin is available
+TS_PROTO_PLUGIN="$ROOT_DIR/node_modules/.bin/protoc-gen-ts_proto"
+if [ ! -f "$TS_PROTO_PLUGIN" ]; then
+  echo "Error: ts-proto plugin not found at $TS_PROTO_PLUGIN"
+  echo "Please run 'npm install' to install the required dependencies."
+  exit 1
+fi
+
 # Define output directories
 TS_OUT_DIR="$ROOT_DIR/src/shared/proto"
 
