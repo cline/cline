@@ -2,8 +2,6 @@
 
 ## 3.12.0
 
-### Minor Changes
-
 -   fb037a0: better prompting around downloading mcp servers to not overwrite existing server configs
 -   ccc8e47: Added auto-approve options for edits/reads outside of the users workspace
 -   47aecdf: Add button to open config to MCP toggle modal
@@ -11,9 +9,6 @@
 -   238654e: Add more models support for doubao
 -   6f9cf8a: Switch clinerules file to a directory
 -   17314cb: Adds favorite toggles for models when using the Cline & OpenRouter providers
-
-### Patch Changes
-
 -   17314cb: Added telemetry for model favoriting
 -   7969ba2: Remove WeakRef usage
 -   a00f24e: Add model info to the Requesty provider
