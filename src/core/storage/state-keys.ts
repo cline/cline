@@ -42,6 +42,7 @@ export type GlobalStateKey =
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
+	| "geminiBaseUrl"
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
