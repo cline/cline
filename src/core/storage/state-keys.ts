@@ -18,6 +18,7 @@ export type SecretKey =
 	| "authNonce"
 	| "asksageApiKey"
 	| "xaiApiKey"
+	| "nebiusApiKey"
 	| "sambanovaApiKey"
 export type GlobalStateKey =
 	| "apiProvider"
@@ -68,4 +69,5 @@ export type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+	| "nebiusModelId"
 	| "favoritedModelIds"
