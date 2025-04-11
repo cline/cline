@@ -140,7 +140,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 		}
 	}
 
-	const handleCopyCode = () => {
+	const handleCopyCode = async () => {
 		try {
 			await navigator.clipboard.writeText(code)
 		} catch (err) {
