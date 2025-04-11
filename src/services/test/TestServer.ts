@@ -126,7 +126,7 @@ export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.D
 	if (webviewProvider && webviewProvider.controller) {
 		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
 		webviewProvider.controller.postMessageToWebview = async (message) => {
-			console.log("Cline message received:", message)
+			Logger.log("Cline message received: " + message.type)
 			return originalPostMessageToWebview.call(webviewProvider.controller, message)
 		}
 	} else {
