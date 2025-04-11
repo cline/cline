@@ -2,9 +2,47 @@ import * as http from "http"
 import * as vscode from "vscode"
 import { Logger } from "../../services/logging/Logger"
 import { WebviewProvider } from "../../core/webview"
+import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
+import { updateGlobalState, getAllExtensionState } from "../../core/storage/state"
 
 let testServer: http.Server | undefined
 let messageCatcherDisposable: vscode.Disposable | undefined
+
+/**
+ * Updates the auto approval settings to enable all actions
+ * @param context The VSCode extension context
+ * @param provider The webview provider instance
+ */
+async function updateAutoApprovalSettings(context: vscode.ExtensionContext, provider?: WebviewProvider) {
+	try {
+		const { autoApprovalSettings } = await getAllExtensionState(context)
+
+		// Enable all actions
+		const updatedSettings: AutoApprovalSettings = {
+			...autoApprovalSettings,
+			enabled: true,
+			actions: {
+				readFiles: true,
+				editFiles: true,
+				executeSafeCommands: true,
+				executeAllCommands: true,
+				useBrowser: false, // Keep browser disabled for tests
+				useMcp: false, // Keep MCP disabled for tests
+			},
+			maxRequests: 100, // Increase max requests for tests
+		}
+
+		await updateGlobalState(context, "autoApprovalSettings", updatedSettings)
+		Logger.log("Auto approval settings updated for test mode")
+
+		// Update the webview with the new state
+		if (provider?.controller) {
+			await provider.controller.postStateToWebview()
+		}
+	} catch (error) {
+		Logger.log(`Error updating auto approval settings: ${error}`)
+	}
+}
 
 /**
  * Creates and starts an HTTP server for test automation
@@ -12,6 +50,10 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  * @returns The created HTTP server instance
  */
 export function createTestServer(webviewProvider?: WebviewProvider): http.Server {
+	// Update auto approval settings if webviewProvider is available
+	if (webviewProvider?.controller?.context) {
+		updateAutoApprovalSettings(webviewProvider.controller.context, webviewProvider)
+	}
 	const PORT = 9876
 
 	testServer = http.createServer((req, res) => {
@@ -126,7 +168,7 @@ export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.D
 	if (webviewProvider && webviewProvider.controller) {
 		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
 		webviewProvider.controller.postMessageToWebview = async (message) => {
-			Logger.log("Cline message received: " + message.type)
+			Logger.log("Cline message received: " + JSON.stringify(message))
 			return originalPostMessageToWebview.call(webviewProvider.controller, message)
 		}
 	} else {
