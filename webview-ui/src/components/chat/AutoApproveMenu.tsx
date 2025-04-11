@@ -86,7 +86,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const enabledActionsList = (() => {
 		// When nested auto-approve options are used, display the more permissive one (file reads, edits, and commands)
 		const readFilesEnabled = enabledActions.some((action) => action.id === "readFiles")
-		const readFilesExternallyEnabled = enabledActions.some((action) => action.id === "readFilesExternally") ?? false
+		const readFilesExternallyEnabled = enabledActions.some((action) => action.id === "readFilesExternally")
 
 		const editFilesEnabled = enabledActions.some((action) => action.id === "editFiles")
 		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally") ?? false
