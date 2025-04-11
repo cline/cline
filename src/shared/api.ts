@@ -1391,41 +1391,6 @@ interface SambanovaApiResponse {
 	}>
 }
 
-let sambanovaModelsCache: Record<string, ModelInfo> | null = null
-
-export async function fetchSambanovaModels(): Promise<Record<string, ModelInfo>> {
-	if (sambanovaModelsCache) {
-		return sambanovaModelsCache
-	}
-
-	try {
-		const response = await fetch("https://api.sambanova.ai/v1/models")
-		if (!response.ok) {
-			throw new Error(`Failed to fetch SambaNova models: ${response.statusText}`)
-		}
-
-		const data: SambanovaApiResponse = await response.json()
-		const models: Record<string, ModelInfo> = {}
-
-		for (const model of data.data) {
-			models[model.id] = {
-				maxTokens: model.max_completion_tokens,
-				contextWindow: model.context_length,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: parseFloat(model.pricing.prompt) * 1_000_000, // Convert to per million tokens
-				outputPrice: parseFloat(model.pricing.completion) * 1_000_000, // Convert to per million tokens
-			}
-		}
-
-		sambanovaModelsCache = models
-		return models
-	} catch (error) {
-		console.error("Error fetching SambaNova models:", error)
-		return fallbackSambanovaModels
-	}
-}
-
 export type SambanovaModelId = string
 export const sambanovaDefaultModelId: SambanovaModelId = "DeepSeek-R1"
 
@@ -1537,15 +1502,37 @@ const fallbackSambanovaModels = {
 	},
 } satisfies Record<string, ModelInfo>
 
-// Export a proxy that will fetch models on first access
-export const sambanovaModels = new Proxy({} as Record<string, ModelInfo>, {
-	get: (target, prop) => {
-		if (!sambanovaModelsCache) {
-			// Initialize the cache
-			fetchSambanovaModels().catch(console.error)
-			// Return from fallback while loading
-			return (fallbackSambanovaModels as Record<string, ModelInfo>)[prop as string]
+/**
+ * Get SambaNova models by fetching from the API.
+ * @returns A promise that resolves to a record of model information
+ */
+export async function getSambanovaModels(): Promise<Record<string, ModelInfo>> {
+	try {
+		const response = await fetch("https://api.sambanova.ai/v1/models")
+		if (!response.ok) {
+			throw new Error(`Failed to fetch SambaNova models: ${response.statusText}`)
 		}
-		return sambanovaModelsCache[prop as string]
-	},
-})
+
+		const data: SambanovaApiResponse = await response.json()
+		const models: Record<string, ModelInfo> = {}
+
+		for (const model of data.data) {
+			models[model.id] = {
+				maxTokens: model.max_completion_tokens,
+				contextWindow: model.context_length,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: parseFloat(model.pricing.prompt) * 1_000_000, // Convert to per million tokens
+				outputPrice: parseFloat(model.pricing.completion) * 1_000_000, // Convert to per million tokens
+			}
+		}
+
+		return models
+	} catch (error) {
+		console.error("Error fetching SambaNova models:", error)
+		return fallbackSambanovaModels
+	}
+}
+
+// Export the fallback models for immediate access when needed
+export const sambanovaModels = fallbackSambanovaModels
