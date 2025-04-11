@@ -17,21 +17,26 @@ interface LinkPreviewProps {
 	url: string
 }
 
+interface LinkPreviewState {
+	loading: boolean
+	error: ErrorType
+	errorMessage: string | null
+	ogData: OpenGraphData | null
+	/**
+	 * Track if fetch has completed (success or error)
+	 */
+	hasCompletedFetch: boolean
+	/**
+	 * Track when the fetch started
+	 */
+	fetchStartTime: number
+}
+
 // Error types for better UI feedback
 type ErrorType = "timeout" | "network" | "general" | null
 
 // Use a class component to ensure complete isolation between instances
-class LinkPreview extends React.Component<
-	LinkPreviewProps,
-	{
-		loading: boolean
-		error: ErrorType
-		errorMessage: string | null
-		ogData: OpenGraphData | null
-		hasCompletedFetch: boolean // Track if fetch has completed (success or error)
-		fetchStartTime: number // Track when the fetch started
-	}
-> {
+class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 	private messageListener: ((event: MessageEvent) => void) | null = null
 	private timeoutId: NodeJS.Timeout | null = null
 	private heartbeatId: NodeJS.Timeout | null = null
@@ -60,7 +65,7 @@ class LinkPreview extends React.Component<
 	}
 
 	// Prevent updates if fetch has completed
-	shouldComponentUpdate(nextProps: LinkPreviewProps, nextState: any) {
+	shouldComponentUpdate(nextProps: LinkPreviewProps, nextState: LinkPreviewState) {
 		// If URL changes, allow update
 		if (nextProps.url !== this.props.url) {
 			return true
