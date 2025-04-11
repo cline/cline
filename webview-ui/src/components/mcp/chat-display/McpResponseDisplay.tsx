@@ -314,7 +314,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 
 					// Add the URL text itself
 					if (url.startsWith("data:image/")) {
-						segments.push(<UrlText key={`url-${segmentIndex++}`}>[base64 image]</UrlText>)
+						// We just display the image at the end instead
+						// segments.push(<UrlText key={`url-${segmentIndex++}`}>[base64 image]</UrlText>)
 					} else {
 						segments.push(<UrlText key={`url-${segmentIndex++}`}>{fullMatch}</UrlText>)
 					}

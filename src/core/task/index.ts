@@ -2514,20 +2514,18 @@ export class Task {
 									.deref()
 									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
 
-								// TODO: add progress indicator and ability to parse images and non-text responses
-								const supportsImages = this.api.getModel().info.supportsImages ?? false
-								const toolResultPretty =
+								// TODO: add progress indicator
+
+								const toolResultImages =
+									toolResult?.content
+										.filter((item) => item.type === "image")
+										.map((item) => `data:${item.mimeType};base64,${item.data}`) || []
+								let toolResultText =
 									(toolResult?.isError ? "Error:\n" : "") +
 										toolResult?.content
 											.map((item) => {
 												if (item.type === "text") {
 													return item.text
-												}
-												if (item.type === "image") {
-													if (supportsImages) {
-														return ` data:${item.mimeType};base64,${item.data} `
-													}
-													return "[Image placeholder (images not supported)]"
 												}
 												if (item.type === "resource") {
 													const { blob, ...rest } = item.resource
@@ -2537,12 +2535,21 @@ export class Task {
 											})
 											.filter(Boolean)
 											.join("\n\n") || "(No response)"
-								await this.say("mcp_server_response", toolResultPretty)
-								if (toolResult?.isError) {
-									pushToolResult(formatResponse.toolResult(toolResultPretty))
-								} else {
-									pushToolResult(formatResponse.mcpToolResult(toolResult, supportsImages))
+								// webview extracts images from the text response to display in the UI
+								const toolResultToDisplay =
+									toolResultText + toolResultImages?.map((image) => `\n\n${image}`).join("")
+								await this.say("mcp_server_response", toolResultToDisplay)
+
+								// MCP's might return images to display to the user, but the model may not support them
+								const supportsImages = this.api.getModel().info.supportsImages ?? false
+								if (toolResultImages.length > 0 && !supportsImages) {
+									toolResultText += `\n\n[${toolResultImages.length} images were provided in the response, and while they are displayed to the user, you do not have the ability to view them.]`
 								}
+
+								// only passes in images if model supports them
+								pushToolResult(
+									formatResponse.toolResult(toolResultText, supportsImages ? toolResultImages : undefined),
+								)
 
 								await this.saveCheckpoint()
 
