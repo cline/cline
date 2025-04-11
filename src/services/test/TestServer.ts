@@ -23,7 +23,9 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, prov
 			enabled: true,
 			actions: {
 				readFiles: true,
+				readFilesExternally: true,
 				editFiles: true,
+				editFilesExternally: true,
 				executeSafeCommands: true,
 				executeAllCommands: true,
 				useBrowser: false, // Keep browser disabled for tests
