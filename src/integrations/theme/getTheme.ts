@@ -71,6 +71,11 @@ export async function getTheme() {
 			parsed = mergeJson(parsed, includeTheme)
 		}
 
+		// Push the merged, parsed colors to the global configuration so the variables are available in the webview
+		vscode.workspace
+			.getConfiguration()
+			.update("workbench.colorCustomizations", parsed.colors, vscode.ConfigurationTarget.Global)
+
 		const converted = convertTheme(parsed)
 
 		converted.base = (
