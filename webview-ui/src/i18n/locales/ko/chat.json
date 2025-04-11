@@ -160,7 +160,10 @@
 	"taskCompleted": "작업 완료",
 	"shellIntegration": {
 		"unavailable": "쉘 통합 사용 불가",
-		"troubleshooting": "여전히 문제가 있나요?"
+		"troubleshooting": "여전히 문제가 있나요? 쉘 통합 문서를 보려면 여기를 클릭하세요.",
+		"checkSettings": "설정 페이지에서 터미널 해결 방법을 확인하세요",
+		"updateVSCode": "VSCode를 업데이트하세요",
+		"supportedShell": "지원되는 쉘을 사용하고 있는지 확인하세요: zsh, bash, fish 또는 PowerShell"
 	},
 	"powershell": {
 		"issues": "Windows PowerShell에 문제가 있는 것 같습니다. 다음을 참조하세요"

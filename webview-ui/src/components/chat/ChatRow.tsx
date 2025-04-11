@@ -963,10 +963,16 @@ export const ChatRowContent = ({
 								<div>
 									<strong>{message.text}</strong>
 									<br />
+									<div>
+										&bull; {t("chat:shellIntegration.checkSettings")}
+										<br />
+										&bull; {t("chat:shellIntegration.updateVSCode")} (
+										<code>CMD/CTRL + Shift + P</code> → "Update")
+										<br />
+										&bull; {t("chat:shellIntegration.supportedShell")} (
+										<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default Profile")
+									</div>
 									<br />
-									Please update VSCode (<code>CMD/CTRL + Shift + P</code> → "Update") and make sure
-									you're using a supported shell: zsh, bash, fish, or PowerShell (
-									<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default Profile").{" "}
 									<a
 										href="http://docs.roocode.com/troubleshooting/shell-integration/"
 										style={{ color: "inherit", textDecoration: "underline" }}>

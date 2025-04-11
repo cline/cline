@@ -160,7 +160,10 @@
 	"troubleMessage": "Roo is having trouble...",
 	"shellIntegration": {
 		"unavailable": "Shell Integration Unavailable",
-		"troubleshooting": "Still having trouble?"
+		"troubleshooting": "Still having trouble? Click here for shell integration documentation.",
+		"checkSettings": "Check terminal workarounds in the settings page",
+		"updateVSCode": "Update VSCode",
+		"supportedShell": "Make sure you're using a supported shell: zsh, bash, fish, or PowerShell"
 	},
 	"powershell": {
 		"issues": "It seems like you're having Windows PowerShell issues, please see this"

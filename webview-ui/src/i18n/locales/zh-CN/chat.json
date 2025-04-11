@@ -160,7 +160,10 @@
 	"taskCompleted": "任务完成",
 	"shellIntegration": {
 		"unavailable": "Shell集成不可用",
-		"troubleshooting": "仍有问题吗？"
+		"troubleshooting": "仍有问题吗？点击此处查看Shell集成文档。",
+		"checkSettings": "检查设置页面中的终端解决方案",
+		"updateVSCode": "更新VSCode",
+		"supportedShell": "确保使用受支持的shell：zsh、bash、fish或PowerShell"
 	},
 	"powershell": {
 		"issues": "看起来您遇到了Windows PowerShell问题，请参阅此"

@@ -160,7 +160,10 @@
 	"taskCompleted": "Tarefa concluída",
 	"shellIntegration": {
 		"unavailable": "Integração de shell indisponível",
-		"troubleshooting": "Ainda com problemas?"
+		"troubleshooting": "Ainda com problemas? Clique aqui para ver a documentação de integração do shell.",
+		"checkSettings": "Verifique as soluções alternativas do terminal na página de configurações",
+		"updateVSCode": "Atualize o VSCode",
+		"supportedShell": "Certifique-se de estar usando um shell suportado: zsh, bash, fish ou PowerShell"
 	},
 	"powershell": {
 		"issues": "Parece que você está tendo problemas com o Windows PowerShell, por favor veja este"

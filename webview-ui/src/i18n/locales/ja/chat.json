@@ -160,7 +160,10 @@
 	"taskCompleted": "タスク完了",
 	"shellIntegration": {
 		"unavailable": "シェル統合が利用できません",
-		"troubleshooting": "まだ問題がありますか？"
+		"troubleshooting": "まだ問題がありますか？シェル統合のドキュメントはこちらをクリックしてください。",
+		"checkSettings": "設定ページでターミナルの回避策を確認してください",
+		"updateVSCode": "VSCodeを更新してください",
+		"supportedShell": "サポートされているシェルを使用していることを確認してください：zsh、bash、fish、またはPowerShell"
 	},
 	"powershell": {
 		"issues": "Windows PowerShellに問題があるようです。こちらを参照してください"
