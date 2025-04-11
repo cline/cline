@@ -67,7 +67,7 @@ export class Controller {
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
-		postMessage: (message: any) => Thenable<boolean> | undefined
+		postMessage: (message: any) => Thenable<boolean> | undefined,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
@@ -77,14 +77,14 @@ export class Controller {
 			() => this.ensureMcpServersDirectoryExists(),
 			() => this.ensureSettingsDirectoryExists(),
 			(msg) => this.postMessageToWebview(msg),
-			this.context.extension?.packageJSON?.version ?? "1.0.0"
+			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
 		this.accountService = new ClineAccountService(
 			(msg) => this.postMessageToWebview(msg),
 			async () => {
 				const { apiConfiguration } = await this.getStateToPostToWebview()
 				return apiConfiguration?.clineApiKey
-			}
+			},
 		)
 
 		// Clean up legacy checkpoints
@@ -152,7 +152,7 @@ export class Controller {
 			customInstructions,
 			task,
 			images,
-			historyItem
+			historyItem,
 		)
 	}
 
@@ -209,7 +209,7 @@ export class Controller {
 					this.postMessageToWebview({
 						type: "theme",
 						text: JSON.stringify(theme),
-					})
+					}),
 				)
 				// post last cached models in case the call to endpoint fails
 				this.readOpenRouterModels().then((openRouterModels) => {
@@ -242,7 +242,7 @@ export class Controller {
 							await updateGlobalState(
 								this.context,
 								"openRouterModelInfo",
-								openRouterModels[apiConfiguration.openRouterModelId]
+								openRouterModels[apiConfiguration.openRouterModelId],
 							)
 							await this.postStateToWebview()
 						}
@@ -536,7 +536,7 @@ export class Controller {
 				const uriScheme = vscode.env.uriScheme
 
 				const authUrl = vscode.Uri.parse(
-					`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`
+					`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
 				)
 				vscode.env.openExternal(authUrl)
 				break
@@ -647,7 +647,7 @@ export class Controller {
 					if (message.toolNames?.length === 1) {
 						console.error(
 							`Failed to toggle auto-approve for server ${message.serverName} with tool ${message.toolNames[0]}:`,
-							error
+							error,
 						)
 					} else {
 						console.error(`Failed to toggle auto-approve tools for server ${message.serverName}:`, error)
@@ -706,7 +706,7 @@ export class Controller {
 				const settingsFilter = message.text || ""
 				await vscode.commands.executeCommand(
 					"workbench.action.openSettings",
-					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim() // trim whitespace if no settings filter
+					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 				)
 				break
 			}
@@ -816,7 +816,7 @@ export class Controller {
 								console.error(`Error calculating relative path for ${uriString}:`, error)
 								return null
 							}
-						})
+						}),
 					)
 					await this.postMessageToWebview({
 						type: "relativePathsResponse",
@@ -843,7 +843,7 @@ export class Controller {
 					const results = await searchWorkspaceFiles(
 						message.query || "",
 						workspacePath,
-						20 // Use default limit, as filtering is now done in the backend
+						20, // Use default limit, as filtering is now done in the backend
 					)
 
 					// debug logging to be removed
@@ -950,7 +950,7 @@ export class Controller {
 					await updateGlobalState(
 						this.context,
 						"previousModeVsCodeLmModelSelector",
-						apiConfiguration.vsCodeLmModelSelector
+						apiConfiguration.vsCodeLmModelSelector,
 					)
 					break
 				case "openai":
@@ -1057,7 +1057,7 @@ export class Controller {
 					this.task.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
-				}
+				},
 			).catch(() => {
 				console.error("Failed to abort task")
 			})
@@ -1347,7 +1347,7 @@ export class Controller {
 				{
 					headers: { "Content-Type": "application/json" },
 					timeout: 10000,
-				}
+				},
 			)
 
 			if (!response.data) {
@@ -1822,7 +1822,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`
+				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
 		// await this.postStateToWebview()
