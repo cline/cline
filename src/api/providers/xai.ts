@@ -35,6 +35,14 @@ export class XAIHandler implements ApiHandler {
 				}
 			}
 
+			if ("reasoning_content" in delta && delta.reasoning_content) {
+				yield {
+					type: "reasoning",
+					// @ts-ignore-next-line
+					reasoning: delta.reasoning_content,
+				}
+			}
+
 			if (chunk.usage) {
 				yield {
 					type: "usage",
