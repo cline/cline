@@ -3,7 +3,7 @@ import { expect } from "chai"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
 import { ModelContextTracker } from "./ModelContextTracker"
-import * as diskModule from "../storage/disk"
+import * as diskModule from "../../storage/disk"
 import type { TaskMetadata, ControllerLike } from "./ContextTrackerTypes"
 
 describe("ModelContextTracker", () => {
