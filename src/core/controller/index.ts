@@ -17,10 +17,12 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "../../services/account/ClineAccountService"
+import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
+import { BrowserSession } from "../../services/browser/BrowserSession"
 import { McpHub } from "../../services/mcp/McpHub"
+import { searchWorkspaceFiles } from "../../services/search/file-search"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "../../shared/api"
-import { findLast } from "../../shared/array"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
@@ -30,9 +32,10 @@ import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
 import { searchCommits } from "../../utils/git"
+import { getWorkspacePath } from "../../utils/path"
 import { getTotalTasksSize } from "../../utils/storage"
-import { Task } from "../task"
 import { openMention } from "../mentions"
+import { GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -42,12 +45,7 @@ import {
 	updateApiConfiguration,
 	updateGlobalState,
 } from "../storage/state"
-import { WebviewProvider } from "../webview"
-import { BrowserSession } from "../../services/browser/BrowserSession"
-import { GlobalFileNames } from "../storage/disk"
-import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
-import { searchWorkspaceFiles } from "../../services/search/file-search"
-import { getWorkspacePath } from "../../utils/path"
+import { Task } from "../task"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -56,25 +54,37 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
+	private postMessage: (message: any) => Thenable<boolean> | undefined
+
 	private disposables: vscode.Disposable[] = []
 	private task?: Task
-	workspaceTracker?: WorkspaceTracker
-	mcpHub?: McpHub
-	accountService?: ClineAccountService
-	private latestAnnouncementId = "april-7-2025" // update to some unique identifier when we add a new announcement
-	private webviewProviderRef: WeakRef<WebviewProvider>
+	workspaceTracker: WorkspaceTracker
+	mcpHub: McpHub
+	accountService: ClineAccountService
+	private latestAnnouncementId = "april-10-2025" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
-		webviewProvider: WebviewProvider,
+		postMessage: (message: any) => Thenable<boolean> | undefined,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
-		this.webviewProviderRef = new WeakRef(webviewProvider)
+		this.postMessage = postMessage
 
-		this.workspaceTracker = new WorkspaceTracker(this)
-		this.mcpHub = new McpHub(this)
-		this.accountService = new ClineAccountService(this)
+		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
+		this.mcpHub = new McpHub(
+			() => this.ensureMcpServersDirectoryExists(),
+			() => this.ensureSettingsDirectoryExists(),
+			(msg) => this.postMessageToWebview(msg),
+			this.context.extension?.packageJSON?.version ?? "1.0.0",
+		)
+		this.accountService = new ClineAccountService(
+			(msg) => this.postMessageToWebview(msg),
+			async () => {
+				const { apiConfiguration } = await this.getStateToPostToWebview()
+				return apiConfiguration?.clineApiKey
+			},
+		)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
@@ -97,11 +107,8 @@ export class Controller {
 				x.dispose()
 			}
 		}
-		this.workspaceTracker?.dispose()
-		this.workspaceTracker = undefined
-		this.mcpHub?.dispose()
-		this.mcpHub = undefined
-		this.accountService = undefined
+		this.workspaceTracker.dispose()
+		this.mcpHub.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
 
 		console.error("Controller disposed")
@@ -124,12 +131,19 @@ export class Controller {
 		await updateGlobalState(this.context, "userInfo", info)
 	}
 
-	async initClineWithTask(task?: string, images?: string[]) {
+	async initTask(task?: string, images?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await getAllExtensionState(this.context)
 		this.task = new Task(
-			this,
+			this.context,
+			this.mcpHub,
+			this.workspaceTracker,
+			(historyItem) => this.updateTaskHistory(historyItem),
+			() => this.postStateToWebview(),
+			(message) => this.postMessageToWebview(message),
+			(taskId) => this.reinitExistingTaskFromId(taskId),
+			() => this.cancelTask(),
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
@@ -137,29 +151,20 @@ export class Controller {
 			customInstructions,
 			task,
 			images,
-		)
-	}
-
-	async initClineWithHistoryItem(historyItem: HistoryItem) {
-		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
-			await getAllExtensionState(this.context)
-		this.task = new Task(
-			this,
-			apiConfiguration,
-			autoApprovalSettings,
-			browserSettings,
-			chatSettings,
-			customInstructions,
-			undefined,
-			undefined,
 			historyItem,
 		)
 	}
 
+	async reinitExistingTaskFromId(taskId: string) {
+		const history = await this.getTaskWithId(taskId)
+		if (history) {
+			await this.initTask(undefined, undefined, history.historyItem)
+		}
+	}
+
 	// Send any JSON serializable data to the react app
 	async postMessageToWebview(message: ExtensionMessage) {
-		await this.webviewProviderRef.deref()?.view?.webview.postMessage(message)
+		await this.postMessage(message)
 	}
 
 	/**
@@ -259,7 +264,7 @@ export class Controller {
 				// Could also do this in extension .ts
 				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
 				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initClineWithTask(message.text, message.images)
+				await this.initTask(message.text, message.images)
 				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
@@ -487,6 +492,9 @@ export class Controller {
 			case "refreshOpenRouterModels":
 				await this.refreshOpenRouterModels()
 				break
+			case "refreshRequestyModels":
+				await this.refreshRequestyModels()
+				break
 			case "refreshOpenAiModels":
 				const { apiConfiguration } = await getAllExtensionState(this.context)
 				const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
@@ -575,7 +583,7 @@ export class Controller {
 				break
 			}
 			case "showMcpView": {
-				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
+				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked", tab: message.tab || undefined })
 				break
 			}
 			case "openMcpSettings": {
@@ -889,6 +897,27 @@ export class Controller {
 				}
 				break
 			}
+			case "toggleFavoriteModel": {
+				if (message.modelId) {
+					const { apiConfiguration } = await getAllExtensionState(this.context)
+					const favoritedModelIds = apiConfiguration.favoritedModelIds || []
+
+					// Toggle favorite status
+					const updatedFavorites = favoritedModelIds.includes(message.modelId)
+						? favoritedModelIds.filter((id) => id !== message.modelId)
+						: [...favoritedModelIds, message.modelId]
+
+					await updateGlobalState(this.context, "favoritedModelIds", updatedFavorites)
+
+					// Capture telemetry for model favorite toggle
+					const isFavorited = !favoritedModelIds.includes(message.modelId)
+					telemetryService.captureModelFavoritesUsage(message.modelId, isFavorited)
+
+					// Post state to webview without changing any other configuration
+					await this.postStateToWebview()
+				}
+				break
+			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -962,6 +991,7 @@ export class Controller {
 					break
 				case "requesty":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
+					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
 			}
 
@@ -1003,6 +1033,7 @@ export class Controller {
 						break
 					case "requesty":
 						await updateGlobalState(this.context, "requestyModelId", newModelId)
+						await updateGlobalState(this.context, "requestyModelInfo", newModelInfo)
 						break
 				}
 
@@ -1057,7 +1088,7 @@ export class Controller {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.abandoned = true
 			}
-			await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
+			await this.initTask(undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
 	}
@@ -1368,13 +1399,14 @@ export class Controller {
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
 - Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
 - Create the directory for the new MCP server before starting installation.
+- Make sure you read the user's existing cline_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
 - Use commands aligned with the user's shell and operating system best practices.
 - The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
 - Once installed, demonstrate the server's capabilities by using one of its tools.
 Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
 			// Initialize task and show chat view
-			await this.initClineWithTask(task)
+			await this.initTask(task)
 			await this.postMessageToWebview({
 				type: "action",
 				action: "chatButtonClicked",
@@ -1599,6 +1631,52 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		return models
 	}
 
+	async refreshRequestyModels() {
+		const parsePrice = (price: any) => {
+			if (price) {
+				return parseFloat(price) * 1_000_000
+			}
+			return undefined
+		}
+
+		let models: Record<string, ModelInfo> = {}
+		try {
+			const apiKey = await getSecret(this.context, "requestyApiKey")
+			const headers = {
+				Authorization: `Bearer ${apiKey}`,
+			}
+			const response = await axios.get("https://router.requesty.ai/v1/models", { headers })
+			if (response.data?.data) {
+				for (const model of response.data.data) {
+					const modelInfo: ModelInfo = {
+						maxTokens: model.max_output_tokens || undefined,
+						contextWindow: model.context_window,
+						supportsImages: model.supports_vision || undefined,
+						supportsComputerUse: model.supports_computer_use || undefined,
+						supportsPromptCache: model.supports_caching || undefined,
+						inputPrice: parsePrice(model.input_price),
+						outputPrice: parsePrice(model.output_price),
+						cacheWritesPrice: parsePrice(model.caching_price),
+						cacheReadsPrice: parsePrice(model.cached_price),
+						description: model.description,
+					}
+					models[model.id] = modelInfo
+				}
+				console.log("Requesty models fetched", models)
+			} else {
+				console.error("Invalid response from Requesty API")
+			}
+		} catch (error) {
+			console.error("Error fetching Requesty models:", error)
+		}
+
+		await this.postMessageToWebview({
+			type: "requestyModels",
+			requestyModels: models,
+		})
+		return models
+	}
+
 	// Context menus and code actions
 
 	getFileMentionFromPath(filePath: string) {
@@ -1662,9 +1740,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		const fileMention = this.getFileMentionFromPath(filePath)
 		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
-		await this.initClineWithTask(
-			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`,
-		)
+		await this.initTask(`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`)
 
 		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
 	}
@@ -1740,7 +1816,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		if (id !== this.task?.taskId) {
 			// non-current task
 			const { historyItem } = await this.getTaskWithId(id)
-			await this.initClineWithHistoryItem(historyItem) // clears existing task
+			await this.initTask(undefined, undefined, historyItem) // clears existing task
 		}
 		await this.postMessageToWebview({
 			type: "action",

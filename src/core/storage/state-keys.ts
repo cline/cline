@@ -62,6 +62,7 @@ export type GlobalStateKey =
 	| "liteLlmUsePromptCache"
 	| "qwenApiLine"
 	| "requestyModelId"
+	| "requestyModelInfo"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
@@ -69,3 +70,4 @@ export type GlobalStateKey =
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
 	| "nebiusModelId"
+	| "favoritedModelIds"
