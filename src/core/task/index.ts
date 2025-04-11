@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
-import fs from "fs/promises"
 import getFolderSize from "get-folder-size"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -54,7 +53,7 @@ import { HistoryItem } from "../../shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "../../shared/Languages"
 import { ClineAskResponse, ClineCheckpointRestore } from "../../shared/WebviewMessage"
 import { calculateApiCostAnthropic } from "../../utils/cost"
-import { fileExistsAtPath, isDirectory } from "../../utils/fs"
+import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual, getReadablePath } from "../../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
@@ -78,10 +77,8 @@ import {
 	getSavedClineMessages,
 	saveApiConversationHistory,
 	saveClineMessages,
-	GlobalFileNames,
-	getTaskMetadata,
 } from "../storage/disk"
-import { getClineRules } from "../context/instructions/user-instructions/cline-rules"
+import { getGlobalClineRules, getLocalClineRules } from "../context/instructions/user-instructions/cline-rules"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1232,7 +1229,10 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
-		const clineRulesFileInstructions = await getClineRules(cwd)
+		const localClineRulesFileInstructions = await getLocalClineRules(cwd)
+
+		const globalStoragePath = this.controllerRef.deref()?.context.globalStorageUri.fsPath || ""
+		const globalClineRulesFileInstructions = await getGlobalClineRules(globalStoragePath)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -1242,14 +1242,16 @@ export class Task {
 
 		if (
 			settingsCustomInstructions ||
-			clineRulesFileInstructions ||
+			globalClineRulesFileInstructions ||
+			localClineRulesFileInstructions ||
 			clineIgnoreInstructions ||
 			preferredLanguageInstructions
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addUserInstructions(
 				settingsCustomInstructions,
-				clineRulesFileInstructions,
+				globalClineRulesFileInstructions,
+				localClineRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
