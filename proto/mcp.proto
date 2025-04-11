@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package cline;
+
+import "common.proto";
+
+service McpService {
+  rpc ToggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
+}
+
+message ToggleMcpServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  bool disabled = 3;
+}
+
+message McpServers {
+  repeated McpServer mcp_servers = 1;
+}
+
+message McpServer {
+  string name = 1;
+  string config = 2;
+  string status = 3; // "connected", "connecting", or "disconnected"
+  string error = 4; // Optional
+  repeated McpTool tools = 5; // Optional
+  repeated McpResource resources = 6; // Optional
+  repeated McpResourceTemplate resource_templates = 7; // Optional
+  bool disabled = 8; // Optional
+  int32 timeout = 9; // Optional
+}
+
+message McpTool {
+  string name = 1;
+  string description = 2; // Optional
+  string input_schema_json = 3; // JSON string of the input schema, optional
+  bool auto_approve = 4; // Optional
+}
+
+message McpResource {
+  string uri = 1;
+  string name = 2;
+  string mime_type = 3; // Optional
+  string description = 4; // Optional
+}
+
+message McpResourceTemplate {
+  string uri_template = 1;
+  string name = 2;
+  string description = 3; // Optional
+  string mime_type = 4; // Optional
+}

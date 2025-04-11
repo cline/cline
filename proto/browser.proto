@@ -2,11 +2,10 @@ syntax = "proto3";
 
 package cline;
 
-service BrowserService {
-  rpc GetBrowserConnectionInfo(GetBrowserConnectionInfoRequest) returns (BrowserConnectionInfo);
-}
+import "common.proto";
 
-message GetBrowserConnectionInfoRequest {
+service BrowserService {
+  rpc GetBrowserConnectionInfo(EmptyRequest) returns (BrowserConnectionInfo);
 }
 
 message BrowserConnectionInfo {

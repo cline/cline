@@ -8,11 +8,11 @@ import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { createGrpcClient } from "@/utils/grpc-client"
 import { BrowserService } from "@/utils/browser-service"
-import { GetBrowserConnectionInfoRequest } from "@shared/proto/browser"
+import { EmptyRequest } from "@shared/proto/common"
 
 // Create the client with explicit typing
 interface BrowserServiceClient {
-	getBrowserConnectionInfo: (request: GetBrowserConnectionInfoRequest) => Promise<{
+	getBrowserConnectionInfo: (request: EmptyRequest) => Promise<{
 		isConnected: boolean
 		isRemote: boolean
 		host: string
@@ -101,8 +101,7 @@ export const BrowserSettingsMenu = () => {
 		if (!showInfoPopover) {
 			const fetchConnectionInfo = async () => {
 				try {
-					const request = GetBrowserConnectionInfoRequest.create({})
-					const info = await browserService.getBrowserConnectionInfo(request)
+					const info = await browserService.getBrowserConnectionInfo({})
 					setConnectionInfo({
 						isConnected: info.isConnected,
 						isRemote: info.isRemote,
@@ -142,8 +141,7 @@ export const BrowserSettingsMenu = () => {
 		// Function to fetch connection info
 		const fetchConnectionInfo = async () => {
 			try {
-				const request = GetBrowserConnectionInfoRequest.create({})
-				const info = await browserService.getBrowserConnectionInfo(request)
+				const info = await browserService.getBrowserConnectionInfo({})
 				setConnectionInfo({
 					isConnected: info.isConnected,
 					isRemote: info.isRemote,

@@ -1,4 +1,5 @@
-import { BrowserConnectionInfo, GetBrowserConnectionInfoRequest } from "../../shared/proto/browser";
+import { BrowserConnectionInfo } from "../../shared/proto/browser";
+import { EmptyRequest } from "../../shared/proto/common";
 import { Controller } from "./index";
 import { getAllExtensionState } from "../storage/state";
 import { ExtensionMessage } from "../../shared/ExtensionMessage";
@@ -60,7 +61,7 @@ export class GrpcHandler {
    * @param request The request message
    * @returns The browser connection info
    */
-  private async getBrowserConnectionInfo(request: GetBrowserConnectionInfoRequest): Promise<BrowserConnectionInfo> {
+  private async getBrowserConnectionInfo(request: EmptyRequest): Promise<BrowserConnectionInfo> {
     try {
       // Get browser settings from extension state
       const { browserSettings } = await getAllExtensionState(this.controller.context);
