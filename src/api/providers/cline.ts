@@ -4,7 +4,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import axios from "axios"
+import axios from "../../utils/http"
 import { OpenRouterErrorResponse } from "./types"
 
 export class ClineHandler implements ApiHandler {
