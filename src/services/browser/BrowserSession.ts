@@ -11,7 +11,7 @@ import axios from "axios"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
-import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
+import { discoverBrowserInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
 import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "../../core/controller"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
@@ -66,7 +66,7 @@ export class BrowserSession {
 		}
 	}
 
-	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
+	async getDetectedBrowserPath(): Promise<{ path: string; isBundled: boolean }> {
 		// First check VSCode config
 		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
 		if (configPath && (await fileExistsAtPath(configPath))) {
@@ -107,12 +107,24 @@ export class BrowserSession {
 		return stats
 	}
 
-	async relaunchChromeDebugMode(controller: Controller) {
-		const result = await vscode.window.showWarningMessage(
-			"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
-			{ modal: true },
-			"Yes",
-		)
+	async relaunchBrowserDebugMode(controller: Controller) {
+		// Get the custom path first
+		const { path: customPath, isBundled } = await this.getDetectedBrowserPath()
+
+		// Check if it might be a non-Chrome browser
+		const isLikelyChromeOrChromium =
+			customPath.toLowerCase().includes("chrome") || customPath.toLowerCase().includes("chromium") || isBundled
+
+		// Prepare warning message based on browser type
+		let warningMessage = "This will close your existing browser tabs and relaunch the browser in debug mode. Are you sure?"
+
+		// Add extra warning for non-Chrome browsers
+		if (!isLikelyChromeOrChromium) {
+			warningMessage +=
+				"\n\nWARNING: You're using a non-Chrome browser. Remote debugging may not work correctly with all Chromium-based browsers."
+		}
+
+		const result = await vscode.window.showWarningMessage(warningMessage, { modal: true }, "Yes")
 
 		if (result !== "Yes") {
 			controller?.postMessageToWebview({
@@ -126,7 +138,7 @@ export class BrowserSession {
 		try {
 			// Chrome-launcher's killAll only kills instances it launched
 			// We need to handle system Chrome processes separately
-			await this.killAllChromeBrowsers()
+			await this.killAllChromiumBrowsers()
 
 			// Wait a moment for Chrome to fully shut down
 			await new Promise((resolve) => setTimeout(resolve, 500))
@@ -139,17 +151,17 @@ export class BrowserSession {
 				// Do not add any flags that might interfere with profile data
 			]
 
-			const installation = chromeLauncher.Launcher.getFirstInstallation()
-			if (!installation) {
-				throw new Error("Could not find Chrome installation on this system")
+			// Use the custom browser path instead of trying to find Chrome installation
+			if (!customPath) {
+				throw new Error("Could not find browser installation on this system")
 			}
-			console.info("chrome installation", installation)
+			console.info("browser installation", customPath)
 
 			// Prepare the command arguments
 			const args = [`--remote-debugging-port=${DEBUG_PORT}`, "--disable-notifications", "chrome://newtab"]
 
-			// Spawn Chrome as a detached process
-			const chromeProcess = spawn(installation, args, {
+			// Spawn browser as a detached process
+			const chromeProcess = spawn(customPath, args, {
 				detached: true, // This is key - makes the process independent of parent
 				stdio: "ignore", // Detach stdio to prevent hanging
 				shell: false, // Don't run in a shell
@@ -171,7 +183,7 @@ export class BrowserSession {
 			controller?.postMessageToWebview({
 				type: "browserRelaunchResult",
 				success: true,
-				text: `Browser successfully launched with debug mode\nUsing: ${installation}`,
+				text: `Browser successfully launched with debug mode\nUsing: ${customPath}`,
 			})
 		} catch (error) {
 			controller?.postMessageToWebview({
@@ -246,7 +258,7 @@ export class BrowserSession {
 	}
 
 	async launchLocalBrowser() {
-		const { path } = await this.getDetectedChromePath()
+		const { path } = await this.getDetectedBrowserPath()
 		this.browser = await launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -271,7 +283,7 @@ export class BrowserSession {
 		if (!remoteBrowserHost) {
 			try {
 				console.info("No remote browser host provided, trying auto-discovery")
-				const discoveredHost = await discoverChromeInstances()
+				const discoveredHost = await discoverBrowserInstances()
 
 				if (discoveredHost) {
 					console.info(`Auto-discovered Chrome at ${discoveredHost}`)
@@ -372,7 +384,7 @@ export class BrowserSession {
 	/**
 	 * Kill all Chrome instances, including those not launched by chrome-launcher
 	 */
-	private async killAllChromeBrowsers(): Promise<void> {
+	private async killAllChromiumBrowsers(): Promise<void> {
 		// First try chrome-launcher's killAll to handle instances it launched
 		try {
 			await chromeLauncher.killAll()
@@ -383,19 +395,19 @@ export class BrowserSession {
 		// Then kill other Chrome instances using platform-specific commands
 		try {
 			if (process.platform === "win32") {
-				// Windows: Use taskkill to forcefully terminate Chrome processes
+				// Windows: Use taskkill to forcefully terminate Chrome and Brave processes
 				await new Promise<void>((resolve, reject) => {
-					exec("taskkill /F /IM chrome.exe /T", () => resolve())
+					exec("taskkill /F /IM chrome.exe /T & taskkill /F /IM brave.exe /T", () => resolve())
 				})
 			} else if (process.platform === "darwin") {
-				// macOS: Use pkill to terminate Chrome processes
+				// macOS: Use pkill to terminate Chrome and Brave processes
 				await new Promise<void>((resolve) => {
-					exec('pkill -x "Google Chrome"', () => resolve())
+					exec('pkill -x "Google Chrome" & pkill -x "Brave Browser"', () => resolve())
 				})
 			} else {
-				// Linux: Use pkill for Chrome and chromium
+				// Linux: Use pkill for Chrome, Chromium, and Brave
 				await new Promise<void>((resolve) => {
-					exec('pkill -f "chrome|chromium"', () => resolve())
+					exec('pkill -f "chrome|chromium|brave"', () => resolve())
 				})
 			}
 		} catch (error) {

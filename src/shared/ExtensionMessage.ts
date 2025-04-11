@@ -44,7 +44,7 @@ export interface ExtensionMessage {
 		| "addToInput"
 		| "browserConnectionResult"
 		| "browserConnectionInfo"
-		| "detectedChromePath"
+		| "detectedBrowserPath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses

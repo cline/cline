@@ -39,7 +39,7 @@ export async function isPortOpen(host: string, port: number, timeout = 1000): Pr
 }
 
 /**
- * Try to connect to Chrome at a specific IP address
+ * Try to connect to Browser at a specific IP address
  */
 export async function tryConnect(ipAddress: string): Promise<{ endpoint: string; ip: string } | null> {
 	try {
@@ -52,9 +52,9 @@ export async function tryConnect(ipAddress: string): Promise<{ endpoint: string;
 }
 
 /**
- * Discover Chrome instances (localhost only)
+ * Discover Browser instances (localhost only)
  */
-export async function discoverChromeInstances(): Promise<string | null> {
+export async function discoverBrowserInstances(): Promise<string | null> {
 	// Only try localhost
 	const ipAddresses = ["localhost", "127.0.0.1"]
 
@@ -74,7 +74,7 @@ export async function discoverChromeInstances(): Promise<string | null> {
  */
 export async function testBrowserConnection(host: string): Promise<{ success: boolean; message: string; endpoint?: string }> {
 	try {
-		// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
+		// Fetch the WebSocket endpoint from the Browser DevTools Protocol
 		const versionUrl = `${host.replace(/\/$/, "")}/json/version`
 
 		const response = await axios.get(versionUrl, { timeout: 3000 })
@@ -89,7 +89,7 @@ export async function testBrowserConnection(host: string): Promise<{ success: bo
 
 		return {
 			success: true,
-			message: "Successfully connected to Chrome browser",
+			message: "Successfully connected to Browser browser",
 			endpoint: browserWSEndpoint,
 		}
 	} catch (error) {
