@@ -104,7 +104,6 @@ export class Task {
 	private cancelTask: () => Promise<void>
 
 	readonly taskId: string
-	readonly apiProvider?: string
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
@@ -183,7 +182,6 @@ export class Task {
 		this.clineIgnoreController.initialize().catch((error) => {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
-		this.apiProvider = apiConfiguration.apiProvider
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
