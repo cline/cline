@@ -49,6 +49,7 @@ import {
 	ClineSayBrowserAction,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
+	ExtensionMessage,
 } from "../../shared/ExtensionMessage"
 import { getApiMetrics } from "../../shared/getApiMetrics"
 import { HistoryItem } from "../../shared/HistoryItem"
@@ -82,6 +83,8 @@ import {
 	GlobalFileNames,
 	getTaskMetadata,
 } from "../storage/disk"
+import { McpHub } from "../../services/mcp/McpHub"
+import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -89,6 +92,16 @@ type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlo
 type UserContent = Array<Anthropic.ContentBlockParam>
 
 export class Task {
+	// dependencies
+	private context: vscode.ExtensionContext
+	private mcpHub: McpHub
+	private workspaceTracker: WorkspaceTracker
+	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
+	private postStateToWebview: () => Promise<void>
+	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
+	private reinitExistingTaskFromId: (taskId: string) => Promise<void>
+	private cancelTask: () => Promise<void>
+
 	readonly taskId: string
 	readonly apiProvider?: string
 	api: ApiHandler
@@ -110,7 +123,6 @@ export class Task {
 	private lastMessageTs?: number
 	private consecutiveAutoApprovedRequestsCount: number = 0
 	private consecutiveMistakeCount: number = 0
-	private controllerRef: WeakRef<Controller>
 	private abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
@@ -141,7 +153,14 @@ export class Task {
 	private didAutomaticallyRetryFailedApiRequest = false
 
 	constructor(
-		controller: Controller,
+		context: vscode.ExtensionContext,
+		mcpHub: McpHub,
+		workspaceTracker: WorkspaceTracker,
+		updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>,
+		postStateToWebview: () => Promise<void>,
+		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
+		reinitExistingTaskFromId: (taskId: string) => Promise<void>,
+		cancelTask: () => Promise<void>,
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
@@ -151,15 +170,22 @@ export class Task {
 		images?: string[],
 		historyItem?: HistoryItem,
 	) {
+		this.context = context
+		this.mcpHub = mcpHub
+		this.workspaceTracker = workspaceTracker
+		this.updateTaskHistory = updateTaskHistory
+		this.postStateToWebview = postStateToWebview
+		this.postMessageToWebview = postMessageToWebview
+		this.reinitExistingTaskFromId = reinitExistingTaskFromId
+		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.clineIgnoreController.initialize().catch((error) => {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
-		this.controllerRef = new WeakRef(controller)
 		this.apiProvider = apiConfiguration.apiProvider
 		this.terminalManager = new TerminalManager()
-		this.urlContentFetcher = new UrlContentFetcher(controller.context)
-		this.browserSession = new BrowserSession(controller.context, browserSettings)
+		this.urlContentFetcher = new UrlContentFetcher(context)
+		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
@@ -178,8 +204,8 @@ export class Task {
 		}
 
 		// Initialize file context tracker
-		this.fileContextTracker = new FileContextTracker(controller.context, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
+		this.fileContextTracker = new FileContextTracker(context, this.taskId)
+		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
 		// Now that taskId is initialized, we can build the API handler
 		this.api = buildApiHandler({
 			...apiConfiguration,
@@ -208,7 +234,7 @@ export class Task {
 	// While a task is ref'd by a controller, it will always have access to the extension context
 	// This error is thrown if the controller derefs the task after e.g., aborting the task
 	private getContext(): vscode.ExtensionContext {
-		const context = this.controllerRef.deref()?.context
+		const context = this.context
 		if (!context) {
 			throw new Error("Unable to access extension context")
 		}
@@ -260,7 +286,7 @@ export class Task {
 			} catch (error) {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
-			await this.controllerRef.deref()?.updateTaskHistory({
+			await this.updateTaskHistory({
 				id: this.taskId,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
@@ -295,15 +321,12 @@ export class Task {
 			case "workspace":
 				if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
 					try {
-						this.checkpointTracker = await CheckpointTracker.create(
-							this.taskId,
-							this.controllerRef.deref()?.context.globalStorageUri.fsPath,
-						)
+						this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
 						this.checkpointTrackerErrorMessage = errorMessage
-						await this.controllerRef.deref()?.postStateToWebview()
+						await this.postStateToWebview()
 						vscode.window.showErrorMessage(errorMessage)
 						didWorkspaceRestoreFail = true
 					}
@@ -385,17 +408,17 @@ export class Task {
 
 			await this.saveClineMessagesAndUpdateHistory()
 
-			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			await this.postMessageToWebview({ type: "relinquishControl" })
 
-			this.controllerRef.deref()?.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
+			this.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
 		} else {
-			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			await this.postMessageToWebview({ type: "relinquishControl" })
 		}
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
 		const relinquishButton = () => {
-			this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			this.postMessageToWebview({ type: "relinquishControl" })
 		}
 
 		console.log("presentMultifileDiff", messageTs)
@@ -416,15 +439,12 @@ export class Task {
 		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we cant show diff outside of workspace?
 		if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(
-					this.taskId,
-					this.controllerRef.deref()?.context.globalStorageUri.fsPath,
-				)
+				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.checkpointTrackerErrorMessage = errorMessage
-				await this.controllerRef.deref()?.postStateToWebview()
+				await this.postStateToWebview()
 				vscode.window.showErrorMessage(errorMessage)
 				relinquishButton()
 				return
@@ -531,10 +551,7 @@ export class Task {
 
 		if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(
-					this.taskId,
-					this.controllerRef.deref()?.context.globalStorageUri.fsPath,
-				)
+				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
@@ -605,8 +622,8 @@ export class Task {
 					lastMessage.partial = partial
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
-					// await this.controllerRef.deref()?.postStateToWebview()
-					await this.controllerRef.deref()?.postMessageToWebview({
+					// await this.postStateToWebview()
+					await this.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -625,7 +642,7 @@ export class Task {
 						text,
 						partial,
 					})
-					await this.controllerRef.deref()?.postStateToWebview()
+					await this.postStateToWebview()
 					throw new Error("Current ask promise was ignored 2")
 				}
 			} else {
@@ -648,8 +665,8 @@ export class Task {
 					lastMessage.text = text
 					lastMessage.partial = false
 					await this.saveClineMessagesAndUpdateHistory()
-					// await this.controllerRef.deref()?.postStateToWebview()
-					await this.controllerRef.deref()?.postMessageToWebview({
+					// await this.postStateToWebview()
+					await this.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -666,7 +683,7 @@ export class Task {
 						ask: type,
 						text,
 					})
-					await this.controllerRef.deref()?.postStateToWebview()
+					await this.postStateToWebview()
 				}
 			}
 		} else {
@@ -683,7 +700,7 @@ export class Task {
 				ask: type,
 				text,
 			})
-			await this.controllerRef.deref()?.postStateToWebview()
+			await this.postStateToWebview()
 		}
 
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
@@ -722,7 +739,7 @@ export class Task {
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = partial
-					await this.controllerRef.deref()?.postMessageToWebview({
+					await this.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -738,7 +755,7 @@ export class Task {
 						images,
 						partial,
 					})
-					await this.controllerRef.deref()?.postStateToWebview()
+					await this.postStateToWebview()
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
@@ -752,8 +769,8 @@ export class Task {
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClineMessagesAndUpdateHistory()
-					// await this.controllerRef.deref()?.postStateToWebview()
-					await this.controllerRef.deref()?.postMessageToWebview({
+					// await this.postStateToWebview()
+					await this.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					}) // more performant than an entire postStateToWebview
@@ -768,7 +785,7 @@ export class Task {
 						text,
 						images,
 					})
-					await this.controllerRef.deref()?.postStateToWebview()
+					await this.postStateToWebview()
 				}
 			}
 		} else {
@@ -782,7 +799,7 @@ export class Task {
 				text,
 				images,
 			})
-			await this.controllerRef.deref()?.postStateToWebview()
+			await this.postStateToWebview()
 		}
 	}
 
@@ -801,7 +818,7 @@ export class Task {
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
 			this.clineMessages.pop()
 			await this.saveClineMessagesAndUpdateHistory()
-			await this.controllerRef.deref()?.postStateToWebview()
+			await this.postStateToWebview()
 		}
 	}
 
@@ -813,7 +830,7 @@ export class Task {
 		this.clineMessages = []
 		this.apiConversationHistory = []
 
-		await this.controllerRef.deref()?.postStateToWebview()
+		await this.postStateToWebview()
 
 		await this.say("text", task, images)
 
@@ -1209,21 +1226,16 @@ export class Task {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.controllerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
+		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
-
-		const mcpHub = this.controllerRef.deref()?.mcpHub
-		if (!mcpHub) {
-			throw new Error("MCP hub not available")
-		}
 
 		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
 		const modelSupportsComputerUse = this.api.getModel().info.supportsComputerUse ?? false
 
 		const supportsComputerUse = modelSupportsComputerUse && !disableBrowserTool // only enable computer use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, this.mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const preferredLanguage = getLanguageKey(
@@ -1900,7 +1912,7 @@ export class Task {
 								}
 
 								if (!fileExists) {
-									this.controllerRef.deref()?.workspaceTracker?.populateFilePaths()
+									this.workspaceTracker.populateFilePaths()
 								}
 
 								await this.diffViewProvider.reset()
@@ -2296,10 +2308,9 @@ export class Task {
 									await this.say("browser_action_result", "") // starts loading spinner
 
 									// Re-make browserSession to make sure latest settings apply
-									const localContext = this.controllerRef.deref()?.context
-									if (localContext) {
+									if (this.context) {
 										await this.browserSession.dispose()
-										this.browserSession = new BrowserSession(localContext, this.browserSettings)
+										this.browserSession = new BrowserSession(this.context, this.browserSettings)
 									} else {
 										console.warn("no controller context available for browserSession")
 									}
@@ -2498,7 +2509,7 @@ export class Task {
 								}
 
 								// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
-								this.controllerRef.deref()?.workspaceTracker?.populateFilePaths()
+								this.workspaceTracker.populateFilePaths()
 
 								pushToolResult(result)
 
@@ -2580,9 +2591,8 @@ export class Task {
 									arguments: mcp_arguments,
 								} satisfies ClineAskUseMcpServer)
 
-								const isToolAutoApproved = this.controllerRef
-									.deref()
-									?.mcpHub?.connections?.find((conn) => conn.server.name === server_name)
+								const isToolAutoApproved = this.mcpHub.connections
+									?.find((conn) => conn.server.name === server_name)
 									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
 
 								if (this.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
@@ -2603,9 +2613,7 @@ export class Task {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
-								const toolResult = await this.controllerRef
-									.deref()
-									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
+								const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
 
 								// TODO: add progress indicator and ability to parse images and non-text responses
 								const toolResultPretty =
@@ -2694,7 +2702,7 @@ export class Task {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started")
-								const resourceResult = await this.controllerRef.deref()?.mcpHub?.readResource(server_name, uri)
+								const resourceResult = await this.mcpHub.readResource(server_name, uri)
 								const resourceResultPretty =
 									resourceResult?.contents
 										.map((item) => {
@@ -3189,7 +3197,7 @@ export class Task {
 		if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
 			try {
 				this.checkpointTracker = await pTimeout(
-					CheckpointTracker.create(this.taskId, this.controllerRef.deref()?.context.globalStorageUri.fsPath),
+					CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath),
 					{
 						milliseconds: 15_000,
 						message:
@@ -3231,7 +3239,7 @@ export class Task {
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
 		await this.saveClineMessagesAndUpdateHistory()
-		await this.controllerRef.deref()?.postStateToWebview()
+		await this.postStateToWebview()
 
 		try {
 			let cacheWriteTokens = 0
@@ -3391,11 +3399,7 @@ export class Task {
 					const errorMessage = this.formatErrorWithStatusCode(error)
 
 					await abortStream("streaming_failed", errorMessage)
-					const history = await this.controllerRef.deref()?.getTaskWithId(this.taskId)
-					if (history) {
-						await this.controllerRef.deref()?.initClineWithHistoryItem(history.historyItem)
-						// await this.controllerRef.deref()?.postStateToWebview()
-					}
+					await this.reinitExistingTaskFromId(this.taskId)
 				}
 			} finally {
 				this.isStreaming = false
@@ -3414,7 +3418,7 @@ export class Task {
 					}
 					updateApiReqMsg()
 					await this.saveClineMessagesAndUpdateHistory()
-					await this.controllerRef.deref()?.postStateToWebview()
+					await this.postStateToWebview()
 				})
 			}
 
@@ -3438,7 +3442,7 @@ export class Task {
 
 			updateApiReqMsg()
 			await this.saveClineMessagesAndUpdateHistory()
-			await this.controllerRef.deref()?.postStateToWebview()
+			await this.postStateToWebview()
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
