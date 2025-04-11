@@ -111,7 +111,7 @@ const App = () => {
 			{tab === "mcp" && <McpView onDone={() => switchTab("chat")} />}
 			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
 			{tab === "settings" && (
-				<SettingsView ref={settingsRef} onDone={() => switchTab("chat")} targetSection={currentSection} />
+				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
 			)}
 			<ChatView
 				isHidden={tab !== "chat"}
