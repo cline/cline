@@ -1,5 +1,7 @@
-import { vscode } from "./vscode"
+import { vscode } from "../utils/vscode"
 import { v4 as uuidv4 } from "uuid"
+import { BrowserServiceDefinition } from "@shared/proto/browser"
+import { EmptyRequest } from "@shared/proto/common"
 
 // Generic type for any protobuf service definition
 type ProtoService = {
@@ -18,7 +20,7 @@ type ProtoService = {
 }
 
 // Create a client for any protobuf service
-export function createGrpcClient<T>(service: ProtoService): T {
+function createGrpcClient<T>(service: ProtoService): T {
 	const client = {} as T
 
 	// For each method in the service
@@ -71,3 +73,18 @@ export function createGrpcClient<T>(service: ProtoService): T {
 
 	return client
 }
+
+// Browser Service Client Interface
+interface BrowserServiceClientInterface {
+	getBrowserConnectionInfo: (request: EmptyRequest) => Promise<{
+		isConnected: boolean
+		isRemote: boolean
+		host: string
+	}>
+}
+
+// Create the Browser Service Client singleton
+const browserServiceClient = createGrpcClient<BrowserServiceClientInterface>(BrowserServiceDefinition)
+
+// Export the Browser Service Client as a static object
+export const BrowserServiceClient = browserServiceClient

@@ -6,20 +6,7 @@ import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { createGrpcClient } from "@/utils/grpc-client"
-import { BrowserServiceDefinition } from "@shared/proto/browser"
-import { EmptyRequest } from "@shared/proto/common"
-
-// Create the client with explicit typing
-interface BrowserServiceClient {
-	getBrowserConnectionInfo: (request: EmptyRequest) => Promise<{
-		isConnected: boolean
-		isRemote: boolean
-		host: string
-	}>
-}
-
-const browserService = createGrpcClient(BrowserServiceDefinition) as BrowserServiceClient
+import { BrowserServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
 	isConnected: boolean
@@ -44,7 +31,7 @@ export const BrowserSettingsMenu = () => {
 		(async () => {
 			try {
 				console.log("[DEBUG] SENDING BROWSER CONNECTION INFO REQUEST")
-				const info = await browserService.getBrowserConnectionInfo({})
+				const info = await BrowserServiceClient.getBrowserConnectionInfo({})
 				console.log("[DEBUG] GOT BROWSER REPLY:", info, typeof info)
 				setConnectionInfo({
 					isConnected: info.isConnected,
@@ -101,7 +88,7 @@ export const BrowserSettingsMenu = () => {
 		if (!showInfoPopover) {
 			const fetchConnectionInfo = async () => {
 				try {
-					const info = await browserService.getBrowserConnectionInfo({})
+					const info = await BrowserServiceClient.getBrowserConnectionInfo({})
 					setConnectionInfo({
 						isConnected: info.isConnected,
 						isRemote: info.isRemote,
@@ -141,7 +128,7 @@ export const BrowserSettingsMenu = () => {
 		// Function to fetch connection info
 		const fetchConnectionInfo = async () => {
 			try {
-				const info = await browserService.getBrowserConnectionInfo({})
+				const info = await BrowserServiceClient.getBrowserConnectionInfo({})
 				setConnectionInfo({
 					isConnected: info.isConnected,
 					isRemote: info.isRemote,
