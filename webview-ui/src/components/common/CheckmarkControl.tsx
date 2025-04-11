@@ -27,6 +27,15 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 	const [isLineHovered, setIsLineHovered] = useState(false)
 	const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+	// Cleanup timer on unmount
+	useEffect(() => {
+		return () => {
+			if (hideTimerRef.current) {
+				clearTimeout(hideTimerRef.current)
+			}
+		}
+	}, [])
+
 	const { refs, floatingStyles, update, placement } = useFloating({
 		placement: "bottom-end",
 		middleware: [
@@ -160,6 +169,17 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 		}
 	}
 
+	const handleDebounceMouseLeave = (additionalCheck?: () => void) => {
+		if (hideTimerRef.current) {
+			clearTimeout(hideTimerRef.current)
+		}
+		hideTimerRef.current = setTimeout(() => {
+			setIsLineHovered(false)
+			setIsComponentHovered(false)
+		}, checkpointHoverDebounce)
+		additionalCheck?.()
+	}
+
 	const handleControlsMouseLeave = (e: React.MouseEvent) => {
 		const tooltipElement = tooltipRef.current
 
@@ -201,31 +221,10 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 				$isCheckedOut={isCheckpointCheckedOut}
 				$isHovered={shouldShowHoveredLine}
 				onMouseEnter={() => setIsLineHovered(true)}
-				onMouseLeave={() => {
-					if (hideTimerRef.current) {
-						clearTimeout(hideTimerRef.current)
-					}
-					hideTimerRef.current = setTimeout(() => {
-						if (!isComponentHovered && !showRestoreConfirm) {
-							setIsLineHovered(false)
-						}
-					}, checkpointHoverDebounce)
-				}}
+				onMouseLeave={() => handleDebounceMouseLeave()}
 			/>
 
-			<HoverArea
-				onMouseEnter={() => setIsLineHovered(true)}
-				onMouseLeave={() => {
-					if (hideTimerRef.current) {
-						clearTimeout(hideTimerRef.current)
-					}
-					hideTimerRef.current = setTimeout(() => {
-						if (!isComponentHovered && !showRestoreConfirm) {
-							setIsLineHovered(false)
-						}
-					}, checkpointHoverDebounce)
-				}}
-			/>
+			<HoverArea onMouseEnter={() => setIsLineHovered(true)} onMouseLeave={() => handleDebounceMouseLeave()} />
 
 			{showExpandedUI && (
 				<ExpandedUI
@@ -241,13 +240,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 					}}
 					onMouseLeave={(e) => {
 						if (!showRestoreConfirm) {
-							if (hideTimerRef.current) {
-								clearTimeout(hideTimerRef.current)
-							}
-							hideTimerRef.current = setTimeout(() => {
-								setIsComponentHovered(false)
-								setIsLineHovered(false)
-							}, checkpointHoverDebounce)
+							handleDebounceMouseLeave()
 						} else {
 							handleControlsMouseLeave(e)
 						}
