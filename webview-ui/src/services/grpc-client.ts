@@ -19,14 +19,21 @@ type ProtoService = {
 	}
 }
 
-// Create a client for any protobuf service
-function createGrpcClient<T>(service: ProtoService): T {
-	const client = {} as T
+// Define a generic type that extracts method signatures from a service definition
+type GrpcClientType<T extends ProtoService> = {
+	[K in keyof T["methods"]]: (
+		request: InstanceType<T["methods"][K]["requestType"]>
+	) => Promise<InstanceType<T["methods"][K]["responseType"]>>
+}
+
+// Create a client for any protobuf service with inferred types
+function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T> {
+	const client = {} as GrpcClientType<T>
 
 	// For each method in the service
 	Object.values(service.methods).forEach((method) => {
 		// Create a function that matches the method signature
-		client[method.name as keyof T] = ((request: any) => {
+		client[method.name as keyof GrpcClientType<T>] = ((request: any) => {
 			return new Promise((resolve, reject) => {
 				const requestId = uuidv4()
 
@@ -74,17 +81,9 @@ function createGrpcClient<T>(service: ProtoService): T {
 	return client
 }
 
-// Browser Service Client Interface
-interface BrowserServiceClientInterface {
-	getBrowserConnectionInfo: (request: EmptyRequest) => Promise<{
-		isConnected: boolean
-		isRemote: boolean
-		host: string
-	}>
-}
-
-// Create the Browser Service Client singleton
-const browserServiceClient = createGrpcClient<BrowserServiceClientInterface>(BrowserServiceDefinition)
+// Create the Browser Service Client singleton with inferred types
+// No need for manual interface definition - types are inferred from the service definition
+const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
 
 // Export the Browser Service Client as a static object
-export const BrowserServiceClient = browserServiceClient
+export { BrowserServiceClient }
