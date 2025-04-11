@@ -8,13 +8,6 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { createPortal } from "react-dom"
 import { useFloating, offset, flip, shift } from "@floating-ui/react"
 
-interface CheckmarkControlProps {
-	messageTs?: number
-	isCheckpointCheckedOut?: boolean
-	/** Whether this is the last row in the chat */
-	isLastRow?: boolean
-}
-
 export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow = false }: CheckmarkControlProps) => {
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
