@@ -7,13 +7,9 @@ import { updateGlobalState, getAllExtensionState } from "../../core/storage/stat
 
 // Task completion tracking
 let taskCompletionResolver: (() => void) | null = null
-let taskCompleted = false
 
 // Function to create a new task completion promise
 function createTaskCompletionTracker(): Promise<void> {
-	// Reset the completion state
-	taskCompleted = false
-
 	// Create a new promise that will resolve when the task is completed
 	return new Promise<void>((resolve) => {
 		taskCompletionResolver = resolve
@@ -23,7 +19,6 @@ function createTaskCompletionTracker(): Promise<void> {
 // Function to mark the current task as completed
 function completeTask(): void {
 	if (taskCompletionResolver) {
-		taskCompleted = true
 		taskCompletionResolver()
 		taskCompletionResolver = null
 		Logger.log("Task marked as completed")
