@@ -1,14 +1,61 @@
 import * as http from "http"
+import * as vscode from "vscode"
 import { Logger } from "../../services/logging/Logger"
 import { WebviewProvider } from "../../core/webview"
+import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
+import { updateGlobalState, getAllExtensionState } from "../../core/storage/state"
 
 let testServer: http.Server | undefined
+let messageCatcherDisposable: vscode.Disposable | undefined
+
+/**
+ * Updates the auto approval settings to enable all actions
+ * @param context The VSCode extension context
+ * @param provider The webview provider instance
+ */
+async function updateAutoApprovalSettings(context: vscode.ExtensionContext, provider?: WebviewProvider) {
+	try {
+		const { autoApprovalSettings } = await getAllExtensionState(context)
+
+		// Enable all actions
+		const updatedSettings: AutoApprovalSettings = {
+			...autoApprovalSettings,
+			enabled: true,
+			actions: {
+				readFiles: true,
+				readFilesExternally: true,
+				editFiles: true,
+				editFilesExternally: true,
+				executeSafeCommands: true,
+				executeAllCommands: true,
+				useBrowser: false, // Keep browser disabled for tests
+				useMcp: false, // Keep MCP disabled for tests
+			},
+			maxRequests: 100, // Increase max requests for tests
+		}
+
+		await updateGlobalState(context, "autoApprovalSettings", updatedSettings)
+		Logger.log("Auto approval settings updated for test mode")
+
+		// Update the webview with the new state
+		if (provider?.controller) {
+			await provider.controller.postStateToWebview()
+		}
+	} catch (error) {
+		Logger.log(`Error updating auto approval settings: ${error}`)
+	}
+}
 
 /**
  * Creates and starts an HTTP server for test automation
+ * @param webviewProvider The webview provider instance to use for message catching
  * @returns The created HTTP server instance
  */
-export function createTestServer(): http.Server {
+export function createTestServer(webviewProvider?: WebviewProvider): http.Server {
+	// Update auto approval settings if webviewProvider is available
+	if (webviewProvider?.controller?.context) {
+		updateAutoApprovalSettings(webviewProvider.controller.context, webviewProvider)
+	}
 	const PORT = 9876
 
 	testServer = http.createServer((req, res) => {
@@ -97,7 +144,43 @@ export function createTestServer(): http.Server {
 		Logger.log(`Test server error: ${error}`)
 	})
 
+	// Set up message catcher for the provided webview instance or try to get the visible one
+	if (webviewProvider) {
+		messageCatcherDisposable = createMessageCatcher(webviewProvider)
+	} else {
+		const visibleWebview = WebviewProvider.getVisibleInstance()
+		if (visibleWebview) {
+			messageCatcherDisposable = createMessageCatcher(visibleWebview)
+		} else {
+			Logger.log("No visible webview instance found for message catcher")
+		}
+	}
+
 	return testServer
+}
+
+/**
+ * Creates a message catcher that logs all messages sent to the webview
+ * @param webviewProvider The webview provider instance
+ * @returns A disposable that can be used to clean up the message catcher
+ */
+export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.Disposable {
+	Logger.log("Cline message catcher registered")
+
+	if (webviewProvider && webviewProvider.controller) {
+		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
+		webviewProvider.controller.postMessageToWebview = async (message) => {
+			Logger.log("Cline message received: " + JSON.stringify(message))
+			return originalPostMessageToWebview.call(webviewProvider.controller, message)
+		}
+	} else {
+		Logger.log("No visible webview instance found for message catcher")
+	}
+
+	return new vscode.Disposable(() => {
+		// Cleanup function if needed
+		Logger.log("Cline message catcher disposed")
+	})
 }
 
 /**
@@ -108,5 +191,11 @@ export function shutdownTestServer() {
 		testServer.close()
 		Logger.log("Test server shut down")
 		testServer = undefined
+	}
+
+	// Dispose of the message catcher if it exists
+	if (messageCatcherDisposable) {
+		messageCatcherDisposable.dispose()
+		messageCatcherDisposable = undefined
 	}
 }
