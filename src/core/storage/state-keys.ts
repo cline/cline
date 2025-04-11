@@ -61,6 +61,7 @@ export type GlobalStateKey =
 	| "liteLlmUsePromptCache"
 	| "qwenApiLine"
 	| "requestyModelId"
+	| "requestyModelInfo"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"

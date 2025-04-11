@@ -487,6 +487,9 @@ export class Controller {
 			case "refreshOpenRouterModels":
 				await this.refreshOpenRouterModels()
 				break
+			case "refreshRequestyModels":
+				await this.refreshRequestyModels()
+				break
 			case "refreshOpenAiModels":
 				const { apiConfiguration } = await getAllExtensionState(this.context)
 				const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
@@ -983,6 +986,7 @@ export class Controller {
 					break
 				case "requesty":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
+					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
 			}
 
@@ -1024,6 +1028,7 @@ export class Controller {
 						break
 					case "requesty":
 						await updateGlobalState(this.context, "requestyModelId", newModelId)
+						await updateGlobalState(this.context, "requestyModelInfo", newModelInfo)
 						break
 				}
 
@@ -1617,6 +1622,52 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		await this.postMessageToWebview({
 			type: "openRouterModels",
 			openRouterModels: models,
+		})
+		return models
+	}
+
+	async refreshRequestyModels() {
+		const parsePrice = (price: any) => {
+			if (price) {
+				return parseFloat(price) * 1_000_000
+			}
+			return undefined
+		}
+
+		let models: Record<string, ModelInfo> = {}
+		try {
+			const apiKey = await getSecret(this.context, "requestyApiKey")
+			const headers = {
+				Authorization: `Bearer ${apiKey}`,
+			}
+			const response = await axios.get("https://router.requesty.ai/v1/models", { headers })
+			if (response.data?.data) {
+				for (const model of response.data.data) {
+					const modelInfo: ModelInfo = {
+						maxTokens: model.max_output_tokens || undefined,
+						contextWindow: model.context_window,
+						supportsImages: model.supports_vision || undefined,
+						supportsComputerUse: model.supports_computer_use || undefined,
+						supportsPromptCache: model.supports_caching || undefined,
+						inputPrice: parsePrice(model.input_price),
+						outputPrice: parsePrice(model.output_price),
+						cacheWritesPrice: parsePrice(model.caching_price),
+						cacheReadsPrice: parsePrice(model.cached_price),
+						description: model.description,
+					}
+					models[model.id] = modelInfo
+				}
+				console.log("Requesty models fetched", models)
+			} else {
+				console.error("Invalid response from Requesty API")
+			}
+		} catch (error) {
+			console.error("Error fetching Requesty models:", error)
+		}
+
+		await this.postMessageToWebview({
+			type: "requestyModels",
+			requestyModels: models,
 		})
 		return models
 	}

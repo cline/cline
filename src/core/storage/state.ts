@@ -83,6 +83,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		deepSeekApiKey,
 		requestyApiKey,
 		requestyModelId,
+		requestyModelInfo,
 		togetherApiKey,
 		togetherModelId,
 		qwenApiKey,
@@ -150,6 +151,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "deepSeekApiKey") as Promise<string | undefined>,
 		getSecret(context, "requestyApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "requestyModelId") as Promise<string | undefined>,
+		getGlobalState(context, "requestyModelInfo") as Promise<ModelInfo | undefined>,
 		getSecret(context, "togetherApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "togetherModelId") as Promise<string | undefined>,
 		getSecret(context, "qwenApiKey") as Promise<string | undefined>,
@@ -256,6 +258,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			deepSeekApiKey,
 			requestyApiKey,
 			requestyModelId,
+			requestyModelInfo,
 			togetherApiKey,
 			togetherModelId,
 			qwenApiKey,
@@ -329,6 +332,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		deepSeekApiKey,
 		requestyApiKey,
 		requestyModelId,
+		requestyModelInfo,
 		togetherApiKey,
 		togetherModelId,
 		qwenApiKey,
@@ -397,6 +401,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "liteLlmUsePromptCache", liteLlmUsePromptCache)
 	await updateGlobalState(context, "qwenApiLine", qwenApiLine)
 	await updateGlobalState(context, "requestyModelId", requestyModelId)
+	await updateGlobalState(context, "requestyModelInfo", requestyModelInfo)
 	await updateGlobalState(context, "togetherModelId", togetherModelId)
 	await storeSecret(context, "asksageApiKey", asksageApiKey)
 	await updateGlobalState(context, "asksageApiUrl", asksageApiUrl)
