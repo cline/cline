@@ -57,7 +57,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "../.
 import { ClineAskResponse, ClineCheckpointRestore } from "../../shared/WebviewMessage"
 import { calculateApiCostAnthropic } from "../../utils/cost"
 import { fileExistsAtPath, isDirectory } from "../../utils/fs"
-import { arePathsEqual, getReadablePath } from "../../utils/path"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "../../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
 import { constructNewFileContent } from ".././assistant-message/diff"
@@ -2002,6 +2002,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: absolutePath,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2050,6 +2051,7 @@ export class Task {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2081,6 +2083,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2121,6 +2124,7 @@ export class Task {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2149,6 +2153,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2193,6 +2198,7 @@ export class Task {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2229,6 +2235,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: results,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
