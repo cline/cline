@@ -889,6 +889,27 @@ export class Controller {
 				}
 				break
 			}
+			case "toggleFavoriteModel": {
+				if (message.modelId) {
+					const { apiConfiguration } = await getAllExtensionState(this.context)
+					const favoritedModelIds = apiConfiguration.favoritedModelIds || []
+
+					// Toggle favorite status
+					const updatedFavorites = favoritedModelIds.includes(message.modelId)
+						? favoritedModelIds.filter((id) => id !== message.modelId)
+						: [...favoritedModelIds, message.modelId]
+
+					await updateGlobalState(this.context, "favoritedModelIds", updatedFavorites)
+
+					// Capture telemetry for model favorite toggle
+					const isFavorited = !favoritedModelIds.includes(message.modelId)
+					telemetryService.captureModelFavoritesUsage(message.modelId, isFavorited)
+
+					// Post state to webview without changing any other configuration
+					await this.postStateToWebview()
+				}
+				break
+			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
