@@ -89,7 +89,7 @@ export async function testBrowserConnection(host: string): Promise<{ success: bo
 
 		return {
 			success: true,
-			message: "Successfully connected to Browser browser",
+			message: "Successfully connected to browser",
 			endpoint: browserWSEndpoint,
 		}
 	} catch (error) {

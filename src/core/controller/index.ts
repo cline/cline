@@ -304,12 +304,13 @@ export class Controller {
 				try {
 					// Get the current browser session from Cline if it exists
 					if (this.task?.browserSession) {
-						const connectionInfo = this.task.browserSession.getConnectionInfo()
+						const connectionInfo = await this.task.browserSession.getConnectionInfo()
 						await this.postMessageToWebview({
 							type: "browserConnectionInfo",
 							isConnected: connectionInfo.isConnected,
 							isRemote: connectionInfo.isRemote,
 							host: connectionInfo.host,
+							browserExecutable: connectionInfo.browserExecutable,
 						})
 					} else {
 						// If no active browser session, just return the settings

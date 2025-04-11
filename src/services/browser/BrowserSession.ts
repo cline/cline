@@ -26,6 +26,7 @@ export interface BrowserConnectionInfo {
 	isConnected: boolean
 	isRemote: boolean
 	host?: string
+	browserExecutable?: string
 }
 
 const DEBUG_PORT = 9222 // Chrome's default debugging port
@@ -58,11 +59,13 @@ export class BrowserSession {
 	/**
 	 * Get current browser connection information
 	 */
-	getConnectionInfo(): BrowserConnectionInfo {
+	async getConnectionInfo(): Promise<BrowserConnectionInfo> {
+		const { path: browserPath } = await this.getDetectedBrowserPath()
 		return {
 			isConnected: !!this.browser,
 			isRemote: this.isConnectedToRemote,
 			host: this.isConnectedToRemote ? this.browserSettings.remoteBrowserHost : undefined,
+			browserExecutable: browserPath ? path.basename(browserPath) : undefined,
 		}
 	}
 

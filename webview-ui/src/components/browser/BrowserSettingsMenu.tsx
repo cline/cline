@@ -6,11 +6,11 @@ import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-
 interface ConnectionInfo {
 	isConnected: boolean
 	isRemote: boolean
 	host?: string
+	browserExecutable?: string
 }
 
 export const BrowserSettingsMenu = () => {
@@ -39,6 +39,7 @@ export const BrowserSettingsMenu = () => {
 					isConnected: message.isConnected,
 					isRemote: message.isRemote,
 					host: message.host,
+					browserExecutable: message.browserExecutable,
 				})
 			}
 		}
@@ -170,10 +171,18 @@ export const BrowserSettingsMenu = () => {
 						</InfoRow>
 					)}
 					{connectionInfo.isConnected && connectionInfo.isRemote && connectionInfo.host && (
-						<InfoRow>
-							<InfoLabel>Remote Host:</InfoLabel>
-							<InfoValue>{connectionInfo.host}</InfoValue>
-						</InfoRow>
+						<>
+							<InfoRow>
+								<InfoLabel>Remote Host:</InfoLabel>
+								<InfoValue>{connectionInfo.host}</InfoValue>
+							</InfoRow>
+							{connectionInfo.browserExecutable && (
+								<InfoRow>
+									<InfoLabel>Browser:</InfoLabel>
+									<InfoValue>{connectionInfo.browserExecutable}</InfoValue>
+								</InfoRow>
+							)}
+						</>
 					)}
 				</InfoPopover>
 			)}
