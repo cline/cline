@@ -20,6 +20,7 @@ https://hybridtalentcomputing.gitbook.io/cline-chinese-doc/
 
 ## 功能展示
 
+
 <video width="100%" controls src="https://github.com/user-attachments/assets/89b51f15-d368-4af7-983e-816e52b7fdbf" type="video/mp4"></video>
 > 演示视频使用 DeepSeek-R1-Distill-Qwen-14B 模型，展示了 Cline 中文汉化版的主要功能和使用效果，视频没有加速，推理速度快到飞起。
 
@@ -69,6 +70,8 @@ Cline-Chinese已发布到VSCode插件市场，欢迎感兴趣的小伙伴们下�
 如果您觉得这个项目对您有帮助，欢迎赞赏支持，您的支持是我持续开发的动力 ☕
 
 <div align="center" style="display: flex; justify-content: center; gap: 20px;">
+  <img src="https://unsplash.com/illustrations/Kt58007uuFI?utm_content=creditShareLink&utm_medium=referral&utm_source=unsplash" alt="机器人" width="250" />
+
   <img src="https://raw.githubusercontent.com/dxdw2021/cline/main/User%20Tutorials/png/zfb.jpg" alt="支付宝赞赏" width="250" />
   <img src="https://raw.githubusercontent.com/dxdw2021/cline/main/User%20Tutorials/png/weixin-%E8%B5%9E%E8%B5%8F%E7%A0%81.png" alt="微信赞赏" width="250" />
 </div>
