@@ -1119,6 +1119,17 @@ export class Controller {
 		return mcpServersDir
 	}
 
+	async ensureRulesDirectoryExists(): Promise<string> {
+		const userDocumentsPath = await this.getDocumentsPath()
+		const clineRulesDir = path.join(userDocumentsPath, "Cline", "Rules")
+		try {
+			await fs.mkdir(clineRulesDir, { recursive: true })
+		} catch (error) {
+			return path.join(os.homedir(), "Documents", "Cline", "Rules") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+		}
+		return clineRulesDir
+	}
+
 	async ensureSettingsDirectoryExists(): Promise<string> {
 		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
 		await fs.mkdir(settingsDir, { recursive: true })

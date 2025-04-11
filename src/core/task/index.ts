@@ -1231,8 +1231,11 @@ export class Task {
 
 		const localClineRulesFileInstructions = await getLocalClineRules(cwd)
 
-		const globalStoragePath = this.controllerRef.deref()?.context.globalStorageUri.fsPath || ""
-		const globalClineRulesFileInstructions = await getGlobalClineRules(globalStoragePath)
+		const globalClineRulesFilePath =
+			(await this.controllerRef.deref()?.ensureRulesDirectoryExists()) ||
+			path.join(os.homedir(), "Documents", "Cline", "Rules")
+
+		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -1255,7 +1258,9 @@ export class Task {
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
+			console.log("systemPrompt", systemPrompt)
 		}
+
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
 			this.clineMessages,

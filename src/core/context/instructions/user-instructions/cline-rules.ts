@@ -4,9 +4,7 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "../../../../utils/
 import { formatResponse } from "../../../prompts/responses"
 import fs from "fs/promises"
 
-export const getGlobalClineRules = async (globalStoragePath: string) => {
-	const globalClineRulesFilePath = path.resolve(globalStoragePath, GlobalFileNames.clineRules)
-
+export const getGlobalClineRules = async (globalClineRulesFilePath: string) => {
 	if (await fileExistsAtPath(globalClineRulesFilePath)) {
 		if (await isDirectory(globalClineRulesFilePath)) {
 			try {
