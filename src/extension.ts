@@ -398,7 +398,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	// Set up test server if in test mode
-	if (IS_TEST && IS_TEST === "true") {
+	if (IS_TEST === "true") {
 		createTestServer(sidebarWebview)
 	}
 
