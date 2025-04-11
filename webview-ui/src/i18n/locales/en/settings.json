@@ -301,6 +301,30 @@
 		"shellIntegrationTimeout": {
 			"label": "Terminal shell integration timeout",
 			"description": "Maximum time to wait for shell integration to initialize before executing commands. For users with long shell startup times, this value may need to be increased if you see \"Shell Integration Unavailable\" errors in the terminal."
+		},
+		"commandDelay": {
+			"label": "Terminal command delay",
+			"description": "Delay in milliseconds to add after command execution. The default setting of 0 disables the delay completely. This can help ensure command output is fully captured in terminals with timing issues. In most terminals it is implemented by setting `PROMPT_COMMAND='sleep N'` and Powershell appends `start-sleep` to the end of each command. Originally was workaround for VSCode bug#237208 and may not be needed."
+		},
+		"powershellCounter": {
+			"label": "Enable PowerShell counter workaround",
+			"description": "When enabled, adds a counter to PowerShell commands to ensure proper command execution. This helps with PowerShell terminals that might have issues with command output capture."
+		},
+		"zshClearEolMark": {
+			"label": "Clear ZSH EOL mark",
+			"description": "When enabled, clears the ZSH end-of-line mark by setting PROMPT_EOL_MARK=''. This prevents issues with command output interpretation when output ends with special characters like '%'."
+		},
+		"zshOhMy": {
+			"label": "Enable Oh My Zsh integration",
+			"description": "When enabled, sets ITERM_SHELL_INTEGRATION_INSTALLED=Yes to enable Oh My Zsh shell integration features. (experimental)"
+		},
+		"zshP10k": {
+			"label": "Enable Powerlevel10k integration",
+			"description": "When enabled, sets POWERLEVEL9K_TERM_SHELL_INTEGRATION=true to enable Powerlevel10k shell integration features. (experimental)"
+		},
+		"zdotdir": {
+			"label": "Enable ZDOTDIR handling",
+			"description": "When enabled, creates a temporary directory for ZDOTDIR to handle zsh shell integration properly. This ensures VSCode shell integration works correctly with zsh while preserving your zsh configuration. (experimental)"
 		}
 	},
 	"advanced": {

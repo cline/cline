@@ -300,7 +300,31 @@
 		},
 		"shellIntegrationTimeout": {
 			"label": "Terminal-Shell-Integrationszeit-Limit",
-			"description": "Maximale Wartezeit für die Shell-Integration, bevor Befehle ausgeführt werden. Für Benutzer mit langen Shell-Startzeiten muss dieser Wert möglicherweise erhöht werden, wenn Sie Fehler vom Typ \"Shell Integration Unavailable\" im Terminal sehen."
+			"description": "Maximale Wartezeit für die Shell-Integration, bevor Befehle ausgeführt werden. Für Benutzer mit langen Shell-Startzeiten musst du diesen Wert möglicherweise erhöhen, wenn du Fehler vom Typ \"Shell Integration Unavailable\" im Terminal siehst."
+		},
+		"zdotdir": {
+			"label": "ZDOTDIR-Behandlung aktivieren",
+			"description": "Erstellt bei Aktivierung ein temporäres Verzeichnis für ZDOTDIR, um die zsh-Shell-Integration korrekt zu handhaben. Dies stellt sicher, dass die VSCode-Shell-Integration mit zsh funktioniert und dabei deine zsh-Konfiguration erhalten bleibt. (experimentell)"
+		},
+		"commandDelay": {
+			"label": "Terminal-Befehlsverzögerung",
+			"description": "Verzögerung in Millisekunden, die nach der Befehlsausführung hinzugefügt wird. Die Standardeinstellung von 0 deaktiviert die Verzögerung vollständig. Dies kann dazu beitragen, dass die Befehlsausgabe in Terminals mit Timing-Problemen vollständig erfasst wird. In den meisten Terminals wird dies durch Setzen von `PROMPT_COMMAND='sleep N'` implementiert, und Powershell fügt `start-sleep` am Ende jedes Befehls hinzu. Ursprünglich war dies eine Lösung für VSCode-Bug#237208 und ist möglicherweise nicht mehr erforderlich."
+		},
+		"powershellCounter": {
+			"label": "PowerShell-Zähler-Workaround aktivieren",
+			"description": "Wenn aktiviert, fügt einen Zähler zu PowerShell-Befehlen hinzu, um die korrekte Befehlsausführung sicherzustellen. Dies hilft bei PowerShell-Terminals, die Probleme mit der Ausgabeerfassung haben könnten."
+		},
+		"zshClearEolMark": {
+			"label": "ZSH-Zeilenende-Markierung löschen",
+			"description": "Wenn aktiviert, wird die ZSH-Zeilenende-Markierung durch Setzen von PROMPT_EOL_MARK='' gelöscht. Dies verhindert Probleme bei der Interpretation der Befehlsausgabe, wenn diese mit Sonderzeichen wie '%' endet."
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh-Integration aktivieren",
+			"description": "Wenn aktiviert, wird ITERM_SHELL_INTEGRATION_INSTALLED=Yes gesetzt, um die Shell-Integrationsfunktionen von Oh My Zsh zu aktivieren. (experimentell)"
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k-Integration aktivieren",
+			"description": "Wenn aktiviert, wird POWERLEVEL9K_TERM_SHELL_INTEGRATION=true gesetzt, um die Shell-Integrationsfunktionen von Powerlevel10k zu aktivieren. (experimentell)"
 		}
 	},
 	"advanced": {

@@ -301,6 +301,30 @@
 		"shellIntegrationTimeout": {
 			"label": "Terminal kabuk entegrasyonu zaman aşımı",
 			"description": "Komutları yürütmeden önce kabuk entegrasyonunun başlatılması için beklenecek maksimum süre. Kabuk başlatma süresi uzun olan kullanıcılar için, terminalde \"Shell Integration Unavailable\" hatalarını görürseniz bu değerin artırılması gerekebilir."
+		},
+		"zdotdir": {
+			"label": "ZDOTDIR işlemeyi etkinleştir",
+			"description": "Etkinleştirildiğinde, zsh kabuğu entegrasyonunu düzgün şekilde işlemek için ZDOTDIR için geçici bir dizin oluşturur. Bu, zsh yapılandırmanızı korurken VSCode kabuk entegrasyonunun zsh ile düzgün çalışmasını sağlar. (deneysel)"
+		},
+		"commandDelay": {
+			"label": "Terminal komut gecikmesi",
+			"description": "Komut yürütmesinden sonra eklenecek gecikme süresi (milisaniye). 0 varsayılan ayarı gecikmeyi tamamen devre dışı bırakır. Bu, zamanlama sorunları olan terminallerde komut çıktısının tam olarak yakalanmasını sağlamaya yardımcı olabilir. Çoğu terminalde bu, `PROMPT_COMMAND='sleep N'` ayarlanarak uygulanır ve PowerShell her komutun sonuna `start-sleep` ekler. Başlangıçta VSCode hata#237208 için bir geçici çözümdü ve gerekli olmayabilir."
+		},
+		"powershellCounter": {
+			"label": "PowerShell sayaç geçici çözümünü etkinleştir",
+			"description": "Etkinleştirildiğinde, komutların doğru şekilde yürütülmesini sağlamak için PowerShell komutlarına bir sayaç ekler. Bu, çıktı yakalama sorunları yaşayabilecek PowerShell terminallerinde yardımcı olur."
+		},
+		"zshClearEolMark": {
+			"label": "ZSH satır sonu işaretini temizle",
+			"description": "Etkinleştirildiğinde, PROMPT_EOL_MARK='' ayarlanarak ZSH satır sonu işaretini temizler. Bu, '%' gibi özel karakterlerle biten komut çıktılarının yorumlanmasında sorun yaşanmasını önler."
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh entegrasyonunu etkinleştir",
+			"description": "Etkinleştirildiğinde, Oh My Zsh kabuk entegrasyon özelliklerini etkinleştirmek için ITERM_SHELL_INTEGRATION_INSTALLED=Yes ayarlar. (deneysel)"
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k entegrasyonunu etkinleştir",
+			"description": "Etkinleştirildiğinde, Powerlevel10k kabuk entegrasyon özelliklerini etkinleştirmek için POWERLEVEL9K_TERM_SHELL_INTEGRATION=true ayarlar. (deneysel)"
 		}
 	},
 	"advanced": {

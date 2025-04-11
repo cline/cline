@@ -301,6 +301,30 @@
 		"shellIntegrationTimeout": {
 			"label": "終端機 Shell 整合逾時",
 			"description": "執行命令前等待 Shell 整合初始化的最長時間。如果您的 Shell 啟動較慢，且終端機出現「Shell 整合無法使用」的錯誤訊息，可能需要提高此數值。"
+		},
+		"zdotdir": {
+			"label": "啟用 ZDOTDIR 處理",
+			"description": "啟用後將建立暫存目錄用於 ZDOTDIR，以正確處理 zsh shell 整合。這確保 VSCode shell 整合能與 zsh 正常運作，同時保留您的 zsh 設定。（實驗性）"
+		},
+		"commandDelay": {
+			"label": "終端機命令延遲",
+			"description": "命令執行後添加的延遲時間（毫秒）。預設值為 0 時完全停用延遲。這可以幫助確保在有計時問題的終端機中完整擷取命令輸出。在大多數終端機中，這是透過設定 `PROMPT_COMMAND='sleep N'` 實現的，而 PowerShell 會在每個命令結尾加入 `start-sleep`。最初是為了解決 VSCode 錯誤#237208，現在可能不再需要。"
+		},
+		"powershellCounter": {
+			"label": "啟用 PowerShell 計數器解決方案",
+			"description": "啟用後，會在 PowerShell 命令中加入計數器以確保命令正確執行。這有助於解決可能存在輸出擷取問題的 PowerShell 終端機。"
+		},
+		"zshClearEolMark": {
+			"label": "清除 ZSH 行尾標記",
+			"description": "啟用後，透過設定 PROMPT_EOL_MARK='' 清除 ZSH 行尾標記。這可以防止命令輸出以特殊字元（如 '%'）結尾時的解析問題。"
+		},
+		"zshOhMy": {
+			"label": "啟用 Oh My Zsh 整合",
+			"description": "啟用後，設定 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以啟用 Oh My Zsh shell 整合功能。（實驗性）"
+		},
+		"zshP10k": {
+			"label": "啟用 Powerlevel10k 整合",
+			"description": "啟用後，設定 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以啟用 Powerlevel10k shell 整合功能。（實驗性）"
 		}
 	},
 	"advanced": {

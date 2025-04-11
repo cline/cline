@@ -160,7 +160,10 @@
 	"taskCompleted": "Nhiệm vụ hoàn thành",
 	"shellIntegration": {
 		"unavailable": "Tích hợp shell không khả dụng",
-		"troubleshooting": "Vẫn gặp vấn đề?"
+		"troubleshooting": "Vẫn gặp vấn đề? Nhấp vào đây để xem tài liệu tích hợp shell.",
+		"checkSettings": "Kiểm tra các giải pháp thay thế cho terminal trong trang cài đặt",
+		"updateVSCode": "Cập nhật VSCode",
+		"supportedShell": "Đảm bảo bạn đang sử dụng shell được hỗ trợ: zsh, bash, fish hoặc PowerShell"
 	},
 	"powershell": {
 		"issues": "Có vẻ như bạn đang gặp vấn đề với Windows PowerShell, vui lòng xem"

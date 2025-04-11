@@ -301,6 +301,30 @@
 		"shellIntegrationTimeout": {
 			"label": "Temps d'espera d'integració de shell del terminal",
 			"description": "Temps màxim d'espera per a la inicialització de la integració de shell abans d'executar comandes. Per a usuaris amb temps d'inici de shell llargs, aquest valor pot necessitar ser augmentat si veieu errors \"Shell Integration Unavailable\" al terminal."
+		},
+		"zdotdir": {
+			"label": "Habilitar gestió de ZDOTDIR",
+			"description": "Quan està habilitat, crea un directori temporal per a ZDOTDIR per gestionar correctament la integració del shell zsh. Això assegura que la integració del shell de VSCode funcioni correctament amb zsh mentre es preserva la teva configuració de zsh. (experimental)"
+		},
+		"commandDelay": {
+			"label": "Retard de comanda del terminal",
+			"description": "Retard en mil·lisegons a afegir després de l'execució de la comanda. La configuració predeterminada de 0 desactiva completament el retard. Això pot ajudar a assegurar que la sortida de la comanda es capturi completament en terminals amb problemes de temporització. En la majoria de terminals s'implementa establint `PROMPT_COMMAND='sleep N'` i Powershell afegeix `start-sleep` al final de cada comanda. Originalment era una solució per al error VSCode#237208 i pot no ser necessari."
+		},
+		"powershellCounter": {
+			"label": "Habilita la solució temporal del comptador PowerShell",
+			"description": "Quan està habilitat, afegeix un comptador a les comandes PowerShell per assegurar l'execució correcta de les comandes. Això ajuda amb els terminals PowerShell que poden tenir problemes amb la captura de sortida."
+		},
+		"zshClearEolMark": {
+			"label": "Neteja la marca EOL de ZSH",
+			"description": "Quan està habilitat, neteja la marca de final de línia de ZSH establint PROMPT_EOL_MARK=''. Això evita problemes amb la interpretació de la sortida de comandes quan acaba amb caràcters especials com '%'."
+		},
+		"zshOhMy": {
+			"label": "Habilita la integració Oh My Zsh",
+			"description": "Quan està habilitat, estableix ITERM_SHELL_INTEGRATION_INSTALLED=Yes per habilitar les característiques d'integració del shell Oh My Zsh. (experimental)"
+		},
+		"zshP10k": {
+			"label": "Habilita la integració Powerlevel10k",
+			"description": "Quan està habilitat, estableix POWERLEVEL9K_TERM_SHELL_INTEGRATION=true per habilitar les característiques d'integració del shell Powerlevel10k. (experimental)"
 		}
 	},
 	"advanced": {

@@ -95,7 +95,6 @@ export interface ExitCodeDetails {
 	coreDumpPossible?: boolean
 }
 import { Terminal } from "./Terminal"
-import { TerminalRegistry } from "./TerminalRegistry"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -140,7 +139,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.once("no_shell_integration", () => {
 			if (this.terminalInfo) {
 				console.log(`no_shell_integration received for terminal ${this.terminalInfo.id}`)
-				TerminalRegistry.removeTerminal(this.terminalInfo.id)
+				this.emit("completed", "<no shell integration>")
+				this.terminalInfo.busy = false
+				this.terminalInfo.setActiveStream(undefined)
+				this.continue()
 			}
 		})
 	}
@@ -254,12 +256,16 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// Emit no_shell_integration event with descriptive message
 					this.emit(
 						"no_shell_integration",
-						"VSCE shell integration stream did not start within 3 seconds. Terminal problem?",
+						`VSCE shell integration stream did not start within ${Terminal.getShellIntegrationTimeout() / 1000} seconds. Terminal problem?`,
 					)
 
 					// Reject with descriptive error
-					reject(new Error("VSCE shell integration stream did not start within 3 seconds."))
-				}, 3000)
+					reject(
+						new Error(
+							`VSCE shell integration stream did not start within ${Terminal.getShellIntegrationTimeout() / 1000} seconds.`,
+						),
+					)
+				}, Terminal.getShellIntegrationTimeout())
 
 				// Clean up timeout if stream becomes available
 				this.once("stream_available", (stream: AsyncIterable<string>) => {
@@ -284,9 +290,19 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				(defaultWindowsShellProfile === null ||
 					(defaultWindowsShellProfile as string)?.toLowerCase().includes("powershell"))
 			if (isPowerShell) {
-				terminal.shellIntegration.executeCommand(
-					`${command} ; "(Roo/PS Workaround: ${this.terminalInfo.cmdCounter++})" > $null; start-sleep -milliseconds 150`,
-				)
+				let commandToExecute = command
+
+				// Only add the PowerShell counter workaround if enabled
+				if (Terminal.getPowershellCounter()) {
+					commandToExecute += ` ; "(Roo/PS Workaround: ${this.terminalInfo.cmdCounter++})" > $null`
+				}
+
+				// Only add the sleep command if the command delay is greater than 0
+				if (Terminal.getCommandDelay() > 0) {
+					commandToExecute += ` ; start-sleep -milliseconds ${Terminal.getCommandDelay()}`
+				}
+
+				terminal.shellIntegration.executeCommand(commandToExecute)
 			} else {
 				terminal.shellIntegration.executeCommand(command)
 			}

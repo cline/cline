@@ -160,7 +160,10 @@
 	"taskCompleted": "工作完成",
 	"shellIntegration": {
 		"unavailable": "Shell 整合功能無法使用",
-		"troubleshooting": "仍有問題嗎？"
+		"troubleshooting": "仍有問題嗎？點擊此處查看 Shell 整合文件。",
+		"checkSettings": "檢查設定頁面中的終端解決方案",
+		"updateVSCode": "更新 VSCode",
+		"supportedShell": "確保使用支援的 shell：zsh、bash、fish 或 PowerShell"
 	},
 	"powershell": {
 		"issues": "看起來您遇到了 Windows PowerShell 的問題，請參考此處"

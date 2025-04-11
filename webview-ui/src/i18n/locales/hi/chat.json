@@ -160,7 +160,10 @@
 	"taskCompleted": "कार्य पूरा हुआ",
 	"shellIntegration": {
 		"unavailable": "शेल एकीकरण अनुपलब्ध",
-		"troubleshooting": "अभी भी समस्या है?"
+		"troubleshooting": "अभी भी समस्या है? शेल एकीकरण दस्तावेज़ के लिए यहाँ क्लिक करें।",
+		"checkSettings": "सेटिंग्स पेज में टर्मिनल वर्कअराउंड जांचें",
+		"updateVSCode": "VSCode अपडेट करें",
+		"supportedShell": "सुनिश्चित करें कि आप समर्थित शेल का उपयोग कर रहे हैं: zsh, bash, fish या PowerShell"
 	},
 	"powershell": {
 		"issues": "ऐसा लगता है कि आपको Windows PowerShell के साथ समस्याएँ हो रही हैं, कृपया इसे देखें"

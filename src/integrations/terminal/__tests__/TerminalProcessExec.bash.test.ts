@@ -11,6 +11,7 @@ jest.mock("vscode", () => {
 	const eventHandlers = {
 		startTerminalShellExecution: null,
 		endTerminalShellExecution: null,
+		closeTerminal: null,
 	}
 
 	return {
@@ -27,6 +28,10 @@ jest.mock("vscode", () => {
 			}),
 			onDidEndTerminalShellExecution: jest.fn().mockImplementation((handler) => {
 				eventHandlers.endTerminalShellExecution = handler
+				return { dispose: jest.fn() }
+			}),
+			onDidCloseTerminal: jest.fn().mockImplementation((handler) => {
+				eventHandlers.closeTerminal = handler
 				return { dispose: jest.fn() }
 			}),
 		},

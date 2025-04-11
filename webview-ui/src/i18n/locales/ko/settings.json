@@ -301,6 +301,30 @@
 		"shellIntegrationTimeout": {
 			"label": "터미널 쉘 통합 타임아웃",
 			"description": "명령을 실행하기 전에 쉘 통합이 초기화될 때까지 기다리는 최대 시간. 쉘 시작 시간이 긴 사용자의 경우, 터미널에서 \"Shell Integration Unavailable\" 오류가 표시되면 이 값을 늘려야 할 수 있습니다."
+		},
+		"zdotdir": {
+			"label": "ZDOTDIR 처리 활성화",
+			"description": "활성화하면 zsh 셸 통합을 올바르게 처리하기 위한 ZDOTDIR용 임시 디렉터리를 생성합니다. 이를 통해 zsh 구성을 유지하면서 VSCode 셸 통합이 zsh와 올바르게 작동합니다. (실험적)"
+		},
+		"commandDelay": {
+			"label": "터미널 명령 지연",
+			"description": "명령 실행 후 추가할 지연 시간(밀리초). 기본값 0은 지연을 완전히 비활성화합니다. 이는 타이밍 문제가 있는 터미널에서 명령 출력을 완전히 캡처하는 데 도움이 될 수 있습니다. 대부분의 터미널에서는 `PROMPT_COMMAND='sleep N'`을 설정하여 구현되며, PowerShell은 각 명령 끝에 `start-sleep`을 추가합니다. 원래는 VSCode 버그#237208에 대한 해결책이었으며 필요하지 않을 수 있습니다."
+		},
+		"powershellCounter": {
+			"label": "PowerShell 카운터 해결 방법 활성화",
+			"description": "활성화하면 PowerShell 명령에 카운터를 추가하여 명령이 올바르게 실행되도록 합니다. 이는 명령 출력 캡처에 문제가 있을 수 있는 PowerShell 터미널에서 도움이 됩니다."
+		},
+		"zshClearEolMark": {
+			"label": "ZSH 줄 끝 표시 지우기",
+			"description": "활성화하면 PROMPT_EOL_MARK=''를 설정하여 ZSH 줄 끝 표시를 지웁니다. 이는 '%'와 같은 특수 문자로 끝나는 명령 출력 해석의 문제를 방지합니다."
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh 통합 활성화",
+			"description": "활성화하면 ITERM_SHELL_INTEGRATION_INSTALLED=Yes를 설정하여 Oh My Zsh 셸 통합 기능을 활성화합니다. (실험적)"
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k 통합 활성화",
+			"description": "활성화하면 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true를 설정하여 Powerlevel10k 셸 통합 기능을 활성화합니다. (실험적)"
 		}
 	},
 	"advanced": {

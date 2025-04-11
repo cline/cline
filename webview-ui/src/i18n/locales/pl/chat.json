@@ -160,7 +160,10 @@
 	"taskCompleted": "Zadanie zakończone",
 	"shellIntegration": {
 		"unavailable": "Integracja powłoki niedostępna",
-		"troubleshooting": "Nadal masz problemy?"
+		"troubleshooting": "Nadal masz problemy? Kliknij tutaj, aby zobaczyć dokumentację integracji powłoki.",
+		"checkSettings": "Sprawdź obejścia terminala na stronie ustawień",
+		"updateVSCode": "Zaktualizuj VSCode",
+		"supportedShell": "Upewnij się, że używasz obsługiwanej powłoki: zsh, bash, fish lub PowerShell"
 	},
 	"powershell": {
 		"issues": "Wygląda na to, że masz problemy z Windows PowerShell, proszę zapoznaj się z tym"

@@ -301,6 +301,30 @@
 		"shellIntegrationTimeout": {
 			"label": "终端初始化等待时间",
 			"description": "执行命令前等待 Shell 集成初始化的最长时间。对于 Shell 启动时间较长的用户，如果在终端中看到\"Shell Integration Unavailable\"错误，可能需要增加此值。"
+		},
+		"zdotdir": {
+			"label": "启用 ZDOTDIR 处理",
+			"description": "启用后将创建临时目录用于 ZDOTDIR，以正确处理 zsh shell 集成。这确保 VSCode shell 集成能与 zsh 正常工作，同时保留您的 zsh 配置。（实验性）"
+		},
+		"commandDelay": {
+			"label": "终端命令延迟",
+			"description": "命令执行后添加的延迟时间（毫秒）。默认设置为 0 时完全禁用延迟。这可以帮助确保在有计时问题的终端中完全捕获命令输出。在大多数终端中，这是通过设置 `PROMPT_COMMAND='sleep N'` 实现的，而 PowerShell 会在每个命令末尾添加 `start-sleep`。最初是为了解决 VSCode 错误#237208，现在可能不再需要。"
+		},
+		"powershellCounter": {
+			"label": "启用 PowerShell 计数器解决方案",
+			"description": "启用后，会在 PowerShell 命令中添加计数器以确保命令正确执行。这有助于解决可能存在输出捕获问题的 PowerShell 终端。"
+		},
+		"zshClearEolMark": {
+			"label": "清除 ZSH 行尾标记",
+			"description": "启用后，通过设置 PROMPT_EOL_MARK='' 清除 ZSH 行尾标记。这可以防止命令输出以特殊字符（如 '%'）结尾时的解析问题。"
+		},
+		"zshOhMy": {
+			"label": "启用 Oh My Zsh 集成",
+			"description": "启用后，设置 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以启用 Oh My Zsh shell 集成功能。（实验性）"
+		},
+		"zshP10k": {
+			"label": "启用 Powerlevel10k 集成",
+			"description": "启用后，设置 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以启用 Powerlevel10k shell 集成功能。（实验性）"
 		}
 	},
 	"advanced": {
