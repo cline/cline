@@ -29,7 +29,7 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, prov
 				useBrowser: false, // Keep browser disabled for tests
 				useMcp: false, // Keep MCP disabled for tests
 			},
-			maxRequests: 100, // Increase max requests for tests
+			maxRequests: 10000, // Increase max requests for tests
 		}
 
 		await updateGlobalState(context, "autoApprovalSettings", updatedSettings)
