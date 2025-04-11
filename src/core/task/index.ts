@@ -223,8 +223,8 @@ export class Task {
 			this.startTask(task, images)
 		}
 
-		// Initialize provider and telemetry
-		this.initializeProviderAndTelemetry(historyItem)
+		// Initialize telemetry
+		this.initializeTelemetry(historyItem)
 	}
 
 	// Get the current provider from global state to ensure we're using the latest provider
@@ -232,7 +232,7 @@ export class Task {
 		return (await getGlobalState(this.getContext(), "apiProvider")) as string
 	}
 
-	private async initializeProviderAndTelemetry(historyItem?: HistoryItem) {
+	private async initializeTelemetry(historyItem?: HistoryItem) {
 		const currentProviderId = await this.getCurrentProviderId()
 		if (historyItem) {
 			// Open task from history
