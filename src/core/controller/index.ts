@@ -55,21 +55,22 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
+	private postMessage: (message: any) => Thenable<boolean> | undefined
+
 	private disposables: vscode.Disposable[] = []
 	private task?: Task
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
 	private latestAnnouncementId = "april-10-2025" // update to some unique identifier when we add a new announcement
-	private webviewProviderRef: WeakRef<WebviewProvider>
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
-		webviewProvider: WebviewProvider,
+		postMessage: (message: any) => Thenable<boolean> | undefined,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
-		this.webviewProviderRef = new WeakRef(webviewProvider)
+		this.postMessage = postMessage
 
 		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
 		this.mcpHub = new McpHub(
@@ -169,7 +170,7 @@ export class Controller {
 
 	// Send any JSON serializable data to the react app
 	async postMessageToWebview(message: ExtensionMessage) {
-		await this.webviewProviderRef.deref()?.view?.webview.postMessage(message)
+		await this.postMessage(message)
 	}
 
 	/**
