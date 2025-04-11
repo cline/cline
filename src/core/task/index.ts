@@ -3166,8 +3166,6 @@ export class Task {
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		// Get the current provider from global state to ensure we're using the latest provider
-		// This is needed because apiProvider is readonly and may not reflect provider changes during a chat
 		const currentProviderId = await this.getCurrentProviderId()
 		if (currentProviderId && this.api.getModel().id) {
 			try {
