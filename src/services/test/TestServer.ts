@@ -1,14 +1,17 @@
 import * as http from "http"
+import * as vscode from "vscode"
 import { Logger } from "../../services/logging/Logger"
 import { WebviewProvider } from "../../core/webview"
 
 let testServer: http.Server | undefined
+let messageCatcherDisposable: vscode.Disposable | undefined
 
 /**
  * Creates and starts an HTTP server for test automation
+ * @param webviewProvider The webview provider instance to use for message catching
  * @returns The created HTTP server instance
  */
-export function createTestServer(): http.Server {
+export function createTestServer(webviewProvider?: WebviewProvider): http.Server {
 	const PORT = 9876
 
 	testServer = http.createServer((req, res) => {
@@ -97,7 +100,43 @@ export function createTestServer(): http.Server {
 		Logger.log(`Test server error: ${error}`)
 	})
 
+	// Set up message catcher for the provided webview instance or try to get the visible one
+	if (webviewProvider) {
+		messageCatcherDisposable = createMessageCatcher(webviewProvider)
+	} else {
+		const visibleWebview = WebviewProvider.getVisibleInstance()
+		if (visibleWebview) {
+			messageCatcherDisposable = createMessageCatcher(visibleWebview)
+		} else {
+			Logger.log("No visible webview instance found for message catcher")
+		}
+	}
+
 	return testServer
+}
+
+/**
+ * Creates a message catcher that logs all messages sent to the webview
+ * @param webviewProvider The webview provider instance
+ * @returns A disposable that can be used to clean up the message catcher
+ */
+export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.Disposable {
+	Logger.log("Cline message catcher registered")
+
+	if (webviewProvider && webviewProvider.controller) {
+		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
+		webviewProvider.controller.postMessageToWebview = async (message) => {
+			Logger.log("Cline message received: " + message.type)
+			return originalPostMessageToWebview.call(webviewProvider.controller, message)
+		}
+	} else {
+		Logger.log("No visible webview instance found for message catcher")
+	}
+
+	return new vscode.Disposable(() => {
+		// Cleanup function if needed
+		Logger.log("Cline message catcher disposed")
+	})
 }
 
 /**
@@ -108,5 +147,11 @@ export function shutdownTestServer() {
 		testServer.close()
 		Logger.log("Test server shut down")
 		testServer = undefined
+	}
+
+	// Dispose of the message catcher if it exists
+	if (messageCatcherDisposable) {
+		messageCatcherDisposable.dispose()
+		messageCatcherDisposable = undefined
 	}
 }
