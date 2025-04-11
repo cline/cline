@@ -26,7 +26,7 @@ describe("ApiOptions Component", () => {
 
 	beforeEach(() => {
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
-		global.vscode = { postMessage: mockPostMessage } as any
+		global.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Requesty API Key input", () => {
@@ -73,7 +73,7 @@ describe("ApiOptions Component", () => {
 
 	beforeEach(() => {
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
-		global.vscode = { postMessage: mockPostMessage } as any
+		global.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Together API Key input", () => {

@@ -41,7 +41,7 @@ describe("FileContextTracker", () => {
 		const originalCreateFileSystemWatcher = vscode.workspace.createFileSystemWatcher
 		vscode.workspace.createFileSystemWatcher = function () {
 			return mockFileSystemWatcher
-		} as any
+		}
 
 		// Mock controller and context
 		mockContext = {
