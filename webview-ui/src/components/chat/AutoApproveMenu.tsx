@@ -86,13 +86,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const enabledActionsList = (() => {
 		// When nested auto-approve options are used, display the more permissive one (file reads, edits, and commands)
 		const readFilesEnabled = enabledActions.some((action) => action.id === "readFiles")
-		const readFilesExternallyEnabled = enabledActions.some((action) => action.id === "readFilesExternally")
+		const readFilesExternallyEnabled = enabledActions.some((action) => action.id === "readFilesExternally") ?? false
 
 		const editFilesEnabled = enabledActions.some((action) => action.id === "editFiles")
-		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally")
+		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally") ?? false
 
 		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
-		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands")
+		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands") ?? false
 		// Filter out the potentially nested options so we don't display them twice
 		const otherActions = enabledActions
 			.filter(
@@ -109,21 +109,21 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		const labels = []
 
 		// Handle read editing labels
-		if (readFilesExternallyEnabled && readFilesEnabled) {
+		if ((readFilesExternallyEnabled ?? false) && readFilesEnabled) {
 			labels.push("Read (All)")
 		} else if (readFilesEnabled) {
 			labels.push("Read")
 		}
 
 		// Handle file editing labels
-		if (editFilesExternallyEnabled && editFilesEnabled) {
+		if ((editFilesExternallyEnabled ?? false) && editFilesEnabled) {
 			labels.push("Edit (All)")
 		} else if (editFilesEnabled) {
 			labels.push("Edit")
 		}
 
 		// Handle command execution labels
-		if (allCommandsEnabled && safeCommandsEnabled) {
+		if ((allCommandsEnabled ?? false) && safeCommandsEnabled) {
 			labels.push("All Commands")
 		} else if (safeCommandsEnabled) {
 			labels.push("Safe Commands")

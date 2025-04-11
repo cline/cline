@@ -1180,18 +1180,18 @@ export class Task {
 				case "search_files":
 					return [
 						this.autoApprovalSettings.actions.readFiles,
-						this.autoApprovalSettings.actions.readFilesExternally,
+						this.autoApprovalSettings.actions.readFilesExternally ?? false,
 					]
 				case "write_to_file":
 				case "replace_in_file":
 					return [
 						this.autoApprovalSettings.actions.editFiles,
-						this.autoApprovalSettings.actions.editFilesExternally,
+						this.autoApprovalSettings.actions.editFilesExternally ?? false,
 					]
 				case "execute_command":
 					return [
 						this.autoApprovalSettings.actions.executeSafeCommands,
-						this.autoApprovalSettings.actions.executeAllCommands,
+						this.autoApprovalSettings.actions.executeAllCommands ?? false,
 					]
 				case "browser_action":
 					return this.autoApprovalSettings.actions.useBrowser
