@@ -1,29 +1,17 @@
 import * as vscode from "vscode"
 import { getTaskMetadata, saveTaskMetadata } from "../../storage/disk"
-import type { ControllerLike } from "./ContextTrackerTypes"
 
 export class ModelContextTracker {
 	readonly taskId: string
-	private controllerRef: WeakRef<ControllerLike>
+	private context: vscode.ExtensionContext
 
-	constructor(controller: ControllerLike, taskId: string) {
-		this.controllerRef = new WeakRef(controller)
+	constructor(context: vscode.ExtensionContext, taskId: string) {
+		this.context = context
 		this.taskId = taskId
 	}
 
-	// While a task is ref'd by a controller, it will always have access to the extension context
-	// This error is thrown if the controller derefs the task after e.g., aborting the task
-	private context(): vscode.ExtensionContext {
-		const context = this.controllerRef.deref()?.context
-		if (!context) {
-			throw new Error("Unable to access extension context")
-		}
-		return context
-	}
-
 	async recordModelUsage(apiProviderId: string, modelId: string, mode: string) {
-		const context = this.context()
-		const metadata = await getTaskMetadata(context, this.taskId)
+		const metadata = await getTaskMetadata(this.context, this.taskId)
 
 		if (!metadata.model_usage) {
 			metadata.model_usage = []
@@ -47,6 +35,6 @@ export class ModelContextTracker {
 			mode: mode,
 		})
 
-		await saveTaskMetadata(context, this.taskId, metadata)
+		await saveTaskMetadata(this.context, this.taskId, metadata)
 	}
 }

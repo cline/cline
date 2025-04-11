@@ -17,10 +17,12 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "../../services/account/ClineAccountService"
+import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
+import { BrowserSession } from "../../services/browser/BrowserSession"
 import { McpHub } from "../../services/mcp/McpHub"
+import { searchWorkspaceFiles } from "../../services/search/file-search"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "../../shared/api"
-import { findLast } from "../../shared/array"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
@@ -30,9 +32,10 @@ import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
 import { searchCommits } from "../../utils/git"
+import { getWorkspacePath } from "../../utils/path"
 import { getTotalTasksSize } from "../../utils/storage"
-import { Task } from "../task"
 import { openMention } from "../mentions"
+import { GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -42,12 +45,8 @@ import {
 	updateApiConfiguration,
 	updateGlobalState,
 } from "../storage/state"
+import { Task } from "../task"
 import { WebviewProvider } from "../webview"
-import { BrowserSession } from "../../services/browser/BrowserSession"
-import { GlobalFileNames } from "../storage/disk"
-import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
-import { searchWorkspaceFiles } from "../../services/search/file-search"
-import { getWorkspacePath } from "../../utils/path"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -72,9 +71,20 @@ export class Controller {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.webviewProviderRef = new WeakRef(webviewProvider)
 
-		this.workspaceTracker = new WorkspaceTracker(this)
-		this.mcpHub = new McpHub(this)
-		this.accountService = new ClineAccountService(this)
+		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
+		this.mcpHub = new McpHub(
+			() => this.ensureMcpServersDirectoryExists(),
+			() => this.ensureSettingsDirectoryExists(),
+			(msg) => this.postMessageToWebview(msg),
+			this.context.extension?.packageJSON?.version ?? "1.0.0",
+		)
+		this.accountService = new ClineAccountService(
+			(msg) => this.postMessageToWebview(msg),
+			async () => {
+				const { apiConfiguration } = await this.getStateToPostToWebview()
+				return apiConfiguration?.clineApiKey
+			},
+		)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {

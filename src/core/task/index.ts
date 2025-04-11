@@ -178,8 +178,8 @@ export class Task {
 		}
 
 		// Initialize file context tracker
-		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(controller, this.taskId)
+		this.fileContextTracker = new FileContextTracker(controller.context, this.taskId)
+		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
 		// Now that taskId is initialized, we can build the API handler
 		this.api = buildApiHandler({
 			...apiConfiguration,
