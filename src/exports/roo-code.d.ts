@@ -269,6 +269,8 @@ type GlobalSettings = {
 	terminalCommandDelay?: number | undefined
 	terminalPowershellCounter?: boolean | undefined
 	terminalZshClearEolMark?: boolean | undefined
+	terminalZshOhMy?: boolean | undefined
+	terminalZshP10k?: boolean | undefined
 	rateLimitSeconds?: number | undefined
 	diffEnabled?: boolean | undefined
 	fuzzyMatchThreshold?: number | undefined

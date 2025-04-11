@@ -313,6 +313,14 @@
 		"zshClearEolMark": {
 			"label": "ZSH 줄 끝 표시 지우기",
 			"description": "활성화하면 PROMPT_EOL_MARK=''를 설정하여 ZSH 줄 끝 표시를 지웁니다. 이는 '%'와 같은 특수 문자로 끝나는 명령 출력 해석의 문제를 방지합니다."
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh 통합 활성화",
+			"description": "활성화하면 ITERM_SHELL_INTEGRATION_INSTALLED=Yes를 설정하여 Oh My Zsh 셸 통합 기능을 활성화합니다. (실험적)"
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k 통합 활성화",
+			"description": "활성화하면 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true를 설정하여 Powerlevel10k 셸 통합 기능을 활성화합니다. (실험적)"
 		}
 	},
 	"advanced": {

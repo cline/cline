@@ -85,6 +85,8 @@ export interface WebviewMessage {
 		| "terminalCommandDelay"
 		| "terminalPowershellCounter"
 		| "terminalZshClearEolMark"
+		| "terminalZshOhMy"
+		| "terminalZshP10k"
 		| "mcpEnabled"
 		| "enableMcpServerCreation"
 		| "searchCommits"

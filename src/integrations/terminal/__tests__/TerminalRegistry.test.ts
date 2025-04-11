@@ -62,5 +62,47 @@ describe("TerminalRegistry", () => {
 				Terminal.setCommandDelay(originalDelay)
 			}
 		})
+
+		it("adds Oh My Zsh integration env var when enabled", () => {
+			Terminal.setTerminalZshOhMy(true)
+			try {
+				TerminalRegistry.createTerminal("/test/path")
+
+				expect(mockCreateTerminal).toHaveBeenCalledWith({
+					cwd: "/test/path",
+					name: "Roo Code",
+					iconPath: expect.any(Object),
+					env: {
+						PAGER: "cat",
+						VTE_VERSION: "0",
+						PROMPT_EOL_MARK: "",
+						ITERM_SHELL_INTEGRATION_INSTALLED: "Yes",
+					},
+				})
+			} finally {
+				Terminal.setTerminalZshOhMy(false)
+			}
+		})
+
+		it("adds Powerlevel10k integration env var when enabled", () => {
+			Terminal.setTerminalZshP10k(true)
+			try {
+				TerminalRegistry.createTerminal("/test/path")
+
+				expect(mockCreateTerminal).toHaveBeenCalledWith({
+					cwd: "/test/path",
+					name: "Roo Code",
+					iconPath: expect.any(Object),
+					env: {
+						PAGER: "cat",
+						VTE_VERSION: "0",
+						PROMPT_EOL_MARK: "",
+						POWERLEVEL9K_TERM_SHELL_INTEGRATION: "true",
+					},
+				})
+			} finally {
+				Terminal.setTerminalZshP10k(false)
+			}
+		})
 	})
 })

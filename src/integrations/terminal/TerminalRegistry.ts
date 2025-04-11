@@ -117,6 +117,16 @@ export class TerminalRegistry {
 			VTE_VERSION: "0",
 		}
 
+		// Set Oh My Zsh shell integration if enabled
+		if (Terminal.getTerminalZshOhMy()) {
+			env.ITERM_SHELL_INTEGRATION_INSTALLED = "Yes"
+		}
+
+		// Set Powerlevel10k shell integration if enabled
+		if (Terminal.getTerminalZshP10k()) {
+			env.POWERLEVEL9K_TERM_SHELL_INTEGRATION = "true"
+		}
+
 		// VSCode bug#237208: Command output can be lost due to a race between completion
 		// sequences and consumers. Add delay via PROMPT_COMMAND to ensure the
 		// \x1b]633;D escape sequence arrives after command output is processed.

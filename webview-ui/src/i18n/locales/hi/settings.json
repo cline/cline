@@ -313,6 +313,14 @@
 		"zshClearEolMark": {
 			"label": "ZSH EOL मार्क साफ़ करें",
 			"description": "सक्षम होने पर, PROMPT_EOL_MARK='' सेट करके ZSH लाइन-समाप्ति मार्क को साफ़ करता है। यह कमांड आउटपुट की व्याख्या में समस्याओं को रोकता है जब आउटपुट '%' जैसे विशेष वर्णों के साथ समाप्त होता है।"
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh एकीकरण सक्षम करें",
+			"description": "सक्षम होने पर, Oh My Zsh शेल एकीकरण सुविधाओं को सक्षम करने के लिए ITERM_SHELL_INTEGRATION_INSTALLED=Yes सेट करता है। (प्रयोगात्मक)"
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k एकीकरण सक्षम करें",
+			"description": "सक्षम होने पर, Powerlevel10k शेल एकीकरण सुविधाओं को सक्षम करने के लिए POWERLEVEL9K_TERM_SHELL_INTEGRATION=true सेट करता है। (प्रयोगात्मक)"
 		}
 	},
 	"advanced": {

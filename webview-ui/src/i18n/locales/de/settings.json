@@ -313,6 +313,14 @@
 		"zshClearEolMark": {
 			"label": "ZSH-Zeilenende-Markierung löschen",
 			"description": "Wenn aktiviert, wird die ZSH-Zeilenende-Markierung durch Setzen von PROMPT_EOL_MARK='' gelöscht. Dies verhindert Probleme bei der Interpretation der Befehlsausgabe, wenn diese mit Sonderzeichen wie '%' endet."
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh-Integration aktivieren",
+			"description": "Wenn aktiviert, wird ITERM_SHELL_INTEGRATION_INSTALLED=Yes gesetzt, um die Shell-Integrationsfunktionen von Oh My Zsh zu aktivieren. (experimentell)"
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k-Integration aktivieren",
+			"description": "Wenn aktiviert, wird POWERLEVEL9K_TERM_SHELL_INTEGRATION=true gesetzt, um die Shell-Integrationsfunktionen von Powerlevel10k zu aktivieren. (experimentell)"
 		}
 	},
 	"advanced": {

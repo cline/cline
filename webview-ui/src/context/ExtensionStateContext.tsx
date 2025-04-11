@@ -158,6 +158,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		renderContext: "sidebar",
 		maxReadFileLine: 500, // Default max read file line limit
 		pinnedApiConfigs: {}, // Empty object for pinned API configs
+		terminalZshOhMy: false, // Default Oh My Zsh integration setting
+		terminalZshP10k: false, // Default Powerlevel10k integration setting
 	})
 
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -165,7 +167,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [theme, setTheme] = useState<any>(undefined)
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openedTabs, setOpenedTabs] = useState<Array<{ label: string; isActive: boolean; path?: string }>>([])
-
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [currentCheckpoint, setCurrentCheckpoint] = useState<string>()
 

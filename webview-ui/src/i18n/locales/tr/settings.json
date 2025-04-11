@@ -313,6 +313,14 @@
 		"zshClearEolMark": {
 			"label": "ZSH satır sonu işaretini temizle",
 			"description": "Etkinleştirildiğinde, PROMPT_EOL_MARK='' ayarlanarak ZSH satır sonu işaretini temizler. Bu, '%' gibi özel karakterlerle biten komut çıktılarının yorumlanmasında sorun yaşanmasını önler."
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh entegrasyonunu etkinleştir",
+			"description": "Etkinleştirildiğinde, Oh My Zsh kabuk entegrasyon özelliklerini etkinleştirmek için ITERM_SHELL_INTEGRATION_INSTALLED=Yes ayarlar. (deneysel)"
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k entegrasyonunu etkinleştir",
+			"description": "Etkinleştirildiğinde, Powerlevel10k kabuk entegrasyon özelliklerini etkinleştirmek için POWERLEVEL9K_TERM_SHELL_INTEGRATION=true ayarlar. (deneysel)"
 		}
 	},
 	"advanced": {

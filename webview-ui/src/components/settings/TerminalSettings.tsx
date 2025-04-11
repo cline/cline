@@ -16,12 +16,16 @@ type TerminalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	terminalCommandDelay?: number
 	terminalPowershellCounter?: boolean
 	terminalZshClearEolMark?: boolean
+	terminalZshOhMy?: boolean
+	terminalZshP10k?: boolean
 	setCachedStateField: SetCachedStateField<
 		| "terminalOutputLineLimit"
 		| "terminalShellIntegrationTimeout"
 		| "terminalCommandDelay"
 		| "terminalPowershellCounter"
 		| "terminalZshClearEolMark"
+		| "terminalZshOhMy"
+		| "terminalZshP10k"
 	>
 }
 
@@ -31,6 +35,8 @@ export const TerminalSettings = ({
 	terminalCommandDelay,
 	terminalPowershellCounter,
 	terminalZshClearEolMark,
+	terminalZshOhMy,
+	terminalZshP10k,
 	setCachedStateField,
 	className,
 	...props
@@ -129,6 +135,30 @@ export const TerminalSettings = ({
 					</VSCodeCheckbox>
 					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:terminal.zshClearEolMark.description")}
+					</div>
+				</div>
+
+				<div>
+					<VSCodeCheckbox
+						checked={terminalZshOhMy ?? false}
+						onChange={(e: any) => setCachedStateField("terminalZshOhMy", e.target.checked)}
+						data-testid="terminal-zsh-oh-my-checkbox">
+						<span className="font-medium">{t("settings:terminal.zshOhMy.label")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						{t("settings:terminal.zshOhMy.description")}
+					</div>
+				</div>
+
+				<div>
+					<VSCodeCheckbox
+						checked={terminalZshP10k ?? false}
+						onChange={(e: any) => setCachedStateField("terminalZshP10k", e.target.checked)}
+						data-testid="terminal-zsh-p10k-checkbox">
+						<span className="font-medium">{t("settings:terminal.zshP10k.label")}</span>
+					</VSCodeCheckbox>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						{t("settings:terminal.zshP10k.description")}
 					</div>
 				</div>
 			</Section>

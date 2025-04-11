@@ -10,6 +10,8 @@ export class Terminal {
 	private static commandDelay: number = 0
 	private static powershellCounter: boolean = false
 	private static terminalZshClearEolMark: boolean = true
+	private static terminalZshOhMy: boolean = false
+	private static terminalZshP10k: boolean = false
 
 	public terminal: vscode.Terminal
 	public busy: boolean
@@ -309,6 +311,38 @@ export class Terminal {
 	 */
 	public static getTerminalZshClearEolMark(): boolean {
 		return Terminal.terminalZshClearEolMark
+	}
+
+	/**
+	 * Sets whether to enable Oh My Zsh shell integration
+	 * @param enabled Whether to enable Oh My Zsh shell integration
+	 */
+	public static setTerminalZshOhMy(enabled: boolean): void {
+		Terminal.terminalZshOhMy = enabled
+	}
+
+	/**
+	 * Gets whether Oh My Zsh shell integration is enabled
+	 * @returns Whether Oh My Zsh shell integration is enabled
+	 */
+	public static getTerminalZshOhMy(): boolean {
+		return Terminal.terminalZshOhMy
+	}
+
+	/**
+	 * Sets whether to enable Powerlevel10k shell integration
+	 * @param enabled Whether to enable Powerlevel10k shell integration
+	 */
+	public static setTerminalZshP10k(enabled: boolean): void {
+		Terminal.terminalZshP10k = enabled
+	}
+
+	/**
+	 * Gets whether Powerlevel10k shell integration is enabled
+	 * @returns Whether Powerlevel10k shell integration is enabled
+	 */
+	public static getTerminalZshP10k(): boolean {
+		return Terminal.terminalZshP10k
 	}
 
 	public static compressTerminalOutput(input: string, lineLimit: number): string {

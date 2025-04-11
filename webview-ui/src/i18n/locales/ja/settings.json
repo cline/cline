@@ -313,6 +313,14 @@
 		"zshClearEolMark": {
 			"label": "ZSH行末マークをクリア",
 			"description": "有効にすると、PROMPT_EOL_MARK=''を設定してZSHの行末マークをクリアします。これにより、'%'などの特殊文字で終わるコマンド出力の解釈に関する問題を防ぎます。"
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh 統合を有効化",
+			"description": "有効にすると、ITERM_SHELL_INTEGRATION_INSTALLED=Yes を設定して Oh My Zsh シェル統合機能を有効にします。（実験的）"
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k 統合を有効化",
+			"description": "有効にすると、POWERLEVEL9K_TERM_SHELL_INTEGRATION=true を設定して Powerlevel10k シェル統合機能を有効にします。（実験的）"
 		}
 	},
 	"advanced": {

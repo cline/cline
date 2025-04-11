@@ -132,6 +132,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		terminalCommandDelay,
 		terminalPowershellCounter,
 		terminalZshClearEolMark,
+		terminalZshOhMy,
+		terminalZshP10k,
 		writeDelayMs,
 		showRooIgnoredFiles,
 		remoteBrowserEnabled,
@@ -243,6 +245,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "terminalCommandDelay", value: terminalCommandDelay })
 			vscode.postMessage({ type: "terminalPowershellCounter", bool: terminalPowershellCounter })
 			vscode.postMessage({ type: "terminalZshClearEolMark", bool: terminalZshClearEolMark })
+			vscode.postMessage({ type: "terminalZshOhMy", bool: terminalZshOhMy })
+			vscode.postMessage({ type: "terminalZshP10k", bool: terminalZshP10k })
 			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
 			vscode.postMessage({ type: "alwaysApproveResubmit", bool: alwaysApproveResubmit })
 			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
@@ -490,6 +494,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						terminalCommandDelay={terminalCommandDelay}
 						terminalPowershellCounter={terminalPowershellCounter}
 						terminalZshClearEolMark={terminalZshClearEolMark}
+						terminalZshOhMy={terminalZshOhMy}
+						terminalZshP10k={terminalZshP10k}
 						setCachedStateField={setCachedStateField}
 					/>
 				</div>

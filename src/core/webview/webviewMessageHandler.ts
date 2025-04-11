@@ -757,6 +757,20 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				Terminal.setTerminalZshClearEolMark(message.bool)
 			}
 			break
+		case "terminalZshOhMy":
+			await updateGlobalState("terminalZshOhMy", message.bool)
+			await provider.postStateToWebview()
+			if (message.bool !== undefined) {
+				Terminal.setTerminalZshOhMy(message.bool)
+			}
+			break
+		case "terminalZshP10k":
+			await updateGlobalState("terminalZshP10k", message.bool)
+			await provider.postStateToWebview()
+			if (message.bool !== undefined) {
+				Terminal.setTerminalZshP10k(message.bool)
+			}
+			break
 		case "mode":
 			await provider.handleModeSwitch(message.text as Mode)
 			break

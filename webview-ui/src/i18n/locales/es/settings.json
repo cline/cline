@@ -313,6 +313,14 @@
 		"zshClearEolMark": {
 			"label": "Limpiar marca de fin de línea de ZSH",
 			"description": "Cuando está habilitado, limpia la marca de fin de línea de ZSH estableciendo PROMPT_EOL_MARK=''. Esto evita problemas con la interpretación de la salida de comandos cuando termina con caracteres especiales como '%'."
+		},
+		"zshOhMy": {
+			"label": "Habilitar integración Oh My Zsh",
+			"description": "Cuando está habilitado, establece ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar las características de integración del shell Oh My Zsh. (experimental)"
+		},
+		"zshP10k": {
+			"label": "Habilitar integración Powerlevel10k",
+			"description": "Cuando está habilitado, establece POWERLEVEL9K_TERM_SHELL_INTEGRATION=true para habilitar las características de integración del shell Powerlevel10k. (experimental)"
 		}
 	},
 	"advanced": {

@@ -313,6 +313,14 @@
 		"zshClearEolMark": {
 			"label": "Wyczyść znacznik końca linii ZSH",
 			"description": "Po włączeniu czyści znacznik końca linii ZSH poprzez ustawienie PROMPT_EOL_MARK=''. Zapobiega to problemom z interpretacją wyjścia poleceń, gdy kończy się ono znakami specjalnymi jak '%'."
+		},
+		"zshOhMy": {
+			"label": "Włącz integrację Oh My Zsh",
+			"description": "Po włączeniu ustawia ITERM_SHELL_INTEGRATION_INSTALLED=Yes, aby włączyć funkcje integracji powłoki Oh My Zsh. (eksperymentalne)"
+		},
+		"zshP10k": {
+			"label": "Włącz integrację Powerlevel10k",
+			"description": "Po włączeniu ustawia POWERLEVEL9K_TERM_SHELL_INTEGRATION=true, aby włączyć funkcje integracji powłoki Powerlevel10k. (eksperymentalne)"
 		}
 	},
 	"advanced": {
