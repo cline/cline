@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm"
+import { eq, avg, min, max, and, isNotNull } from "drizzle-orm"
 
 import { RecordNotFoundError, RecordNotCreatedError } from "./errors.js"
 import type { InsertTaskMetrics, UpdateTaskMetrics } from "../schema.js"
-import { insertTaskMetricsSchema, taskMetrics } from "../schema.js"
+import { insertTaskMetricsSchema, taskMetrics, tasks, runs } from "../schema.js"
 import { db } from "../db.js"
 
 const table = taskMetrics
@@ -44,4 +44,19 @@ export const updateTaskMetrics = async (id: number, values: UpdateTaskMetrics) =
 	}
 
 	return record
+}
+
+export const successfulTaskDurations = async () => {
+	return db
+		.select({
+			runId: tasks.runId,
+			avgDuration: avg(taskMetrics.duration).mapWith(Number),
+			minDuration: min(taskMetrics.duration).mapWith(Number),
+			maxDuration: max(taskMetrics.duration).mapWith(Number),
+		})
+		.from(tasks)
+		.innerJoin(taskMetrics, eq(tasks.taskMetricsId, taskMetrics.id))
+		.innerJoin(runs, eq(tasks.runId, runs.id))
+		.where(and(eq(tasks.passed, true), isNotNull(runs.taskMetricsId)))
+		.groupBy(tasks.runId)
 }

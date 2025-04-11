@@ -70,7 +70,7 @@ const run = async (toolbox: GluegunToolbox) => {
 		run = await createRun({
 			model: rooCodeDefaults.openRouterModelId!,
 			pid: process.pid,
-			socketPath: path.resolve(os.tmpdir(), `roo-code-evals-${crypto.randomUUID()}.sock`),
+			socketPath: path.resolve(os.tmpdir(), `roo-code-evals-${crypto.randomUUID().slice(0, 8)}.sock`),
 		})
 
 		if (language === "all") {
@@ -101,7 +101,9 @@ const run = async (toolbox: GluegunToolbox) => {
 	console.log(await execa({ cwd: exercisesPath })`git config user.email "support@roocode.com"`)
 	console.log(await execa({ cwd: exercisesPath })`git checkout -f`)
 	console.log(await execa({ cwd: exercisesPath })`git clean -fd`)
-	console.log(await execa({ cwd: exercisesPath })`git checkout -b runs/${run.id} main`)
+	console.log(
+		await execa({ cwd: exercisesPath })`git checkout -b runs/${run.id}-${crypto.randomUUID().slice(0, 8)} main`,
+	)
 
 	fs.writeFileSync(
 		path.resolve(exercisesPath, "settings.json"),

@@ -22,7 +22,6 @@ import {
 	FormField,
 	FormItem,
 	FormLabel,
-	FormDescription,
 	FormMessage,
 	Textarea,
 	Tabs,
@@ -43,14 +42,10 @@ import {
 
 import { SettingsDiff } from "./settings-diff"
 
-const recommendedModels = [
-	"anthropic/claude-3.7-sonnet",
-	"anthropic/claude-3.7-sonnet:thinking",
-	"google/gemini-2.0-flash-001",
-]
-
 export function NewRun() {
 	const router = useRouter()
+
+	const [mode, setMode] = useState<"openrouter" | "settings">("openrouter")
 
 	const [modelSearchValue, setModelSearchValue] = useState("")
 	const [modelPopoverOpen, setModelPopoverOpen] = useState(false)
@@ -81,29 +76,15 @@ export function NewRun() {
 	const [model, suite, settings] = watch(["model", "suite", "settings"])
 
 	const onSubmit = useCallback(
-		async ({ settings, ...data }: FormValues) => {
+		async (values: FormValues) => {
 			try {
-				const openRouterModel = models.data?.find(({ id }) => id === data.model)
-
-				if (!openRouterModel) {
-					throw new Error(`Model not found: ${data.model}`)
-				}
-
-				const { id } = await createRun({
-					...data,
-					settings: {
-						...settings,
-						openRouterModelId: openRouterModel.id,
-						openRouterModelInfo: openRouterModel.modelInfo,
-					},
-				})
-
+				const { id } = await createRun(values)
 				router.push(`/runs/${id}`)
 			} catch (e) {
 				toast.error(e instanceof Error ? e.message : "An unknown error occurred.")
 			}
 		},
-		[router, models.data],
+		[router],
 	)
 
 	const onFilterModels = useCallback(
@@ -157,36 +138,25 @@ export function NewRun() {
 					.parse(JSON.parse(await file.text()))
 
 				const providerSettings = providerProfiles.apiConfigs[providerProfiles.currentApiConfigName] ?? {}
+				const { apiProvider, openRouterModelId, openAiModelId } = providerSettings
 
-				if (providerSettings.apiProvider === "openrouter" && providerSettings.openRouterModelId) {
-					const {
-						openRouterModelId,
-						modelMaxTokens,
-						modelMaxThinkingTokens,
-						modelTemperature,
-						includeMaxTokens,
-					} = providerSettings
-
-					const model = openRouterModelId
-
-					const settings = {
-						...rooCodeDefaults,
-						openRouterModelId,
-						modelMaxTokens,
-						modelMaxThinkingTokens,
-						modelTemperature,
-						includeMaxTokens,
-						...globalSettings,
-					}
-
-					setValue("model", model)
-					setValue("settings", settings)
-				} else {
-					setValue("settings", globalSettings)
+				switch (apiProvider) {
+					case "openrouter":
+						setValue("model", openRouterModelId ?? "")
+						break
+					case "openai":
+						setValue("model", openAiModelId ?? "")
+						break
+					default:
+						throw new Error(`Unsupported API provider: ${apiProvider}`)
 				}
+
+				setValue("settings", { ...rooCodeDefaults, ...providerSettings, ...globalSettings })
+				setMode("settings")
 
 				event.target.value = ""
 			} catch (e) {
+				console.error(e)
 				toast.error(e instanceof Error ? e.message : "An unknown error occurred.")
 			}
 		},
@@ -199,108 +169,96 @@ export function NewRun() {
 				<form
 					onSubmit={form.handleSubmit(onSubmit)}
 					className="flex flex-col justify-center divide-y divide-primary *:py-5">
-					<FormField
-						control={form.control}
-						name="model"
-						render={() => (
-							<FormItem>
-								<FormLabel>OpenRouter Model</FormLabel>
-								<Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
-									<PopoverTrigger asChild>
-										<Button
-											variant="input"
-											role="combobox"
-											aria-expanded={modelPopoverOpen}
-											className="flex items-center justify-between">
-											<div>
-												{models.data?.find(({ id }) => id === model)?.name || model || "Select"}
-											</div>
-											<ChevronsUpDown className="opacity-50" />
-										</Button>
-									</PopoverTrigger>
-									<PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]">
-										<Command filter={onFilterModels}>
-											<CommandInput
-												placeholder="Search"
-												value={modelSearchValue}
-												onValueChange={setModelSearchValue}
-												className="h-9"
-											/>
-											<CommandList>
-												<CommandEmpty>No model found.</CommandEmpty>
-												<CommandGroup>
-													{models.data?.map(({ id, name }) => (
-														<CommandItem key={id} value={id} onSelect={onSelectModel}>
-															{name}
-															<Check
-																className={cn(
-																	"ml-auto text-accent group-data-[selected=true]:text-accent-foreground size-4",
-																	id === model ? "opacity-100" : "opacity-0",
-																)}
-															/>
-														</CommandItem>
-													))}
-												</CommandGroup>
-											</CommandList>
-										</Command>
-									</PopoverContent>
-								</Popover>
-								<FormMessage />
-								<FormDescription className="flex flex-wrap items-center gap-2">
-									<span>Recommended:</span>
-									{recommendedModels.map((modelId) => (
-										<Button
-											key={modelId}
-											variant="link"
-											className="break-all px-0!"
-											onClick={(e) => {
-												e.preventDefault()
-												setValue("model", modelId)
-											}}>
-											{modelId}
-										</Button>
-									))}
-								</FormDescription>
-							</FormItem>
+					<div className="flex flex-row justify-between gap-4">
+						{mode === "openrouter" && (
+							<FormField
+								control={form.control}
+								name="model"
+								render={() => (
+									<FormItem className="flex-1">
+										<Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
+											<PopoverTrigger asChild>
+												<Button
+													variant="input"
+													role="combobox"
+													aria-expanded={modelPopoverOpen}
+													className="flex items-center justify-between">
+													<div>
+														{models.data?.find(({ id }) => id === model)?.name ||
+															model ||
+															"Select OpenRouter Model"}
+													</div>
+													<ChevronsUpDown className="opacity-50" />
+												</Button>
+											</PopoverTrigger>
+											<PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]">
+												<Command filter={onFilterModels}>
+													<CommandInput
+														placeholder="Search"
+														value={modelSearchValue}
+														onValueChange={setModelSearchValue}
+														className="h-9"
+													/>
+													<CommandList>
+														<CommandEmpty>No model found.</CommandEmpty>
+														<CommandGroup>
+															{models.data?.map(({ id, name }) => (
+																<CommandItem
+																	key={id}
+																	value={id}
+																	onSelect={onSelectModel}>
+																	{name}
+																	<Check
+																		className={cn(
+																			"ml-auto text-accent group-data-[selected=true]:text-accent-foreground size-4",
+																			id === model ? "opacity-100" : "opacity-0",
+																		)}
+																	/>
+																</CommandItem>
+															))}
+														</CommandGroup>
+													</CommandList>
+												</Command>
+											</PopoverContent>
+										</Popover>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
 						)}
-					/>
 
-					<FormItem>
-						<FormLabel>Import Settings</FormLabel>
-						<Button
-							type="button"
-							variant="secondary"
-							size="icon"
-							onClick={() => document.getElementById("json-upload")?.click()}>
-							<HardDriveUpload />
-						</Button>
-						<input
-							id="json-upload"
-							type="file"
-							accept="application/json"
-							className="hidden"
-							onChange={onImportSettings}
-						/>
-						{settings ? (
-							<ScrollArea className="max-h-64 border rounded-sm">
-								<>
-									<div className="flex items-center gap-1 p-2 border-b">
-										<CircleCheck className="size-4 text-ring" />
-										<div className="text-sm">
-											Imported valid Roo Code settings. Showing differences from default settings.
+						<FormItem className="flex-1">
+							<Button
+								type="button"
+								variant="secondary"
+								onClick={() => document.getElementById("json-upload")?.click()}>
+								<HardDriveUpload />
+								Import Settings
+							</Button>
+							<input
+								id="json-upload"
+								type="file"
+								accept="application/json"
+								className="hidden"
+								onChange={onImportSettings}
+							/>
+							{settings && (
+								<ScrollArea className="max-h-64 border rounded-sm">
+									<>
+										<div className="flex items-center gap-1 p-2 border-b">
+											<CircleCheck className="size-4 text-ring" />
+											<div className="text-sm">
+												Imported valid Roo Code settings. Showing differences from default
+												settings.
+											</div>
 										</div>
-									</div>
-									<SettingsDiff defaultSettings={rooCodeDefaults} customSettings={settings} />
-								</>
-							</ScrollArea>
-						) : (
-							<FormDescription>
-								Fully configure how Roo Code for this run using a settings file that was exported by Roo
-								Code.
-							</FormDescription>
-						)}
-						<FormMessage />
-					</FormItem>
+										<SettingsDiff defaultSettings={rooCodeDefaults} customSettings={settings} />
+									</>
+								</ScrollArea>
+							)}
+							<FormMessage />
+						</FormItem>
+					</div>
 
 					<FormField
 						control={form.control}
