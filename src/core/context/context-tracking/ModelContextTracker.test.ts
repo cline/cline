@@ -4,11 +4,10 @@ import * as sinon from "sinon"
 import * as vscode from "vscode"
 import { ModelContextTracker } from "./ModelContextTracker"
 import * as diskModule from "../../storage/disk"
-import type { TaskMetadata, ControllerLike } from "./ContextTrackerTypes"
+import type { TaskMetadata } from "./ContextTrackerTypes"
 
 describe("ModelContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
-	let mockController: ControllerLike
 	let mockContext: vscode.ExtensionContext
 	let tracker: ModelContextTracker
 	let taskId: string
@@ -24,10 +23,6 @@ describe("ModelContextTracker", () => {
 			globalStorageUri: { fsPath: "/mock/storage" },
 		} as unknown as vscode.ExtensionContext
 
-		mockController = {
-			context: mockContext,
-		}
-
 		// Mock disk module functions
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
@@ -35,7 +30,7 @@ describe("ModelContextTracker", () => {
 
 		// Create tracker instance
 		taskId = "test-task-id"
-		tracker = new ModelContextTracker(mockController, taskId)
+		tracker = new ModelContextTracker(mockContext, taskId)
 	})
 
 	afterEach(() => {
@@ -83,8 +78,7 @@ describe("ModelContextTracker", () => {
 
 	it("should throw an error when controller is dereferenced", async () => {
 		// Create a new tracker with a controller that will be garbage collected
-		const weakMockController = { context: mockContext }
-		const weakTracker = new ModelContextTracker(weakMockController, taskId)
+		const weakTracker = new ModelContextTracker(mockContext, taskId)
 
 		// Force the WeakRef to return null by overriding the deref method
 		const weakRef = { deref: sandbox.stub().returns(null) }

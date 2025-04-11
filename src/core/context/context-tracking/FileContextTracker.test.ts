@@ -5,11 +5,10 @@ import * as vscode from "vscode"
 import * as path from "path"
 import { FileContextTracker } from "./FileContextTracker"
 import * as diskModule from "../../storage/disk"
-import type { TaskMetadata, ControllerLike, FileMetadataEntry } from "./ContextTrackerTypes"
+import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
-	let mockController: ControllerLike
 	let mockContext: vscode.ExtensionContext
 	let mockWorkspace: sinon.SinonStub
 	let mockFileSystemWatcher: any
@@ -48,10 +47,6 @@ describe("FileContextTracker", () => {
 			globalStorageUri: { fsPath: "/mock/storage" },
 		} as unknown as vscode.ExtensionContext
 
-		mockController = {
-			context: mockContext,
-		}
-
 		// Mock disk module functions
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
@@ -59,7 +54,7 @@ describe("FileContextTracker", () => {
 
 		// Create tracker instance
 		taskId = "test-task-id"
-		tracker = new FileContextTracker(mockController, taskId)
+		tracker = new FileContextTracker(mockContext, taskId)
 	})
 
 	afterEach(() => {
