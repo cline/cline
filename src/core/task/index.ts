@@ -1179,13 +1179,13 @@ export class Task {
 				case "list_code_definition_names":
 				case "search_files":
 					return [
-						this.autoApprovalSettings.actions.readFilesLocally,
+						this.autoApprovalSettings.actions.readFiles,
 						this.autoApprovalSettings.actions.readFilesExternally,
 					]
 				case "write_to_file":
 				case "replace_in_file":
 					return [
-						this.autoApprovalSettings.actions.editFilesLocally,
+						this.autoApprovalSettings.actions.editFiles,
 						this.autoApprovalSettings.actions.editFilesExternally,
 					]
 				case "execute_command":

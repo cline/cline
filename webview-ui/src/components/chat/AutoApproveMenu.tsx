@@ -26,7 +26,7 @@ const ACTION_METADATA: {
 	description: string
 }[] = [
 	{
-		id: "readFilesLocally",
+		id: "readFiles",
 		label: "Read local files and directories",
 		shortName: "Read Local",
 		description: "Allows Cline to read files within your workspace.",
@@ -38,7 +38,7 @@ const ACTION_METADATA: {
 		description: "Allows Cline to read any file on your computer.",
 	},
 	{
-		id: "editFilesLocally",
+		id: "editFiles",
 		label: "Edit local files",
 		shortName: "Edit",
 		description: "Allows Cline to modify files within your workspace.",
@@ -85,10 +85,10 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
 	const enabledActionsList = (() => {
 		// When nested auto-approve options are used, display the more permissive one (file reads, edits, and commands)
-		const readFilesEnabled = enabledActions.some((action) => action.id === "readFilesLocally")
+		const readFilesEnabled = enabledActions.some((action) => action.id === "readFiles")
 		const readFilesExternallyEnabled = enabledActions.some((action) => action.id === "readFilesExternally")
 
-		const editFilesEnabled = enabledActions.some((action) => action.id === "editFilesLocally")
+		const editFilesEnabled = enabledActions.some((action) => action.id === "editFiles")
 		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally")
 
 		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
@@ -97,9 +97,9 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		const otherActions = enabledActions
 			.filter(
 				(action) =>
-					action.id !== "readFilesLocally" &&
+					action.id !== "readFiles" &&
 					action.id !== "readFilesExternally" &&
-					action.id !== "editFilesLocally" &&
+					action.id !== "editFiles" &&
 					action.id !== "editFilesExternally" &&
 					action.id !== "executeSafeCommands" &&
 					action.id !== "executeAllCommands",
@@ -305,8 +305,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								action.id === "executeAllCommands"
 									? "executeSafeCommands"
 									: action.id === "readFilesExternally"
-										? "readFilesLocally"
-										: "editFilesLocally"
+										? "readFiles"
+										: "editFiles"
 							return (
 								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction]}>
 									<div
