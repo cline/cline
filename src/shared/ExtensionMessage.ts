@@ -43,7 +43,6 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
-		| "browserConnectionInfo"
 		| "detectedChromePath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
@@ -237,12 +236,6 @@ export type BrowserActionResult = {
 	logs?: string
 	currentUrl?: string
 	currentMousePosition?: string
-}
-
-export interface BrowserConnectionInfo {
-	isConnected: boolean
-	isRemote: boolean
-	host?: string
 }
 
 export interface ClineAskUseMcpServer {

@@ -301,36 +301,6 @@ export class Controller {
 					await this.postStateToWebview()
 				}
 				break
-			case "getBrowserConnectionInfo":
-				try {
-					// Get the current browser session from Cline if it exists
-					if (this.task?.browserSession) {
-						const connectionInfo = this.task.browserSession.getConnectionInfo()
-						await this.postMessageToWebview({
-							type: "browserConnectionInfo",
-							isConnected: connectionInfo.isConnected,
-							isRemote: connectionInfo.isRemote,
-							host: connectionInfo.host,
-						})
-					} else {
-						// If no active browser session, just return the settings
-						const { browserSettings } = await getAllExtensionState(this.context)
-						await this.postMessageToWebview({
-							type: "browserConnectionInfo",
-							isConnected: false,
-							isRemote: !!browserSettings.remoteBrowserEnabled,
-							host: browserSettings.remoteBrowserHost,
-						})
-					}
-				} catch (error) {
-					console.error("Error getting browser connection info:", error)
-					await this.postMessageToWebview({
-						type: "browserConnectionInfo",
-						isConnected: false,
-						isRemote: false,
-					})
-				}
-				break
 			case "testBrowserConnection":
 				try {
 					const { browserSettings } = await getAllExtensionState(this.context)
