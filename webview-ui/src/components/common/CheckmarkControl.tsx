@@ -270,7 +270,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 										color: isCheckpointCheckedOut
 											? "var(--vscode-textLink-foreground)"
 											: "var(--vscode-descriptionForeground)",
-										fontSize: "2px",
+										fontSize: "12px",
 										marginRight: "6px",
 									}}
 								/>
