@@ -70,7 +70,7 @@ Cline-Chinese已发布到VSCode插件市场，欢迎感兴趣的小伙伴们下�
 如果您觉得这个项目对您有帮助，欢迎赞赏支持，您的支持是我持续开发的动力 ☕
 
 <div align="center" style="display: flex; justify-content: center; gap: 20px;">
-  <img src="https://unsplash.com/illustrations/Kt58007uuFI?utm_content=creditShareLink&utm_medium=referral&utm_source=unsplash" alt="机器人" width="250" />
+  <img src="[https://unsplash.com/illustrations/Kt58007uuFI?utm_content=creditShareLink&utm_medium=referral&utm_source=unsplash](https://images.unsplash.com/vector-1744386293279-5a4aa57e5782?ixlib=rb-4.0.3&dl=dxdw2021-Kt58007uuFI-unsplash.png&fm=png&w=4000)" alt="机器人" width="250" />
 
   <img src="https://raw.githubusercontent.com/dxdw2021/cline/main/User%20Tutorials/png/zfb.jpg" alt="支付宝赞赏" width="250" />
   <img src="https://raw.githubusercontent.com/dxdw2021/cline/main/User%20Tutorials/png/weixin-%E8%B5%9E%E8%B5%8F%E7%A0%81.png" alt="微信赞赏" width="250" />
