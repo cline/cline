@@ -4,6 +4,8 @@ import { Logger } from "../../services/logging/Logger"
 import { WebviewProvider } from "../../core/webview"
 import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
 import { updateGlobalState, getAllExtensionState } from "../../core/storage/state"
+import { ClineAsk, ExtensionMessage } from "../../shared/ExtensionMessage"
+import { WebviewMessage } from "../../shared/WebviewMessage"
 
 // Task completion tracking
 let taskCompletionResolver: (() => void) | null = null
@@ -211,6 +213,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 
 /**
  * Creates a message catcher that logs all messages sent to the webview
+ * and automatically responds to messages that require user intervention
  * @param webviewProvider The webview provider instance
  * @returns A disposable that can be used to clean up the message catcher
  */
@@ -219,13 +222,26 @@ export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.D
 
 	if (webviewProvider && webviewProvider.controller) {
 		const originalPostMessageToWebview = webviewProvider.controller.postMessageToWebview
-		webviewProvider.controller.postMessageToWebview = async (message) => {
+
+		// Intercept outgoing messages from extension to webview
+		webviewProvider.controller.postMessageToWebview = async (message: ExtensionMessage) => {
 			Logger.log("Cline message received: " + JSON.stringify(message))
 
 			// Check for completion_result message
 			if (message.type === "partialMessage" && message.partialMessage?.say === "completion_result") {
 				// Complete the current task
 				completeTask()
+			}
+
+			// Check for ask messages that require user intervention
+			if (message.type === "partialMessage" && message.partialMessage?.type === "ask" && !message.partialMessage.partial) {
+				const askType = message.partialMessage.ask as ClineAsk
+				const askText = message.partialMessage.text
+
+				// Automatically respond to different types of asks
+				setTimeout(() => {
+					autoRespondToAsk(webviewProvider, askType, askText)
+				}, 100) // Small delay to ensure the message is processed first
 			}
 
 			return originalPostMessageToWebview.call(webviewProvider.controller, message)
@@ -238,6 +254,94 @@ export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.D
 		// Cleanup function if needed
 		Logger.log("Cline message catcher disposed")
 	})
+}
+
+/**
+ * Automatically responds to ask messages to continue task execution without user intervention
+ * @param webviewProvider The webview provider instance
+ * @param askType The type of ask message
+ * @param askText The text content of the ask message
+ */
+function autoRespondToAsk(webviewProvider: WebviewProvider, askType: ClineAsk, askText?: string): void {
+	if (!webviewProvider.controller) {
+		return
+	}
+
+	Logger.log(`Auto-responding to ask type: ${askType}`)
+
+	// Create a response message based on the ask type
+	const response: WebviewMessage = {
+		type: "askResponse",
+		askResponse: "yesButtonClicked", // Default to approving most actions
+	}
+
+	// Handle specific ask types differently if needed
+	switch (askType) {
+		case "followup":
+			// For follow-up questions, provide a generic response
+			response.askResponse = "messageResponse"
+			response.text = "I can't answer any questions right now, use your best judgment."
+			break
+
+		case "api_req_failed":
+			// Always retry API requests
+			response.askResponse = "yesButtonClicked" // "Retry" button
+			break
+
+		case "completion_result":
+			// Accept the completion
+			response.askResponse = "messageResponse"
+			response.text = "Task completed successfully."
+			break
+
+		case "mistake_limit_reached":
+			// Provide guidance to continue
+			response.askResponse = "messageResponse"
+			response.text = "Try breaking down the task into smaller steps."
+			break
+
+		case "auto_approval_max_req_reached":
+			// Reset the count to continue
+			response.askResponse = "yesButtonClicked" // "Reset and continue" button
+			break
+
+		case "resume_task":
+		case "resume_completed_task":
+			// Resume the task
+			response.askResponse = "messageResponse"
+			break
+
+		case "new_task":
+			// Decline creating a new task to keep the current task running
+			response.askResponse = "messageResponse"
+			response.text = "Continue with the current task."
+			break
+
+		case "plan_mode_respond":
+			// Respond to plan mode with a message to toggle to Act mode
+			response.askResponse = "messageResponse"
+			response.text = "PLAN_MODE_TOGGLE_RESPONSE" // Special marker to toggle to Act mode
+
+			// Automatically toggle to Act mode after responding
+			setTimeout(async () => {
+				try {
+					if (webviewProvider.controller) {
+						Logger.log("Auto-toggling to Act mode from Plan mode")
+						await webviewProvider.controller.togglePlanActModeWithChatSettings({ mode: "act" })
+					}
+				} catch (error) {
+					Logger.log(`Error toggling to Act mode: ${error}`)
+				}
+			}, 500) // Small delay to ensure the response is processed first
+			break
+
+		// For all other ask types (tool, command, browser_action_launch, use_mcp_server),
+		// we use the default "yesButtonClicked" to approve the action
+	}
+
+	// Send the response message
+	webviewProvider.controller.handleWebviewMessage(response)
+	Logger.log(`Auto-responded to ${askType} with ${response.askResponse}`)
 }
 
 /**
