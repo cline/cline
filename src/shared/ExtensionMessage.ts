@@ -152,6 +152,7 @@ export interface ClineMessage {
 	partial?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
+	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
@@ -212,6 +213,7 @@ export interface ClineSayTool {
 	content?: string
 	regex?: string
 	filePattern?: string
+	operationIsLocatedInWorkspace?: boolean
 }
 
 // must keep in sync with system prompt
