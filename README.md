@@ -11,9 +11,11 @@ English • [Català](locales/ca/README.md) • [Deutsch](locales/de/README.md) 
 </sub>
 </div>
 <br>
-
 <div align="center">
-  <h2>Join the Roo Code Community</h2>
+  <h1>Roo Code (prev. Roo Cline)</h1>
+  <p align="center">
+  <img src="https://media.githubusercontent.com/media/RooVetGit/Roo-Code/main/assets/docs/demo.gif" width="100%" />
+  </p>
   <p>Connect with developers, contribute ideas, and stay ahead with the latest AI-powered coding tools.</p>
   
   <a href="https://discord.gg/roocode" target="_blank"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
@@ -24,7 +26,6 @@ English • [Català](locales/ca/README.md) • [Deutsch](locales/de/README.md) 
 <br>
 
 <div align="center">
-<h1>Roo Code (prev. Roo Cline)</h1>
 
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/Download%20on%20VS%20Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Download on VS Marketplace"></a>
 <a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Feature%20Requests-yellow?style=for-the-badge" alt="Feature Requests"></a>
