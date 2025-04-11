@@ -116,7 +116,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 					}
 
 					// Initiate the new task
-					const taskId = await visibleWebview.controller.initClineWithTask(task)
+					const taskId = await visibleWebview.controller.initTask(task)
 
 					// Return success response with the task ID
 					res.writeHead(200, { "Content-Type": "application/json" })
