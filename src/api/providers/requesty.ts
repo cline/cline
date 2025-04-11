@@ -6,6 +6,7 @@ import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
+import { defaultHeaders } from "./openai"
 
 export class RequestyHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -16,10 +17,7 @@ export class RequestyHandler implements ApiHandler {
 		this.client = new OpenAI({
 			baseURL: "https://router.requesty.ai/v1",
 			apiKey: this.options.requestyApiKey,
-			defaultHeaders: {
-				"HTTP-Referer": "https://cline.bot",
-				"X-Title": "Cline",
-			},
+			defaultHeaders,
 		})
 	}
 
