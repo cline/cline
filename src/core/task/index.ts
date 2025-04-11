@@ -1781,6 +1781,7 @@ export class Task {
 								tool: fileExists ? "editedExistingFile" : "newFileCreated",
 								path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 								content: diff || content,
+								operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
 							}
 
 							if (block.partial) {
@@ -1844,6 +1845,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: diff || content,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
 									// ? formatResponse.createPrettyPatch(
 									// 		relPath,
 									// 		this.diffViewProvider.originalContent,
@@ -1972,6 +1974,7 @@ export class Task {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: undefined,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
