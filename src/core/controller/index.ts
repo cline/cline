@@ -55,7 +55,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
-	private postMessage: (message: any) => Thenable<boolean> | undefined
+	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
 	private task?: Task
@@ -67,7 +67,7 @@ export class Controller {
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
-		postMessage: (message: any) => Thenable<boolean> | undefined,
+		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
