@@ -943,6 +943,7 @@ export class Controller {
 			previousModeModelInfo: newModelInfo,
 			previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
+			previousModeReasoningEffort: newReasoningEffort,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -952,6 +953,7 @@ export class Controller {
 			// Save the last model used in this mode
 			await updateGlobalState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
 			await updateGlobalState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
+			await updateGlobalState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
 				case "bedrock":
@@ -961,6 +963,7 @@ export class Controller {
 				case "openai-native":
 				case "qwen":
 				case "deepseek":
+				case "xai":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "openrouter":
@@ -996,9 +999,16 @@ export class Controller {
 			}
 
 			// Restore the model used in previous mode
-			if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined || newVsCodeLmModelSelector) {
+			if (
+				newApiProvider ||
+				newModelId ||
+				newThinkingBudgetTokens !== undefined ||
+				newReasoningEffort ||
+				newVsCodeLmModelSelector
+			) {
 				await updateGlobalState(this.context, "apiProvider", newApiProvider)
 				await updateGlobalState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
+				await updateGlobalState(this.context, "reasoningEffort", newReasoningEffort)
 				switch (newApiProvider) {
 					case "anthropic":
 					case "bedrock":
@@ -1008,6 +1018,7 @@ export class Controller {
 					case "openai-native":
 					case "qwen":
 					case "deepseek":
+					case "xai":
 						await updateGlobalState(this.context, "apiModelId", newModelId)
 						break
 					case "openrouter":
