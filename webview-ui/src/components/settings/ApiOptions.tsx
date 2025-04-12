@@ -102,6 +102,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
+	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const newValue = event.target.value
@@ -1535,35 +1536,55 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						)}
 
 						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
-							<div>
-								<label htmlFor="reasoning-effort-dropdown">
-									<span style={{ fontWeight: 500 }}>Reasoning Effort</span>
-								</label>
-								<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
-									<VSCodeDropdown
-										id="reasoning-effort-dropdown"
-										style={{ width: "100%", marginTop: 3 }}
-										value={apiConfiguration?.grokMiniReasoningEffort || "high"}
-										onChange={(e: any) => {
+							<>
+								<VSCodeCheckbox
+									style={{ marginTop: 0 }}
+									checked={reasoningEffortSelected}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setReasoningEffortSelected(isChecked)
+										if (!isChecked) {
 											setApiConfiguration({
 												...apiConfiguration,
-												grokMiniReasoningEffort: e.target.value,
+												reasoningEffort: "",
 											})
-										}}>
-										<VSCodeOption value="low">low</VSCodeOption>
-										<VSCodeOption value="high">high</VSCodeOption>
-									</VSCodeDropdown>
-								</DropdownContainer>
-								<p
-									style={{
-										fontSize: "12px",
-										marginTop: 3,
-										color: "var(--vscode-descriptionForeground)",
+										}
 									}}>
-									Controls the model's reasoning effort. High effort may produce more thorough analysis but
-									takes longer and uses more tokens.
-								</p>
-							</div>
+									Modify reasoning effort
+								</VSCodeCheckbox>
+
+								{reasoningEffortSelected && (
+									<div>
+										<label htmlFor="reasoning-effort-dropdown">
+											<span style={{}}>Reasoning Effort</span>
+										</label>
+										<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
+											<VSCodeDropdown
+												id="reasoning-effort-dropdown"
+												style={{ width: "100%", marginTop: 3 }}
+												value={apiConfiguration?.reasoningEffort || "high"}
+												onChange={(e: any) => {
+													setApiConfiguration({
+														...apiConfiguration,
+														reasoningEffort: e.target.value,
+													})
+												}}>
+												<VSCodeOption value="low">low</VSCodeOption>
+												<VSCodeOption value="high">high</VSCodeOption>
+											</VSCodeDropdown>
+										</DropdownContainer>
+										<p
+											style={{
+												fontSize: "12px",
+												marginTop: 3,
+												marginBottom: 0,
+												color: "var(--vscode-descriptionForeground)",
+											}}>
+											High effort may produce more thorough analysis but takes longer and uses more tokens.
+										</p>
+									</div>
+								)}
+							</>
 						)}
 
 						<ModelInfoView
