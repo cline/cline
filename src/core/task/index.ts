@@ -85,6 +85,7 @@ import {
 } from "../storage/disk"
 import { McpHub } from "../../services/mcp/McpHub"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { getGlobalState } from "../storage/state"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -103,7 +104,6 @@ export class Task {
 	private cancelTask: () => Promise<void>
 
 	readonly taskId: string
-	readonly apiProvider?: string
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
@@ -182,7 +182,6 @@ export class Task {
 		this.clineIgnoreController.initialize().catch((error) => {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
-		this.apiProvider = apiConfiguration.apiProvider
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
@@ -222,12 +221,13 @@ export class Task {
 			this.startTask(task, images)
 		}
 
+		// initialize telemetry
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, this.apiProvider)
+			telemetryService.captureTaskRestarted(this.taskId, apiConfiguration.apiProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, this.apiProvider)
+			telemetryService.captureTaskCreated(this.taskId, apiConfiguration.apiProvider)
 		}
 	}
 
@@ -3154,9 +3154,10 @@ export class Task {
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
-		if (this.apiProvider && this.api.getModel().id) {
+		const currentProviderId = (await getGlobalState(this.getContext(), "apiProvider")) as string
+		if (currentProviderId && this.api.getModel().id) {
 			try {
-				await this.modelContextTracker.recordModelUsage(this.apiProvider, this.api.getModel().id, this.chatSettings.mode)
+				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)
 			} catch {}
 		}
 
@@ -3263,7 +3264,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
+		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
@@ -3340,7 +3341,7 @@ export class Task {
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
 				await this.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
+				telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "assistant")
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3480,7 +3481,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
+				telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "assistant")
 
 				await this.addToApiConversationHistory({
 					role: "assistant",
