@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 
 import { LANGUAGES, isLanguage } from "../../../shared/language"
+import { Dirent } from "fs"
 
 /**
  * Safely read a file and return its trimmed content
@@ -31,6 +32,68 @@ async function directoryExists(dirPath: string): Promise<boolean> {
 	}
 }
 
+const MAX_DEPTH = 5
+
+/**
+ * Recursively resolve directory entries and collect file paths
+ */
+async function resolveDirectoryEntry(
+	entry: Dirent,
+	dirPath: string,
+	filePaths: string[],
+	depth: number,
+): Promise<void> {
+	// Avoid cyclic symlinks
+	if (depth > MAX_DEPTH) {
+		return
+	}
+
+	const fullPath = path.resolve(entry.parentPath || dirPath, entry.name)
+	if (entry.isFile()) {
+		// Regular file
+		filePaths.push(fullPath)
+	} else if (entry.isSymbolicLink()) {
+		// Await the resolution of the symbolic link
+		await resolveSymLink(fullPath, filePaths, depth + 1)
+	}
+}
+
+/**
+ * Recursively resolve a symbolic link and collect file paths
+ */
+async function resolveSymLink(fullPath: string, filePaths: string[], depth: number): Promise<void> {
+	// Avoid cyclic symlinks
+	if (depth > MAX_DEPTH) {
+		return
+	}
+	try {
+		// Get the symlink target
+		const linkTarget = await fs.readlink(fullPath)
+		// Resolve the target path (relative to the symlink location)
+		const resolvedTarget = path.resolve(path.dirname(fullPath), linkTarget)
+
+		// Check if the target is a file
+		const stats = await fs.stat(resolvedTarget)
+		if (stats.isFile()) {
+			filePaths.push(resolvedTarget)
+		} else if (stats.isDirectory()) {
+			const anotherEntries = await fs.readdir(resolvedTarget, { withFileTypes: true, recursive: true })
+			// Collect promises for recursive calls within the directory
+			const directoryPromises: Promise<void>[] = []
+			for (const anotherEntry of anotherEntries) {
+				directoryPromises.push(resolveDirectoryEntry(anotherEntry, resolvedTarget, filePaths, depth + 1))
+			}
+			// Wait for all entries in the resolved directory to be processed
+			await Promise.all(directoryPromises)
+		} else if (stats.isSymbolicLink()) {
+			// Handle nested symlinks by awaiting the recursive call
+			await resolveSymLink(resolvedTarget, filePaths, depth + 1)
+		}
+	} catch (err) {
+		// Skip invalid symlinks
+	}
+}
+
 /**
  * Read all text files from a directory in alphabetical order
  */
@@ -40,29 +103,15 @@ async function readTextFilesFromDirectory(dirPath: string): Promise<Array<{ file
 
 		// Process all entries - regular files and symlinks that might point to files
 		const filePaths: string[] = []
+		// Collect promises for the initial resolution calls
+		const initialPromises: Promise<void>[] = []
 
 		for (const entry of entries) {
-			const fullPath = path.resolve(entry.parentPath || dirPath, entry.name)
-			if (entry.isFile()) {
-				// Regular file
-				filePaths.push(fullPath)
-			} else if (entry.isSymbolicLink()) {
-				try {
-					// Get the symlink target
-					const linkTarget = await fs.readlink(fullPath)
-					// Resolve the target path (relative to the symlink location)
-					const resolvedTarget = path.resolve(path.dirname(fullPath), linkTarget)
-
-					// Check if the target is a file
-					const stats = await fs.stat(resolvedTarget)
-					if (stats.isFile()) {
-						filePaths.push(resolvedTarget)
-					}
-				} catch (err) {
-					// Skip invalid symlinks
-				}
-			}
+			initialPromises.push(resolveDirectoryEntry(entry, dirPath, filePaths, 0))
 		}
+
+		// Wait for all asynchronous operations (including recursive ones) to complete
+		await Promise.all(initialPromises)
 
 		const fileContents = await Promise.all(
 			filePaths.map(async (file) => {
