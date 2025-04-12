@@ -2,8 +2,6 @@
 
 ## 3.12.0
 
-### Minor Changes
-
 -   fb037a0: better prompting around downloading mcp servers to not overwrite existing server configs
 -   ccc8e47: Added auto-approve options for edits/reads outside of the users workspace
 -   47aecdf: Add button to open config to MCP toggle modal
@@ -13,9 +11,6 @@
 -   1c22ee5: Add reasoning effort to grok 3 mini
 -   0d07b42: Stream Grok 3 mini reasoning tokens
 -   17314cb: Adds favorite toggles for models when using the Cline & OpenRouter providers
-
-### Patch Changes
-
 -   a26494e: Improve diff editing animation and prompts for large files; show diff edits indicator next to file path
 -   1f50188: Added debounce for checkmark expanded ui
 -   90e9c49: Refactor: Remove cline rules functions from task/index.ts
@@ -25,8 +20,8 @@
 -   0096521: refactor & perf of file ServerRow.tsx
 -   941414e: remove unused import of file `BrowserSettingsMenu.tsx`
 -   40bf624: Fix duplicate checkpoints bug
-    Fix bug where hovering mouse over checkpoint and not moving would make popover disappear
-    Fix browser tool actions not being grouped because of checkpoints
+Fix bug where hovering mouse over checkpoint and not moving would make popover disappear
+Fix browser tool actions not being grouped because of checkpoints
 -   458583a: refactor & perf of file `ThinkingBudgetSlider.tsx`
 -   1c9bbba: refactor: type improvement of file `ChatTextArea.tsx`
 
