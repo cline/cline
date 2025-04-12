@@ -74,6 +74,7 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	grokMiniReasoningEffort?: "low" | "high"
 	sambanovaApiKey?: string
 }
 

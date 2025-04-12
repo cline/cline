@@ -943,6 +943,7 @@ export class Controller {
 			previousModeModelInfo: newModelInfo,
 			previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
+			// previousModeGrokMiniReasoningEffort: newGrokMiniReasoningEffort,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -952,6 +953,7 @@ export class Controller {
 			// Save the last model used in this mode
 			await updateGlobalState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
 			await updateGlobalState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
+			// await updateGlobalState(this.context, "previousModeGrokMiniReasoningEffort", apiConfiguration.grokMiniReasoningEffort)
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
 				case "bedrock":
@@ -996,9 +998,16 @@ export class Controller {
 			}
 
 			// Restore the model used in previous mode
-			if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined || newVsCodeLmModelSelector) {
+			if (
+				newApiProvider ||
+				newModelId ||
+				newThinkingBudgetTokens !== undefined ||
+				// newGrokMiniReasoningEffort ||
+				newVsCodeLmModelSelector
+			) {
 				await updateGlobalState(this.context, "apiProvider", newApiProvider)
 				await updateGlobalState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
+				// await updateGlobalState(this.context, "grokMiniReasoningEffort", newGrokMiniReasoningEffort)
 				switch (newApiProvider) {
 					case "anthropic":
 					case "bedrock":

@@ -1534,6 +1534,38 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
+						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
+							<div>
+								<label htmlFor="reasoning-effort-dropdown">
+									<span style={{ fontWeight: 500 }}>Reasoning Effort</span>
+								</label>
+								<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
+									<VSCodeDropdown
+										id="reasoning-effort-dropdown"
+										style={{ width: "100%", marginTop: 3 }}
+										value={apiConfiguration?.grokMiniReasoningEffort || "high"}
+										onChange={(e: any) => {
+											setApiConfiguration({
+												...apiConfiguration,
+												grokMiniReasoningEffort: e.target.value,
+											})
+										}}>
+										<VSCodeOption value="low">low</VSCodeOption>
+										<VSCodeOption value="high">high</VSCodeOption>
+									</VSCodeDropdown>
+								</DropdownContainer>
+								<p
+									style={{
+										fontSize: "12px",
+										marginTop: 3,
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									Controls the model's reasoning effort. High effort may produce more thorough analysis but
+									takes longer and uses more tokens.
+								</p>
+							</div>
+						)}
+
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
@@ -1829,12 +1861,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
-			}
-		case "requesty":
-			return {
-				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.requestyModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "vscode-lm":

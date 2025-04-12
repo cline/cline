@@ -109,6 +109,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeModelInfo,
 		previousModeVsCodeLmModelSelector,
 		previousModeThinkingBudgetTokens,
+		// previousModeGrokMiniReasoningEffort,
 		qwenApiLine,
 		liteLlmApiKey,
 		telemetrySetting,
@@ -116,6 +117,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		asksageApiUrl,
 		xaiApiKey,
 		thinkingBudgetTokens,
+		grokMiniReasoningEffort,
 		sambanovaApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
@@ -177,6 +179,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "previousModeModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "previousModeVsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		getGlobalState(context, "previousModeThinkingBudgetTokens") as Promise<number | undefined>,
+		// getGlobalState(context, "previousModeGrokMiniReasoningEffort") as Promise<"low" | "high" | undefined>,
 		getGlobalState(context, "qwenApiLine") as Promise<string | undefined>,
 		getSecret(context, "liteLlmApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "telemetrySetting") as Promise<TelemetrySetting | undefined>,
@@ -184,6 +187,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "asksageApiUrl") as Promise<string | undefined>,
 		getSecret(context, "xaiApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
+		getGlobalState(context, "grokMiniReasoningEffort") as Promise<"low" | "high" | undefined>,
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
@@ -272,6 +276,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			vsCodeLmModelSelector,
 			o3MiniReasoningEffort,
 			thinkingBudgetTokens,
+			grokMiniReasoningEffort,
 			liteLlmBaseUrl,
 			liteLlmModelId,
 			liteLlmApiKey,
@@ -294,6 +299,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeModelInfo,
 		previousModeVsCodeLmModelSelector,
 		previousModeThinkingBudgetTokens,
+		// previousModeGrokMiniReasoningEffort,
 		mcpMarketplaceEnabled,
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
@@ -352,6 +358,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		asksageApiUrl,
 		xaiApiKey,
 		thinkingBudgetTokens,
+		grokMiniReasoningEffort,
 		clineApiKey,
 		sambanovaApiKey,
 		favoritedModelIds,
@@ -406,6 +413,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "asksageApiKey", asksageApiKey)
 	await updateGlobalState(context, "asksageApiUrl", asksageApiUrl)
 	await updateGlobalState(context, "thinkingBudgetTokens", thinkingBudgetTokens)
+	await updateGlobalState(context, "grokMiniReasoningEffort", grokMiniReasoningEffort)
 	await storeSecret(context, "clineApiKey", clineApiKey)
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)

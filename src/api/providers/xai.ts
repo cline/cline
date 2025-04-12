@@ -18,12 +18,14 @@ export class XAIHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const modelId = this.getModel().id
 		const stream = await this.client.chat.completions.create({
-			model: this.getModel().id,
+			model: modelId,
 			max_completion_tokens: this.getModel().info.maxTokens,
 			temperature: 0,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
+			...(modelId.includes("3-mini") ? { reasoning_effort: this.options.grokMiniReasoningEffort || "high" } : {}),
 		})
 
 		for await (const chunk of stream) {
