@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.11.14] - 2025-04-11
+
+- Support symbolic links in rules folders to directories and other symbolic links (thanks @taisukeoe!)
+- Stronger enforcement of the setting to always read full files instead of doing partial reads
+
 ## [3.11.13] - 2025-04-11
 
 - Loads of terminal improvements: command delay, PowerShell counter, and ZSH EOL mark (thanks @KJ7LNW!)
