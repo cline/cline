@@ -2382,7 +2382,7 @@ export class Task {
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
 										)
-										await this.saveCheckpoint()
+										// await this.saveCheckpoint()
 										break
 									case "close":
 										pushToolResult(
