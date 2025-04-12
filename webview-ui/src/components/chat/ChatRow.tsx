@@ -374,7 +374,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("edit")}
-							{toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 						</div>
 						<CodeAccordian
@@ -391,7 +392,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
-							{toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 						</div>
 						<CodeAccordian
@@ -408,7 +410,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
-							{toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
 								Cline wants to read this file:
