@@ -308,7 +308,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 										? "readFiles"
 										: "editFiles"
 							return (
-								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction]}>
+								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction] ?? false}>
 									<div
 										style={{
 											margin: "3px 0",

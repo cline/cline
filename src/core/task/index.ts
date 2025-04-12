@@ -1213,7 +1213,7 @@ export class Task {
 					]
 				case "execute_command":
 					return [
-						this.autoApprovalSettings.actions.executeSafeCommands,
+						this.autoApprovalSettings.actions.executeSafeCommands ?? false,
 						this.autoApprovalSettings.actions.executeAllCommands ?? false,
 					]
 				case "browser_action":
