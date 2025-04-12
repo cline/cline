@@ -1,6 +1,6 @@
 import { McpServer } from "@shared/mcp"
 import { DEFAULT_MCP_TIMEOUT_SECONDS } from "@shared/mcp"
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { vscode } from "@/utils/vscode"
 import {
 	VSCodeButton,
@@ -17,6 +17,20 @@ import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
+// constant JSX.Elements
+const TimeoutOptions = [
+	{ value: "30", label: "30 seconds" },
+	{ value: "60", label: "1 minute" },
+	{ value: "300", label: "5 minutes" },
+	{ value: "600", label: "10 minutes" },
+	{ value: "1800", label: "30 minutes" },
+	{ value: "3600", label: "1 hour" },
+].map((option) => (
+	<VSCodeOption key={option.value} value={option.value}>
+		{option.label}
+	</VSCodeOption>
+))
+
 const ServerRow = ({
 	server,
 	isExpandable = true,
@@ -31,8 +45,8 @@ const ServerRow = ({
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
 
-	const getStatusColor = () => {
-		switch (server.status) {
+	const getStatusColor = useCallback((status: McpServer["status"]) => {
+		switch (status) {
 			case "connected":
 				return "var(--vscode-testing-iconPassed)"
 			case "connecting":
@@ -40,7 +54,7 @@ const ServerRow = ({
 			case "disconnected":
 				return "var(--vscode-testing-iconFailed)"
 		}
-	}
+	}, [])
 
 	const handleRowClick = () => {
 		if (!server.error && isExpandable) {
@@ -56,15 +70,6 @@ const ServerRow = ({
 			return DEFAULT_MCP_TIMEOUT_SECONDS.toString()
 		}
 	})
-
-	const timeoutOptions = [
-		{ value: "30", label: "30 seconds" },
-		{ value: "60", label: "1 minute" },
-		{ value: "300", label: "5 minutes" },
-		{ value: "600", label: "10 minutes" },
-		{ value: "1800", label: "30 minutes" },
-		{ value: "3600", label: "1 hour" },
-	]
 
 	const handleTimeoutChange = (e: any) => {
 		const select = e.target as HTMLSelectElement
@@ -215,7 +220,7 @@ const ServerRow = ({
 						width: "8px",
 						height: "8px",
 						borderRadius: "50%",
-						background: getStatusColor(),
+						background: getStatusColor(server.status),
 						marginLeft: "8px",
 					}}
 				/>
@@ -337,11 +342,7 @@ const ServerRow = ({
 						<div style={{ margin: "10px 7px" }}>
 							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>Request Timeout</label>
 							<VSCodeDropdown style={{ width: "100%" }} value={timeoutValue} onChange={handleTimeoutChange}>
-								{timeoutOptions.map((option) => (
-									<VSCodeOption key={option.value} value={option.value}>
-										{option.label}
-									</VSCodeOption>
-								))}
+								{TimeoutOptions}
 							</VSCodeDropdown>
 						</div>
 						<VSCodeButton
