@@ -186,7 +186,6 @@ describe("read_file tool with maxReadFileLine setting", () => {
 
 		return toolResult
 	}
-
 	describe("when maxReadFileLine is negative", () => {
 		it("should read the entire file using extractTextFromFile", async () => {
 			// Setup - use default mockInputContent
@@ -200,6 +199,43 @@ describe("read_file tool with maxReadFileLine setting", () => {
 			expect(mockedReadLines).not.toHaveBeenCalled()
 			expect(mockedParseSourceCodeDefinitionsForFile).not.toHaveBeenCalled()
 			expect(result).toBe(expectedFullFileXml)
+		})
+
+		it("should ignore range parameters and read entire file when maxReadFileLine is -1", async () => {
+			// Setup - use default mockInputContent
+			mockInputContent = fileContent
+
+			// Execute with range parameters
+			const result = await executeReadFileTool(
+				{
+					start_line: "2",
+					end_line: "4",
+				},
+				{ maxReadFileLine: -1 },
+			)
+
+			// Verify that extractTextFromFile is still used (not readLines)
+			expect(mockedExtractTextFromFile).toHaveBeenCalledWith(absoluteFilePath)
+			expect(mockedReadLines).not.toHaveBeenCalled()
+			expect(mockedParseSourceCodeDefinitionsForFile).not.toHaveBeenCalled()
+			expect(result).toBe(expectedFullFileXml)
+		})
+
+		it("should not show line snippet in approval message when maxReadFileLine is -1", async () => {
+			// This test verifies the line snippet behavior for the approval message
+			// Setup - use default mockInputContent
+			mockInputContent = fileContent
+
+			// Execute - we'll reuse executeReadFileTool to run the tool
+			await executeReadFileTool({}, { maxReadFileLine: -1 })
+
+			// Verify the empty line snippet for full read was passed to the approval message
+			// Look at the parameters passed to the 'ask' method in the approval message
+			const askCall = mockCline.ask.mock.calls[0]
+			const completeMessage = JSON.parse(askCall[1])
+
+			// Verify the reason (lineSnippet) is empty or undefined for full read
+			expect(completeMessage.reason).toBeFalsy()
 		})
 	})
 

@@ -51,13 +51,16 @@ export async function readFileTool(
 				return
 			}
 
+			const { maxReadFileLine = 500 } = (await cline.providerRef.deref()?.getState()) ?? {}
+			const isFullRead = maxReadFileLine === -1
+
 			// Check if we're doing a line range read
 			let isRangeRead = false
 			let startLine: number | undefined = undefined
 			let endLine: number | undefined = undefined
 
-			// Check if we have either range parameter
-			if (startLineStr || endLineStr) {
+			// Check if we have either range parameter and we're not doing a full read
+			if (!isFullRead && (startLineStr || endLineStr)) {
 				isRangeRead = true
 			}
 
@@ -98,11 +101,11 @@ export async function readFileTool(
 				return
 			}
 
-			const { maxReadFileLine = 500 } = (await cline.providerRef.deref()?.getState()) ?? {}
-
 			// Create line snippet description for approval message
 			let lineSnippet = ""
-			if (startLine !== undefined && endLine !== undefined) {
+			if (isFullRead) {
+				// No snippet for full read
+			} else if (startLine !== undefined && endLine !== undefined) {
 				lineSnippet = t("tools:readFile.linesRange", { start: startLine + 1, end: endLine + 1 })
 			} else if (startLine !== undefined) {
 				lineSnippet = t("tools:readFile.linesFromToEnd", { start: startLine + 1 })
