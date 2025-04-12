@@ -43,30 +43,33 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Redesigned Checkpoints:</b> Checkpoints are now created more often through the task, and will appear as
-					line indicators on the left edge of chat. Hover over them to expand and see details like when they were
-					created!
+					<b>Model Favorites:</b> You can now mark your favorite models when using Cline & OpenRouter providers for
+					quick access!
+				</li>
+				<li>
+					<b>Faster Diff Editing:</b> Improved animation performance for large files, plus a new indicator in chat
+					showing the number of edits Cline makes.
+				</li>
+				<li>
+					<b>New Auto-Approve Options:</b> Turn off Cline's ability to read and edit files outside your workspace.
 				</li>
 			</ul>
-			<h4 style={{ margin: "5px 0 5px" }}>From v3.10:</h4>
+			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
 
 			<ul style={ulStyle}>
 				<li>
+					<b>Redesigned Checkpoints:</b> Now created more often through the task, and appear as lines on the left edge
+					of chat. Hover over them to expand and see details like when they were created.
+				</li>
+				<li>
 					<b>Browser Tool Upgrades:</b> Use your local Chrome browser for session-based browsing, enabling debugging and
-					productivity workflows tied to your actual browser state!
+					productivity workflows tied to your actual browser state.
 				</li>
 				<li>
 					<b>Auto-Approve Commands:</b> New option to automatically approve <b>ALL</b> commands (use at your own risk!)
 				</li>
 				<li>
-					<b>Easily Toggle MCP's:</b> New modal in the chat area to easily enable/disable MCP servers.
-				</li>
-				<li>
-					<b>Smarter Context Management:</b> When hitting context window limits, old file contents are removed
-					first–preserving narrative integrity and reducing Cline getting stuck in loops.
-				</li>
-				<li>
-					Drag and drop files/folders into chat by holding <code>Shift</code> while dragging it into the chat field.
+					<b>Easily Toggle MCP's:</b> New popover in the chat area to easily enable/disable MCP servers.
 				</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
