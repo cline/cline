@@ -970,6 +970,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const newCursorPosition = cursorPosition + text.length
 			setCursorPosition(newCursorPosition)
 			setIntendedCursorPosition(newCursorPosition)
+			setShowContextMenu(false)
 		}
 
 		/**

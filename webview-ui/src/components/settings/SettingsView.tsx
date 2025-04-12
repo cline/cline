@@ -37,27 +37,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
-		// setApiErrorMessage(apiValidationResult)
-		// setModelIdErrorMessage(modelIdValidationResult)
+		setApiErrorMessage(apiValidationResult)
+		setModelIdErrorMessage(modelIdValidationResult)
 
 		let apiConfigurationToSubmit = apiConfiguration
 		if (!apiValidationResult && !modelIdValidationResult) {
-			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			// vscode.postMessage({
-			// 	type: "customInstructions",
-			// 	text: customInstructions,
-			// })
-			// vscode.postMessage({
-			// 	type: "telemetrySetting",
-			// 	text: telemetrySetting,
-			// })
-			// console.log("handleSubmit", withoutDone)
-			// vscode.postMessage({
-			// 	type: "separateModeSetting",
-			// 	text: separateModeSetting,
-			// })
+			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 		} else {
-			// if the api configuration is invalid, we don't save it
 			apiConfigurationToSubmit = undefined
 		}
 
@@ -78,19 +64,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setApiErrorMessage(undefined)
 		setModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
-
-	// validate as soon as the component is mounted
-	/*
-    useEffect will use stale values of variables if they are not included in the dependency array. 
-    so trying to use useEffect with a dependency array of only one value for example will use any 
-    other variables' old values. In most cases you don't want this, and should opt to use react-use 
-    hooks.
-    
-        // uses someVar and anotherVar
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [someVar])
-	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-    */
 
 	const handleMessage = useCallback(
 		(event: MessageEvent) => {
@@ -176,50 +149,48 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					display: "flex",
 					flexDirection: "column",
 				}}>
-				{/* Tabs container */}
-				{planActSeparateModelsSetting ? (
-					<div
-						style={{
-							border: "1px solid var(--vscode-panel-border)",
-							borderRadius: "4px",
-							padding: "10px",
-							marginBottom: "20px",
-							background: "var(--vscode-panel-background)",
-						}}>
+					{planActSeparateModelsSetting ? (
 						<div
 							style={{
-								display: "flex",
-								gap: "1px",
-								marginBottom: "10px",
-								marginTop: -8,
-								borderBottom: "1px solid var(--vscode-panel-border)",
+								border: "1px solid var(--vscode-panel-border)",
+								borderRadius: "4px",
+								padding: "10px",
+								marginBottom: "20px",
+								background: "var(--vscode-panel-background)",
 							}}>
-							<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
-								Plan Mode
-							</TabButton>
-							<TabButton isActive={chatSettings.mode === "act"} onClick={() => handleTabChange("act")}>
-								Act Mode
-							</TabButton>
-						</div>
+							<div
+								style={{
+									display: "flex",
+									gap: "1px",
+									marginBottom: "10px",
+									marginTop: -8,
+									borderBottom: "1px solid var(--vscode-panel-border)",
+								}}>
+								<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
+									Plan Mode
+								</TabButton>
+								<TabButton isActive={chatSettings.mode === "act"} onClick={() => handleTabChange("act")}>
+									Act Mode
+								</TabButton>
+							</div>
 
-						{/* Content container */}
-						<div style={{ marginBottom: -12 }}>
-							<ApiOptions
-								key={chatSettings.mode}
-								showModelOptions={true}
-								apiErrorMessage={apiErrorMessage}
-								modelIdErrorMessage={modelIdErrorMessage}
-							/>
+							<div style={{ marginBottom: -12 }}>
+								<ApiOptions
+									key={chatSettings.mode}
+									showModelOptions={true}
+									apiErrorMessage={apiErrorMessage}
+									modelIdErrorMessage={modelIdErrorMessage}
+								/>
+							</div>
 						</div>
-					</div>
-				) : (
-					<ApiOptions
-						key={"single"}
-						showModelOptions={true}
-						apiErrorMessage={apiErrorMessage}
-						modelIdErrorMessage={modelIdErrorMessage}
-					/>
-				)}
+					) : (
+						<ApiOptions
+							key={"single"}
+							showModelOptions={true}
+							apiErrorMessage={apiErrorMessage}
+							modelIdErrorMessage={modelIdErrorMessage}
+						/>
+					)}
 
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
