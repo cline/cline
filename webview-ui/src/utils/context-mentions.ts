@@ -246,8 +246,17 @@ export function getContextMenuOptions(
 	const seen = new Set()
 	const deduped = allItems.filter((item) => {
 		// Normalize paths for deduplication by ensuring leading slashes
-		const normalizedValue = item.value && !item.value.startsWith("/") ? `/${item.value}` : item.value
-		const key = `${item.type}-${normalizedValue}`
+		const normalizedValue = item.value
+		let key = ""
+		if (
+			item.type === ContextMenuOptionType.File ||
+			item.type === ContextMenuOptionType.Folder ||
+			item.type === ContextMenuOptionType.OpenedFile
+		) {
+			key = normalizedValue!
+		} else {
+			key = `${item.type}-${normalizedValue}`
+		}
 		if (seen.has(key)) return false
 		seen.add(key)
 		return true
