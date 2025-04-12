@@ -96,7 +96,7 @@ export type TelemetrySetting = z.infer<typeof telemetrySettingsSchema>
  */
 
 export const modelInfoSchema = z.object({
-	maxTokens: z.number().optional(),
+	maxTokens: z.number().nullish(),
 	contextWindow: z.number(),
 	supportsImages: z.boolean().optional(),
 	supportsComputerUse: z.boolean().optional(),
@@ -373,11 +373,14 @@ export const providerSettingsSchema = z.object({
 	requestyApiKey: z.string().optional(),
 	requestyModelId: z.string().optional(),
 	requestyModelInfo: modelInfoSchema.optional(),
-	// Generic
+	// Claude 3.7 Sonnet Thinking
 	modelMaxTokens: z.number().optional(), // Currently only used by Anthropic hybrid thinking models.
 	modelMaxThinkingTokens: z.number().optional(), // Currently only used by Anthropic hybrid thinking models.
-	modelTemperature: z.number().nullish(),
+	// Generic
 	includeMaxTokens: z.boolean().optional(),
+	modelTemperature: z.number().nullish(),
+	reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
+	rateLimitSeconds: z.number().optional(),
 	// Fake AI
 	fakeAi: z.unknown().optional(),
 })
@@ -457,11 +460,13 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	requestyModelId: undefined,
 	requestyModelInfo: undefined,
 	// Claude 3.7 Sonnet Thinking
-	modelTemperature: undefined,
 	modelMaxTokens: undefined,
 	modelMaxThinkingTokens: undefined,
 	// Generic
 	includeMaxTokens: undefined,
+	modelTemperature: undefined,
+	reasoningEffort: undefined,
+	rateLimitSeconds: undefined,
 	// Fake AI
 	fakeAi: undefined,
 }

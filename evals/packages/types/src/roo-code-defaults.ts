@@ -20,18 +20,21 @@ export const rooCodeDefaults: RooCodeSettings = {
 	// 	thinking: false,
 	// },
 
+	modelTemperature: null,
+	// reasoningEffort: "high",
+
 	pinnedApiConfigs: {},
-	lastShownAnnouncementId: "mar-20-2025-3-10",
+	lastShownAnnouncementId: "apr-04-2025-boomerang",
 
 	autoApprovalEnabled: true,
 	alwaysAllowReadOnly: true,
 	alwaysAllowReadOnlyOutsideWorkspace: false,
 	alwaysAllowWrite: true,
 	alwaysAllowWriteOutsideWorkspace: false,
-	writeDelayMs: 200,
+	writeDelayMs: 1000,
 	alwaysAllowBrowser: true,
 	alwaysApproveResubmit: true,
-	requestDelaySeconds: 5,
+	requestDelaySeconds: 10,
 	alwaysAllowMcp: true,
 	alwaysAllowModeSwitch: true,
 	alwaysAllowSubtasks: true,
@@ -40,8 +43,8 @@ export const rooCodeDefaults: RooCodeSettings = {
 
 	browserToolEnabled: false,
 	browserViewportSize: "900x600",
-	screenshotQuality: 38,
-	remoteBrowserEnabled: true,
+	screenshotQuality: 75,
+	remoteBrowserEnabled: false,
 
 	enableCheckpoints: false,
 	checkpointStorage: "task",
