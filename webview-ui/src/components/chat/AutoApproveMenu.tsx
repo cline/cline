@@ -27,25 +27,25 @@ const ACTION_METADATA: {
 }[] = [
 	{
 		id: "readFiles",
-		label: "Read local files and directories",
+		label: "Read project files",
 		shortName: "Read Local",
 		description: "Allows Cline to read files within your workspace.",
 	},
 	{
 		id: "readFilesExternally",
-		label: "Read files and directories anywhere",
+		label: "Read all files",
 		shortName: "Read (all)",
 		description: "Allows Cline to read any file on your computer.",
 	},
 	{
 		id: "editFiles",
-		label: "Edit local files",
+		label: "Edit project files",
 		shortName: "Edit",
 		description: "Allows Cline to modify files within your workspace.",
 	},
 	{
 		id: "editFilesExternally",
-		label: "Edit files anywhere",
+		label: "Edit all files",
 		shortName: "Edit (all)",
 		description: "Allows Cline to modify any file on your computer.",
 	},
