@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
+import type { AxiosRequestConfig } from "axios"
 import crypto from "crypto"
 import { execa } from "execa"
 import fs from "fs/promises"
@@ -1461,7 +1462,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				return []
 			}
 
-			const config: Record<string, any> = {}
+			const config: AxiosRequestConfig = {}
 			if (apiKey) {
 				config["headers"] = { Authorization: `Bearer ${apiKey}` }
 			}
