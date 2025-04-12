@@ -89,6 +89,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		qwenApiKey,
 		doubaoApiKey,
 		mistralApiKey,
+		azureIdentity,
 		azureApiVersion,
 		openRouterModelId,
 		openRouterModelInfo,
@@ -159,6 +160,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "qwenApiKey") as Promise<string | undefined>,
 		getSecret(context, "doubaoApiKey") as Promise<string | undefined>,
 		getSecret(context, "mistralApiKey") as Promise<string | undefined>,
+		getGlobalState(context, "azureIdentity") as Promise<boolean | undefined>,
 		getGlobalState(context, "azureApiVersion") as Promise<string | undefined>,
 		getGlobalState(context, "openRouterModelId") as Promise<string | undefined>,
 		getGlobalState(context, "openRouterModelInfo") as Promise<ModelInfo | undefined>,
@@ -269,6 +271,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			qwenApiLine,
 			doubaoApiKey,
 			mistralApiKey,
+			azureIdentity,
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
@@ -344,6 +347,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		qwenApiKey,
 		doubaoApiKey,
 		mistralApiKey,
+		azureIdentity,
 		azureApiVersion,
 		openRouterModelId,
 		openRouterModelInfo,
@@ -398,6 +402,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "mistralApiKey", mistralApiKey)
 	await storeSecret(context, "liteLlmApiKey", liteLlmApiKey)
 	await storeSecret(context, "xaiApiKey", xaiApiKey)
+	await updateGlobalState(context, "azureIdentity", azureIdentity)
 	await updateGlobalState(context, "azureApiVersion", azureApiVersion)
 	await updateGlobalState(context, "openRouterModelId", openRouterModelId)
 	await updateGlobalState(context, "openRouterModelInfo", openRouterModelInfo)

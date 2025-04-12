@@ -97,7 +97,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
-	const [azureIdentitySelected, setAzureIdentitySelected] = useState(!!apiConfiguration?.azureIdentity)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
@@ -826,10 +825,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 					<VSCodeCheckbox
-						checked={azureIdentitySelected}
+						checked={apiConfiguration?.azureIdentity || false}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							setAzureIdentitySelected(isChecked)
 							setApiConfiguration({
 								...apiConfiguration,
 								azureIdentity: isChecked,
