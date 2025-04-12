@@ -180,6 +180,13 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 		additionalCheck?.()
 	}
 
+	const handleIndicatorMouseLeave = (e: React.MouseEvent) => {
+		if (e.currentTarget.contains(e.relatedTarget as Node)) {
+			return
+		}
+		handleDebounceMouseLeave()
+	}
+
 	const handleControlsMouseLeave = (e: React.MouseEvent) => {
 		const tooltipElement = tooltipRef.current
 
@@ -221,10 +228,10 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 				$isCheckedOut={isCheckpointCheckedOut}
 				$isHovered={shouldShowHoveredLine}
 				onMouseEnter={() => setIsLineHovered(true)}
-				onMouseLeave={() => handleDebounceMouseLeave()}
+				onMouseLeave={handleIndicatorMouseLeave}
 			/>
 
-			<HoverArea onMouseEnter={() => setIsLineHovered(true)} onMouseLeave={() => handleDebounceMouseLeave()} />
+			<HoverArea onMouseEnter={() => setIsLineHovered(true)} onMouseLeave={handleIndicatorMouseLeave} />
 
 			{showExpandedUI && (
 				<ExpandedUI
