@@ -2,10 +2,8 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import type { AxiosRequestConfig } from "axios"
 import crypto from "crypto"
-import { execa } from "execa"
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -36,7 +34,7 @@ import { searchCommits } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
 import { getTotalTasksSize } from "../../utils/storage"
 import { openMention } from "../mentions"
-import { GlobalFileNames } from "../storage/disk"
+import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -74,8 +72,8 @@ export class Controller {
 
 		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
 		this.mcpHub = new McpHub(
-			() => this.ensureMcpServersDirectoryExists(),
-			() => this.ensureSettingsDirectoryExists(),
+			() => ensureMcpServersDirectoryExists(),
+			() => ensureSettingsDirectoryExists(this.context),
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
@@ -1111,61 +1109,6 @@ export class Controller {
 		if (this.task) {
 			this.task.customInstructions = instructions || undefined
 		}
-	}
-
-	// MCP
-
-	async getDocumentsPath(): Promise<string> {
-		if (process.platform === "win32") {
-			try {
-				const { stdout: docsPath } = await execa("powershell", [
-					"-NoProfile", // Ignore user's PowerShell profile(s)
-					"-Command",
-					"[System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)",
-				])
-				const trimmedPath = docsPath.trim()
-				if (trimmedPath) {
-					return trimmedPath
-				}
-			} catch (err) {
-				console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
-			}
-		} else if (process.platform === "linux") {
-			try {
-				// First check if xdg-user-dir exists
-				await execa("which", ["xdg-user-dir"])
-
-				// If it exists, try to get XDG documents path
-				const { stdout } = await execa("xdg-user-dir", ["DOCUMENTS"])
-				const trimmedPath = stdout.trim()
-				if (trimmedPath) {
-					return trimmedPath
-				}
-			} catch {
-				// Log error but continue to fallback
-				console.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
-			}
-		}
-
-		// Default fallback for all platforms
-		return path.join(os.homedir(), "Documents")
-	}
-
-	async ensureMcpServersDirectoryExists(): Promise<string> {
-		const userDocumentsPath = await this.getDocumentsPath()
-		const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
-		try {
-			await fs.mkdir(mcpServersDir, { recursive: true })
-		} catch (error) {
-			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
-		}
-		return mcpServersDir
-	}
-
-	async ensureSettingsDirectoryExists(): Promise<string> {
-		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
-		await fs.mkdir(settingsDir, { recursive: true })
-		return settingsDir
 	}
 
 	// VSCode LM API
