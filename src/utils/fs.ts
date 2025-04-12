@@ -84,11 +84,11 @@ export async function getFileSizeInKB(filePath: string): Promise<number> {
  */
 export const readDirectory = async (directoryPath: string) => {
 	try {
-		const ruleFilePaths = await fs
+		const filePaths = await fs
 			.readdir(directoryPath, { withFileTypes: true, recursive: true })
 			.then((files) => files.filter((file) => file.isFile()))
 			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
-		return ruleFilePaths
+		return filePaths
 	} catch {
 		throw new Error(`Error reading directory at ${directoryPath}`)
 	}
