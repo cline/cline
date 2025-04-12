@@ -101,25 +101,28 @@ export class DiffViewProvider {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
 
-		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
+		// Keep cursor at beginning
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
-		for (let i = 0; i < diffLines.length; i++) {
-			const currentLine = this.streamedLines.length + i
-			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
+		// Instead of animating each line, we'll update in larger chunks
+		const currentLine = this.streamedLines.length + diffLines.length - 1
+		if (currentLine >= 0) {
+			// Only proceed if we have new lines
 			const edit = new vscode.WorkspaceEdit()
 			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
 			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
 			edit.replace(document.uri, rangeToReplace, contentToReplace)
 			await vscode.workspace.applyEdit(edit)
-			// Update decorations
+
+			// Update decorations for the entire changed section
 			this.activeLineController.setActiveLine(currentLine)
 			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
-			// Scroll to the current line
+
+			// Scroll to the last changed line
 			this.scrollEditorToLine(currentLine)
 		}
+
 		// Update the streamedLines with the new accumulated content
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
