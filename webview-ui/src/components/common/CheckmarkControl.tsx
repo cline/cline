@@ -25,6 +25,16 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 	const tooltipRef = useRef<HTMLDivElement>(null)
 	const [isComponentHovered, setIsComponentHovered] = useState(false)
 	const [isLineHovered, setIsLineHovered] = useState(false)
+	const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+	// Cleanup timer on unmount
+	useEffect(() => {
+		return () => {
+			if (hideTimerRef.current) {
+				clearTimeout(hideTimerRef.current)
+			}
+		}
+	}, [])
 
 	const { refs, floatingStyles, update, placement } = useFloating({
 		placement: "bottom-end",
@@ -159,6 +169,17 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 		}
 	}
 
+	const handleDebounceMouseLeave = (additionalCheck?: () => void) => {
+		if (hideTimerRef.current) {
+			clearTimeout(hideTimerRef.current)
+		}
+		hideTimerRef.current = setTimeout(() => {
+			setIsLineHovered(false)
+			setIsComponentHovered(false)
+		}, checkpointHoverDebounce)
+		additionalCheck?.()
+	}
+
 	const handleControlsMouseLeave = (e: React.MouseEvent) => {
 		const tooltipElement = tooltipRef.current
 
@@ -190,6 +211,9 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 	// The line should still be highlighted when the checkpoint is checked out
 	const shouldShowHoveredLine = isCheckpointCheckedOut || isLineHovered || isComponentHovered || showRestoreConfirm
 
+	// Debounce time for hiding the ExpandedUI
+	const checkpointHoverDebounce: number = 400
+
 	return (
 		<Container isMenuOpen={showRestoreConfirm} $isCheckedOut={isCheckpointCheckedOut}>
 			{/* Line indicator is still styled differently for checked out checkpoints */}
@@ -197,36 +221,26 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isLastRow 
 				$isCheckedOut={isCheckpointCheckedOut}
 				$isHovered={shouldShowHoveredLine}
 				onMouseEnter={() => setIsLineHovered(true)}
-				onMouseLeave={() => {
-					setTimeout(() => {
-						if (!isComponentHovered && !showRestoreConfirm) {
-							setIsLineHovered(false)
-						}
-					}, 50)
-				}}
+				onMouseLeave={() => handleDebounceMouseLeave()}
 			/>
 
-			<HoverArea
-				onMouseEnter={() => setIsLineHovered(true)}
-				onMouseLeave={() => {
-					if (!isComponentHovered && !showRestoreConfirm) {
-						setIsLineHovered(false)
-					}
-				}}
-			/>
+			<HoverArea onMouseEnter={() => setIsLineHovered(true)} onMouseLeave={() => handleDebounceMouseLeave()} />
 
 			{showExpandedUI && (
 				<ExpandedUI
 					$isCheckedOut={isCheckpointCheckedOut}
 					$isLastRow={isLastRow}
 					onMouseEnter={() => {
+						if (hideTimerRef.current) {
+							clearTimeout(hideTimerRef.current)
+							hideTimerRef.current = null
+						}
 						setIsComponentHovered(true)
 						setIsLineHovered(true)
 					}}
 					onMouseLeave={(e) => {
 						if (!showRestoreConfirm) {
-							setIsComponentHovered(false)
-							setIsLineHovered(false)
+							handleDebounceMouseLeave()
 						} else {
 							handleControlsMouseLeave(e)
 						}
@@ -370,8 +384,8 @@ const CheckpointIndicator = styled.div<{
 	top: 0;
 	/* Make checked out checkpoints have a more visible line */
 	width: ${(props) =>
-		props.$isCheckedOut ? "10px" /* Wider default for checked out checkpoints */ : props.$isHovered ? "12px" : "8px"};
-	height: 3px;
+		props.$isCheckedOut ? "10px" /* Wider default for checked out checkpoints */ : props.$isHovered ? "13px" : "10px"};
+	height: 6px;
 	background-color: ${(props) =>
 		props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"};
 	opacity: ${(props) => (props.$isCheckedOut ? 1 /* Always full opacity for checked out */ : props.$isHovered ? 1 : 0.6)};
@@ -379,8 +393,8 @@ const CheckpointIndicator = styled.div<{
 		opacity 0.15s ease-in-out,
 		width 0.15s ease-in-out;
 	cursor: pointer;
-	border-top-right-radius: 2px;
-	border-bottom-right-radius: 2px;
+	border-top-right-radius: 3px;
+	border-bottom-right-radius: 3px;
 	z-index: 5;
 `
 
