@@ -16,6 +16,7 @@ export const runs = sqliteTable("runs", {
 	settings: blob({ mode: "json" }).$type<GlobalSettings>(),
 	pid: integer({ mode: "number" }),
 	socketPath: text().notNull(),
+	concurrency: integer({ mode: "number" }).default(2).notNull(),
 	passed: integer({ mode: "number" }).default(0).notNull(),
 	failed: integer({ mode: "number" }).default(0).notNull(),
 	createdAt: integer({ mode: "timestamp" }).notNull(),

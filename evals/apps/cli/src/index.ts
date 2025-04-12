@@ -36,7 +36,6 @@ import { getExercises } from "./exercises.js"
 type TaskResult = { success: boolean; retry: boolean }
 type TaskPromise = Promise<TaskResult>
 
-const MAX_CONCURRENCY = 5
 const TASK_TIMEOUT = 10 * 60 * 1_000
 const UNIT_TEST_TIMEOUT = 60 * 1_000
 
@@ -78,12 +77,14 @@ const run = async (toolbox: GluegunToolbox) => {
 				const exercises = getExercises()[language as ExerciseLanguage]
 
 				await pMap(exercises, (exercise) => createTask({ runId: run.id, language, exercise }), {
-					concurrency: 10,
+					concurrency: run.concurrency,
 				})
 			}
 		} else if (exercise === "all") {
 			const exercises = getExercises()[language as ExerciseLanguage]
-			await pMap(exercises, (exercise) => createTask({ runId: run.id, language, exercise }), { concurrency: 10 })
+			await pMap(exercises, (exercise) => createTask({ runId: run.id, language, exercise }), {
+				concurrency: run.concurrency,
+			})
 		} else {
 			language = language || (await askLanguage(prompt))
 			exercise = exercise || (await askExercise(prompt, language))
@@ -145,13 +146,14 @@ const run = async (toolbox: GluegunToolbox) => {
 	}
 
 	let delay = 0
+
 	for (const task of tasks) {
 		const promise = processTask(task, delay)
 		delay = delay + 5_000
 		runningPromises.push(promise)
 		promise.then(() => processTaskResult(task, promise))
 
-		if (runningPromises.length >= MAX_CONCURRENCY) {
+		if (runningPromises.length >= run.concurrency) {
 			delay = 0
 			await Promise.race(runningPromises)
 		}
@@ -179,7 +181,7 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 	// subprocess.stdout.pipe(process.stdout)
 
 	// Sleep for a random amount of time before opening a new VSCode window.
-	await new Promise((resolve) => setTimeout(resolve, 1_000 + Math.random() * MAX_CONCURRENCY * 1_000))
+	await new Promise((resolve) => setTimeout(resolve, 1_000 + Math.random() * 5_000))
 	console.log(`Opening new VS Code window at ${workspacePath}`)
 
 	await execa({

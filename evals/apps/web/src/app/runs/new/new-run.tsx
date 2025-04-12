@@ -12,7 +12,13 @@ import { X, Rocket, Check, ChevronsUpDown, HardDriveUpload, CircleCheck } from "
 import { globalSettingsSchema, providerSettingsSchema, rooCodeDefaults } from "@evals/types"
 
 import { createRun } from "@/lib/server/runs"
-import { createRunSchema as formSchema, type CreateRun as FormValues } from "@/lib/schemas"
+import {
+	createRunSchema as formSchema,
+	type CreateRun as FormValues,
+	CONCURRENCY_MIN,
+	CONCURRENCY_MAX,
+	CONCURRENCY_DEFAULT,
+} from "@/lib/schemas"
 import { cn } from "@/lib/utils"
 import { useOpenRouterModels } from "@/hooks/use-open-router-models"
 import { useExercises } from "@/hooks/use-exercises"
@@ -38,6 +44,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 	ScrollArea,
+	Slider,
 } from "@/components/ui"
 
 import { SettingsDiff } from "./settings-diff"
@@ -63,6 +70,7 @@ export function NewRun() {
 			suite: "full",
 			exercises: [],
 			settings: undefined,
+			concurrency: CONCURRENCY_DEFAULT,
 		},
 	})
 
@@ -73,7 +81,7 @@ export function NewRun() {
 		formState: { isSubmitting },
 	} = form
 
-	const [model, suite, settings] = watch(["model", "suite", "settings"])
+	const [model, suite, settings] = watch(["model", "suite", "settings", "concurrency"])
 
 	const onSubmit = useCallback(
 		async (values: FormValues) => {
@@ -283,6 +291,29 @@ export function NewRun() {
 										maxCount={4}
 									/>
 								)}
+								<FormMessage />
+							</FormItem>
+						)}
+					/>
+
+					<FormField
+						control={form.control}
+						name="concurrency"
+						render={({ field }) => (
+							<FormItem>
+								<FormLabel>Concurrency</FormLabel>
+								<FormControl>
+									<div className="flex flex-row items-center gap-2">
+										<Slider
+											defaultValue={[field.value]}
+											min={CONCURRENCY_MIN}
+											max={CONCURRENCY_MAX}
+											step={1}
+											onValueChange={(value) => field.onChange(value[0])}
+										/>
+										<div>{field.value}</div>
+									</div>
+								</FormControl>
 								<FormMessage />
 							</FormItem>
 						)}

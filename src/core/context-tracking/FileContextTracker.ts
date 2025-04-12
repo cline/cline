@@ -111,7 +111,7 @@ export class FileContextTracker {
 
 	// Gets task metadata from storage
 	async getTaskMetadata(taskId: string): Promise<TaskMetadata> {
-		const globalStoragePath = this.getContextProxy()?.globalStorageUri.fsPath ?? ''
+		const globalStoragePath = this.getContextProxy()?.globalStorageUri.fsPath ?? ""
 		const taskDir = await getTaskDirectoryPath(globalStoragePath, taskId)
 		const filePath = path.join(taskDir, GlobalFileNames.taskMetadata)
 		try {

@@ -293,11 +293,9 @@ if [[ ! -s .env ]]; then
   cp .env.sample .env || exit 1
 fi
 
-if [[ ! -s /tmp/evals.db ]]; then
-  echo "🗄️ Creating database..."
-  pnpm --filter @evals/db db:push || exit 1
-  pnpm --filter @evals/db db:enable-wal || exit 1
-fi
+echo "🗄️ Syncing database..."
+pnpm --filter @evals/db db:push || exit 1
+pnpm --filter @evals/db db:enable-wal || exit 1
 
 if ! grep -q "OPENROUTER_API_KEY" .env; then
   read -p "🔐 Enter your OpenRouter API key (sk-or-v1-...): " openrouter_api_key
