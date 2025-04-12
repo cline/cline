@@ -179,8 +179,8 @@ for i in "${!options[@]}"; do
   case "${plugin}" in
   "nodejs")
     if ! command -v node &>/dev/null; then
-      asdf install nodejs v20.18.1 || exit 1
-      asdf set nodejs v20.18.1 || exit 1
+      asdf install nodejs 20.18.1 || exit 1
+      asdf set nodejs 20.18.1 || exit 1
       NODE_VERSION=$(node --version)
       echo "✅ Node.js is installed ($NODE_VERSION)"
     else
