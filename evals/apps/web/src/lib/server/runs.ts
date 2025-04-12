@@ -58,3 +58,8 @@ export async function createRun({ suite, exercises = [], ...values }: CreateRun)
 
 	return run
 }
+
+export async function deleteRun(runId: number) {
+	await db.deleteRun(runId)
+	revalidatePath("/runs")
+}

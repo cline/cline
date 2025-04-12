@@ -1,19 +1,54 @@
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ChevronRight, Rocket } from "lucide-react"
+import { Ellipsis, Rocket } from "lucide-react"
 
 import type { Run, TaskMetrics } from "@evals/db"
 
+import { deleteRun } from "@/lib/server/runs"
 import { formatCurrency, formatDuration, formatTokens } from "@/lib"
-import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
+import {
+	Button,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui"
 
 export function Home({ runs }: { runs: (Run & { taskMetrics: TaskMetrics | null })[] }) {
 	const router = useRouter()
 
-	const visibleRuns = useMemo(() => runs.filter((run) => run.taskMetrics !== null), [runs])
+	const [deleteRunId, setDeleteRunId] = useState<number>()
+	const continueRef = useRef<HTMLButtonElement>(null)
+
+	const onConfirmDelete = useCallback(async () => {
+		if (!deleteRunId) {
+			return
+		}
+
+		try {
+			await deleteRun(deleteRunId)
+			setDeleteRunId(undefined)
+		} catch (error) {
+			console.error(error)
+		}
+	}, [deleteRunId])
 
 	return (
 		<>
@@ -31,27 +66,47 @@ export function Home({ runs }: { runs: (Run & { taskMetrics: TaskMetrics | null 
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{visibleRuns.length ? (
-						visibleRuns.map(({ taskMetrics, ...run }) => (
+					{runs.length ? (
+						runs.map(({ taskMetrics, ...run }) => (
 							<TableRow key={run.id}>
 								<TableCell>{run.model}</TableCell>
 								<TableCell>{run.passed}</TableCell>
 								<TableCell>{run.failed}</TableCell>
-								<TableCell>{((run.passed / (run.passed + run.failed)) * 100).toFixed(1)}%</TableCell>
 								<TableCell>
-									<div className="flex items-center justify-evenly">
-										<div>{formatTokens(taskMetrics!.tokensIn)}</div>/
-										<div>{formatTokens(taskMetrics!.tokensOut)}</div>
-									</div>
+									{run.passed + run.failed > 0 && (
+										<span>{((run.passed / (run.passed + run.failed)) * 100).toFixed(1)}%</span>
+									)}
 								</TableCell>
-								<TableCell>{formatCurrency(taskMetrics!.cost)}</TableCell>
-								<TableCell>{formatDuration(taskMetrics!.duration)}</TableCell>
 								<TableCell>
-									<Button variant="ghost" size="icon" asChild>
-										<Link href={`/runs/${run.id}`}>
-											<ChevronRight />
-										</Link>
-									</Button>
+									{taskMetrics && (
+										<div className="flex items-center justify-evenly">
+											<div>{formatTokens(taskMetrics.tokensIn)}</div>/
+											<div>{formatTokens(taskMetrics.tokensOut)}</div>
+										</div>
+									)}
+								</TableCell>
+								<TableCell>{taskMetrics && formatCurrency(taskMetrics.cost)}</TableCell>
+								<TableCell>{taskMetrics && formatDuration(taskMetrics.duration)}</TableCell>
+								<TableCell>
+									<DropdownMenu>
+										<Button variant="ghost" size="icon" asChild>
+											<DropdownMenuTrigger>
+												<Ellipsis />
+											</DropdownMenuTrigger>
+										</Button>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem asChild>
+												<Link href={`/runs/${run.id}`}>View Tasks</Link>
+											</DropdownMenuItem>
+											<DropdownMenuItem
+												onClick={() => {
+													setDeleteRunId(run.id)
+													setTimeout(() => continueRef.current?.focus(), 0)
+												}}>
+												Delete
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								</TableCell>
 							</TableRow>
 						))
@@ -74,6 +129,20 @@ export function Home({ runs }: { runs: (Run & { taskMetrics: TaskMetrics | null 
 				onClick={() => router.push("/runs/new")}>
 				<Rocket className="size-6" />
 			</Button>
+			<AlertDialog open={!!deleteRunId} onOpenChange={() => setDeleteRunId(undefined)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Are you sure?</AlertDialogTitle>
+						<AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction ref={continueRef} onClick={onConfirmDelete}>
+							Continue
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</>
 	)
 }

@@ -1,4 +1,4 @@
-import { desc, eq, sql, sum } from "drizzle-orm"
+import { desc, eq, inArray, sql, sum } from "drizzle-orm"
 
 import { RecordNotFoundError, RecordNotCreatedError } from "./errors.js"
 import type { InsertRun, UpdateRun } from "../schema.js"
@@ -82,4 +82,31 @@ export const finishRun = async (runId: number) => {
 	}
 
 	return run
+}
+
+export const deleteRun = async (runId: number) => {
+	const run = await db.query.runs.findFirst({
+		where: eq(schema.runs.id, runId),
+		columns: { taskMetricsId: true },
+	})
+
+	if (!run) {
+		throw new RecordNotFoundError()
+	}
+
+	const tasks = await db.query.tasks.findMany({
+		where: eq(schema.tasks.runId, runId),
+		columns: { id: true, taskMetricsId: true },
+	})
+
+	await db.delete(schema.tasks).where(eq(schema.tasks.runId, runId))
+	await db.delete(schema.runs).where(eq(schema.runs.id, runId))
+
+	const taskMetricsIds = tasks
+		.map(({ taskMetricsId }) => taskMetricsId)
+		.filter((id): id is number => id !== null && id !== undefined)
+
+	taskMetricsIds.push(run.taskMetricsId ?? -1)
+
+	await db.delete(schema.taskMetrics).where(inArray(schema.taskMetrics.id, taskMetricsIds))
 }
