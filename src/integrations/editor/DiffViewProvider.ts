@@ -101,7 +101,7 @@ export class DiffViewProvider {
 			throw new Error("User closed text editor, unable to edit file...")
 		}
 
-		// Keep cursor at beginning
+		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
@@ -109,6 +109,9 @@ export class DiffViewProvider {
 		const currentLine = this.streamedLines.length + diffLines.length - 1
 		if (currentLine >= 0) {
 			// Only proceed if we have new lines
+
+			// Replace all content up to the current line with accumulated lines
+			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
 			const edit = new vscode.WorkspaceEdit()
 			const rangeToReplace = new vscode.Range(0, 0, currentLine + 1, 0)
 			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
@@ -120,7 +123,25 @@ export class DiffViewProvider {
 			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
 
 			// Scroll to the last changed line
-			this.scrollEditorToLine(currentLine)
+			if (diffLines.length <= 5) {
+				// For small changes, just jump directly to the line
+				this.scrollEditorToLine(currentLine)
+			} else {
+				// For larger changes, create a quick scrolling animation
+				const startLine = this.streamedLines.length
+				const endLine = currentLine
+				const totalLines = endLine - startLine
+				const numSteps = 10 // Adjust this number to control animation speed
+				const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
+
+				// Create and await the smooth scrolling animation
+				for (let line = startLine; line <= endLine; line += stepSize) {
+					this.activeDiffEditor?.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.InCenter)
+					await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
+				}
+				// Ensure we end at the final line
+				this.scrollEditorToLine(currentLine)
+			}
 		}
 
 		// Update the streamedLines with the new accumulated content
