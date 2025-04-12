@@ -1044,6 +1044,12 @@ export class Task {
 		})
 
 		if (!isAttemptCompletionMessage) {
+			// ensure we aren't creating a duplicate checkpoint
+			const lastMessage = this.clineMessages.at(-1)
+			if (lastMessage?.say === "checkpoint_created") {
+				return
+			}
+
 			// For non-attempt completion we just say checkpoints
 			await this.say("checkpoint_created")
 			this.checkpointTracker?.commit().then(async (commitHash) => {
@@ -2382,7 +2388,7 @@ export class Task {
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
 										)
-										await this.saveCheckpoint()
+										// await this.saveCheckpoint()
 										break
 									case "close":
 										pushToolResult(

@@ -553,13 +553,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above
+
+		// NOTE: any messages we want to make as part of a browser session should be included here
+		// There was an issue where we added checkpoints after browser actions, and it resulted in browser sessions being disrupted.
 		if (message.type === "ask") {
 			return ["browser_action_launch"].includes(message.ask!)
 		}
 		if (message.type === "say") {
-			return ["browser_action_launch", "api_req_started", "text", "browser_action", "browser_action_result"].includes(
-				message.say!,
-			)
+			return [
+				"browser_action_launch",
+				"api_req_started",
+				"text",
+				"browser_action",
+				"browser_action_result",
+				"checkpoint_created",
+			].includes(message.say!)
 		}
 		return false
 	}
