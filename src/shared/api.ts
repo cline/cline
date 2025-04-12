@@ -66,6 +66,7 @@ export interface ApiHandlerOptions {
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
+	azureIdentity?: boolean
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
 	o3MiniReasoningEffort?: string
