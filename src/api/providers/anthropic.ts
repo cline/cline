@@ -59,7 +59,11 @@ export class AnthropicHandler implements ApiHandler {
 							},
 						], // setting cache breakpoint for system prompt so new tasks can reuse it
 						messages: messages.map((message, index) => {
-							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex || index === thirdLastMsgUserIndex) {
+							if (
+								index === lastUserMsgIndex ||
+								index === secondLastMsgUserIndex ||
+								index === thirdLastMsgUserIndex
+							) {
 								return {
 									...message,
 									content:
