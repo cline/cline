@@ -987,11 +987,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "checkpoint_created":
 					return (
 						<>
-							<CheckmarkControl
-								messageTs={message.ts}
-								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
-								isLastRow={isLast}
-							/>
+							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
 						</>
 					)
 				case "load_mcp_documentation":
