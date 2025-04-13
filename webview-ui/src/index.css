@@ -183,10 +183,6 @@ textarea:focus {
 	outline: 0 !important; /* Allow tailwind to override the `textarea:focus` rule */
 }
 
-vscode-button::part(control):focus {
-	outline: none;
-}
-
 /**
  * Use vscode native scrollbar styles
  * https://github.com/gitkraken/vscode-gitlens/blob/b1d71d4844523e8b2ef16f9e007068e91f46fd88/src/webviews/apps/home/home.scss
