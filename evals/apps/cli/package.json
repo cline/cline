@@ -16,10 +16,12 @@
 		"execa": "^9.5.2",
 		"gluegun": "^5.1.2",
 		"p-map": "^7.0.3",
-		"p-wait-for": "^5.0.2"
+		"p-wait-for": "^5.0.2",
+		"ps-tree": "^1.2.0"
 	},
 	"devDependencies": {
 		"@evals/eslint-config": "workspace:^",
-		"@evals/typescript-config": "workspace:^"
+		"@evals/typescript-config": "workspace:^",
+		"@types/ps-tree": "^1.1.6"
 	}
 }

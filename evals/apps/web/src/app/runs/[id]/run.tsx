@@ -1,33 +1,44 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { LoaderCircle, SquareTerminal } from "lucide-react"
+import { useMemo } from "react"
+import { LoaderCircle } from "lucide-react"
 
 import * as db from "@evals/db"
 
 import { formatCurrency, formatDuration, formatTokens } from "@/lib"
 import { useRunStatus } from "@/hooks/use-run-status"
-import {
-	Drawer,
-	DrawerContent,
-	DrawerHeader,
-	DrawerTitle,
-	ScrollArea,
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 
 import { TaskStatus } from "./task-status"
 import { ConnectionStatus } from "./connection-status"
 
+type TaskMetrics = Pick<db.TaskMetrics, "tokensIn" | "tokensOut" | "tokensContext" | "duration" | "cost">
+
 export function Run({ run }: { run: db.Run }) {
-	const { tasks, status, output, outputCounts } = useRunStatus(run)
-	const scrollAreaRef = useRef<HTMLDivElement>(null)
-	const [selectedTask, setSelectedTask] = useState<db.Task>()
+	const { tasks, status, tokenUsage, usageUpdatedAt } = useRunStatus(run)
+
+	const taskMetrics: Record<number, TaskMetrics> = useMemo(() => {
+		const metrics: Record<number, TaskMetrics> = {}
+
+		tasks?.forEach((task) => {
+			const usage = tokenUsage.get(task.id)
+
+			if (task.finishedAt && task.taskMetrics) {
+				metrics[task.id] = task.taskMetrics
+			} else if (usage) {
+				metrics[task.id] = {
+					tokensIn: usage.totalTokensIn,
+					tokensOut: usage.totalTokensOut,
+					tokensContext: usage.contextTokens,
+					duration: usage.duration ?? 0,
+					cost: usage.totalCost,
+				}
+			}
+		})
+
+		return metrics
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [tasks, tokenUsage, usageUpdatedAt])
 
 	return (
 		<>
@@ -57,38 +68,33 @@ export function Run({ run }: { run: db.Run }) {
 								<TableRow key={task.id}>
 									<TableCell>
 										<div className="flex items-center gap-2">
-											<TaskStatus task={task} />
+											<TaskStatus
+												task={task}
+												running={!!task.startedAt || !!tokenUsage.get(task.id)}
+											/>
 											<div>
 												{task.language}/{task.exercise}
 											</div>
-											{(outputCounts[task.id] ?? 0) > 0 && (
-												<div
-													className="flex items-center gap-1 cursor-pointer"
-													onClick={() => setSelectedTask(task)}>
-													<SquareTerminal className="size-4" />
-													<div className="font-mono text-xs text-foreground/50">
-														{outputCounts[task.id]}
-													</div>
-												</div>
-											)}
 										</div>
 									</TableCell>
-									{task.taskMetrics ? (
+									{taskMetrics[task.id] ? (
 										<>
 											<TableCell className="font-mono text-xs">
 												<div className="flex items-center justify-evenly">
-													<div>{formatTokens(task.taskMetrics.tokensIn)}</div>/
-													<div>{formatTokens(task.taskMetrics.tokensOut)}</div>
+													<div>{formatTokens(taskMetrics[task.id]!.tokensIn)}</div>/
+													<div>{formatTokens(taskMetrics[task.id]!.tokensOut)}</div>
 												</div>
 											</TableCell>
 											<TableCell className="font-mono text-xs">
-												{formatTokens(task.taskMetrics.tokensContext)}
+												{formatTokens(taskMetrics[task.id]!.tokensContext)}
 											</TableCell>
 											<TableCell className="font-mono text-xs">
-												{formatDuration(task.taskMetrics.duration)}
+												{taskMetrics[task.id]!.duration
+													? formatDuration(taskMetrics[task.id]!.duration)
+													: "-"}
 											</TableCell>
 											<TableCell className="font-mono text-xs">
-												{formatCurrency(task.taskMetrics.cost)}
+												{formatCurrency(taskMetrics[task.id]!.cost)}
 											</TableCell>
 										</>
 									) : (
@@ -100,27 +106,6 @@ export function Run({ run }: { run: db.Run }) {
 					</Table>
 				)}
 			</div>
-			<Drawer open={!!selectedTask} onOpenChange={() => setSelectedTask(undefined)}>
-				<DrawerContent>
-					<div className="mx-auto w-full max-w-2xl">
-						<DrawerHeader>
-							<DrawerTitle>
-								{selectedTask?.language}/{selectedTask?.exercise}
-							</DrawerTitle>
-						</DrawerHeader>
-						<div className="font-mono text-xs pb-12">
-							{selectedTask && (
-								<ScrollArea viewportRef={scrollAreaRef} className="h-96 rounded-sm border">
-									<div className="p-4">
-										<h4 className="mb-4 text-sm font-medium leading-none">Tags</h4>
-										{output.get(selectedTask.id)?.map((line, i) => <div key={i}>{line}</div>)}
-									</div>
-								</ScrollArea>
-							)}
-						</div>
-					</div>
-				</DrawerContent>
-			</Drawer>
 		</>
 	)
 }

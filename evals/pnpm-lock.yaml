@@ -62,6 +62,9 @@ importers:
       p-wait-for:
         specifier: ^5.0.2
         version: 5.0.2
+      ps-tree:
+        specifier: ^1.2.0
+        version: 1.2.0
     devDependencies:
       '@evals/eslint-config':
         specifier: workspace:^
@@ -69,6 +72,9 @@ importers:
       '@evals/typescript-config':
         specifier: workspace:^
         version: link:../../config/typescript
+      '@types/ps-tree':
+        specifier: ^1.1.6
+        version: 1.1.6
 
   apps/web:
     dependencies:

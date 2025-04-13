@@ -7,4 +7,5 @@ export const useProcessList = (pid: number | null) =>
 		queryKey: ["process-tree", pid],
 		queryFn: () => (pid ? getProcessList(pid) : []),
 		enabled: !!pid,
+		refetchInterval: 30_000,
 	})

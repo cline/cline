@@ -83,7 +83,7 @@ export class IpcServer extends EventEmitter<IpcServerEvents> {
 		const result = ipcMessageSchema.safeParse(data)
 
 		if (!result.success) {
-			this.log("[server#onMessage] invalid payload", result.error)
+			this.log("[server#onMessage] invalid payload", result.error, data)
 			return
 		}
 

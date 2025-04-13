@@ -275,6 +275,25 @@ fi
 
 pnpm install --silent || exit 1
 
+if ! command -v code &>/dev/null; then
+  echo "⚠️ Visual Studio Code cli is not installed"
+  exit 1
+else
+  VSCODE_VERSION=$(code --version | head -n 1)
+  echo "✅ Visual Studio Code is installed ($VSCODE_VERSION)"
+fi
+
+# To reset VSCode:
+# rm -rvf ~/.vscode && rm -rvf ~/Library/Application\ Support/Code
+
+echo "🔌 Installing Visual Studio Code extensions..."
+code --install-extension golang.go &>/dev/null || exit 1
+code --install-extension dbaeumer.vscode-eslint&>/dev/null || exit 1
+code --install-extension redhat.java &>/dev/null || exit 1
+code --install-extension ms-python.python&>/dev/null || exit 1
+code --install-extension rust-lang.rust-analyzer &>/dev/null || exit 1
+code --install-extension rooveterinaryinc.roo-cline &>/dev/null || exit 1
+
 if [[ ! -d "../../evals" ]]; then
   if gh auth status &>/dev/null; then
     read -p "🔗 Would you like to be able to share eval results? (Y/n): " fork_evals
@@ -293,23 +312,15 @@ if [[ ! -s .env ]]; then
   cp .env.sample .env || exit 1
 fi
 
-echo "🗄️ Syncing database..."
-pnpm --filter @evals/db db:push || exit 1
-pnpm --filter @evals/db db:enable-wal || exit 1
+echo "🗄️ Syncing Roo Code evals database..."
+pnpm --filter @evals/db db:push &>/dev/null || exit 1
+pnpm --filter @evals/db db:enable-wal &>/dev/null || exit 1
 
 if ! grep -q "OPENROUTER_API_KEY" .env; then
   read -p "🔐 Enter your OpenRouter API key (sk-or-v1-...): " openrouter_api_key
   echo "🔑 Validating..."
   curl --silent --fail https://openrouter.ai/api/v1/key -H "Authorization: Bearer $openrouter_api_key" &>/dev/null || exit 1
   echo "OPENROUTER_API_KEY=$openrouter_api_key" >> .env || exit 1
-fi
-
-if ! command -v code &>/dev/null; then
-  echo "⚠️ Visual Studio Code cli is not installed"
-  exit 1
-else
-  VSCODE_VERSION=$(code --version | head -n 1)
-  echo "✅ Visual Studio Code is installed ($VSCODE_VERSION)"
 fi
 
 if [[ ! -s "../bin/roo-code-latest.vsix" ]]; then

@@ -6,6 +6,7 @@ import pMap from "p-map"
 import pWaitFor from "p-wait-for"
 import { execa, parseCommandString } from "execa"
 import { build, filesystem, GluegunPrompt, GluegunToolbox } from "gluegun"
+import psTree from "ps-tree"
 
 import {
 	type ExerciseLanguage,
@@ -36,8 +37,9 @@ import { getExercises } from "./exercises.js"
 type TaskResult = { success: boolean; retry: boolean }
 type TaskPromise = Promise<TaskResult>
 
-const TASK_TIMEOUT = 10 * 60 * 1_000
-const UNIT_TEST_TIMEOUT = 60 * 1_000
+const TASK_START_DELAY = 10 * 1_000
+const TASK_TIMEOUT = 5 * 60 * 1_000
+const UNIT_TEST_TIMEOUT = 2 * 60 * 1_000
 
 const testCommands: Record<ExerciseLanguage, { commands: string[]; timeout?: number; cwd?: string }> = {
 	go: { commands: ["go test"] }, // timeout 15s bash -c "cd '$dir' && go test > /dev/null 2>&1"
@@ -98,13 +100,11 @@ const run = async (toolbox: GluegunToolbox) => {
 		throw new Error("No tasks found.")
 	}
 
-	console.log(await execa({ cwd: exercisesPath })`git config user.name "Roo Code"`)
-	console.log(await execa({ cwd: exercisesPath })`git config user.email "support@roocode.com"`)
-	console.log(await execa({ cwd: exercisesPath })`git checkout -f`)
-	console.log(await execa({ cwd: exercisesPath })`git clean -fd`)
-	console.log(
-		await execa({ cwd: exercisesPath })`git checkout -b runs/${run.id}-${crypto.randomUUID().slice(0, 8)} main`,
-	)
+	await execa({ cwd: exercisesPath })`git config user.name "Roo Code"`
+	await execa({ cwd: exercisesPath })`git config user.email "support@roocode.com"`
+	await execa({ cwd: exercisesPath })`git checkout -f`
+	await execa({ cwd: exercisesPath })`git clean -fd`
+	await execa({ cwd: exercisesPath })`git checkout -b runs/${run.id}-${crypto.randomUUID().slice(0, 8)} main`
 
 	fs.writeFileSync(
 		path.resolve(exercisesPath, "settings.json"),
@@ -145,11 +145,11 @@ const run = async (toolbox: GluegunToolbox) => {
 		}
 	}
 
-	let delay = 0
+	let delay = TASK_START_DELAY
 
 	for (const task of tasks) {
 		const promise = processTask(task, delay)
-		delay = delay + 5_000
+		delay = delay + TASK_START_DELAY
 		runningPromises.push(promise)
 		promise.then(() => processTaskResult(task, promise))
 
@@ -162,10 +162,10 @@ const run = async (toolbox: GluegunToolbox) => {
 	await Promise.all(runningPromises)
 
 	const result = await finishRun(run.id)
-	console.log("[cli#run]", result)
+	console.log(`${Date.now()} [cli#run]`, result)
 
-	console.log(await execa({ cwd: exercisesPath })`git add .`)
-	console.log(await execa({ cwd: exercisesPath })`git commit -m ${`Run #${run.id}`} --no-verify`)
+	await execa({ cwd: exercisesPath })`git add .`
+	await execa({ cwd: exercisesPath })`git commit -m ${`Run #${run.id}`} --no-verify`
 }
 
 const runExercise = async ({ run, task, server }: { run: Run; task: Task; server: IpcServer }): TaskPromise => {
@@ -180,9 +180,7 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 	// Don't await execa and store result as subprocess.
 	// subprocess.stdout.pipe(process.stdout)
 
-	// Sleep for a random amount of time before opening a new VSCode window.
-	await new Promise((resolve) => setTimeout(resolve, 1_000 + Math.random() * 5_000))
-	console.log(`Opening new VS Code window at ${workspacePath}`)
+	console.log(`${Date.now()} [cli#runExercise] Opening new VS Code window at ${workspacePath}`)
 
 	await execa({
 		env: {
@@ -192,15 +190,15 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 	})`code --disable-workspace-trust -n ${workspacePath}`
 
 	// Give VSCode some time to spawn before connecting to its unix socket.
-	await new Promise((resolve) => setTimeout(resolve, 1_000 + Math.random() * 4_000))
-	console.log(`Connecting to ${taskSocketPath}`)
+	await new Promise((resolve) => setTimeout(resolve, 3_000))
+	console.log(`${Date.now()} [cli#runExercise] Connecting to ${taskSocketPath}`)
 	const client = new IpcClient(taskSocketPath)
 
 	try {
 		await pWaitFor(() => client.isReady, { interval: 250, timeout: 5_000 })
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	} catch (error) {
-		console.log(`[cli#runExercise | ${language} / ${exercise}] unable to connect`)
+		console.log(`${Date.now()} [cli#runExercise | ${language} / ${exercise}] unable to connect`)
 		client.disconnect()
 		return { success: false, retry: false }
 	}
@@ -220,16 +218,20 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 	client.on(IpcMessageType.TaskEvent, async (taskEvent) => {
 		const { eventName, payload } = taskEvent
 
-		server.broadcast({
-			type: IpcMessageType.TaskEvent,
-			origin: IpcOrigin.Server,
-			relayClientId: client.clientId!,
-			data: { ...taskEvent, taskId: task.id },
-		})
+		if (taskEvent.eventName !== RooCodeEventName.Message) {
+			server.broadcast({
+				type: IpcMessageType.TaskEvent,
+				origin: IpcOrigin.Server,
+				relayClientId: client.clientId!,
+				data: { ...taskEvent, taskId: task.id },
+			})
+		}
 
 		if (!ignoreEvents.includes(eventName)) {
-			console.log(`[cli#runExercise | ${language} / ${exercise}] taskEvent -> ${eventName}`)
-			console.log(payload)
+			console.log(
+				`${Date.now()} [cli#runExercise | ${language} / ${exercise}] taskEvent -> ${eventName}`,
+				payload,
+			)
 		}
 
 		if (eventName === RooCodeEventName.TaskStarted) {
@@ -279,11 +281,11 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 	})
 
 	client.on(IpcMessageType.Disconnect, async () => {
-		console.log(`[cli#runExercise | ${language} / ${exercise}] disconnect`)
+		console.log(`${Date.now()} [cli#runExercise | ${language} / ${exercise}] disconnect`)
 		isClientDisconnected = true
 	})
 
-	console.log(`[cli#runExercise | ${language} / ${exercise}] starting task`)
+	console.log(`${Date.now()} [cli#runExercise | ${language} / ${exercise}] starting task`)
 
 	client.sendMessage({
 		type: IpcMessageType.TaskCommand,
@@ -307,7 +309,7 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 		await pWaitFor(() => !!taskFinishedAt || isClientDisconnected, { interval: 1_000, timeout: TASK_TIMEOUT })
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	} catch (error) {
-		console.log(`[cli#runExercise | ${language} / ${exercise}] time limit reached`)
+		console.log(`${Date.now()} [cli#runExercise | ${language} / ${exercise}] time limit reached`)
 
 		// Cancel the task.
 		if (rooTaskId && !isClientDisconnected) {
@@ -351,17 +353,56 @@ const runUnitTest = async ({ task }: { task: Task }) => {
 	let passed = true
 
 	for (const command of commands) {
-		const timeout = cmd.timeout ?? UNIT_TEST_TIMEOUT
-
 		try {
-			const result = await execa({ cwd, shell: true, reject: false, timeout })`${command}`
+			console.log(
+				`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] running "${command.join(" ")}"`,
+			)
+			const subprocess = execa({ cwd, shell: true, reject: false })`${command}`
+
+			const timeout = setTimeout(async () => {
+				const descendants = await new Promise<number[]>((resolve, reject) => {
+					psTree(subprocess.pid!, (err, children) => {
+						if (err) {
+							reject(err)
+						}
+
+						resolve(children.map((p) => parseInt(p.PID)))
+					})
+				})
+
+				if (descendants.length > 0) {
+					try {
+						console.log(
+							`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] killing ${descendants.join(" ")}`,
+						)
+
+						await execa`kill -9 ${descendants.join(" ")}`
+					} catch (error) {
+						console.error("Error killing descendant processes:", error)
+					}
+				}
+
+				console.log(
+					`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] killing ${subprocess.pid}`,
+				)
+
+				await execa`kill -9 ${subprocess.pid!}`
+			}, UNIT_TEST_TIMEOUT)
+
+			const result = await subprocess
+
+			console.log(
+				`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] "${command.join(" ")}" result -> ${JSON.stringify(result)}`,
+			)
+
+			clearTimeout(timeout)
 
 			if (result.failed) {
 				passed = false
 				break
 			}
 		} catch (error) {
-			console.log("[cli#runUnitTest]", error)
+			console.log(`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}]`, error)
 			passed = false
 			break
 		}

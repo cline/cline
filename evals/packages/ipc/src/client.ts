@@ -65,7 +65,7 @@ export class IpcClient extends EventEmitter<IpcClientEvents> {
 		const result = ipcMessageSchema.safeParse(data)
 
 		if (!result.success) {
-			this.log("[client#onMessage] invalid payload", data)
+			this.log("[client#onMessage] invalid payload", result.error, data)
 			return
 		}
 

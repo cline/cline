@@ -2,7 +2,7 @@ import { sqliteTable, text, real, integer, blob, uniqueIndex } from "drizzle-orm
 import { relations } from "drizzle-orm"
 import { createInsertSchema } from "drizzle-zod"
 
-import { GlobalSettings, exerciseLanguages, rooCodeSettingsSchema } from "@evals/types"
+import { GlobalSettings, RooCodeSettings, exerciseLanguages, rooCodeSettingsSchema } from "@evals/types"
 
 /**
  * runs
@@ -13,7 +13,7 @@ export const runs = sqliteTable("runs", {
 	taskMetricsId: integer({ mode: "number" }).references(() => taskMetrics.id),
 	model: text().notNull(),
 	description: text(),
-	settings: blob({ mode: "json" }).$type<GlobalSettings>(),
+	settings: blob({ mode: "json" }).$type<RooCodeSettings>(),
 	pid: integer({ mode: "number" }),
 	socketPath: text().notNull(),
 	concurrency: integer({ mode: "number" }).default(2).notNull(),
