@@ -139,6 +139,7 @@ export async function searchWorkspaceFiles(
 					const isDirectory = fs.lstatSync(fullPath).isDirectory()
 					return {
 						...result,
+						path: result.path.toPosix(),
 						type: isDirectory ? ("folder" as const) : ("file" as const),
 					}
 				}
