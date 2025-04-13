@@ -360,7 +360,7 @@ const ApiConfigManager = ({
 					}
 				}}
 				aria-labelledby="new-profile-title">
-				<DialogContent className="p-4 max-w-sm">
+				<DialogContent className="p-4 max-w-sm bg-card">
 					<DialogTitle>{t("settings:providers.newProfile")}</DialogTitle>
 					<Input
 						ref={newProfileInputRef}
