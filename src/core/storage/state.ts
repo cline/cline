@@ -375,6 +375,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		clineApiKey,
 		sambanovaApiKey,
 		openAiConfigs,
+		favoritedModelIds,
 	} = apiConfiguration
 	await updateGlobalState(context, "apiProvider", apiProvider)
 	await updateGlobalState(context, "apiModelId", apiModelId)
