@@ -2,8 +2,10 @@
 
 import { AnthropicHandler } from "../anthropic"
 import { ApiHandlerOptions } from "../../../shared/api"
+import Anthropic from "@anthropic-ai/sdk"
 
 const mockCreate = jest.fn()
+const mockAnthropicConstructor = Anthropic.Anthropic as unknown as jest.Mock
 
 jest.mock("@anthropic-ai/sdk", () => {
 	return {
@@ -69,6 +71,7 @@ describe("AnthropicHandler", () => {
 		}
 		handler = new AnthropicHandler(mockOptions)
 		mockCreate.mockClear()
+		mockAnthropicConstructor.mockClear()
 	})
 
 	describe("constructor", () => {
@@ -93,6 +96,40 @@ describe("AnthropicHandler", () => {
 				anthropicBaseUrl: customBaseUrl,
 			})
 			expect(handlerWithCustomUrl).toBeInstanceOf(AnthropicHandler)
+		})
+
+		it("use apiKey for passing token if anthropicUseAuthToken is not set", () => {
+			const handlerWithCustomUrl = new AnthropicHandler({
+				...mockOptions,
+			})
+			expect(handlerWithCustomUrl).toBeInstanceOf(AnthropicHandler)
+			expect(mockAnthropicConstructor).toHaveBeenCalledTimes(1)
+			expect(mockAnthropicConstructor.mock.lastCall[0].apiKey).toEqual("test-api-key")
+			expect(mockAnthropicConstructor.mock.lastCall[0].authToken).toBeUndefined()
+		})
+
+		it("use apiKey for passing token if anthropicUseAuthToken is set but custom base URL is not given", () => {
+			const handlerWithCustomUrl = new AnthropicHandler({
+				...mockOptions,
+				anthropicUseAuthToken: true,
+			})
+			expect(handlerWithCustomUrl).toBeInstanceOf(AnthropicHandler)
+			expect(mockAnthropicConstructor).toHaveBeenCalledTimes(1)
+			expect(mockAnthropicConstructor.mock.lastCall[0].apiKey).toEqual("test-api-key")
+			expect(mockAnthropicConstructor.mock.lastCall[0].authToken).toBeUndefined()
+		})
+
+		it("use authToken for passing token if both of anthropicBaseUrl and anthropicUseAuthToken are set", () => {
+			const customBaseUrl = "https://custom.anthropic.com"
+			const handlerWithCustomUrl = new AnthropicHandler({
+				...mockOptions,
+				anthropicBaseUrl: customBaseUrl,
+				anthropicUseAuthToken: true,
+			})
+			expect(handlerWithCustomUrl).toBeInstanceOf(AnthropicHandler)
+			expect(mockAnthropicConstructor).toHaveBeenCalledTimes(1)
+			expect(mockAnthropicConstructor.mock.lastCall[0].authToken).toEqual("test-api-key")
+			expect(mockAnthropicConstructor.mock.lastCall[0].apiKey).toBeUndefined()
 		})
 	})
 

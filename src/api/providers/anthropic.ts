@@ -20,9 +20,12 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 	constructor(options: ApiHandlerOptions) {
 		super()
 		this.options = options
+
+		const apiKeyFieldName =
+			this.options.anthropicBaseUrl && this.options.anthropicUseAuthToken ? "authToken" : "apiKey"
 		this.client = new Anthropic({
-			apiKey: this.options.apiKey,
 			baseURL: this.options.anthropicBaseUrl || undefined,
+			[apiKeyFieldName]: this.options.apiKey,
 		})
 	}
 

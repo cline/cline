@@ -116,6 +116,7 @@
 		"openRouterTransformsText": "프롬프트와 메시지 체인을 컨텍스트 크기로 압축 (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Anthropic API 키",
 		"getAnthropicApiKey": "Anthropic API 키 받기",
+		"anthropicUseAuthToken": "X-Api-Key 대신 Authorization 헤더로 Anthropic API 키 전달",
 		"deepSeekApiKey": "DeepSeek API 키",
 		"getDeepSeekApiKey": "DeepSeek API 키 받기",
 		"geminiApiKey": "Gemini API 키",

@@ -301,6 +301,7 @@ export const providerSettingsSchema = z.object({
 	apiModelId: z.string().optional(),
 	apiKey: z.string().optional(),
 	anthropicBaseUrl: z.string().optional(),
+	anthropicUseAuthToken: z.boolean().optional(),
 	// Glama
 	glamaModelId: z.string().optional(),
 	glamaModelInfo: modelInfoSchema.optional(),
