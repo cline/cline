@@ -9,6 +9,8 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
+import { createTestServer, shutdownTestServer } from "./services/test/TestServer"
+import { ErrorService } from "./services/error/ErrorService"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -27,12 +29,14 @@ export function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
+	ErrorService.initialize()
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
 
 	const sidebarWebview = new WebviewProvider(context, outputChannel)
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
+	vscode.commands.executeCommand("setContext", "cline.isTestMode", IS_TEST && IS_TEST === "true")
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(WebviewProvider.sideBarId, sidebarWebview, {
@@ -393,13 +397,12 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	return createClineAPI(outputChannel, sidebarWebview.controller)
-}
+	// Set up test server if in test mode
+	if (IS_TEST === "true") {
+		createTestServer(sidebarWebview)
+	}
 
-// This method is called when your extension is deactivated
-export function deactivate() {
-	telemetryService.shutdown()
-	Logger.log("Cline extension deactivated")
+	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.
@@ -408,8 +411,18 @@ export function deactivate() {
 //
 // This is a workaround to reload the extension when the source code changes
 // since vscode doesn't support hot reload for extensions
-const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
+const { IS_DEV, DEV_WORKSPACE_FOLDER, IS_TEST } = process.env
 
+// This method is called when your extension is deactivated
+export function deactivate() {
+	// Shutdown the test server if it exists
+	shutdownTestServer()
+
+	telemetryService.shutdown()
+	Logger.log("Cline extension deactivated")
+}
+
+// Set up development mode file watcher
 if (IS_DEV && IS_DEV !== "false") {
 	assert(DEV_WORKSPACE_FOLDER, "DEV_WORKSPACE_FOLDER must be set in development")
 	const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(DEV_WORKSPACE_FOLDER, "src/**/*"))

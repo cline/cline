@@ -8,6 +8,8 @@ import ApiOptions from "./ApiOptions"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
+import BrowserSettingsSection from "./BrowserSettingsSection"
+
 const { IS_DEV } = process.env
 
 type SettingsViewProps = {
@@ -104,6 +106,24 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						})
 						setPendingTabChange(null)
 					}
+					break
+				case "scrollToSettings":
+					setTimeout(() => {
+						const elementId = message.text
+						if (elementId) {
+							const element = document.getElementById(elementId)
+							if (element) {
+								element.scrollIntoView({ behavior: "smooth" })
+
+								element.style.transition = "background-color 0.5s ease"
+								element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+
+								setTimeout(() => {
+									element.style.backgroundColor = "transparent"
+								}, 1200)
+							}
+						}
+					}, 300)
 					break
 			}
 		},
@@ -271,6 +291,26 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					</p>
 				</div>
 
+				{/* Browser Settings Section */}
+				<BrowserSettingsSection />
+
+				<div
+					style={{
+						marginTop: "auto",
+						paddingRight: 8,
+						display: "flex",
+						justifyContent: "center",
+					}}>
+					<SettingsButton
+						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
+						style={{
+							margin: "0 0 16px 0",
+						}}>
+						<i className="codicon codicon-settings-gear" />
+						Advanced Settings
+					</SettingsButton>
+				</div>
+
 				{IS_DEV && (
 					<>
 						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
@@ -290,27 +330,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 				<div
 					style={{
-						marginTop: "auto",
-						paddingRight: 8,
-						display: "flex",
-						justifyContent: "center",
-					}}>
-					<SettingsButton
-						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
-						style={{
-							margin: "0 0 16px 0",
-						}}>
-						<i className="codicon codicon-settings-gear" />
-						Advanced Settings
-					</SettingsButton>
-				</div>
-				<div
-					style={{
 						textAlign: "center",
 						color: "var(--vscode-descriptionForeground)",
 						fontSize: "12px",
 						lineHeight: "1.2",
 						padding: "0 8px 15px 0",
+						marginTop: "auto",
 					}}>
 					<p
 						style={{

@@ -1,4 +1,4 @@
-import { memo, useState } from "react"
+import { memo, useCallback, useState } from "react"
 import { anthropicModels, ApiConfiguration } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
@@ -92,10 +92,10 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 	// Add local state for the slider value
 	const [localValue, setLocalValue] = useState(apiConfiguration?.thinkingBudgetTokens || 0)
 
-	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
 		setLocalValue(value)
-	}
+	}, [])
 
 	const handleSliderComplete = () => {
 		setApiConfiguration({

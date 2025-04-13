@@ -13,6 +13,27 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import FeaturedModelCard from "./FeaturedModelCard"
 
+// Star icon for favorites
+const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
+	return (
+		<div
+			onClick={onClick}
+			style={{
+				cursor: "pointer",
+				color: isFavorite ? "var(--vscode-terminal-ansiBlue)" : "var(--vscode-descriptionForeground)",
+				marginLeft: "8px",
+				fontSize: "16px",
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				userSelect: "none",
+				WebkitUserSelect: "none",
+			}}>
+			{isFavorite ? "★" : "☆"}
+		</div>
+	)
+}
+
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 }
@@ -107,12 +128,21 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		const results: { id: string; html: string }[] = searchTerm
-			? highlight(fuse.search(searchTerm), "model-item-highlight")
-			: searchableItems
-		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
-		return results
-	}, [searchableItems, searchTerm, fuse])
+		const favoritedModelIds = apiConfiguration?.favoritedModelIds || []
+
+		// IMPORTANT: highlightjs has a bug where if you use sort/localCompare - "// results.sort((a, b) => a.id.localeCompare(b.id)) ...sorting like this causes ids in objects to be reordered and mismatched"
+
+		// First, get all favorited models
+		const favoritedModels = searchableItems.filter((item) => favoritedModelIds.includes(item.id))
+
+		// Then get search results for non-favorited models
+		const searchResults = searchTerm
+			? highlight(fuse.search(searchTerm), "model-item-highlight").filter((item) => !favoritedModelIds.includes(item.id))
+			: searchableItems.filter((item) => !favoritedModelIds.includes(item.id))
+
+		// Combine favorited models with search results
+		return [...favoritedModels, ...searchResults]
+	}, [searchableItems, searchTerm, fuse, apiConfiguration?.favoritedModelIds])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) return
@@ -241,21 +271,34 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 					</VSCodeTextField>
 					{isDropdownVisible && (
 						<DropdownList ref={dropdownListRef}>
-							{modelSearchResults.map((item, index) => (
-								<DropdownItem
-									key={item.id}
-									ref={(el) => (itemRefs.current[index] = el)}
-									isSelected={index === selectedIndex}
-									onMouseEnter={() => setSelectedIndex(index)}
-									onClick={() => {
-										handleModelChange(item.id)
-										setIsDropdownVisible(false)
-									}}
-									dangerouslySetInnerHTML={{
-										__html: item.html,
-									}}
-								/>
-							))}
+							{modelSearchResults.map((item, index) => {
+								const isFavorite = (apiConfiguration?.favoritedModelIds || []).includes(item.id)
+								return (
+									<DropdownItem
+										key={item.id}
+										ref={(el) => (itemRefs.current[index] = el)}
+										isSelected={index === selectedIndex}
+										onMouseEnter={() => setSelectedIndex(index)}
+										onClick={() => {
+											handleModelChange(item.id)
+											setIsDropdownVisible(false)
+										}}>
+										<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+											<span dangerouslySetInnerHTML={{ __html: item.html }} />
+											<StarIcon
+												isFavorite={isFavorite}
+												onClick={(e) => {
+													e.stopPropagation()
+													vscode.postMessage({
+														type: "toggleFavoriteModel",
+														modelId: item.id,
+													})
+												}}
+											/>
+										</div>
+									</DropdownItem>
+								)
+							})}
 						</DropdownList>
 					)}
 				</DropdownWrapper>

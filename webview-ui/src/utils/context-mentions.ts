@@ -32,6 +32,14 @@ export function insertMention(text: string, position: number, value: string): { 
 	return { newValue, mentionIndex }
 }
 
+export function insertMentionDirectly(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
+	const beforeCursor = text.slice(0, position)
+	const afterCursor = text.slice(position)
+	const newValue = beforeCursor + "@" + value + " " + afterCursor
+	const mentionIndex = position
+	return { newValue, mentionIndex }
+}
+
 export function removeMention(text: string, position: number): { newText: string; newPosition: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)

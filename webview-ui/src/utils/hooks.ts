@@ -15,7 +15,7 @@ export const useMetaKeyDetection = (platform: string) => {
 	return [os, metaKeyChar]
 }
 
-export const useShortcut = (shortcut: string, callback: any, options = { disableTextInputs: true }) => {
+export const useShortcut = (shortcut: string, callback: (...args: unknown[]) => void, options = { disableTextInputs: true }) => {
 	const callbackRef = useRef(callback)
 	const [keyCombo, setKeyCombo] = useState<string[]>([])
 

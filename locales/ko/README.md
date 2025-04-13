@@ -1,4 +1,4 @@
-# Cline - 최고의 OpenRouter
+# Cline
 
 <p align="center">
     <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
