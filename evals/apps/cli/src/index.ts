@@ -357,6 +357,7 @@ const runUnitTest = async ({ task }: { task: Task }) => {
 			console.log(
 				`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] running "${command.join(" ")}"`,
 			)
+
 			const subprocess = execa({ cwd, shell: true, reject: false })`${command}`
 
 			const timeout = setTimeout(async () => {
@@ -370,15 +371,21 @@ const runUnitTest = async ({ task }: { task: Task }) => {
 					})
 				})
 
-				if (descendants.length > 0) {
-					try {
-						console.log(
-							`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] killing ${descendants.join(" ")}`,
-						)
+				console.log(
+					`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] "${command.join(" ")}": ${subprocess.pid} -> ${JSON.stringify(descendants)}`,
+				)
 
-						await execa`kill -9 ${descendants.join(" ")}`
-					} catch (error) {
-						console.error("Error killing descendant processes:", error)
+				if (descendants.length > 0) {
+					for (const descendant of descendants) {
+						try {
+							console.log(
+								`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] killing ${descendant}`,
+							)
+
+							await execa`kill -9 ${descendant}`
+						} catch (error) {
+							console.error("Error killing descendant processes:", error)
+						}
 					}
 				}
 
@@ -386,7 +393,11 @@ const runUnitTest = async ({ task }: { task: Task }) => {
 					`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] killing ${subprocess.pid}`,
 				)
 
-				await execa`kill -9 ${subprocess.pid!}`
+				try {
+					await execa`kill -9 ${subprocess.pid!}`
+				} catch (error) {
+					console.error("Error killing process:", error)
+				}
 			}, UNIT_TEST_TIMEOUT)
 
 			const result = await subprocess

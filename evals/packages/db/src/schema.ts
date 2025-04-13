@@ -2,7 +2,7 @@ import { sqliteTable, text, real, integer, blob, uniqueIndex } from "drizzle-orm
 import { relations } from "drizzle-orm"
 import { createInsertSchema } from "drizzle-zod"
 
-import { GlobalSettings, RooCodeSettings, exerciseLanguages, rooCodeSettingsSchema } from "@evals/types"
+import { RooCodeSettings, exerciseLanguages, rooCodeSettingsSchema } from "@evals/types"
 
 /**
  * runs
