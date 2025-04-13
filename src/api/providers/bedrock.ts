@@ -169,6 +169,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			// Use profile-based credentials if enabled and profile is set
 			clientConfig.credentials = fromIni({
 				profile: this.options.awsProfile,
+				ignoreCache: true,
 			})
 		} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
 			// Use direct credentials if provided
