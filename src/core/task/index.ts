@@ -12,7 +12,6 @@ import { ApiHandler, buildApiHandler } from "../../api"
 import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
-import { getContextWindowInfo } from "../context/context-management/context-window-utils"
 import { ApiStream } from "../../api/transform/stream"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
@@ -55,24 +54,27 @@ import { HistoryItem } from "../../shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "../../shared/Languages"
 import { ClineAskResponse, ClineCheckpointRestore } from "../../shared/WebviewMessage"
 import { calculateApiCostAnthropic } from "../../utils/cost"
-import { fileExistsAtPath, isDirectory } from "../../utils/fs"
+import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual, getReadablePath } from "../../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
 import { constructNewFileContent } from ".././assistant-message/diff"
-import { ContextManager } from "../context/context-management/ContextManager"
 import { ClineIgnoreController } from ".././ignore/ClineIgnoreController"
 import { parseMentions } from ".././mentions"
 import { formatResponse } from ".././prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
+import { getContextWindowInfo } from "../context/context-management/context-window-utils"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "../context/context-tracking/ModelContextTracker"
-
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "../context/context-management/context-error-handling"
-
+import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { McpHub } from "../../services/mcp/McpHub"
+import { ContextManager } from "../context/context-management/ContextManager"
+import { getClineRules } from "../context/instructions/user-instructions/cline-rules"
+import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import {
 	ensureTaskDirectoryExists,
 	getSavedApiConversationHistory,
@@ -80,10 +82,6 @@ import {
 	saveApiConversationHistory,
 	saveClineMessages,
 } from "../storage/disk"
-import { McpHub } from "../../services/mcp/McpHub"
-import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
-import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { getClineRules } from "../context/instructions/user-instructions/cline-rules"
 import { getGlobalState } from "../storage/state"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -2932,14 +2930,7 @@ export class Task {
 								break
 							} else {
 								await this.say("load_mcp_documentation", "", undefined, false)
-
-								const mcpHub = this.controllerRef.deref()?.mcpHub
-								if (!mcpHub) {
-									throw new Error("MCP hub not available")
-								}
-
-								pushToolResult(await loadMcpDocumentation(mcpHub))
-
+								pushToolResult(await loadMcpDocumentation(this.mcpHub))
 								break
 							}
 						} catch (error) {
