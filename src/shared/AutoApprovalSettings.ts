@@ -3,9 +3,12 @@ export interface AutoApprovalSettings {
 	enabled: boolean
 	// Individual action permissions
 	actions: {
-		readFiles: boolean // Read files and directories
-		editFiles: boolean // Edit files
-		executeCommands: boolean // Execute safe commands
+		readFiles: boolean // Read files and directories in the working directory
+		readFilesExternally?: boolean // Read files and directories outside of the working directory
+		editFiles: boolean // Edit files in the working directory
+		editFilesExternally?: boolean // Edit files outside of the working directory
+		executeSafeCommands?: boolean // Execute safe commands
+		executeAllCommands?: boolean // Execute all commands
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
 	}
@@ -18,8 +21,11 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	enabled: false,
 	actions: {
 		readFiles: false,
+		readFilesExternally: false,
 		editFiles: false,
-		executeCommands: false,
+		editFilesExternally: false,
+		executeSafeCommands: false,
+		executeAllCommands: false,
 		useBrowser: false,
 		useMcp: false,
 	},

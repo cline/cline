@@ -1,4 +1,5 @@
 import React, { memo, useEffect } from "react"
+import type { ComponentProps } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
@@ -234,7 +235,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 						</StyledPre>
 					)
 				},
-				code: (props: any) => {
+				code: (props: ComponentProps<"code">) => {
 					const className = props.className || ""
 					if (className.includes("language-mermaid")) {
 						const codeText = String(props.children || "")

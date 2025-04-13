@@ -10,11 +10,14 @@ export interface FileMetadataEntry {
 	user_edit_date?: number | null
 }
 
-export interface TaskMetadata {
-	files_in_context: FileMetadataEntry[]
+export interface ModelMetadataEntry {
+	ts: number
+	model_id: string
+	model_provider_id: string
+	mode: string
 }
 
-// Interface for the controller to avoid direct dependency
-export interface ControllerLike {
-	context: vscode.ExtensionContext
+export interface TaskMetadata {
+	files_in_context: FileMetadataEntry[]
+	model_usage: ModelMetadataEntry[]
 }
