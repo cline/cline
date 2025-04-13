@@ -158,14 +158,48 @@ export function NewRun() {
 					.parse(JSON.parse(await file.text()))
 
 				const providerSettings = providerProfiles.apiConfigs[providerProfiles.currentApiConfigName] ?? {}
-				const { apiProvider, openRouterModelId, openAiModelId } = providerSettings
+				const {
+					apiProvider,
+					apiModelId,
+					openRouterModelId,
+					glamaModelId,
+					requestyModelId,
+					unboundModelId,
+					ollamaModelId,
+					lmStudioModelId,
+					openAiModelId,
+				} = providerSettings
 
 				switch (apiProvider) {
+					case "anthropic":
+					case "bedrock":
+					case "deepseek":
+					case "gemini":
+					case "mistral":
+					case "openai-native":
+					case "vertex":
+						setValue("model", apiModelId ?? "")
+						break
 					case "openrouter":
 						setValue("model", openRouterModelId ?? "")
 						break
+					case "glama":
+						setValue("model", glamaModelId ?? "")
+						break
+					case "requesty":
+						setValue("model", requestyModelId ?? "")
+						break
+					case "unbound":
+						setValue("model", unboundModelId ?? "")
+						break
 					case "openai":
 						setValue("model", openAiModelId ?? "")
+						break
+					case "ollama":
+						setValue("model", ollamaModelId ?? "")
+						break
+					case "lmstudio":
+						setValue("model", lmStudioModelId ?? "")
 						break
 					default:
 						throw new Error(`Unsupported API provider: ${apiProvider}`)
