@@ -1,7 +1,7 @@
 {
 	"name": "roo-cline",
-	"displayName": "Roo Code",
-	"description": "A whole dev team of AI agents in your editor. Previously Roo Cline.",
+	"displayName": "%extension.displayName%",
+	"description": "%extension.description%",
 	"publisher": "RooVeterinaryInc",
 	"version": "3.11.14",
 	"icon": "assets/icons/icon.png",
@@ -54,18 +54,18 @@
 		"submenus": [
 			{
 				"id": "roo-code.contextMenu",
-				"label": "Roo Code"
+				"label": "%views.contextMenu.label%"
 			},
 			{
 				"id": "roo-code.terminalMenu",
-				"label": "Roo Code"
+				"label": "%views.terminalMenu.label%"
 			}
 		],
 		"viewsContainers": {
 			"activitybar": [
 				{
 					"id": "roo-cline-ActivityBar",
-					"title": "Roo Code",
+					"title": "%views.activitybar.title%",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
@@ -82,103 +82,103 @@
 		"commands": [
 			{
 				"command": "roo-cline.plusButtonClicked",
-				"title": "New Task",
+				"title": "%command.newTask.title%",
 				"icon": "$(add)"
 			},
 			{
 				"command": "roo-cline.mcpButtonClicked",
-				"title": "MCP Servers",
+				"title": "%command.mcpServers.title%",
 				"icon": "$(server)"
 			},
 			{
 				"command": "roo-cline.promptsButtonClicked",
-				"title": "Prompts",
+				"title": "%command.prompts.title%",
 				"icon": "$(notebook)"
 			},
 			{
 				"command": "roo-cline.historyButtonClicked",
-				"title": "History",
+				"title": "%command.history.title%",
 				"icon": "$(history)"
 			},
 			{
 				"command": "roo-cline.popoutButtonClicked",
-				"title": "Open in Editor",
+				"title": "%command.openInEditor.title%",
 				"icon": "$(link-external)"
 			},
 			{
 				"command": "roo-cline.settingsButtonClicked",
-				"title": "Settings",
+				"title": "%command.settings.title%",
 				"icon": "$(settings-gear)"
 			},
 			{
 				"command": "roo-cline.helpButtonClicked",
-				"title": "Documentation",
+				"title": "%command.documentation.title%",
 				"icon": "$(question)"
 			},
 			{
 				"command": "roo-cline.openInNewTab",
-				"title": "Open In New Tab",
-				"category": "Roo Code"
+				"title": "%command.openInNewTab.title%",
+				"category": "%extension.displayName%"
 			},
 			{
 				"command": "roo-cline.explainCode",
-				"title": "Explain Code",
-				"category": "Roo Code"
+				"title": "%command.explainCode.title%",
+				"category": "%extension.displayName%"
 			},
 			{
 				"command": "roo-cline.fixCode",
-				"title": "Fix Code",
-				"category": "Roo Code"
+				"title": "%command.fixCode.title%",
+				"category": "%extension.displayName%"
 			},
 			{
 				"command": "roo-cline.improveCode",
-				"title": "Improve Code",
-				"category": "Roo Code"
+				"title": "%command.improveCode.title%",
+				"category": "%extension.displayName%"
 			},
 			{
 				"command": "roo-cline.addToContext",
-				"title": "Add To Context",
-				"category": "Roo Code"
+				"title": "%command.addToContext.title%",
+				"category": "%extension.displayName%"
 			},
 			{
 				"command": "roo-cline.newTask",
-				"title": "New Task",
-				"category": "Roo Code"
+				"title": "%command.newTask.title%",
+				"category": "%extension.displayName%"
 			},
 			{
 				"command": "roo-cline.terminalAddToContext",
-				"title": "Add Terminal Content to Context",
+				"title": "%command.terminal.addToContext.title%",
 				"category": "Terminal"
 			},
 			{
 				"command": "roo-cline.terminalFixCommand",
-				"title": "Fix This Command",
+				"title": "%command.terminal.fixCommand.title%",
 				"category": "Terminal"
 			},
 			{
 				"command": "roo-cline.terminalExplainCommand",
-				"title": "Explain This Command",
+				"title": "%command.terminal.explainCommand.title%",
 				"category": "Terminal"
 			},
 			{
 				"command": "roo-cline.terminalFixCommandInCurrentTask",
-				"title": "Fix This Command (Current Task)",
+				"title": "%command.terminal.fixCommandInCurrentTask.title%",
 				"category": "Terminal"
 			},
 			{
 				"command": "roo-cline.terminalExplainCommandInCurrentTask",
-				"title": "Explain This Command (Current Task)",
+				"title": "%command.terminal.explainCommandInCurrentTask.title%",
 				"category": "Terminal"
 			},
 			{
 				"command": "roo-cline.setCustomStoragePath",
-				"title": "Set Custom Storage Path",
-				"category": "Roo Code"
+				"title": "%command.setCustomStoragePath.title%",
+				"category": "%extension.displayName%"
 			},
 			{
 				"command": "roo-cline.focusInput",
-				"title": "Focus Input Field",
-				"category": "Roo Code"
+				"title": "%command.focusInput.title%",
+				"category": "%extension.displayName%"
 			}
 		],
 		"menus": {
@@ -310,7 +310,7 @@
 			]
 		},
 		"configuration": {
-			"title": "Roo Code",
+			"title": "%configuration.title%",
 			"properties": {
 				"roo-cline.allowedCommands": {
 					"type": "array",
@@ -325,26 +325,26 @@
 						"git diff",
 						"git show"
 					],
-					"description": "Commands that can be auto-executed when 'Always approve execute operations' is enabled"
+					"description": "%commands.allowedCommands.description%"
 				},
 				"roo-cline.vsCodeLmModelSelector": {
 					"type": "object",
 					"properties": {
 						"vendor": {
 							"type": "string",
-							"description": "The vendor of the language model (e.g. copilot)"
+							"description": "%settings.vsCodeLmModelSelector.vendor.description%"
 						},
 						"family": {
 							"type": "string",
-							"description": "The family of the language model (e.g. gpt-4)"
+							"description": "%settings.vsCodeLmModelSelector.family.description%"
 						}
 					},
-					"description": "Settings for VSCode Language Model API"
+					"description": "%settings.vsCodeLmModelSelector.description%"
 				},
 				"roo-cline.customStoragePath": {
 					"type": "string",
 					"default": "",
-					"description": "Custom storage path. Leave empty to use the default location. Supports absolute paths (e.g. 'D:\\RooCodeStorage')"
+					"description": "%settings.customStoragePath.description%"
 				}
 			}
 		}
