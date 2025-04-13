@@ -17,7 +17,6 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
-import { useChatRowStyles } from "@/hooks/useChatRowStyles"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
@@ -48,12 +47,11 @@ interface ChatRowProps {
 	isExpanded: boolean
 	onToggleExpand: () => void
 	lastModifiedMessage?: ClineMessage
-	isFirst: boolean
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "isFirst"> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 export const ProgressIndicator = () => (
 	<div
@@ -86,40 +84,36 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, isFirst, onHeightChange, message } = props
+		const { isLast, onHeightChange, message, lastModifiedMessage } = props
 		// Store the previous height to compare with the current height
+		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
-		// Calculate dynamic styles using the custom hook
-		const { ...chatRowStyles } = useChatRowStyles(message)
 
-		const isCheckpointMessage = message.say === "checkpoint_created"
+		// NOTE: for tools that are interrupted and not responded to (approved or rejected) there won't be a checkpoint hash
+		let shouldShowCheckpoints =
+			message.lastCheckpointHash != null &&
+			(message.say === "tool" ||
+				message.ask === "tool" ||
+				message.say === "command" ||
+				message.ask === "command" ||
+				// message.say === "completion_result" ||
+				// message.ask === "completion_result" ||
+				message.say === "use_mcp_server" ||
+				message.ask === "use_mcp_server")
 
-		// Special handling for first row checkpoint
-		const checkpointStyles = useMemo(() => {
-			if (isCheckpointMessage) {
-				// Apply additional styles for first row checkpoints
-				if (isFirst) {
-					return {
-						...chatRowStyles,
-						marginTop: "3px", // Add a small margin to ensure visibility
-					}
-				}
-				return chatRowStyles
-			}
-			return chatRowStyles
-		}, [chatRowStyles, isCheckpointMessage, isFirst])
+		if (shouldShowCheckpoints && isLast) {
+			shouldShowCheckpoints =
+				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
+		}
 
-		// ChatRowContainer with updated styles
 		const [chatrow, { height }] = useSize(
-			<ChatRowContainer style={checkpointStyles}>
+			<ChatRowContainer>
 				<ChatRowContent {...props} />
+				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
 			</ChatRowContainer>,
 		)
 
 		useEffect(() => {
-			// Skip height change effects for checkpoint messages
-			if (isCheckpointMessage) return
-
 			// used for partials command output etc.
 			// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
 			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
@@ -130,7 +124,7 @@ const ChatRow = memo(
 				}
 				prevHeightRef.current = height
 			}
-		}, [height, isLast, onHeightChange, message, isCheckpointMessage])
+		}, [height, isLast, onHeightChange, message])
 
 		// we cannot return null as virtuoso does not support it so we use a separate visibleMessages array to filter out messages that should not be rendered
 		return chatrow

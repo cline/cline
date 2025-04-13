@@ -11,11 +11,9 @@ import { useFloating, offset, flip, shift } from "@floating-ui/react"
 interface CheckmarkControlProps {
 	messageTs?: number
 	isCheckpointCheckedOut?: boolean
-	/** Determines if the hover is near the checkpoint marker's visual position (either on the preceding row or the checkpoint row itself) */
-	isHoveredNearCheckpoint: boolean
 }
 
-export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isHoveredNearCheckpoint }: CheckmarkControlProps) => {
+export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: CheckmarkControlProps) => {
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
 	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
@@ -120,13 +118,6 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isHoveredN
 	}
 
 	useEvent("message", handleMessage)
-
-	// Hide checkpoint if it is not the currently restored one AND the user is not hovering near it.
-	// This keeps the UI clean but ensures the checkpoint appear on hover for interaction.
-	const shouldHideCheckpoint = !isCheckpointCheckedOut && !isHoveredNearCheckpoint
-	if (shouldHideCheckpoint) {
-		return null
-	}
 
 	return (
 		<Container isMenuOpen={showRestoreConfirm} $isCheckedOut={isCheckpointCheckedOut} onMouseLeave={handleControlsMouseLeave}>
