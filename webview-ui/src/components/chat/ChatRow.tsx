@@ -89,27 +89,9 @@ const ChatRow = memo(
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
 
-		// NOTE: for tools that are interrupted and not responded to (approved or rejected) there won't be a checkpoint hash
-		let shouldShowCheckpoints =
-			message.lastCheckpointHash != null &&
-			(message.say === "tool" ||
-				message.ask === "tool" ||
-				message.say === "command" ||
-				message.ask === "command" ||
-				// message.say === "completion_result" ||
-				// message.ask === "completion_result" ||
-				message.say === "use_mcp_server" ||
-				message.ask === "use_mcp_server")
-
-		if (shouldShowCheckpoints && isLast) {
-			shouldShowCheckpoints =
-				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
-		}
-
 		const [chatrow, { height }] = useSize(
 			<ChatRowContainer>
 				<ChatRowContent {...props} />
-				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
 			</ChatRowContainer>,
 		)
 
