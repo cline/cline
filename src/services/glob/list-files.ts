@@ -1,4 +1,4 @@
-import { globby, Options } from "globby"
+import { type globby as Globby, type Options } from "globby"
 import os from "os"
 import * as path from "path"
 import ignore from "ignore"
@@ -30,7 +30,21 @@ export const shouldTrackFile = (filePath: string): boolean => {
 	return !ignoreInstance.ignores(filePath)
 }
 
+/**
+ * Globby only supports ESM, but the tests use CommonJS.
+ * https://github.com/sindresorhus/globby/releases/tag/v12.0.0
+ * @see {@link file://./../../../tsconfig.test.json}
+ */
+let globby: typeof Globby
+// Using a dynamic import() will be transpiled into a CommonJS require
+const forceDynamicImport = new Function("specifier", "return import(specifier)")
+
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
+	if (!globby) {
+		const module = (await forceDynamicImport("globby")) as typeof import("globby")
+		globby = module.globby
+	}
+
 	// First resolve the path normally - path.resolve doesn't care about glob special characters
 	const absolutePath = path.resolve(dirPath)
 	// Do not allow listing files in root or home directory, which cline tends to want to do when the user's prompt is vague.
