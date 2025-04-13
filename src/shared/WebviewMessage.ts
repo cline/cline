@@ -126,6 +126,7 @@ export interface WebviewMessage {
 		| "maxReadFileLine"
 		| "searchFiles"
 		| "toggleApiConfigPin"
+		| "showGreeting"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

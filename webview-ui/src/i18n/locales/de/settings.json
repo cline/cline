@@ -29,7 +29,8 @@
 		"advanced": "Erweitert",
 		"experimental": "Experimentelle Funktionen",
 		"language": "Sprache",
-		"about": "Über Roo Code"
+		"about": "Über Roo Code",
+		"interface": "Oberfläche"
 	},
 	"autoApprove": {
 		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktiviere diese Einstellungen nur, wenn du der KI vollständig vertraust und die damit verbundenen Sicherheitsrisiken verstehst.",
@@ -471,5 +472,11 @@
 	"labels": {
 		"customArn": "Benutzerdefinierte ARN",
 		"useCustomArn": "Benutzerdefinierte ARN verwenden..."
+	},
+	"interface": {
+		"showgreeting": {
+			"label": "Begrüßungsnachricht anzeigen",
+			"description": "Wenn aktiviert, zeigt Roo eine Willkommensnachricht und Einführung an."
+		}
 	}
 }

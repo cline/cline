@@ -143,6 +143,7 @@ export type ExtensionState = Pick<
 	| "remoteBrowserHost"
 	// | "enableCheckpoints" // Optional in GlobalSettings, required here.
 	// | "checkpointStorage" // Optional in GlobalSettings, required here.
+	| "showGreeting"
 	| "ttsEnabled"
 	| "ttsSpeed"
 	| "soundEnabled"

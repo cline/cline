@@ -29,7 +29,8 @@
 		"advanced": "Nâng cao",
 		"experimental": "Tính năng thử nghiệm",
 		"language": "Ngôn ngữ",
-		"about": "Về Roo Code"
+		"about": "Về Roo Code",
+		"interface": "Giao diện"
 	},
 	"autoApprove": {
 		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",
@@ -471,5 +472,11 @@
 	"labels": {
 		"customArn": "ARN tùy chỉnh",
 		"useCustomArn": "Sử dụng ARN tùy chỉnh..."
+	},
+	"interface": {
+		"showgreeting": {
+			"label": "Hiển thị thông báo chào mừng",
+			"description": "Khi được bật, Roo sẽ hiển thị thông báo chào mừng và giới thiệu."
+		}
 	}
 }

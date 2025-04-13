@@ -29,7 +29,8 @@
 		"advanced": "詳細設定",
 		"experimental": "実験的機能",
 		"language": "言語",
-		"about": "Roo Codeについて"
+		"about": "Roo Codeについて",
+		"interface": "インターフェース"
 	},
 	"autoApprove": {
 		"description": "Rooが承認なしで自動的に操作を実行できるようにします。AIを完全に信頼し、関連するセキュリティリスクを理解している場合にのみ、これらの設定を有効にしてください。",
@@ -471,5 +472,11 @@
 	"labels": {
 		"customArn": "カスタム ARN",
 		"useCustomArn": "カスタム ARN を使用..."
+	},
+	"interface": {
+		"showgreeting": {
+			"label": "ようこそメッセージを表示",
+			"description": "有効にすると、Rooはようこそメッセージと紹介を表示します。"
+		}
 	}
 }

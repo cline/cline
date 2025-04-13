@@ -29,7 +29,8 @@
 		"advanced": "進階",
 		"experimental": "實驗性功能",
 		"language": "語言",
-		"about": "關於 Roo Code"
+		"about": "關於 Roo Code",
+		"interface": "介面"
 	},
 	"autoApprove": {
 		"description": "允許 Roo 無需核准即執行操作。僅在您完全信任 AI 並了解相關安全風險時啟用這些設定。",
@@ -470,5 +471,11 @@
 	"labels": {
 		"customArn": "自訂 ARN",
 		"useCustomArn": "使用自訂 ARN..."
+	},
+	"interface": {
+		"showgreeting": {
+			"label": "顯示歡迎訊息",
+			"description": "啟用後，Roo 將顯示歡迎訊息與介紹。"
+		}
 	}
 }

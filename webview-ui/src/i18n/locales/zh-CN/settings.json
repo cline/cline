@@ -21,8 +21,9 @@
 	"sections": {
 		"providers": "提供商",
 		"autoApprove": "自动批准",
-		"browser": "浏览器交互设置",
+		"browser": "浏览器交互",
 		"checkpoints": "检查点",
+		"interface": "界面内容",
 		"notifications": "通知",
 		"contextManagement": "上下文管理",
 		"terminal": "终端",
@@ -258,7 +259,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "启用自动检查点",
-			"description": "开启后自动创建任务检查点，方便回溯修改"
+			"description": "开启后自动创建任务检查点，方便回溯修改。"
 		}
 	},
 	"notifications": {
@@ -471,5 +472,11 @@
 	"labels": {
 		"customArn": "自定义 ARN",
 		"useCustomArn": "使用自定义 ARN..."
+	},
+	"interface": {
+		"showgreeting": {
+			"label": "显示欢迎消息",
+			"description": "启用后，Roo 将显示欢迎语和简介。"
+		}
 	}
 }

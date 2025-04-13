@@ -29,7 +29,8 @@
 		"advanced": "Zaawansowane",
 		"experimental": "Funkcje eksperymentalne",
 		"language": "Język",
-		"about": "O Roo Code"
+		"about": "O Roo Code",
+		"interface": "Interfejs"
 	},
 	"autoApprove": {
 		"description": "Pozwól Roo na automatyczne wykonywanie operacji bez wymagania zatwierdzenia. Włącz te ustawienia tylko jeśli w pełni ufasz AI i rozumiesz związane z tym zagrożenia bezpieczeństwa.",
@@ -471,5 +472,11 @@
 	"labels": {
 		"customArn": "Niestandardowy ARN",
 		"useCustomArn": "Użyj niestandardowego ARN..."
+	},
+	"interface": {
+		"showgreeting": {
+			"label": "Pokaż wiadomość powitalną",
+			"description": "Gdy włączone, Roo wyświetli wiadomość powitalną i wprowadzenie."
+		}
 	}
 }
