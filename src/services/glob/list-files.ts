@@ -1,7 +1,8 @@
-import { globby, Options } from "globby"
+import { type Options } from "globby"
 import os from "os"
 import * as path from "path"
 import ignore from "ignore"
+import { globby } from "@packages/globby"
 import { arePathsEqual } from "@utils/path"
 
 const dirsToIgnore = [
