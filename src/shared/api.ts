@@ -775,14 +775,6 @@ export const openAiNativeModels = {
 		outputPrice: 4.4,
 		reasoningEffort: "low",
 	},
-	"o1-pro": {
-		maxTokens: 100_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 150,
-		outputPrice: 600,
-	},
 	o1: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
