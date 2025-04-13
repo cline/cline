@@ -106,10 +106,6 @@ export class McpHub {
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
-	getMode(): McpMode {
-		return vscode.workspace.getConfiguration("cline.mcp").get<McpMode>("mode", "full")
-	}
-
 	async getMcpSettingsFilePath(): Promise<string> {
 		const mcpSettingsFilePath = path.join(await this.getSettingsDirectoryPath(), GlobalFileNames.mcpSettings)
 		const fileExists = await fileExistsAtPath(mcpSettingsFilePath)

@@ -606,14 +606,7 @@ export class Controller {
 						await this.togglePlanActModeWithChatSettings({ mode: "act" })
 					}
 
-					// 2. Enable MCP settings if disabled
-					// Enable MCP mode if disabled
-					const mcpConfig = vscode.workspace.getConfiguration("cline.mcp")
-					if (mcpConfig.get<string>("mode") !== "full") {
-						await mcpConfig.update("mode", "full", true)
-					}
-
-					// 3. download MCP
+					// 2. download MCP
 					await this.downloadMcp(message.mcpId)
 				}
 				break
@@ -1409,6 +1402,7 @@ export class Controller {
 
 			// Create task with context from README and added guidelines for MCP server installation
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
+- Start by loading the MCP documentation.
 - Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
 - Create the directory for the new MCP server before starting installation.
 - Make sure you read the user's existing cline_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.

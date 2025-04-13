@@ -81,6 +81,7 @@ import {
 	saveClineMessages,
 } from "../storage/disk"
 import { McpHub } from "../../services/mcp/McpHub"
+import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { getClineRules } from "../context/instructions/user-instructions/cline-rules"
 import { getGlobalState } from "../storage/state"
@@ -1508,6 +1509,8 @@ export class Task {
 							return `[${block.name} for '${block.params.question}']`
 						case "plan_mode_respond":
 							return `[${block.name}]`
+						case "load_mcp_documentation":
+							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
 						case "new_task":
@@ -2921,6 +2924,28 @@ export class Task {
 						} catch (error) {
 							await handleError("responding to inquiry", error)
 							//
+							break
+						}
+					}
+					case "load_mcp_documentation": {
+						try {
+							if (block.partial) {
+								// shouldn't happen
+								break
+							} else {
+								await this.say("load_mcp_documentation", "", undefined, false)
+
+								const mcpHub = this.controllerRef.deref()?.mcpHub
+								if (!mcpHub) {
+									throw new Error("MCP hub not available")
+								}
+
+								pushToolResult(await loadMcpDocumentation(mcpHub))
+
+								break
+							}
+						} catch (error) {
+							await handleError("loading MCP documentation", error)
 							break
 						}
 					}
