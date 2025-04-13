@@ -34,5 +34,6 @@
 	"deleteTasks": "Excluir tarefas",
 	"confirmDeleteTasks": "Tem certeza que deseja excluir {{count}} tarefas?",
 	"deleteTasksWarning": "As tarefas excluídas não podem ser recuperadas. Por favor, certifique-se de que deseja prosseguir.",
-	"deleteItems": "Excluir {{count}} itens"
+	"deleteItems": "Excluir {{count}} itens",
+	"showAllWorkspaces": "Mostrar tarefas de todos os espaços de trabalho"
 }

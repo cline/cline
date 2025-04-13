@@ -7,10 +7,11 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
 export const useTaskSearch = () => {
-	const { taskHistory } = useExtensionState()
+	const { taskHistory, cwd } = useExtensionState()
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
+	const [showAllWorkspaces, setShowAllWorkspaces] = useState(false)
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -23,8 +24,12 @@ export const useTaskSearch = () => {
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
 	const presentableTasks = useMemo(() => {
-		return taskHistory.filter((item) => item.ts && item.task)
-	}, [taskHistory])
+		let tasks = taskHistory.filter((item) => item.ts && item.task)
+		if (!showAllWorkspaces) {
+			tasks = tasks.filter((item) => item.workspace === cwd)
+		}
+		return tasks
+	}, [taskHistory, showAllWorkspaces, cwd])
 
 	const fzf = useMemo(() => {
 		return new Fzf(presentableTasks, {
@@ -34,19 +39,26 @@ export const useTaskSearch = () => {
 
 	const tasks = useMemo(() => {
 		let results = presentableTasks
+
 		if (searchQuery) {
 			const searchResults = fzf.find(searchQuery)
-			results = searchResults.map((result) => ({
-				...result.item,
-				task: highlightFzfMatch(result.item.task, Array.from(result.positions)),
-			}))
+			results = searchResults.map((result) => {
+				const positions = Array.from(result.positions)
+				const taskEndIndex = result.item.task.length
+
+				return {
+					...result.item,
+					task: highlightFzfMatch(
+						result.item.task,
+						positions.filter((p) => p < taskEndIndex),
+					),
+					workspace: result.item.workspace,
+				}
+			})
 		}
 
-		// First apply search if needed
-		const searchResults = searchQuery ? results : presentableTasks
-
 		// Then sort the results
-		return [...searchResults].sort((a, b) => {
+		return [...results].sort((a, b) => {
 			switch (sortOption) {
 				case "oldest":
 					return (a.ts || 0) - (b.ts || 0)
@@ -74,5 +86,7 @@ export const useTaskSearch = () => {
 		setSortOption,
 		lastNonRelevantSort,
 		setLastNonRelevantSort,
+		showAllWorkspaces,
+		setShowAllWorkspaces,
 	}
 }

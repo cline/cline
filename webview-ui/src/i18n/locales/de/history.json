@@ -34,5 +34,6 @@
 	"deleteTasks": "Aufgaben löschen",
 	"confirmDeleteTasks": "Bist du sicher, dass du {{count}} Aufgaben löschen möchtest?",
 	"deleteTasksWarning": "Gelöschte Aufgaben können nicht wiederhergestellt werden. Bitte vergewissere dich, dass du fortfahren möchtest.",
-	"deleteItems": "{{count}} Elemente löschen"
+	"deleteItems": "{{count}} Elemente löschen",
+	"showAllWorkspaces": "Aufgaben aus allen Arbeitsbereichen anzeigen"
 }

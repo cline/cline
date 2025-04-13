@@ -34,5 +34,6 @@
 	"deleteTasks": "Xóa nhiệm vụ",
 	"confirmDeleteTasks": "Bạn có chắc chắn muốn xóa {{count}} nhiệm vụ không?",
 	"deleteTasksWarning": "Các nhiệm vụ đã xóa không thể khôi phục. Vui lòng chắc chắn bạn muốn tiếp tục.",
-	"deleteItems": "Xóa {{count}} mục"
+	"deleteItems": "Xóa {{count}} mục",
+	"showAllWorkspaces": "Hiển thị nhiệm vụ từ tất cả không gian làm việc"
 }

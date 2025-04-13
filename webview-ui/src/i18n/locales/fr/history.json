@@ -34,5 +34,6 @@
 	"deleteTasks": "Supprimer les tâches",
 	"confirmDeleteTasks": "Êtes-vous sûr de vouloir supprimer {{count}} tâches ?",
 	"deleteTasksWarning": "Les tâches supprimées ne peuvent pas être récupérées. Veuillez confirmer que vous souhaitez continuer.",
-	"deleteItems": "Supprimer {{count}} éléments"
+	"deleteItems": "Supprimer {{count}} éléments",
+	"showAllWorkspaces": "Afficher les tâches de tous les espaces de travail"
 }

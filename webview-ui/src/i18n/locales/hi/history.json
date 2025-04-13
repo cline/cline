@@ -34,5 +34,6 @@
 	"deleteTasks": "कार्य हटाएं",
 	"confirmDeleteTasks": "क्या आप वाकई {{count}} कार्य हटाना चाहते हैं?",
 	"deleteTasksWarning": "हटाए गए कार्य पुनर्प्राप्त नहीं किए जा सकते। कृपया सुनिश्चित करें कि आप आगे बढ़ना चाहते हैं।",
-	"deleteItems": "{{count}} आइटम हटाएं"
+	"deleteItems": "{{count}} आइटम हटाएं",
+	"showAllWorkspaces": "सभी वर्कस्पेस से कार्य दिखाएं"
 }

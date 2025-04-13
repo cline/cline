@@ -34,5 +34,6 @@
 	"deleteTasks": "Usuń zadania",
 	"confirmDeleteTasks": "Czy na pewno chcesz usunąć {{count}} zadań?",
 	"deleteTasksWarning": "Usuniętych zadań nie można przywrócić. Upewnij się, że chcesz kontynuować.",
-	"deleteItems": "Usuń {{count}} elementów"
+	"deleteItems": "Usuń {{count}} elementów",
+	"showAllWorkspaces": "Pokaż zadania ze wszystkich przestrzeni roboczych"
 }

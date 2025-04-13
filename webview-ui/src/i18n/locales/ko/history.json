@@ -34,5 +34,6 @@
 	"deleteTasks": "작업 삭제",
 	"confirmDeleteTasks": "{{count}}개의 작업을 삭제하시겠습니까?",
 	"deleteTasksWarning": "삭제된 작업은 복구할 수 없습니다. 계속 진행하시겠습니까?",
-	"deleteItems": "{{count}}개 항목 삭제"
+	"deleteItems": "{{count}}개 항목 삭제",
+	"showAllWorkspaces": "모든 워크스페이스의 작업 표시"
 }

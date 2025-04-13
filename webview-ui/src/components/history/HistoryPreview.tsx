@@ -4,15 +4,15 @@ import { vscode } from "@/utils/vscode"
 import { formatLargeNumber, formatDate } from "@/utils/format"
 import { Button } from "@/components/ui"
 
-import { useExtensionState } from "../../context/ExtensionStateContext"
 import { useAppTranslation } from "../../i18n/TranslationContext"
 import { CopyButton } from "./CopyButton"
+import { useTaskSearch } from "./useTaskSearch"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
 }
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { taskHistory } = useExtensionState()
+	const { tasks } = useTaskSearch()
 	const { t } = useAppTranslation()
 
 	return (
@@ -26,7 +26,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					{t("history:viewAll")}
 				</Button>
 			</div>
-			{taskHistory.slice(0, 3).map((item) => (
+			{tasks.slice(0, 3).map((item) => (
 				<div
 					key={item.id}
 					className="bg-vscode-toolbar-hoverBackground/50 hover:bg-vscode-toolbar-hoverBackground/75 rounded-xs relative overflow-hidden opacity-90 hover:opacity-100 cursor-pointer"

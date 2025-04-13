@@ -34,5 +34,6 @@
 	"deleteTasks": "Görevleri Sil",
 	"confirmDeleteTasks": "{{count}} görevi silmek istediğinizden emin misiniz?",
 	"deleteTasksWarning": "Silinen görevler geri alınamaz. Lütfen devam etmek istediğinizden emin olun.",
-	"deleteItems": "{{count}} Öğeyi Sil"
+	"deleteItems": "{{count}} Öğeyi Sil",
+	"showAllWorkspaces": "Tüm çalışma alanlarından görevleri göster"
 }

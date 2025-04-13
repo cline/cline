@@ -34,5 +34,6 @@
 	"deleteTasks": "Eliminar tasques",
 	"confirmDeleteTasks": "Estàs segur que vols eliminar {{count}} tasques?",
 	"deleteTasksWarning": "Les tasques eliminades no es poden recuperar. Si us plau, assegura't que vols continuar.",
-	"deleteItems": "Eliminar {{count}} elements"
+	"deleteItems": "Eliminar {{count}} elements",
+	"showAllWorkspaces": "Mostrar tasques de tots els espais de treball"
 }

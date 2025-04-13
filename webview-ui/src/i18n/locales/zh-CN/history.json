@@ -34,5 +34,6 @@
 	"deleteTasks": "删除任务",
 	"confirmDeleteTasks": "确认删除 {{count}} 项任务？",
 	"deleteTasksWarning": "删除后将无法恢复，请谨慎操作。",
-	"deleteItems": "删除 {{count}} 项"
+	"deleteItems": "删除 {{count}} 项",
+	"showAllWorkspaces": "显示所有工作区的任务"
 }
