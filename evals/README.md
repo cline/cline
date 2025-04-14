@@ -41,7 +41,7 @@ cline-repo/
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── repositories/                 # Cloned benchmark repositories
-│   │   ├── exercism/                 # Modified Exercism (from cte/evals)
+│   │   ├── exercism/                 # Modified Exercism (from pashpashpash/evals)
 │   │   ├── swe-bench/                # SWE-Bench repository
 │   │   ├── swelancer/                # SWELancer repository
 │   │   └── multi-swe/                # Multi-SWE-Bench repository
@@ -110,7 +110,7 @@ Options:
 
 ### Exercism
 
-Modified Exercism exercises from the [cte/evals](https://github.com/cte/evals) repository. These are small, focused programming exercises in various languages.
+Modified Exercism exercises from the [pashpashpash/evals](https://github.com/pashpashpash/evals) repository. These are small, focused programming exercises in various languages.
 
 ### SWE-Bench (Coming Soon)
 

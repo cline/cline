@@ -20,7 +20,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 
 		if (!fs.existsSync(exercismDir)) {
 			console.log(`Cloning Exercism repository to ${exercismDir}...`)
-			await execa("git", ["clone", "https://github.com/cte/evals.git", exercismDir])
+			await execa("git", ["clone", "https://github.com/pashpashpash/evals.git", exercismDir])
 			console.log("Exercism repository cloned successfully")
 		} else {
 			console.log(`Exercism repository already exists at ${exercismDir}`)
