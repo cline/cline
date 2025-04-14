@@ -21,7 +21,7 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
-	theme: any
+	theme: Record<string, string> | undefined
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
@@ -56,7 +56,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
-	const [theme, setTheme] = useState<any>(undefined)
+	const [theme, setTheme] = useState<Record<string, string>>()
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
