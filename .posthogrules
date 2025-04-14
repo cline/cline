@@ -292,12 +292,6 @@ Key features:
    - Detailed error reporting
    - State cleanup on failure
 
-4. **Token Tracking**
-   - Per-request token counting
-   - Cumulative usage tracking
-   - Cost calculation
-   - Cache hit monitoring
-
 ### Task State & Resumption
 
 The PostHog class provides robust task state management and resumption capabilities:

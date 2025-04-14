@@ -5,7 +5,6 @@ interface ApiMetrics {
     totalTokensOut: number
     totalCacheWrites?: number
     totalCacheReads?: number
-    totalCost: number
 }
 
 /**
@@ -13,10 +12,10 @@ interface ApiMetrics {
  *
  * This function processes 'api_req_started' messages that have been combined with their
  * corresponding 'api_req_finished' messages by the combineApiRequests function. It also takes into account 'deleted_api_reqs' messages, which are aggregated from deleted messages.
- * It extracts and sums up the tokensIn, tokensOut, cacheWrites, cacheReads, and cost from these messages.
+ * It extracts and sums up the tokensIn, tokensOut, cacheWrites, cacheReads from these messages.
  *
  * @param messages - An array of PostHogMessage objects to process.
- * @returns An ApiMetrics object containing totalTokensIn, totalTokensOut, totalCacheWrites, totalCacheReads, and totalCost.
+ * @returns An ApiMetrics object containing totalTokensIn, totalTokensOut, totalCacheWrites, totalCacheReads
  *
  * @example
  * const messages = [
@@ -31,7 +30,6 @@ export function getApiMetrics(messages: PostHogMessage[]): ApiMetrics {
         totalTokensOut: 0,
         totalCacheWrites: undefined,
         totalCacheReads: undefined,
-        totalCost: 0,
     }
 
     messages.forEach((message) => {
@@ -55,9 +53,6 @@ export function getApiMetrics(messages: PostHogMessage[]): ApiMetrics {
                 }
                 if (typeof cacheReads === 'number') {
                     result.totalCacheReads = (result.totalCacheReads ?? 0) + cacheReads
-                }
-                if (typeof cost === 'number') {
-                    result.totalCost += cost
                 }
             } catch (error) {
                 console.error('Error parsing JSON:', error)

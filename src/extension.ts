@@ -17,8 +17,10 @@ import {
     setupStatusBar,
     StatusBarStatus,
 } from './autocomplete/statusBar'
-import { getMetaKeyLabel } from './utils/util'
-import { buildCompletionApiHandler } from './api'
+import { PostHogApiProvider } from './api/provider'
+import { autocompleteDefaultModelId } from './shared/api'
+import { CodeAnalyzer } from './analysis/codeAnalyzer'
+import { debounce } from './utils/debounce'
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -157,10 +159,11 @@ export async function activate(context: vscode.ExtensionContext) {
                 // }
                 // Default to codestral
                 const state = await sidebarProvider.getState()
-                return buildCompletionApiHandler({
-                    ...state.apiConfiguration,
-                    completionApiProvider: 'codestral',
-                })
+                return new PostHogApiProvider(
+                    autocompleteDefaultModelId,
+                    state.apiConfiguration.posthogHost,
+                    state.apiConfiguration.posthogApiKey
+                )
             })
         )
     )
@@ -211,29 +214,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // URI Handler
     const handleUri = async (uri: vscode.Uri) => {
-        console.log('URI Handler called with:', {
-            path: uri.path,
-            query: uri.query,
-            scheme: uri.scheme,
-        })
-
-        const path = uri.path
-        const query = new URLSearchParams(uri.query.replace(/\+/g, '%2B'))
-        const visibleProvider = PostHogProvider.getVisibleInstance()
-        if (!visibleProvider) {
-            return
-        }
-        switch (path) {
-            case '/openrouter': {
-                const code = query.get('code')
-                if (code) {
-                    await visibleProvider.handleOpenRouterCallback(code)
-                }
-                break
-            }
-            default:
-                break
-        }
+        // useful for auth callbacks, doesn't do anything for now
+        // console.log('URI Handler called with:', {
+        //     path: uri.path,
+        //     query: uri.query,
+        //     scheme: uri.scheme,
+        // })
+        // const path = uri.path
+        // const query = new URLSearchParams(uri.query.replace(/\+/g, '%2B'))
+        // const visibleProvider = PostHogProvider.getVisibleInstance()
+        // if (!visibleProvider) {
+        //     return
+        // }
+        // switch (path) {
+        //     default:
+        //         break
+        // }
     }
     context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
@@ -439,6 +435,37 @@ export async function activate(context: vscode.ExtensionContext) {
                 quickPick.dispose()
             })
             quickPick.show()
+        })
+    )
+
+    // Initialize code analyzer
+    const analyzer = new CodeAnalyzer()
+
+    // Create debounced analysis function
+    const debouncedAnalyze = debounce(async () => {
+        const usages = await analyzer.analyzeWorkspace()
+        sidebarProvider.postMessageToWebview({
+            type: 'usageUpdated',
+            usage: usages,
+        })
+    }, 1000) // 1 second debounce
+
+    // Listen for document change events
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeTextDocument(() => {
+            debouncedAnalyze()
+        })
+    )
+
+    // Initial analysis
+    debouncedAnalyze()
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('posthog.analysisButtonClicked', () => {
+            sidebarProvider.postMessageToWebview({
+                type: 'action',
+                action: 'analysisButtonClicked',
+            })
         })
     )
 

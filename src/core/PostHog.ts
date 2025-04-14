@@ -8,11 +8,8 @@ import pWaitFor from 'p-wait-for'
 import * as path from 'path'
 import { serializeError } from 'serialize-error'
 import * as vscode from 'vscode'
-import { ApiHandler, buildApiHandler, buildCompletionApiHandler, CompletionApiHandler } from '../api'
-import { OpenRouterHandler } from '../api/providers/openrouter'
 import CheckpointTracker from '../integrations/checkpoints/CheckpointTracker'
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from '../integrations/editor/DiffViewProvider'
-import { formatContentBlockToMarkdown } from '../integrations/misc/export-markdown'
 import { extractTextFromFile } from '../integrations/misc/extract-text'
 import { showSystemNotification } from '../integrations/notifications'
 import { TerminalManager } from '../integrations/terminal/TerminalManager'
@@ -21,7 +18,7 @@ import { UrlContentFetcher } from '../services/browser/UrlContentFetcher'
 import { listFiles } from '../services/glob/list-files'
 import { regexSearchFiles } from '../services/ripgrep'
 import { parseSourceCodeForDefinitionsTopLevel } from '../services/tree-sitter'
-import { ApiConfiguration } from '../shared/api'
+import { anthropicDefaultModelId, ApiConfiguration } from '../shared/api'
 import { findLast, findLastIndex, parsePartialArrayString } from '../shared/array'
 import { AutoApprovalSettings } from '../shared/AutoApprovalSettings'
 import { BrowserSettings } from '../shared/BrowserSettings'
@@ -48,7 +45,6 @@ import {
 import { getApiMetrics } from '../shared/getApiMetrics'
 import { HistoryItem } from '../shared/HistoryItem'
 import { PostHogAskResponse, PostHogCheckpointRestore } from '../shared/WebviewMessage'
-import { calculateApiCostAnthropic } from '../utils/cost'
 import { fileExistsAtPath, isDirectory } from '../utils/fs'
 import { arePathsEqual, getReadablePath } from '../utils/path'
 import { fixModelHtmlEscaping, removeInvalidChars } from '../utils/string'
@@ -58,8 +54,7 @@ import { parseMentions } from './mentions'
 import { formatResponse } from './prompts/responses'
 import { addUserInstructions, SYSTEM_PROMPT } from './prompts/system'
 import { ContextManager } from './context-management/ContextManager'
-import { OpenAiHandler } from '../api/providers/openai'
-import { ApiStream } from '../api/transform/stream'
+import { ApiStream } from '../api/utils/stream'
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from '../shared/Languages'
 import { telemetryService } from '../services/telemetry/TelemetryService'
 import pTimeout from 'p-timeout'
@@ -68,10 +63,9 @@ import {
     checkIsAnthropicContextWindowError,
     checkIsOpenRouterContextWindowError,
 } from './context-management/context-error-handling'
-import { AnthropicHandler } from '../api/providers/anthropic'
 import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnoreController'
 import { PostHogProvider } from './webview/PostHogProvider'
-import { InkeepHandler } from '../api/providers/inkeep'
+import { PostHogApiProvider } from '../api/provider'
 import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-capture-calls'
 import { validateSchemaWithDefault } from '../shared/validation'
 import { z } from 'zod'
@@ -86,8 +80,7 @@ export class PostHog {
     readonly taskId: string
     readonly apiProvider?: string
     readonly completionApiProvider?: string
-    api: ApiHandler
-    completionApi: CompletionApiHandler
+    api: PostHogApiProvider
     private terminalManager: TerminalManager
     private urlContentFetcher: UrlContentFetcher
     browserSession: BrowserSession
@@ -131,7 +124,7 @@ export class PostHog {
     private didAlreadyUseTool = false
     private didCompleteReadingStream = false
     private didAutomaticallyRetryFailedApiRequest = false
-    private inkeepHandler?: InkeepHandler
+    private inkeepHandler?: PostHogApiProvider
 
     constructor(
         provider: PostHogProvider,
@@ -151,8 +144,11 @@ export class PostHog {
         this.providerRef = new WeakRef(provider)
         this.apiProvider = apiConfiguration.apiProvider
         this.completionApiProvider = apiConfiguration.completionApiProvider
-        this.api = buildApiHandler(apiConfiguration)
-        this.completionApi = buildCompletionApiHandler(apiConfiguration)
+        this.api = new PostHogApiProvider(
+            apiConfiguration.apiModelId ?? anthropicDefaultModelId,
+            apiConfiguration.posthogHost,
+            apiConfiguration.posthogApiKey
+        )
         this.terminalManager = new TerminalManager()
         this.urlContentFetcher = new UrlContentFetcher(provider.context)
         this.browserSession = new BrowserSession(provider.context, browserSettings)
@@ -162,7 +158,11 @@ export class PostHog {
         this.autoApprovalSettings = autoApprovalSettings
         this.browserSettings = browserSettings
         this.chatSettings = chatSettings
-        this.inkeepHandler = apiConfiguration.inkeepApiKey ? new InkeepHandler(apiConfiguration) : undefined
+        this.inkeepHandler = new PostHogApiProvider(
+            'inkeep-qa',
+            apiConfiguration.posthogHost,
+            apiConfiguration.posthogApiKey
+        )
         if (historyItem) {
             this.taskId = historyItem.id
             this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
@@ -278,14 +278,6 @@ export class PostHog {
                         (m) => !(m.ask === 'resume_task' || m.ask === 'resume_completed_task')
                     )
                 ]
-            let taskDirSize = 0
-            try {
-                // getFolderSize.loose silently ignores errors
-                // returns # of bytes, size/1000/1000 = MB
-                taskDirSize = await getFolderSize.loose(taskDir)
-            } catch (error) {
-                console.error('Failed to get task directory size:', taskDir, error)
-            }
             await this.providerRef.deref()?.updateTaskHistory({
                 id: this.taskId,
                 ts: lastRelevantMessage.ts,
@@ -294,8 +286,6 @@ export class PostHog {
                 tokensOut: apiMetrics.totalTokensOut,
                 cacheWrites: apiMetrics.totalCacheWrites,
                 cacheReads: apiMetrics.totalCacheReads,
-                totalCost: apiMetrics.totalCost,
-                size: taskDirSize,
                 shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
                 conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
             })
@@ -373,7 +363,6 @@ export class PostHog {
                             tokensOut: deletedApiReqsMetrics.totalTokensOut,
                             cacheWrites: deletedApiReqsMetrics.totalCacheWrites,
                             cacheReads: deletedApiReqsMetrics.totalCacheReads,
-                            cost: deletedApiReqsMetrics.totalCost,
                         } satisfies PostHogApiReqInfo)
                     )
                     break
@@ -882,15 +871,15 @@ export class PostHog {
             modifiedPostHogMessages.splice(lastRelevantMessageIndex + 1)
         }
 
-        // since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
+        // since we don't use api_req_finished anymore, we need to check if the last api_req_started has a success value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
         const lastApiReqStartedIndex = findLastIndex(
             modifiedPostHogMessages,
             (m) => m.type === 'say' && m.say === 'api_req_started'
         )
         if (lastApiReqStartedIndex !== -1) {
             const lastApiReqStarted = modifiedPostHogMessages[lastApiReqStartedIndex]
-            const { cost, cancelReason }: PostHogApiReqInfo = JSON.parse(lastApiReqStarted.text || '{}')
-            if (cost === undefined && cancelReason === undefined) {
+            const { success, cancelReason }: PostHogApiReqInfo = JSON.parse(lastApiReqStarted.text || '{}')
+            if (success === undefined && cancelReason === undefined) {
                 modifiedPostHogMessages.splice(lastApiReqStartedIndex, 1)
             }
         }
@@ -1089,10 +1078,8 @@ export class PostHog {
             //  The way this agentic loop works is that posthog will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
             // There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but PostHog is prompted to finish the task as efficiently as he can.
 
-            //const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
             if (didEndLoop) {
                 // For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
-                //this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
                 break
             } else {
                 // this.say(
@@ -1306,7 +1293,7 @@ export class PostHog {
             ]
 
             let response = ''
-            const stream = await this.inkeepHandler.createMessage('', messages)
+            const stream = await this.inkeepHandler.stream('', messages)
 
             for await (const chunk of stream) {
                 if (chunk.type === 'text') {
@@ -1445,7 +1432,7 @@ export class PostHog {
             await this.savePostHogMessages() // saves task history item which we use to keep track of conversation history deleted range
         }
 
-        let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
+        let stream = this.api.stream(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
         const iterator = stream[Symbol.asyncIterator]()
 
@@ -1456,9 +1443,7 @@ export class PostHog {
             yield firstChunk.value
             this.isWaitingForFirstChunk = false
         } catch (error) {
-            const isOpenRouter = this.api instanceof OpenRouterHandler
-            const isAnthropic = this.api instanceof AnthropicHandler
-            const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
+            const isAnthropic = this.apiProvider === 'anthropic'
             const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
 
             if (isAnthropic && isAnthropicContextWindowError && !this.didAutomaticallyRetryFailedApiRequest) {
@@ -1470,24 +1455,11 @@ export class PostHog {
                 await this.savePostHogMessages()
 
                 this.didAutomaticallyRetryFailedApiRequest = true
-            } else if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
-                if (isOpenRouterContextWindowError) {
-                    this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-                        this.apiConversationHistory,
-                        this.conversationHistoryDeletedRange,
-                        'quarter' // Force aggressive truncation
-                    )
-                    await this.savePostHogMessages()
-                }
-
-                console.log('first chunk failed, waiting 1 second before retrying')
-                await setTimeoutPromise(1000)
-                this.didAutomaticallyRetryFailedApiRequest = true
             } else {
                 // request failed after retrying automatically once, ask user if they want to retry again
                 // note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 
-                if (isOpenRouterContextWindowError || isAnthropicContextWindowError) {
+                if (isAnthropicContextWindowError) {
                     const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
                         this.apiConversationHistory,
                         this.conversationHistoryDeletedRange
@@ -1856,7 +1828,7 @@ export class PostHog {
                             } else if (content) {
                                 newContent = content
 
-                                // pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
+                                // pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek) or extra escape characters (gemini)
                                 if (newContent.startsWith('```')) {
                                     // this handles cases where it includes language specifiers like ```python ```js
                                     newContent = newContent.split('\n').slice(1).join('\n').trim()
@@ -3370,13 +3342,7 @@ export class PostHog {
 
         // getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
         // for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
-        await this.say(
-            'api_req_started',
-            JSON.stringify({
-                request:
-                    userContent.map((block) => formatContentBlockToMarkdown(block)).join('\n\n') + '\n\nLoading...',
-            })
-        )
+        await this.say('api_req_started')
 
         // use this opportunity to initialize the checkpoint tracker (can be expensive to initialize in the constructor)
         // FIXME: right now we're letting users init checkpoints for old tasks, but this could be a problem if opening a task in the wrong workspace
@@ -3422,9 +3388,6 @@ export class PostHog {
 
         // since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
         const lastApiReqIndex = findLastIndex(this.posthogMessages, (m) => m.say === 'api_req_started')
-        this.posthogMessages[lastApiReqIndex].text = JSON.stringify({
-            request: userContent.map((block) => formatContentBlockToMarkdown(block)).join('\n\n'),
-        } satisfies PostHogApiReqInfo)
         await this.savePostHogMessages()
         await this.providerRef.deref()?.postStateToWebview()
 
@@ -3433,7 +3396,6 @@ export class PostHog {
             let cacheReadTokens = 0
             let inputTokens = 0
             let outputTokens = 0
-            let totalCost: number | undefined
 
             // update api_req_started. we can't use api_req_finished anymore since it's a unique case where it could come after a streaming message (ie in the middle of being updated or executed)
             // fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
@@ -3445,15 +3407,7 @@ export class PostHog {
                     tokensOut: outputTokens,
                     cacheWrites: cacheWriteTokens,
                     cacheReads: cacheReadTokens,
-                    cost:
-                        totalCost ??
-                        calculateApiCostAnthropic(
-                            this.api.getModel().info,
-                            inputTokens,
-                            outputTokens,
-                            cacheWriteTokens,
-                            cacheReadTokens
-                        ),
+                    success: !cancelReason && !streamingFailedMessage,
                     cancelReason,
                     streamingFailedMessage,
                 } satisfies PostHogApiReqInfo)
@@ -3491,7 +3445,7 @@ export class PostHog {
                     ],
                 })
 
-                // update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
+                // update api_req_started to have cancelled
                 updateApiReqMsg(cancelReason, streamingFailedMessage)
                 await this.savePostHogMessages()
 
@@ -3523,7 +3477,6 @@ export class PostHog {
             let assistantMessage = ''
             let reasoningMessage = ''
             this.isStreaming = true
-            let didReceiveUsageChunk = false
             try {
                 for await (const chunk of stream) {
                     if (!chunk) {
@@ -3531,12 +3484,10 @@ export class PostHog {
                     }
                     switch (chunk.type) {
                         case 'usage':
-                            didReceiveUsageChunk = true
                             inputTokens += chunk.inputTokens
                             outputTokens += chunk.outputTokens
                             cacheWriteTokens += chunk.cacheWriteTokens ?? 0
                             cacheReadTokens += chunk.cacheReadTokens ?? 0
-                            totalCost = chunk.totalCost
                             break
                         case 'reasoning':
                             // reasoning will always come before assistant message
@@ -3577,7 +3528,6 @@ export class PostHog {
                     }
 
                     // PREV: we need to let the request finish for openrouter to get generation details
-                    // UPDATE: it's better UX to interrupt the request at the cost of the api cost not being retrieved
                     if (this.didAlreadyUseTool) {
                         assistantMessage +=
                             '\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]'
@@ -3599,23 +3549,6 @@ export class PostHog {
                 }
             } finally {
                 this.isStreaming = false
-            }
-
-            // OpenRouter/PostHog may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
-            // (updateApiReq below will update the api_req_started message with the usage details. we do this async so it updates the api_req_started message in the background)
-            if (!didReceiveUsageChunk) {
-                this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
-                    if (apiStreamUsage) {
-                        inputTokens += apiStreamUsage.inputTokens
-                        outputTokens += apiStreamUsage.outputTokens
-                        cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
-                        cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
-                        totalCost = apiStreamUsage.totalCost
-                    }
-                    updateApiReqMsg()
-                    await this.savePostHogMessages()
-                    await this.providerRef.deref()?.postStateToWebview()
-                })
             }
 
             // need to call here in case the stream was aborted
@@ -3941,7 +3874,7 @@ export class PostHog {
                 \`\`\`
                 `
 
-                const apiStream = this.api.createMessage(systemPrompt, [{ role: 'user', content: userPrompt }])
+                const apiStream = this.api.stream(systemPrompt, [{ role: 'user', content: userPrompt }])
 
                 // Collect the whole response
                 let modifiedContent = ''

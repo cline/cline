@@ -1,5 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
+import { PostHogUsage } from '../analysis/codeAnalyzer'
 import { GitCommit } from '../utils/git'
 import { ApiConfiguration, ModelInfo } from './api'
 import { AutoApprovalSettings } from './AutoApprovalSettings'
@@ -15,18 +16,12 @@ export interface ExtensionMessage {
         | 'action'
         | 'state'
         | 'selectedImages'
-        | 'ollamaModels'
-        | 'lmStudioModels'
         | 'theme'
         | 'workspaceUpdated'
         | 'invoke'
         | 'partialMessage'
-        | 'openRouterModels'
-        | 'openAiModels'
         | 'mcpServers'
         | 'relinquishControl'
-        | 'vsCodeLmModels'
-        | 'requestVsCodeLmModels'
         | 'authCallback'
         | 'commitSearchResults'
         | 'openGraphData'
@@ -34,23 +29,20 @@ export interface ExtensionMessage {
         | 'didUpdateSettings'
         | 'totalTasksSize'
         | 'addToInput'
+        | 'usageUpdated'
     text?: string
     action?:
         | 'chatButtonClicked'
         | 'mcpButtonClicked'
         | 'settingsButtonClicked'
         | 'historyButtonClicked'
+        | 'analysisButtonClicked'
         | 'didBecomeVisible'
     invoke?: Invoke
     state?: ExtensionState
     images?: string[]
-    ollamaModels?: string[]
-    lmStudioModels?: string[]
-    vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
     filePaths?: string[]
     partialMessage?: PostHogMessage
-    openRouterModels?: Record<string, ModelInfo>
-    openAiModels?: string[]
     mcpServers?: McpServer[]
     customToken?: string
     error?: string
@@ -66,6 +58,7 @@ export interface ExtensionMessage {
     url?: string
     isImage?: boolean
     totalTasksSize?: number | null
+    usage?: PostHogUsage[]
 }
 
 export type Invoke = 'sendMessage' | 'primaryButtonClick' | 'secondaryButtonClick'
@@ -213,7 +206,7 @@ export interface PostHogApiReqInfo {
     tokensOut?: number
     cacheWrites?: number
     cacheReads?: number
-    cost?: number
+    success?: boolean
     cancelReason?: PostHogApiReqCancelReason
     streamingFailedMessage?: string
 }
