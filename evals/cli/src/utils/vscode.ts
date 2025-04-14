@@ -42,79 +42,108 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 		}
 	}
 
-	// Create a backup of the user's settings and add our temporary settings
-	const userDataDir = path.join(os.homedir(), "Library", "Application Support", "Code", "User")
-	const settingsPath = path.join(userDataDir, "settings.json")
-	const settingsBackupPath = path.join(userDataDir, "settings.json.cline-backup")
+	// Create a temporary user data directory for this VS Code instance
+	const tempUserDataDir = path.join(os.tmpdir(), `vscode-cline-eval-${Date.now()}`)
+	fs.mkdirSync(tempUserDataDir, { recursive: true })
+	console.log(`Created temporary user data directory: ${tempUserDataDir}`)
 	
-	try {
-		// Ensure the directory exists
-		fs.mkdirSync(path.dirname(settingsPath), { recursive: true })
+	// Create a temporary extensions directory to ensure no other extensions are loaded
+	const tempExtensionsDir = path.join(os.tmpdir(), `vscode-cline-eval-ext-${Date.now()}`)
+	fs.mkdirSync(tempExtensionsDir, { recursive: true })
+	console.log(`Created temporary extensions directory: ${tempExtensionsDir}`)
+	
+	// Create settings.json in the temporary user data directory to disable workspace trust
+	// and configure Cline to auto-open on startup
+	const settingsDir = path.join(tempUserDataDir, 'User')
+	fs.mkdirSync(settingsDir, { recursive: true })
+	const settingsPath = path.join(settingsDir, 'settings.json')
+	const settings = {
+		// Disable workspace trust
+		"security.workspace.trust.enabled": false,
+		"security.workspace.trust.startupPrompt": "never",
+		"security.workspace.trust.banner": "never",
+		"security.workspace.trust.emptyWindow": true,
 		
-		// Create a backup of the existing settings if they exist
-		if (fs.existsSync(settingsPath) && !fs.existsSync(settingsBackupPath)) {
-			try {
-				fs.copyFileSync(settingsPath, settingsBackupPath)
-				console.log(`Created backup of VS Code settings at ${settingsBackupPath}`)
-			} catch (error) {
-				console.warn("Failed to create backup of settings:", error)
-			}
-		}
+		// Configure startup behavior
+		"workbench.startupEditor": "none",
 		
-		// Read existing settings if they exist
-		let settings: Record<string, any> = {}
-		if (fs.existsSync(settingsPath)) {
-			try {
-				const settingsContent = fs.readFileSync(settingsPath, "utf-8")
-				settings = JSON.parse(settingsContent)
-			} catch (error) {
-				console.warn("Failed to parse existing settings:", error)
-			}
-		}
+		// Auto-open Cline on startup
+		"cline.autoOpenOnStartup": true,
 		
-		// Add our settings to auto-open Cline, but preserve existing values
-		const newSettings = {
-			...settings,
-			// Only set these if they don't already exist
-			"workbench.startupEditor": settings["workbench.startupEditor"] || "none",
-			"workbench.activityBar.visible": settings["workbench.activityBar.visible"] !== false,
-			"window.restoreWindows": settings["window.restoreWindows"] || "none",
-			"window.newWindowDimensions": settings["window.newWindowDimensions"] || "default",
-			"workbench.statusBar.visible": settings["workbench.statusBar.visible"] !== false,
-		}
+		// Show the activity bar and sidebar
+		"workbench.activityBar.visible": true,
+		"workbench.sideBar.visible": true,
+		"workbench.view.extension.saoudrizwan.claude-dev-ActivityBar.visible": true,
+		"workbench.view.alwaysShowHeaderActions": true,
+		"workbench.editor.openSideBySideDirection": "right",
 		
-		// Write the settings back
-		fs.writeFileSync(settingsPath, JSON.stringify(newSettings, null, 2))
-		console.log("Updated VS Code settings to help with extension activation")
+		// Disable GitLens from opening automatically
+		"gitlens.views.repositories.autoReveal": false,
+		"gitlens.views.fileHistory.autoReveal": false,
+		"gitlens.views.lineHistory.autoReveal": false,
+		"gitlens.views.compare.autoReveal": false,
+		"gitlens.views.search.autoReveal": false,
+		"gitlens.showWelcomeOnInstall": false,
+		"gitlens.showWhatsNewAfterUpgrades": false,
 		
-		// Register a cleanup function to restore settings on process exit
-		process.on('exit', () => {
-			if (fs.existsSync(settingsBackupPath)) {
-				try {
-					fs.copyFileSync(settingsBackupPath, settingsPath)
-					fs.unlinkSync(settingsBackupPath)
-					console.log("Restored original VS Code settings")
-				} catch (error) {
-					console.warn("Failed to restore settings:", error)
-				}
-			}
-		})
-	} catch (error) {
-		console.warn("Failed to update VS Code settings:", error)
+		// Disable other extensions that might compete for startup focus
+		"extensions.autoUpdate": false
 	}
+	fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+	console.log(`Created settings.json to disable workspace trust and auto-open Cline`)
+	
+	// Create keybindings.json to automatically open Cline on startup
+	const keybindingsPath = path.join(settingsDir, 'keybindings.json')
+	const keybindings = [
+		{
+			"key": "alt+c",
+			"command": "workbench.view.extension.saoudrizwan.claude-dev-ActivityBar",
+			"when": "viewContainer.workbench.view.extension.saoudrizwan.claude-dev-ActivityBar.enabled"
+		},
+		{
+			"key": "alt+shift+c",
+			"command": "cline.openInNewTab",
+			"when": "viewContainer.workbench.view.extension.saoudrizwan.claude-dev-ActivityBar.enabled"
+		}
+	]
+	fs.writeFileSync(keybindingsPath, JSON.stringify(keybindings, null, 2))
+	console.log(`Created keybindings.json to help with Cline activation`)
 
-	// Build the command arguments
+	// Build the command arguments with custom user data directory
 	const args = [
+		// Use a custom user data directory to isolate this instance
+		"--user-data-dir", tempUserDataDir,
+		// Use a custom extensions directory to ensure only our extension is loaded
+		"--extensions-dir", tempExtensionsDir,
+		// Disable workspace trust
 		"--disable-workspace-trust",
 		"-n",
 		workspacePath,
 		// Force the extension to be activated on startup
 		"--start-up-extension", "saoudrizwan.claude-dev",
+		// Run a command on startup to open Cline
+		"--command", "workbench.view.extension.saoudrizwan.claude-dev-ActivityBar",
 		// Additional flags to help with extension activation
-		"--disable-extensions=false",
 		"--disable-gpu=false",
 		"--max-memory=4096"
 	]
+	
+	// Create a startup script to run commands after VS Code launches
+	const startupScriptPath = path.join(settingsDir, 'startup.js')
+	const startupScript = `
+		// This script will be executed when VS Code starts
+		setTimeout(() => {
+			// Try to open Cline in the sidebar
+			require('vscode').commands.executeCommand('workbench.view.extension.saoudrizwan.claude-dev-ActivityBar');
+			
+			// Also try to open Cline in a tab as a fallback
+			setTimeout(() => {
+				require('vscode').commands.executeCommand('cline.openInNewTab');
+			}, 5000);
+		}, 5000);
+	`;
+	fs.writeFileSync(startupScriptPath, startupScript);
+	console.log(`Created startup script to activate Cline`);
 
 	// If a VSIX is provided, install it
 	if (vsixPath) {
@@ -126,20 +155,8 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 
 	// Execute the command
 	try {
-		// Install common extensions that might help with activation
-		console.log("Installing common VS Code extensions...")
-		try {
-			await execa("code", ["--install-extension", "dbaeumer.vscode-eslint"], { stdio: "ignore" })
-			await execa("code", ["--install-extension", "ms-python.python"], { stdio: "ignore" })
-		} catch (error) {
-			console.warn("Failed to install some VS Code extensions:", error)
-		}
-
-		// Explicitly install our extension by ID to ensure it's properly registered
-		console.log("Ensuring Cline extension is installed...")
-		await execa("code", ["--install-extension", "saoudrizwan.claude-dev"], {
-			stdio: "ignore",
-		})
+		// We don't need to install extensions globally anymore since we're using a custom user data directory
+		// The VSIX will be installed in the isolated environment if provided in the args
 
 		// Launch VS Code
 		console.log("Launching VS Code...")
@@ -149,138 +166,167 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 
 		// Wait longer for VSCode to initialize and extension to load
 		console.log("Waiting for VS Code to initialize...")
-		await new Promise((resolve) => setTimeout(resolve, 15000))
+		await new Promise((resolve) => setTimeout(resolve, 30000))
 
+		// Create a JavaScript file that will be loaded as a VS Code extension
+		const extensionDir = path.join(tempExtensionsDir, 'cline-activator')
+		fs.mkdirSync(extensionDir, { recursive: true })
+		
+		// Create package.json for the extension
+		const packageJsonPath = path.join(extensionDir, 'package.json')
+		const packageJson = {
+			"name": "cline-activator",
+			"displayName": "Cline Activator",
+			"description": "Activates Cline and starts the test server",
+			"version": "0.0.1",
+			"engines": {
+				"vscode": "^1.60.0"
+			},
+			"main": "./extension.js",
+			"activationEvents": [
+				"*"
+			],
+			"contributes": {
+				"commands": [
+					{
+						"command": "cline-activator.activate",
+						"title": "Activate Cline"
+					}
+				]
+			}
+		}
+		fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2))
+		
+		// Create extension.js
+		const extensionJsPath = path.join(extensionDir, 'extension.js')
+		const extensionJs = `
+			const vscode = require('vscode');
+			
+			/**
+			 * @param {vscode.ExtensionContext} context
+			 */
+			function activate(context) {
+				console.log('Cline Activator is now active!');
+				
+				// Register the command to activate Cline
+				let disposable = vscode.commands.registerCommand('cline-activator.activate', async function () {
+					try {
+						// Make sure the Cline extension is activated
+						const extension = vscode.extensions.getExtension('saoudrizwan.claude-dev');
+						if (!extension) {
+							console.error('Cline extension not found');
+							return;
+						}
+						
+						if (!extension.isActive) {
+							console.log('Activating Cline extension...');
+							await extension.activate();
+						}
+						
+						// Show the Cline sidebar
+						console.log('Opening Cline sidebar...');
+						await vscode.commands.executeCommand('workbench.view.extension.saoudrizwan.claude-dev-ActivityBar');
+						
+						// Wait a moment for the sidebar to initialize
+						await new Promise(resolve => setTimeout(resolve, 2000));
+						
+						// Also open Cline in a tab as a fallback
+						console.log('Opening Cline in a tab...');
+						await vscode.commands.executeCommand('cline.openInNewTab');
+						
+						// Wait a moment for the tab to initialize
+						await new Promise(resolve => setTimeout(resolve, 2000));
+						
+						// Create the test server if it doesn't exist
+						console.log('Creating test server...');
+						
+						// Get the visible webview instance
+						const clineRootPath = '${path.resolve(process.cwd(), "..", "..")}';
+						const visibleWebview = require(path.join(clineRootPath, 'src', 'core', 'webview')).WebviewProvider.getVisibleInstance();
+						if (visibleWebview) {
+							require(path.join(clineRootPath, 'src', 'services', 'test', 'TestServer')).createTestServer(visibleWebview);
+							console.log('Test server created successfully');
+						} else {
+							console.error('No visible webview instance found');
+						}
+					} catch (error) {
+						console.error('Error activating Cline:', error);
+					}
+				});
+				
+				context.subscriptions.push(disposable);
+				
+				// Automatically run the command after a delay
+				setTimeout(() => {
+					vscode.commands.executeCommand('cline-activator.activate');
+				}, 5000);
+			}
+			
+			function deactivate() {}
+			
+			module.exports = {
+				activate,
+				deactivate
+			}
+		`;
+		fs.writeFileSync(extensionJsPath, extensionJs);
+		console.log(`Created Cline Activator extension`);
+		
 		// Try multiple approaches to activate the extension
 		let serverStarted = false
 
-		// Approach 1: Focus the Cline sidebar view
-		if (!serverStarted) {
-			try {
-				console.log("Attempting to focus Cline sidebar (approach 1)...")
-				// This command focuses the Cline sidebar view
-				await execa(
-					"code",
-					["--folder-uri", `file://${workspacePath}`, "--command", "workbench.view.extension.saoudrizwan.claude-dev-ActivityBar"],
-					{
-						stdio: "ignore",
-					},
-				)
-				
-				// Wait a moment for the sidebar to open
-				await new Promise((resolve) => setTimeout(resolve, 3000))
-				
-				// Then try to focus the specific view inside the sidebar
-				await execa(
-					"code",
-					[
-						"--folder-uri",
-						`file://${workspacePath}`,
-						"--command",
-						"workbench.view.extension.saoudrizwan.claude-dev.SidebarProvider.focus",
-					],
-					{
-						stdio: "ignore",
-					},
-				)
-				
-				// Wait for the test server to start
-				console.log("Waiting for test server to start...")
-				for (let i = 0; i < 15; i++) {
-					try {
-						// Try to connect to the test server
-						const response = await fetch("http://localhost:9876/task", {
-							method: "OPTIONS",
-							headers: {
-								"Content-Type": "application/json",
-							},
-						})
-						
-						if (response.status === 204) {
-							console.log("Test server is running!")
-							serverStarted = true
-							break
-						}
-					} catch (error) {
-						// Server not started yet, wait and try again
-						await new Promise((resolve) => setTimeout(resolve, 1000))
-					}
+		// Create an activation script to run in VS Code
+		const activationScriptPath = path.join(settingsDir, 'activate-cline.js');
+		const activationScript = `
+			// This script will be executed to activate Cline and start the test server
+			const vscode = require('vscode');
+			
+			// Execute the cline-activator.activate command
+			vscode.commands.executeCommand('cline-activator.activate');
+		`;
+		fs.writeFileSync(activationScriptPath, activationScript);
+		console.log(`Created activation script to run in VS Code`);
+		
+		// Execute the activation script
+		try {
+			console.log("Executing activation script to start Cline and test server...");
+			await execa(
+				"code",
+				[
+					"--user-data-dir", tempUserDataDir,
+					"--extensions-dir", tempExtensionsDir,
+					"--folder-uri", `file://${workspacePath}`,
+					"--execute", activationScriptPath
+				],
+				{
+					stdio: "inherit",
 				}
-			} catch (error) {
-				console.warn("Failed to focus Cline sidebar (approach 1):", error)
-			}
-		}
-
-		// Approach 2: Open Cline in a panel view
-		if (!serverStarted) {
-			try {
-				console.log("Trying to open Cline in a panel view (approach 2)...")
-				await execa("code", ["--folder-uri", `file://${workspacePath}`, "--command", "cline.openInNewTab"], {
-					stdio: "ignore",
-				})
-				
-				// Wait for the panel to open and test server to start
-				await new Promise((resolve) => setTimeout(resolve, 5000))
-				
-				// Check if the server started
-				for (let i = 0; i < 15; i++) {
-					try {
-						const response = await fetch("http://localhost:9876/task", {
-							method: "OPTIONS",
-							headers: {
-								"Content-Type": "application/json",
-							},
-						})
-						
-						if (response.status === 204) {
-							console.log("Test server is running!")
-							serverStarted = true
-							break
-						}
-					} catch (error) {
-						// Server not started yet, wait and try again
-						await new Promise((resolve) => setTimeout(resolve, 1000))
+			);
+			
+			// Wait for the test server to start
+			console.log("Waiting for test server to start...");
+			for (let i = 0; i < 30; i++) {
+				try {
+					// Try to connect to the test server
+					const response = await fetch("http://localhost:9876/task", {
+						method: "OPTIONS",
+						headers: {
+							"Content-Type": "application/json",
+						},
+					});
+					
+					if (response.status === 204) {
+						console.log("Test server is running!");
+						serverStarted = true;
+						break;
 					}
+				} catch (error) {
+					// Server not started yet, wait and try again
+					await new Promise((resolve) => setTimeout(resolve, 1000));
 				}
-			} catch (error) {
-				console.warn("Failed to open Cline panel (approach 2):", error)
 			}
-		}
-
-		// Approach 3: Try to execute a Cline command directly
-		if (!serverStarted) {
-			try {
-				console.log("Trying to execute Cline command directly (approach 3)...")
-				await execa("code", ["--folder-uri", `file://${workspacePath}`, "--command", "cline.plusButtonClicked"], {
-					stdio: "ignore",
-				})
-				
-				// Wait for the command to execute and test server to start
-				await new Promise((resolve) => setTimeout(resolve, 5000))
-				
-				// Check if the server started
-				for (let i = 0; i < 15; i++) {
-					try {
-						const response = await fetch("http://localhost:9876/task", {
-							method: "OPTIONS",
-							headers: {
-								"Content-Type": "application/json",
-							},
-						})
-						
-						if (response.status === 204) {
-							console.log("Test server is running!")
-							serverStarted = true
-							break
-						}
-					} catch (error) {
-						// Server not started yet, wait and try again
-						await new Promise((resolve) => setTimeout(resolve, 1000))
-					}
-				}
-			} catch (error) {
-				console.warn("Failed to execute Cline command (approach 3):", error)
-			}
+		} catch (error) {
+			console.warn("Failed to execute activation script:", error);
 		}
 
 		if (!serverStarted) {

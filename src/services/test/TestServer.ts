@@ -128,6 +128,13 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, prov
  * @returns The created HTTP server instance
  */
 export function createTestServer(webviewProvider?: WebviewProvider): http.Server {
+	// Try to show the Cline sidebar
+	Logger.log("[createTestServer] Opening Cline in sidebar...")
+	vscode.commands.executeCommand('workbench.view.claude-dev-ActivityBar');
+
+	// Then ensure the webview is focused/loaded
+	vscode.commands.executeCommand('claude-dev.SidebarProvider.focus');
+	
 	// Update auto approval settings if webviewProvider is available
 	if (webviewProvider?.controller?.context) {
 		updateAutoApprovalSettings(webviewProvider.controller.context, webviewProvider)
