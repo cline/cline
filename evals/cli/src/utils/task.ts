@@ -18,9 +18,9 @@ export async function sendTaskToServer(task: string, apiKey?: string): Promise<a
 			headers: {
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({ 
+			body: JSON.stringify({
 				task,
-				apiKey 
+				apiKey,
 			}),
 		})
 

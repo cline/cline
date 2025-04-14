@@ -93,7 +93,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					storeSpinner.succeed("Result stored")
 
 					console.log(chalk.green(`Task completed. Success: ${verification.success}`))
-					
+
 					// Clean up VS Code and temporary files
 					const cleanupSpinner = ora("Cleaning up...").start()
 					try {
@@ -106,7 +106,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 				} catch (error: any) {
 					sendSpinner.fail(`Task failed: ${error.message}`)
 					console.error(chalk.red(error.stack))
-					
+
 					// Clean up VS Code and temporary files even if the task failed
 					const cleanupSpinner = ora("Cleaning up...").start()
 					try {
