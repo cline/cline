@@ -23,6 +23,8 @@ export class BrowserSession {
     private browser?: Browser
     private page?: Page
     private currentMousePosition?: string
+    private logs: string[] = []
+    private lastLogTs: number = Date.now()
     browserSettings: BrowserSettings
 
     constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings) {
@@ -104,7 +106,7 @@ export class BrowserSession {
     // }
 
     // /**
-    //  * Helper to detect user’s default Chrome data dir.
+    //  * Helper to detect user's default Chrome data dir.
     //  * Adjust for OS if needed.
     //  */
     // private getDefaultChromeUserDataDir(): string {
@@ -119,12 +121,51 @@ export class BrowserSession {
     // 	}
     // }
 
+    private setupPageListeners() {
+        if (!this.page) {
+            return
+        }
+
+        this.page.on('console', (msg) => {
+            if (msg.type() === 'log') {
+                this.logs.push(msg.text())
+            } else {
+                this.logs.push(`[${msg.type()}] ${msg.text()}`)
+            }
+            this.lastLogTs = Date.now()
+        })
+
+        this.page.on('pageerror', (err) => {
+            this.logs.push(`[Page Error] ${err.toString()}`)
+            this.lastLogTs = Date.now()
+        })
+
+        this.page.on('response', (response) => {
+            const request = response.request()
+            if (request.resourceType() === 'fetch' || request.resourceType() === 'xhr') {
+                const networkLog = `[${request.method()}] ${request.url()} (${response.status()})`
+                this.logs.push(networkLog)
+                this.lastLogTs = Date.now()
+            }
+        })
+
+        this.page.on('framenavigated', async (frame) => {
+            if (frame === this.page?.mainFrame()) {
+                const url = frame.url()
+                this.logs.push(`\n[Navigation] Navigated to ${url}\n`)
+                this.lastLogTs = Date.now()
+            }
+        })
+    }
+
     async launchBrowser() {
         console.log('launch browser called')
         if (this.browser) {
-            // throw new Error("Browser already launched")
-            await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
+            await this.closeBrowser()
         }
+
+        this.logs = []
+        this.lastLogTs = Date.now()
 
         const stats = await this.ensureChromiumExists()
         this.browser = await stats.puppeteer.launch({
@@ -136,27 +177,18 @@ export class BrowserSession {
             headless: this.browserSettings.headless,
         })
 
-        // if (this.browserSettings.chromeType === "system") {
-        // 	const userDataDir = this.getDefaultChromeUserDataDir()
-        // 	this.browser = await stats.puppeteer.launch({
-        // 		args: [`--user-data-dir=${userDataDir}`, "--profile-directory=Default"],
-        // 		executablePath: await this.getSystemChromeExecutablePath(),
-        // 		defaultViewport: this.browserSettings.viewport,
-        // 		headless: this.browserSettings.headless,
-        // 	})
-        // } else {
-        // 	this.browser = await stats.puppeteer.launch({
-        // 		args: [
-        // 			"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-        // 		],
-        // 		executablePath: stats.executablePath,
-        // 		defaultViewport: this.browserSettings.viewport,
-        // 		headless: this.browserSettings.headless,
-        // 	})
-        // }
-
-        // (latest version of puppeteer does not add headless to user agent)
         this.page = await this.browser?.newPage()
+
+        if (this.page) {
+            // Override webdriver flag to bypass PostHog bot detection
+            await this.page.evaluateOnNewDocument(() => {
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => false,
+                })
+            })
+        }
+
+        this.setupPageListeners()
     }
 
     async closeBrowser(): Promise<BrowserActionResult> {
@@ -166,6 +198,7 @@ export class BrowserSession {
             this.browser = undefined
             this.page = undefined
             this.currentMousePosition = undefined
+            this.logs = []
         }
         return {}
     }
@@ -177,50 +210,22 @@ export class BrowserSession {
             )
         }
 
-        const logs: string[] = []
-        let lastLogTs = Date.now()
-
-        const consoleListener = (msg: any) => {
-            if (msg.type() === 'log') {
-                logs.push(msg.text())
-            } else {
-                logs.push(`[${msg.type()}] ${msg.text()}`)
-            }
-            lastLogTs = Date.now()
-        }
-
-        const errorListener = (err: Error) => {
-            logs.push(`[Page Error] ${err.toString()}`)
-            lastLogTs = Date.now()
-        }
-
-        // Add the listeners
-        this.page.on('console', consoleListener)
-        this.page.on('pageerror', errorListener)
-
         try {
             await action(this.page)
         } catch (err) {
             if (!(err instanceof TimeoutError)) {
-                logs.push(`[Error] ${err.toString()}`)
+                this.logs.push(`[Error] ${err.toString()}`)
             }
         }
 
         // Wait for console inactivity, with a timeout
-        await pWaitFor(() => Date.now() - lastLogTs >= 500, {
-            timeout: 3_000,
+        await pWaitFor(() => Date.now() - this.lastLogTs >= 2000, {
+            timeout: 5_000,
             interval: 100,
         }).catch(() => {})
 
         let options: ScreenshotOptions = {
             encoding: 'base64',
-
-            // clip: {
-            // 	x: 0,
-            // 	y: 0,
-            // 	width: 900,
-            // 	height: 600,
-            // },
         }
 
         let screenshotBase64 = await this.page.screenshot({
@@ -242,13 +247,9 @@ export class BrowserSession {
             throw new Error('Failed to take screenshot.')
         }
 
-        // this.page.removeAllListeners() <- causes the page to crash!
-        this.page.off('console', consoleListener)
-        this.page.off('pageerror', errorListener)
-
         return {
             screenshot,
-            logs: logs.join('\n'),
+            logs: this.logs.join('\n'),
             currentUrl: this.page.url(),
             currentMousePosition: this.currentMousePosition,
         }
