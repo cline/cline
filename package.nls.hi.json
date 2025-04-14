@@ -1,6 +1,6 @@
 {
-	"extension.displayName": "Roo Code",
-	"extension.description": "आपके एडिटर में एआई एजेंट्स की पूरी डेवलपमेंट टीम। पहले Roo Cline के नाम से जाना जाता था।",
+	"extension.displayName": "Roo Code (पहले Roo Cline)",
+	"extension.description": "आपके एडिटर में एआई एजेंट्स की पूरी डेवलपमेंट टीम।",
 	"command.newTask.title": "नया कार्य",
 	"command.explainCode.title": "कोड समझाएं",
 	"command.fixCode.title": "कोड ठीक करें",

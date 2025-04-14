@@ -1,6 +1,6 @@
 {
-	"extension.displayName": "Roo Code",
-	"extension.description": "Düzenleyicinizde tam bir AI ajanları geliştirme ekibi. Önceden Roo Cline olarak biliniyordu.",
+	"extension.displayName": "Roo Code (önceden Roo Cline)",
+	"extension.description": "Düzenleyicinde tam bir AI ajanları geliştirme ekibi.",
 	"command.newTask.title": "Yeni Görev",
 	"command.explainCode.title": "Kodu Açıkla",
 	"command.fixCode.title": "Kodu Düzelt",

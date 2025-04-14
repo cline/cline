@@ -1,6 +1,6 @@
 {
-	"extension.displayName": "Roo Code",
-	"extension.description": "A whole dev team of AI agents in your editor. Previously Roo Cline.",
+	"extension.displayName": "Roo Code (prev. Roo Cline)",
+	"extension.description": "A whole dev team of AI agents in your editor.",
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",
 	"views.activitybar.title": "Roo Code",

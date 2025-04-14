@@ -1,6 +1,6 @@
 {
-	"extension.displayName": "Roo Code",
-	"extension.description": "エディタ内のAIエージェントによる開発チーム。以前のRoo Cline。",
+	"extension.displayName": "Roo Code (旧 Roo Cline)",
+	"extension.description": "エディタ内のAIエージェントによる開発チーム。",
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",
 	"views.activitybar.title": "Roo Code",

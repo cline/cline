@@ -1,6 +1,6 @@
 {
-	"extension.displayName": "Roo Code",
-	"extension.description": "Une équipe complète de développement d'agents IA dans votre éditeur. Anciennement Roo Cline.",
+	"extension.displayName": "Roo Code (anciennement Roo Cline)",
+	"extension.description": "Une équipe complète de développement d'agents IA dans votre éditeur.",
 	"command.newTask.title": "Nouvelle Tâche",
 	"command.explainCode.title": "Expliquer le Code",
 	"command.fixCode.title": "Corriger le Code",

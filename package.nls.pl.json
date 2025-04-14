@@ -1,6 +1,6 @@
 {
-	"extension.displayName": "Roo Code",
-	"extension.description": "Pełny zespół programistów AI w twoim edytorze. Wcześniej znany jako Roo Cline.",
+	"extension.displayName": "Roo Code (wcześniej Roo Cline)",
+	"extension.description": "Pełny zespół programistów AI w twoim edytorze.",
 	"command.newTask.title": "Nowe Zadanie",
 	"command.explainCode.title": "Wyjaśnij Kod",
 	"command.fixCode.title": "Napraw Kod",
