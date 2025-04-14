@@ -299,6 +299,19 @@ Tracking conventions discovered in the codebase.
 </tracking_conventions>
 </add_capture_calls>
 
+## create_feature_flag
+Description: Create a new feature flag in PostHog.
+Parameters:
+- name: (required) The name of the feature flag.
+- key: (required) The key of the feature flag.
+- value: (required) The boolean value of the feature flag.
+Usage:
+<create_feature_flag>
+<name>Feature flag name here</name>
+<key>Feature flag key here</key>
+<value>true or false</value>
+</create_feature_flag>
+
 # Tool Use Examples
 
 ## Example 1: Requesting to execute a command

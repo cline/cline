@@ -24,6 +24,7 @@ export const toolUseNames = [
     'attempt_completion',
     'search_docs',
     'add_capture_calls',
+    'create_feature_flag',
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)

@@ -67,6 +67,8 @@ import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnor
 import { PostHogProvider } from './webview/PostHogProvider'
 import { PostHogApiProvider } from '../api/provider'
 import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-capture-calls'
+import type { BaseTool } from './tools/base'
+import { ToolManager } from './tools/manager'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -123,6 +125,7 @@ export class PostHog {
     private didCompleteReadingStream = false
     private didAutomaticallyRetryFailedApiRequest = false
     private inkeepHandler?: PostHogApiProvider
+    private toolManager: ToolManager
 
     constructor(
         provider: PostHogProvider,
@@ -161,6 +164,13 @@ export class PostHog {
             apiConfiguration.posthogHost,
             apiConfiguration.posthogApiKey
         )
+
+        this.toolManager = new ToolManager({
+            posthogApiKey: apiConfiguration.posthogApiKey,
+            posthogHost: apiConfiguration.posthogHost,
+            posthogProjectId: apiConfiguration.posthogHost,
+        })
+
         if (historyItem) {
             this.taskId = historyItem.id
             this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
@@ -1310,8 +1320,19 @@ export class PostHog {
             case 'access_mcp_resource':
             case 'use_mcp_tool':
                 return this.autoApprovalSettings.actions.useMcp
+            case 'plan_mode_respond':
+            case 'ask_followup_question':
+            case 'attempt_completion':
+                return false
+            default:
+                const tool = this.toolManager.getTool(toolName)
+
+                if (tool) {
+                    return tool.autoApprove
+                }
+
+                return false
         }
-        return false
     }
 
     private formatErrorWithStatusCode(error: any): string {
@@ -1601,6 +1622,13 @@ export class PostHog {
                             } catch (error) {
                                 return `[${block.name}]`
                             }
+                        default:
+                            const tool = this.toolManager.getTool(block.name)
+                            if (tool) {
+                                return tool.getToolUsageDescription(block)
+                            }
+
+                            return ''
                     }
                 }
 
