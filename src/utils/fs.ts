@@ -86,7 +86,8 @@ export const readDirectory = async (directoryPath: string) => {
 	try {
 		const filePaths = await fs
 			.readdir(directoryPath, { withFileTypes: true, recursive: true })
-			.then((files) => files.filter((file) => file.isFile()))
+			.then((entries) => entries.filter((entry) => !entry.name.startsWith(".")))
+			.then((entries) => entries.filter((entry) => entry.isFile()))
 			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
 		return filePaths
 	} catch {
