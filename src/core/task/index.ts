@@ -141,6 +141,9 @@ export class Task {
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
 
+	// Property to hold image block from read_file result
+	private pendingImageBlockForResult: Anthropic.ImageBlockParam | null = null
+
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
@@ -1708,16 +1711,18 @@ export class Task {
 				}
 
 				const pushToolResult = (content: ToolResponse) => {
-					this.userMessageContent.push({
-						type: "text",
-						text: `${toolDescription()} Result:`,
-					})
+					// Only add the "Result:" prefix for string content
 					if (typeof content === "string") {
+						this.userMessageContent.push({
+							type: "text",
+							text: `${toolDescription()} Result:`,
+						})
 						this.userMessageContent.push({
 							type: "text",
 							text: content || "(tool did not return anything)",
 						})
 					} else {
+						// For non-string content (like ImageBlockParam arrays), push directly
 						this.userMessageContent.push(...content)
 					}
 					// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
@@ -2164,8 +2169,35 @@ export class Task {
 								// Track file read operation
 								await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
-								pushToolResult(content)
+								// Check if the content is a Data URL for an image
+								if (content.startsWith("data:image/")) {
+									const match = content.match(/^data:(image\/(?:png|jpeg|webp));base64,(.*)$/)
+									if (match) {
+										const mediaType = match[1] as Anthropic.ImageBlockParam.Source["media_type"]
+										const base64Data = match[2]
+										// Store the image block for the next request
+										this.pendingImageBlockForResult = {
+											type: "image",
+											source: {
+												type: "base64",
+												media_type: mediaType,
+												data: base64Data,
+											},
+										}
+										// Push a text confirmation as the tool result
+										pushToolResult(
+											`Image file '${relPath}' read successfully. Content will be provided separately.`,
+										)
+									} else {
+										// Handle cases where it looks like a data URL but doesn't match expected format
+										pushToolResult(formatResponse.toolError("Failed to parse image data URL from file."))
+									}
+								} else {
+									// Handle as text content
+									pushToolResult(content)
+								}
 
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
@@ -3371,6 +3403,14 @@ export class Task {
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
+		}
+
+		// Check if there's a pending image block from a previous read_file result
+		if (this.pendingImageBlockForResult) {
+			// Prepend the image block to the current user content
+			userContent = [this.pendingImageBlockForResult, ...userContent]
+			// Clear the pending image block
+			this.pendingImageBlockForResult = null
 		}
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes

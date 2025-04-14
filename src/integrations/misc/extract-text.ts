@@ -24,6 +24,23 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 	}
 }
 
+// Function to get MIME type based on file extension
+function getMimeType(filePath: string): string {
+	const ext = path.extname(filePath).toLowerCase()
+	switch (ext) {
+		case ".png":
+			return "image/png"
+		case ".jpeg":
+		case ".jpg":
+			return "image/jpeg"
+		case ".webp":
+			return "image/webp"
+		default:
+			// Return a generic type or handle as needed for non-image files
+			return "application/octet-stream" // Or throw an error if only image types are expected
+	}
+}
+
 export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {
 		await fs.access(filePath)
@@ -38,6 +55,15 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			return extractTextFromDOCX(filePath)
 		case ".ipynb":
 			return extractTextFromIPYNB(filePath)
+		// Add cases for image file types
+		case ".png":
+		case ".jpg":
+		case ".jpeg":
+		case ".webp":
+			const imageBuffer = await fs.readFile(filePath)
+			const base64 = imageBuffer.toString("base64")
+			const mimeType = getMimeType(filePath)
+			return `data:${mimeType};base64,${base64}`
 		default:
 			const fileBuffer = await fs.readFile(filePath)
 			if (fileBuffer.byteLength > 300 * 1024) {
