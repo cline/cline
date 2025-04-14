@@ -1507,6 +1507,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				selectedProvider !== "vscode-lm" &&
 				selectedProvider !== "litellm" &&
 				selectedProvider !== "requesty" &&
+				selectedProvider !== "nebius" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1525,7 +1526,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
-							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
 						</DropdownContainer>
