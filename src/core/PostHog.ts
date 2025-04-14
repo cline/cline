@@ -138,7 +138,8 @@ export class PostHog {
     ) {
         apiConfiguration = {
             ...apiConfiguration,
-            posthogHost: process.env.IS_DEV ? 'http://localhost:8000' : apiConfiguration.posthogHost,
+            posthogHost: process.env.IS_DEV ? 'http://localhost:8010' : apiConfiguration.posthogHost,
+            posthogProjectId: "1" // TODO: Merge with max tools PR
         }
         this.posthogIgnoreController = new PostHogIgnoreController(cwd)
         this.posthogIgnoreController.initialize().catch((error) => {
@@ -283,10 +284,10 @@ export class PostHog {
             const taskMessage = this.posthogMessages[0] // first message is always the task say
             const lastRelevantMessage =
                 this.posthogMessages[
-                    findLastIndex(
-                        this.posthogMessages,
-                        (m) => !(m.ask === 'resume_task' || m.ask === 'resume_completed_task')
-                    )
+                findLastIndex(
+                    this.posthogMessages,
+                    (m) => !(m.ask === 'resume_task' || m.ask === 'resume_completed_task')
+                )
                 ]
             await this.providerRef.deref()?.updateTaskHistory({
                 id: this.taskId,
@@ -454,11 +455,11 @@ export class PostHog {
 
         let changedFiles:
             | {
-                  relativePath: string
-                  absolutePath: string
-                  before: string
-                  after: string
-              }[]
+                relativePath: string
+                absolutePath: string
+                before: string
+                after: string
+            }[]
             | undefined
 
         try {
@@ -815,8 +816,7 @@ export class PostHog {
     async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
         await this.say(
             'error',
-            `PostHog tried to use ${toolName}${
-                relPath ? ` for '${relPath.toPosix()}'` : ''
+            `PostHog tried to use ${toolName}${relPath ? ` for '${relPath.toPosix()}'` : ''
             } without value for required parameter '${paramName}'. Retrying...`
         )
         return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -982,11 +982,11 @@ export class PostHog {
                     const assistantContent = Array.isArray(previousAssistantMessage.content)
                         ? previousAssistantMessage.content
                         : [
-                              {
-                                  type: 'text',
-                                  text: previousAssistantMessage.content,
-                              },
-                          ]
+                            {
+                                type: 'text',
+                                text: previousAssistantMessage.content,
+                            },
+                        ]
 
                     const toolUseBlocks = assistantContent.filter(
                         (block) => block.type === 'tool_use'
@@ -1054,20 +1054,18 @@ export class PostHog {
         newUserContent.push({
             type: 'text',
             text:
-                `[TASK RESUMPTION] ${
-                    this.chatSettings?.mode === 'plan'
-                        ? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in PLAN MODE, so rather than continuing the task, you must respond to the user's message.`
-                        : `This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.`
-                }${
-                    wasRecent
-                        ? '\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents.'
-                        : ''
+                `[TASK RESUMPTION] ${this.chatSettings?.mode === 'plan'
+                    ? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in PLAN MODE, so rather than continuing the task, you must respond to the user's message.`
+                    : `This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.`
+                }${wasRecent
+                    ? '\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents.'
+                    : ''
                 }` +
                 (responseText
                     ? `\n\n${this.chatSettings?.mode === 'plan' ? 'New message to respond to with plan_mode_respond tool (be sure to provide your response in the <response> parameter)' : 'New instructions for task continuation'}:\n<user_message>\n${responseText}\n</user_message>`
                     : this.chatSettings.mode === 'plan'
-                      ? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
-                      : ''),
+                        ? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
+                        : ''),
         })
 
         if (responseImages && responseImages.length > 0) {
@@ -1263,8 +1261,7 @@ export class PostHog {
             return [
                 true,
                 formatResponse.toolResult(
-                    `Command is still running in the user's terminal.${
-                        result.length > 0 ? `\nHere's the output so far:\n${result}` : ''
+                    `Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ''
                     }\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
                     userFeedback.images
                 ),
@@ -1276,8 +1273,7 @@ export class PostHog {
         } else {
             return [
                 false,
-                `Command is still running in the user's terminal.${
-                    result.length > 0 ? `\nHere's the output so far:\n${result}` : ''
+                `Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ''
                 }\n\nYou will be updated on the terminal status and new output in the future.`,
             ]
         }
@@ -1611,9 +1607,8 @@ export class PostHog {
                         case 'replace_in_file':
                             return `[${block.name} for '${block.params.path}']`
                         case 'search_files':
-                            return `[${block.name} for '${block.params.regex}'${
-                                block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ''
-                            }]`
+                            return `[${block.name} for '${block.params.regex}'${block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ''
+                                }]`
                         case 'list_files':
                             return `[${block.name} for '${block.params.path}']`
                         case 'list_code_definition_names':
@@ -1843,10 +1838,10 @@ export class PostHog {
                                     pushToolResult(
                                         formatResponse.toolError(
                                             `${(error as Error)?.message}\n\n` +
-                                                `This is likely because the SEARCH block content doesn't match exactly with what's in the file, or if you used multiple SEARCH/REPLACE blocks they may not have been in the order they appear in the file.\n\n` +
-                                                `The file was reverted to its original state:\n\n` +
-                                                `<file_content path="${relPath.toPosix()}">\n${this.diffViewProvider.originalContent}\n</file_content>\n\n` +
-                                                `Try again with fewer/more precise SEARCH blocks.\n(If you run into this error two times in a row, you may use the write_to_file tool as a fallback.)`
+                                            `This is likely because the SEARCH block content doesn't match exactly with what's in the file, or if you used multiple SEARCH/REPLACE blocks they may not have been in the order they appear in the file.\n\n` +
+                                            `The file was reverted to its original state:\n\n` +
+                                            `<file_content path="${relPath.toPosix()}">\n${this.diffViewProvider.originalContent}\n</file_content>\n\n` +
+                                            `Try again with fewer/more precise SEARCH blocks.\n(If you run into this error two times in a row, you may use the write_to_file tool as a fallback.)`
                                         )
                                     )
                                     await this.diffViewProvider.revertChanges()
@@ -1891,7 +1886,7 @@ export class PostHog {
                                     await this.say('tool', partialMessage, undefined, block.partial)
                                 } else {
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
-                                    await this.ask('tool', partialMessage, block.partial).catch(() => {})
+                                    await this.ask('tool', partialMessage, block.partial).catch(() => { })
                                 }
                                 // update editor
                                 if (!this.diffViewProvider.isEditing) {
@@ -1932,7 +1927,7 @@ export class PostHog {
                                 if (!this.diffViewProvider.isEditing) {
                                     // show gui message before showing edit animation
                                     const partialMessage = JSON.stringify(sharedMessageProps)
-                                    await this.ask('tool', partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+                                    await this.ask('tool', partialMessage, true).catch(() => { }) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
                                     await this.diffViewProvider.open(relPath)
                                 }
                                 await this.diffViewProvider.update(newContent, true)
@@ -2012,28 +2007,28 @@ export class PostHog {
                                     )
                                     pushToolResult(
                                         `The user made the following updates to your content:\n\n${userEdits}\n\n` +
-                                            (autoFormattingEdits
-                                                ? `The user's editor also applied the following auto-formatting to your content:\n\n${autoFormattingEdits}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future SEARCH/REPLACE operations to this file are accurate.)\n\n`
-                                                : '') +
-                                            `The updated content, which includes both your original modifications and the additional edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file that was saved:\n\n` +
-                                            `<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-                                            `Please note:\n` +
-                                            `1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-                                            `2. Proceed with the task using this updated file content as the new baseline.\n` +
-                                            `3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-                                            `4. IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including both user edits and any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.\n` +
-                                            `${newProblemsMessage}`
+                                        (autoFormattingEdits
+                                            ? `The user's editor also applied the following auto-formatting to your content:\n\n${autoFormattingEdits}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future SEARCH/REPLACE operations to this file are accurate.)\n\n`
+                                            : '') +
+                                        `The updated content, which includes both your original modifications and the additional edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file that was saved:\n\n` +
+                                        `<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+                                        `Please note:\n` +
+                                        `1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+                                        `2. Proceed with the task using this updated file content as the new baseline.\n` +
+                                        `3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+                                        `4. IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including both user edits and any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.\n` +
+                                        `${newProblemsMessage}`
                                     )
                                 } else {
                                     pushToolResult(
                                         `The content was successfully saved to ${relPath.toPosix()}.\n\n` +
-                                            (autoFormattingEdits
-                                                ? `Along with your edits, the user's editor applied the following auto-formatting to your content:\n\n${autoFormattingEdits}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future SEARCH/REPLACE operations to this file are accurate.)\n\n`
-                                                : '') +
-                                            `Here is the full, updated content of the file that was saved:\n\n` +
-                                            `<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-                                            `IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.\n\n` +
-                                            `${newProblemsMessage}`
+                                        (autoFormattingEdits
+                                            ? `Along with your edits, the user's editor applied the following auto-formatting to your content:\n\n${autoFormattingEdits}\n\n(Note: Pay close attention to changes such as single quotes being converted to double quotes, semicolons being removed or added, long lines being broken into multiple lines, adjusting indentation style, adding/removing trailing commas, etc. This will help you ensure future SEARCH/REPLACE operations to this file are accurate.)\n\n`
+                                            : '') +
+                                        `Here is the full, updated content of the file that was saved:\n\n` +
+                                        `<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+                                        `IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.\n\n` +
+                                        `${newProblemsMessage}`
                                     )
                                 }
 
@@ -2072,7 +2067,7 @@ export class PostHog {
                                     await this.say('tool', partialMessage, undefined, block.partial)
                                 } else {
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
-                                    await this.ask('tool', partialMessage, block.partial).catch(() => {})
+                                    await this.ask('tool', partialMessage, block.partial).catch(() => { })
                                 }
                                 break
                             } else {
@@ -2145,7 +2140,7 @@ export class PostHog {
                                     await this.say('tool', partialMessage, undefined, block.partial)
                                 } else {
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
-                                    await this.ask('tool', partialMessage, block.partial).catch(() => {})
+                                    await this.ask('tool', partialMessage, block.partial).catch(() => { })
                                 }
                                 break
                             } else {
@@ -2215,7 +2210,7 @@ export class PostHog {
                                     await this.say('tool', partialMessage, undefined, block.partial)
                                 } else {
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
-                                    await this.ask('tool', partialMessage, block.partial).catch(() => {})
+                                    await this.ask('tool', partialMessage, block.partial).catch(() => { })
                                 }
                                 break
                             } else {
@@ -2288,7 +2283,7 @@ export class PostHog {
                                     await this.say('tool', partialMessage, undefined, block.partial)
                                 } else {
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
-                                    await this.ask('tool', partialMessage, block.partial).catch(() => {})
+                                    await this.ask('tool', partialMessage, block.partial).catch(() => { })
                                 }
                                 break
                             } else {
@@ -2362,7 +2357,7 @@ export class PostHog {
                                     await this.say('tool', partialMessage, undefined, block.partial)
                                 } else {
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
-                                    await this.ask('tool', partialMessage, block.partial).catch(() => {})
+                                    await this.ask('tool', partialMessage, block.partial).catch(() => { })
                                 }
                                 break
                             } else {
@@ -2441,7 +2436,7 @@ export class PostHog {
                                             'browser_action_launch',
                                             removeClosingTag('url', url),
                                             block.partial
-                                        ).catch(() => {})
+                                        ).catch(() => { })
                                     }
                                 } else {
                                     await this.say(
@@ -2553,8 +2548,7 @@ export class PostHog {
                                         await this.say('browser_action_result', JSON.stringify(browserActionResult))
                                         pushToolResult(
                                             formatResponse.toolResult(
-                                                `The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
-                                                    browserActionResult.logs || '(No new logs)'
+                                                `The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${browserActionResult.logs || '(No new logs)'
                                                 }\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
                                                 browserActionResult.screenshot ? [browserActionResult.screenshot] : []
                                             )
@@ -2610,7 +2604,7 @@ export class PostHog {
                                         'command',
                                         removeClosingTag('command', command),
                                         block.partial
-                                    ).catch(() => {})
+                                    ).catch(() => { })
                                 }
                                 break
                             }
@@ -2661,7 +2655,7 @@ export class PostHog {
                                 const didApprove = await askApproval(
                                     'command',
                                     command +
-                                        `${this.shouldAutoApproveTool(block.name) && requiresApproval ? COMMAND_REQ_APP_STRING : ''}` // ugly hack until we refactor combineCommandSequences
+                                    `${this.shouldAutoApproveTool(block.name) && requiresApproval ? COMMAND_REQ_APP_STRING : ''}` // ugly hack until we refactor combineCommandSequences
                                 )
                                 if (!didApprove) {
                                     break
@@ -2755,7 +2749,7 @@ export class PostHog {
                                     await this.say('use_mcp_server', partialMessage, undefined, block.partial)
                                 } else {
                                     this.removeLastPartialMessageIfExistsWithType('say', 'use_mcp_server')
-                                    await this.ask('use_mcp_server', partialMessage, block.partial).catch(() => {})
+                                    await this.ask('use_mcp_server', partialMessage, block.partial).catch(() => { })
                                 }
 
                                 break
@@ -2838,19 +2832,19 @@ export class PostHog {
                                 // TODO: add progress indicator and ability to parse images and non-text responses
                                 const toolResultPretty =
                                     (toolResult?.isError ? 'Error:\n' : '') +
-                                        toolResult?.content
-                                            .map((item) => {
-                                                if (item.type === 'text') {
-                                                    return item.text
-                                                }
-                                                if (item.type === 'resource') {
-                                                    const { blob, ...rest } = item.resource
-                                                    return JSON.stringify(rest, null, 2)
-                                                }
-                                                return ''
-                                            })
-                                            .filter(Boolean)
-                                            .join('\n\n') || '(No response)'
+                                    toolResult?.content
+                                        .map((item) => {
+                                            if (item.type === 'text') {
+                                                return item.text
+                                            }
+                                            if (item.type === 'resource') {
+                                                const { blob, ...rest } = item.resource
+                                                return JSON.stringify(rest, null, 2)
+                                            }
+                                            return ''
+                                        })
+                                        .filter(Boolean)
+                                        .join('\n\n') || '(No response)'
                                 await this.say('mcp_server_response', toolResultPretty)
                                 pushToolResult(formatResponse.toolResult(toolResultPretty))
 
@@ -2880,7 +2874,7 @@ export class PostHog {
                                     await this.say('use_mcp_server', partialMessage, undefined, block.partial)
                                 } else {
                                     this.removeLastPartialMessageIfExistsWithType('say', 'use_mcp_server')
-                                    await this.ask('use_mcp_server', partialMessage, block.partial).catch(() => {})
+                                    await this.ask('use_mcp_server', partialMessage, block.partial).catch(() => { })
                                 }
 
                                 break
@@ -2958,7 +2952,7 @@ export class PostHog {
                         } satisfies PostHogAskQuestion
                         try {
                             if (block.partial) {
-                                await this.ask('followup', JSON.stringify(sharedMessage), block.partial).catch(() => {})
+                                await this.ask('followup', JSON.stringify(sharedMessage), block.partial).catch(() => { })
                                 break
                             } else {
                                 if (!question) {
@@ -3024,7 +3018,7 @@ export class PostHog {
                         try {
                             if (block.partial) {
                                 await this.ask('plan_mode_respond', JSON.stringify(sharedMessage), block.partial).catch(
-                                    () => {}
+                                    () => { }
                                 )
                                 break
                             } else {
@@ -3077,9 +3071,9 @@ export class PostHog {
                                     pushToolResult(
                                         formatResponse.toolResult(
                                             `[The user has switched to ACT MODE, so you may now proceed with the task.]` +
-                                                (text
-                                                    ? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
-                                                    : ''),
+                                            (text
+                                                ? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
+                                                : ''),
                                             images
                                         )
                                     )
@@ -3156,7 +3150,7 @@ export class PostHog {
                                             'command',
                                             removeClosingTag('command', command),
                                             block.partial
-                                        ).catch(() => {})
+                                        ).catch(() => { })
                                     } else {
                                         // last message is completion_result
                                         // we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
@@ -3172,7 +3166,7 @@ export class PostHog {
                                             'command',
                                             removeClosingTag('command', command),
                                             block.partial
-                                        ).catch(() => {})
+                                        ).catch(() => { })
                                     }
                                 } else {
                                     // no command, still outputting partial result
@@ -3280,26 +3274,27 @@ export class PostHog {
                             break
                         }
 
-                        if (block.partial) {
-                            // const shouldAutoApprove = this.shouldAutoApproveTool(block.name)
-
-                            // const partialMessage = JSON.stringify({
-                            //     tool: block.name,
-                            //     content: 'Should I create a fancy feature flag?',
-                            // } satisfies PostHogSayTool)
-
-                            // if (shouldAutoApprove) {
-                            //     this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
-                            //     await this.say('tool', partialMessage, undefined, block.partial)
-                            // } else {
-                            //     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
-                            //     await this.ask('tool', partialMessage, block.partial).catch(() => { })
-                            // }
-
-                            break
-                        }
-
                         try {
+
+                            if (block.partial) {
+                                const shouldAutoApprove = this.shouldAutoApproveTool(block.name)
+
+                                const partialMessage = JSON.stringify({
+                                    tool: tool.name,
+                                    content: JSON.stringify(block.params),
+                                } satisfies PostHogSayTool)
+
+                                if (shouldAutoApprove) {
+                                    this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
+                                    await this.say('tool', partialMessage, undefined, block.partial)
+                                } else {
+                                    this.removeLastPartialMessageIfExistsWithType('say', 'tool')
+                                    await this.ask('tool', partialMessage, block.partial).catch(() => { })
+                                }
+
+                                break
+                            }
+
                             // Validate input
                             const input = tool.validateInput(block.params)
 
@@ -3307,40 +3302,36 @@ export class PostHog {
 
                             const shouldAutoApprove = this.shouldAutoApproveTool(block.name)
 
-                            const approvalRequest = tool.getApprovalRequest(input)
-
                             const completeMessage = JSON.stringify({
-                                tool: 'editedExistingFile',
-                                path: 'src/core/PostHog.ts',
-                                content: approvalRequest,
+                                tool: tool.name,
+                                content: JSON.stringify(block.params),
                             } satisfies PostHogSayTool)
 
                             // // Ensure approval
-                            // if (shouldAutoApprove) {
-                            //     this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
+                            if (shouldAutoApprove) {
+                                this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
 
-                            //     await this.say('tool', completeMessage, undefined, false)
-                            // } else {
-                            //     // showNotificationForApprovalIfAutoApprovalEnabled(approvalRequest)
+                                await this.say('tool', completeMessage, undefined, false)
+                            } else {
+                                // showNotificationForApprovalIfAutoApprovalEnabled(approvalRequest)
 
-                            //     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
+                                this.removeLastPartialMessageIfExistsWithType('say', 'tool')
 
-                            //     const didApprove = await askApproval('tool', approvalRequest)
+                                const didApprove = await askApproval('tool', completeMessage)
 
-                            //     if (!didApprove) {
-                            //         telemetryService.captureToolUsage(this.taskId, block.name, false, false)
-                            //         break
-                            //     }
-                            // }
+                                if (!didApprove) {
+                                    telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+                                    break
+                                }
+                            }
 
-                            // TODO: Handle streaming tool response
-                            const output = await tool.execute(input)
+                            const output = await tool.execute(input as any)
 
                             this.consecutiveAutoApprovedRequestsCount++
 
                             telemetryService.captureToolUsage(this.taskId, block.name, shouldAutoApprove, true)
 
-                            const outputForAssistant = tool.formatOutputForAssistant(output)
+                            const outputForAssistant = tool.formatOutputForAssistant(output as any)
                             pushToolResult(outputForAssistant)
                         } catch (error) {
                             if (
@@ -3348,13 +3339,6 @@ export class PostHog {
                                 error instanceof ToolInputValidationError
                             ) {
                                 this.consecutiveMistakeCount++
-
-                                // Do we need to do anything special here?
-
-                                // this.say("error", `PostHog tried to use ${tool.name} without the correct input. Retrying...`)
-
-                                // pushToolResult(error.message)
-                                // break
                             }
 
                             await handleError(`executing tool ${block.name}`, error)
@@ -3554,10 +3538,9 @@ export class PostHog {
                             type: 'text',
                             text:
                                 assistantMessage +
-                                `\n\n[${
-                                    cancelReason === 'streaming_failed'
-                                        ? 'Response interrupted by API Error'
-                                        : 'Response interrupted by user'
+                                `\n\n[${cancelReason === 'streaming_failed'
+                                    ? 'Response interrupted by API Error'
+                                    : 'Response interrupted by user'
                                 }]`,
                         },
                     ],
@@ -3840,7 +3823,7 @@ export class PostHog {
             await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
                 interval: 100,
                 timeout: 15_000,
-            }).catch(() => {})
+            }).catch(() => { })
         }
 
         // we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc

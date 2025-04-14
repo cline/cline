@@ -25,6 +25,7 @@ export const toolUseNames = [
     'search_docs',
     'add_capture_calls',
     'create_feature_flag',
+    'update_feature_flag',
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -58,6 +59,8 @@ export const toolParamNames = [
     'key',
     'value',
     'name',
+    'id',
+    'active',
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

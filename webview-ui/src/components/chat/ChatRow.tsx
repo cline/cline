@@ -48,7 +48,7 @@ interface ChatRowProps {
     onHeightChange: (isTaller: boolean) => void
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, 'onHeightChange'> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, 'onHeightChange'> { }
 
 export const ProgressIndicator = () => (
     <div
@@ -548,10 +548,38 @@ export const ChatRowContent = ({
                     </>
                 )
             default:
+                let params: Record<string, any> = {};
+                try {
+                    if (tool.content) {
+                        params = JSON.parse(tool.content).params || {};
+                    }
+                } catch (e) {
+                    // If content isn't JSON or doesn't have params, show empty object
+                    params = {};
+                }
+
                 return (
                     <>
                         <div style={headerStyle}>
-                            <span style={{ fontWeight: 'bold' }}>Max wants to create a feature flag</span>
+                            {toolIcon('symbol-property')}
+                            <span style={{ fontWeight: 'bold' }}>
+                                Max wants to use the tool `{tool.tool}` with the following arguments:
+                            </span>
+                        </div>
+                        <div
+                            style={{
+                                background: 'var(--vscode-textCodeBlock-background)',
+                                borderRadius: '3px',
+                                padding: '8px 10px',
+                                marginTop: '8px',
+                            }}
+                        >
+                            <CodeAccordian
+                                code={JSON.stringify(params, null, 2)}
+                                language="json"
+                                isExpanded={true}
+                                onToggleExpand={onToggleExpand}
+                            />
                         </div>
                     </>
                 )

@@ -12,6 +12,7 @@ export type ApiConfiguration = ApiHandlerOptions & {
     apiProvider?: ApiProvider
     completionApiProvider?: CompletionApiProvider
     posthogHost?: string
+    posthogProjectId?: string
 }
 
 // Models

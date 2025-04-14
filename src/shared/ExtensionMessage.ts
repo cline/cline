@@ -13,31 +13,31 @@ import { TelemetrySetting } from './TelemetrySetting'
 // webview will hold state
 export interface ExtensionMessage {
     type:
-        | 'action'
-        | 'state'
-        | 'selectedImages'
-        | 'theme'
-        | 'workspaceUpdated'
-        | 'invoke'
-        | 'partialMessage'
-        | 'mcpServers'
-        | 'relinquishControl'
-        | 'authCallback'
-        | 'commitSearchResults'
-        | 'openGraphData'
-        | 'isImageUrlResult'
-        | 'didUpdateSettings'
-        | 'totalTasksSize'
-        | 'addToInput'
-        | 'usageUpdated'
+    | 'action'
+    | 'state'
+    | 'selectedImages'
+    | 'theme'
+    | 'workspaceUpdated'
+    | 'invoke'
+    | 'partialMessage'
+    | 'mcpServers'
+    | 'relinquishControl'
+    | 'authCallback'
+    | 'commitSearchResults'
+    | 'openGraphData'
+    | 'isImageUrlResult'
+    | 'didUpdateSettings'
+    | 'totalTasksSize'
+    | 'addToInput'
+    | 'usageUpdated'
     text?: string
     action?:
-        | 'chatButtonClicked'
-        | 'mcpButtonClicked'
-        | 'settingsButtonClicked'
-        | 'historyButtonClicked'
-        | 'analysisButtonClicked'
-        | 'didBecomeVisible'
+    | 'chatButtonClicked'
+    | 'mcpButtonClicked'
+    | 'settingsButtonClicked'
+    | 'historyButtonClicked'
+    | 'analysisButtonClicked'
+    | 'didBecomeVisible'
     invoke?: Invoke
     state?: ExtensionState
     images?: string[]
@@ -148,15 +148,7 @@ export type PostHogSay =
     | 'checkpoint_created'
 
 export interface PostHogSayTool {
-    tool:
-        | 'editedExistingFile'
-        | 'newFileCreated'
-        | 'readFile'
-        | 'listFilesTopLevel'
-        | 'listFilesRecursive'
-        | 'listCodeDefinitionNames'
-        | 'searchFiles'
-        | 'create_feature_flag'
+    tool: string;
     path?: string
     diff?: string
     content?: string
