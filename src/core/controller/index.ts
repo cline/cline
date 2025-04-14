@@ -912,6 +912,35 @@ export class Controller {
 				}
 				break
 			}
+			case "optimizePrompt": {
+				if (!message.prompt || !message.model) {
+					await this.postMessageToWebview({
+						type: "optimizedPromptResult",
+						success: false,
+						error: "The prompt words or model information are missing.",
+					})
+					break
+				}
+
+				try {
+					const optimizedPrompt = await this.optimizePrompt(message.prompt, message.model)
+
+					// 发送优化后的提示词回前端
+					await this.postMessageToWebview({
+						type: "optimizedPromptResult",
+						success: true,
+						optimizedPrompt: optimizedPrompt,
+					})
+				} catch (error) {
+					console.error("There is an error in optimizing the prompt words:", error)
+					await this.postMessageToWebview({
+						type: "optimizedPromptResult",
+						success: false,
+						error: `There is an error in optimizing the prompt words: ${error instanceof Error ? error.message : String(error)}`,
+					})
+				}
+				break
+			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -2103,5 +2132,39 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			type: "action",
 			action: "chatButtonClicked",
 		})
+	}
+
+	// Add new method to the class
+	async optimizePrompt(prompt: string, modelId: string): Promise<string> {
+		try {
+			// Get API configuration
+			const { apiConfiguration } = await getAllExtensionState(this.context)
+
+			// Use buildApiHandler to create API handler, which utilizes the user's configured API service
+			const api = buildApiHandler(apiConfiguration)
+
+			// Build system prompt for prompt optimization
+			const systemPrompt =
+				"Please help me optimize the following prompt to make it clearer, more specific, and easier for AI models to understand. Maintain the original intent, but add necessary details and structure. Only return the optimized prompt without any explanations or comments."
+
+			// Build message with correct type
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: prompt }]
+
+			// Create message stream
+			const messageStream = api.createMessage(systemPrompt, messages)
+
+			// Collect response content
+			let responseText = ""
+			for await (const chunk of messageStream) {
+				if (chunk.type === "text") {
+					responseText += chunk.text
+				}
+			}
+
+			return responseText.trim()
+		} catch (error) {
+			console.error("Failed to optimize prompt:", error)
+			throw error
+		}
 	}
 }

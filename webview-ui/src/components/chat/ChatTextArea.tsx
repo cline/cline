@@ -105,6 +105,25 @@ const ButtonContainer = styled.div`
 	width: 100%;
 `
 
+const OptimizeButtonContainer = styled.div`
+	position: absolute;
+	z-index: 100;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	color: var(--vscode-button-secondaryForeground);
+	padding: 2px 8px;
+	border-radius: 2px;
+	font-size: 11px;
+	height: 20px;
+	transition: opacity 0.2s;
+
+	&:hover {
+		opacity: 0.8;
+	}
+`
+
 const ControlsContainer = styled.div`
 	display: flex;
 	align-items: center;
@@ -227,6 +246,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
+		const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false)
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -1000,6 +1020,55 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			)
 		}
 
+		// Add handler for optimized prompt result, without error display
+		useEffect(() => {
+			const handleOptimizedPromptResult = (event: MessageEvent) => {
+				const message: ExtensionMessage = event.data
+				if (message.type === "optimizedPromptResult") {
+					setIsOptimizingPrompt(false)
+					if (message.success && message.optimizedPrompt) {
+						setInputValue(message.optimizedPrompt)
+						if (textAreaRef.current) {
+							// Focus the text area so the user can continue editing immediately
+							setTimeout(() => {
+								textAreaRef.current?.focus()
+							}, 0)
+						}
+					}
+					// No error handling, keep original content unchanged
+				}
+			}
+
+			window.addEventListener("message", handleOptimizedPromptResult)
+			return () => {
+				window.removeEventListener("message", handleOptimizedPromptResult)
+			}
+		}, [setInputValue])
+
+		// Handle prompt optimization
+		const handleOptimizePrompt = useCallback(() => {
+			if (!inputValue.trim() || textAreaDisabled) return
+
+			setIsOptimizingPrompt(true) // Set loading state
+
+			// Determine which model ID to use
+			let modelId = "gpt-4"
+			if (apiConfiguration) {
+				if (apiConfiguration.apiModelId) {
+					modelId = apiConfiguration.apiModelId
+				} else if (apiConfiguration.openAiModelId) {
+					modelId = apiConfiguration.openAiModelId
+				}
+			}
+
+			// Tell VSCode to optimize the prompt
+			vscode.postMessage({
+				type: "optimizePrompt",
+				prompt: inputValue,
+				model: modelId,
+			})
+		}, [inputValue, textAreaDisabled, apiConfiguration])
+
 		return (
 			<div>
 				<div
@@ -1011,6 +1080,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}}
 					onDrop={onDrop}
 					onDragOver={onDragOver}>
+					{inputValue.trim() && (
+						<OptimizeButtonContainer
+							data-testid="optimize-prompt-button"
+							title="Optimize Prompt"
+							onClick={handleOptimizePrompt}
+							style={{
+								top: "-24px",
+								right: "15px",
+								background: "transparent",
+							}}>
+							{isOptimizingPrompt ? (
+								<div
+									className="codicon codicon-loading codicon-modifier-spin"
+									style={{ fontSize: "12px", marginRight: "4px" }}></div>
+							) : (
+								<div className="codicon codicon-star" style={{ fontSize: "12px", marginRight: "4px" }}></div>
+							)}
+							Optimize
+						</OptimizeButtonContainer>
+					)}
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
@@ -1146,6 +1235,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}}
 						/>
 					)}
+
 					<div
 						style={{
 							position: "absolute",

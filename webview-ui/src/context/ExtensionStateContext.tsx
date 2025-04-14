@@ -163,6 +163,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				setTotalTasksSize(message.totalTasksSize ?? null)
 				break
 			}
+			case "optimizedPromptResult": {
+				// No processing needed here, the message will be handled directly by the ChatTextArea component
+				break
+			}
 		}
 	}, [])
 

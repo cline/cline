@@ -81,6 +81,7 @@ export interface WebviewMessage {
 		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
 		| "toggleFavoriteModel"
+		| "optimizePrompt" // Message type for prompt optimization
 	// | "relaunchChromeDebugMode"
 	text?: string
 	uris?: string[] // Used for getRelativePaths
@@ -117,6 +118,10 @@ export interface WebviewMessage {
 	query?: string
 	// For toggleFavoriteModel
 	modelId?: string
+
+	// For optimizePrompt
+	prompt?: string // Original prompt input by user
+	model?: string // Model ID used for prompt optimization
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

@@ -49,6 +49,8 @@ export interface ExtensionMessage {
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
+		| "optimizePrompt" // Type for prompt optimization request
+		| "optimizedPromptResult" // Type for optimized prompt result
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
@@ -109,6 +111,9 @@ export interface ExtensionMessage {
 		error?: string
 	}
 	tab?: McpViewTab
+	prompt?: string // Original prompt to optimize
+	model?: string // Model ID for optimization
+	optimizedPrompt?: string // Optimized prompt result
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
