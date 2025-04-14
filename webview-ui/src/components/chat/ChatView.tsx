@@ -26,6 +26,7 @@ import TaskHeader from './TaskHeader'
 import TelemetryBanner from '../common/TelemetryBanner'
 import Intro from './Intro'
 import PostHogConfigOptions from '../settings/PostHogConfigOptions'
+import SuggestedTasks from './SuggestedTasks'
 
 interface ChatViewProps {
     isHidden: boolean
@@ -311,8 +312,8 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
     }, [])
 
     /*
-	This logic depends on the useEffect[messages] above to set posthogAsk, after which buttons are shown and we then send an askResponse to the extension.
-	*/
+    This logic depends on the useEffect[messages] above to set posthogAsk, after which buttons are shown and we then send an askResponse to the extension.
+    */
     const handlePrimaryButtonClick = useCallback(
         (text?: string, images?: string[]) => {
             const trimmedInput = text?.trim()
@@ -787,45 +788,46 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
             ) : (
                 <div
                     style={{
-                        // flex: '1 1 0', // flex-grow: 1, flex-shrink: 1, flex-basis: 0
-                        minHeight: 0,
-                        overflowY: 'auto',
+                        height: '100%',
                         display: 'flex',
                         flexDirection: 'column',
-                        paddingBottom: '10px',
-                        marginTop: 'auto',
-                        marginBottom: 'auto',
+                        justifyContent: 'space-between',
                     }}
                 >
-                    {telemetrySetting === 'unset' && <TelemetryBanner />}
+                    <div style={{ overflowY: 'auto' }}>
+                        {telemetrySetting === 'unset' && <TelemetryBanner />}
+                        <Intro />
+                        {!showWelcome && (
+                            <>
+                                {taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+                                <SuggestedTasks setInputValue={setInputValue} handleSendMessage={handleSendMessage} />
+                            </>
+                        )}
+                        {showWelcome && (
+                            <div style={{ marginTop: '18px', padding: '0 20px' }}>
+                                <PostHogConfigOptions />
+                            </div>
+                        )}
+                    </div>
 
-                    <Intro />
-                    {showWelcome && (
-                        <div style={{ marginTop: '18px', padding: '0 20px' }}>
-                            <PostHogConfigOptions />
-                        </div>
-                    )}
                     {!showWelcome && (
-                        <>
-                            {taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
-                            <ChatTextArea
-                                ref={textAreaRef}
-                                inputValue={inputValue}
-                                setInputValue={setInputValue}
-                                textAreaDisabled={textAreaDisabled}
-                                placeholderText={placeholderText}
-                                selectedImages={selectedImages}
-                                setSelectedImages={setSelectedImages}
-                                onSend={() => handleSendMessage(inputValue, selectedImages)}
-                                onSelectImages={selectImages}
-                                shouldDisableImages={shouldDisableImages}
-                                onHeightChange={() => {
-                                    if (isAtBottom) {
-                                        scrollToBottomAuto()
-                                    }
-                                }}
-                            />
-                        </>
+                        <ChatTextArea
+                            ref={textAreaRef}
+                            inputValue={inputValue}
+                            setInputValue={setInputValue}
+                            textAreaDisabled={textAreaDisabled}
+                            placeholderText={placeholderText}
+                            selectedImages={selectedImages}
+                            setSelectedImages={setSelectedImages}
+                            onSend={() => handleSendMessage(inputValue, selectedImages)}
+                            onSelectImages={selectImages}
+                            shouldDisableImages={shouldDisableImages}
+                            onHeightChange={() => {
+                                if (isAtBottom) {
+                                    scrollToBottomAuto()
+                                }
+                            }}
+                        />
                     )}
                 </div>
             )}

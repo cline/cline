@@ -65,6 +65,8 @@ import { PostHogApiProvider } from '../api/provider'
 import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-capture-calls'
 import { ToolManager } from './tools/manager'
 import { ToolInputValidationError } from './tools/base/errors'
+import { validateSchemaWithDefault } from '../shared/validation'
+import { z } from 'zod'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1185,7 +1187,10 @@ export class PostHog {
 
     // Tools
 
-    async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+    async executeCommandTool(
+        command: string,
+        proceedWhileRunning: 'proceed' | 'ask' | 'block' = 'ask'
+    ): Promise<[boolean, ToolResponse]> {
         const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
         terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
         const process = this.terminalManager.runCommand(terminalInfo, command)
@@ -1194,6 +1199,18 @@ export class PostHog {
         let didContinue = false
         const sendCommandOutput = async (line: string): Promise<void> => {
             try {
+                if (proceedWhileRunning === 'proceed') {
+                    this.say('command_output', line)
+                    didContinue = true
+                    process.continue()
+                    return
+                }
+
+                if (proceedWhileRunning === 'block') {
+                    this.say('command_output', line)
+                    return
+                }
+
                 const { response, text, images } = await this.ask('command_output', line)
                 if (response === 'yesButtonClicked') {
                     // proceed while running
@@ -2561,8 +2578,17 @@ export class PostHog {
                     }
                     case 'execute_command': {
                         const command: string | undefined = block.params.command
-                        const requiresApprovalRaw: string | undefined = block.params.requires_approval
-                        const requiresApproval = requiresApprovalRaw?.toLowerCase() === 'true'
+                        const requiresApprovalString = validateSchemaWithDefault(
+                            z.enum(['true', 'false']),
+                            block.params.requires_approval,
+                            'false'
+                        )
+                        const requiresApproval = requiresApprovalString === 'true'
+                        const proceedWhileRunning = validateSchemaWithDefault(
+                            z.enum(['proceed', 'ask', 'block']),
+                            block.params.proceed_while_running,
+                            'ask'
+                        )
 
                         try {
                             if (block.partial) {
@@ -2583,92 +2609,91 @@ export class PostHog {
                                     ).catch(() => {})
                                 }
                                 break
-                            } else {
-                                if (!command) {
-                                    this.consecutiveMistakeCount++
-                                    pushToolResult(
-                                        await this.sayAndCreateMissingParamError('execute_command', 'command')
-                                    )
+                            }
 
-                                    break
-                                }
-                                if (!requiresApprovalRaw) {
-                                    this.consecutiveMistakeCount++
-                                    pushToolResult(
-                                        await this.sayAndCreateMissingParamError('execute_command', 'requires_approval')
-                                    )
-
-                                    break
-                                }
-                                this.consecutiveMistakeCount = 0
-
-                                const ignoredFileAttemptedToAccess =
-                                    this.posthogIgnoreController.validateCommand(command)
-                                if (ignoredFileAttemptedToAccess) {
-                                    await this.say('posthogignore_error', ignoredFileAttemptedToAccess)
-                                    pushToolResult(
-                                        formatResponse.toolError(
-                                            formatResponse.posthogIgnoreError(ignoredFileAttemptedToAccess)
-                                        )
-                                    )
-
-                                    break
-                                }
-
-                                let didAutoApprove = false
-
-                                if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
-                                    this.removeLastPartialMessageIfExistsWithType('ask', 'command')
-                                    await this.say('command', command, undefined, false)
-                                    this.consecutiveAutoApprovedRequestsCount++
-                                    didAutoApprove = true
-                                } else {
-                                    showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `Max wants to execute a command: ${command}`
-                                    )
-                                    // this.removeLastPartialMessageIfExistsWithType("say", "command")
-                                    const didApprove = await askApproval(
-                                        'command',
-                                        command +
-                                            `${this.shouldAutoApproveTool(block.name) && requiresApproval ? COMMAND_REQ_APP_STRING : ''}` // ugly hack until we refactor combineCommandSequences
-                                    )
-                                    if (!didApprove) {
-                                        break
-                                    }
-                                }
-
-                                let timeoutId: NodeJS.Timeout | undefined
-                                if (didAutoApprove && this.autoApprovalSettings.enableNotifications) {
-                                    // if the command was auto-approved, and it's long running we need to notify the user after some time has passed without proceeding
-                                    timeoutId = setTimeout(() => {
-                                        showSystemNotification({
-                                            subtitle: 'Command is still running',
-                                            message:
-                                                'An auto-approved command has been running for 30s, and may need your attention.',
-                                        })
-                                    }, 30_000)
-                                }
-
-                                const [userRejected, result] = await this.executeCommandTool(command)
-                                if (timeoutId) {
-                                    clearTimeout(timeoutId)
-                                }
-                                if (userRejected) {
-                                    this.didRejectTool = true
-                                }
-
-                                // Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
-                                this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
-
-                                pushToolResult(result)
-
-                                await this.saveCheckpoint()
+                            if (!command) {
+                                this.consecutiveMistakeCount++
+                                pushToolResult(await this.sayAndCreateMissingParamError('execute_command', 'command'))
 
                                 break
                             }
+
+                            if (!block.params.requires_approval) {
+                                this.consecutiveMistakeCount++
+                                pushToolResult(
+                                    await this.sayAndCreateMissingParamError('execute_command', 'requires_approval')
+                                )
+
+                                break
+                            }
+
+                            this.consecutiveMistakeCount = 0
+
+                            const ignoredFileAttemptedToAccess = this.posthogIgnoreController.validateCommand(command)
+
+                            if (ignoredFileAttemptedToAccess) {
+                                await this.say('posthogignore_error', ignoredFileAttemptedToAccess)
+                                pushToolResult(
+                                    formatResponse.toolError(
+                                        formatResponse.posthogIgnoreError(ignoredFileAttemptedToAccess)
+                                    )
+                                )
+
+                                break
+                            }
+
+                            let didAutoApprove = false
+
+                            if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
+                                this.removeLastPartialMessageIfExistsWithType('ask', 'command')
+                                await this.say('command', command, undefined, false)
+                                this.consecutiveAutoApprovedRequestsCount++
+                                didAutoApprove = true
+                            } else {
+                                showNotificationForApprovalIfAutoApprovalEnabled(
+                                    `Max wants to execute a command: ${command}`
+                                )
+                                // this.removeLastPartialMessageIfExistsWithType("say", "command")
+                                const didApprove = await askApproval(
+                                    'command',
+                                    command +
+                                        `${this.shouldAutoApproveTool(block.name) && requiresApproval ? COMMAND_REQ_APP_STRING : ''}` // ugly hack until we refactor combineCommandSequences
+                                )
+                                if (!didApprove) {
+                                    break
+                                }
+                            }
+
+                            let timeoutId: NodeJS.Timeout | undefined
+                            if (didAutoApprove && this.autoApprovalSettings.enableNotifications) {
+                                // if the command was auto-approved, and it's long running we need to notify the user after some time has passed without proceeding
+                                timeoutId = setTimeout(() => {
+                                    showSystemNotification({
+                                        subtitle: 'Command is still running',
+                                        message:
+                                            'An auto-approved command has been running for 30s, and may need your attention.',
+                                    })
+                                }, 30_000)
+                            }
+
+                            const [userRejected, result] = await this.executeCommandTool(command, proceedWhileRunning)
+                            if (timeoutId) {
+                                clearTimeout(timeoutId)
+                            }
+                            if (userRejected) {
+                                this.didRejectTool = true
+                            }
+
+                            // Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
+                            this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+
+                            pushToolResult(result)
+
+                            await this.saveCheckpoint()
+
+                            break
                         } catch (error) {
                             await handleError('executing command', error)
-
                             break
                         }
                     }
