@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.12.2]
+
+-   Add gpt-4.1
+
+## [3.12.1]
+
+-   Use visual checkpoint indicator to make it clear when checkpoints are created
+-   Big shoutout to @samuel871211 for numerous code quality improvements, refactoring contributions, and webview performance improvements!
+-   Use improved context manager
+
 ## [3.12.0]
 
 -   Add favorite toggles for models when using the Cline & OpenRouter providers

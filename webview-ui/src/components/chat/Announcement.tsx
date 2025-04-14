@@ -58,10 +58,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 
 			<ul style={ulStyle}>
 				<li>
-					<b>Redesigned Checkpoints:</b> Now created more often through the task, and appear as lines on the left edge
-					of chat. Hover over them to expand and see details like when they were created.
-				</li>
-				<li>
 					<b>Browser Tool Upgrades:</b> Use your local Chrome browser for session-based browsing, enabling debugging and
 					productivity workflows tied to your actual browser state.
 				</li>
