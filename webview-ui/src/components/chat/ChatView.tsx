@@ -195,6 +195,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							setDidClickCancel(false)
 							break
+						case "new_task":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("new_task")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Start New Task with Context")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -296,6 +303,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_task":
 						case "resume_completed_task":
 						case "mistake_limit_reached":
+						case "new_task": // user can provide feedback or reject the new task suggestion
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
@@ -361,6 +369,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					// extension waiting for feedback. but we can just present a new task button
 					startNewTask()
 					break
+				case "new_task":
+					console.info("new task button clicked!", { lastMessage, messages, clineAsk, text })
+					vscode.postMessage({
+						type: "newTask",
+						text: lastMessage?.text,
+					})
+					break
 			}
 			setTextAreaDisabled(true)
 			setClineAsk(undefined)
@@ -369,7 +384,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
-		[clineAsk, startNewTask],
+		[clineAsk, startNewTask, lastMessage],
 	)
 
 	const handleSecondaryButtonClick = useCallback(
@@ -457,12 +472,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "addToInput":
 					setInputValue((prevValue) => {
 						const newText = message.text ?? ""
-						return prevValue ? `${prevValue}\n${newText}` : newText
+						const newTextWithNewline = newText + "\n"
+						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
 					})
 					// Add scroll to bottom after state update
+					// Auto focus the input and start the cursor on a new linefor easy typing
 					setTimeout(() => {
 						if (textAreaRef.current) {
 							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
+							textAreaRef.current.focus()
 						}
 					}, 0)
 					break
@@ -536,13 +554,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above
+
+		// NOTE: any messages we want to make as part of a browser session should be included here
+		// There was an issue where we added checkpoints after browser actions, and it resulted in browser sessions being disrupted.
 		if (message.type === "ask") {
 			return ["browser_action_launch"].includes(message.ask!)
 		}
 		if (message.type === "say") {
-			return ["browser_action_launch", "api_req_started", "text", "browser_action", "browser_action_result"].includes(
-				message.say!,
-			)
+			return [
+				"browser_action_launch",
+				"api_req_started",
+				"text",
+				"browser_action",
+				"browser_action_result",
+				"checkpoint_created",
+			].includes(message.say!)
 		}
 		return false
 	}

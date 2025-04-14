@@ -1,11 +1,12 @@
 import React from "react"
+import type { ComponentProps } from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 import Announcement from "../Announcement"
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	useTheme: () => ({ themeType: "light" }),
-	VSCodeButton: (props: any) => <button {...props}>{props.children}</button>,
+	VSCodeButton: (props: ComponentProps<"button">) => <button {...props}>{props.children}</button>,
 	VSCodeLink: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }))
 

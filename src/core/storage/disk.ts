@@ -4,22 +4,10 @@ import fs from "fs/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { fileExistsAtPath } from "../../utils/fs"
 import { ClineMessage } from "../../shared/ExtensionMessage"
-
-export interface FileMetadataEntry {
-	path: string
-	record_state: "active" | "stale"
-	record_source: "read_tool" | "user_edited" | "cline_edited" | "file_mentioned"
-	cline_read_date: number | null
-	cline_edit_date: number | null
-	user_edit_date?: number | null
-}
-
-export interface TaskMetadata {
-	files_in_context: FileMetadataEntry[]
-}
-
+import { TaskMetadata } from "../context/context-tracking/ContextTrackerTypes"
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
+	contextHistory: "context_history.json",
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
@@ -95,7 +83,7 @@ export async function getTaskMetadata(context: vscode.ExtensionContext, taskId: 
 	} catch (error) {
 		console.error("Failed to read task metadata:", error)
 	}
-	return { files_in_context: [] }
+	return { files_in_context: [], model_usage: [] }
 }
 
 export async function saveTaskMetadata(context: vscode.ExtensionContext, taskId: string, metadata: TaskMetadata) {
