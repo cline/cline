@@ -1,3 +1,5 @@
+import type { LanguageModelChatSelector } from "../api/providers/types"
+
 export type ApiProvider =
 	| "anthropic"
 	| "openrouter"
@@ -67,7 +69,7 @@ export interface ApiHandlerOptions {
 	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
-	vsCodeLmModelSelector?: any
+	vsCodeLmModelSelector?: LanguageModelChatSelector
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	asksageApiUrl?: string
