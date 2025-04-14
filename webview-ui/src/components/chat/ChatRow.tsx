@@ -48,7 +48,7 @@ interface ChatRowProps {
     onHeightChange: (isTaller: boolean) => void
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, 'onHeightChange'> { }
+interface ChatRowContentProps extends Omit<ChatRowProps, 'onHeightChange'> {}
 
 export const ProgressIndicator = () => (
     <div
@@ -548,14 +548,14 @@ export const ChatRowContent = ({
                     </>
                 )
             default:
-                let params: Record<string, any> = {};
+                let params: Record<string, any> = {}
                 try {
                     if (tool.content) {
-                        params = JSON.parse(tool.content).params || {};
+                        params = JSON.parse(tool.content).params || {}
                     }
                 } catch (e) {
                     // If content isn't JSON or doesn't have params, show empty object
-                    params = {};
+                    params = {}
                 }
 
                 return (
