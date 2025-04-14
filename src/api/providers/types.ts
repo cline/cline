@@ -1,6 +1,13 @@
 // For the following openrouter error type sources, see the docs here:
 // https://openrouter.ai/docs/api-reference/errors
 
+export interface LanguageModelChatSelector {
+	vendor?: string
+	family?: string
+	version?: string
+	id?: string
+}
+
 export type OpenRouterErrorResponse = {
 	error: {
 		message: string
