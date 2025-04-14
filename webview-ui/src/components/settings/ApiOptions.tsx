@@ -129,6 +129,13 @@ const ApiOptions = ({
 		[apiConfiguration],
 	)
 
+	// Update apiConfiguration.aiModelId whenever selectedModelId changes.
+	useEffect(() => {
+		if (selectedModelId) {
+			setApiConfigurationField("apiModelId", selectedModelId)
+		}
+	}, [selectedModelId, setApiConfigurationField])
+
 	// Debounced refresh model updates, only executed 250ms after the user
 	// stops typing.
 	useDebounce(

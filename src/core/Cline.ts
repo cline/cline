@@ -2309,6 +2309,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		const {
 			mode,
 			customModes,
+			apiModelId,
 			customModePrompts,
 			experiments = {} as Record<ExperimentId, boolean>,
 			customInstructions: globalCustomInstructions,
@@ -2323,6 +2324,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		details += `\n\n# Current Mode\n`
 		details += `<slug>${currentMode}</slug>\n`
 		details += `<name>${modeDetails.name}</name>\n`
+		details += `<model>${apiModelId}</model>\n`
 		if (Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.POWER_STEERING)) {
 			details += `<role>${modeDetails.roleDefinition}</role>\n`
 			if (modeDetails.customInstructions) {
