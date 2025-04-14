@@ -131,11 +131,11 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, prov
 export function createTestServer(webviewProvider?: WebviewProvider): http.Server {
 	// Try to show the Cline sidebar
 	Logger.log("[createTestServer] Opening Cline in sidebar...")
-	vscode.commands.executeCommand('workbench.view.claude-dev-ActivityBar');
+	vscode.commands.executeCommand("workbench.view.claude-dev-ActivityBar")
 
 	// Then ensure the webview is focused/loaded
-	vscode.commands.executeCommand('claude-dev.SidebarProvider.focus');
-	
+	vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+
 	// Update auto approval settings if webviewProvider is available
 	if (webviewProvider?.controller?.context) {
 		updateAutoApprovalSettings(webviewProvider.controller.context, webviewProvider)
@@ -159,12 +159,12 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 		if (req.method === "POST" && req.url === "/shutdown") {
 			res.writeHead(200)
 			res.end(JSON.stringify({ success: true, message: "Server shutting down" }))
-			
+
 			// Shut down the server after sending the response
 			setTimeout(() => {
 				shutdownTestServer()
 			}, 100)
-			
+
 			return
 		}
 
@@ -250,26 +250,26 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 					// If API key is provided, update the API configuration
 					if (apiKey) {
 						Logger.log("API key provided, updating API configuration")
-						
+
 						// Get current API configuration
 						const { apiConfiguration } = await getAllExtensionState(visibleWebview.controller.context)
-						
+
 						// Update API configuration with API key
 						const updatedConfig = {
 							...apiConfiguration,
 							apiProvider: "cline" as ApiProvider,
-							clineApiKey: apiKey
+							clineApiKey: apiKey,
 						}
-						
+
 						// Store the API key securely
 						await storeSecret(visibleWebview.controller.context, "clineApiKey", apiKey)
-						
+
 						// Update the API configuration
 						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)
-						
+
 						// Update global state to use cline provider
 						await updateGlobalState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
-						
+
 						// Post state to webview to reflect changes
 						await visibleWebview.controller.postStateToWebview()
 					}
