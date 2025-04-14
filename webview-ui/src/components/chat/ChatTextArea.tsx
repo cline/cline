@@ -1082,7 +1082,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragOver={onDragOver}>
 					{inputValue.trim() && (
 						<OptimizeButtonContainer
-							aria-label="Optimize Prompt" data-testid="optimize-prompt-button"
+							data-testid="optimize-prompt-button"
 							title="Optimize Prompt"
 							onClick={handleOptimizePrompt}
 							style={{
