@@ -2,13 +2,26 @@ import execa from "execa"
 import * as path from "path"
 import * as fs from "fs"
 import fetch from "node-fetch"
+import * as os from "os"
+import * as child_process from "child_process"
+
+// Store temporary directories for cleanup
+interface VSCodeResources {
+  tempUserDataDir: string;
+  tempExtensionsDir: string;
+  vscodePid?: number;
+}
+
+// Global map to track resources for each workspace
+const workspaceResources = new Map<string, VSCodeResources>();
 
 /**
  * Spawn a VSCode instance with the Cline extension
  * @param workspacePath The workspace path to open
  * @param vsixPath Optional path to a VSIX file to install
+ * @returns The resources created for this VS Code instance
  */
-export async function spawnVSCode(workspacePath: string, vsixPath?: string): Promise<void> {
+export async function spawnVSCode(workspacePath: string, vsixPath?: string): Promise<VSCodeResources> {
 	// Ensure the workspace path exists
 	if (!fs.existsSync(workspacePath)) {
 		throw new Error(`Workspace path does not exist: ${workspacePath}`)
@@ -333,10 +346,213 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 			console.warn("Test server did not start after multiple attempts")
 			console.log("You may need to manually open the Cline extension in VS Code")
 		}
+		
+		// Store the resources for this workspace
+		const resources: VSCodeResources = {
+			tempUserDataDir,
+			tempExtensionsDir
+		};
+		
+		// Store in the global map
+		workspaceResources.set(workspacePath, resources);
+		
+		// Return the resources
+		return resources;
 	} catch (error: any) {
 		throw new Error(`Failed to spawn VSCode: ${error.message}`)
 	}
 }
 
-// Import os module for user directory paths
-import * as os from "os"
+/**
+ * Clean up VS Code resources and shut down the test server
+ * @param workspacePath The workspace path to clean up resources for
+ */
+export async function cleanupVSCode(workspacePath: string): Promise<void> {
+	console.log(`Cleaning up VS Code resources for workspace: ${workspacePath}`);
+	
+	// Get the resources for this workspace
+	const resources = workspaceResources.get(workspacePath);
+	if (!resources) {
+		console.log(`No resources found for workspace: ${workspacePath}`);
+		return;
+	}
+	
+	// Try to shut down the test server
+	try {
+		console.log("Shutting down test server...");
+		await fetch("http://localhost:9876/shutdown", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+		}).catch(() => {
+			// Ignore errors, the server might already be down
+		});
+	} catch (error) {
+		console.warn(`Error shutting down test server: ${error}`);
+	}
+	
+	// Try to gracefully close VS Code instead of killing it
+	try {
+		console.log("Attempting to gracefully close VS Code...");
+		
+		// Create a settings file that will disable the crash reporter and the exit confirmation dialog
+		const settingsDir = path.join(resources.tempUserDataDir, 'User');
+		const settingsPath = path.join(settingsDir, 'settings.json');
+		
+		// Read existing settings if they exist
+		let settings = {};
+		if (fs.existsSync(settingsPath)) {
+			try {
+				settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+			} catch (error) {
+				console.warn(`Error reading settings file: ${error}`);
+			}
+		}
+		
+		// Update settings to disable crash reporter and exit confirmation
+		settings = {
+			...settings,
+			"window.confirmBeforeClose": "never",
+			"telemetry.enableCrashReporter": false,
+			"window.restoreWindows": "none",
+			"window.newWindowDimensions": "default"
+		};
+		
+		// Write updated settings
+		fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+		
+		// On macOS, use AppleScript to quit VS Code gracefully
+		if (process.platform === 'darwin') {
+			try {
+				// First try AppleScript to quit VS Code gracefully
+				await execa('osascript', [
+					'-e', 
+					'tell application "Visual Studio Code" to quit'
+				]);
+				
+				// Wait a moment for VS Code to close
+				await new Promise(resolve => setTimeout(resolve, 2000));
+			} catch (appleScriptError) {
+				console.warn(`Error using AppleScript to quit VS Code: ${appleScriptError}`);
+			}
+		} else if (process.platform === 'win32') {
+			// On Windows, try to use taskkill without /F first
+			try {
+				await execa('taskkill', ['/IM', 'code.exe']);
+				
+				// Wait a moment for VS Code to close
+				await new Promise(resolve => setTimeout(resolve, 2000));
+			} catch (taskkillError) {
+				console.warn(`Error using taskkill to quit VS Code: ${taskkillError}`);
+			}
+		} else {
+			// On Linux, try to use SIGTERM first
+			try {
+				// Find VS Code processes
+				const { stdout } = await execa('ps', ['aux']);
+				const lines = stdout.split('\n');
+				
+				for (const line of lines) {
+					if (line.includes(resources.tempUserDataDir)) {
+						const parts = line.trim().split(/\s+/);
+						const pid = parseInt(parts[1]);
+						
+						if (pid && !isNaN(pid)) {
+							console.log(`Sending SIGTERM to VS Code process with PID: ${pid}`);
+							try {
+								// Use SIGTERM instead of SIGKILL for a graceful shutdown
+								process.kill(pid, 'SIGTERM');
+							} catch (killError) {
+								console.warn(`Failed to terminate process ${pid}: ${killError}`);
+							}
+						}
+					}
+				}
+				
+				// Wait a moment for VS Code to close
+				await new Promise(resolve => setTimeout(resolve, 2000));
+			} catch (psError) {
+				console.warn(`Error listing processes: ${psError}`);
+			}
+		}
+		
+		// If graceful methods failed, fall back to forceful termination as a last resort
+		// Check if VS Code is still running with the temp user data dir
+		let vsCodeStillRunning = false;
+		
+		if (process.platform !== 'win32') {
+			try {
+				const { stdout } = await execa('ps', ['aux']);
+				vsCodeStillRunning = stdout.split('\n').some(line => line.includes(resources.tempUserDataDir));
+			} catch (error) {
+				console.warn(`Error checking if VS Code is still running: ${error}`);
+			}
+		} else {
+			try {
+				const { stdout } = await execa('tasklist', ['/FI', `IMAGENAME eq code.exe`]);
+				vsCodeStillRunning = stdout.includes('code.exe');
+			} catch (error) {
+				console.warn(`Error checking if VS Code is still running: ${error}`);
+			}
+		}
+		
+		// If VS Code is still running, use forceful termination as a last resort
+		if (vsCodeStillRunning) {
+			console.log("Graceful shutdown failed, falling back to forceful termination...");
+			
+			if (process.platform === 'win32') {
+				try {
+					await execa('taskkill', ['/IM', 'code.exe', '/F']);
+				} catch (error) {
+					console.warn(`Error forcefully terminating VS Code: ${error}`);
+				}
+			} else {
+				try {
+					const { stdout } = await execa('ps', ['aux']);
+					const lines = stdout.split('\n');
+					
+					for (const line of lines) {
+						if (line.includes(resources.tempUserDataDir)) {
+							const parts = line.trim().split(/\s+/);
+							const pid = parseInt(parts[1]);
+							
+							if (pid && !isNaN(pid)) {
+								console.log(`Forcefully killing VS Code process with PID: ${pid}`);
+								try {
+									process.kill(pid, 'SIGKILL');
+								} catch (killError) {
+									console.warn(`Failed to kill process ${pid}: ${killError}`);
+								}
+							}
+						}
+					}
+				} catch (error) {
+					console.warn(`Error forcefully terminating VS Code: ${error}`);
+				}
+			}
+		}
+	} catch (error) {
+		console.warn(`Error closing VS Code: ${error}`);
+	}
+	
+	// Clean up temporary directories
+	try {
+		console.log(`Removing temporary user data directory: ${resources.tempUserDataDir}`);
+		fs.rmSync(resources.tempUserDataDir, { recursive: true, force: true });
+	} catch (error) {
+		console.warn(`Error removing temporary user data directory: ${error}`);
+	}
+	
+	try {
+		console.log(`Removing temporary extensions directory: ${resources.tempExtensionsDir}`);
+		fs.rmSync(resources.tempExtensionsDir, { recursive: true, force: true });
+	} catch (error) {
+		console.warn(`Error removing temporary extensions directory: ${error}`);
+	}
+	
+	// Remove from the global map
+	workspaceResources.delete(workspacePath);
+	
+	console.log("Cleanup completed");
+}

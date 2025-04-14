@@ -155,6 +155,19 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 			return
 		}
 
+		// Handle shutdown request
+		if (req.method === "POST" && req.url === "/shutdown") {
+			res.writeHead(200)
+			res.end(JSON.stringify({ success: true, message: "Server shutting down" }))
+			
+			// Shut down the server after sending the response
+			setTimeout(() => {
+				shutdownTestServer()
+			}, 100)
+			
+			return
+		}
+
 		// Only handle POST requests to /task
 		if (req.method !== "POST" || req.url !== "/task") {
 			res.writeHead(404)

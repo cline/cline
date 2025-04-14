@@ -4,7 +4,7 @@ import chalk from "chalk"
 import ora from "ora"
 import { getAdapter } from "../adapters"
 import { ResultsDatabase } from "../db"
-import { spawnVSCode } from "../utils/vscode"
+import { spawnVSCode, cleanupVSCode } from "../utils/vscode"
 import { sendTaskToServer } from "../utils/task"
 import { storeTaskResult } from "../utils/results"
 
@@ -93,9 +93,29 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					storeSpinner.succeed("Result stored")
 
 					console.log(chalk.green(`Task completed. Success: ${verification.success}`))
+					
+					// Clean up VS Code and temporary files
+					const cleanupSpinner = ora("Cleaning up...").start()
+					try {
+						await cleanupVSCode(preparedTask.workspacePath)
+						cleanupSpinner.succeed("Cleanup completed")
+					} catch (cleanupError: any) {
+						cleanupSpinner.fail(`Cleanup failed: ${cleanupError.message}`)
+						console.error(chalk.yellow(cleanupError.stack))
+					}
 				} catch (error: any) {
 					sendSpinner.fail(`Task failed: ${error.message}`)
 					console.error(chalk.red(error.stack))
+					
+					// Clean up VS Code and temporary files even if the task failed
+					const cleanupSpinner = ora("Cleaning up...").start()
+					try {
+						await cleanupVSCode(preparedTask.workspacePath)
+						cleanupSpinner.succeed("Cleanup completed")
+					} catch (cleanupError: any) {
+						cleanupSpinner.fail(`Cleanup failed: ${cleanupError.message}`)
+						console.error(chalk.yellow(cleanupError.stack))
+					}
 				}
 			}
 
