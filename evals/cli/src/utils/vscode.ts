@@ -4,6 +4,7 @@ import * as fs from "fs"
 import fetch from "node-fetch"
 import * as os from "os"
 import * as child_process from "child_process"
+import { installRequiredExtensions, configureExtensionSettings } from "./extensions"
 
 // Store temporary directories for cleanup
 interface VSCodeResources {
@@ -165,6 +166,14 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 		}
 		args.unshift("--install-extension", vsixPath)
 	}
+	
+	// Install required extensions
+	console.log("Installing required VSCode extensions...")
+	await installRequiredExtensions(tempExtensionsDir)
+	
+	// Configure extension settings
+	console.log("Configuring extension settings...")
+	configureExtensionSettings(tempUserDataDir)
 
 	// Execute the command
 	try {
