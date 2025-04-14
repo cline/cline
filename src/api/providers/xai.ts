@@ -34,6 +34,7 @@ export class XAIHandler implements ApiHandler {
 			temperature: 0,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
+			stream_options: { include_usage: true },
 			reasoning_effort: reasoningEffort,
 		})
 

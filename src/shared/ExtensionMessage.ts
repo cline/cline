@@ -154,6 +154,7 @@ export interface ClineMessage {
 	partial?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
+	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
@@ -199,6 +200,7 @@ export type ClineSay =
 	| "deleted_api_reqs"
 	| "clineignore_error"
 	| "checkpoint_created"
+	| "load_mcp_documentation"
 
 export interface ClineSayTool {
 	tool:
@@ -214,6 +216,7 @@ export interface ClineSayTool {
 	content?: string
 	regex?: string
 	filePattern?: string
+	operationIsLocatedInWorkspace?: boolean
 }
 
 // must keep in sync with system prompt
