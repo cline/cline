@@ -5,7 +5,6 @@ import { useDeepCompareEffect, useEvent, useMount } from 'react-use'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import styled from 'styled-components'
 import {
-    PostHogApiReqInfo,
     PostHogAsk,
     PostHogMessage,
     PostHogSayBrowserAction,

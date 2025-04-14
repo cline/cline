@@ -548,7 +548,13 @@ export const ChatRowContent = ({
                     </>
                 )
             default:
-                return null
+                return (
+                    <>
+                        <div style={headerStyle}>
+                            <span style={{ fontWeight: 'bold' }}>Max wants to create a feature flag</span>
+                        </div>
+                    </>
+                )
         }
     }
 

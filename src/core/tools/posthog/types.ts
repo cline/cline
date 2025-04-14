@@ -1,4 +1,4 @@
-import type { CreateFeatureFlag } from './feature-flags/create'
+import type { CreateFeatureFlagTool } from './feature-flags/CreateFeatureFlagTool'
 
 export interface PostHogToolConfig {
     posthogApiKey: string
@@ -6,4 +6,4 @@ export interface PostHogToolConfig {
     posthogProjectId: string
 }
 
-export type Tool = CreateFeatureFlag
+export type Tool = CreateFeatureFlagTool

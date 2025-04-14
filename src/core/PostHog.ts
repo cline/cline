@@ -136,6 +136,10 @@ export class PostHog {
         images?: string[],
         historyItem?: HistoryItem
     ) {
+        apiConfiguration = {
+            ...apiConfiguration,
+            posthogHost: process.env.IS_DEV ? 'http://localhost:8000' : apiConfiguration.posthogHost,
+        }
         this.posthogIgnoreController = new PostHogIgnoreController(cwd)
         this.posthogIgnoreController.initialize().catch((error) => {
             console.error('Failed to initialize PostHogIgnoreController:', error)
@@ -3277,36 +3281,66 @@ export class PostHog {
                         }
 
                         if (block.partial) {
-                            const shouldAutoApprove = this.shouldAutoApproveTool(block.name)
+                            // const shouldAutoApprove = this.shouldAutoApproveTool(block.name)
 
-                            const partialMessage = JSON.stringify({
-                                tool: block.name,
-                                content: 'Should I create a fancy feature flag?',
-                            } satisfies PostHogSayTool)
+                            // const partialMessage = JSON.stringify({
+                            //     tool: block.name,
+                            //     content: 'Should I create a fancy feature flag?',
+                            // } satisfies PostHogSayTool)
 
-                            if (shouldAutoApprove) {
-                                this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
-                                await this.say('tool', partialMessage, undefined, block.partial)
-                            } else {
-                                this.removeLastPartialMessageIfExistsWithType('say', 'tool')
-                                await this.ask('tool', partialMessage, block.partial).catch(() => {})
-                            }
+                            // if (shouldAutoApprove) {
+                            //     this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
+                            //     await this.say('tool', partialMessage, undefined, block.partial)
+                            // } else {
+                            //     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
+                            //     await this.ask('tool', partialMessage, block.partial).catch(() => { })
+                            // }
 
                             break
                         }
 
                         try {
+                            // Validate input
                             const input = tool.validateInput(block.params)
 
                             this.consecutiveMistakeCount = 0
 
+                            const shouldAutoApprove = this.shouldAutoApproveTool(block.name)
+
+                            const approvalRequest = tool.getApprovalRequest(input)
+
+                            const completeMessage = JSON.stringify({
+                                tool: 'editedExistingFile',
+                                path: 'src/core/PostHog.ts',
+                                content: approvalRequest,
+                            } satisfies PostHogSayTool)
+
+                            // // Ensure approval
+                            // if (shouldAutoApprove) {
+                            //     this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
+
+                            //     await this.say('tool', completeMessage, undefined, false)
+                            // } else {
+                            //     // showNotificationForApprovalIfAutoApprovalEnabled(approvalRequest)
+
+                            //     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
+
+                            //     const didApprove = await askApproval('tool', approvalRequest)
+
+                            //     if (!didApprove) {
+                            //         telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+                            //         break
+                            //     }
+                            // }
+
                             // TODO: Handle streaming tool response
                             const output = await tool.execute(input)
 
-                            const outputForAssistant = tool.formatOutputForAssistant(output)
                             this.consecutiveAutoApprovedRequestsCount++
-                            telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 
+                            telemetryService.captureToolUsage(this.taskId, block.name, shouldAutoApprove, true)
+
+                            const outputForAssistant = tool.formatOutputForAssistant(output)
                             pushToolResult(outputForAssistant)
                         } catch (error) {
                             if (

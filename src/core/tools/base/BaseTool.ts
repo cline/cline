@@ -9,12 +9,6 @@ export abstract class BaseTool<TInput, TOutput> {
     abstract readonly inputSchema: z.ZodSchema<TInput>
     abstract readonly outputSchema: z.ZodSchema<TOutput>
     abstract execute(input: ToolInput<TInput>): Promise<ToolOutput<TOutput>>
-    static readonly configSchema: z.ZodSchema
-
-    static isValidConfig(config: unknown): boolean {
-        const result = this.configSchema.safeParse(config)
-        return result.success
-    }
 
     validateInput(input: unknown): TInput {
         const result = this.inputSchema.safeParse(input)
@@ -33,6 +27,8 @@ export abstract class BaseTool<TInput, TOutput> {
     }
 
     abstract getToolUsageDescription(block: ToolUse): string
+
+    abstract getApprovalRequest(input: TInput): string
 
     formatOutputForAssistant(output: ToolOutput<TOutput>): string {
         return JSON.stringify(output, null, 3)

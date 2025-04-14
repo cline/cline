@@ -1,4 +1,4 @@
-import { CreateFeatureFlag } from './posthog/feature-flags/create'
+import { CreateFeatureFlagTool } from './posthog/feature-flags/CreateFeatureFlagTool'
 import type { PostHogToolConfig, Tool } from './posthog/types'
 
 type ToolManagerConfig = Partial<PostHogToolConfig>
@@ -15,8 +15,8 @@ export class ToolManager {
         this.tools = new Map([
             [
                 'create_feature_flag',
-                CreateFeatureFlag.isValidConfig(this.config)
-                    ? new CreateFeatureFlag(this.config as PostHogToolConfig)
+                CreateFeatureFlagTool.isValidConfig(this.config)
+                    ? new CreateFeatureFlagTool(this.config as PostHogToolConfig)
                     : undefined,
             ],
         ] as const)
