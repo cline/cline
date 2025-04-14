@@ -1,7 +1,7 @@
 import { ExtensionContext } from "vscode"
 import { z, ZodError } from "zod"
 
-import { providerSettingsSchema, ApiConfigMeta } from "../../schemas"
+import { providerSettingsSchema, ApiConfigMeta, ProviderSettings } from "../../schemas"
 import { Mode, modes } from "../../shared/modes"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 
@@ -115,20 +115,15 @@ export class ProviderSettingsManager {
 			}
 
 			if (rateLimitSeconds === undefined) {
-				// Failed to get the existing value, use the default
+				// Failed to get the existing value, use the default.
 				rateLimitSeconds = 0
 			}
 
 			for (const [name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
 				if (apiConfig.rateLimitSeconds === undefined) {
-					console.log(
-						`[MigrateRateLimitSeconds] Applying rate limit ${rateLimitSeconds}s to profile: ${name}`,
-					)
 					apiConfig.rateLimitSeconds = rateLimitSeconds
 				}
 			}
-
-			console.log(`[MigrateRateLimitSeconds] migration complete`)
 		} catch (error) {
 			console.error(`[MigrateRateLimitSeconds] Failed to migrate rate limit settings:`, error)
 		}
@@ -321,7 +316,31 @@ export class ProviderSettingsManager {
 	private async load(): Promise<ProviderProfiles> {
 		try {
 			const content = await this.context.secrets.get(this.secretsKey)
-			return content ? providerProfilesSchema.parse(JSON.parse(content)) : this.defaultProviderProfiles
+
+			if (!content) {
+				return this.defaultProviderProfiles
+			}
+
+			const providerProfiles = providerProfilesSchema
+				.extend({
+					apiConfigs: z.record(z.string(), z.any()),
+				})
+				.parse(JSON.parse(content))
+
+			const apiConfigs = Object.entries(providerProfiles.apiConfigs).reduce(
+				(acc, [key, apiConfig]) => {
+					const result = providerSettingsWithIdSchema.safeParse(apiConfig)
+					return result.success ? { ...acc, [key]: result.data } : acc
+				},
+				{} as Record<string, ProviderSettingsWithId>,
+			)
+
+			return {
+				...providerProfiles,
+				apiConfigs: Object.fromEntries(
+					Object.entries(apiConfigs).filter(([_, apiConfig]) => apiConfig !== null),
+				),
+			}
 		} catch (error) {
 			if (error instanceof ZodError) {
 				telemetryService.captureSchemaValidationError({ schemaName: "ProviderProfiles", error })

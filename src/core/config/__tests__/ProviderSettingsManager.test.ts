@@ -437,6 +437,45 @@ describe("ProviderSettingsManager", () => {
 				"Failed to load config: Error: Failed to write provider profiles to secrets: Error: Storage failed",
 			)
 		})
+
+		it("should remove invalid profiles during load", async () => {
+			const invalidConfig = {
+				currentApiConfigName: "valid",
+				apiConfigs: {
+					valid: {
+						apiProvider: "anthropic",
+						apiKey: "valid-key",
+						apiModelId: "claude-3-opus-20240229",
+						rateLimitSeconds: 0,
+					},
+					invalid: {
+						// Invalid API provider.
+						id: "x.ai",
+						apiProvider: "x.ai",
+					},
+					// Incorrect type.
+					anotherInvalid: "not an object",
+				},
+				migrations: {
+					rateLimitSecondsMigrated: true,
+				},
+			}
+
+			mockSecrets.get.mockResolvedValue(JSON.stringify(invalidConfig))
+
+			await providerSettingsManager.initialize()
+
+			const storeCalls = mockSecrets.store.mock.calls
+			expect(storeCalls.length).toBeGreaterThan(0) // Ensure store was called at least once.
+			const finalStoredConfigJson = storeCalls[storeCalls.length - 1][1]
+
+			const storedConfig = JSON.parse(finalStoredConfigJson)
+			expect(storedConfig.apiConfigs.valid).toBeDefined()
+			expect(storedConfig.apiConfigs.invalid).toBeUndefined()
+			expect(storedConfig.apiConfigs.anotherInvalid).toBeUndefined()
+			expect(Object.keys(storedConfig.apiConfigs)).toEqual(["valid"])
+			expect(storedConfig.currentApiConfigName).toBe("valid")
+		})
 	})
 
 	describe("ResetAllConfigs", () => {
