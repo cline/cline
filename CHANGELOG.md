@@ -1,5 +1,17 @@
 # Roo Code Changelog
 
+## [3.11.15] - 2025-04-13
+
+- Add ability to filter task history by workspace (thanks @samhvw8!)
+- Fix Node.js version in the .tool-versions file (thanks @bogdan0083!)
+- Fix duplicate suggested mentions for open tabs (thanks @samhvw8!)
+- Fix Bedrock ARN validation and token expiry issue when using profiles (thanks @vagadiya!)
+- Add Anthropic option to pass API token as Authorization header instead of X-Api-Key (thanks @mecab!)
+- Better documentation for adding new settings (thanks @KJ7LNW!)
+- Localize package.json (thanks @samhvw8!)
+- Add option to hide the welcome message and fix the background color for the new profile dialog (thanks @zhangtony239!)
+- Restore the focus ring for the VSCodeButton component (thanks @pokutuna!)
+
 ## [3.11.14] - 2025-04-11
 
 - Support symbolic links in rules folders to directories and other symbolic links (thanks @taisukeoe!)
