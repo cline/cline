@@ -266,6 +266,16 @@ export class VertexHandler implements ApiHandler {
 					}
 				}
 			}
+			// Handle token usage metadata
+			const { usageMetadata } = await streamingResult.response
+			if (usageMetadata) {
+				const { promptTokenCount = 0, candidatesTokenCount = 0 } = usageMetadata
+				yield {
+					type: "usage",
+					inputTokens: promptTokenCount,
+					outputTokens: candidatesTokenCount,
+				}
+			}
 		}
 	}
 
