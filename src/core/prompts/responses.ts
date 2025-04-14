@@ -145,7 +145,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 			responseText
 				? `${mode === "plan" ? "New message to respond to with plan_mode_respond tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
 				: mode === "plan"
-					? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
+					? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or suggest to them to switch to Act mode to continue with the task.)"
 					: ""
 		}`
 
@@ -196,7 +196,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		`This is likely because the SEARCH block content doesn't match exactly with what's in the file, or if you used multiple SEARCH/REPLACE blocks they may not have been in the order they appear in the file.\n\n` +
 		`The file was reverted to its original state:\n\n` +
 		`<file_content path="${relPath.toPosix()}">\n${originalContent}\n</file_content>\n\n` +
-		`Now that you have the latest state of the file, try the operation again with fewer/more precise SEARCH blocks.\n(If you run into this error 3 times in a row, you may use the write_to_file tool as a fallback. Keep in mind, the write_to_file fallback is far from ideal, as this means you'll be re-writing the entire contents of the file just to make a few edits, which takes time and money. So let's bias towards using replace_in_file as effectively as possible)`,
+		`Now that you have the latest state of the file, try the operation again with fewer, more precise SEARCH blocks. For large files especially, it may be prudent to try to limit yourself to <5 SEARCH/REPLACE blocks at a time, then wait for the user to respond with the result of the operation before following up with another replace_in_file call to make additional edits.\n(If you run into this error 3 times in a row, you may use the write_to_file tool as a fallback.)`,
 
 	toolAlreadyUsed: (toolName: string) =>
 		`Tool [${toolName}] was not executed because a tool has already been used in this message. Only one tool may be used per message. You must assess the first tool's result before proceeding to use the next tool.`,

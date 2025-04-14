@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.12.1]
+
+-   Use visual checkpoint indicator to make it clear when checkpoints are created
+-   Big shoutout to @samuel871211 for numerous code quality improvements, refactoring contributions, and webview performance improvements!
+-   Use improved context manager
+
+## [3.12.0]
+
+-   Add favorite toggles for models when using the Cline & OpenRouter providers
+-   Add auto-approve options for edits/reads outside of the workspace
+-   Improve diff editing animation for large files
+-   Add indicator showing number of diff edits when Cline edits a file
+-   Add streaming support and reasoning effort option to xAI's Grok 3 Mini
+-   Add settings button to MCP popover to easily modify installed servers
+-   Fix bug where browser tool actions would show unparsed results in the chat view
+-   Fix issue with new checkpoints popover hiding too quickly
+-   Fix duplicate checkpoints bug
+-   Improve Ollama provider with retry mechanism, timeout handling, and improved error handling (thanks suvarchal!)
+
 ## [3.11.0]
 
 -   Redesign checkpoint UI to declutter chat view by using a subtle indicator line that expands to a popover on hover, with a new date indicator for when it was created

@@ -102,6 +102,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
+	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const newValue = event.target.value
@@ -232,7 +233,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
-					<VSCodeOption value="xai">X AI</VSCodeOption>
+					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
@@ -1534,6 +1535,58 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
+						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
+							<>
+								<VSCodeCheckbox
+									style={{ marginTop: 0 }}
+									checked={reasoningEffortSelected}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setReasoningEffortSelected(isChecked)
+										if (!isChecked) {
+											setApiConfiguration({
+												...apiConfiguration,
+												reasoningEffort: "",
+											})
+										}
+									}}>
+									Modify reasoning effort
+								</VSCodeCheckbox>
+
+								{reasoningEffortSelected && (
+									<div>
+										<label htmlFor="reasoning-effort-dropdown">
+											<span style={{}}>Reasoning Effort</span>
+										</label>
+										<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
+											<VSCodeDropdown
+												id="reasoning-effort-dropdown"
+												style={{ width: "100%", marginTop: 3 }}
+												value={apiConfiguration?.reasoningEffort || "high"}
+												onChange={(e: any) => {
+													setApiConfiguration({
+														...apiConfiguration,
+														reasoningEffort: e.target.value,
+													})
+												}}>
+												<VSCodeOption value="low">low</VSCodeOption>
+												<VSCodeOption value="high">high</VSCodeOption>
+											</VSCodeDropdown>
+										</DropdownContainer>
+										<p
+											style={{
+												fontSize: "12px",
+												marginTop: 3,
+												marginBottom: 0,
+												color: "var(--vscode-descriptionForeground)",
+											}}>
+											High effort may produce more thorough analysis but takes longer and uses more tokens.
+										</p>
+									</div>
+								)}
+							</>
+						)}
+
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
@@ -1829,12 +1882,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
-			}
-		case "requesty":
-			return {
-				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.requestyModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "vscode-lm":
