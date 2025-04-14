@@ -73,7 +73,6 @@ import {
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { ContextManager } from "../context/context-management/ContextManager"
-import { getClineRules } from "../context/instructions/user-instructions/cline-rules"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import {
 	ensureRulesDirectoryExists,
