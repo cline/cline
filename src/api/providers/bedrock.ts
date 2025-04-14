@@ -47,7 +47,6 @@ export class AwsBedrockHandler implements ApiHandler {
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-		const thirdLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 3] ?? -1
 
 		// Create anthropic client, using sessions created or renewed after this handler's
 		// initialization, and allowing for session renewal if necessary as well
@@ -68,7 +67,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				},
 			],
 			messages: messages.map((message, index) => {
-				if (index === lastUserMsgIndex || index === secondLastMsgUserIndex || index === thirdLastMsgUserIndex) {
+				if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
 					return {
 						...message,
 						content:
