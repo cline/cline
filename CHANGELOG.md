@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.12.2]
+
+-   Add gpt-4.1
+
 ## [3.12.1]
 
 -   Use visual checkpoint indicator to make it clear when checkpoints are created
