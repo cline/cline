@@ -73,15 +73,16 @@ import {
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { ContextManager } from "../context/context-management/ContextManager"
-import { getClineRules } from "../context/instructions/user-instructions/cline-rules"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import {
+	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 	saveApiConversationHistory,
 	saveClineMessages,
 } from "../storage/disk"
+import { getGlobalClineRules, getLocalClineRules } from "../context/instructions/user-instructions/cline-rules"
 import { getGlobalState } from "../storage/state"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1279,7 +1280,10 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
-		const clineRulesFileInstructions = await getClineRules(cwd)
+		const localClineRulesFileInstructions = await getLocalClineRules(cwd)
+
+		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -1289,14 +1293,16 @@ export class Task {
 
 		if (
 			settingsCustomInstructions ||
-			clineRulesFileInstructions ||
+			globalClineRulesFileInstructions ||
+			localClineRulesFileInstructions ||
 			clineIgnoreInstructions ||
 			preferredLanguageInstructions
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addUserInstructions(
 				settingsCustomInstructions,
-				clineRulesFileInstructions,
+				globalClineRulesFileInstructions,
+				localClineRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)

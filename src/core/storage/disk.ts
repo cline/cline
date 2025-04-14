@@ -5,6 +5,9 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { fileExistsAtPath } from "../../utils/fs"
 import { ClineMessage } from "../../shared/ExtensionMessage"
 import { TaskMetadata } from "../context/context-tracking/ContextTrackerTypes"
+import os from "os"
+import { execa } from "execa"
+
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	contextHistory: "context_history.json",
@@ -15,11 +18,75 @@ export const GlobalFileNames = {
 	taskMetadata: "task_metadata.json",
 }
 
+export async function getDocumentsPath(): Promise<string> {
+	if (process.platform === "win32") {
+		try {
+			const { stdout: docsPath } = await execa("powershell", [
+				"-NoProfile", // Ignore user's PowerShell profile(s)
+				"-Command",
+				"[System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)",
+			])
+			const trimmedPath = docsPath.trim()
+			if (trimmedPath) {
+				return trimmedPath
+			}
+		} catch (err) {
+			console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
+		}
+	} else if (process.platform === "linux") {
+		try {
+			// First check if xdg-user-dir exists
+			await execa("which", ["xdg-user-dir"])
+
+			// If it exists, try to get XDG documents path
+			const { stdout } = await execa("xdg-user-dir", ["DOCUMENTS"])
+			const trimmedPath = stdout.trim()
+			if (trimmedPath) {
+				return trimmedPath
+			}
+		} catch {
+			// Log error but continue to fallback
+			console.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
+		}
+	}
+
+	// Default fallback for all platforms
+	return path.join(os.homedir(), "Documents")
+}
+
 export async function ensureTaskDirectoryExists(context: vscode.ExtensionContext, taskId: string): Promise<string> {
 	const globalStoragePath = context.globalStorageUri.fsPath
 	const taskDir = path.join(globalStoragePath, "tasks", taskId)
 	await fs.mkdir(taskDir, { recursive: true })
 	return taskDir
+}
+
+export async function ensureRulesDirectoryExists(): Promise<string> {
+	const userDocumentsPath = await getDocumentsPath()
+	const clineRulesDir = path.join(userDocumentsPath, "Cline", "Rules")
+	try {
+		await fs.mkdir(clineRulesDir, { recursive: true })
+	} catch (error) {
+		return path.join(os.homedir(), "Documents", "Cline", "Rules") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+	}
+	return clineRulesDir
+}
+
+export async function ensureMcpServersDirectoryExists(): Promise<string> {
+	const userDocumentsPath = await getDocumentsPath()
+	const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
+	try {
+		await fs.mkdir(mcpServersDir, { recursive: true })
+	} catch (error) {
+		return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
+	}
+	return mcpServersDir
+}
+
+export async function ensureSettingsDirectoryExists(context: vscode.ExtensionContext): Promise<string> {
+	const settingsDir = path.join(context.globalStorageUri.fsPath, "settings")
+	await fs.mkdir(settingsDir, { recursive: true })
+	return settingsDir
 }
 
 export async function getSavedApiConversationHistory(
