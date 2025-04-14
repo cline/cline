@@ -83,6 +83,7 @@ import {
 	saveClineMessages,
 } from "../storage/disk"
 import { getGlobalState } from "../storage/state"
+import { parseSlashCommands } from ".././slash-commands"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -3525,11 +3526,16 @@ export class Task {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
-							const parsedText = await parseMentions(
+							let parsedText = await parseMentions(
 								block.text,
 								cwd,
 								this.urlContentFetcher,
 								this.fileContextTracker,
+							)
+
+							// when parsing slash commands, we still want to allow the user to provide their desired context
+							parsedText = parseSlashCommands(
+								parsedText
 							)
 
 							return {
