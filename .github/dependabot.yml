@@ -1,0 +1,36 @@
+version: 2
+updates:
+    # Main extension dependencies
+    - package-ecosystem: "npm"
+      directory: "/"
+      schedule:
+          interval: "weekly"
+      # Group all updates into a single PR
+      groups:
+          all-dependencies:
+              patterns:
+                  - "*"
+      ignore:
+          # Ignore all non-security updates (security vulnerabilities bypass these ignore rules)
+          - dependency-name: "*"
+            update-types:
+                - "version-update:semver-major"
+                - "version-update:semver-minor"
+                - "version-update:semver-patch"
+
+    # Webview UI dependencies
+    - package-ecosystem: "npm"
+      directory: "/webview-ui"
+      schedule:
+          interval: "weekly"
+      groups:
+          all-dependencies:
+              patterns:
+                  - "*"
+      ignore:
+          - dependency-name: "@testing-library/*"
+          - dependency-name: "*"
+            update-types:
+                - "version-update:semver-major"
+                - "version-update:semver-minor"
+                - "version-update:semver-patch"

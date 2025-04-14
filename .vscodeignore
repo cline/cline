@@ -1,0 +1,44 @@
+# Default
+.vscode/**
+.vscode-test/**
+out/**
+node_modules/**
+src/**
+.gitignore
+.yarnrc
+esbuild.js
+vsc-extension-quickstart.md
+**/tsconfig.json
+**/.eslintrc.json
+**/*.map
+**/*.ts
+**/.vscode-test.*
+
+# Custom
+demo.gif
+.nvmrc
+.gitattributes
+.prettierignore
+
+# Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
+webview-ui/src/**
+webview-ui/public/**
+webview-ui/index.html
+webview-ui/README.md
+webview-ui/package.json
+webview-ui/package-lock.json
+webview-ui/node_modules/**
+**/.gitignore
+
+# Ignore docs
+docs/**
+
+# Fix issue where codicons don't get packaged (https://github.com/microsoft/vscode-extension-samples/issues/692)
+!node_modules/@vscode/codicons/dist/codicon.css
+!node_modules/@vscode/codicons/dist/codicon.ttf
+
+# Include default themes JSON files used in getTheme
+!src/integrations/theme/default-themes/**
+
+# Include icons
+!assets/icons/**
