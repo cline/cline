@@ -1541,7 +1541,7 @@ function five() {
 		})
 	})
 
-	describe("insertion/deletion", () => {
+	describe("deletion", () => {
 		let strategy: MultiSearchReplaceDiffStrategy
 
 		beforeEach(() => {
@@ -1644,126 +1644,6 @@ function five() {
 				if (result.success) {
 					expect(result.content).toBe("line 1\nline 3")
 				}
-			})
-		})
-
-		describe("insertion", () => {
-			it("should insert code at specified line when search block is empty", async () => {
-				const originalContent = `function test() {
-    const x = 1;
-    return x;
-}`
-				const diffContent = `test.ts
-<<<<<<< SEARCH
-:start_line:2
-:end_line:2
--------
-=======
-    console.log("Adding log");
->>>>>>> REPLACE`
-
-				const result = await strategy.applyDiff(originalContent, diffContent, 2, 2)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe(`function test() {
-    console.log("Adding log");
-    const x = 1;
-    return x;
-}`)
-				}
-			})
-
-			it("should preserve indentation when inserting at nested location", async () => {
-				const originalContent = `function test() {
-    if (true) {
-        const x = 1;
-    }
-}`
-				const diffContent = `test.ts
-<<<<<<< SEARCH
-:start_line:3
-:end_line:3
--------
-=======
-        console.log("Before");
-        console.log("After");
->>>>>>> REPLACE`
-
-				const result = await strategy.applyDiff(originalContent, diffContent, 3, 3)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe(`function test() {
-    if (true) {
-        console.log("Before");
-        console.log("After");
-        const x = 1;
-    }
-}`)
-				}
-			})
-
-			it("should handle insertion at start of file", async () => {
-				const originalContent = `function test() {
-    return true;
-}`
-				const diffContent = `test.ts
-<<<<<<< SEARCH
-:start_line:1
-:end_line:1
--------
-=======
-// Copyright 2024
-// License: MIT
-
->>>>>>> REPLACE`
-
-				const result = await strategy.applyDiff(originalContent, diffContent, 1, 1)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe(`// Copyright 2024
-// License: MIT
-
-function test() {
-    return true;
-}`)
-				}
-			})
-
-			it("should handle insertion at end of file", async () => {
-				const originalContent = `function test() {
-    return true;
-}`
-				const diffContent = `test.ts
-<<<<<<< SEARCH
-:start_line:4
-:end_line:4
--------
-=======
-// End of file
->>>>>>> REPLACE`
-
-				const result = await strategy.applyDiff(originalContent, diffContent, 4, 4)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe(`function test() {
-    return true;
-}
-// End of file`)
-				}
-			})
-
-			it("should error if no start_line is provided for insertion", async () => {
-				const originalContent = `function test() {
-    return true;
-}`
-				const diffContent = `test.ts
-<<<<<<< SEARCH
-=======
-console.log("test");
->>>>>>> REPLACE`
-
-				const result = await strategy.applyDiff(originalContent, diffContent)
-				expect(result.success).toBe(false)
 			})
 		})
 	})
@@ -1945,6 +1825,98 @@ function two() {
 
 function three() {
     return "three";
+}`)
+			}
+		})
+
+		it("should work correctly on this example with line numbers that are slightly off", async () => {
+			const originalContent = `.game-container {
+display: flex;
+flex-direction: column;
+gap: 1rem;
+}
+
+.chess-board-container {
+display: flex;
+gap: 1rem;
+align-items: center;
+}
+
+.overlay {
+position: absolute;
+top: 0;
+left: 0;
+width: 100%;
+height: 100%;
+background-color: rgba(0, 0, 0, 0.5);
+z-index: 999; /* Ensure it's above the board but below the promotion dialog */
+}
+
+.game-container.promotion-active .chess-board,
+.game-container.promotion-active .game-toolbar,
+.game-container.promotion-active .game-info-container {
+filter: blur(2px);
+pointer-events: none; /* Disable clicks on these elements */
+}
+
+.game-container.promotion-active .promotion-dialog {
+z-index: 1000; /* Ensure it's above the overlay */
+pointer-events: auto; /* Enable clicks on the promotion dialog */
+}`
+			const diffContent = `test.ts
+<<<<<<< SEARCH
+:start_line:12
+:end_line:13
+-------
+.overlay {
+=======
+.piece {
+will-change: transform;
+}
+
+.overlay {
+>>>>>>> REPLACE
+`
+
+			const result = await strategy.applyDiff(originalContent, diffContent)
+			expect(result.success).toBe(true)
+			if (result.success) {
+				expect(result.content).toBe(`.game-container {
+display: flex;
+flex-direction: column;
+gap: 1rem;
+}
+
+.chess-board-container {
+display: flex;
+gap: 1rem;
+align-items: center;
+}
+
+.piece {
+will-change: transform;
+}
+
+.overlay {
+position: absolute;
+top: 0;
+left: 0;
+width: 100%;
+height: 100%;
+background-color: rgba(0, 0, 0, 0.5);
+z-index: 999; /* Ensure it's above the board but below the promotion dialog */
+}
+
+.game-container.promotion-active .chess-board,
+.game-container.promotion-active .game-toolbar,
+.game-container.promotion-active .game-info-container {
+filter: blur(2px);
+pointer-events: none; /* Disable clicks on these elements */
+}
+
+.game-container.promotion-active .promotion-dialog {
+z-index: 1000; /* Ensure it's above the overlay */
+pointer-events: auto; /* Enable clicks on the promotion dialog */
 }`)
 			}
 		})

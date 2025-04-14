@@ -7,8 +7,9 @@ import { ToolUse } from "../../assistant-message"
 const BUFFER_LINES = 40 // Number of extra context lines to show before and after matches
 
 function getSimilarity(original: string, search: string): number {
+	// Empty searches are no longer supported
 	if (search === "") {
-		return 1
+		return 0
 	}
 
 	// Normalize strings by removing extra whitespace but preserve case
@@ -367,7 +368,6 @@ Only use a single line of '=======' between search and replacement content, beca
 		const replacements = matches
 			.map((match) => ({
 				startLine: Number(match[2] ?? 0),
-				endLine: Number(match[4] ?? resultLines.length),
 				searchContent: match[6],
 				replaceContent: match[7],
 			}))
@@ -376,7 +376,6 @@ Only use a single line of '=======' between search and replacement content, beca
 		for (const replacement of replacements) {
 			let { searchContent, replaceContent } = replacement
 			let startLine = replacement.startLine + (replacement.startLine === 0 ? 0 : delta)
-			let endLine = replacement.endLine + delta
 
 			// First unescape any escaped markers in the content
 			searchContent = this.unescapeMarkers(searchContent)
@@ -409,23 +408,16 @@ Only use a single line of '=======' between search and replacement content, beca
 			let searchLines = searchContent === "" ? [] : searchContent.split(/\r?\n/)
 			let replaceLines = replaceContent === "" ? [] : replaceContent.split(/\r?\n/)
 
-			// Validate that empty search requires start line
-			if (searchLines.length === 0 && !startLine) {
+			// Validate that search content is not empty
+			if (searchLines.length === 0) {
 				diffResults.push({
 					success: false,
-					error: `Empty search content requires start_line to be specified\n\nDebug Info:\n- Empty search content is only valid for insertions at a specific line\n- For insertions, specify the line number where content should be inserted`,
+					error: `Empty search content is not allowed\n\nDebug Info:\n- Search content cannot be empty\n- For insertions, provide a specific line using :start_line: and include content to search for\n- For example, match a single line to insert before/after it`,
 				})
 				continue
 			}
 
-			// Validate that empty search requires same start and end line
-			if (searchLines.length === 0 && startLine && endLine && startLine !== endLine) {
-				diffResults.push({
-					success: false,
-					error: `Empty search content requires start_line and end_line to be the same (got ${startLine}-${endLine})\n\nDebug Info:\n- Empty search content is only valid for insertions at a specific line\n- For insertions, use the same line number for both start_line and end_line`,
-				})
-				continue
-			}
+			let endLine = replacement.startLine + searchLines.length - 1
 
 			// Initialize search variables
 			let matchIndex = -1
