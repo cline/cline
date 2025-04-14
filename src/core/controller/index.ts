@@ -925,7 +925,6 @@ export class Controller {
 				try {
 					const optimizedPrompt = await this.optimizePrompt(message.prompt, message.model)
 
-					// 发送优化后的提示词回前端
 					await this.postMessageToWebview({
 						type: "optimizedPromptResult",
 						success: true,
