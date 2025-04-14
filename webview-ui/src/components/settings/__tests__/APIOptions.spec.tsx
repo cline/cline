@@ -33,9 +33,8 @@ describe("ApiOptions Component - Requesty", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		vi.clearAllMocks()
-		// Use window.vscode instead of global.vscode
-		window.vscode = { postMessage: mockPostMessage }
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
+		global.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Requesty API Key input", () => {
@@ -83,8 +82,8 @@ describe("ApiOptions Component - Together", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		vi.clearAllMocks()
-		window.vscode = { postMessage: mockPostMessage }
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
+		global.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Together API Key input", () => {

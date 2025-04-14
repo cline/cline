@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.10.1",
+	"version": "3.12.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -223,21 +223,6 @@
 						}
 					},
 					"description": "Settings for VSCode Language Model API"
-				},
-				"cline.mcp.mode": {
-					"type": "string",
-					"enum": [
-						"full",
-						"server-use-only",
-						"off"
-					],
-					"enumDescriptions": [
-						"Enable all MCP functionality (server use and build instructions)",
-						"Enable MCP server use only (excludes instructions about building MCP servers)",
-						"Disable all MCP functionality"
-					],
-					"default": "full",
-					"description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
 				},
 				"cline.enableCheckpoints": {
 					"type": "boolean",

@@ -21,8 +21,3 @@ export interface TaskMetadata {
 	files_in_context: FileMetadataEntry[]
 	model_usage: ModelMetadataEntry[]
 }
-
-// Interface for the controller to avoid direct dependency
-export interface ControllerLike {
-	context: vscode.ExtensionContext
-}

@@ -32,6 +32,8 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	requestyDefaultModelId,
+	requestyDefaultModelInfo,
 	mainlandQwenModels,
 	internationalQwenModels,
 	mainlandQwenDefaultModelId,
@@ -58,6 +60,7 @@ import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
+import RequestyModelPicker from "./RequestyModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -101,12 +104,28 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
+	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
+		const newValue = event.target.value
+
+		// Update local state
 		setApiConfiguration({
 			...apiConfiguration,
-			[field]: event.target.value,
+			[field]: newValue,
 		})
+
+		// If the field is the provider, save it immediately
+		// Neccesary for favorite model selection to work without undoing provider changes
+		if (field === "apiProvider") {
+			vscode.postMessage({
+				type: "apiConfiguration",
+				apiConfiguration: {
+					...apiConfiguration,
+					apiProvider: newValue,
+				},
+			})
+		}
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -216,7 +235,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
-					<VSCodeOption value="xai">X AI</VSCodeOption>
+					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="shengsuanyun">ShengSuanYun</VSCodeOption>
 				</VSCodeDropdown>
@@ -1038,24 +1057,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.requestyModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("requestyModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
-					</p>
+					{!apiConfiguration?.requestyApiKey && <a href="https://app.requesty.ai/manage-api">Get API Key</a>}
 				</div>
 			)}
 
@@ -1568,6 +1570,58 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
+						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
+							<>
+								<VSCodeCheckbox
+									style={{ marginTop: 0 }}
+									checked={reasoningEffortSelected}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setReasoningEffortSelected(isChecked)
+										if (!isChecked) {
+											setApiConfiguration({
+												...apiConfiguration,
+												reasoningEffort: "",
+											})
+										}
+									}}>
+									Modify reasoning effort
+								</VSCodeCheckbox>
+
+								{reasoningEffortSelected && (
+									<div>
+										<label htmlFor="reasoning-effort-dropdown">
+											<span style={{}}>Reasoning Effort</span>
+										</label>
+										<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
+											<VSCodeDropdown
+												id="reasoning-effort-dropdown"
+												style={{ width: "100%", marginTop: 3 }}
+												value={apiConfiguration?.reasoningEffort || "high"}
+												onChange={(e: any) => {
+													setApiConfiguration({
+														...apiConfiguration,
+														reasoningEffort: e.target.value,
+													})
+												}}>
+												<VSCodeOption value="low">low</VSCodeOption>
+												<VSCodeOption value="high">high</VSCodeOption>
+											</VSCodeDropdown>
+										</DropdownContainer>
+										<p
+											style={{
+												fontSize: "12px",
+												marginTop: 3,
+												marginBottom: 0,
+												color: "var(--vscode-descriptionForeground)",
+											}}>
+											High effort may produce more thorough analysis but takes longer and uses more tokens.
+										</p>
+									</div>
+								)}
+							</>
+						)}
+
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
@@ -1581,6 +1635,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
 				<OpenRouterModelPicker isPopup={isPopup} />
 			)}
+			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
 
 			{modelIdErrorMessage && (
 				<p
@@ -1834,6 +1889,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
+		case "requesty":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.requestyModelId || requestyDefaultModelId,
+				selectedModelInfo: apiConfiguration?.requestyModelInfo || requestyDefaultModelInfo,
+			}
 		case "cline":
 			return {
 				selectedProvider: provider,
@@ -1856,12 +1917,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
-			}
-		case "requesty":
-			return {
-				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.requestyModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "vscode-lm":

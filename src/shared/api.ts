@@ -61,6 +61,7 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
+	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
 	qwenApiKey?: string
@@ -74,12 +75,14 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	reasoningEffort?: string
 	sambanovaApiKey?: string
 	shengsuanyunApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
+	favoritedModelIds?: string[]
 }
 
 // Models
@@ -1166,6 +1169,26 @@ export const doubaoModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 	},
+	"deepseek-v3-250324": {
+		maxTokens: 12_288,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"deepseek-r1-250120": {
+		maxTokens: 32_768,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.09,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Mistral
@@ -1536,6 +1559,22 @@ export const sambanovaModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// Requesty
+// https://requesty.ai/models
+export const requestyDefaultModelId = "anthropic/claude-3-7-sonnet-latest"
+export const requestyDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsComputerUse: false,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+}
+
 // ShengSuanYun
 // https://router.shengsuanyun.com/model
 export type ShengSuanYunModelId = keyof typeof shengsuanyunModels
@@ -1545,17 +1584,21 @@ export const shengsuanyunModels = {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: false,
-		supportsPromptCache: false, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 3, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		supportsPromptCache: true,
+		inputPrice: 3,
 		outputPrice: 15,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
 	},
 	"anthropic/claude-3.7-sonnet:thinking": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.3,
 		outputPrice: 15,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
 	},
 	"google/gemini-2.0-flash-001": {
 		maxTokens: 8_000,
@@ -1564,6 +1607,38 @@ export const shengsuanyunModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.1,
 		outputPrice: 0.4,
+	},
+	"google/gemini-2.5-pro-preview-03-25": {
+		maxTokens: 66_000,
+		contextWindow: 1000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.25,
+		outputPrice: 10,
+	},
+	"openai/gpt-4o-2024-11-20": {
+		maxTokens: 16_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5,
+		outputPrice: 15,
+	},
+	"openai/gpt-4o-mini": {
+		maxTokens: 16_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
+	"doubao/doubao-pro-256k": {
+		maxTokens: 4_000,
+		contextWindow: 33_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.68,
+		outputPrice: 1.22,
 	},
 	"deepseek/deepseek-v3": {
 		maxTokens: 164_000,

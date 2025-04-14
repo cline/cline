@@ -10,6 +10,7 @@ import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
 import { createTestServer, shutdownTestServer } from "./services/test/TestServer"
+import { ErrorService } from "./services/error/ErrorService"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -28,6 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
+	ErrorService.initialize()
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
 
@@ -395,6 +397,11 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Set up test server if in test mode
+	if (IS_TEST === "true") {
+		createTestServer(sidebarWebview)
+	}
+
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 
@@ -425,9 +432,4 @@ if (IS_DEV && IS_DEV !== "false") {
 
 		vscode.commands.executeCommand("workbench.action.reloadWindow")
 	})
-}
-
-// Set up test server if in test mode
-if (IS_TEST && IS_TEST === "true") {
-	createTestServer()
 }
