@@ -23,7 +23,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		WebviewProvider.activeInstances.add(this)
-		this.controller = new Controller(context, outputChannel, this)
+		this.controller = new Controller(context, outputChannel, (message) => this.view?.webview.postMessage(message))
 	}
 
 	async dispose() {
@@ -42,6 +42,18 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 	public static getVisibleInstance(): WebviewProvider | undefined {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
+	}
+
+	public static getAllInstances(): WebviewProvider[] {
+		return Array.from(this.activeInstances)
+	}
+
+	public static getSidebarInstance() {
+		return Array.from(this.activeInstances).find((instance) => instance.view && "onDidChangeVisibility" in instance.view)
+	}
+
+	public static getTabInstances(): WebviewProvider[] {
+		return Array.from(this.activeInstances).filter((instance) => instance.view && "onDidChangeViewState" in instance.view)
 	}
 
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {

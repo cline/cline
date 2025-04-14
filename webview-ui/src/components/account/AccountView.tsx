@@ -1,12 +1,13 @@
 import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
-import { useFirebaseAuth } from "../../context/FirebaseAuthContext"
-import { vscode } from "../../utils/vscode"
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
+import { vscode } from "@/utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
-import { UsageTransaction, PaymentTransaction } from "../../../../src/shared/ClineAccount"
+import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 type AccountViewProps = {
 	onDone: () => void
@@ -29,7 +30,11 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 }
 
 export const ClineAccountView = () => {
-	const { user, handleSignOut } = useFirebaseAuth()
+	const { user: firebaseUser, handleSignOut } = useFirebaseAuth()
+	const { userInfo, apiConfiguration } = useExtensionState()
+
+	let user = apiConfiguration?.clineApiKey ? firebaseUser || userInfo : undefined
+
 	const [balance, setBalance] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])

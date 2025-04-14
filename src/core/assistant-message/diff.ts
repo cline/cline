@@ -284,7 +284,7 @@ export async function constructNewFileContent(diffContent: string, originalConte
 							;[searchMatchIndex, searchEndIndex] = blockMatch
 						} else {
 							throw new Error(
-								`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
+								`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file or was searched out of order in the provided blocks.`,
 							)
 						}
 					}

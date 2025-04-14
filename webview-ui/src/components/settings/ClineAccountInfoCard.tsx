@@ -1,9 +1,13 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useFirebaseAuth } from "../../context/FirebaseAuthContext"
-import { vscode } from "../../utils/vscode"
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
+import { vscode } from "@/utils/vscode"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 export const ClineAccountInfoCard = () => {
-	const { user, handleSignOut } = useFirebaseAuth()
+	const { user: firebaseUser, handleSignOut } = useFirebaseAuth()
+	const { userInfo, apiConfiguration } = useExtensionState()
+
+	let user = apiConfiguration?.clineApiKey ? firebaseUser || userInfo : undefined
 
 	const handleLogin = () => {
 		vscode.postMessage({ type: "accountLoginClicked" })

@@ -61,7 +61,7 @@ interface SearchResult {
 
 const MAX_RESULTS = 300
 
-async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
+export async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
 	const checkPath = async (pkgFolder: string) => {
 		const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
 		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
