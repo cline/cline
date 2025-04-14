@@ -3526,17 +3526,10 @@ export class Task {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
-							let parsedText = await parseMentions(
-								block.text,
-								cwd,
-								this.urlContentFetcher,
-								this.fileContextTracker,
-							)
+							let parsedText = await parseMentions(block.text, cwd, this.urlContentFetcher, this.fileContextTracker)
 
 							// when parsing slash commands, we still want to allow the user to provide their desired context
-							parsedText = parseSlashCommands(
-								parsedText
-							)
+							parsedText = parseSlashCommands(parsedText)
 
 							return {
 								...block,
