@@ -2,7 +2,6 @@ import { Anthropic } from '@anthropic-ai/sdk'
 import cloneDeep from 'clone-deep'
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises'
 import fs from 'fs/promises'
-import getFolderSize from 'get-folder-size'
 import os from 'os'
 import pWaitFor from 'p-wait-for'
 import * as path from 'path'
@@ -55,20 +54,17 @@ import { formatResponse } from './prompts/responses'
 import { addUserInstructions, SYSTEM_PROMPT } from './prompts/system'
 import { ContextManager } from './context-management/ContextManager'
 import { ApiStream } from '../api/utils/stream'
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from '../shared/Languages'
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from '../shared/Languages'
 import { telemetryService } from '../services/telemetry/TelemetryService'
 import pTimeout from 'p-timeout'
 import { GlobalFileNames } from '../global-constants'
-import {
-    checkIsAnthropicContextWindowError,
-    checkIsOpenRouterContextWindowError,
-} from './context-management/context-error-handling'
+import { checkIsAnthropicContextWindowError } from './context-management/context-error-handling'
 import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnoreController'
 import { PostHogProvider } from './webview/PostHogProvider'
 import { PostHogApiProvider } from '../api/provider'
 import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-capture-calls'
-import type { BaseTool } from './tools/base'
 import { ToolManager } from './tools/manager'
+import { ToolInputValidationError } from './tools/base/errors'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -3247,6 +3243,66 @@ export class PostHog {
 
                             break
                         }
+                    }
+                    default: {
+                        const tool = this.toolManager.getTool(block.name)
+
+                        if (!tool) {
+                            break
+                        }
+
+                        if (block.partial) {
+                            const shouldAutoApprove = this.shouldAutoApproveTool(block.name)
+
+                            const partialMessage = JSON.stringify({
+                                tool: block.name,
+                                content: 'Should I create a fancy feature flag?',
+                            } satisfies PostHogSayTool)
+
+                            if (shouldAutoApprove) {
+                                this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
+                                await this.say('tool', partialMessage, undefined, block.partial)
+                            } else {
+                                this.removeLastPartialMessageIfExistsWithType('say', 'tool')
+                                await this.ask('tool', partialMessage, block.partial).catch(() => {})
+                            }
+
+                            break
+                        }
+
+                        try {
+                            const input = tool.validateInput(block.params)
+
+                            this.consecutiveMistakeCount = 0
+
+                            // TODO: Handle streaming tool response
+                            const output = await tool.execute(input)
+
+                            const outputForAssistant = tool.formatOutputForAssistant(output)
+                            this.consecutiveAutoApprovedRequestsCount++
+                            telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+
+                            pushToolResult(outputForAssistant)
+                        } catch (error) {
+                            if (
+                                error instanceof ToolInputValidationError ||
+                                error instanceof ToolInputValidationError
+                            ) {
+                                this.consecutiveMistakeCount++
+
+                                // Do we need to do anything special here?
+
+                                // this.say("error", `PostHog tried to use ${tool.name} without the correct input. Retrying...`)
+
+                                // pushToolResult(error.message)
+                                // break
+                            }
+
+                            await handleError(`executing tool ${block.name}`, error)
+                            break
+                        }
+
+                        break
                     }
                 }
                 break

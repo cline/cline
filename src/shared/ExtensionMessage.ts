@@ -156,6 +156,7 @@ export interface PostHogSayTool {
         | 'listFilesRecursive'
         | 'listCodeDefinitionNames'
         | 'searchFiles'
+        | 'create_feature_flag'
     path?: string
     diff?: string
     content?: string

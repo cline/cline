@@ -33,4 +33,8 @@ export abstract class BaseTool<TInput, TOutput> {
     }
 
     abstract getToolUsageDescription(block: ToolUse): string
+
+    formatOutputForAssistant(output: ToolOutput<TOutput>): string {
+        return JSON.stringify(output, null, 3)
+    }
 }
