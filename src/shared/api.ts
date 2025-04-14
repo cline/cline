@@ -701,30 +701,6 @@ export const openAiNativeModels = {
 		inputPrice: 75,
 		outputPrice: 150,
 	},
-	"gpt-4.1": {
-		maxTokens: 32_768,
-		contextWindow: 1_047_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 2,
-		outputPrice: 8,
-	},
-	"gpt-4.1-mini": {
-		maxTokens: 32_768,
-		contextWindow: 1_047_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0.4,
-		outputPrice: 1.6,
-	},
-	"gpt-4.1-nano": {
-		maxTokens: 32_768,
-		contextWindow: 1_047_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 0.1,
-		outputPrice: 0.4,
-	},
 } as const satisfies Record<string, ModelInfo>
 
 // Azure OpenAI
