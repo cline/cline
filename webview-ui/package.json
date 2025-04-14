@@ -4,8 +4,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"lint": "eslint src --ext ts,tsx",
-		"lint-fix": "eslint src --ext ts,tsx --fix",
+		"lint": "eslint src/**/*.ts src/**/*.tsx",
+		"lint-fix": "eslint src/**/*.ts src/**/*.tsx --fix",
 		"check-types": "tsc",
 		"test": "jest",
 		"dev": "vite",

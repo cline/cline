@@ -359,7 +359,7 @@
 		"install-webview": "cd webview-ui && npm install",
 		"install-e2e": "cd e2e && npm install",
 		"lint": "npm-run-all -l -p lint:*",
-		"lint:extension": "eslint src --ext ts",
+		"lint:extension": "eslint src/**/*.ts",
 		"lint:webview": "cd webview-ui && npm run lint",
 		"lint:e2e": "cd e2e && npm run lint",
 		"check-types": "npm-run-all -l -p check-types:*",

@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
-		"lint": "eslint src --ext ts",
+		"lint": "eslint src/**/*.ts",
 		"check-types": "tsc --noEmit",
 		"test": "npm run build && npx dotenvx run -f .env.local -- node ./out/runTest.js",
 		"ci": "npm run vscode-test && npm run test",

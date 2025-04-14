@@ -4,7 +4,7 @@
 	"type": "module",
 	"exports": "./src/index.ts",
 	"scripts": {
-		"lint": "eslint src --ext ts --max-warnings=0",
+		"lint": "eslint src/**/*.ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"test": "vitest --globals --run",
 		"format": "prettier --write src"
