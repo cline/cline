@@ -156,13 +156,16 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						</VSCodeRadio>
 					</VSCodeRadioGroup>
 
-					<div className="flex items-center gap-2" onClick={() => setShowAllWorkspaces(!showAllWorkspaces)}>
+					<div className="flex items-center gap-2">
 						<Checkbox
+							id="show-all-workspaces-view"
 							checked={showAllWorkspaces}
 							onCheckedChange={(checked) => setShowAllWorkspaces(checked === true)}
 							variant="description"
 						/>
-						<span className="text-vscode-foreground">{t("history:showAllWorkspaces")}</span>
+						<label htmlFor="show-all-workspaces-view" className="text-vscode-foreground cursor-pointer">
+							{t("history:showAllWorkspaces")}
+						</label>
 					</div>
 
 					{/* Select all control in selection mode */}

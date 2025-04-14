@@ -2,7 +2,7 @@ import { memo } from "react"
 
 import { vscode } from "@/utils/vscode"
 import { formatLargeNumber, formatDate } from "@/utils/format"
-import { Button } from "@/components/ui"
+import { Button, Checkbox } from "@/components/ui"
 
 import { useAppTranslation } from "../../i18n/TranslationContext"
 import { CopyButton } from "./CopyButton"
@@ -12,7 +12,7 @@ type HistoryPreviewProps = {
 	showHistoryView: () => void
 }
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { tasks } = useTaskSearch()
+	const { tasks, showAllWorkspaces, setShowAllWorkspaces } = useTaskSearch()
 	const { t } = useAppTranslation()
 
 	return (
@@ -25,6 +25,17 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				<Button variant="ghost" size="sm" onClick={() => showHistoryView()} className="uppercase">
 					{t("history:viewAll")}
 				</Button>
+			</div>
+			<div className="flex items-center gap-2 mb-2">
+				<Checkbox
+					id="show-all-workspaces"
+					checked={showAllWorkspaces}
+					onCheckedChange={(checked) => setShowAllWorkspaces(checked === true)}
+					variant="description"
+				/>
+				<label htmlFor="show-all-workspaces" className="text-xs text-vscode-foreground cursor-pointer">
+					{t("history:showAllWorkspaces")}
+				</label>
 			</div>
 			{tasks.slice(0, 3).map((item) => (
 				<div
@@ -74,6 +85,12 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								</>
 							)}
 						</div>
+						{showAllWorkspaces && item.workspace && (
+							<div className="flex flex-row gap-1 text-vscode-descriptionForeground text-xs mt-1">
+								<span className="codicon codicon-folder scale-80" />
+								<span>{item.workspace}</span>
+							</div>
+						)}
 					</div>
 				</div>
 			))}
