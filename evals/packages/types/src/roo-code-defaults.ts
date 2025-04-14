@@ -44,15 +44,15 @@ export const rooCodeDefaults: RooCodeSettings = {
 	maxReadFileLine: 500,
 
 	terminalOutputLineLimit: 500,
-	terminalShellIntegrationTimeout: 30_000,
+	terminalShellIntegrationTimeout: 15_000,
 	// terminalCommandDelay: 0,
 	// terminalPowershellCounter: false,
-	// terminalZshClearEolMark: true,
-	// terminalZshOhMy: true,
+	terminalZshClearEolMark: true,
+	terminalZshOhMy: true,
 	// terminalZshP10k: false,
-	// terminalZdotdir: true,
+	terminalZdotdir: true,
 
-	diffEnabled: false,
+	diffEnabled: true,
 	fuzzyMatchThreshold: 1.0,
 	experiments: {
 		search_and_replace: false,
