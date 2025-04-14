@@ -12,8 +12,9 @@ import {
 	getFileChanges,
 	calculateToolSuccessRate,
 } from "./GitHelper"
-import { updateGlobalState, getAllExtensionState } from "../../core/storage/state"
+import { updateGlobalState, getAllExtensionState, updateApiConfiguration, storeSecret } from "../../core/storage/state"
 import { ClineAsk, ExtensionMessage } from "../../shared/ExtensionMessage"
+import { ApiProvider } from "../../shared/api"
 import { WebviewMessage } from "../../shared/WebviewMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { getSavedClineMessages, getSavedApiConversationHistory } from "../../core/storage/disk"
@@ -170,7 +171,7 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 		req.on("end", async () => {
 			try {
 				// Parse the JSON body
-				const { task } = JSON.parse(body)
+				const { task, apiKey } = JSON.parse(body)
 
 				if (!task) {
 					res.writeHead(400)
@@ -232,6 +233,33 @@ export function createTestServer(webviewProvider?: WebviewProvider): http.Server
 
 					// Clear any existing task
 					await visibleWebview.controller.clearTask()
+
+					// If API key is provided, update the API configuration
+					if (apiKey) {
+						Logger.log("API key provided, updating API configuration")
+						
+						// Get current API configuration
+						const { apiConfiguration } = await getAllExtensionState(visibleWebview.controller.context)
+						
+						// Update API configuration with API key
+						const updatedConfig = {
+							...apiConfiguration,
+							apiProvider: "cline" as ApiProvider,
+							clineApiKey: apiKey
+						}
+						
+						// Store the API key securely
+						await storeSecret(visibleWebview.controller.context, "clineApiKey", apiKey)
+						
+						// Update the API configuration
+						await updateApiConfiguration(visibleWebview.controller.context, updatedConfig)
+						
+						// Update global state to use cline provider
+						await updateGlobalState(visibleWebview.controller.context, "apiProvider", "cline" as ApiProvider)
+						
+						// Post state to webview to reflect changes
+						await visibleWebview.controller.postStateToWebview()
+					}
 
 					// Ensure we're in Act mode before initiating the task
 					const { chatSettings } = await visibleWebview.controller.getStateToPostToWebview()

@@ -36,6 +36,7 @@ program
 	.option("-b, --benchmark <benchmark>", "Specific benchmark to run")
 	.option("-m, --model <model>", "Model to evaluate", "claude-3-opus-20240229")
 	.option("-c, --count <count>", "Number of tasks to run", parseInt)
+	.option("-k, --api-key <apiKey>", "Cline API key to use for evaluations")
 	.action(async (options) => {
 		try {
 			await runHandler(options)

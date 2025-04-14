@@ -4,9 +4,10 @@ import chalk from "chalk"
 /**
  * Send a task to the Cline test server
  * @param task The task description to send
+ * @param apiKey Optional Cline API key to use for the task
  * @returns The result of the task execution
  */
-export async function sendTaskToServer(task: string): Promise<any> {
+export async function sendTaskToServer(task: string, apiKey?: string): Promise<any> {
 	const SERVER_URL = "http://localhost:9876/task"
 
 	try {
@@ -17,7 +18,10 @@ export async function sendTaskToServer(task: string): Promise<any> {
 			headers: {
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({ task }),
+			body: JSON.stringify({ 
+				task,
+				apiKey 
+			}),
 		})
 
 		if (!response.ok) {

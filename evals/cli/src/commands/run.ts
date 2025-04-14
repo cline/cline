@@ -12,6 +12,7 @@ interface RunOptions {
 	benchmark?: string
 	model: string
 	count?: number
+	apiKey?: string
 }
 
 /**
@@ -69,7 +70,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 				// Send task to server
 				const sendSpinner = ora("Sending task to server...").start()
 				try {
-					const result = await sendTaskToServer(preparedTask.description)
+					const result = await sendTaskToServer(preparedTask.description, options.apiKey)
 					sendSpinner.succeed("Task completed")
 
 					// Verify result
