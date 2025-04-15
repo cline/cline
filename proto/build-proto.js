@@ -15,7 +15,7 @@ async function main() {
 
 	// Check if protoc is installed
 	try {
-		const options = { stdio: 'ignore' }
+		const options = { stdio: "ignore" }
 		execSync("protoc --version", options)
 	} catch (error) {
 		console.warn(chalk.yellow("Warning: protoc is not installed. Skipping proto generation."))
@@ -64,8 +64,8 @@ async function main() {
 		].join(" ")
 
 		try {
-			const execOptions = { 
-				stdio: 'inherit'
+			const execOptions = {
+				stdio: "inherit",
 			}
 			execSync(protocCommand, execOptions)
 		} catch (error) {

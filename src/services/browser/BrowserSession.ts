@@ -2,7 +2,8 @@ import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { exec, spawn } from "child_process"
-import { Browser, Page, ScreenshotOptions, TimeoutError, launch, connect } from "puppeteer-core"
+import { Browser, Page, TimeoutError, launch, connect } from "puppeteer-core"
+import type { ScreenshotOptions, ConsoleMessage } from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
@@ -451,7 +452,7 @@ export class BrowserSession {
 		const logs: string[] = []
 		let lastLogTs = Date.now()
 
-		const consoleListener = (msg: any) => {
+		const consoleListener = (msg: ConsoleMessage) => {
 			if (msg.type() === "log") {
 				logs.push(msg.text())
 			} else {

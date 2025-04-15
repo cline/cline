@@ -1,10 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
+import type { AxiosRequestConfig } from "axios"
 import crypto from "crypto"
-import { execa } from "execa"
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -36,7 +35,7 @@ import { searchCommits } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
 import { getTotalTasksSize } from "../../utils/storage"
 import { openMention } from "../mentions"
-import { GlobalFileNames } from "../storage/disk"
+import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -55,27 +54,27 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
-	private postMessage: (message: any) => Thenable<boolean> | undefined
+	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
 	task?: Task
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "april-10-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "april-11-2025" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
-		postMessage: (message: any) => Thenable<boolean> | undefined,
+		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
 
 		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
 		this.mcpHub = new McpHub(
-			() => this.ensureMcpServersDirectoryExists(),
-			() => this.ensureSettingsDirectoryExists(),
+			() => ensureMcpServersDirectoryExists(),
+			() => ensureSettingsDirectoryExists(this.context),
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
@@ -576,14 +575,7 @@ export class Controller {
 						await this.togglePlanActModeWithChatSettings({ mode: "act" })
 					}
 
-					// 2. Enable MCP settings if disabled
-					// Enable MCP mode if disabled
-					const mcpConfig = vscode.workspace.getConfiguration("cline.mcp")
-					if (mcpConfig.get<string>("mode") !== "full") {
-						await mcpConfig.update("mode", "full", true)
-					}
-
-					// 3. download MCP
+					// 2. download MCP
 					await this.downloadMcp(message.mcpId)
 				}
 				break
@@ -920,6 +912,7 @@ export class Controller {
 			previousModeModelInfo: newModelInfo,
 			previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
+			previousModeReasoningEffort: newReasoningEffort,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -929,6 +922,7 @@ export class Controller {
 			// Save the last model used in this mode
 			await updateGlobalState(this.context, "previousModeApiProvider", apiConfiguration.apiProvider)
 			await updateGlobalState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
+			await updateGlobalState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
 				case "bedrock":
@@ -938,6 +932,7 @@ export class Controller {
 				case "openai-native":
 				case "qwen":
 				case "deepseek":
+				case "xai":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "openrouter":
@@ -973,9 +968,16 @@ export class Controller {
 			}
 
 			// Restore the model used in previous mode
-			if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined || newVsCodeLmModelSelector) {
+			if (
+				newApiProvider ||
+				newModelId ||
+				newThinkingBudgetTokens !== undefined ||
+				newReasoningEffort ||
+				newVsCodeLmModelSelector
+			) {
 				await updateGlobalState(this.context, "apiProvider", newApiProvider)
 				await updateGlobalState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
+				await updateGlobalState(this.context, "reasoningEffort", newReasoningEffort)
 				switch (newApiProvider) {
 					case "anthropic":
 					case "bedrock":
@@ -985,6 +987,7 @@ export class Controller {
 					case "openai-native":
 					case "qwen":
 					case "deepseek":
+					case "xai":
 						await updateGlobalState(this.context, "apiModelId", newModelId)
 						break
 					case "openrouter":
@@ -1076,61 +1079,6 @@ export class Controller {
 		if (this.task) {
 			this.task.customInstructions = instructions || undefined
 		}
-	}
-
-	// MCP
-
-	async getDocumentsPath(): Promise<string> {
-		if (process.platform === "win32") {
-			try {
-				const { stdout: docsPath } = await execa("powershell", [
-					"-NoProfile", // Ignore user's PowerShell profile(s)
-					"-Command",
-					"[System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)",
-				])
-				const trimmedPath = docsPath.trim()
-				if (trimmedPath) {
-					return trimmedPath
-				}
-			} catch (err) {
-				console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
-			}
-		} else if (process.platform === "linux") {
-			try {
-				// First check if xdg-user-dir exists
-				await execa("which", ["xdg-user-dir"])
-
-				// If it exists, try to get XDG documents path
-				const { stdout } = await execa("xdg-user-dir", ["DOCUMENTS"])
-				const trimmedPath = stdout.trim()
-				if (trimmedPath) {
-					return trimmedPath
-				}
-			} catch {
-				// Log error but continue to fallback
-				console.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
-			}
-		}
-
-		// Default fallback for all platforms
-		return path.join(os.homedir(), "Documents")
-	}
-
-	async ensureMcpServersDirectoryExists(): Promise<string> {
-		const userDocumentsPath = await this.getDocumentsPath()
-		const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
-		try {
-			await fs.mkdir(mcpServersDir, { recursive: true })
-		} catch (error) {
-			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
-		}
-		return mcpServersDir
-	}
-
-	async ensureSettingsDirectoryExists(): Promise<string> {
-		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
-		await fs.mkdir(settingsDir, { recursive: true })
-		return settingsDir
 	}
 
 	// VSCode LM API
@@ -1374,6 +1322,7 @@ export class Controller {
 
 			// Create task with context from README and added guidelines for MCP server installation
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
+- Start by loading the MCP documentation.
 - Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
 - Create the directory for the new MCP server before starting installation.
 - Make sure you read the user's existing cline_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
@@ -1427,7 +1376,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				return []
 			}
 
-			const config: Record<string, any> = {}
+			const config: AxiosRequestConfig = {}
 			if (apiKey) {
 				config["headers"] = { Authorization: `Bearer ${apiKey}` }
 			}

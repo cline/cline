@@ -26,6 +26,8 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 				display: "flex",
 				alignItems: "center",
 				justifyContent: "center",
+				userSelect: "none",
+				WebkitUserSelect: "none",
 			}}>
 			{isFavorite ? "★" : "☆"}
 		</div>
@@ -49,8 +51,8 @@ const featuredModels = [
 		label: "Trending",
 	},
 	{
-		id: "meta-llama/llama-4-maverick",
-		description: "Efficient performance at lower cost",
+		id: "openai/gpt-4.1",
+		description: "1M context window, blazing fast",
 		label: "New",
 	},
 ]
@@ -126,20 +128,20 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		const results: { id: string; html: string }[] = searchTerm
-			? highlight(fuse.search(searchTerm), "model-item-highlight")
-			: searchableItems
-
-		// Sort favorited models to the top
 		const favoritedModelIds = apiConfiguration?.favoritedModelIds || []
-		return results.sort((a, b) => {
-			const aIsFavorite = favoritedModelIds.includes(a.id)
-			const bIsFavorite = favoritedModelIds.includes(b.id)
 
-			if (aIsFavorite && !bIsFavorite) return -1
-			if (!aIsFavorite && bIsFavorite) return 1
-			return a.id.localeCompare(b.id)
-		})
+		// IMPORTANT: highlightjs has a bug where if you use sort/localCompare - "// results.sort((a, b) => a.id.localeCompare(b.id)) ...sorting like this causes ids in objects to be reordered and mismatched"
+
+		// First, get all favorited models
+		const favoritedModels = searchableItems.filter((item) => favoritedModelIds.includes(item.id))
+
+		// Then get search results for non-favorited models
+		const searchResults = searchTerm
+			? highlight(fuse.search(searchTerm), "model-item-highlight").filter((item) => !favoritedModelIds.includes(item.id))
+			: searchableItems.filter((item) => !favoritedModelIds.includes(item.id))
+
+		// Combine favorited models with search results
+		return [...favoritedModels, ...searchResults]
 	}, [searchableItems, searchTerm, fuse, apiConfiguration?.favoritedModelIds])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

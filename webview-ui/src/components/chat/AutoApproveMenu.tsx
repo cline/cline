@@ -1,5 +1,5 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
@@ -27,25 +27,25 @@ const ACTION_METADATA: {
 }[] = [
 	{
 		id: "readFiles",
-		label: "Read local files and directories",
+		label: "Read project files",
 		shortName: "Read Local",
 		description: "Allows Cline to read files within your workspace.",
 	},
 	{
 		id: "readFilesExternally",
-		label: "Read files and directories anywhere",
+		label: "Read all files",
 		shortName: "Read (all)",
 		description: "Allows Cline to read any file on your computer.",
 	},
 	{
 		id: "editFiles",
-		label: "Edit local files",
+		label: "Edit project files",
 		shortName: "Edit",
 		description: "Allows Cline to modify files within your workspace.",
 	},
 	{
 		id: "editFilesExternally",
-		label: "Edit files anywhere",
+		label: "Edit all files",
 		shortName: "Edit (all)",
 		description: "Allows Cline to modify any file on your computer.",
 	},
@@ -83,7 +83,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
-	const enabledActionsList = (() => {
+	const enabledActionsList = useMemo(() => {
 		// When nested auto-approve options are used, display the more permissive one (file reads, edits, and commands)
 		const readFilesEnabled = enabledActions.some((action) => action.id === "readFiles")
 		const readFilesExternallyEnabled = enabledActions.some((action) => action.id === "readFilesExternally")
@@ -131,8 +131,27 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 		// Add remaining actions
 		return [...labels, ...otherActions].join(", ")
-	})()
-	const hasEnabledActions = enabledActions.length > 0
+	}, [enabledActions])
+
+	// This value is used to determine if the auto-approve menu should show 'Auto-approve: None'
+	// Note: we should use better logic to determine the state where no auto approve actions are in effect, regardless of the state of sub-auto-approve options
+	const hasEnabledActions = useMemo(() => {
+		let enabledActionsCount = enabledActions.length
+
+		if (!autoApprovalSettings.actions.readFiles && autoApprovalSettings.actions.readFilesExternally) {
+			enabledActionsCount--
+		}
+
+		if (!autoApprovalSettings.actions.editFiles && autoApprovalSettings.actions.editFilesExternally) {
+			enabledActionsCount--
+		}
+
+		if (!autoApprovalSettings.actions.executeSafeCommands && autoApprovalSettings.actions.executeAllCommands) {
+			enabledActionsCount--
+		}
+
+		return enabledActionsCount > 0
+	}, [enabledActions, autoApprovalSettings.actions])
 
 	const updateEnabled = useCallback(
 		(enabled: boolean) => {
@@ -272,7 +291,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							overflow: "hidden",
 							textOverflow: "ellipsis",
 						}}>
-						{enabledActions.length === 0 ? "None" : enabledActionsList}
+						{!hasEnabledActions ? "None" : enabledActionsList}
 					</span>
 					<span
 						className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
@@ -308,7 +327,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 										? "readFiles"
 										: "editFiles"
 							return (
-								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction]}>
+								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction] ?? false}>
 									<div
 										style={{
 											margin: "3px 0",
