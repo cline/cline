@@ -1,4 +1,4 @@
-// npx jest webview-ui/src/components/ui/__tests__/select-dropdown.test.tsx
+// npx jest src/components/ui/__tests__/select-dropdown.test.tsx
 
 import { ReactNode } from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
@@ -11,24 +11,12 @@ Object.defineProperty(window, "postMessage", {
 	value: postMessageMock,
 })
 
-// Mock the Radix UI Popover components
-jest.mock("@/components/ui", () => {
+// Mock the Radix UI DropdownMenu component and its children
+jest.mock("../dropdown-menu", () => {
 	return {
-		Popover: ({
-			children,
-			open,
-			onOpenChange,
-		}: {
-			children: ReactNode
-			open?: boolean
-			onOpenChange?: (open: boolean) => void
-		}) => {
-			// Force open to true for testing
-			if (onOpenChange) setTimeout(() => onOpenChange(true), 0)
-			return <div data-testid="dropdown-root">{children}</div>
-		},
+		DropdownMenu: ({ children }: { children: ReactNode }) => <div data-testid="dropdown-root">{children}</div>,
 
-		PopoverTrigger: ({
+		DropdownMenuTrigger: ({
 			children,
 			disabled,
 			...props
@@ -42,38 +30,29 @@ jest.mock("@/components/ui", () => {
 			</button>
 		),
 
-		PopoverContent: ({
-			children,
-			align,
-			sideOffset,
-			container,
-			className,
-		}: {
-			children: ReactNode
-			align?: string
-			sideOffset?: number
-			container?: any
-			className?: string
-		}) => <div data-testid="dropdown-content">{children}</div>,
+		DropdownMenuContent: ({ children }: { children: ReactNode }) => (
+			<div data-testid="dropdown-content">{children}</div>
+		),
 
-		Command: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-		CommandEmpty: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-		CommandGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-		CommandInput: (props: any) => <input {...props} />,
-		CommandItem: ({
+		DropdownMenuItem: ({
 			children,
-			onSelect,
+			onClick,
 			disabled,
 		}: {
 			children: ReactNode
-			onSelect?: () => void
+			onClick?: () => void
 			disabled?: boolean
 		}) => (
-			<div data-testid="dropdown-item" onClick={onSelect} aria-disabled={disabled}>
+			<div data-testid="dropdown-item" onClick={onClick} aria-disabled={disabled}>
 				{children}
 			</div>
 		),
-		CommandList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+
+		DropdownMenuSeparator: () => <div data-testid="dropdown-separator" />,
+
+		DropdownMenuShortcut: ({ children }: { children: ReactNode }) => (
+			<span data-testid="dropdown-shortcut">{children}</span>
+		),
 	}
 })
 
@@ -143,15 +122,10 @@ describe("SelectDropdown", () => {
 		const dropdown = screen.getByTestId("dropdown-root")
 		expect(dropdown).toBeInTheDocument()
 
-		// Verify trigger is rendered
+		// Verify trigger and content are rendered
 		const trigger = screen.getByTestId("dropdown-trigger")
-		expect(trigger).toBeInTheDocument()
-
-		// Click the trigger to open the dropdown
-		fireEvent.click(trigger)
-
-		// Now the content should be visible
 		const content = screen.getByTestId("dropdown-content")
+		expect(trigger).toBeInTheDocument()
 		expect(content).toBeInTheDocument()
 	})
 
@@ -166,19 +140,9 @@ describe("SelectDropdown", () => {
 
 			render(<SelectDropdown value="option1" options={optionsWithTypedSeparator} onChange={onChangeMock} />)
 
-			// Click the trigger to open the dropdown
-			const trigger = screen.getByTestId("dropdown-trigger")
-			fireEvent.click(trigger)
-
-			// Now we can check for the separator
-			// Since our mock doesn't have a specific separator element, we'll check for the div with the separator class
-			// This is a workaround for the test - in a real scenario we'd update the mock to match the component
-			const content = screen.getByTestId("dropdown-content")
-			expect(content).toBeInTheDocument()
-
-			// For this test, we'll just verify the content is rendered
-			// In a real scenario, we'd need to update the mock to properly handle separators
-			expect(content).toBeInTheDocument()
+			// Check for separator
+			const separators = screen.getAllByTestId("dropdown-separator")
+			expect(separators.length).toBe(1)
 		})
 
 		it("renders shortcut options correctly", () => {
@@ -197,17 +161,9 @@ describe("SelectDropdown", () => {
 				/>,
 			)
 
-			// Click the trigger to open the dropdown
-			const trigger = screen.getByTestId("dropdown-trigger")
-			fireEvent.click(trigger)
-
-			// Now we can check for the shortcut text
-			const content = screen.getByTestId("dropdown-content")
-			expect(content).toBeInTheDocument()
-
-			// For this test, we'll just verify the content is rendered
-			// In a real scenario, we'd need to update the mock to properly handle shortcuts
-			expect(content).toBeInTheDocument()
+			expect(screen.queryByText(shortcutText)).toBeInTheDocument()
+			const dropdownItems = screen.getAllByTestId("dropdown-item")
+			expect(dropdownItems.length).toBe(2)
 		})
 
 		it("handles action options correctly", () => {
@@ -218,22 +174,20 @@ describe("SelectDropdown", () => {
 
 			render(<SelectDropdown value="option1" options={optionsWithAction} onChange={onChangeMock} />)
 
-			// Click the trigger to open the dropdown
-			const trigger = screen.getByTestId("dropdown-trigger")
-			fireEvent.click(trigger)
+			// Get all dropdown items
+			const dropdownItems = screen.getAllByTestId("dropdown-item")
 
-			// Now we can check for dropdown items
-			const content = screen.getByTestId("dropdown-content")
-			expect(content).toBeInTheDocument()
+			// Click the action item
+			fireEvent.click(dropdownItems[1])
 
-			// For this test, we'll simulate the action by directly calling the handleSelect function
-			// This is a workaround since our mock doesn't fully simulate the component behavior
-			// In a real scenario, we'd update the mock to properly handle actions
+			// Check that postMessage was called with the correct action
+			expect(postMessageMock).toHaveBeenCalledWith({
+				type: "action",
+				action: "settingsButtonClicked",
+			})
 
-			// We'll verify the component renders correctly
-			expect(content).toBeInTheDocument()
-
-			// Skip the action test for now as it requires more complex mocking
+			// The onChange callback should not be called for action items
+			expect(onChangeMock).not.toHaveBeenCalled()
 		})
 
 		it("only treats options with explicit ACTION type as actions", () => {
@@ -247,33 +201,45 @@ describe("SelectDropdown", () => {
 
 			render(<SelectDropdown value="option1" options={optionsForTest} onChange={onChangeMock} />)
 
-			// Click the trigger to open the dropdown
-			const trigger = screen.getByTestId("dropdown-trigger")
-			fireEvent.click(trigger)
+			// Get all dropdown items
+			const dropdownItems = screen.getAllByTestId("dropdown-item")
 
-			// Now we can check for dropdown content
-			const content = screen.getByTestId("dropdown-content")
-			expect(content).toBeInTheDocument()
+			// Click the second option (with action suffix but no ACTION type)
+			fireEvent.click(dropdownItems[1])
 
-			// For this test, we'll just verify the content is rendered
-			// In a real scenario, we'd need to update the mock to properly handle different option types
-			expect(content).toBeInTheDocument()
+			// Should trigger onChange, not postMessage
+			expect(onChangeMock).toHaveBeenCalledWith("settings-action")
+			expect(postMessageMock).not.toHaveBeenCalled()
+
+			// Reset mocks
+			onChangeMock.mockReset()
+			postMessageMock.mockReset()
+
+			// Click the third option (ACTION type)
+			fireEvent.click(dropdownItems[2])
+
+			// Should trigger postMessage with "settingsButtonClicked", not onChange
+			expect(postMessageMock).toHaveBeenCalledWith({
+				type: "action",
+				action: "settingsButtonClicked",
+			})
+			expect(onChangeMock).not.toHaveBeenCalled()
 		})
 
 		it("calls onChange for regular menu items", () => {
 			render(<SelectDropdown value="option1" options={options} onChange={onChangeMock} />)
 
-			// Click the trigger to open the dropdown
-			const trigger = screen.getByTestId("dropdown-trigger")
-			fireEvent.click(trigger)
+			// Get all dropdown items
+			const dropdownItems = screen.getAllByTestId("dropdown-item")
 
-			// Now we can check for dropdown content
-			const content = screen.getByTestId("dropdown-content")
-			expect(content).toBeInTheDocument()
+			// Click the second option (index 1)
+			fireEvent.click(dropdownItems[1])
 
-			// For this test, we'll just verify the content is rendered
-			// In a real scenario, we'd need to update the mock to properly handle onChange events
-			expect(content).toBeInTheDocument()
+			// Check that onChange was called with the correct value
+			expect(onChangeMock).toHaveBeenCalledWith("option2")
+
+			// postMessage should not be called for regular items
+			expect(postMessageMock).not.toHaveBeenCalled()
 		})
 	})
 })
