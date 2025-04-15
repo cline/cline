@@ -1500,7 +1500,7 @@ export class Task {
 						case "list_code_definition_names":
 							return `[${block.name} for '${block.params.path}']`
 						case "read_function":
-							return `[${block.name} for '${block.params.functionName}' in '${block.params.path}']`
+							return `[${block.name} for '${block.params.function_name}' in '${block.params.path}']`
 						case "browser_action":
 							return `[${block.name} for '${block.params.action}']`
 						case "use_mcp_tool":
@@ -2015,11 +2015,11 @@ export class Task {
 					}
 					case "read_function": {
 						const relPath: string | undefined = block.params.path
-						const functionName: string | undefined = block.params.functionName
+						const functionName: string | undefined = block.params.function_name
 						const sharedMessageProps: ClineSayTool = {
 							tool: "readFunction",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
-							functionName: removeClosingTag("functionName", functionName),
+							functionName: removeClosingTag("function_name", functionName),
 						}
 						try {
 							if (block.partial) {
@@ -2043,7 +2043,7 @@ export class Task {
 								}
 								if (!functionName) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("read_function", "functionName"))
+									pushToolResult(await this.sayAndCreateMissingParamError("read_function", "function_name"))
 									break
 								}
 
