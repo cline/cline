@@ -372,7 +372,7 @@ const runUnitTest = async ({ task }: { task: Task }) => {
 				})
 
 				console.log(
-					`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] "${command.join(" ")}": ${subprocess.pid} -> ${JSON.stringify(descendants)}`,
+					`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] "${command.join(" ")}": unit tests timed out, killing ${subprocess.pid} + ${JSON.stringify(descendants)}`,
 				)
 
 				if (descendants.length > 0) {
@@ -384,7 +384,10 @@ const runUnitTest = async ({ task }: { task: Task }) => {
 
 							await execa`kill -9 ${descendant}`
 						} catch (error) {
-							console.error("Error killing descendant processes:", error)
+							console.error(
+								`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] Error killing descendant processes:`,
+								error,
+							)
 						}
 					}
 				}
@@ -396,7 +399,10 @@ const runUnitTest = async ({ task }: { task: Task }) => {
 				try {
 					await execa`kill -9 ${subprocess.pid!}`
 				} catch (error) {
-					console.error("Error killing process:", error)
+					console.error(
+						`${Date.now()} [cli#runUnitTest | ${task.language} / ${task.exercise}] Error killing process:`,
+						error,
+					)
 				}
 			}, UNIT_TEST_TIMEOUT)
 

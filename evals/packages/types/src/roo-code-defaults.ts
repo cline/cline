@@ -6,6 +6,7 @@ export const rooCodeDefaults: RooCodeSettings = {
 
 	// modelTemperature: null,
 	// reasoningEffort: "high",
+	rateLimitSeconds: 0,
 
 	pinnedApiConfigs: {},
 	lastShownAnnouncementId: "apr-04-2025-boomerang",
@@ -45,11 +46,11 @@ export const rooCodeDefaults: RooCodeSettings = {
 
 	terminalOutputLineLimit: 500,
 	terminalShellIntegrationTimeout: 15_000,
-	// terminalCommandDelay: 0,
-	// terminalPowershellCounter: false,
+	terminalCommandDelay: 0,
+	terminalPowershellCounter: false,
 	terminalZshClearEolMark: true,
 	terminalZshOhMy: true,
-	// terminalZshP10k: false,
+	terminalZshP10k: false,
 	terminalZdotdir: true,
 
 	diffEnabled: true,

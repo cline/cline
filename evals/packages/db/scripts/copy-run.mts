@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/libsql"
 import { eq } from "drizzle-orm"
+import pMap from "p-map"
 
 import { db as sourceDb } from "../src/db.js"
 import { schema } from "../src/schema.js"
@@ -52,29 +53,33 @@ const copyRun = async (runId: number) => {
 
 	console.log(`Copying ${tasks.length} tasks`)
 
-	for (const task of tasks) {
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		const { id: _, ...newTaskMetricsValues } = task.taskMetrics!
-		const [newTaskMetrics] = await destDb.insert(schema.taskMetrics).values(newTaskMetricsValues).returning()
+	await pMap(
+		tasks,
+		async (task) => {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			const { id: _, ...newTaskMetricsValues } = task.taskMetrics!
+			const [newTaskMetrics] = await destDb.insert(schema.taskMetrics).values(newTaskMetricsValues).returning()
 
-		if (!newTaskMetrics) {
-			throw new Error(`Failed to insert taskMetrics for task ${task.id}`)
-		}
+			if (!newTaskMetrics) {
+				throw new Error(`Failed to insert taskMetrics for task ${task.id}`)
+			}
 
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		const { id: __, ...newTaskValues } = task
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			const { id: __, ...newTaskValues } = task
 
-		const [newTask] = await destDb
-			.insert(schema.tasks)
-			.values({ ...newTaskValues, runId: newRun.id, taskMetricsId: newTaskMetrics.id })
-			.returning()
+			const [newTask] = await destDb
+				.insert(schema.tasks)
+				.values({ ...newTaskValues, runId: newRun.id, taskMetricsId: newTaskMetrics.id })
+				.returning()
 
-		if (!newTask) {
-			throw new Error(`Failed to insert task ${task.id}`)
-		}
-	}
+			if (!newTask) {
+				throw new Error(`Failed to insert task ${task.id}`)
+			}
+		},
+		{ concurrency: 25 },
+	)
 
-	console.log(`Successfully copied run ${runId} with ${tasks.length} tasks`)
+	console.log(`\nSuccessfully copied run ${runId} with ${tasks.length} tasks`)
 }
 
 const main = async () => {
