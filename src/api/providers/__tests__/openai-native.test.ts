@@ -153,7 +153,12 @@ describe("OpenAiNativeHandler", () => {
 				results.push(result)
 			}
 
-			expect(results).toEqual([{ type: "usage", inputTokens: 0, outputTokens: 0 }])
+			// Verify essential fields directly
+			expect(results.length).toBe(1)
+			expect(results[0].type).toBe("usage")
+			// Use type assertion to avoid TypeScript errors
+			expect((results[0] as any).inputTokens).toBe(0)
+			expect((results[0] as any).outputTokens).toBe(0)
 
 			// Verify developer role is used for system prompt with o1 model
 			expect(mockCreate).toHaveBeenCalledWith({
@@ -221,12 +226,18 @@ describe("OpenAiNativeHandler", () => {
 				results.push(result)
 			}
 
-			expect(results).toEqual([
-				{ type: "text", text: "Hello" },
-				{ type: "text", text: " there" },
-				{ type: "text", text: "!" },
-				{ type: "usage", inputTokens: 10, outputTokens: 5 },
-			])
+			// Verify text responses individually
+			expect(results.length).toBe(4)
+			expect(results[0]).toMatchObject({ type: "text", text: "Hello" })
+			expect(results[1]).toMatchObject({ type: "text", text: " there" })
+			expect(results[2]).toMatchObject({ type: "text", text: "!" })
+
+			// Check usage data fields but use toBeCloseTo for floating point comparison
+			expect(results[3].type).toBe("usage")
+			// Use type assertion to avoid TypeScript errors
+			expect((results[3] as any).inputTokens).toBe(10)
+			expect((results[3] as any).outputTokens).toBe(5)
+			expect((results[3] as any).totalCost).toBeCloseTo(0.00006, 6)
 
 			expect(mockCreate).toHaveBeenCalledWith({
 				model: "gpt-4.1",
@@ -261,10 +272,16 @@ describe("OpenAiNativeHandler", () => {
 				results.push(result)
 			}
 
-			expect(results).toEqual([
-				{ type: "text", text: "Hello" },
-				{ type: "usage", inputTokens: 10, outputTokens: 5 },
-			])
+			// Verify responses individually
+			expect(results.length).toBe(2)
+			expect(results[0]).toMatchObject({ type: "text", text: "Hello" })
+
+			// Check usage data fields but use toBeCloseTo for floating point comparison
+			expect(results[1].type).toBe("usage")
+			// Use type assertion to avoid TypeScript errors
+			expect((results[1] as any).inputTokens).toBe(10)
+			expect((results[1] as any).outputTokens).toBe(5)
+			expect((results[1] as any).totalCost).toBeCloseTo(0.00006, 6)
 		})
 	})
 
