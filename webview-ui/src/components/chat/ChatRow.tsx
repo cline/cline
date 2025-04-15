@@ -1295,12 +1295,8 @@ export const ChatRowContent = ({
 							<OptionsButtons
 								options={options}
 								selected={selected}
-<<<<<<< HEAD
 								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_respond"}
-=======
-								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_response"}
 								inputValue={inputValue}
->>>>>>> 31f8a323 (- add ability to send context with an options selection)
 							/>
 						</div>
 					)
