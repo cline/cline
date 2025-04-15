@@ -2136,23 +2136,17 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	// Add new method to the class
 	async optimizePrompt(prompt: string, modelId: string): Promise<string> {
 		try {
-			// Get API configuration
 			const { apiConfiguration } = await getAllExtensionState(this.context)
 
-			// Use buildApiHandler to create API handler, which utilizes the user's configured API service
 			const api = buildApiHandler(apiConfiguration)
 
-			// Build system prompt for prompt optimization
 			const systemPrompt =
 				"Please help me optimize the following prompt to make it clearer, more specific, and easier for AI models to understand. Maintain the original intent, but add necessary details and structure. Only return the optimized prompt without any explanations or comments."
 
-			// Build message with correct type
 			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: prompt }]
 
-			// Create message stream
 			const messageStream = api.createMessage(systemPrompt, messages)
 
-			// Collect response content
 			let responseText = ""
 			for await (const chunk of messageStream) {
 				if (chunk.type === "text") {
