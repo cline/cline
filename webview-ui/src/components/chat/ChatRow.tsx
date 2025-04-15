@@ -17,7 +17,6 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
-import { useChatRowStyles } from "@/hooks/useChatRowStyles"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
@@ -50,16 +49,9 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
-	rowIndex: number
-	hoveredRowIndex: number | null
-	setHoveredRowIndex: React.Dispatch<React.SetStateAction<number | null>>
 }
 
-interface ChatRowContentProps
-	extends Omit<ChatRowProps, "onHeightChange" | "rowIndex" | "hoveredRowIndex" | "setHoveredRowIndex"> {
-	rowIndex: number
-	hoveredRowIndex: number | null
-}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 export const ProgressIndicator = () => (
 	<div
@@ -92,19 +84,14 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage, rowIndex, hoveredRowIndex, setHoveredRowIndex } = props
+		const { isLast, onHeightChange, message, lastModifiedMessage } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
-		// Calculate dynamic styles using the custom hook
-		const { padding, minHeight } = useChatRowStyles(message, hoveredRowIndex, rowIndex)
 
 		const [chatrow, { height }] = useSize(
-			<ChatRowContainer
-				style={{ padding, minHeight }}
-				onMouseEnter={() => setHoveredRowIndex(rowIndex)}
-				onMouseLeave={() => setHoveredRowIndex(null)}>
-				<ChatRowContent {...props} rowIndex={rowIndex} hoveredRowIndex={hoveredRowIndex} />
+			<ChatRowContainer>
+				<ChatRowContent {...props} />
 			</ChatRowContainer>,
 		)
 
@@ -130,15 +117,7 @@ const ChatRow = memo(
 
 export default ChatRow
 
-export const ChatRowContent = ({
-	message,
-	isExpanded,
-	onToggleExpand,
-	lastModifiedMessage,
-	isLast,
-	rowIndex,
-	hoveredRowIndex,
-}: ChatRowContentProps) => {
+export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -349,13 +328,20 @@ export const ChatRowContent = ({
 	}, [message.ask, message.say, message.text])
 
 	if (tool) {
-		const toolIcon = (name: string) => (
+		const colorMap = {
+			red: "var(--vscode-errorForeground)",
+			yellow: "var(--vscode-editorWarning-foreground)",
+			green: "var(--vscode-charts-green)",
+		}
+		const toolIcon = (name: string, color?: string, rotation?: number, title?: string) => (
 			<span
 				className={`codicon codicon-${name}`}
 				style={{
-					color: "var(--vscode-foreground)",
+					color: color ? colorMap[color as keyof typeof colorMap] || color : "var(--vscode-foreground)",
 					marginBottom: "-1.5px",
-				}}></span>
+					transform: rotation ? `rotate(${rotation}deg)` : undefined,
+				}}
+				title={title}></span>
 		)
 
 		switch (tool.tool) {
@@ -364,6 +350,8 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("edit")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 						</div>
 						<CodeAccordian
@@ -380,6 +368,8 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 						</div>
 						<CodeAccordian
@@ -396,6 +386,8 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
 								Cline wants to read this file:
@@ -454,6 +446,8 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("folder-opened")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
 									? "Cline wants to view the top level files in this directory:"
@@ -474,6 +468,8 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("folder-opened")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
 									? "Cline wants to recursively view all files in this directory:"
@@ -494,6 +490,8 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
 									? "Cline wants to view source code definition names used in this directory:"
@@ -513,6 +511,8 @@ export const ChatRowContent = ({
 					<>
 						<div style={headerStyle}>
 							{toolIcon("search")}
+							{!tool.operationIsLocatedInWorkspace &&
+								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								Cline wants to search this directory for <code>{tool.regex}</code>:
 							</span>
@@ -988,17 +988,25 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "checkpoint_created":
-					// Determine if the hover is near the checkpoint marker's visual position (either on the preceding row or the checkpoint row itself)
-					const isHoveredNearCheckpoint = hoveredRowIndex === rowIndex - 1 || hoveredRowIndex === rowIndex
-
 					return (
 						<>
-							<CheckmarkControl
-								messageTs={message.ts}
-								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
-								isHoveredNearCheckpoint={isHoveredNearCheckpoint}
-							/>
+							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
 						</>
+					)
+				case "load_mcp_documentation":
+					return (
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								color: "var(--vscode-foreground)",
+								opacity: 0.7,
+								fontSize: 12,
+								padding: "4px 0",
+							}}>
+							<i className="codicon codicon-book" style={{ marginRight: 6 }} />
+							Loading MCP documentation
+						</div>
 					)
 				case "completion_result":
 					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false

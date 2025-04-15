@@ -1,3 +1,5 @@
+import type { LanguageModelChatSelector } from "../api/providers/types"
+
 export type ApiProvider =
 	| "anthropic"
 	| "openrouter"
@@ -60,24 +62,27 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
+	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
-	vsCodeLmModelSelector?: any
+	vsCodeLmModelSelector?: LanguageModelChatSelector
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	reasoningEffort?: string
 	sambanovaApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
+	favoritedModelIds?: string[]
 }
 
 // Models
@@ -599,8 +604,35 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4.1"
 export const openAiNativeModels = {
+	"gpt-4.1": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2,
+		outputPrice: 8,
+		cacheReadsPrice: 0.5,
+	},
+	"gpt-4.1-mini": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.4,
+		outputPrice: 1.6,
+		cacheReadsPrice: 0.1,
+	},
+	"gpt-4.1-nano": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+	},
 	"o3-mini": {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
@@ -1164,6 +1196,26 @@ export const doubaoModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 	},
+	"deepseek-v3-250324": {
+		maxTokens: 12_288,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"deepseek-r1-250120": {
+		maxTokens: 32_768,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.09,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Mistral
@@ -1533,3 +1585,19 @@ export const sambanovaModels = {
 		outputPrice: 1.5,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Requesty
+// https://requesty.ai/models
+export const requestyDefaultModelId = "anthropic/claude-3-7-sonnet-latest"
+export const requestyDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsComputerUse: false,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+}

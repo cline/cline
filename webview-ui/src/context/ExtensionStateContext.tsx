@@ -2,7 +2,14 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
-import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import {
+	ApiConfiguration,
+	ModelInfo,
+	openRouterDefaultModelId,
+	openRouterDefaultModelInfo,
+	requestyDefaultModelId,
+	requestyDefaultModelInfo,
+} from "../../../src/shared/api"
 import { findLastIndex } from "@shared/array"
 import { McpMarketplaceCatalog, McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -14,9 +21,10 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
-	theme: any
+	theme: Record<string, string> | undefined
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
+	requestyModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
@@ -48,7 +56,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
-	const [theme, setTheme] = useState<any>(undefined)
+	const [theme, setTheme] = useState<Record<string, string>>()
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
@@ -56,6 +64,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
+	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
+		[requestyDefaultModelId]: requestyDefaultModelInfo,
+	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -130,6 +141,14 @@ export const ExtensionStateContextProvider: React.FC<{
 				setOpenAiModels(updatedModels)
 				break
 			}
+			case "requestyModels": {
+				const updatedModels = message.requestyModels ?? {}
+				setRequestyModels({
+					[requestyDefaultModelId]: requestyDefaultModelInfo,
+					...updatedModels,
+				})
+				break
+			}
 			case "mcpServers": {
 				setMcpServers(message.mcpServers ?? [])
 				break
@@ -160,6 +179,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		theme,
 		openRouterModels,
 		openAiModels,
+		requestyModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		filePaths,

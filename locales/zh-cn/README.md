@@ -1,4 +1,4 @@
-# Cline – OpenRouter 排名第一的 AI 工具
+# Cline
 
 <p align="center">
     <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />

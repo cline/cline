@@ -131,6 +131,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		return false
 	}, [messages, lastModifiedMessage, isLast])
 
+	// If last message is a resume, it means the task was cancelled and the browser was closed
+	const isLastMessageResume = useMemo(() => {
+		// Check if last message is resume completion
+		return lastModifiedMessage?.ask === "resume_task" || lastModifiedMessage?.ask === "resume_completed_task"
+	}, [lastModifiedMessage?.ask])
+
 	const isBrowsing = useMemo(() => {
 		return isLast && messages.some((m) => m.say === "browser_action_result") && !isLastApiReqInterrupted // after user approves, browser_action_result with "" is sent to indicate that the session has started
 	}, [isLast, messages, isLastApiReqInterrupted])
@@ -275,19 +281,11 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				consoleLogs: currentPage?.currentState.consoleLogs,
 				screenshot: currentPage?.currentState.screenshot,
 			}
-	const [rowIndex, setRowIndex] = useState<number>(0)
-	const [hoveredRowIndex, setHoveredRowIndex] = useState<number | null>(null)
+
 	const [actionContent, { height: actionHeight }] = useSize(
 		<div>
 			{currentPage?.nextAction?.messages.map((message) => (
-				<BrowserSessionRowContent
-					key={message.ts}
-					{...props}
-					message={message}
-					setMaxActionHeight={setMaxActionHeight}
-					rowIndex={rowIndex}
-					hoveredRowIndex={hoveredRowIndex}
-				/>
+				<BrowserSessionRowContent key={message.ts} {...props} message={message} setMaxActionHeight={setMaxActionHeight} />
 			))}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
 				<BrowserActionBox action={"launch"} text={initialUrl} />
@@ -343,7 +341,11 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		// Which will cause `Uncaught TypeError: Cannot assign to read only property 'position' of object '#<Object>'`
 		<BrowserSessionRowContainer style={{ marginBottom: -10 }}>
 			<div style={browserSessionRowContainerInnerStyle}>
-				{isBrowsing ? <ProgressIndicator /> : <span className="codicon codicon-inspect" style={browserIconStyle}></span>}
+				{isBrowsing && !isLastMessageResume ? (
+					<ProgressIndicator />
+				) : (
+					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
+				)}
 				<span style={approveTextStyle}>
 					<>{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}</>
 				</span>
@@ -481,8 +483,6 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages"> {
 	message: ClineMessage
 	setMaxActionHeight: (height: number) => void
-	rowIndex: number
-	hoveredRowIndex: number | null
 }
 
 const BrowserSessionRowContent = ({
@@ -492,8 +492,6 @@ const BrowserSessionRowContent = ({
 	lastModifiedMessage,
 	isLast,
 	setMaxActionHeight,
-	rowIndex,
-	hoveredRowIndex,
 }: BrowserSessionRowContentProps) => {
 	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 		return (
@@ -516,8 +514,6 @@ const BrowserSessionRowContent = ({
 					return (
 						<div style={chatRowContentContainerStyle}>
 							<ChatRowContent
-								rowIndex={rowIndex}
-								hoveredRowIndex={hoveredRowIndex}
 								message={message}
 								isExpanded={isExpanded(message.ts)}
 								onToggleExpand={() => {

@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../package.json"
 
 import type { TaskFeedbackType } from "../../shared/WebviewMessage"
+import type { BrowserSettings } from "../../shared/BrowserSettings"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
@@ -71,6 +72,8 @@ class PostHogClient {
 			PLAN_MODE_TOGGLED: "ui.plan_mode_toggled",
 			// Tracks when action mode is toggled on
 			ACT_MODE_TOGGLED: "ui.act_mode_toggled",
+			// Tracks when users use the "favorite" button in the model picker
+			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 		},
 	}
 
@@ -472,7 +475,7 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param browserSettings The browser settings being used
 	 */
-	public captureBrowserToolStart(taskId: string, browserSettings: any) {
+	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
 			properties: {
@@ -570,6 +573,21 @@ class PostHogClient {
 				taskId,
 				qty,
 				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when the user uses the model favorite button in the model picker
+	 * @param model The name of the model the user has interacted with
+	 * @param isFavorited Whether the model is being favorited (true) or unfavorited (false)
+	 */
+	public captureModelFavoritesUsage(model: string, isFavorited: boolean) {
+		this.capture({
+			event: PostHogClient.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
+			properties: {
+				model,
+				isFavorited,
 			},
 		})
 	}
