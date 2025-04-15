@@ -28,6 +28,7 @@ class PostHogClient {
 			CHECKPOINT_RESTORED: "Checkpoint Restored",
 			CHECKPOINT_DIFFED: "Checkpoint Diffed",
 			CODE_ACTION_USED: "Code Action Used",
+			PROMPT_ENHANCED: "Prompt Enhanced",
 		},
 		ERRORS: {
 			SCHEMA_VALIDATION_ERROR: "Schema Validation Error",
@@ -272,6 +273,12 @@ class TelemetryService {
 	public captureCodeActionUsed(actionType: string): void {
 		this.captureEvent(PostHogClient.EVENTS.TASK.CODE_ACTION_USED, {
 			actionType,
+		})
+	}
+
+	public capturePromptEnhanced(taskId?: string): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.PROMPT_ENHANCED, {
+			...(taskId && { taskId }),
 		})
 	}
 

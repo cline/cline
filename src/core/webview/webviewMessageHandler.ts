@@ -1020,6 +1020,10 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 						),
 					)
 
+					// Capture telemetry for prompt enhancement
+					const currentCline = provider.getCurrentCline()
+					telemetryService.capturePromptEnhanced(currentCline?.taskId)
+
 					await provider.postMessageToWebview({
 						type: "enhancedPrompt",
 						text: enhancedPrompt,
