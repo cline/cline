@@ -96,6 +96,33 @@ jest.mock("../ThinkingBudget", () => ({
 		) : null,
 }))
 
+// Mock DiffSettingsControl for tests
+jest.mock("../DiffSettingsControl", () => ({
+	DiffSettingsControl: ({ diffEnabled, fuzzyMatchThreshold, onChange }: any) => (
+		<div data-testid="diff-settings-control">
+			<label>
+				Enable editing through diffs
+				<input
+					type="checkbox"
+					checked={diffEnabled}
+					onChange={(e) => onChange("diffEnabled", e.target.checked)}
+				/>
+			</label>
+			<div>
+				Fuzzy match threshold
+				<input
+					type="range"
+					value={fuzzyMatchThreshold || 1.0}
+					onChange={(e) => onChange("fuzzyMatchThreshold", parseFloat(e.target.value))}
+					min={0.8}
+					max={1}
+					step={0.005}
+				/>
+			</div>
+		</div>
+	),
+}))
+
 const renderApiOptions = (props = {}) => {
 	const queryClient = new QueryClient()
 
@@ -116,14 +143,23 @@ const renderApiOptions = (props = {}) => {
 }
 
 describe("ApiOptions", () => {
-	it("shows temperature and rate limit controls by default", () => {
-		renderApiOptions()
+	it("shows diff settings, temperature and rate limit controls by default", () => {
+		renderApiOptions({
+			apiConfiguration: {
+				diffEnabled: true,
+				fuzzyMatchThreshold: 0.95,
+			},
+		})
+		// Check for DiffSettingsControl by looking for text content
+		expect(screen.getByText(/enable editing through diffs/i)).toBeInTheDocument()
 		expect(screen.getByTestId("temperature-control")).toBeInTheDocument()
 		expect(screen.getByTestId("rate-limit-seconds-control")).toBeInTheDocument()
 	})
 
-	it("hides temperature and rate limit controls when fromWelcomeView is true", () => {
+	it("hides all controls when fromWelcomeView is true", () => {
 		renderApiOptions({ fromWelcomeView: true })
+		// Check for absence of DiffSettingsControl text
+		expect(screen.queryByText(/enable editing through diffs/i)).not.toBeInTheDocument()
 		expect(screen.queryByTestId("temperature-control")).not.toBeInTheDocument()
 		expect(screen.queryByTestId("rate-limit-seconds-control")).not.toBeInTheDocument()
 	})

@@ -12,9 +12,7 @@ import { Section } from "./Section"
 import { ExperimentalFeature } from "./ExperimentalFeature"
 
 type ExperimentalSettingsProps = HTMLAttributes<HTMLDivElement> & {
-	setCachedStateField: SetCachedStateField<
-		"terminalOutputLineLimit" | "maxOpenTabsContext" | "diffEnabled" | "fuzzyMatchThreshold"
-	>
+	setCachedStateField: SetCachedStateField<"terminalOutputLineLimit" | "maxOpenTabsContext">
 	experiments: Record<ExperimentId, boolean>
 	setExperimentEnabled: SetExperimentEnabled
 }

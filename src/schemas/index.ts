@@ -401,6 +401,8 @@ export const providerSettingsSchema = z.object({
 	modelTemperature: z.number().nullish(),
 	reasoningEffort: reasoningEffortsSchema.optional(),
 	rateLimitSeconds: z.number().optional(),
+	diffEnabled: z.boolean().optional(),
+	fuzzyMatchThreshold: z.number().optional(),
 	// Fake AI
 	fakeAi: z.unknown().optional(),
 })
@@ -490,6 +492,8 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	modelTemperature: undefined,
 	reasoningEffort: undefined,
 	rateLimitSeconds: undefined,
+	diffEnabled: undefined,
+	fuzzyMatchThreshold: undefined,
 	// Fake AI
 	fakeAi: undefined,
 }

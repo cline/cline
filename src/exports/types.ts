@@ -183,6 +183,8 @@ type ProviderSettings = {
 	modelTemperature?: (number | null) | undefined
 	reasoningEffort?: ("low" | "medium" | "high") | undefined
 	rateLimitSeconds?: number | undefined
+	diffEnabled?: boolean | undefined
+	fuzzyMatchThreshold?: number | undefined
 	fakeAi?: unknown | undefined
 }
 

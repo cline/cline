@@ -41,7 +41,7 @@ describe("ProviderSettingsManager", () => {
 			expect(mockSecrets.store).not.toHaveBeenCalled()
 		})
 
-		it("should not initialize config if it exists", async () => {
+		it("should not initialize config if it exists and migrations are complete", async () => {
 			mockSecrets.get.mockResolvedValue(
 				JSON.stringify({
 					currentApiConfigName: "default",
@@ -49,10 +49,13 @@ describe("ProviderSettingsManager", () => {
 						default: {
 							config: {},
 							id: "default",
+							diffEnabled: true,
+							fuzzyMatchThreshold: 1.0,
 						},
 					},
 					migrations: {
 						rateLimitSecondsMigrated: true,
+						diffSettingsMigrated: true,
 					},
 				}),
 			)
@@ -75,6 +78,10 @@ describe("ProviderSettingsManager", () => {
 							apiProvider: "anthropic",
 						},
 					},
+					migrations: {
+						rateLimitSecondsMigrated: true,
+						diffSettingsMigrated: true,
+					},
 				}),
 			)
 
@@ -82,7 +89,8 @@ describe("ProviderSettingsManager", () => {
 
 			// Should have written the config with new IDs
 			expect(mockSecrets.store).toHaveBeenCalled()
-			const storedConfig = JSON.parse(mockSecrets.store.mock.calls[0][1])
+			const calls = mockSecrets.store.mock.calls
+			const storedConfig = JSON.parse(calls[calls.length - 1][1]) // Get the latest call
 			expect(storedConfig.apiConfigs.default.id).toBeTruthy()
 			expect(storedConfig.apiConfigs.test.id).toBeTruthy()
 		})

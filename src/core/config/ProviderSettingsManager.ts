@@ -16,6 +16,7 @@ export const providerProfilesSchema = z.object({
 	migrations: z
 		.object({
 			rateLimitSecondsMigrated: z.boolean().optional(),
+			diffSettingsMigrated: z.boolean().optional(),
 		})
 		.optional(),
 })
@@ -36,6 +37,7 @@ export class ProviderSettingsManager {
 		modeApiConfigs: this.defaultModeApiConfigs,
 		migrations: {
 			rateLimitSecondsMigrated: true, // Mark as migrated on fresh installs
+			diffSettingsMigrated: true, // Mark as migrated on fresh installs
 		},
 	}
 
@@ -85,13 +87,22 @@ export class ProviderSettingsManager {
 
 				// Ensure migrations field exists
 				if (!providerProfiles.migrations) {
-					providerProfiles.migrations = { rateLimitSecondsMigrated: false } // Initialize with default values
+					providerProfiles.migrations = {
+						rateLimitSecondsMigrated: false,
+						diffSettingsMigrated: false,
+					} // Initialize with default values
 					isDirty = true
 				}
 
 				if (!providerProfiles.migrations.rateLimitSecondsMigrated) {
 					await this.migrateRateLimitSeconds(providerProfiles)
 					providerProfiles.migrations.rateLimitSecondsMigrated = true
+					isDirty = true
+				}
+
+				if (!providerProfiles.migrations.diffSettingsMigrated) {
+					await this.migrateDiffSettings(providerProfiles)
+					providerProfiles.migrations.diffSettingsMigrated = true
 					isDirty = true
 				}
 
@@ -126,6 +137,41 @@ export class ProviderSettingsManager {
 			}
 		} catch (error) {
 			console.error(`[MigrateRateLimitSeconds] Failed to migrate rate limit settings:`, error)
+		}
+	}
+
+	private async migrateDiffSettings(providerProfiles: ProviderProfiles) {
+		try {
+			let diffEnabled: boolean | undefined
+			let fuzzyMatchThreshold: number | undefined
+
+			try {
+				diffEnabled = await this.context.globalState.get<boolean>("diffEnabled")
+				fuzzyMatchThreshold = await this.context.globalState.get<number>("fuzzyMatchThreshold")
+			} catch (error) {
+				console.error("[MigrateDiffSettings] Error getting global diff settings:", error)
+			}
+
+			if (diffEnabled === undefined) {
+				// Failed to get the existing value, use the default.
+				diffEnabled = true
+			}
+
+			if (fuzzyMatchThreshold === undefined) {
+				// Failed to get the existing value, use the default.
+				fuzzyMatchThreshold = 1.0
+			}
+
+			for (const [name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
+				if (apiConfig.diffEnabled === undefined) {
+					apiConfig.diffEnabled = diffEnabled
+				}
+				if (apiConfig.fuzzyMatchThreshold === undefined) {
+					apiConfig.fuzzyMatchThreshold = fuzzyMatchThreshold
+				}
+			}
+		} catch (error) {
+			console.error(`[MigrateDiffSettings] Failed to migrate diff settings:`, error)
 		}
 	}
 

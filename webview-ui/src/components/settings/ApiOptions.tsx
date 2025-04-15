@@ -53,6 +53,7 @@ import { ModelInfoView } from "./ModelInfoView"
 import { ModelPicker } from "./ModelPicker"
 import { TemperatureControl } from "./TemperatureControl"
 import { RateLimitSecondsControl } from "./RateLimitSecondsControl"
+import { DiffSettingsControl } from "./DiffSettingsControl"
 import { ApiErrorMessage } from "./ApiErrorMessage"
 import { ThinkingBudget } from "./ThinkingBudget"
 import { R1FormatSetting } from "./R1FormatSetting"
@@ -1681,6 +1682,11 @@ const ApiOptions = ({
 
 			{!fromWelcomeView && (
 				<>
+					<DiffSettingsControl
+						diffEnabled={apiConfiguration.diffEnabled}
+						fuzzyMatchThreshold={apiConfiguration.fuzzyMatchThreshold}
+						onChange={(field, value) => setApiConfigurationField(field, value)}
+					/>
 					<TemperatureControl
 						value={apiConfiguration?.modelTemperature}
 						onChange={handleInputChange("modelTemperature", noTransform)}
