@@ -923,7 +923,7 @@ export class Controller {
 				}
 
 				try {
-					const optimizedPrompt = await this.optimizePrompt(message.prompt, message.model)
+					const optimizedPrompt = await this.optimizationPromptRequest(message.prompt, message.model)
 
 					await this.postMessageToWebview({
 						type: "optimizedPromptResult",
