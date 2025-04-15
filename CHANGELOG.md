@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.11.17] - 2025-04-14
+
+- Improvements to OpenAI cache reporting and cost estimates (thanks @monotykamary and Cline!)
+- Visual improvements to the auto-approve toggles (thanks @sachasayan!)
+- Bugfix to diff apply logic (thanks @avtc for the test case!) and telemetry to track errors going forward
+- Fix race condition in capturing short-running terminal commands (thanks @KJ7LNW!)
+- Fix eslint error (thanks @nobu007!)
+
 ## [3.11.16] - 2025-04-14
 
 - Add gpt-4.1, gpt-4.1-mini, and gpt-4.1-nano to the OpenAI provider
