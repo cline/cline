@@ -1653,6 +1653,13 @@ export class Task {
 					await this.browserSession.closeBrowser()
 				}
 
+				// Check if tool is allowed in current mode
+				if (this.chatSettings.mode === "plan" && (block.name === "write_to_file" || block.name === "replace_in_file")) {
+					this.consecutiveMistakeCount++
+					pushToolResult(formatResponse.toolError(formatResponse.planModeEditToolError()))
+					break
+				}
+
 				switch (block.name) {
 					case "write_to_file":
 					case "replace_in_file": {
@@ -3098,7 +3105,7 @@ export class Task {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
