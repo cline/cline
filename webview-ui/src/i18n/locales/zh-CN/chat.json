@@ -171,41 +171,7 @@
 	"autoApprove": {
 		"title": "自动批准:",
 		"none": "无",
-		"description": "允许直接执行操作无需确认，请谨慎启用。前往<settingsLink>设置</settingsLink>调整",
-		"actions": {
-			"readFiles": {
-				"label": "读取",
-				"description": "允许读取系统中的文件内容"
-			},
-			"editFiles": {
-				"label": "编辑",
-				"description": "允许修改系统中的文件"
-			},
-			"executeCommands": {
-				"label": "命令",
-				"description": "允许执行终端命令。"
-			},
-			"useBrowser": {
-				"label": "浏览器",
-				"description": "允许通过无头浏览器访问网站"
-			},
-			"useMcp": {
-				"label": "MCP",
-				"description": "允许访问配置好的 MCP 服务（可能涉及文件系统或API操作）"
-			},
-			"switchModes": {
-				"label": "模式",
-				"description": "允许自动切换工作模式"
-			},
-			"subtasks": {
-				"label": "子任务",
-				"description": "允许自主创建和管理子任务"
-			},
-			"retryRequests": {
-				"label": "重试",
-				"description": "API请求失败时自动重试"
-			}
-		}
+		"description": "允许直接执行操作无需确认，请谨慎启用。前往<settingsLink>设置</settingsLink>调整"
 	},
 	"reasoning": {
 		"thinking": "思考中",

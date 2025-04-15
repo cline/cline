@@ -171,41 +171,7 @@
 	"autoApprove": {
 		"title": "Auto-approbation :",
 		"none": "Aucune",
-		"description": "L'auto-approbation permet à Roo Code d'effectuer des actions sans demander d'autorisation. Activez-la uniquement pour les actions auxquelles vous faites entièrement confiance. Configuration plus détaillée disponible dans les <settingsLink>Paramètres</settingsLink>.",
-		"actions": {
-			"readFiles": {
-				"label": "Lecture",
-				"description": "Permet l'accès en lecture à n'importe quel fichier sur votre ordinateur."
-			},
-			"editFiles": {
-				"label": "Édition",
-				"description": "Permet la modification de n'importe quel fichier sur votre ordinateur."
-			},
-			"executeCommands": {
-				"label": "Commandes",
-				"description": "Permet l'exécution de commandes de terminal approuvées. Vous pouvez configurer cela dans le panneau des paramètres."
-			},
-			"useBrowser": {
-				"label": "Navigateur",
-				"description": "Permet de lancer et d'interagir avec n'importe quel site web dans un navigateur sans interface."
-			},
-			"useMcp": {
-				"label": "MCP",
-				"description": "Permet l'utilisation de serveurs MCP configurés qui peuvent modifier le système de fichiers ou interagir avec des APIs."
-			},
-			"switchModes": {
-				"label": "Modes",
-				"description": "Permet le changement automatique entre différents modes sans nécessiter d'approbation."
-			},
-			"subtasks": {
-				"label": "Sous-tâches",
-				"description": "Permet la création et l'achèvement de sous-tâches sans nécessiter d'approbation."
-			},
-			"retryRequests": {
-				"label": "Réessais",
-				"description": "Réessaie automatiquement les requêtes API échouées lorsque le fournisseur renvoie une réponse d'erreur."
-			}
-		}
+		"description": "L'auto-approbation permet à Roo Code d'effectuer des actions sans demander d'autorisation. Activez-la uniquement pour les actions auxquelles vous faites entièrement confiance. Configuration plus détaillée disponible dans les <settingsLink>Paramètres</settingsLink>."
 	},
 	"reasoning": {
 		"thinking": "Réflexion",

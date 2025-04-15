@@ -171,41 +171,7 @@
 	"autoApprove": {
 		"title": "Aprovació automàtica:",
 		"none": "Cap",
-		"description": "L'aprovació automàtica permet a Roo Code realitzar accions sense demanar permís. Activa-la només per a accions en les que confies plenament. Configuració més detallada disponible a la <settingsLink>Configuració</settingsLink>.",
-		"actions": {
-			"readFiles": {
-				"label": "Llegir",
-				"description": "Permet l'accés per llegir qualsevol fitxer al teu ordinador."
-			},
-			"editFiles": {
-				"label": "Editar",
-				"description": "Permet la modificació de qualsevol fitxer al teu ordinador."
-			},
-			"executeCommands": {
-				"label": "Ordres",
-				"description": "Permet l'execució d'ordres de terminal aprovades. Pots configurar-ho al panell de configuració."
-			},
-			"useBrowser": {
-				"label": "Navegador",
-				"description": "Permet la capacitat d'iniciar i interactuar amb qualsevol lloc web en un navegador headless."
-			},
-			"useMcp": {
-				"label": "MCP",
-				"description": "Permet l'ús de servidors MCP configurats que poden modificar el sistema de fitxers o interactuar amb APIs."
-			},
-			"switchModes": {
-				"label": "Modes",
-				"description": "Permet el canvi automàtic entre diferents modes sense requerir aprovació."
-			},
-			"subtasks": {
-				"label": "Subtasques",
-				"description": "Permet la creació i finalització de subtasques sense requerir aprovació."
-			},
-			"retryRequests": {
-				"label": "Reintents",
-				"description": "Reintenta automàticament les sol·licituds API fallides quan el proveïdor retorna una resposta d'error."
-			}
-		}
+		"description": "L'aprovació automàtica permet a Roo Code realitzar accions sense demanar permís. Activa-la només per a accions en les que confies plenament. Configuració més detallada disponible a la <settingsLink>Configuració</settingsLink>."
 	},
 	"reasoning": {
 		"thinking": "Pensant",

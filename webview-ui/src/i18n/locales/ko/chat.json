@@ -171,41 +171,7 @@
 	"autoApprove": {
 		"title": "자동 승인:",
 		"none": "없음",
-		"description": "자동 승인을 사용하면 Roo Code가 권한을 요청하지 않고 작업을 수행할 수 있습니다. 완전히 신뢰할 수 있는 작업에만 활성화하세요. 더 자세한 구성은 <settingsLink>설정</settingsLink>에서 사용할 수 있습니다.",
-		"actions": {
-			"readFiles": {
-				"label": "읽기",
-				"description": "컴퓨터의 모든 파일을 읽을 수 있는 액세스 권한을 허용합니다."
-			},
-			"editFiles": {
-				"label": "편집",
-				"description": "컴퓨터의 모든 파일을 수정할 수 있는 권한을 허용합니다."
-			},
-			"executeCommands": {
-				"label": "명령",
-				"description": "승인된 터미널 명령 실행을 허용합니다. 설정 패널에서 구성할 수 있습니다."
-			},
-			"useBrowser": {
-				"label": "브라우저",
-				"description": "헤드리스 브라우저에서 모든 웹사이트를 실행하고 상호작용할 수 있는 기능을 허용합니다."
-			},
-			"useMcp": {
-				"label": "MCP",
-				"description": "파일 시스템을 수정하거나 API와 상호작용할 수 있는 구성된 MCP 서버 사용을 허용합니다."
-			},
-			"switchModes": {
-				"label": "모드",
-				"description": "승인 없이 다른 모드 간 자동 전환을 허용합니다."
-			},
-			"subtasks": {
-				"label": "하위 작업",
-				"description": "승인 없이 하위 작업 생성 및 완료를 허용합니다."
-			},
-			"retryRequests": {
-				"label": "재시도",
-				"description": "제공자가 오류 응답을 반환할 때 실패한 API 요청을 자동으로 재시도합니다."
-			}
-		}
+		"description": "자동 승인을 사용하면 Roo Code가 권한을 요청하지 않고 작업을 수행할 수 있습니다. 완전히 신뢰할 수 있는 작업에만 활성화하세요. 더 자세한 구성은 <settingsLink>설정</settingsLink>에서 사용할 수 있습니다."
 	},
 	"reasoning": {
 		"thinking": "생각 중",

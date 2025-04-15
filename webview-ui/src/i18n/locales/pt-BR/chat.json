@@ -171,41 +171,7 @@
 	"autoApprove": {
 		"title": "Aprovação automática:",
 		"none": "Nenhuma",
-		"description": "A aprovação automática permite que o Roo Code execute ações sem pedir permissão. Ative apenas para ações nas quais você confia totalmente. Configuração mais detalhada disponível nas <settingsLink>Configurações</settingsLink>.",
-		"actions": {
-			"readFiles": {
-				"label": "Leitura",
-				"description": "Permite acesso para ler qualquer arquivo em seu computador."
-			},
-			"editFiles": {
-				"label": "Edição",
-				"description": "Permite a modificação de quaisquer arquivos em seu computador."
-			},
-			"executeCommands": {
-				"label": "Comandos",
-				"description": "Permite a execução de comandos de terminal aprovados. Você pode configurar isso no painel de configurações."
-			},
-			"useBrowser": {
-				"label": "Navegador",
-				"description": "Permite a capacidade de iniciar e interagir com qualquer site em um navegador headless."
-			},
-			"useMcp": {
-				"label": "MCP",
-				"description": "Permite o uso de servidores MCP configurados que podem modificar o sistema de arquivos ou interagir com APIs."
-			},
-			"switchModes": {
-				"label": "Modos",
-				"description": "Permite a alternância automática entre diferentes modos sem exigir aprovação."
-			},
-			"subtasks": {
-				"label": "Subtarefas",
-				"description": "Permite a criação e conclusão de subtarefas sem exigir aprovação."
-			},
-			"retryRequests": {
-				"label": "Retentativas",
-				"description": "Retenta automaticamente requisições de API falhas quando o provedor retorna uma resposta de erro."
-			}
-		}
+		"description": "A aprovação automática permite que o Roo Code execute ações sem pedir permissão. Ative apenas para ações nas quais você confia totalmente. Configuração mais detalhada disponível nas <settingsLink>Configurações</settingsLink>."
 	},
 	"reasoning": {
 		"thinking": "Pensando",

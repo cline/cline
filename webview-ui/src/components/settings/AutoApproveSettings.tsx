@@ -1,72 +1,15 @@
 import { HTMLAttributes, useState } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
-import { VSCodeButton, VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { X } from "lucide-react"
 
+import { useAppTranslation } from "@/i18n/TranslationContext"
+import { VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "@/utils/vscode"
 import { Button, Slider } from "@/components/ui"
 
 import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
-
-const AUTO_APPROVE_SETTINGS_CONFIG = [
-	{
-		key: "alwaysAllowReadOnly",
-		labelKey: "settings:autoApprove.readOnly.label",
-		descriptionKey: "settings:autoApprove.readOnly.description",
-		icon: "eye",
-		testId: "always-allow-readonly-toggle",
-	},
-	{
-		key: "alwaysAllowWrite",
-		labelKey: "settings:autoApprove.write.label",
-		descriptionKey: "settings:autoApprove.write.description",
-		icon: "edit",
-		testId: "always-allow-write-toggle",
-	},
-	{
-		key: "alwaysAllowBrowser",
-		labelKey: "settings:autoApprove.browser.label",
-		descriptionKey: "settings:autoApprove.browser.description",
-		icon: "globe",
-		testId: "always-allow-browser-toggle",
-	},
-	{
-		key: "alwaysApproveResubmit",
-		labelKey: "settings:autoApprove.retry.label",
-		descriptionKey: "settings:autoApprove.retry.description",
-		icon: "refresh",
-		testId: "always-approve-resubmit-toggle",
-	},
-	{
-		key: "alwaysAllowMcp",
-		labelKey: "settings:autoApprove.mcp.label",
-		descriptionKey: "settings:autoApprove.mcp.description",
-		icon: "plug",
-		testId: "always-allow-mcp-toggle",
-	},
-	{
-		key: "alwaysAllowModeSwitch",
-		labelKey: "settings:autoApprove.modeSwitch.label",
-		descriptionKey: "settings:autoApprove.modeSwitch.description",
-		icon: "sync",
-		testId: "always-allow-mode-switch-toggle",
-	},
-	{
-		key: "alwaysAllowSubtasks",
-		labelKey: "settings:autoApprove.subtasks.label",
-		descriptionKey: "settings:autoApprove.subtasks.description",
-		icon: "discard",
-		testId: "always-allow-subtasks-toggle",
-	},
-	{
-		key: "alwaysAllowExecute",
-		labelKey: "settings:autoApprove.execute.label",
-		descriptionKey: "settings:autoApprove.execute.description",
-		icon: "terminal",
-		testId: "always-allow-execute-toggle",
-	},
-]
+import { AutoApproveToggle } from "./AutoApproveToggle"
 
 type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	alwaysAllowReadOnly?: boolean
@@ -122,6 +65,7 @@ export const AutoApproveSettings = ({
 
 	const handleAddCommand = () => {
 		const currentCommands = allowedCommands ?? []
+
 		if (commandInput && !currentCommands.includes(commandInput)) {
 			const newCommands = [...currentCommands, commandInput]
 			setCachedStateField("allowedCommands", newCommands)
@@ -140,37 +84,17 @@ export const AutoApproveSettings = ({
 			</SectionHeader>
 
 			<Section>
-				<div className="grid grid-cols-2 [@media(min-width:320px)]:grid-cols-4 gap-2">
-					{AUTO_APPROVE_SETTINGS_CONFIG.map((cfg) => {
-						const boolValues = {
-							alwaysAllowReadOnly,
-							alwaysAllowWrite,
-							alwaysAllowBrowser,
-							alwaysApproveResubmit,
-							alwaysAllowMcp,
-							alwaysAllowModeSwitch,
-							alwaysAllowSubtasks,
-							alwaysAllowExecute,
-						}
-
-						const value = boolValues[cfg.key as keyof typeof boolValues] ?? false
-
-						return (
-							<Button
-								key={cfg.key}
-								variant={value ? "default" : "ghost"}
-								onClick={() => setCachedStateField(cfg.key as any, !value)}
-								title={t(cfg.descriptionKey || "")}
-								data-testid={cfg.testId}
-								className="h-12">
-								<span className="flex flex-col items-center gap-1">
-									<span className={`codicon codicon-${cfg.icon}`} />
-									<span className="text-sm text-center">{t(cfg.labelKey)}</span>
-								</span>
-							</Button>
-						)
-					})}
-				</div>
+				<AutoApproveToggle
+					alwaysAllowReadOnly={alwaysAllowReadOnly}
+					alwaysAllowWrite={alwaysAllowWrite}
+					alwaysAllowBrowser={alwaysAllowBrowser}
+					alwaysApproveResubmit={alwaysApproveResubmit}
+					alwaysAllowMcp={alwaysAllowMcp}
+					alwaysAllowModeSwitch={alwaysAllowModeSwitch}
+					alwaysAllowSubtasks={alwaysAllowSubtasks}
+					alwaysAllowExecute={alwaysAllowExecute}
+					onToggle={(key, value) => setCachedStateField(key, value)}
+				/>
 
 				{/* ADDITIONAL SETTINGS */}
 
@@ -293,29 +217,27 @@ export const AutoApproveSettings = ({
 								className="grow"
 								data-testid="command-input"
 							/>
-							<VSCodeButton onClick={handleAddCommand} data-testid="add-command-button">
+							<Button onClick={handleAddCommand} data-testid="add-command-button">
 								{t("settings:autoApprove.execute.addButton")}
-							</VSCodeButton>
+							</Button>
 						</div>
 
 						<div className="flex flex-wrap gap-2">
 							{(allowedCommands ?? []).map((cmd, index) => (
-								<div
+								<Button
 									key={index}
-									className="border border-vscode-input-border bg-primary text-primary-foreground flex items-center gap-1 rounded-xs px-1.5 p-0.5">
-									<span>{cmd}</span>
-									<VSCodeButton
-										appearance="icon"
-										className="text-primary-foreground"
-										data-testid={`remove-command-${index}`}
-										onClick={() => {
-											const newCommands = (allowedCommands ?? []).filter((_, i) => i !== index)
-											setCachedStateField("allowedCommands", newCommands)
-											vscode.postMessage({ type: "allowedCommands", commands: newCommands })
-										}}>
-										<span className="codicon codicon-close" />
-									</VSCodeButton>
-								</div>
+									variant="secondary"
+									data-testid={`remove-command-${index}`}
+									onClick={() => {
+										const newCommands = (allowedCommands ?? []).filter((_, i) => i !== index)
+										setCachedStateField("allowedCommands", newCommands)
+										vscode.postMessage({ type: "allowedCommands", commands: newCommands })
+									}}>
+									<div className="flex flex-row items-center gap-1">
+										<div>{cmd}</div>
+										<X className="text-primary-foreground scale-75" />
+									</div>
+								</Button>
 							))}
 						</div>
 					</div>

@@ -171,41 +171,7 @@
 	"autoApprove": {
 		"title": "Auto-approvazione:",
 		"none": "Nessuna",
-		"description": "L'auto-approvazione permette a Roo Code di eseguire azioni senza chiedere permesso. Abilita solo per azioni di cui ti fidi completamente. Configurazione più dettagliata disponibile nelle <settingsLink>Impostazioni</settingsLink>.",
-		"actions": {
-			"readFiles": {
-				"label": "Lettura",
-				"description": "Consente l'accesso per leggere qualsiasi file sul tuo computer."
-			},
-			"editFiles": {
-				"label": "Modifica",
-				"description": "Consente la modifica di qualsiasi file sul tuo computer."
-			},
-			"executeCommands": {
-				"label": "Comandi",
-				"description": "Consente l'esecuzione di comandi da terminale approvati. Puoi configurare questo nel pannello delle impostazioni."
-			},
-			"useBrowser": {
-				"label": "Browser",
-				"description": "Consente la capacità di avviare e interagire con qualsiasi sito web in un browser headless."
-			},
-			"useMcp": {
-				"label": "MCP",
-				"description": "Consente l'uso di server MCP configurati che possono modificare il filesystem o interagire con API."
-			},
-			"switchModes": {
-				"label": "Modalità",
-				"description": "Consente il passaggio automatico tra diverse modalità senza richiedere approvazione."
-			},
-			"subtasks": {
-				"label": "Sottoattività",
-				"description": "Consente la creazione e il completamento di sottoattività senza richiedere approvazione."
-			},
-			"retryRequests": {
-				"label": "Ritentativi",
-				"description": "Riprova automaticamente le richieste API fallite quando il provider restituisce una risposta di errore."
-			}
-		}
+		"description": "L'auto-approvazione permette a Roo Code di eseguire azioni senza chiedere permesso. Abilita solo per azioni di cui ti fidi completamente. Configurazione più dettagliata disponibile nelle <settingsLink>Impostazioni</settingsLink>."
 	},
 	"reasoning": {
 		"thinking": "Sto pensando",

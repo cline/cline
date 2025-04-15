@@ -171,41 +171,7 @@
 	"autoApprove": {
 		"title": "Automatyczne zatwierdzanie:",
 		"none": "Brak",
-		"description": "Automatyczne zatwierdzanie pozwala Roo Code wykonywać działania bez pytania o pozwolenie. Włącz tylko dla działań, którym w pełni ufasz. Bardziej szczegółowa konfiguracja dostępna w <settingsLink>Ustawieniach</settingsLink>.",
-		"actions": {
-			"readFiles": {
-				"label": "Odczyt",
-				"description": "Pozwala na dostęp do odczytu dowolnego pliku na Twoim komputerze."
-			},
-			"editFiles": {
-				"label": "Edycja",
-				"description": "Pozwala na modyfikację dowolnych plików na Twoim komputerze."
-			},
-			"executeCommands": {
-				"label": "Polecenia",
-				"description": "Pozwala na wykonywanie zatwierdzonych poleceń terminala. Możesz to skonfigurować w panelu ustawień."
-			},
-			"useBrowser": {
-				"label": "Przeglądarka",
-				"description": "Pozwala na uruchamianie i interakcję z dowolną stroną internetową w przeglądarce bezinterfejsowej."
-			},
-			"useMcp": {
-				"label": "MCP",
-				"description": "Pozwala na korzystanie ze skonfigurowanych serwerów MCP, które mogą modyfikować system plików lub wchodzić w interakcje z API."
-			},
-			"switchModes": {
-				"label": "Tryby",
-				"description": "Pozwala na automatyczne przełączanie między różnymi trybami bez wymagania zatwierdzenia."
-			},
-			"subtasks": {
-				"label": "Podzadania",
-				"description": "Pozwala na tworzenie i kończenie podzadań bez wymagania zatwierdzenia."
-			},
-			"retryRequests": {
-				"label": "Ponowienia",
-				"description": "Automatycznie ponawia nieudane zapytania API, gdy dostawca zwraca odpowiedź z błędem."
-			}
-		}
+		"description": "Automatyczne zatwierdzanie pozwala Roo Code wykonywać działania bez pytania o pozwolenie. Włącz tylko dla działań, którym w pełni ufasz. Bardziej szczegółowa konfiguracja dostępna w <settingsLink>Ustawieniach</settingsLink>."
 	},
 	"reasoning": {
 		"thinking": "Myślenie",

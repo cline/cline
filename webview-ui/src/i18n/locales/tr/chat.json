@@ -171,41 +171,7 @@
 	"autoApprove": {
 		"title": "Otomatik-onay:",
 		"none": "Hiçbiri",
-		"description": "Otomatik onay, Roo Code'un izin istemeden işlemler gerçekleştirmesine olanak tanır. Yalnızca tamamen güvendiğiniz eylemler için etkinleştirin. Daha detaylı yapılandırma <settingsLink>Ayarlar</settingsLink>'da mevcuttur.",
-		"actions": {
-			"readFiles": {
-				"label": "Okuma",
-				"description": "Bilgisayarınızdaki herhangi bir dosyayı okuma erişimine izin verir."
-			},
-			"editFiles": {
-				"label": "Yazma",
-				"description": "Bilgisayarınızdaki herhangi bir dosyanın değiştirilmesine izin verir."
-			},
-			"executeCommands": {
-				"label": "Komutlar",
-				"description": "Onaylanmış terminal komutlarının çalıştırılmasına izin verir. Bunu ayarlar panelinde yapılandırabilirsiniz."
-			},
-			"useBrowser": {
-				"label": "Tarayıcı",
-				"description": "Grafiksel arayüz olmayan bir tarayıcıda herhangi bir web sitesini başlatma ve etkileşim kurma yeteneğine izin verir."
-			},
-			"useMcp": {
-				"label": "MCP",
-				"description": "Dosya sistemini değiştirebilen veya API'lerle etkileşime girebilen yapılandırılmış MCP sunucularının kullanımına izin verir."
-			},
-			"switchModes": {
-				"label": "Modlar",
-				"description": "Onay gerektirmeden farklı modlar arasında otomatik geçişe izin verir."
-			},
-			"subtasks": {
-				"label": "Alt Görevler",
-				"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin verir."
-			},
-			"retryRequests": {
-				"label": "Yeniden Denemeler",
-				"description": "Sağlayıcı bir hata yanıtı döndürdüğünde başarısız API isteklerini otomatik olarak yeniden dener."
-			}
-		}
+		"description": "Otomatik onay, Roo Code'un izin istemeden işlemler gerçekleştirmesine olanak tanır. Yalnızca tamamen güvendiğiniz eylemler için etkinleştirin. Daha detaylı yapılandırma <settingsLink>Ayarlar</settingsLink>'da mevcuttur."
 	},
 	"reasoning": {
 		"thinking": "Düşünüyor",
