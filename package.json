@@ -304,7 +304,7 @@
 		"watch:esbuild": "node esbuild.js --watch",
 		"watch:esbuild:test": "IS_TEST=true node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run build:protos && npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
 		"protos": "node proto/build-proto.ts && prettier src/shared/proto --write && prettier src/core/controller --write",
 		"package:test": "IS_TEST=true npm run build:webview:test && npm run check-types && npm run lint && IS_TEST=true node esbuild.js --production",
 		"build:webview:test": "cd webview-ui && IS_TEST=true npm run build",
