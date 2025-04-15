@@ -11,24 +11,28 @@ export abstract class BaseTool<TInput, TOutput> {
     abstract execute(input: ToolInput<TInput>): Promise<ToolOutput<TOutput>>
 
     protected preprocessInputSchema<T extends z.ZodTypeAny>(schema: T): z.ZodEffects<T> {
+        const jsonFields = ['body', 'query'] as const
         return z.preprocess((data) => {
-            if (data && typeof data === 'object' && 'body' in data) {
-                try {
-                    return {
-                        ...data,
-                        body: JSON.parse(data.body as any),
+            if (data && typeof data === 'object') {
+                const processed = { ...data } as Record<string, unknown>
+                for (const field of jsonFields) {
+                    if (field in processed) {
+                        try {
+                            processed[field] = JSON.parse(processed[field] as string)
+                        } catch (e) {
+                            throw new ToolInputValidationError(
+                                [
+                                    {
+                                        message: `Failed to parse JSON ${field}`,
+                                        path: [field],
+                                    },
+                                ],
+                                data
+                            )
+                        }
                     }
-                } catch (e) {
-                    throw new ToolInputValidationError(
-                        [
-                            {
-                                message: 'Failed to parse JSON body',
-                                path: ['body'],
-                            },
-                        ],
-                        data
-                    )
                 }
+                return processed
             }
             return data
         }, schema)

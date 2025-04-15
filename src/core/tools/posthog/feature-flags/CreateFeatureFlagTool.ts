@@ -1,15 +1,26 @@
 import { z } from 'zod'
 import { PostHogTool } from '../PostHogTool'
-import {
-    CreateFeatureFlagToolInputSchema,
-    CreateFeatureFlagToolOutputSchema,
-    type CreateFeatureFlagToolInput,
-    type CreateFeatureFlagToolOutput,
-} from './schema'
 import type { ToolOutput } from '../../base/types'
 import type { ToolUse } from '../../../assistant-message'
 import { BasePostHogToolConfigSchema } from '../schema'
 
+export const CreateFeatureFlagToolInputSchema = z.object({
+    body: z.object({
+        key: z.string(),
+        name: z.string(),
+    }),
+})
+
+export type CreateFeatureFlagToolInput = z.infer<typeof CreateFeatureFlagToolInputSchema>
+
+export const CreateFeatureFlagToolOutputSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    key: z.string(),
+    active: z.boolean(),
+})
+
+export type CreateFeatureFlagToolOutput = z.infer<typeof CreateFeatureFlagToolOutputSchema>
 export class CreateFeatureFlagTool extends PostHogTool<CreateFeatureFlagToolInput, CreateFeatureFlagToolOutput> {
     autoApprove = false
     name = 'create_feature_flag'

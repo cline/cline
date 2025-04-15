@@ -329,6 +329,19 @@ Tracking conventions discovered in the codebase.
 </tracking_conventions>
 </add_capture_calls>
 
+## list_feature_flags
+Description: List all feature flags in PostHog.
+Parameters:
+- query: (optional) query parameters for the list feature flags request
+Usage:
+<list_feature_flags>
+<query>
+{
+  "active": true or false
+}
+</query>
+</list_feature_flags>
+
 ## create_feature_flag
 Description: Create a new feature flag in PostHog.
 Parameters:

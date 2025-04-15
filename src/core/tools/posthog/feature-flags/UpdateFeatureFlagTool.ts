@@ -1,13 +1,23 @@
 import { PostHogTool } from '../PostHogTool'
-import {
-    UpdateFeatureFlagToolInputSchema,
-    UpdateFeatureFlagToolOutputSchema,
-    type UpdateFeatureFlagToolInput,
-    type UpdateFeatureFlagToolOutput,
-} from './schema'
 import type { ToolOutput } from '../../base/types'
 import type { ToolUse } from '../../../assistant-message'
 import { BasePostHogToolConfigSchema } from '../schema'
+import { z } from 'zod'
+export const UpdateFeatureFlagToolInputSchema = z.object({
+    id: z.coerce.number(),
+    body: z.object({
+        active: z.boolean().optional(),
+    }),
+})
+
+export type UpdateFeatureFlagToolInput = z.infer<typeof UpdateFeatureFlagToolInputSchema>
+
+export const UpdateFeatureFlagToolOutputSchema = z.object({
+    id: z.number(),
+    active: z.boolean(),
+})
+
+export type UpdateFeatureFlagToolOutput = z.infer<typeof UpdateFeatureFlagToolOutputSchema>
 
 export class UpdateFeatureFlagTool extends PostHogTool<UpdateFeatureFlagToolInput, UpdateFeatureFlagToolOutput> {
     autoApprove = false
