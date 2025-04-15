@@ -27,6 +27,7 @@ class PostHogClient {
 			CHECKPOINT_CREATED: "Checkpoint Created",
 			CHECKPOINT_RESTORED: "Checkpoint Restored",
 			CHECKPOINT_DIFFED: "Checkpoint Diffed",
+			CODE_ACTION_USED: "Code Action Used",
 		},
 		ERRORS: {
 			SCHEMA_VALIDATION_ERROR: "Schema Validation Error",
@@ -266,6 +267,12 @@ class TelemetryService {
 
 	public captureCheckpointRestored(taskId: string): void {
 		this.captureEvent(PostHogClient.EVENTS.TASK.CHECKPOINT_RESTORED, { taskId })
+	}
+
+	public captureCodeActionUsed(actionType: string): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.CODE_ACTION_USED, {
+			actionType,
+		})
 	}
 
 	public captureSchemaValidationError({ schemaName, error }: { schemaName: string; error: ZodError }): void {
