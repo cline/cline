@@ -24,7 +24,7 @@ import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
 import { listFiles } from "../../services/glob/list-files"
 import { regexSearchFiles } from "../../services/ripgrep"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
-import { parseSourceCodeForDefinitionsTopLevel } from "../../services/tree-sitter"
+import { parseSourceCodeForDefinitionsTopLevel, parseSourceCodeForFunctionDefinition } from "../../services/tree-sitter"
 import { ApiConfiguration } from "../../shared/api"
 import { findLast, findLastIndex, parsePartialArrayString } from "../../shared/array"
 import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
@@ -2057,7 +2057,6 @@ export class Task {
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relPath)
 								// Import the function if it's not already imported
-								const { parseSourceCodeForFunctionDefinition } = await import("../../services/tree-sitter")
 								const result = await parseSourceCodeForFunctionDefinition(
 									absolutePath,
 									functionName,
