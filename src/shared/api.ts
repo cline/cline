@@ -1359,7 +1359,6 @@ export const mistralModels = {
 // https://docs.litellm.ai/docs/
 export type LiteLLMModelId = string
 export const liteLlmDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
-// LiteLLMModelInfo インターフェースを作成し、temperature プロパティを追加
 export interface LiteLLMModelInfo extends ModelInfo {
 	temperature?: number
 }
