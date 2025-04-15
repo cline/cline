@@ -32,7 +32,6 @@ describe("MultiSearchReplaceDiffStrategy", () => {
 			const diff =
 				"<<<<<<< SEARCH\n" +
 				":start_line:10\n" +
-				":end_line:11\n" +
 				"-------\n" +
 				"content1\n" +
 				"=======\n" +
@@ -40,7 +39,6 @@ describe("MultiSearchReplaceDiffStrategy", () => {
 				">>>>>>> REPLACE\n\n" +
 				"<<<<<<< SEARCH\n" +
 				":start_line:10\n" +
-				":end_line:11\n" +
 				"-------\n" +
 				"content2\n" +
 				"=======\n" +
@@ -141,7 +139,6 @@ function helloWorld() {
 				const diffContent = `test.ts
 <<<<<<< SEARCH
 :start_line:1
-:end_line:1
 -------
 function hello() {
 =======
@@ -149,7 +146,6 @@ function helloWorld() {
 >>>>>>> REPLACE
 <<<<<<< SEARCH
 :start_line:2
-:end_line:2
 -------
     console.log("hello")
 =======
@@ -741,7 +737,7 @@ function five() {
 				// Search around the middle (function three)
 				// Even though all functions contain the target text,
 				// it should match the one closest to line 9 first
-				const result = await strategy.applyDiff(originalContent, diffContent, 9, 9)
+				const result = await strategy.applyDiff(originalContent, diffContent, 9)
 				expect(result.success).toBe(true)
 				if (result.success) {
 					expect(result.content).toBe(`function one() {
@@ -843,7 +839,6 @@ function five() {
 						const diffContent = [
 							"<<<<<<< SEARCH",
 							":start_line:1",
-							":end_line:3",
 							"-------",
 							"1 | function test() {",
 							"    return true;", // missing line number
@@ -868,7 +863,6 @@ function five() {
 						const diffContent = [
 							"<<<<<<< SEARCH",
 							":start_line:1",
-							":end_line:3",
 							"-------",
 							"| function test() {",
 							"|     return true;",
@@ -1634,7 +1628,6 @@ function five() {
 				const diffContent = `
 <<<<<<< SEARCH
 :start_line:2
-:end_line:2
 -------
 2 | line to delete
 =======
@@ -1768,7 +1761,7 @@ function two() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent, 5, 7)
+			const result = await strategy.applyDiff(originalContent, diffContent, 5)
 			expect(result.success).toBe(true)
 			if (result.success) {
 				expect(result.content).toBe(`function one() {
@@ -1812,7 +1805,7 @@ function three() {
 
 			// Even though we specify lines 5-7, it should still find the match at lines 9-11
 			// because it's within the 5-line buffer zone
-			const result = await strategy.applyDiff(originalContent, diffContent, 5, 7)
+			const result = await strategy.applyDiff(originalContent, diffContent, 5)
 			expect(result.success).toBe(true)
 			if (result.success) {
 				expect(result.content).toBe(`function one() {
@@ -1866,7 +1859,6 @@ pointer-events: auto; /* Enable clicks on the promotion dialog */
 			const diffContent = `test.ts
 <<<<<<< SEARCH
 :start_line:12
-:end_line:13
 -------
 .overlay {
 =======
@@ -1946,7 +1938,6 @@ function five() {
 			const diffContent = `test.ts
 <<<<<<< SEARCH
 :start_line:5
-:end_line:7
 -------
 function five() {
     return 5;
@@ -1984,7 +1975,7 @@ function one() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent, 1, 3)
+			const result = await strategy.applyDiff(originalContent, diffContent, 1)
 			expect(result.success).toBe(true)
 			if (result.success) {
 				expect(result.content).toBe(`function one() {
@@ -2018,7 +2009,7 @@ function two() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent, 5, 7)
+			const result = await strategy.applyDiff(originalContent, diffContent, 5)
 			expect(result.success).toBe(true)
 			if (result.success) {
 				expect(result.content).toBe(`function one() {
@@ -2064,7 +2055,7 @@ function processData(data) {
 >>>>>>> REPLACE`
 
 			// Target the second instance of processData
-			const result = await strategy.applyDiff(originalContent, diffContent, 10, 12)
+			const result = await strategy.applyDiff(originalContent, diffContent, 10)
 			expect(result.success).toBe(true)
 			if (result.success) {
 				expect(result.content).toBe(`function processData(data) {
@@ -2131,49 +2122,6 @@ function three() {
 			}
 		})
 
-		it("should search from start of file to end line when only end_line is provided", async () => {
-			const originalContent = `
-function one() {
-    return 1;
-}
-
-function two() {
-    return 2;
-}
-
-function three() {
-    return 3;
-}
-`.trim()
-			const diffContent = `test.ts
-<<<<<<< SEARCH
-function one() {
-    return 1;
-}
-=======
-function one() {
-    return "one";
-}
->>>>>>> REPLACE`
-
-			// Only provide end_line, should search from start of file to there
-			const result = await strategy.applyDiff(originalContent, diffContent, undefined, 4)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`function one() {
-    return "one";
-}
-
-function two() {
-    return 2;
-}
-
-function three() {
-    return 3;
-}`)
-			}
-		})
-
 		it("should prioritize exact line match over expanded search", async () => {
 			const originalContent = `
 function one() {
@@ -2204,7 +2152,7 @@ function process() {
 
 			// Should match the second instance exactly at lines 10-12
 			// even though the first instance at 6-8 is within the expanded search range
-			const result = await strategy.applyDiff(originalContent, diffContent, 10, 12)
+			const result = await strategy.applyDiff(originalContent, diffContent, 10)
 			expect(result.success).toBe(true)
 			if (result.success) {
 				expect(result.content).toBe(`
@@ -2252,7 +2200,7 @@ function process() {
 
 			// Specify wrong line numbers (3-5), but content exists at 6-8
 			// Should still find and replace it since it's within the expanded range
-			const result = await strategy.applyDiff(originalContent, diffContent, 3, 5)
+			const result = await strategy.applyDiff(originalContent, diffContent, 3)
 			expect(result.success).toBe(true)
 			if (result.success) {
 				expect(result.content).toBe(`function one() {

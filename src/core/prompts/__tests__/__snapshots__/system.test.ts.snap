@@ -4055,7 +4055,6 @@ Diff format:
 \`\`\`
 <<<<<<< SEARCH
 :start_line: (required) The line number of original content where the search block starts.
-:end_line: (required) The line number of original content  where the search block ends.
 -------
 [exact content to find including whitespace]
 =======
@@ -4080,7 +4079,6 @@ Search/Replace content:
 \`\`\`
 <<<<<<< SEARCH
 :start_line:1
-:end_line:5
 -------
 def calculate_total(items):
     total = 0
@@ -4099,7 +4097,6 @@ Search/Replace content with multi edits:
 \`\`\`
 <<<<<<< SEARCH
 :start_line:1
-:end_line:2
 -------
 def calculate_total(items):
     sum = 0
@@ -4110,7 +4107,6 @@ def calculate_sum(items):
 
 <<<<<<< SEARCH
 :start_line:4
-:end_line:5
 -------
         total += item
     return total
