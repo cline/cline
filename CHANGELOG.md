@@ -1,13 +1,10 @@
 # Changelog
 
-## 3.13.0
+## [3.12.3]
 
--   2964388: Added copy button to MermaidBlock component
--   75143a7: Add the ability to fetch from global cline rules files
--   a0252e7: convert inline style to tailwind css of file `SettingsView.tsx`
--   ab59bd9: Add stream options back to xai provider
--   7276f50: Icons to indicate an action is occuring outside of the users workspace
--   0b19ba6: update to NEW model
+-   Add copy button to MermaidBlock component (Thanks @cacosub7!)
+-   Add the ability to fetch from global cline rules files
+-   Add icon to indicate when a file outside of the users workspace is edited
 
 ## [3.12.2]
 
