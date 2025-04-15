@@ -1758,6 +1758,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 						...formatResponse.imageBlocks(images),
 					],
 				)
+
+				// Track consecutive mistake errors in telemetry
+				telemetryService.captureConsecutiveMistakeError(this.taskId)
 			}
 			this.consecutiveMistakeCount = 0
 		}

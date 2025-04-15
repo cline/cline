@@ -31,6 +31,7 @@ class PostHogClient {
 		ERRORS: {
 			SCHEMA_VALIDATION_ERROR: "Schema Validation Error",
 			DIFF_APPLICATION_ERROR: "Diff Application Error",
+			CONSECUTIVE_MISTAKE_ERROR: "Consecutive Mistake Error",
 		},
 	}
 
@@ -277,6 +278,12 @@ class TelemetryService {
 
 	public captureDiffApplicationError(taskId: string): void {
 		this.captureEvent(PostHogClient.EVENTS.ERRORS.DIFF_APPLICATION_ERROR, {
+			taskId,
+		})
+	}
+
+	public captureConsecutiveMistakeError(taskId: string): void {
+		this.captureEvent(PostHogClient.EVENTS.ERRORS.CONSECUTIVE_MISTAKE_ERROR, {
 			taskId,
 		})
 	}
