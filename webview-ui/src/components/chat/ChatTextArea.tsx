@@ -1063,7 +1063,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 			// Tell VSCode to optimize the prompt
 			vscode.postMessage({
-				type: "optimizePrompt",
+				type: "optimizationPromptRequest",
 				prompt: inputValue,
 				model: modelId,
 			})
