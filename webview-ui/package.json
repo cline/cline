@@ -7,7 +7,7 @@
 		"lint": "eslint src/**/*.ts src/**/*.tsx",
 		"lint-fix": "eslint src/**/*.ts src/**/*.tsx --fix",
 		"check-types": "tsc",
-		"test": "jest",
+		"test": "jest -w=40%",
 		"dev": "vite",
 		"tsc": "tsc -b",
 		"vite-build": "vite build",
