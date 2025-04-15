@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Permettre à Roo d'effectuer automatiquement des opérations sans requérir d'approbation. Activez ces paramètres uniquement si vous faites entièrement confiance à l'IA et que vous comprenez les risques de sécurité associés.",
 		"readOnly": {
-			"label": "Toujours approuver les opérations en lecture seule",
+			"label": "Lire",
 			"description": "Lorsque cette option est activée, Roo affichera automatiquement le contenu des répertoires et lira les fichiers sans que vous ayez à cliquer sur le bouton Approuver.",
 			"outsideWorkspace": {
 				"label": "Inclure les fichiers en dehors de l'espace de travail",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Toujours approuver les opérations d'écriture",
+			"label": "Écrire",
 			"description": "Créer et modifier automatiquement des fichiers sans nécessiter d'approbation",
 			"delayLabel": "Délai après les écritures pour permettre aux diagnostics de détecter les problèmes potentiels",
 			"outsideWorkspace": {
@@ -52,29 +52,28 @@
 			}
 		},
 		"browser": {
-			"label": "Toujours approuver les actions du navigateur",
-			"description": "Effectuer automatiquement des actions du navigateur sans nécessiter d'approbation",
-			"note": "Remarque : S'applique uniquement lorsque le modèle prend en charge l'utilisation de l'ordinateur"
+			"label": "Navigateur",
+			"description": "Effectuer automatiquement des actions du navigateur sans nécessiter d'approbation. Remarque : S'applique uniquement lorsque le modèle prend en charge l'utilisation de l'ordinateur"
 		},
 		"retry": {
-			"label": "Toujours réessayer les requêtes API échouées",
+			"label": "Réessayer",
 			"description": "Réessayer automatiquement les requêtes API échouées lorsque le serveur renvoie une réponse d'erreur",
 			"delayLabel": "Délai avant de réessayer la requête"
 		},
 		"mcp": {
-			"label": "Toujours approuver les outils MCP",
+			"label": "MCP",
 			"description": "Activer l'approbation automatique des outils MCP individuels dans la vue des serveurs MCP (nécessite à la fois ce paramètre et la case à cocher \"Toujours autoriser\" de l'outil)"
 		},
 		"modeSwitch": {
-			"label": "Toujours approuver les changements de mode",
+			"label": "Mode",
 			"description": "Basculer automatiquement entre différents modes sans nécessiter d'approbation"
 		},
 		"subtasks": {
-			"label": "Toujours approuver la création et l'achèvement des sous-tâches",
+			"label": "Sous-tâches",
 			"description": "Permettre la création et l'achèvement des sous-tâches sans nécessiter d'approbation"
 		},
 		"execute": {
-			"label": "Toujours approuver les opérations d'exécution autorisées",
+			"label": "Exécuter",
 			"description": "Exécuter automatiquement les commandes de terminal autorisées sans nécessiter d'approbation",
 			"allowedCommands": "Commandes auto-exécutables autorisées",
 			"allowedCommandsDescription": "Préfixes de commandes qui peuvent être auto-exécutés lorsque \"Toujours approuver les opérations d'exécution\" est activé. Ajoutez * pour autoriser toutes les commandes (à utiliser avec précaution).",

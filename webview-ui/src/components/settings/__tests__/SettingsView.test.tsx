@@ -306,7 +306,7 @@ describe("SettingsView - Allowed Commands", () => {
 		renderSettingsView()
 
 		// Enable always allow execute
-		const executeCheckbox = screen.getByTestId("always-allow-execute-checkbox")
+		const executeCheckbox = screen.getByTestId("always-allow-execute-toggle")
 		fireEvent.click(executeCheckbox)
 		// Verify allowed commands section appears
 		expect(screen.getByTestId("allowed-commands-heading")).toBeInTheDocument()
@@ -317,7 +317,7 @@ describe("SettingsView - Allowed Commands", () => {
 		renderSettingsView()
 
 		// Enable always allow execute
-		const executeCheckbox = screen.getByTestId("always-allow-execute-checkbox")
+		const executeCheckbox = screen.getByTestId("always-allow-execute-toggle")
 		fireEvent.click(executeCheckbox)
 
 		// Add a new command
@@ -341,7 +341,7 @@ describe("SettingsView - Allowed Commands", () => {
 		renderSettingsView()
 
 		// Enable always allow execute
-		const executeCheckbox = screen.getByTestId("always-allow-execute-checkbox")
+		const executeCheckbox = screen.getByTestId("always-allow-execute-toggle")
 		fireEvent.click(executeCheckbox)
 
 		// Add a command
@@ -368,7 +368,7 @@ describe("SettingsView - Allowed Commands", () => {
 		renderSettingsView()
 
 		// Enable always allow execute
-		const executeCheckbox = screen.getByTestId("always-allow-execute-checkbox")
+		const executeCheckbox = screen.getByTestId("always-allow-execute-toggle")
 		fireEvent.click(executeCheckbox)
 
 		// Add a command twice
@@ -392,7 +392,7 @@ describe("SettingsView - Allowed Commands", () => {
 		renderSettingsView()
 
 		// Enable always allow execute
-		const executeCheckbox = screen.getByTestId("always-allow-execute-checkbox")
+		const executeCheckbox = screen.getByTestId("always-allow-execute-toggle")
 		fireEvent.click(executeCheckbox)
 
 		// Add a command

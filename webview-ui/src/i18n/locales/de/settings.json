@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktiviere diese Einstellungen nur, wenn du der KI vollständig vertraust und die damit verbundenen Sicherheitsrisiken verstehst.",
 		"readOnly": {
-			"label": "Schreibgeschützte Operationen immer genehmigen",
+			"label": "Lesen",
 			"description": "Wenn aktiviert, wird Roo automatisch Verzeichnisinhalte anzeigen und Dateien lesen, ohne dass du auf die Genehmigen-Schaltfläche klicken musst.",
 			"outsideWorkspace": {
 				"label": "Dateien außerhalb des Arbeitsbereichs einbeziehen",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Schreiboperationen immer genehmigen",
+			"label": "Schreiben",
 			"description": "Dateien automatisch erstellen und bearbeiten ohne Genehmigung",
 			"delayLabel": "Verzögerung nach Schreibvorgängen, damit Diagnosefunktionen potenzielle Probleme erkennen können",
 			"outsideWorkspace": {
@@ -52,29 +52,28 @@
 			}
 		},
 		"browser": {
-			"label": "Browser-Aktionen immer genehmigen",
-			"description": "Browser-Aktionen automatisch ohne Genehmigung durchführen",
-			"note": "Hinweis: Gilt nur, wenn das Modell Computer-Nutzung unterstützt"
+			"label": "Browser",
+			"description": "Browser-Aktionen automatisch ohne Genehmigung durchführen. Hinweis: Gilt nur, wenn das Modell Computer-Nutzung unterstützt"
 		},
 		"retry": {
-			"label": "Fehlgeschlagene API-Anfragen immer wiederholen",
+			"label": "Wiederholen",
 			"description": "Fehlgeschlagene API-Anfragen automatisch wiederholen, wenn der Server eine Fehlerantwort zurückgibt",
 			"delayLabel": "Verzögerung vor dem Wiederholen der Anfrage"
 		},
 		"mcp": {
-			"label": "MCP-Tools immer genehmigen",
+			"label": "MCP",
 			"description": "Automatische Genehmigung einzelner MCP-Tools in der MCP-Server-Ansicht aktivieren (erfordert sowohl diese Einstellung als auch das 'Immer erlauben'-Kontrollkästchen des Tools)"
 		},
 		"modeSwitch": {
-			"label": "Moduswechsel immer genehmigen",
+			"label": "Modus",
 			"description": "Automatisch zwischen verschiedenen Modi wechseln ohne Genehmigung"
 		},
 		"subtasks": {
-			"label": "Erstellung & Abschluss von Unteraufgaben immer genehmigen",
+			"label": "Unteraufgaben",
 			"description": "Erstellung und Abschluss von Unteraufgaben ohne Genehmigung erlauben"
 		},
 		"execute": {
-			"label": "Erlaubte Ausführungsoperationen immer genehmigen",
+			"label": "Ausführen",
 			"description": "Erlaubte Terminal-Befehle automatisch ohne Genehmigung ausführen",
 			"allowedCommands": "Erlaubte Auto-Ausführungsbefehle",
 			"allowedCommandsDescription": "Befehlspräfixe, die automatisch ausgeführt werden können, wenn 'Ausführungsoperationen immer genehmigen' aktiviert ist. Fügen Sie * hinzu, um alle Befehle zu erlauben (mit Vorsicht verwenden).",

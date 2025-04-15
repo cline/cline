@@ -174,43 +174,35 @@
 		"description": "Auto-aprobar permite a Roo Code realizar acciones sin pedir permiso. Habilita solo para acciones en las que confíes plenamente. Configuración más detallada disponible en <settingsLink>Configuración</settingsLink>.",
 		"actions": {
 			"readFiles": {
-				"label": "Leer archivos y directorios",
-				"shortName": "Leer",
+				"label": "Leer",
 				"description": "Permite acceso para leer cualquier archivo en tu computadora."
 			},
 			"editFiles": {
-				"label": "Editar archivos",
-				"shortName": "Editar",
+				"label": "Editar",
 				"description": "Permite la modificación de cualquier archivo en tu computadora."
 			},
 			"executeCommands": {
-				"label": "Ejecutar comandos aprobados",
-				"shortName": "Comandos",
+				"label": "Comandos",
 				"description": "Permite la ejecución de comandos de terminal aprobados. Puedes configurar esto en el panel de configuración."
 			},
 			"useBrowser": {
-				"label": "Usar el navegador",
-				"shortName": "Navegador",
+				"label": "Navegador",
 				"description": "Permite la capacidad de iniciar e interactuar con cualquier sitio web en un navegador sin interfaz."
 			},
 			"useMcp": {
-				"label": "Usar servidores MCP",
-				"shortName": "MCP",
+				"label": "MCP",
 				"description": "Permite el uso de servidores MCP configurados que pueden modificar el sistema de archivos o interactuar con APIs."
 			},
 			"switchModes": {
-				"label": "Cambiar modos",
-				"shortName": "Modos",
+				"label": "Modos",
 				"description": "Permite el cambio automático entre diferentes modos sin requerir aprobación."
 			},
 			"subtasks": {
-				"label": "Crear y completar subtareas",
-				"shortName": "Subtareas",
+				"label": "Subtareas",
 				"description": "Permite la creación y finalización de subtareas sin requerir aprobación."
 			},
 			"retryRequests": {
-				"label": "Reintentar solicitudes fallidas",
-				"shortName": "Reintentos",
+				"label": "Reintentos",
 				"description": "Reintenta automáticamente las solicitudes API fallidas cuando el proveedor devuelve una respuesta de error."
 			}
 		}

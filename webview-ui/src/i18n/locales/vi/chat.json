@@ -174,43 +174,35 @@
 		"description": "Tự động phê duyệt cho phép Roo Code thực hiện hành động mà không cần xin phép. Chỉ bật cho các hành động bạn hoàn toàn tin tưởng. Cấu hình chi tiết hơn có sẵn trong <settingsLink>Cài đặt</settingsLink>.",
 		"actions": {
 			"readFiles": {
-				"label": "Đọc tệp và thư mục",
-				"shortName": "Đọc",
+				"label": "Đọc",
 				"description": "Cho phép truy cập để đọc bất kỳ tệp nào trên máy tính của bạn."
 			},
 			"editFiles": {
-				"label": "Chỉnh sửa tệp",
-				"shortName": "Chỉnh sửa",
+				"label": "Chỉnh sửa",
 				"description": "Cho phép chỉnh sửa bất kỳ tệp nào trên máy tính của bạn."
 			},
 			"executeCommands": {
-				"label": "Thực thi lệnh đã phê duyệt",
-				"shortName": "Lệnh",
+				"label": "Lệnh",
 				"description": "Cho phép thực thi lệnh terminal đã được phê duyệt. Bạn có thể cấu hình điều này trong bảng cài đặt."
 			},
 			"useBrowser": {
-				"label": "Sử dụng trình duyệt",
-				"shortName": "Trình duyệt",
+				"label": "Trình duyệt",
 				"description": "Cho phép khả năng khởi chạy và tương tác với bất kỳ trang web nào trong trình duyệt không giao diện."
 			},
 			"useMcp": {
-				"label": "Sử dụng máy chủ MCP",
-				"shortName": "MCP",
+				"label": "MCP",
 				"description": "Cho phép sử dụng máy chủ MCP đã cấu hình có thể sửa đổi hệ thống tệp hoặc tương tác với API."
 			},
 			"switchModes": {
-				"label": "Chuyển đổi chế độ",
-				"shortName": "Chế độ",
+				"label": "Chế độ",
 				"description": "Cho phép tự động chuyển đổi giữa các chế độ khác nhau mà không cần phê duyệt."
 			},
 			"subtasks": {
-				"label": "Tạo & hoàn thành nhiệm vụ phụ",
-				"shortName": "Nhiệm vụ phụ",
+				"label": "Nhiệm vụ",
 				"description": "Cho phép tạo và hoàn thành các nhiệm vụ phụ mà không cần phê duyệt."
 			},
 			"retryRequests": {
-				"label": "Thử lại yêu cầu thất bại",
-				"shortName": "Thử lại",
+				"label": "Thử lại",
 				"description": "Tự động thử lại các yêu cầu API thất bại khi nhà cung cấp trả về phản hồi lỗi."
 			}
 		}

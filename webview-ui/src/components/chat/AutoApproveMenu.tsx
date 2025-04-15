@@ -1,4 +1,4 @@
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { useAppTranslation } from "../../i18n/TranslationContext"
@@ -10,7 +10,6 @@ interface AutoApproveAction {
 	id: string
 	label: string
 	enabled: boolean
-	shortName: string
 	description: string
 }
 
@@ -47,56 +46,48 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		{
 			id: "readFiles",
 			label: t("chat:autoApprove.actions.readFiles.label"),
-			shortName: t("chat:autoApprove.actions.readFiles.shortName"),
 			enabled: alwaysAllowReadOnly ?? false,
 			description: t("chat:autoApprove.actions.readFiles.description"),
 		},
 		{
 			id: "editFiles",
 			label: t("chat:autoApprove.actions.editFiles.label"),
-			shortName: t("chat:autoApprove.actions.editFiles.shortName"),
 			enabled: alwaysAllowWrite ?? false,
 			description: t("chat:autoApprove.actions.editFiles.description"),
 		},
 		{
 			id: "executeCommands",
 			label: t("chat:autoApprove.actions.executeCommands.label"),
-			shortName: t("chat:autoApprove.actions.executeCommands.shortName"),
 			enabled: alwaysAllowExecute ?? false,
 			description: t("chat:autoApprove.actions.executeCommands.description"),
 		},
 		{
 			id: "useBrowser",
 			label: t("chat:autoApprove.actions.useBrowser.label"),
-			shortName: t("chat:autoApprove.actions.useBrowser.shortName"),
 			enabled: alwaysAllowBrowser ?? false,
 			description: t("chat:autoApprove.actions.useBrowser.description"),
 		},
 		{
 			id: "useMcp",
 			label: t("chat:autoApprove.actions.useMcp.label"),
-			shortName: t("chat:autoApprove.actions.useMcp.shortName"),
 			enabled: alwaysAllowMcp ?? false,
 			description: t("chat:autoApprove.actions.useMcp.description"),
 		},
 		{
 			id: "switchModes",
 			label: t("chat:autoApprove.actions.switchModes.label"),
-			shortName: t("chat:autoApprove.actions.switchModes.shortName"),
 			enabled: alwaysAllowModeSwitch ?? false,
 			description: t("chat:autoApprove.actions.switchModes.description"),
 		},
 		{
 			id: "subtasks",
 			label: t("chat:autoApprove.actions.subtasks.label"),
-			shortName: t("chat:autoApprove.actions.subtasks.shortName"),
 			enabled: alwaysAllowSubtasks ?? false,
 			description: t("chat:autoApprove.actions.subtasks.description"),
 		},
 		{
 			id: "retryRequests",
 			label: t("chat:autoApprove.actions.retryRequests.label"),
-			shortName: t("chat:autoApprove.actions.retryRequests.shortName"),
 			enabled: alwaysApproveResubmit ?? false,
 			description: t("chat:autoApprove.actions.retryRequests.description"),
 		},
@@ -108,7 +99,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const enabledActionsList = actions
 		.filter((action) => action.enabled)
-		.map((action) => action.shortName)
+		.map((action) => action.label)
 		.join(", ")
 
 	// Individual checkbox handlers - each one only updates its own state
@@ -260,23 +251,46 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							}}
 						/>
 					</div>
-					{actions.map((action) => (
-						<div key={action.id} style={{ margin: "6px 0" }}>
-							<div onClick={(e) => e.stopPropagation()}>
-								<VSCodeCheckbox checked={action.enabled} onChange={actionHandlers[action.id]}>
-									{action.label}
-								</VSCodeCheckbox>
-							</div>
-							<div
-								style={{
-									marginLeft: "28px",
-									color: "var(--vscode-descriptionForeground)",
-									fontSize: "12px",
-								}}>
-								{action.description}
-							</div>
-						</div>
-					))}
+					<div
+						className="flex flex-row gap-2 [@media(min-width:400px)]:gap-4 flex-wrap justify-center"
+						style={{ paddingBottom: "2rem" }}>
+						{actions.map((action) => {
+							const iconMap: Record<string, string> = {
+								readFiles: "eye",
+								editFiles: "edit",
+								executeCommands: "terminal",
+								useBrowser: "globe",
+								useMcp: "plug",
+								switchModes: "sync",
+								subtasks: "discard",
+								retryRequests: "refresh",
+							}
+							const codicon = iconMap[action.id] || "question"
+							return (
+								<VSCodeButton
+									key={action.id}
+									appearance={action.enabled ? "primary" : "secondary"}
+									onClick={(e) => {
+										e.stopPropagation()
+										actionHandlers[action.id]()
+									}}
+									title={action.description}
+									className="aspect-square min-h-[80px] min-w-[80px] max-h-[100px] max-w-[100px]"
+									style={{ flexBasis: "20%" }}>
+									<span className="flex flex-col items-center gap-1 h-full">
+										<span
+											className={`codicon codicon-${codicon} text-base `}
+											style={{
+												fontSize: "1.5rem",
+												paddingTop: "0.5rem",
+											}}
+										/>
+										<span className="text-sm text-center">{action.label}</span>
+									</span>
+								</VSCodeButton>
+							)
+						})}
+					</div>
 				</div>
 			)}
 		</div>

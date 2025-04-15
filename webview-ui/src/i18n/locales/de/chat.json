@@ -174,43 +174,35 @@
 		"description": "Automatische Genehmigung erlaubt Roo Code, Aktionen ohne Nachfrage auszuführen. Aktiviere dies nur für Aktionen, denen du vollständig vertraust. Detailliertere Konfiguration verfügbar in den <settingsLink>Einstellungen</settingsLink>.",
 		"actions": {
 			"readFiles": {
-				"label": "Dateien und Verzeichnisse lesen",
-				"shortName": "Lesen",
+				"label": "Lesen",
 				"description": "Erlaubt Zugriff zum Lesen jeder Datei auf deinem Computer."
 			},
 			"editFiles": {
-				"label": "Dateien bearbeiten",
-				"shortName": "Bearbeiten",
+				"label": "Bearbeiten",
 				"description": "Erlaubt die Änderung jeder Datei auf deinem Computer."
 			},
 			"executeCommands": {
-				"label": "Genehmigte Befehle ausführen",
-				"shortName": "Befehle",
+				"label": "Befehle",
 				"description": "Erlaubt die Ausführung genehmigter Terminal-Befehle. Du kannst dies im Einstellungsfenster konfigurieren."
 			},
 			"useBrowser": {
-				"label": "Browser verwenden",
-				"shortName": "Browser",
+				"label": "Browser",
 				"description": "Erlaubt die Fähigkeit, jede Website in einem Headless-Browser zu starten und mit ihr zu interagieren."
 			},
 			"useMcp": {
-				"label": "MCP-Server verwenden",
-				"shortName": "MCP",
+				"label": "MCP",
 				"description": "Erlaubt die Verwendung konfigurierter MCP-Server, die das Dateisystem ändern oder mit APIs interagieren können."
 			},
 			"switchModes": {
-				"label": "Modi wechseln",
-				"shortName": "Modi",
+				"label": "Modi",
 				"description": "Erlaubt automatischen Wechsel zwischen verschiedenen Modi ohne erforderliche Genehmigung."
 			},
 			"subtasks": {
-				"label": "Teilaufgaben erstellen & abschließen",
-				"shortName": "Teilaufgaben",
+				"label": "Aufgaben",
 				"description": "Erlaubt die Erstellung und den Abschluss von Teilaufgaben ohne erforderliche Genehmigung."
 			},
 			"retryRequests": {
-				"label": "Fehlgeschlagene Anfragen wiederholen",
-				"shortName": "Wiederholungen",
+				"label": "Wiederholungen",
 				"description": "Wiederholt automatisch fehlgeschlagene API-Anfragen, wenn der Anbieter eine Fehlermeldung zurückgibt."
 			}
 		}

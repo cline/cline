@@ -174,43 +174,35 @@
 		"description": "允许直接执行操作无需确认，请谨慎启用。前往<settingsLink>设置</settingsLink>调整",
 		"actions": {
 			"readFiles": {
-				"label": "读取文件和目录",
-				"shortName": "读取",
+				"label": "读取",
 				"description": "允许读取系统中的文件内容"
 			},
 			"editFiles": {
-				"label": "编辑文件",
-				"shortName": "编辑",
+				"label": "编辑",
 				"description": "允许修改系统中的文件"
 			},
 			"executeCommands": {
-				"label": "执行命令",
-				"shortName": "命令",
+				"label": "命令",
 				"description": "允许执行终端命令。"
 			},
 			"useBrowser": {
 				"label": "浏览器",
-				"shortName": "浏览器",
 				"description": "允许通过无头浏览器访问网站"
 			},
 			"useMcp": {
-				"label": "MCP服务",
-				"shortName": "MCP",
+				"label": "MCP",
 				"description": "允许访问配置好的 MCP 服务（可能涉及文件系统或API操作）"
 			},
 			"switchModes": {
-				"label": "切换模式",
-				"shortName": "模式",
+				"label": "模式",
 				"description": "允许自动切换工作模式"
 			},
 			"subtasks": {
-				"label": "创建和完成子任务",
-				"shortName": "子任务",
+				"label": "回力镖",
 				"description": "允许自主创建和管理子任务"
 			},
 			"retryRequests": {
-				"label": "重试失败的请求",
-				"shortName": "重试",
+				"label": "重试",
 				"description": "API请求失败时自动重试"
 			}
 		}

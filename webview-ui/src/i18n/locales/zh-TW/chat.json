@@ -174,43 +174,35 @@
 		"description": "自動核准讓 Roo Code 可以在無需徵求您同意的情況下執行動作。請僅對您完全信任的動作啟用此功能。您可以在<settingsLink>設定</settingsLink>中進行更詳細的調整。",
 		"actions": {
 			"readFiles": {
-				"label": "讀取檔案和目錄",
-				"shortName": "讀取",
+				"label": "讀取",
 				"description": "允許存取電腦上的任何檔案。"
 			},
 			"editFiles": {
-				"label": "編輯檔案",
-				"shortName": "編輯",
+				"label": "編輯",
 				"description": "允許修改電腦上的任何檔案。"
 			},
 			"executeCommands": {
-				"label": "執行已核准的命令",
-				"shortName": "命令",
+				"label": "命令",
 				"description": "允許執行已核准的終端機命令。您可以在設定面板中調整此設定。"
 			},
 			"useBrowser": {
-				"label": "使用瀏覽器",
-				"shortName": "瀏覽器",
+				"label": "瀏覽器",
 				"description": "允許在無介面瀏覽器中啟動並與任何網站互動。"
 			},
 			"useMcp": {
-				"label": "使用 MCP 伺服器",
-				"shortName": "MCP",
+				"label": "MCP",
 				"description": "允許使用已設定的 MCP 伺服器，這些伺服器可能會修改檔案系統或與 API 進行互動。"
 			},
 			"switchModes": {
-				"label": "切換模式",
-				"shortName": "模式",
+				"label": "模式",
 				"description": "允許在不需要核准的情況下自動切換不同模式。"
 			},
 			"subtasks": {
-				"label": "建立和完成子工作",
-				"shortName": "子工作",
+				"label": "回力鏢",
 				"description": "允許在不需要核准的情況下建立和完成子工作。"
 			},
 			"retryRequests": {
-				"label": "重試失敗的請求",
-				"shortName": "重試",
+				"label": "重試",
 				"description": "當服務提供者回傳錯誤回應時自動重試失敗的 API 請求。"
 			}
 		}

@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Permet que Roo realitzi operacions automàticament sense requerir aprovació. Activeu aquesta configuració només si confieu plenament en la IA i enteneu els riscos de seguretat associats.",
 		"readOnly": {
-			"label": "Aprovar sempre operacions de només lectura",
+			"label": "Llegir",
 			"description": "Quan està activat, Roo veurà automàticament el contingut del directori i llegirà fitxers sense que calgui fer clic al botó Aprovar.",
 			"outsideWorkspace": {
 				"label": "Incloure fitxers fora de l'espai de treball",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Aprovar sempre operacions d'escriptura",
+			"label": "Escriure",
 			"description": "Crear i editar fitxers automàticament sense requerir aprovació",
 			"delayLabel": "Retard després d'escriptura per permetre que els diagnòstics detectin possibles problemes",
 			"outsideWorkspace": {
@@ -52,29 +52,28 @@
 			}
 		},
 		"browser": {
-			"label": "Aprovar sempre accions del navegador",
-			"description": "Realitzar accions del navegador automàticament sense requerir aprovació",
-			"note": "Nota: Només s'aplica quan el model admet l'ús de l'ordinador"
+			"label": "Navegador",
+			"description": "Realitzar accions del navegador automàticament sense requerir aprovació. Nota: Només s'aplica quan el model admet l'ús de l'ordinador"
 		},
 		"retry": {
-			"label": "Tornar a intentar sempre sol·licituds d'API fallides",
+			"label": "Reintentar",
 			"description": "Tornar a intentar sol·licituds d'API fallides automàticament quan el servidor retorna una resposta d'error",
 			"delayLabel": "Retard abans de tornar a intentar la sol·licitud"
 		},
 		"mcp": {
-			"label": "Aprovar sempre eines MCP",
+			"label": "MCP",
 			"description": "Habilitar l'aprovació automàtica d'eines MCP individuals a la vista de Servidors MCP (requereix tant aquesta configuració com la casella \"Permetre sempre\" de l'eina)"
 		},
 		"modeSwitch": {
-			"label": "Aprovar sempre canvis de mode",
+			"label": "Mode",
 			"description": "Canviar automàticament entre diferents modes sense requerir aprovació"
 		},
 		"subtasks": {
-			"label": "Aprovar sempre creació i finalització de subtasques",
+			"label": "Subtasques",
 			"description": "Permetre la creació i finalització de subtasques sense requerir aprovació"
 		},
 		"execute": {
-			"label": "Aprovar sempre operacions d'execució permeses",
+			"label": "Executar",
 			"description": "Executar automàticament comandes de terminal permeses sense requerir aprovació",
 			"allowedCommands": "Comandes d'auto-execució permeses",
 			"allowedCommandsDescription": "Prefixos de comandes que poden ser executats automàticament quan \"Aprovar sempre operacions d'execució\" està habilitat. Afegeix * per permetre totes les comandes (usar amb precaució).",

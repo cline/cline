@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Permitir que Roo realice operaciones automáticamente sin requerir aprobación. Habilite esta configuración solo si confía plenamente en la IA y comprende los riesgos de seguridad asociados.",
 		"readOnly": {
-			"label": "Aprobar siempre operaciones de solo lectura",
+			"label": "Leer",
 			"description": "Cuando está habilitado, Roo verá automáticamente el contenido del directorio y leerá archivos sin que necesite hacer clic en el botón Aprobar.",
 			"outsideWorkspace": {
 				"label": "Incluir archivos fuera del espacio de trabajo",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Aprobar siempre operaciones de escritura",
+			"label": "Escribir",
 			"description": "Crear y editar archivos automáticamente sin requerir aprobación",
 			"delayLabel": "Retraso después de escritura para permitir que los diagnósticos detecten posibles problemas",
 			"outsideWorkspace": {
@@ -52,29 +52,28 @@
 			}
 		},
 		"browser": {
-			"label": "Aprobar siempre acciones del navegador",
-			"description": "Realizar acciones del navegador automáticamente sin requerir aprobación",
-			"note": "Nota: Solo se aplica cuando el modelo admite el uso del ordenador"
+			"label": "Navegador",
+			"description": "Realizar acciones del navegador automáticamente sin requerir aprobación. Nota: Solo se aplica cuando el modelo admite el uso del ordenador"
 		},
 		"retry": {
-			"label": "Reintentar siempre solicitudes de API fallidas",
+			"label": "Reintentar",
 			"description": "Reintentar automáticamente solicitudes de API fallidas cuando el servidor devuelve una respuesta de error",
 			"delayLabel": "Retraso antes de reintentar la solicitud"
 		},
 		"mcp": {
-			"label": "Aprobar siempre herramientas MCP",
+			"label": "MCP",
 			"description": "Habilitar la aprobación automática de herramientas MCP individuales en la vista de Servidores MCP (requiere tanto esta configuración como la casilla \"Permitir siempre\" de la herramienta)"
 		},
 		"modeSwitch": {
-			"label": "Aprobar siempre cambios de modo",
+			"label": "Modo",
 			"description": "Cambiar automáticamente entre diferentes modos sin requerir aprobación"
 		},
 		"subtasks": {
-			"label": "Aprobar siempre creación y finalización de subtareas",
+			"label": "Subtareas",
 			"description": "Permitir la creación y finalización de subtareas sin requerir aprobación"
 		},
 		"execute": {
-			"label": "Aprobar siempre operaciones de ejecución permitidas",
+			"label": "Ejecutar",
 			"description": "Ejecutar automáticamente comandos de terminal permitidos sin requerir aprobación",
 			"allowedCommands": "Comandos de auto-ejecución permitidos",
 			"allowedCommandsDescription": "Prefijos de comandos que pueden ser ejecutados automáticamente cuando \"Aprobar siempre operaciones de ejecución\" está habilitado. Añade * para permitir todos los comandos (usar con precaución).",

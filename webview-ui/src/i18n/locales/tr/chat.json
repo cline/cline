@@ -174,43 +174,35 @@
 		"description": "Otomatik onay, Roo Code'un izin istemeden işlemler gerçekleştirmesine olanak tanır. Yalnızca tamamen güvendiğiniz eylemler için etkinleştirin. Daha detaylı yapılandırma <settingsLink>Ayarlar</settingsLink>'da mevcuttur.",
 		"actions": {
 			"readFiles": {
-				"label": "Dosyaları ve dizinleri oku",
-				"shortName": "Okuma",
+				"label": "Okuma",
 				"description": "Bilgisayarınızdaki herhangi bir dosyayı okuma erişimine izin verir."
 			},
 			"editFiles": {
-				"label": "Dosyaları düzenle",
-				"shortName": "Düzenleme",
+				"label": "Düzenleme",
 				"description": "Bilgisayarınızdaki herhangi bir dosyanın değiştirilmesine izin verir."
 			},
 			"executeCommands": {
-				"label": "Onaylanmış komutları çalıştır",
-				"shortName": "Komutlar",
+				"label": "Komutlar",
 				"description": "Onaylanmış terminal komutlarının çalıştırılmasına izin verir. Bunu ayarlar panelinde yapılandırabilirsiniz."
 			},
 			"useBrowser": {
-				"label": "Tarayıcıyı kullan",
-				"shortName": "Tarayıcı",
+				"label": "Tarayıcı",
 				"description": "Grafiksel arayüz olmayan bir tarayıcıda herhangi bir web sitesini başlatma ve etkileşim kurma yeteneğine izin verir."
 			},
 			"useMcp": {
-				"label": "MCP sunucularını kullan",
-				"shortName": "MCP",
+				"label": "MCP",
 				"description": "Dosya sistemini değiştirebilen veya API'lerle etkileşime girebilen yapılandırılmış MCP sunucularının kullanımına izin verir."
 			},
 			"switchModes": {
-				"label": "Modları değiştir",
-				"shortName": "Modlar",
+				"label": "Modlar",
 				"description": "Onay gerektirmeden farklı modlar arasında otomatik geçişe izin verir."
 			},
 			"subtasks": {
-				"label": "Alt görevler oluştur ve tamamla",
-				"shortName": "Alt görevler",
+				"label": "Görevler",
 				"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin verir."
 			},
 			"retryRequests": {
-				"label": "Başarısız istekleri yeniden dene",
-				"shortName": "Yeniden Denemeler",
+				"label": "Yeniden Denemeler",
 				"description": "Sağlayıcı bir hata yanıtı döndürdüğünde başarısız API isteklerini otomatik olarak yeniden dener."
 			}
 		}

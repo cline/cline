@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Allow Roo to automatically perform operations without requiring approval. Enable these settings only if you fully trust the AI and understand the associated security risks.",
 		"readOnly": {
-			"label": "Always approve read-only operations",
+			"label": "Read",
 			"description": "When enabled, Roo will automatically view directory contents and read files without requiring you to click the Approve button.",
 			"outsideWorkspace": {
 				"label": "Include files outside workspace",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Always approve write operations",
+			"label": "Write",
 			"description": "Automatically create and edit files without requiring approval",
 			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems",
 			"outsideWorkspace": {
@@ -52,29 +52,28 @@
 			}
 		},
 		"browser": {
-			"label": "Always approve browser actions",
-			"description": "Automatically perform browser actions without requiring approval",
-			"note": "Note: Only applies when the model supports computer use"
+			"label": "Browser",
+			"description": "Automatically perform browser actions without requiring approval. Note: Only applies when the model supports computer use"
 		},
 		"retry": {
-			"label": "Always retry failed API requests",
+			"label": "Retry",
 			"description": "Automatically retry failed API requests when server returns an error response",
 			"delayLabel": "Delay before retrying the request"
 		},
 		"mcp": {
-			"label": "Always approve MCP tools",
+			"label": "MCP",
 			"description": "Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this setting and the tool's individual \"Always allow\" checkbox)"
 		},
 		"modeSwitch": {
-			"label": "Always approve mode switching",
+			"label": "Mode",
 			"description": "Automatically switch between different modes without requiring approval"
 		},
 		"subtasks": {
-			"label": "Always approve creation & completion of subtasks",
+			"label": "Subtasks",
 			"description": "Allow creation and completion of subtasks without requiring approval"
 		},
 		"execute": {
-			"label": "Always approve allowed execute operations",
+			"label": "Execute",
 			"description": "Automatically execute allowed terminal commands without requiring approval",
 			"allowedCommands": "Allowed Auto-Execute Commands",
 			"allowedCommandsDescription": "Command prefixes that can be auto-executed when \"Always approve execute operations\" is enabled. Add * to allow all commands (use with caution).",

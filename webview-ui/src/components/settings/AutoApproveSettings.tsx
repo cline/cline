@@ -1,7 +1,6 @@
 import { HTMLAttributes, useState } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { CheckCheck } from "lucide-react"
+import { VSCodeButton, VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 import { vscode } from "@/utils/vscode"
 import { Slider } from "@/components/ui"
@@ -76,26 +75,117 @@ export const AutoApproveSettings = ({
 		<div {...props}>
 			<SectionHeader description={t("settings:autoApprove.description")}>
 				<div className="flex items-center gap-2">
-					<CheckCheck className="w-4" />
+					<span className="codicon codicon-check w-4" />
 					<div>{t("settings:sections.autoApprove")}</div>
 				</div>
 			</SectionHeader>
 
 			<Section>
-				<div>
-					<VSCodeCheckbox
-						checked={alwaysAllowReadOnly}
-						onChange={(e: any) => setCachedStateField("alwaysAllowReadOnly", e.target.checked)}
-						data-testid="always-allow-readonly-checkbox">
-						<span className="font-medium">{t("settings:autoApprove.readOnly.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:autoApprove.readOnly.description")}
-					</div>
+				<div
+					className="flex flex-row gap-2 [@media(min-width:400px)]:gap-4 flex-wrap justify-center"
+					style={{
+						paddingBottom: "1rem",
+						transition: "all 0.2s",
+					}}>
+					{[
+						{
+							key: "alwaysAllowReadOnly",
+							labelKey: "settings:autoApprove.readOnly.label",
+							descriptionKey: "settings:autoApprove.readOnly.description",
+							icon: "eye",
+							testId: "always-allow-readonly-toggle",
+						},
+						{
+							key: "alwaysAllowWrite",
+							labelKey: "settings:autoApprove.write.label",
+							descriptionKey: "settings:autoApprove.write.description",
+							icon: "edit",
+							testId: "always-allow-write-toggle",
+						},
+						{
+							key: "alwaysAllowBrowser",
+							labelKey: "settings:autoApprove.browser.label",
+							descriptionKey: "settings:autoApprove.browser.description",
+							icon: "globe",
+							testId: "always-allow-browser-toggle",
+						},
+						{
+							key: "alwaysApproveResubmit",
+							labelKey: "settings:autoApprove.retry.label",
+							descriptionKey: "settings:autoApprove.retry.description",
+							icon: "refresh",
+							testId: "always-approve-resubmit-toggle",
+						},
+						{
+							key: "alwaysAllowMcp",
+							labelKey: "settings:autoApprove.mcp.label",
+							descriptionKey: "settings:autoApprove.mcp.description",
+							icon: "plug",
+							testId: "always-allow-mcp-toggle",
+						},
+						{
+							key: "alwaysAllowModeSwitch",
+							labelKey: "settings:autoApprove.modeSwitch.label",
+							descriptionKey: "settings:autoApprove.modeSwitch.description",
+							icon: "sync",
+							testId: "always-allow-mode-switch-toggle",
+						},
+						{
+							key: "alwaysAllowSubtasks",
+							labelKey: "settings:autoApprove.subtasks.label",
+							descriptionKey: "settings:autoApprove.subtasks.description",
+							icon: "discard",
+							testId: "always-allow-subtasks-toggle",
+						},
+						{
+							key: "alwaysAllowExecute",
+							labelKey: "settings:autoApprove.execute.label",
+							descriptionKey: "settings:autoApprove.execute.description",
+							icon: "terminal",
+							testId: "always-allow-execute-toggle",
+						},
+					].map((cfg) => {
+						const boolValues = {
+							alwaysAllowReadOnly,
+							alwaysAllowWrite,
+							alwaysAllowBrowser,
+							alwaysApproveResubmit,
+							alwaysAllowMcp,
+							alwaysAllowModeSwitch,
+							alwaysAllowSubtasks,
+							alwaysAllowExecute,
+						}
+						const value = boolValues[cfg.key as keyof typeof boolValues] ?? false
+						const title = t(cfg.descriptionKey || "")
+						return (
+							<VSCodeButton
+								key={cfg.key}
+								appearance={value ? "primary" : "secondary"}
+								onClick={() => setCachedStateField(cfg.key as any, !value)}
+								title={title}
+								data-testid={cfg.testId}
+								className="aspect-square min-h-[80px] min-w-[80px]"
+								style={{ flexBasis: "20%", transition: "background-color 0.2s" }}>
+								<span className="flex flex-col items-center gap-1 h-full">
+									<span
+										className={`codicon codicon-${cfg.icon}`}
+										style={{ fontSize: "1.5rem", paddingTop: "0.5rem" }}
+									/>
+									<span className="text-sm text-center">{t(cfg.labelKey)}</span>
+								</span>
+							</VSCodeButton>
+						)
+					})}
 				</div>
+
+				{/* ADDITIONAL SETTINGS */}
 
 				{alwaysAllowReadOnly && (
 					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div className="flex items-center gap-4 font-bold">
+							<span className="codicon codicon-eye" />
+							<div>{t("settings:autoApprove.readOnly.label")}</div>
+						</div>
 						<div>
 							<VSCodeCheckbox
 								checked={alwaysAllowReadOnlyOutsideWorkspace}
@@ -114,20 +204,12 @@ export const AutoApproveSettings = ({
 					</div>
 				)}
 
-				<div>
-					<VSCodeCheckbox
-						checked={alwaysAllowWrite}
-						onChange={(e: any) => setCachedStateField("alwaysAllowWrite", e.target.checked)}
-						data-testid="always-allow-write-checkbox">
-						<span className="font-medium">{t("settings:autoApprove.write.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:autoApprove.write.description")}
-					</div>
-				</div>
-
 				{alwaysAllowWrite && (
 					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div className="flex items-center gap-4 font-bold">
+							<span className="codicon codicon-edit" />
+							<div>{t("settings:autoApprove.write.label")}</div>
+						</div>
 						<div>
 							<VSCodeCheckbox
 								checked={alwaysAllowWriteOutsideWorkspace}
@@ -162,33 +244,12 @@ export const AutoApproveSettings = ({
 					</div>
 				)}
 
-				<div>
-					<VSCodeCheckbox
-						checked={alwaysAllowBrowser}
-						onChange={(e: any) => setCachedStateField("alwaysAllowBrowser", e.target.checked)}
-						data-testid="always-allow-browser-checkbox">
-						<span className="font-medium">{t("settings:autoApprove.browser.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						<div>{t("settings:autoApprove.browser.description")}</div>
-						<div>{t("settings:autoApprove.browser.note")}</div>
-					</div>
-				</div>
-
-				<div>
-					<VSCodeCheckbox
-						checked={alwaysApproveResubmit}
-						onChange={(e: any) => setCachedStateField("alwaysApproveResubmit", e.target.checked)}
-						data-testid="always-approve-resubmit-checkbox">
-						<span className="font-medium">{t("settings:autoApprove.retry.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:autoApprove.retry.description")}
-					</div>
-				</div>
-
 				{alwaysApproveResubmit && (
 					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div className="flex items-center gap-4 font-bold">
+							<span className="codicon codicon-refresh" />
+							<div>{t("settings:autoApprove.retry.label")}</div>
+						</div>
 						<div>
 							<div className="flex items-center gap-2">
 								<Slider
@@ -208,56 +269,13 @@ export const AutoApproveSettings = ({
 					</div>
 				)}
 
-				<div>
-					<VSCodeCheckbox
-						checked={alwaysAllowMcp}
-						onChange={(e: any) => setCachedStateField("alwaysAllowMcp", e.target.checked)}
-						data-testid="always-allow-mcp-checkbox">
-						<span className="font-medium">{t("settings:autoApprove.mcp.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:autoApprove.mcp.description")}
-					</div>
-				</div>
-
-				<div>
-					<VSCodeCheckbox
-						checked={alwaysAllowModeSwitch}
-						onChange={(e: any) => setCachedStateField("alwaysAllowModeSwitch", e.target.checked)}
-						data-testid="always-allow-mode-switch-checkbox">
-						<span className="font-medium">{t("settings:autoApprove.modeSwitch.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:autoApprove.modeSwitch.description")}
-					</div>
-				</div>
-
-				<div>
-					<VSCodeCheckbox
-						checked={alwaysAllowSubtasks}
-						onChange={(e: any) => setCachedStateField("alwaysAllowSubtasks", e.target.checked)}
-						data-testid="always-allow-subtasks-checkbox">
-						<span className="font-medium">{t("settings:autoApprove.subtasks.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:autoApprove.subtasks.description")}
-					</div>
-				</div>
-
-				<div>
-					<VSCodeCheckbox
-						checked={alwaysAllowExecute}
-						onChange={(e: any) => setCachedStateField("alwaysAllowExecute", e.target.checked)}
-						data-testid="always-allow-execute-checkbox">
-						<span className="font-medium">{t("settings:autoApprove.execute.label")}</span>
-					</VSCodeCheckbox>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:autoApprove.execute.description")}
-					</div>
-				</div>
-
 				{alwaysAllowExecute && (
 					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div className="flex items-center gap-4 font-bold">
+							<span className="codicon codicon-terminal" />
+							<div>{t("settings:autoApprove.execute.label")}</div>
+						</div>
+
 						<div>
 							<label className="block font-medium mb-1" data-testid="allowed-commands-heading">
 								{t("settings:autoApprove.execute.allowedCommands")}

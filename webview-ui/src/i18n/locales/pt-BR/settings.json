@@ -53,8 +53,7 @@
 		},
 		"browser": {
 			"label": "Aprovar sempre ações do navegador",
-			"description": "Realizar ações do navegador automaticamente sem exigir aprovação",
-			"note": "Nota: Aplica-se apenas quando o modelo suporta uso do computador"
+			"description": "Realizar ações do navegador automaticamente sem exigir aprovação. Nota: Aplica-se apenas quando o modelo suporta uso do computador"
 		},
 		"retry": {
 			"label": "Sempre tentar novamente requisições de API com falha",
@@ -70,7 +69,7 @@
 			"description": "Alternar automaticamente entre diferentes modos sem exigir aprovação"
 		},
 		"subtasks": {
-			"label": "Aprovar sempre criação e conclusão de subtarefas",
+			"label": "Subtarefas",
 			"description": "Permitir a criação e conclusão de subtarefas sem exigir aprovação"
 		},
 		"execute": {

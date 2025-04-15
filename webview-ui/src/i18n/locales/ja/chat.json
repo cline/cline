@@ -174,43 +174,35 @@
 		"description": "自動承認はRoo Codeに許可を求めずに操作を実行する権限を与えます。完全に信頼できる操作のみ有効にしてください。より詳細な設定は<settingsLink>設定</settingsLink>で利用できます。",
 		"actions": {
 			"readFiles": {
-				"label": "ファイルとディレクトリの読み取り",
-				"shortName": "読み取り",
+				"label": "読み取り",
 				"description": "コンピュータ上の任意のファイルを読み取るアクセスを許可します。"
 			},
 			"editFiles": {
-				"label": "ファイルの編集",
-				"shortName": "編集",
+				"label": "編集",
 				"description": "コンピュータ上の任意のファイルを変更することを許可します。"
 			},
 			"executeCommands": {
-				"label": "承認されたコマンドの実行",
-				"shortName": "コマンド",
+				"label": "コマンド",
 				"description": "承認されたターミナルコマンドの実行を許可します。設定パネルで構成できます。"
 			},
 			"useBrowser": {
-				"label": "ブラウザの使用",
-				"shortName": "ブラウザ",
+				"label": "ブラウザ",
 				"description": "ヘッドレスブラウザで任意のウェブサイトを起動して操作する能力を許可します。"
 			},
 			"useMcp": {
-				"label": "MCPサーバーの使用",
-				"shortName": "MCP",
+				"label": "MCP",
 				"description": "ファイルシステムを変更したりAPIと対話したりできる構成済みMCPサーバーの使用を許可します。"
 			},
 			"switchModes": {
-				"label": "モードの切り替え",
-				"shortName": "モード",
+				"label": "モード",
 				"description": "承認を必要とせず、異なるモード間の自動切り替えを許可します。"
 			},
 			"subtasks": {
-				"label": "サブタスクの作成と完了",
-				"shortName": "サブタスク",
+				"label": "サブタスク",
 				"description": "承認を必要とせずにサブタスクの作成と完了を許可します。"
 			},
 			"retryRequests": {
-				"label": "失敗したリクエストの再試行",
-				"shortName": "再試行",
+				"label": "再試行",
 				"description": "プロバイダーがエラー応答を返した場合、失敗したAPIリクエストを自動的に再試行します。"
 			}
 		}

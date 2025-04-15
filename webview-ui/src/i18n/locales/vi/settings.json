@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",
 		"readOnly": {
-			"label": "Luôn phê duyệt các hoạt động chỉ đọc",
+			"label": "Đọc",
 			"description": "Khi được bật, Roo sẽ tự động xem nội dung thư mục và đọc tệp mà không yêu cầu bạn nhấp vào nút Phê duyệt.",
 			"outsideWorkspace": {
 				"label": "Bao gồm các tệp ngoài không gian làm việc",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Luôn phê duyệt các hoạt động ghi",
+			"label": "Ghi",
 			"description": "Tự động tạo và chỉnh sửa tệp mà không cần phê duyệt",
 			"delayLabel": "Trì hoãn sau khi ghi để cho phép chẩn đoán phát hiện các vấn đề tiềm ẩn",
 			"outsideWorkspace": {
@@ -52,29 +52,28 @@
 			}
 		},
 		"browser": {
-			"label": "Luôn phê duyệt các hành động trình duyệt",
-			"description": "Tự động thực hiện các hành động trình duyệt mà không cần phê duyệt",
-			"note": "Lưu ý: Chỉ áp dụng khi mô hình hỗ trợ sử dụng máy tính"
+			"label": "Trình duyệt",
+			"description": "Tự động thực hiện các hành động trình duyệt mà không cần phê duyệt. Lưu ý: Chỉ áp dụng khi mô hình hỗ trợ sử dụng máy tính"
 		},
 		"retry": {
-			"label": "Luôn thử lại các yêu cầu API thất bại",
+			"label": "Thử lại",
 			"description": "Tự động thử lại các yêu cầu API thất bại khi máy chủ trả về phản hồi lỗi",
 			"delayLabel": "Trì hoãn trước khi thử lại yêu cầu"
 		},
 		"mcp": {
-			"label": "Luôn phê duyệt các công cụ MCP",
+			"label": "MCP",
 			"description": "Bật tự động phê duyệt các công cụ MCP riêng lẻ trong chế độ xem Máy chủ MCP (yêu cầu cả cài đặt này và hộp kiểm \"Luôn cho phép\" của công cụ)"
 		},
 		"modeSwitch": {
-			"label": "Luôn phê duyệt chuyển đổi chế độ",
+			"label": "Chế độ",
 			"description": "Tự động chuyển đổi giữa các chế độ khác nhau mà không cần phê duyệt"
 		},
 		"subtasks": {
-			"label": "Luôn phê duyệt việc tạo và hoàn thành các công việc phụ",
+			"label": "Nhiệm vụ",
 			"description": "Cho phép tạo và hoàn thành các công việc phụ mà không cần phê duyệt"
 		},
 		"execute": {
-			"label": "Luôn phê duyệt các hoạt động thực thi được phép",
+			"label": "Thực thi",
 			"description": "Tự động thực thi các lệnh terminal được phép mà không cần phê duyệt",
 			"allowedCommands": "Các lệnh tự động thực thi được phép",
 			"allowedCommandsDescription": "Tiền tố lệnh có thể được tự động thực thi khi \"Luôn phê duyệt các hoạt động thực thi\" được bật. Thêm * để cho phép tất cả các lệnh (sử dụng cẩn thận).",

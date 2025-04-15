@@ -174,43 +174,35 @@
 		"description": "Automatyczne zatwierdzanie pozwala Roo Code wykonywać działania bez pytania o pozwolenie. Włącz tylko dla działań, którym w pełni ufasz. Bardziej szczegółowa konfiguracja dostępna w <settingsLink>Ustawieniach</settingsLink>.",
 		"actions": {
 			"readFiles": {
-				"label": "Czytaj pliki i katalogi",
-				"shortName": "Czytanie",
+				"label": "Czytanie",
 				"description": "Pozwala na dostęp do odczytu dowolnego pliku na Twoim komputerze."
 			},
 			"editFiles": {
-				"label": "Edytuj pliki",
-				"shortName": "Edycja",
+				"label": "Edycja",
 				"description": "Pozwala na modyfikację dowolnych plików na Twoim komputerze."
 			},
 			"executeCommands": {
-				"label": "Wykonuj zatwierdzone polecenia",
-				"shortName": "Polecenia",
+				"label": "Polecenia",
 				"description": "Pozwala na wykonywanie zatwierdzonych poleceń terminala. Możesz to skonfigurować w panelu ustawień."
 			},
 			"useBrowser": {
-				"label": "Używaj przeglądarki",
-				"shortName": "Przeglądarka",
+				"label": "Przeglądarka",
 				"description": "Pozwala na uruchamianie i interakcję z dowolną stroną internetową w przeglądarce bezinterfejsowej."
 			},
 			"useMcp": {
-				"label": "Używaj serwerów MCP",
-				"shortName": "MCP",
+				"label": "MCP",
 				"description": "Pozwala na korzystanie ze skonfigurowanych serwerów MCP, które mogą modyfikować system plików lub wchodzić w interakcje z API."
 			},
 			"switchModes": {
-				"label": "Przełączaj tryby",
-				"shortName": "Tryby",
+				"label": "Tryby",
 				"description": "Pozwala na automatyczne przełączanie między różnymi trybami bez wymagania zatwierdzenia."
 			},
 			"subtasks": {
-				"label": "Twórz i kończ podzadania",
-				"shortName": "Podzadania",
+				"label": "Podzadania",
 				"description": "Pozwala na tworzenie i kończenie podzadań bez wymagania zatwierdzenia."
 			},
 			"retryRequests": {
-				"label": "Ponów nieudane zapytania",
-				"shortName": "Ponowienia",
+				"label": "Ponowienia",
 				"description": "Automatycznie ponawia nieudane zapytania API, gdy dostawca zwraca odpowiedź z błędem."
 			}
 		}

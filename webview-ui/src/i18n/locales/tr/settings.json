@@ -53,8 +53,7 @@
 		},
 		"browser": {
 			"label": "Tarayıcı eylemlerini her zaman onayla",
-			"description": "Onay gerektirmeden otomatik olarak tarayıcı eylemleri gerçekleştir",
-			"note": "Not: Yalnızca model bilgisayar kullanımını desteklediğinde geçerlidir"
+			"description": "Onay gerektirmeden otomatik olarak tarayıcı eylemleri gerçekleştir. Not: Yalnızca model bilgisayar kullanımını desteklediğinde geçerlidir"
 		},
 		"retry": {
 			"label": "Başarısız API isteklerini her zaman yeniden dene",
@@ -70,7 +69,7 @@
 			"description": "Onay gerektirmeden otomatik olarak farklı modlar arasında geçiş yap"
 		},
 		"subtasks": {
-			"label": "Alt görevlerin oluşturulmasını ve tamamlanmasını her zaman onayla",
+			"label": "Görevler",
 			"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin ver"
 		},
 		"execute": {

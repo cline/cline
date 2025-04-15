@@ -53,8 +53,7 @@
 		},
 		"browser": {
 			"label": "Zawsze zatwierdzaj akcje przeglądarki",
-			"description": "Automatycznie wykonuj akcje przeglądarki bez konieczności zatwierdzania",
-			"note": "Uwaga: Dotyczy tylko gdy model obsługuje używanie komputera"
+			"description": "Automatycznie wykonuj akcje przeglądarki bez konieczności zatwierdzania. Uwaga: Dotyczy tylko gdy model obsługuje używanie komputera"
 		},
 		"retry": {
 			"label": "Zawsze ponawiaj nieudane żądania API",
@@ -70,7 +69,7 @@
 			"description": "Automatycznie przełączaj między różnymi trybami bez konieczności zatwierdzania"
 		},
 		"subtasks": {
-			"label": "Zawsze zatwierdzaj tworzenie i ukończenie podzadań",
+			"label": "Podzadania",
 			"description": "Zezwalaj na tworzenie i ukończenie podzadań bez konieczności zatwierdzania"
 		},
 		"execute": {
