@@ -3,6 +3,7 @@ import { addLineNumbers, everyLineHasLineNumbers, stripLineNumbers } from "../..
 import { distance } from "fastest-levenshtein"
 import { ToolProgressStatus } from "../../../shared/ExtensionMessage"
 import { ToolUse } from "../../assistant-message"
+import { normalizeString } from "../../../utils/text-normalization"
 
 const BUFFER_LINES = 40 // Number of extra context lines to show before and after matches
 
@@ -12,11 +13,9 @@ function getSimilarity(original: string, search: string): number {
 		return 0
 	}
 
-	// Normalize strings by removing extra whitespace but preserve case
-	const normalizeStr = (str: string) => str.replace(/\s+/g, " ").trim()
-
-	const normalizedOriginal = normalizeStr(original)
-	const normalizedSearch = normalizeStr(search)
+	// Use the normalizeString utility to handle smart quotes and other special characters
+	const normalizedOriginal = normalizeString(original)
+	const normalizedSearch = normalizeString(search)
 
 	if (normalizedOriginal === normalizedSearch) {
 		return 1
