@@ -1037,7 +1037,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										vscode.postMessage({ type: "loadApiConfigurationById", text: value })
 									}
 								}}
-								contentClassName="max-h-[300px] overflow-y-auto"
+								contentClassName="max-h-[300px]"
 								triggerClassName="w-full text-ellipsis overflow-hidden"
 								itemClassName="group"
 								renderItem={({ type, value, label, pinned }) => {
