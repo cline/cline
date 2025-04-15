@@ -58,6 +58,22 @@ export class UpdateFeatureFlagTool extends PostHogTool<UpdateFeatureFlagToolInpu
         }
     }
 
+    static getToolDefinitionForPrompt(): string {
+        return `Description: Update an existing feature flag in PostHog to set it as active or inactive. You can use this to toggle test feature flags that you create.
+Parameters:
+- id: (required) The id of the feature flag to update.
+- body: (required) A JSON object containing the updated flag, all keys are optional.
+Usage:
+<update_feature_flag>
+<id>Feature flag id</id>
+<body>
+{
+  "active": true or false
+}
+</body>
+</update_feature_flag>`
+    }
+
     getToolUsageDescription(block: ToolUse): string {
         return `[update feature flag with id ${block.params.id}]`
     }

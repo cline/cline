@@ -3,6 +3,9 @@ import os from 'os'
 import osName from 'os-name'
 import { McpHub } from '../../services/mcp/McpHub'
 import { BrowserSettings } from '../../shared/BrowserSettings'
+import { CreateFeatureFlagTool } from '../tools/posthog/feature-flags/CreateFeatureFlagTool'
+import { UpdateFeatureFlagTool } from '../tools/posthog/feature-flags/UpdateFeatureFlagTool'
+import { ListFeatureFlagsTool } from '../tools/posthog/feature-flags/ListFeatureFlagsTool'
 
 export const SYSTEM_PROMPT = async (
     cwd: string,
@@ -57,6 +60,17 @@ Rules:
 5. Don't overwhelm the user with explanations about PostHog — just implement it seamlessly whilst fulfilling the user's task.
 6. You should add capture calls to the features that are currently being worked on during the current task, not to the entire codebase. As a rule of thumb, consider what you would expect to see in a PR review, so avoid modifying files that don't have anything to do with the current task.
     
+## Adding feature flags
+
+You can use the \`create_feature_flag\` tool to create a new feature flag, and the \`update_feature_flag\` tool to update an existing feature flag. You can use the \`list_feature_flags\` tool to list all feature flags if you want to see what feature flags already exist.
+
+Rules:
+1. When a user implements a new feature that would make sense to test with a feature flag, you should ask them if they would like to feature flag the new feature. If they would like to, you should create a new feature flag using the \`create_feature_flag\` tool.
+2. When a user wants to experiment with an existing feature, you should ask them if they would like to feature flag the new and existing features.
+3. When adding a new feature to the codebase, it can be helpful to test the feature afterwards in the browser. If you have used a feature flag, you should test it with the flag active and then inactive to ensure it is working properly. You should append \`?__posthog_debug=true\` to any URL that you visit to enable debug mode so you can check the feature flag is loaded correctly.
+4. Avoid updating existing feature flags that you did not create, unless the user explicitly asks you to.
+5. If the codebase already uses feature flags, you should follow the existing implementation and naming conventions for feature flags.
+6. You should ask the user if whether they would like the feature flag to remain active or not after the feature is implemented and update the feature flag accordingly using the \`update_feature_flag\` tool.
 
 ====
 
@@ -330,47 +344,13 @@ Tracking conventions discovered in the codebase.
 </add_capture_calls>
 
 ## list_feature_flags
-Description: List all feature flags in PostHog.
-Parameters:
-- query: (optional) query parameters for the list feature flags request
-Usage:
-<list_feature_flags>
-<query>
-{
-  "active": true or false
-}
-</query>
-</list_feature_flags>
+${ListFeatureFlagsTool.getToolDefinitionForPrompt()}
 
 ## create_feature_flag
-Description: Create a new feature flag in PostHog.
-Parameters:
-- body: (required) A JSON object containing the feature flag's name, key, and active value.
-Usage:
-<create_feature_flag>
-<body>
-{
-  "name": "Feature flag name",
-  "key": "feature-flag-key",
-  "active": true or false
-}
-</body>
-</create_feature_flag>
+${CreateFeatureFlagTool.getToolDefinitionForPrompt()}
 
 ## update_feature_flag
-Description: Update an existing feature flag in PostHog.
-Parameters:
-- id: (required) The id of the feature flag to update.
-- body: (required) A JSON object containing the updated flag, all keys are optional.
-Usage:
-<update_feature_flag>
-<id>Feature flag id</id>
-<body>
-{
-  "active": true or false
-}
-</body>
-</update_feature_flag>
+${UpdateFeatureFlagTool.getToolDefinitionForPrompt()}
 
 # Tool Use Examples
 

@@ -34,10 +34,24 @@ export class CreateFeatureFlagTool extends PostHogTool<CreateFeatureFlagToolInpu
         return result.success
     }
 
+    static getToolDefinitionForPrompt() {
+        return `Description: Create a feature flag in PostHog. You can then implement the feature flag in the codebase using the feature flag key.
+Parameters:
+- body: (required) A JSON object containing the feature flag's name, key, and active value.
+Usage:
+<create_feature_flag>
+<body>
+{
+  "name": "Feature flag name",
+  "key": "feature-flag-key",
+  "active": true or false
+}
+</body>
+</create_feature_flag>`
+    }
+
     async execute(input: CreateFeatureFlagToolInput): Promise<ToolOutput<CreateFeatureFlagToolOutput>> {
         try {
-            const currentUser = await this.makeRequest<{ email?: string }>('users/@me', 'GET')
-
             const data = await this.makeRequest<unknown>(
                 `projects/${this.config.posthogProjectId}/feature_flags/`,
                 'POST',
@@ -47,14 +61,7 @@ export class CreateFeatureFlagTool extends PostHogTool<CreateFeatureFlagToolInpu
                     filters: {
                         groups: [
                             {
-                                properties: [
-                                    {
-                                        key: 'email',
-                                        value: [currentUser.email],
-                                        operator: 'exact',
-                                        type: 'person',
-                                    },
-                                ],
+                                properties: [],
                                 rollout_percentage: 100,
                                 variant: null,
                             },

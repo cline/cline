@@ -71,6 +71,20 @@ export class ListFeatureFlagsTool extends PostHogTool<ListFeatureFlagsToolInput,
         }
     }
 
+    static getToolDefinitionForPrompt(): string {
+        return `Description: List all feature flags in PostHog.
+Parameters:
+- query: (optional) query parameters for the list feature flags request
+Usage:
+<list_feature_flags>
+<query>
+{
+  "active": true or false
+}
+</query>
+</list_feature_flags>`
+    }
+
     getToolUsageDescription(block: ToolUse): string {
         const params = block.params as ListFeatureFlagsToolInput
         const filters = Object.entries(params)
