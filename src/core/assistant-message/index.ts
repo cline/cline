@@ -56,11 +56,8 @@ export const toolParamNames = [
     'query',
     'paths',
     'tracking_conventions',
-    'key',
-    'value',
-    'name',
     'id',
-    'active',
+    'body',
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

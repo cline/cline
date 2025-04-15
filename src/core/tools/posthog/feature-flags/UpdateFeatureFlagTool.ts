@@ -26,8 +26,8 @@ export class UpdateFeatureFlagTool extends PostHogTool<UpdateFeatureFlagToolInpu
             // Prepare the update payload
             const updatePayload: Record<string, unknown> = {}
 
-            if (input.active !== undefined) {
-                updatePayload.active = input.active
+            if (input.body.active !== undefined) {
+                updatePayload.active = input.body.active
             }
 
             const data = await this.makeRequest<unknown>(

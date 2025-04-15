@@ -10,8 +10,32 @@ export abstract class BaseTool<TInput, TOutput> {
     abstract readonly outputSchema: z.ZodSchema<TOutput>
     abstract execute(input: ToolInput<TInput>): Promise<ToolOutput<TOutput>>
 
+    protected preprocessInputSchema<T extends z.ZodTypeAny>(schema: T): z.ZodEffects<T> {
+        return z.preprocess((data) => {
+            if (data && typeof data === 'object' && 'body' in data) {
+                try {
+                    return {
+                        ...data,
+                        body: JSON.parse(data.body as any),
+                    }
+                } catch (e) {
+                    throw new ToolInputValidationError(
+                        [
+                            {
+                                message: 'Failed to parse JSON body',
+                                path: ['body'],
+                            },
+                        ],
+                        data
+                    )
+                }
+            }
+            return data
+        }, schema)
+    }
+
     validateInput(input: unknown): TInput {
-        const result = this.inputSchema.safeParse(input)
+        const result = this.preprocessInputSchema(this.inputSchema).safeParse(input)
         if (!result.success) {
             throw new ToolInputValidationError(result.error.errors, input)
         }

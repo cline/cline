@@ -171,7 +171,7 @@ export class PostHog {
         this.toolManager = new ToolManager({
             posthogApiKey: apiConfiguration.posthogApiKey,
             posthogHost: apiConfiguration.posthogHost,
-            posthogProjectId: apiConfiguration.posthogHost,
+            posthogProjectId: apiConfiguration.posthogProjectId,
         })
 
         if (historyItem) {
@@ -3319,7 +3319,9 @@ export class PostHog {
 
                                 await this.say('tool', completeMessage, undefined, false)
                             } else {
-                                // showNotificationForApprovalIfAutoApprovalEnabled(approvalRequest)
+                                showNotificationForApprovalIfAutoApprovalEnabled(
+                                    `Max would like to run the following tool: ${tool.name}`
+                                )
 
                                 this.removeLastPartialMessageIfExistsWithType('say', 'tool')
 

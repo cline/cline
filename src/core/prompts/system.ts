@@ -332,25 +332,31 @@ Tracking conventions discovered in the codebase.
 ## create_feature_flag
 Description: Create a new feature flag in PostHog.
 Parameters:
-- name: (required) The name of the feature flag.
-- key: (required) The key of the feature flag.
-- value: (required) The boolean value of the feature flag.
+- body: (required) A JSON object containing the feature flag's name, key, and active value.
 Usage:
 <create_feature_flag>
-<name>Feature flag name here</name>
-<key>Feature flag key here</key>
-<value>true or false</value>
+<body>
+{
+  "name": "Feature flag name",
+  "key": "feature-flag-key",
+  "active": true or false
+}
+</body>
 </create_feature_flag>
 
 ## update_feature_flag
 Description: Update an existing feature flag in PostHog.
 Parameters:
 - id: (required) The id of the feature flag to update.
-- active: (required) The boolean value of the feature flag.
+- body: (required) A JSON object containing the updated flag, all keys are optional.
 Usage:
 <update_feature_flag>
-<id>Feature flag id here</id>
-<active>true or false</active>
+<id>Feature flag id</id>
+<body>
+{
+  "active": true or false
+}
+</body>
 </update_feature_flag>
 
 # Tool Use Examples

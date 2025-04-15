@@ -1,9 +1,10 @@
 import { z } from 'zod'
-import { BasePostHogToolConfigSchema } from '../schema'
 
 export const CreateFeatureFlagToolInputSchema = z.object({
-    name: z.string(),
-    key: z.string(),
+    body: z.object({
+        key: z.string(),
+        name: z.string(),
+    }),
 })
 
 export type CreateFeatureFlagToolInput = z.infer<typeof CreateFeatureFlagToolInputSchema>
@@ -18,8 +19,10 @@ export const CreateFeatureFlagToolOutputSchema = z.object({
 export type CreateFeatureFlagToolOutput = z.infer<typeof CreateFeatureFlagToolOutputSchema>
 
 export const UpdateFeatureFlagToolInputSchema = z.object({
-    id: z.number(),
-    active: z.boolean().optional(),
+    id: z.coerce.number(),
+    body: z.object({
+        active: z.boolean().optional(),
+    }),
 })
 
 export type UpdateFeatureFlagToolInput = z.infer<typeof UpdateFeatureFlagToolInputSchema>

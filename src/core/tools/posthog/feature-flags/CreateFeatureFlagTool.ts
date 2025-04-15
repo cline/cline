@@ -31,8 +31,8 @@ export class CreateFeatureFlagTool extends PostHogTool<CreateFeatureFlagToolInpu
                 `projects/${this.config.posthogProjectId}/feature_flags/`,
                 'POST',
                 {
-                    key: input.key,
-                    name: input.name,
+                    key: input.body.key,
+                    name: input.body.name,
                     filters: {
                         groups: [
                             {
@@ -80,6 +80,10 @@ export class CreateFeatureFlagTool extends PostHogTool<CreateFeatureFlagToolInpu
     }
 
     getToolUsageDescription(block: ToolUse): string {
-        return `[create feature flag with name ${block.params.name}]`
+        try {
+            return `[create feature flag with key ${block.params.body ? JSON.parse(block.params.body)?.key : ''}]`
+        } catch (error) {
+            return `[create feature flag]`
+        }
     }
 }
