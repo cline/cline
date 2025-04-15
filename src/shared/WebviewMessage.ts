@@ -28,6 +28,7 @@ export interface WebviewMessage {
 		| "openFile"
 		| "openMention"
 		| "cancelTask"
+		| "showChatView"
 		| "refreshOpenRouterModels"
 		| "refreshOpenAiModels"
 		| "openMcpSettings"

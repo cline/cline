@@ -457,9 +457,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "action":
 					switch (message.action!) {
 						case "didBecomeVisible":
-						case "focusChatInput":
 							if (!isHidden && !textAreaDisabled && !enableButtons) {
 								textAreaRef.current?.focus()
+							}
+							break
+						case "focusChatInput":
+							textAreaRef.current?.focus()
+							if (isHidden) {
+								// Send message back to extension to show chat view
+								vscode.postMessage({ type: "showChatView" })
 							}
 							break
 					}
