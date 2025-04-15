@@ -32,7 +32,7 @@ export interface ApiHandlerOptions {
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
-	liteLlmModelInfo?: ModelInfo
+	liteLlmModelInfo?: LiteLLMModelInfo
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -1310,7 +1310,12 @@ export const mistralModels = {
 // https://docs.litellm.ai/docs/
 export type LiteLLMModelId = string
 export const liteLlmDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
-export const liteLlmModelInfoSaneDefaults: ModelInfo = {
+// LiteLLMModelInfo インターフェースを作成し、temperature プロパティを追加
+export interface LiteLLMModelInfo extends ModelInfo {
+	temperature?: number
+}
+
+export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
@@ -1319,6 +1324,7 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	outputPrice: 0,
 	cacheWritesPrice: 0,
 	cacheReadsPrice: 0,
+	temperature: 0,
 }
 
 // AskSage Models
