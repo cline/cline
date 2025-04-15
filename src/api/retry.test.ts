@@ -1,9 +1,10 @@
 import { describe, it } from "mocha"
 import "should"
-import { withRetry } from "./retry"
+import { withRetry, RegionProvider } from "./retry"
 
 describe("Retry Decorator", () => {
 	describe("withRetry", () => {
+		// Original tests
 		it("should not retry on success", async () => {
 			let callCount = 0
 			class TestClass {
@@ -211,6 +212,153 @@ describe("Retry Decorator", () => {
 				error.message.should.equal("Rate limit exceeded")
 				callCount.should.equal(2) // Initial attempt + 1 retry
 			}
+		})
+		
+		// New tests for region cycling functionality
+		describe("Region cycling", () => {
+			class TestRegionProvider implements RegionProvider {
+				private regions: string[] = ["region-1", "region-2", "region-3"]
+				private currentRegionIndex = 0
+				private callCount = 0
+				private regionHistory: string[] = []
+				
+				getCurrentRegion(): string {
+					const region = this.regions[this.currentRegionIndex]
+					this.regionHistory.push(region)
+					return region
+				}
+				
+				cycleToNextRegion(): boolean {
+					if (this.currentRegionIndex < this.regions.length - 1) {
+						this.currentRegionIndex++
+						return true
+					}
+					return false
+				}
+				
+				resetRegion(): void {
+					this.currentRegionIndex = 0
+				}
+				
+				getCallCount(): number {
+					return this.callCount
+				}
+				
+				getRegionHistory(): string[] {
+					return this.regionHistory
+				}
+				
+				@withRetry({ regionCycling: true, maxRetriesPerRegion: 1, maxRetries: 5, baseDelay: 10 })
+				async *failMethodWithRegionCycling() {
+					this.callCount++
+					const region = this.getCurrentRegion()
+					
+					// Simulate failure on the first two regions
+					if (this.currentRegionIndex < 2) {
+						const error: any = new Error(`Rate limit exceeded in ${region}`)
+						error.status = 429
+						throw error
+					}
+					
+					yield `success from ${region}`
+				}
+			}
+			
+			it("should cycle through regions on rate limit errors", async () => {
+				const provider = new TestRegionProvider()
+				const result = []
+				
+				for await (const value of provider.failMethodWithRegionCycling()) {
+					result.push(value)
+				}
+				
+				// Should have one successful result from region-3
+				result.should.deepEqual(["success from region-3"])
+				
+				// Should have accessed regions in order
+				const regionHistory = provider.getRegionHistory()
+				regionHistory.should.deepEqual(["region-1", "region-2", "region-3"])
+				
+				// Should have called the method exactly 3 times
+				provider.getCallCount().should.equal(3)
+			})
+			
+			it("should reset to first region after trying all regions", async () => {
+				class TestFullCycleProvider implements RegionProvider {
+					private regions: string[] = ["region-1", "region-2"]
+					private currentRegionIndex = 0
+					private callCount = 0
+					private regionHistory: string[] = []
+					private cycleCount = 0
+					
+					getCurrentRegion(): string {
+						const region = this.regions[this.currentRegionIndex]
+						this.regionHistory.push(region)
+						return region
+					}
+					
+					cycleToNextRegion(): boolean {
+						if (this.currentRegionIndex < this.regions.length - 1) {
+							this.currentRegionIndex++
+							return true
+						}
+						return false
+					}
+					
+					resetRegion(): void {
+						this.currentRegionIndex = 0
+						this.cycleCount++
+					}
+					
+					getCallCount(): number {
+						return this.callCount
+					}
+					
+					getRegionHistory(): string[] {
+						return this.regionHistory
+					}
+					
+					getCycleCount(): number {
+						return this.cycleCount
+					}
+					
+					@withRetry({ regionCycling: true, maxRetriesPerRegion: 1, maxRetries: 5, baseDelay: 10 })
+					async *failMethodWithRegionCycling() {
+						this.callCount++
+						const region = this.getCurrentRegion()
+						
+						// Succeed only after a complete cycle
+						if (this.cycleCount < 1) {
+							const error: any = new Error(`Rate limit exceeded in ${region}`)
+							error.status = 429
+							throw error
+						}
+						
+						yield `success from ${region} after cycle reset`
+					}
+				}
+				
+				const provider = new TestFullCycleProvider()
+				const result = []
+				
+				for await (const value of provider.failMethodWithRegionCycling()) {
+					result.push(value)
+				}
+				
+				// Should have one successful result
+				result[0].should.containEql("success from")
+				result[0].should.containEql("after cycle reset")
+				
+				// Region history should show cycling through all regions and then resetting
+				const regionHistory = provider.getRegionHistory()
+				regionHistory.should.deepEqual(["region-1", "region-2", "region-1"])
+				
+				// Should have cycled through all regions once
+				provider.getCycleCount().should.equal(1)
+				
+				// Should have called the method exactly 3 times
+				provider.getCallCount().should.equal(3)
+			})
 		})
 	})
 })

@@ -23,6 +23,7 @@ export type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
+	| "awsRegions"
 	| "awsUseCrossRegionInference"
 	| "awsBedrockUsePromptCache"
 	| "awsBedrockEndpoint"

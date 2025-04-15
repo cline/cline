@@ -130,6 +130,30 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
+	// Initialize AWS regions array if it doesn't exist and handle primary region changes
+	useEffect(() => {
+		if (selectedProvider === "bedrock" && apiConfiguration) {
+			// If awsRegions doesn't exist but awsRegion does, initialize with the primary region
+			if (!apiConfiguration.awsRegions && apiConfiguration.awsRegion) {
+				setApiConfiguration({
+					...apiConfiguration,
+					awsRegions: [apiConfiguration.awsRegion],
+				})
+			}
+			// If primary region changes, make sure it's in the regions list
+			else if (
+				apiConfiguration.awsRegion &&
+				apiConfiguration.awsRegions &&
+				!apiConfiguration.awsRegions.includes(apiConfiguration.awsRegion)
+			) {
+				setApiConfiguration({
+					...apiConfiguration,
+					awsRegions: [...apiConfiguration.awsRegions, apiConfiguration.awsRegion],
+				})
+			}
+		}
+	}, [selectedProvider, apiConfiguration?.awsRegion, apiConfiguration?.awsRegions])
+
 	// Poll ollama/lmstudio models
 	const requestLocalModels = useCallback(() => {
 		if (selectedProvider === "ollama") {
@@ -602,43 +626,141 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							</VSCodeTextField>
 						</>
 					)}
-					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
-						<label htmlFor="aws-region-dropdown">
-							<span style={{ fontWeight: 500 }}>AWS Region</span>
+					<div>
+						<label htmlFor="aws-region-section">
+							<span style={{ fontWeight: 500 }}>AWS Regions</span>
 						</label>
-						<VSCodeDropdown
-							id="aws-region-dropdown"
-							value={apiConfiguration?.awsRegion || ""}
-							style={{ width: "100%" }}
-							onChange={handleInputChange("awsRegion")}>
-							<VSCodeOption value="">Select a region...</VSCodeOption>
-							{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
-							<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
-							<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
-							{/* <VSCodeOption value="us-west-1">us-west-1</VSCodeOption> */}
-							<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
-							{/* <VSCodeOption value="af-south-1">af-south-1</VSCodeOption> */}
-							{/* <VSCodeOption value="ap-east-1">ap-east-1</VSCodeOption> */}
-							<VSCodeOption value="ap-south-1">ap-south-1</VSCodeOption>
-							<VSCodeOption value="ap-northeast-1">ap-northeast-1</VSCodeOption>
-							<VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption>
-							<VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption>
-							<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
-							<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
-							<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
-							<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
-							<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
-							<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
-							<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
-							<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
-							<VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption>
-							{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
-							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
-							<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
-							<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
-							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
-						</VSCodeDropdown>
-					</DropdownContainer>
+						<div
+							id="aws-region-section"
+							style={{
+								maxHeight: "200px",
+								overflowY: "auto",
+								border: "1px solid var(--vscode-dropdown-border)",
+								borderRadius: "2px",
+								padding: "5px",
+							}}>
+							{/* Primary Region */}
+							<div style={{ marginBottom: "8px" }}>
+								<label htmlFor="aws-primary-region" style={{ fontWeight: 500 }}>
+									Primary Region
+								</label>
+								<VSCodeDropdown
+									id="aws-primary-region"
+									value={apiConfiguration?.awsRegion || ""}
+									style={{ width: "100%" }}
+									onChange={handleInputChange("awsRegion")}>
+									<VSCodeOption value="">Select a primary region...</VSCodeOption>
+									<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
+									<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
+									<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
+									<VSCodeOption value="ap-south-1">ap-south-1</VSCodeOption>
+									<VSCodeOption value="ap-northeast-1">ap-northeast-1</VSCodeOption>
+									<VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption>
+									<VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption>
+									<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
+									<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
+									<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
+									<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
+									<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
+									<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
+									<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
+									<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
+									<VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption>
+									<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
+									<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
+									<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
+								</VSCodeDropdown>
+								<p
+									style={{
+										fontSize: "12px",
+										margin: "2px 0 8px 0",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									Primary region for initial requests
+								</p>
+							</div>
+
+							{/* Divider */}
+							<div style={{ borderTop: "1px solid var(--vscode-dropdown-border)", margin: "10px 0" }}></div>
+
+							{/* Failover Regions */}
+							<div>
+								<label style={{ fontWeight: 500 }}>
+									Failover Regions
+									<span
+										style={{
+											fontWeight: "normal",
+											fontStyle: "italic",
+											fontSize: "12px",
+											marginLeft: "5px",
+										}}>
+										(for automatic retry)
+									</span>
+								</label>
+
+								{/* Region checkboxes will use the initialized regions */}
+
+								{/* Region checkboxes */}
+								<div
+									style={{
+										display: "grid",
+										gridTemplateColumns: "repeat(2, 1fr)",
+										gap: "5px",
+										marginTop: "5px",
+									}}>
+									{[
+										"us-east-1",
+										"us-east-2",
+										"us-west-2",
+										"ap-south-1",
+										"ap-northeast-1",
+										"ap-northeast-2",
+										"ap-northeast-3",
+										"ap-southeast-1",
+										"ap-southeast-2",
+										"ca-central-1",
+										"eu-central-1",
+										"eu-central-2",
+										"eu-west-1",
+										"eu-west-2",
+										"eu-west-3",
+										"eu-north-1",
+										"sa-east-1",
+										"us-gov-east-1",
+										"us-gov-west-1",
+									].map((region) => {
+										const regions = apiConfiguration?.awsRegions || []
+										return (
+											<VSCodeCheckbox
+												key={region}
+												checked={regions.includes(region)}
+												onChange={(e: any) => {
+													const isChecked = e.target.checked
+													const updatedRegions = [...regions]
+
+													if (isChecked && !updatedRegions.includes(region)) {
+														updatedRegions.push(region)
+													} else if (!isChecked) {
+														const index = updatedRegions.indexOf(region)
+														if (index !== -1) {
+															updatedRegions.splice(index, 1)
+														}
+													}
+
+													setApiConfiguration({
+														...apiConfiguration,
+														awsRegions: updatedRegions,
+													})
+												}}
+												style={{ margin: "3px 0" }}>
+												{region}
+											</VSCodeCheckbox>
+										)
+									})}
+								</div>
+							</div>
+						</div>
+					</div>
 
 					<div style={{ display: "flex", flexDirection: "column" }}>
 						<VSCodeCheckbox

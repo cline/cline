@@ -41,6 +41,7 @@ export interface ApiHandlerOptions {
 	awsSecretKey?: string
 	awsSessionToken?: string
 	awsRegion?: string
+	awsRegions?: string[] // Multiple regions for failover/retry
 	awsUseCrossRegionInference?: boolean
 	awsBedrockUsePromptCache?: boolean
 	awsUseProfile?: boolean
