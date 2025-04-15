@@ -10,6 +10,7 @@ import { addLineNumbers } from "../../integrations/misc/extract-text"
 import path from "path"
 import fs from "fs/promises"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 export async function applyDiffTool(
 	cline: Cline,
@@ -88,6 +89,9 @@ export async function applyDiffTool(
 				const currentCount = (cline.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
 				cline.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
 				let formattedError = ""
+
+				telemetryService.captureDiffApplicationError(cline.taskId)
+
 				if (diffResult.failParts && diffResult.failParts.length > 0) {
 					for (const failPart of diffResult.failParts) {
 						if (failPart.success) {

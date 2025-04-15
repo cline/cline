@@ -30,6 +30,7 @@ class PostHogClient {
 		},
 		ERRORS: {
 			SCHEMA_VALIDATION_ERROR: "Schema Validation Error",
+			DIFF_APPLICATION_ERROR: "Diff Application Error",
 		},
 	}
 
@@ -271,6 +272,12 @@ class TelemetryService {
 			schemaName,
 			// https://zod.dev/ERROR_HANDLING?id=formatting-errors
 			error: error.format(),
+		})
+	}
+
+	public captureDiffApplicationError(taskId: string): void {
+		this.captureEvent(PostHogClient.EVENTS.ERRORS.DIFF_APPLICATION_ERROR, {
+			taskId,
 		})
 	}
 
