@@ -1532,46 +1532,6 @@ const ApiOptions = ({
 									<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 								</VSCodeTextField>
 							</div>
-							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
-								<VSCodeTextField
-									value={
-										apiConfiguration?.liteLlmModelInfo?.inputPrice
-											? apiConfiguration.liteLlmModelInfo.inputPrice.toString()
-											: liteLlmModelInfoSaneDefaults.inputPrice?.toString()
-									}
-									style={{ flex: 1 }}
-									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.liteLlmModelInfo
-											? apiConfiguration.liteLlmModelInfo
-											: { ...liteLlmModelInfoSaneDefaults }
-										modelInfo.inputPrice = input.target.value
-										setApiConfiguration({
-											...apiConfiguration,
-											liteLlmModelInfo: modelInfo,
-										})
-									}}>
-									<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
-								</VSCodeTextField>
-								<VSCodeTextField
-									value={
-										apiConfiguration?.liteLlmModelInfo?.outputPrice
-											? apiConfiguration.liteLlmModelInfo.outputPrice.toString()
-											: liteLlmModelInfoSaneDefaults.outputPrice?.toString()
-									}
-									style={{ flex: 1 }}
-									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.liteLlmModelInfo
-											? apiConfiguration.liteLlmModelInfo
-											: { ...liteLlmModelInfoSaneDefaults }
-										modelInfo.outputPrice = input.target.value
-										setApiConfiguration({
-											...apiConfiguration,
-											liteLlmModelInfo: modelInfo,
-										})
-									}}>
-									<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
-								</VSCodeTextField>
-							</div>
 						</>
 					)}
 					<p
