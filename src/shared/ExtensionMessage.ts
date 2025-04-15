@@ -49,8 +49,8 @@ export interface ExtensionMessage {
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
-		| "optimizationPromptRequest" 
-		| "optimizedPromptResult" 
+		| "optimizationPromptRequest"
+		| "optimizedPromptResult"
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
