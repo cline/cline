@@ -5,23 +5,7 @@ import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import { getFileSizeInKB } from "../../utils/fs"
-
-// Function to get MIME type based on file extension
-function getMimeType(filePath: string): string {
-	const ext = path.extname(filePath).toLowerCase()
-	switch (ext) {
-		case ".png":
-			return "image/png"
-		case ".jpeg":
-		case ".jpg":
-			return "image/jpeg"
-		case ".webp":
-			return "image/webp"
-		default:
-			// Return a generic type or handle as needed for non-image files
-			return "application/octet-stream" // Or throw an error if only image types are expected
-	}
-}
+import { getMimeType } from "./process-images"
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {
