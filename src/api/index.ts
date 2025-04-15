@@ -88,21 +88,25 @@ export function getModelParams({
 	model,
 	defaultMaxTokens,
 	defaultTemperature = 0,
+	defaultReasoningEffort,
 }: {
 	options: ApiHandlerOptions
 	model: ModelInfo
 	defaultMaxTokens?: number
 	defaultTemperature?: number
+	defaultReasoningEffort?: "low" | "medium" | "high"
 }) {
 	const {
 		modelMaxTokens: customMaxTokens,
 		modelMaxThinkingTokens: customMaxThinkingTokens,
 		modelTemperature: customTemperature,
+		reasoningEffort: customReasoningEffort,
 	} = options
 
 	let maxTokens = model.maxTokens ?? defaultMaxTokens
 	let thinking: BetaThinkingConfigParam | undefined = undefined
 	let temperature = customTemperature ?? defaultTemperature
+	const reasoningEffort = customReasoningEffort ?? defaultReasoningEffort
 
 	if (model.thinking) {
 		// Only honor `customMaxTokens` for thinking models.
@@ -118,5 +122,5 @@ export function getModelParams({
 		temperature = 1.0
 	}
 
-	return { maxTokens, thinking, temperature }
+	return { maxTokens, thinking, temperature, reasoningEffort }
 }

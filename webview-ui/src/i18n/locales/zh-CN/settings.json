@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "请求频率限制",
 			"description": "设置API请求的最小间隔时间"
+		},
+		"reasoningEffort": {
+			"label": "模型推理强度",
+			"high": "高",
+			"medium": "中",
+			"low": "低"
 		}
 	},
 	"browser": {

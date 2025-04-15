@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "速率限制",
 			"description": "API 請求間的最短時間"
+		},
+		"reasoningEffort": {
+			"label": "模型推理強度",
+			"high": "高",
+			"medium": "中",
+			"low": "低"
 		}
 	},
 	"browser": {

@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "Ratenbegrenzung",
 			"description": "Minimale Zeit zwischen API-Anfragen."
+		},
+		"reasoningEffort": {
+			"label": "Modell-Denkaufwand",
+			"high": "Hoch",
+			"medium": "Mittel",
+			"low": "Niedrig"
 		}
 	},
 	"browser": {

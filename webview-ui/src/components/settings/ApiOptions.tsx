@@ -46,7 +46,7 @@ import {
 	OPENROUTER_DEFAULT_PROVIDER_NAME,
 } from "@/components/ui/hooks/useOpenRouterModelProviders"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, Button } from "@/components/ui"
-import { MODELS_BY_PROVIDER, PROVIDERS, VERTEX_REGIONS } from "./constants"
+import { MODELS_BY_PROVIDER, PROVIDERS, VERTEX_REGIONS, REASONING_MODELS } from "./constants"
 import { AWS_REGIONS } from "../../../../src/shared/aws_regions"
 import { VSCodeButtonLink } from "../common/VSCodeButtonLink"
 import { ModelInfoView } from "./ModelInfoView"
@@ -59,6 +59,7 @@ import { ThinkingBudget } from "./ThinkingBudget"
 import { R1FormatSetting } from "./R1FormatSetting"
 import { OpenRouterBalanceDisplay } from "./OpenRouterBalanceDisplay"
 import { RequestyBalanceDisplay } from "./RequestyBalanceDisplay"
+import { ReasoningEffort } from "./ReasoningEffort"
 
 interface ApiOptionsProps {
 	uriScheme: string | undefined
@@ -1538,6 +1539,13 @@ const ApiOptions = ({
 					</div>
 				)}
 
+			{selectedProvider === "openrouter" && REASONING_MODELS.has(selectedModelId) && (
+				<ReasoningEffort
+					apiConfiguration={apiConfiguration}
+					setApiConfigurationField={setApiConfigurationField}
+				/>
+			)}
+
 			{selectedProvider === "glama" && (
 				<ModelPicker
 					apiConfiguration={apiConfiguration}
@@ -1665,12 +1673,14 @@ const ApiOptions = ({
 								})()}
 						</>
 					)}
+
 					<ModelInfoView
 						selectedModelId={selectedModelId}
 						modelInfo={selectedModelInfo}
 						isDescriptionExpanded={isDescriptionExpanded}
 						setIsDescriptionExpanded={setIsDescriptionExpanded}
 					/>
+
 					<ThinkingBudget
 						key={`${selectedProvider}-${selectedModelId}`}
 						apiConfiguration={apiConfiguration}

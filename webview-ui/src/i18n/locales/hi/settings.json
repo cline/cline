@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "दर सीमा",
 			"description": "API अनुरोधों के बीच न्यूनतम समय।"
+		},
+		"reasoningEffort": {
+			"label": "मॉडल तर्क प्रयास",
+			"high": "उच्च",
+			"medium": "मध्यम",
+			"low": "निम्न"
 		}
 	},
 	"browser": {

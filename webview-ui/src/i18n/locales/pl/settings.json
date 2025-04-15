@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "Limit szybkości",
 			"description": "Minimalny czas między żądaniami API."
+		},
+		"reasoningEffort": {
+			"label": "Wysiłek rozumowania modelu",
+			"high": "Wysoki",
+			"medium": "Średni",
+			"low": "Niski"
 		}
 	},
 	"browser": {

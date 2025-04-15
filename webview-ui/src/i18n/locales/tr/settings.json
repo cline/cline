@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "Hız sınırı",
 			"description": "API istekleri arasındaki minimum süre."
+		},
+		"reasoningEffort": {
+			"label": "Model Akıl Yürütme Çabası",
+			"high": "Yüksek",
+			"medium": "Orta",
+			"low": "Düşük"
 		}
 	},
 	"browser": {

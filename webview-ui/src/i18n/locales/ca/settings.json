@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "Límit de freqüència",
 			"description": "Temps mínim entre sol·licituds d'API."
+		},
+		"reasoningEffort": {
+			"label": "Esforç de raonament del model",
+			"high": "Alt",
+			"medium": "Mitjà",
+			"low": "Baix"
 		}
 	},
 	"browser": {

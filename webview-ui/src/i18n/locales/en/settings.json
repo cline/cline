@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "Rate limit",
 			"description": "Minimum time between API requests."
+		},
+		"reasoningEffort": {
+			"label": "Model Reasoning Effort",
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low"
 		}
 	},
 	"browser": {

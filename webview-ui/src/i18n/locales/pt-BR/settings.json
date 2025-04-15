@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "Limite de taxa",
 			"description": "Tempo mínimo entre requisições de API."
+		},
+		"reasoningEffort": {
+			"label": "Esforço de raciocínio do modelo",
+			"high": "Alto",
+			"medium": "Médio",
+			"low": "Baixo"
 		}
 	},
 	"browser": {

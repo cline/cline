@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "Limite di frequenza",
 			"description": "Tempo minimo tra le richieste API."
+		},
+		"reasoningEffort": {
+			"label": "Sforzo di ragionamento del modello",
+			"high": "Alto",
+			"medium": "Medio",
+			"low": "Basso"
 		}
 	},
 	"browser": {

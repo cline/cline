@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "レート制限",
 			"description": "APIリクエスト間の最小時間。"
+		},
+		"reasoningEffort": {
+			"label": "モデル推論の労力",
+			"high": "高",
+			"medium": "中",
+			"low": "低"
 		}
 	},
 	"browser": {

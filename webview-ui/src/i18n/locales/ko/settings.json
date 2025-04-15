@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "속도 제한",
 			"description": "API 요청 간 최소 시간."
+		},
+		"reasoningEffort": {
+			"label": "모델 추론 노력",
+			"high": "높음",
+			"medium": "중간",
+			"low": "낮음"
 		}
 	},
 	"browser": {

@@ -225,6 +225,12 @@
 		"rateLimitSeconds": {
 			"label": "Giới hạn tốc độ",
 			"description": "Thời gian tối thiểu giữa các yêu cầu API."
+		},
+		"reasoningEffort": {
+			"label": "Nỗ lực suy luận của mô hình",
+			"high": "Cao",
+			"medium": "Trung bình",
+			"low": "Thấp"
 		}
 	},
 	"browser": {
