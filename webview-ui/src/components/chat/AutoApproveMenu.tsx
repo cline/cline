@@ -1,5 +1,5 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useState } from "react"
 import { Trans } from "react-i18next"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
@@ -56,69 +56,56 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const { t } = useAppTranslation()
 
-	const actions: AutoApproveAction[] = useMemo(
-		() => [
-			{
-				id: "readFiles",
-				label: t("chat:autoApprove.actions.readFiles.label"),
-				enabled: alwaysAllowReadOnly ?? false,
-				description: t("chat:autoApprove.actions.readFiles.description"),
-			},
-			{
-				id: "editFiles",
-				label: t("chat:autoApprove.actions.editFiles.label"),
-				enabled: alwaysAllowWrite ?? false,
-				description: t("chat:autoApprove.actions.editFiles.description"),
-			},
-			{
-				id: "executeCommands",
-				label: t("chat:autoApprove.actions.executeCommands.label"),
-				enabled: alwaysAllowExecute ?? false,
-				description: t("chat:autoApprove.actions.executeCommands.description"),
-			},
-			{
-				id: "useBrowser",
-				label: t("chat:autoApprove.actions.useBrowser.label"),
-				enabled: alwaysAllowBrowser ?? false,
-				description: t("chat:autoApprove.actions.useBrowser.description"),
-			},
-			{
-				id: "useMcp",
-				label: t("chat:autoApprove.actions.useMcp.label"),
-				enabled: alwaysAllowMcp ?? false,
-				description: t("chat:autoApprove.actions.useMcp.description"),
-			},
-			{
-				id: "switchModes",
-				label: t("chat:autoApprove.actions.switchModes.label"),
-				enabled: alwaysAllowModeSwitch ?? false,
-				description: t("chat:autoApprove.actions.switchModes.description"),
-			},
-			{
-				id: "subtasks",
-				label: t("chat:autoApprove.actions.subtasks.label"),
-				enabled: alwaysAllowSubtasks ?? false,
-				description: t("chat:autoApprove.actions.subtasks.description"),
-			},
-			{
-				id: "retryRequests",
-				label: t("chat:autoApprove.actions.retryRequests.label"),
-				enabled: alwaysApproveResubmit ?? false,
-				description: t("chat:autoApprove.actions.retryRequests.description"),
-			},
-		],
-		[
-			alwaysAllowReadOnly,
-			alwaysAllowWrite,
-			alwaysAllowExecute,
-			alwaysAllowBrowser,
-			alwaysAllowMcp,
-			alwaysAllowModeSwitch,
-			alwaysAllowSubtasks,
-			alwaysApproveResubmit,
-			t,
-		],
-	)
+	const actions: AutoApproveAction[] = [
+		{
+			id: "readFiles",
+			label: t("chat:autoApprove.actions.readFiles.label"),
+			enabled: alwaysAllowReadOnly ?? false,
+			description: t("chat:autoApprove.actions.readFiles.description"),
+		},
+		{
+			id: "editFiles",
+			label: t("chat:autoApprove.actions.editFiles.label"),
+			enabled: alwaysAllowWrite ?? false,
+			description: t("chat:autoApprove.actions.editFiles.description"),
+		},
+		{
+			id: "executeCommands",
+			label: t("chat:autoApprove.actions.executeCommands.label"),
+			enabled: alwaysAllowExecute ?? false,
+			description: t("chat:autoApprove.actions.executeCommands.description"),
+		},
+		{
+			id: "useBrowser",
+			label: t("chat:autoApprove.actions.useBrowser.label"),
+			enabled: alwaysAllowBrowser ?? false,
+			description: t("chat:autoApprove.actions.useBrowser.description"),
+		},
+		{
+			id: "useMcp",
+			label: t("chat:autoApprove.actions.useMcp.label"),
+			enabled: alwaysAllowMcp ?? false,
+			description: t("chat:autoApprove.actions.useMcp.description"),
+		},
+		{
+			id: "switchModes",
+			label: t("chat:autoApprove.actions.switchModes.label"),
+			enabled: alwaysAllowModeSwitch ?? false,
+			description: t("chat:autoApprove.actions.switchModes.description"),
+		},
+		{
+			id: "subtasks",
+			label: t("chat:autoApprove.actions.subtasks.label"),
+			enabled: alwaysAllowSubtasks ?? false,
+			description: t("chat:autoApprove.actions.subtasks.description"),
+		},
+		{
+			id: "retryRequests",
+			label: t("chat:autoApprove.actions.retryRequests.label"),
+			enabled: alwaysApproveResubmit ?? false,
+			description: t("chat:autoApprove.actions.retryRequests.description"),
+		},
+	]
 
 	const toggleExpanded = useCallback(() => {
 		setIsExpanded((prev) => !prev)
