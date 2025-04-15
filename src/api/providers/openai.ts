@@ -6,7 +6,7 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
-import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
+import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -15,7 +15,8 @@ export class OpenAiHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		if (this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
+		// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
+		if (this.options.azureApiVersion || this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
 			this.client = new AzureOpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
@@ -33,6 +34,7 @@ export class OpenAiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
 		const isO3Mini = modelId.includes("o3-mini")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -41,8 +43,15 @@ export class OpenAiHandler implements ApiHandler {
 		]
 		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
+		let maxTokens: number | undefined
 
-		if (isDeepseekReasoner) {
+		if (this.options.openAiModelInfo?.maxTokens && this.options.openAiModelInfo.maxTokens > 0) {
+			maxTokens = Number(this.options.openAiModelInfo.maxTokens)
+		} else {
+			maxTokens = undefined
+		}
+
+		if (isDeepseekReasoner || isR1FormatRequired) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
@@ -56,6 +65,7 @@ export class OpenAiHandler implements ApiHandler {
 			model: modelId,
 			messages: openAiMessages,
 			temperature,
+			max_tokens: maxTokens,
 			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },

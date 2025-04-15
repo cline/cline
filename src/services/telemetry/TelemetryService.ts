@@ -1,5 +1,9 @@
 import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
+import { version as extensionVersion } from "../../../package.json"
+
+import type { TaskFeedbackType } from "../../shared/WebviewMessage"
+import type { BrowserSettings } from "../../shared/BrowserSettings"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
@@ -17,12 +21,18 @@ class PostHogClient {
 			RESTARTED: "task.restarted",
 			// Tracks when a task is finished, with acceptance or rejection status
 			COMPLETED: "task.completed",
+			// Tracks user feedback on completed tasks
+			FEEDBACK: "task.feedback",
 			// Tracks when a message is sent in a conversation
 			CONVERSATION_TURN: "task.conversation_turn",
 			// Tracks token consumption for cost and usage analysis
 			TOKEN_USAGE: "task.tokens",
 			// Tracks switches between plan and act modes
 			MODE_SWITCH: "task.mode",
+			// Tracks when users select an option from AI-generated followup questions
+			OPTION_SELECTED: "task.option_selected",
+			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
+			OPTIONS_IGNORED: "task.options_ignored",
 			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
@@ -31,6 +41,14 @@ class PostHogClient {
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
 			RETRY_CLICKED: "task.retry_clicked",
+			// Tracks when a diff edit (replace_in_file) operation fails
+			DIFF_EDIT_FAILED: "task.diff_edit_failed",
+			// Tracks when the browser tool is started
+			BROWSER_TOOL_START: "task.browser_tool_start",
+			// Tracks when the browser tool is completed
+			BROWSER_TOOL_END: "task.browser_tool_end",
+			// Tracks when browser errors occur
+			BROWSER_ERROR: "task.browser_error",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -54,6 +72,8 @@ class PostHogClient {
 			PLAN_MODE_TOGGLED: "ui.plan_mode_toggled",
 			// Tracks when action mode is toggled on
 			ACT_MODE_TOGGLED: "ui.act_mode_toggled",
+			// Tracks when users use the "favorite" button in the model picker
+			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 		},
 	}
 
@@ -65,6 +85,8 @@ class PostHogClient {
 	private distinctId: string = vscode.env.machineId
 	/** Whether telemetry is currently enabled based on user and VSCode settings */
 	private telemetryEnabled: boolean = false
+	/** Current version of the extension */
+	private readonly version: string = extensionVersion
 
 	/**
 	 * Private constructor to enforce singleton pattern
@@ -120,7 +142,12 @@ class PostHogClient {
 	public capture(event: { event: string; properties?: any }): void {
 		// Only send events if telemetry is enabled
 		if (this.telemetryEnabled) {
-			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: event.properties })
+			// Include extension version in all event properties
+			const propertiesWithVersion = {
+				...event.properties,
+				extension_version: this.version,
+			}
+			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
 		}
 	}
 
@@ -226,6 +253,22 @@ class PostHogClient {
 		})
 	}
 
+	/**
+	 * Records user feedback on completed tasks
+	 * @param taskId Unique identifier for the task
+	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
+	 */
+	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType) {
+		console.info("TelemetryService: Capturing task feedback", { taskId, feedbackType })
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.FEEDBACK,
+			properties: {
+				taskId,
+				feedbackType,
+			},
+		})
+	}
+
 	// Tool events
 	/**
 	 * Records when a tool is used during task execution
@@ -250,13 +293,19 @@ class PostHogClient {
 	 * Records interactions with the git-based checkpoint system
 	 * @param taskId Unique identifier for the task
 	 * @param action The type of checkpoint action
+	 * @param durationMs Optional duration of the operation in milliseconds
 	 */
-	public captureCheckpointUsage(taskId: string, action: "shadow_git_initialized" | "commit_created" | "restored") {
+	public captureCheckpointUsage(
+		taskId: string,
+		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
+		durationMs?: number,
+	) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.CHECKPOINT_USED,
 			properties: {
 				taskId,
 				action,
+				durationMs,
 			},
 		})
 	}
@@ -364,6 +413,21 @@ class PostHogClient {
 	}
 
 	/**
+	 * Records when a diff edit (replace_in_file) operation fails
+	 * @param taskId Unique identifier for the task
+	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
+	 */
+	public captureDiffEditFailure(taskId: string, errorType?: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.DIFF_EDIT_FAILED,
+			properties: {
+				taskId,
+				errorType,
+			},
+		})
+	}
+
+	/**
 	 * Records when a different model is selected for use
 	 * @param model Name of the selected model
 	 * @param provider Provider of the selected model
@@ -402,6 +466,128 @@ class PostHogClient {
 			event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
 			properties: {
 				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when the browser tool is started
+	 * @param taskId Unique identifier for the task
+	 * @param browserSettings The browser settings being used
+	 */
+	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
+			properties: {
+				taskId,
+				viewport: browserSettings.viewport,
+				isRemote: !!browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when the browser tool is completed
+	 * @param taskId Unique identifier for the task
+	 * @param stats Statistics about the browser session
+	 */
+	public captureBrowserToolEnd(
+		taskId: string,
+		stats: {
+			actionCount: number
+			duration: number
+			actions?: string[]
+		},
+	) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_END,
+			properties: {
+				taskId,
+				actionCount: stats.actionCount,
+				duration: stats.duration,
+				actions: stats.actions,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when browser errors occur during a task
+	 * @param taskId Unique identifier for the task
+	 * @param errorType Type of error that occurred (e.g., "launch_error", "connection_error", "navigation_error")
+	 * @param errorMessage The error message
+	 * @param context Additional context about where the error occurred
+	 */
+	public captureBrowserError(
+		taskId: string,
+		errorType: string,
+		errorMessage: string,
+		context?: {
+			action?: string
+			url?: string
+			isRemote?: boolean
+			[key: string]: any
+		},
+	) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.BROWSER_ERROR,
+			properties: {
+				taskId,
+				errorType,
+				errorMessage,
+				context,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when a user selects an option from AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param qty The quantity of options that were presented
+	 * @param mode The mode in which the option was selected ("plan" or "act")
+	 */
+	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
+			properties: {
+				taskId,
+				qty,
+				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when a user types a custom response instead of selecting one of the AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param qty The quantity of options that were presented
+	 * @param mode The mode in which the custom response was provided ("plan" or "act")
+	 */
+	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTIONS_IGNORED,
+			properties: {
+				taskId,
+				qty,
+				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when the user uses the model favorite button in the model picker
+	 * @param model The name of the model the user has interacted with
+	 * @param isFavorited Whether the model is being favorited (true) or unfavorited (false)
+	 */
+	public captureModelFavoritesUsage(model: string, isFavorited: boolean) {
+		this.capture({
+			event: PostHogClient.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
+			properties: {
+				model,
+				isFavorited,
 			},
 		})
 	}

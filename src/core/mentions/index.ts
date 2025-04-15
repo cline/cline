@@ -10,6 +10,7 @@ import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
 import { getLatestTerminalOutput } from "../../integrations/terminal/get-latest-output"
 import { getCommitInfo } from "../../utils/git"
 import { getWorkingState } from "../../utils/git"
+import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 
 export function openMention(mention?: string): void {
 	if (!mention) {
@@ -38,7 +39,12 @@ export function openMention(mention?: string): void {
 	}
 }
 
-export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
+export async function parseMentions(
+	text: string,
+	cwd: string,
+	urlContentFetcher: UrlContentFetcher,
+	fileContextTracker?: FileContextTracker,
+): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
@@ -72,7 +78,10 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 		}
 	}
 
-	for (const mention of mentions) {
+	// Filter out duplicate mentions while preserving order
+	const uniqueMentions = Array.from(new Set(mentions))
+
+	for (const mention of uniqueMentions) {
 		if (mention.startsWith("http")) {
 			let result: string
 			if (launchBrowserError) {
@@ -95,6 +104,10 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 					parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
 				} else {
 					parsedText += `\n\n<file_content path="${mentionPath}">\n${content}\n</file_content>`
+					// Track that this file was mentioned and its content was included
+					if (fileContextTracker) {
+						await fileContextTracker.trackFileContext(mentionPath, "file_mentioned")
+					}
 				}
 			} catch (error) {
 				if (mention.endsWith("/")) {

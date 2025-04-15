@@ -4,6 +4,7 @@ import * as path from "path"
 import simpleGit, { SimpleGit } from "simple-git"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 interface CheckpointAddResult {
 	success: boolean
@@ -53,7 +54,7 @@ export class GitOperations {
 	 * - Unable to create initial commit
 	 * - LFS pattern setup fails
 	 */
-	public async initShadowGit(gitPath: string, cwd: string): Promise<string> {
+	public async initShadowGit(gitPath: string, cwd: string, taskId: string): Promise<string> {
 		console.info(`Initializing shadow git`)
 
 		// If repo exists, just verify worktree
@@ -72,6 +73,7 @@ export class GitOperations {
 		}
 
 		// Initialize new repo
+		const startTime = performance.now()
 		const checkpointsDir = path.dirname(gitPath)
 		console.warn(`Creating new shadow git in ${checkpointsDir}`)
 
@@ -88,10 +90,17 @@ export class GitOperations {
 		const lfsPatterns = await getLfsPatterns(cwd)
 		await writeExcludesFile(gitPath, lfsPatterns)
 
-		await this.addCheckpointFiles(git)
+		const addFilesResult = await this.addCheckpointFiles(git)
+		if (!addFilesResult.success) {
+			console.error("Failed to add at least one file(s) to checkpoints shadow git")
+			throw new Error("Failed to add at least one file(s) to checkpoints shadow git")
+		}
 
 		// Initial commit only on first repo creation
 		await git.commit("initial commit", { "--allow-empty": null })
+
+		const durationMs = Math.round(performance.now() - startTime)
+		telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)
 
 		console.warn(`Shadow git initialization completed`)
 
@@ -137,6 +146,7 @@ export class GitOperations {
 			ignore: [".git"], // Ignore root level .git
 			dot: true,
 			markDirectories: false,
+			suppressErrors: true,
 		})
 
 		// For each nested .git directory, rename it based on operation
@@ -179,21 +189,24 @@ export class GitOperations {
 	 *  - Nested git repo handling fails
 	 */
 	public async addCheckpointFiles(git: SimpleGit): Promise<CheckpointAddResult> {
+		const startTime = performance.now()
 		try {
 			// Update exclude patterns before each commit
 			await this.renameNestedGitRepos(true)
 			console.info("Starting checkpoint add operation...")
 
+			// Attempt to add all files. Any files with permissions errors will not be added,
+			// but the process will proceed and add the rest (--ignore-errors).
 			try {
-				await git.add(".")
+				await git.add([".", "--ignore-errors"])
+				const durationMs = Math.round(performance.now() - startTime)
+				console.debug(`Checkpoint add operation completed in ${durationMs}ms`)
 				return { success: true }
 			} catch (error) {
-				console.error("Checkpoint add operation failed:", error)
-				throw error
+				return { success: false }
 			}
 		} catch (error) {
-			console.error("Failed to add files to checkpoint", error)
-			throw error
+			return { success: false }
 		} finally {
 			await this.renameNestedGitRepos(false)
 		}

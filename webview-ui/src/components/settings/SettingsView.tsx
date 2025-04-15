@@ -1,21 +1,15 @@
-import {
-	VSCodeButton,
-	VSCodeCheckbox,
-	VSCodeLink,
-	VSCodeTextArea,
-	VSCodePanels,
-	VSCodePanelTab,
-	VSCodePanelView,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState } from "react"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { validateApiConfiguration, validateModelId } from "../../utils/validate"
-import { vscode } from "../../utils/vscode"
-import SettingsButton from "../common/SettingsButton"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import { vscode } from "@/utils/vscode"
+import SettingsButton from "@/components/common/SettingsButton"
 import ApiOptions from "./ApiOptions"
-import { TabButton } from "../mcp/McpView"
+import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import BrowserSettingsSection from "./BrowserSettingsSection"
+
 const { IS_DEV } = process.env
 
 type SettingsViewProps = {
@@ -113,6 +107,24 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						setPendingTabChange(null)
 					}
 					break
+				case "scrollToSettings":
+					setTimeout(() => {
+						const elementId = message.text
+						if (elementId) {
+							const element = document.getElementById(elementId)
+							if (element) {
+								element.scrollIntoView({ behavior: "smooth" })
+
+								element.style.transition = "background-color 0.5s ease"
+								element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+
+								setTimeout(() => {
+									element.style.backgroundColor = "transparent"
+								}, 1200)
+							}
+						}
+					}, 300)
+					break
 			}
 		},
 		[pendingTabChange],
@@ -133,55 +145,16 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	}
 
 	return (
-		<div
-			style={{
-				position: "fixed",
-				top: 0,
-				left: 0,
-				right: 0,
-				bottom: 0,
-				padding: "10px 0px 0px 20px",
-				display: "flex",
-				flexDirection: "column",
-				overflow: "hidden",
-			}}>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: "13px",
-					paddingRight: 17,
-				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
+		<div className="fixed top-0 left-0 right-0 bottom-0 pt-[10px] pr-0 pb-0 pl-5 flex flex-col overflow-hidden">
+			<div className="flex justify-between items-center mb-[13px] pr-[17px]">
+				<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
 				<VSCodeButton onClick={() => handleSubmit(false)}>Done</VSCodeButton>
 			</div>
-			<div
-				style={{
-					flexGrow: 1,
-					overflowY: "scroll",
-					paddingRight: 8,
-					display: "flex",
-					flexDirection: "column",
-				}}>
+			<div className="grow overflow-y-scroll pr-2 flex flex-col">
 				{/* Tabs container */}
 				{planActSeparateModelsSetting ? (
-					<div
-						style={{
-							border: "1px solid var(--vscode-panel-border)",
-							borderRadius: "4px",
-							padding: "10px",
-							marginBottom: "20px",
-							background: "var(--vscode-panel-background)",
-						}}>
-						<div
-							style={{
-								display: "flex",
-								gap: "1px",
-								marginBottom: "10px",
-								marginTop: -8,
-								borderBottom: "1px solid var(--vscode-panel-border)",
-							}}>
+					<div className="border border-solid border-[var(--vscode-panel-border)] rounded-md p-[10px] mb-5 bg-[var(--vscode-panel-background)]">
+						<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
 							<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
 								Plan Mode
 							</TabButton>
@@ -191,7 +164,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</div>
 
 						{/* Content container */}
-						<div style={{ marginBottom: -12 }}>
+						<div className="-mb-3">
 							<ApiOptions
 								key={chatSettings.mode}
 								showModelOptions={true}
@@ -209,29 +182,24 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					/>
 				)}
 
-				<div style={{ marginBottom: 5 }}>
+				<div className="mb-[5px]">
 					<VSCodeTextArea
 						value={customInstructions ?? ""}
-						style={{ width: "100%" }}
+						className="w-full"
 						resize="vertical"
 						rows={4}
 						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
 						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
+						<span className="font-medium">Custom Instructions</span>
 					</VSCodeTextArea>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 						These instructions are added to the end of the system prompt sent with every request.
 					</p>
 				</div>
 
-				<div style={{ marginBottom: 5 }}>
+				<div className="mb-[5px]">
 					<VSCodeCheckbox
-						style={{ marginBottom: "5px" }}
+						className="mb-[5px]"
 						checked={planActSeparateModelsSetting}
 						onChange={(e: any) => {
 							const checked = e.target.checked === true
@@ -239,20 +207,15 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						Use different models for Plan and Act modes
 					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
 						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
 					</p>
 				</div>
 
-				<div style={{ marginBottom: 5 }}>
+				<div className="mb-[5px]">
 					<VSCodeCheckbox
-						style={{ marginBottom: "5px" }}
+						className="mb-[5px]"
 						checked={telemetrySetting === "enabled"}
 						onChange={(e: any) => {
 							const checked = e.target.checked === true
@@ -260,85 +223,52 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						Allow anonymous error and usage reporting
 					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 						Help improve Cline by sending anonymous usage data and error reports. No code, prompts, or personal
 						information are ever sent. See our{" "}
-						<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" style={{ fontSize: "inherit" }}>
+						<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" className="text-inherit">
 							telemetry overview
 						</VSCodeLink>{" "}
 						and{" "}
-						<VSCodeLink href="https://cline.bot/privacy" style={{ fontSize: "inherit" }}>
+						<VSCodeLink href="https://cline.bot/privacy" className="text-inherit">
 							privacy policy
 						</VSCodeLink>{" "}
 						for more details.
 					</p>
 				</div>
 
+				{/* Browser Settings Section */}
+				<BrowserSettingsSection />
+
+				<div className="mt-auto pr-2 flex justify-center">
+					<SettingsButton
+						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
+						className="mt-0 mr-0 mb-4 ml-0">
+						<i className="codicon codicon-settings-gear" />
+						Advanced Settings
+					</SettingsButton>
+				</div>
+
 				{IS_DEV && (
 					<>
-						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
-						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
+						<div className="mt-[10px] mb-1">Debug</div>
+						<VSCodeButton onClick={handleResetState} className="mt-[5px] w-auto">
 							Reset State
 						</VSCodeButton>
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
+						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
 							This will reset all global state and secret storage in the extension.
 						</p>
 					</>
 				)}
 
-				<div
-					style={{
-						marginTop: "auto",
-						paddingRight: 8,
-						display: "flex",
-						justifyContent: "center",
-					}}>
-					<SettingsButton
-						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
-						style={{
-							margin: "0 0 16px 0",
-						}}>
-						<i className="codicon codicon-settings-gear" />
-						Advanced Settings
-					</SettingsButton>
-				</div>
-				<div
-					style={{
-						textAlign: "center",
-						color: "var(--vscode-descriptionForeground)",
-						fontSize: "12px",
-						lineHeight: "1.2",
-						padding: "0 8px 15px 0",
-					}}>
-					<p
-						style={{
-							wordWrap: "break-word",
-							margin: 0,
-							padding: 0,
-						}}>
+				<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
+					<p className="break-words m-0 p-0">
 						If you have any questions or feedback, feel free to open an issue at{" "}
-						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
+						<VSCodeLink href="https://github.com/cline/cline" className="inline">
 							https://github.com/cline/cline
 						</VSCodeLink>
 					</p>
-					<p
-						style={{
-							fontStyle: "italic",
-							margin: "10px 0 0 0",
-							padding: 0,
-						}}>
-						v{version}
-					</p>
+					<p className="italic mt-[10px] mb-0 p-0">v{version}</p>
 				</div>
 			</div>
 		</div>

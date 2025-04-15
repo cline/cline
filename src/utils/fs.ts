@@ -74,3 +74,22 @@ export async function getFileSizeInKB(filePath: string): Promise<number> {
 		return 0
 	}
 }
+
+/**
+ * Recursively reads a directory and returns an array of absolute file paths.
+ *
+ * @param directoryPath - The path to the directory to read.
+ * @returns A promise that resolves to an array of absolute file paths.
+ * @throws Error if the directory cannot be read.
+ */
+export const readDirectory = async (directoryPath: string) => {
+	try {
+		const filePaths = await fs
+			.readdir(directoryPath, { withFileTypes: true, recursive: true })
+			.then((files) => files.filter((file) => file.isFile()))
+			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
+		return filePaths
+	} catch {
+		throw new Error(`Error reading directory at ${directoryPath}`)
+	}
+}

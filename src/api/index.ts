@@ -9,12 +9,13 @@ import { OllamaHandler } from "./providers/ollama"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
-import { ApiStream } from "./transform/stream"
+import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { RequestyHandler } from "./providers/requesty"
 import { TogetherHandler } from "./providers/together"
 import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
+import { DoubaoHandler } from "./providers/doubao"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { ClineHandler } from "./providers/cline"
 import { LiteLlmHandler } from "./providers/litellm"
@@ -25,6 +26,7 @@ import { SambanovaHandler } from "./providers/sambanova"
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
+	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
 }
 
 export interface SingleCompletionHandler {
@@ -60,6 +62,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new TogetherHandler(options)
 		case "qwen":
 			return new QwenHandler(options)
+		case "doubao":
+			return new DoubaoHandler(options)
 		case "mistral":
 			return new MistralHandler(options)
 		case "vscode-lm":

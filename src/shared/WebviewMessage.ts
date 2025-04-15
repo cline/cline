@@ -5,9 +5,11 @@ import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
+		| "addRemoteServer"
 		| "apiConfiguration"
 		| "webviewDidLaunch"
 		| "newTask"
@@ -28,12 +30,17 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "refreshRequestyModels"
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
+		| "discoverBrowser"
+		| "testBrowserConnection"
+		| "browserConnectionResult"
+		| "browserRelaunchResult"
 		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
@@ -45,6 +52,7 @@ export interface WebviewMessage {
 		| "getLatestState"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
+		| "showAccountViewClicked"
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"
@@ -61,8 +69,21 @@ export interface WebviewMessage {
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
+		| "fetchUserCreditsData"
+		| "optionsResponse"
+		| "requestTotalTasksSize"
+		| "relaunchChromeDebugMode"
+		| "taskFeedback"
+		| "getBrowserConnectionInfo"
+		| "getDetectedChromePath"
+		| "detectedChromePath"
+		| "scrollToSettings"
+		| "getRelativePaths" // Handles single and multiple URI resolution
+		| "searchFiles"
+		| "toggleFavoriteModel"
 	// | "relaunchChromeDebugMode"
 	text?: string
+	uris?: string[] // Used for getRelativePaths
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
@@ -75,9 +96,11 @@ export interface WebviewMessage {
 	chatContent?: ChatContent
 	mcpId?: string
 	timeout?: number
+	tab?: McpViewTab
 	// For toggleToolAutoApprove
 	serverName?: string
-	toolName?: string
+	serverUrl?: string
+	toolNames?: string[]
 	autoApprove?: boolean
 
 	// For auth
@@ -88,8 +111,16 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
+	// For task feedback
+	feedbackType?: TaskFeedbackType
+	mentionsRequestId?: string
+	query?: string
+	// For toggleFavoriteModel
+	modelId?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"
+
+export type TaskFeedbackType = "thumbs_up" | "thumbs_down"

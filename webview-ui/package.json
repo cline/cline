@@ -6,15 +6,15 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "tsc -b && vite build",
+		"build:test": "tsc -b && vite build",
 		"preview": "vite preview",
 		"lint": "eslint .",
 		"test": "vitest run",
-		"test:watch": "vitest dev"
+		"test:watch": "vitest dev",
+		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
 		"@floating-ui/react": "^0.27.4",
-		"@types/dompurify": "^3.0.5",
-		"@types/katex": "^0.16.7",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
 		"debounce": "^2.1.1",
 		"dompurify": "^3.2.4",
@@ -22,11 +22,12 @@
 		"firebase": "^11.3.0",
 		"fuse.js": "^7.0.0",
 		"fzf": "^0.5.2",
-		"katex": "^0.16.21",
+		"katex": "^0.16.22",
 		"mermaid": "^11.4.1",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",
+		"react-countup": "^6.5.3",
 		"react-dom": "^18.3.1",
 		"react-remark": "^2.1.0",
 		"react-textarea-autosize": "^8.5.7",
@@ -43,12 +44,15 @@
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/react": "^16.2.0",
 		"@testing-library/user-event": "^14.6.1",
+		"@types/dompurify": "^3.0.5",
 		"@types/jest": "^29.5.14",
+		"@types/katex": "^0.16.7",
 		"@types/node": "^22.13.4",
 		"@types/react": "^18.3.18",
 		"@types/react-dom": "^18.3.5",
 		"@types/vscode-webview": "^1.57.5",
 		"@vitejs/plugin-react-swc": "^3.5.0",
+		"@vitest/coverage-v8": "^3.0.9",
 		"eslint": "^9.17.0",
 		"eslint-plugin-react-hooks": "^5.0.0",
 		"eslint-plugin-react-refresh": "^0.4.16",
@@ -57,7 +61,7 @@
 		"tailwindcss": "^4.0.12",
 		"typescript": "^5.7.3",
 		"typescript-eslint": "^8.18.2",
-		"vite": "^6.1.1",
+		"vite": "^6.2.6",
 		"vitest": "^3.0.5"
 	}
 }

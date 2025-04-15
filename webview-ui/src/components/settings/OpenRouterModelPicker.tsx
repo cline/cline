@@ -4,17 +4,58 @@ import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { openRouterDefaultModelId } from "../../../../src/shared/api"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
+import { openRouterDefaultModelId } from "@shared/api"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import FeaturedModelCard from "./FeaturedModelCard"
+
+// Star icon for favorites
+const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
+	return (
+		<div
+			onClick={onClick}
+			style={{
+				cursor: "pointer",
+				color: isFavorite ? "var(--vscode-terminal-ansiBlue)" : "var(--vscode-descriptionForeground)",
+				marginLeft: "8px",
+				fontSize: "16px",
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				userSelect: "none",
+				WebkitUserSelect: "none",
+			}}>
+			{isFavorite ? "★" : "☆"}
+		</div>
+	)
+}
 
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 }
+
+// Featured models for Cline provider
+const featuredModels = [
+	{
+		id: "anthropic/claude-3.7-sonnet",
+		description: "Leading model for agentic coding",
+		label: "Best",
+	},
+	{
+		id: "google/gemini-2.5-pro-preview-03-25",
+		description: "Large 1M context window, great value",
+		label: "Trending",
+	},
+	{
+		id: "meta-llama/llama-4-maverick",
+		description: "Efficient performance at lower cost",
+		label: "New",
+	},
+]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
@@ -60,8 +101,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [])
 
 	const modelIds = useMemo(() => {
-		return Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
-	}, [openRouterModels])
+		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
+
+		return apiConfiguration?.apiProvider === "cline"
+			? unfilteredModelIds.filter((id) => !id.includes(":free"))
+			: unfilteredModelIds
+	}, [openRouterModels, apiConfiguration?.apiProvider])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -83,12 +128,21 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		let results: { id: string; html: string }[] = searchTerm
-			? highlight(fuse.search(searchTerm), "model-item-highlight")
-			: searchableItems
-		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
-		return results
-	}, [searchableItems, searchTerm, fuse])
+		const favoritedModelIds = apiConfiguration?.favoritedModelIds || []
+
+		// IMPORTANT: highlightjs has a bug where if you use sort/localCompare - "// results.sort((a, b) => a.id.localeCompare(b.id)) ...sorting like this causes ids in objects to be reordered and mismatched"
+
+		// First, get all favorited models
+		const favoritedModels = searchableItems.filter((item) => favoritedModelIds.includes(item.id))
+
+		// Then get search results for non-favorited models
+		const searchResults = searchTerm
+			? highlight(fuse.search(searchTerm), "model-item-highlight").filter((item) => !favoritedModelIds.includes(item.id))
+			: searchableItems.filter((item) => !favoritedModelIds.includes(item.id))
+
+		// Combine favorited models with search results
+		return [...favoritedModels, ...searchResults]
+	}, [searchableItems, searchTerm, fuse, apiConfiguration?.favoritedModelIds])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) return
@@ -143,7 +197,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	const showBudgetSlider = useMemo(() => {
 		return (
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
-			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet")
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
 		)
 	}, [selectedModelId])
 
@@ -161,6 +216,25 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 				<label htmlFor="model-search">
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
+
+				{apiConfiguration?.apiProvider === "cline" && (
+					<div style={{ marginBottom: "6px", marginTop: 4 }}>
+						{featuredModels.map((model) => (
+							<FeaturedModelCard
+								key={model.id}
+								modelId={model.id}
+								description={model.description}
+								label={model.label}
+								isSelected={selectedModelId === model.id}
+								onClick={() => {
+									handleModelChange(model.id)
+									setIsDropdownVisible(false)
+								}}
+							/>
+						))}
+					</div>
+				)}
+
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
@@ -197,21 +271,34 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 					</VSCodeTextField>
 					{isDropdownVisible && (
 						<DropdownList ref={dropdownListRef}>
-							{modelSearchResults.map((item, index) => (
-								<DropdownItem
-									key={item.id}
-									ref={(el) => (itemRefs.current[index] = el)}
-									isSelected={index === selectedIndex}
-									onMouseEnter={() => setSelectedIndex(index)}
-									onClick={() => {
-										handleModelChange(item.id)
-										setIsDropdownVisible(false)
-									}}
-									dangerouslySetInnerHTML={{
-										__html: item.html,
-									}}
-								/>
-							))}
+							{modelSearchResults.map((item, index) => {
+								const isFavorite = (apiConfiguration?.favoritedModelIds || []).includes(item.id)
+								return (
+									<DropdownItem
+										key={item.id}
+										ref={(el) => (itemRefs.current[index] = el)}
+										isSelected={index === selectedIndex}
+										onMouseEnter={() => setSelectedIndex(index)}
+										onClick={() => {
+											handleModelChange(item.id)
+											setIsDropdownVisible(false)
+										}}>
+										<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+											<span dangerouslySetInnerHTML={{ __html: item.html }} />
+											<StarIcon
+												isFavorite={isFavorite}
+												onClick={(e) => {
+													e.stopPropagation()
+													vscode.postMessage({
+														type: "toggleFavoriteModel",
+														modelId: item.id,
+													})
+												}}
+											/>
+										</div>
+									</DropdownItem>
+								)
+							})}
 						</DropdownList>
 					)}
 				</DropdownWrapper>
@@ -222,6 +309,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 					{showBudgetSlider && (
 						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 					)}
+
 					<ModelInfoView
 						selectedModelId={selectedModelId}
 						modelInfo={selectedModelInfo}
