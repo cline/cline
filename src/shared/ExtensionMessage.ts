@@ -111,7 +111,7 @@ export interface ExtensionMessage {
 		error?: string
 	}
 	tab?: McpViewTab
-	prompt?: string
+	prompt?: string 
 	model?: string 
 	optimizedPrompt?: string 
 }
