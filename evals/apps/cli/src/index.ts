@@ -16,6 +16,7 @@ import {
 	IpcMessageType,
 	TaskCommandName,
 	rooCodeDefaults,
+	EvalEventName,
 } from "@evals/types"
 import {
 	type Run,
@@ -34,7 +35,7 @@ import { IpcServer, IpcClient } from "@evals/ipc"
 import { __dirname, extensionDevelopmentPath, exercisesPath } from "./paths.js"
 import { getExercises } from "./exercises.js"
 
-type TaskResult = { success: boolean; retry: boolean }
+type TaskResult = { success: boolean }
 type TaskPromise = Promise<TaskResult>
 
 const TASK_START_DELAY = 10 * 1_000
@@ -116,24 +117,25 @@ const run = async (toolbox: GluegunToolbox) => {
 
 	const runningPromises: TaskPromise[] = []
 
-	// Retries aren't implemented yet, but the return values are set up to
-	// support them.
 	const processTask = async (task: Task, delay = 0) => {
 		if (task.finishedAt === null) {
 			await new Promise((resolve) => setTimeout(resolve, delay))
-			const { retry } = await runExercise({ run, task, server })
-
-			if (retry) {
-				return { success: false, retry: true }
-			}
+			await runExercise({ run, task, server })
 		}
 
 		if (task.passed === null) {
 			const passed = await runUnitTest({ task })
 			await updateTask(task.id, { passed })
-			return { success: passed, retry: false }
+
+			server.broadcast({
+				type: IpcMessageType.TaskEvent,
+				origin: IpcOrigin.Server,
+				data: { eventName: passed ? EvalEventName.Pass : EvalEventName.Fail, taskId: task.id },
+			})
+
+			return { success: passed }
 		} else {
-			return { success: task.passed, retry: false }
+			return { success: task.passed }
 		}
 	}
 
@@ -200,7 +202,7 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 	} catch (error) {
 		console.log(`${Date.now()} [cli#runExercise | ${language} / ${exercise}] unable to connect`)
 		client.disconnect()
-		return { success: false, retry: false }
+		return { success: false }
 	}
 
 	let taskStartedAt = Date.now()
@@ -209,16 +211,15 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 	let rooTaskId: string | undefined
 	let isClientDisconnected = false
 
-	const ignoreEvents: RooCodeEventName[] = [
-		RooCodeEventName.Message,
-		RooCodeEventName.TaskTokenUsageUpdated,
-		RooCodeEventName.TaskAskResponded,
-	]
+	const ignoreEvents: Record<"broadcast" | "log", (RooCodeEventName | EvalEventName)[]> = {
+		broadcast: [RooCodeEventName.Message],
+		log: [RooCodeEventName.Message, RooCodeEventName.TaskTokenUsageUpdated, RooCodeEventName.TaskAskResponded],
+	}
 
 	client.on(IpcMessageType.TaskEvent, async (taskEvent) => {
 		const { eventName, payload } = taskEvent
 
-		if (taskEvent.eventName !== RooCodeEventName.Message) {
+		if (!ignoreEvents.broadcast.includes(eventName)) {
 			server.broadcast({
 				type: IpcMessageType.TaskEvent,
 				origin: IpcOrigin.Server,
@@ -227,7 +228,7 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 			})
 		}
 
-		if (!ignoreEvents.includes(eventName)) {
+		if (!ignoreEvents.log.includes(eventName)) {
 			console.log(
 				`${Date.now()} [cli#runExercise | ${language} / ${exercise}] taskEvent -> ${eventName}`,
 				payload,
@@ -320,11 +321,10 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 				data: { commandName: TaskCommandName.CancelTask, data: rooTaskId },
 			})
 
-			// Give the server some time to cancel the task.
+			// Allow some time for the task to cancel.
 			await new Promise((resolve) => setTimeout(resolve, 5_000))
 		}
 
-		// TODO: Notify clients that the task timed out.
 		await updateTask(task.id, { finishedAt: new Date() })
 	}
 
@@ -336,12 +336,15 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 				clientId: client.clientId!,
 				data: { commandName: TaskCommandName.CloseTask, data: rooTaskId },
 			})
+
+			// Allow some time for the window to close.
+			await new Promise((resolve) => setTimeout(resolve, 2_000))
 		}
 
 		client.disconnect()
 	}
 
-	return { success: !!taskFinishedAt, retry: false }
+	return { success: !!taskFinishedAt }
 }
 
 const runUnitTest = async ({ task }: { task: Task }) => {

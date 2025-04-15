@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react"
 import { useQuery, keepPreviousData } from "@tanstack/react-query"
 
-import { RooCodeEventName, taskEventSchema, TokenUsage } from "@evals/types"
+import { TokenUsage, taskEventSchema, RooCodeEventName, EvalEventName } from "@evals/types"
 import { Run } from "@evals/db"
 
 import { getTasks } from "@/lib/server/tasks"
@@ -51,10 +51,6 @@ export const useRunStatus = (run: Run) => {
 			case RooCodeEventName.TaskStarted:
 				startTimes.current.set(taskId, Date.now())
 				break
-			case RooCodeEventName.TaskCompleted:
-			case RooCodeEventName.TaskAborted:
-				setTasksUpdatedAt(Date.now())
-				break
 			case RooCodeEventName.TaskTokenUsageUpdated: {
 				const startTime = startTimes.current.get(taskId)
 				const duration = startTime ? Date.now() - startTime : undefined
@@ -62,6 +58,10 @@ export const useRunStatus = (run: Run) => {
 				setUsageUpdatedAt(Date.now())
 				break
 			}
+			case EvalEventName.Pass:
+			case EvalEventName.Fail:
+				setTasksUpdatedAt(Date.now())
+				break
 		}
 	}, [])
 
