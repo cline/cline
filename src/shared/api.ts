@@ -32,6 +32,7 @@ export interface ApiHandlerOptions {
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
+	liteLlmModelInfo?: ModelInfo
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
