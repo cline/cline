@@ -198,7 +198,7 @@
 				"description": "Cho phép tự động chuyển đổi giữa các chế độ khác nhau mà không cần phê duyệt."
 			},
 			"subtasks": {
-				"label": "Nhiệm vụ",
+				"label": "Nhiệm vụ phụ",
 				"description": "Cho phép tạo và hoàn thành các nhiệm vụ phụ mà không cần phê duyệt."
 			},
 			"retryRequests": {

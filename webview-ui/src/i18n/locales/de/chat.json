@@ -198,7 +198,7 @@
 				"description": "Erlaubt automatischen Wechsel zwischen verschiedenen Modi ohne erforderliche Genehmigung."
 			},
 			"subtasks": {
-				"label": "Aufgaben",
+				"label": "Teilaufgaben",
 				"description": "Erlaubt die Erstellung und den Abschluss von Teilaufgaben ohne erforderliche Genehmigung."
 			},
 			"retryRequests": {

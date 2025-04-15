@@ -56,7 +56,7 @@
 			"description": "Browser-Aktionen automatisch ohne Genehmigung durchführen. Hinweis: Gilt nur, wenn das Modell Computer-Nutzung unterstützt"
 		},
 		"retry": {
-			"label": "Wiederholen",
+			"label": "Wiederholung",
 			"description": "Fehlgeschlagene API-Anfragen automatisch wiederholen, wenn der Server eine Fehlerantwort zurückgibt",
 			"delayLabel": "Verzögerung vor dem Wiederholen der Anfrage"
 		},
@@ -69,7 +69,7 @@
 			"description": "Automatisch zwischen verschiedenen Modi wechseln ohne Genehmigung"
 		},
 		"subtasks": {
-			"label": "Unteraufgaben",
+			"label": "Teilaufgaben",
 			"description": "Erstellung und Abschluss von Unteraufgaben ohne Genehmigung erlauben"
 		},
 		"execute": {

@@ -174,11 +174,11 @@
 		"description": "Auto-aprobar permite a Roo Code realizar acciones sin pedir permiso. Habilita solo para acciones en las que confíes plenamente. Configuración más detallada disponible en <settingsLink>Configuración</settingsLink>.",
 		"actions": {
 			"readFiles": {
-				"label": "Leer",
+				"label": "Lectura",
 				"description": "Permite acceso para leer cualquier archivo en tu computadora."
 			},
 			"editFiles": {
-				"label": "Editar",
+				"label": "Edición",
 				"description": "Permite la modificación de cualquier archivo en tu computadora."
 			},
 			"executeCommands": {

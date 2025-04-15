@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "允許 Roo 無需核准即執行操作。僅在您完全信任 AI 並了解相關安全風險時啟用這些設定。",
 		"readOnly": {
-			"label": "始終核准唯讀操作",
+			"label": "讀取",
 			"description": "啟用後，Roo 將自動檢視目錄內容並讀取檔案，無需點選核准按鈕。",
 			"outsideWorkspace": {
 				"label": "包含工作區外的檔案",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "始終核准寫入操作",
+			"label": "寫入",
 			"description": "自動建立和編輯文件而無需核准",
 			"delayLabel": "寫入後延遲以允許診斷偵測潛在問題",
 			"outsideWorkspace": {
@@ -52,28 +52,28 @@
 			}
 		},
 		"browser": {
-			"label": "始終核准瀏覽器操作",
-			"description": "自動執行瀏覽器操作而無需核准 — 注意：僅適用於模型支援電腦使用時"
+			"label": "瀏覽器",
+			"description": "自動執行瀏覽器操作而無需核准 — 注意：僅適用於模型支援電腦使用時"
 		},
 		"retry": {
-			"label": "始終重試失敗的 API 請求",
+			"label": "重試",
 			"description": "當伺服器回傳錯誤回應時自動重試失敗的 API 請求",
 			"delayLabel": "重試請求前的延遲"
 		},
 		"mcp": {
-			"label": "始終核准 MCP 工具",
+			"label": "MCP",
 			"description": "在 MCP 伺服器檢視中啟用個別 MCP 工具的自動核准（需要此設定和工具的「始終允許」核取方塊）"
 		},
 		"modeSwitch": {
-			"label": "始終核准模式切換",
+			"label": "模式",
 			"description": "自動在不同模式之間切換而無需核准"
 		},
 		"subtasks": {
-			"label": "子任務",
+			"label": "子工作",
 			"description": "允許建立和完成子工作而無需核准"
 		},
 		"execute": {
-			"label": "始終核准允許的執行操作",
+			"label": "執行",
 			"description": "自動執行允許的終端機命令而無需核准",
 			"allowedCommands": "允許自動執行的命令",
 			"allowedCommandsDescription": "當「始終核准執行操作」啟用時可以自動執行的命令前綴。新增 * 以允許所有命令（請謹慎使用）。",

@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Roo가 승인 없이 자동으로 작업을 수행할 수 있도록 허용합니다. AI를 완전히 신뢰하고 관련 보안 위험을 이해하는 경우에만 이러한 설정을 활성화하세요.",
 		"readOnly": {
-			"label": "읽기 전용 작업 항상 승인",
+			"label": "읽기",
 			"description": "활성화되면 Roo는 승인 버튼을 클릭하지 않고도 자동으로 디렉토리 내용을 보고 파일을 읽습니다.",
 			"outsideWorkspace": {
 				"label": "워크스페이스 외부 파일 포함",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "쓰기 작업 항상 승인",
+			"label": "쓰기",
 			"description": "승인 없이 자동으로 파일 생성 및 편집",
 			"delayLabel": "진단이 잠재적 문제를 감지할 수 있도록 쓰기 후 지연",
 			"outsideWorkspace": {
@@ -52,20 +52,20 @@
 			}
 		},
 		"browser": {
-			"label": "브라우저 작업 항상 승인",
-			"description": "승인 없이 자동으로 브라우저 작업 수행 — 참고: 모델이 컴퓨터 사용을 지원할 때만 적용됩니다"
+			"label": "브라우저",
+			"description": "승인 없이 자동으로 브라우저 작업 수행 — 참고: 모델이 컴퓨터 사용을 지원할 때만 적용됩니다"
 		},
 		"retry": {
-			"label": "실패한 API 요청 항상 재시도",
+			"label": "재시도",
 			"description": "서버가 오류 응답을 반환할 때 자동으로 실패한 API 요청 재시도",
 			"delayLabel": "요청 재시도 전 지연"
 		},
 		"mcp": {
-			"label": "MCP 도구 항상 승인",
+			"label": "MCP",
 			"description": "MCP 서버 보기에서 개별 MCP 도구의 자동 승인 활성화(이 설정과 도구의 \"항상 허용\" 체크박스 모두 필요)"
 		},
 		"modeSwitch": {
-			"label": "모드 전환 항상 승인",
+			"label": "모드",
 			"description": "승인 없이 자동으로 다양한 모드 간 전환"
 		},
 		"subtasks": {
@@ -73,7 +73,7 @@
 			"description": "승인 없이 하위 작업 생성 및 완료 허용"
 		},
 		"execute": {
-			"label": "허용된 실행 작업 항상 승인",
+			"label": "실행",
 			"description": "승인 없이 자동으로 허용된 터미널 명령 실행",
 			"allowedCommands": "허용된 자동 실행 명령",
 			"allowedCommandsDescription": "\"실행 작업 항상 승인\"이 활성화되었을 때 자동 실행될 수 있는 명령 접두사. 모든 명령을 허용하려면 * 추가(주의해서 사용)",

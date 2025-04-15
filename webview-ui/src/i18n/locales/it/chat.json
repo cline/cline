@@ -198,11 +198,11 @@
 				"description": "Consente il passaggio automatico tra diverse modalità senza richiedere approvazione."
 			},
 			"subtasks": {
-				"label": "Sottotask",
+				"label": "Sottoattività",
 				"description": "Consente la creazione e il completamento di sottoattività senza richiedere approvazione."
 			},
 			"retryRequests": {
-				"label": "Ripetizioni",
+				"label": "Ritentativi",
 				"description": "Riprova automaticamente le richieste API fallite quando il provider restituisce una risposta di errore."
 			}
 		}

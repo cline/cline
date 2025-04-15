@@ -69,7 +69,7 @@
 			"description": "Passa automaticamente tra diverse modalità senza richiedere approvazione"
 		},
 		"subtasks": {
-			"label": "Attività secondarie",
+			"label": "Sottoattività",
 			"description": "Consenti la creazione e il completamento di attività secondarie senza richiedere approvazione"
 		},
 		"execute": {

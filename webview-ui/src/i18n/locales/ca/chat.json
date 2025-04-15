@@ -174,11 +174,11 @@
 		"description": "L'aprovació automàtica permet a Roo Code realitzar accions sense demanar permís. Activa-la només per a accions en les que confies plenament. Configuració més detallada disponible a la <settingsLink>Configuració</settingsLink>.",
 		"actions": {
 			"readFiles": {
-				"label": "Lectura",
+				"label": "Llegir",
 				"description": "Permet l'accés per llegir qualsevol fitxer al teu ordinador."
 			},
 			"editFiles": {
-				"label": "Edició",
+				"label": "Editar",
 				"description": "Permet la modificació de qualsevol fitxer al teu ordinador."
 			},
 			"executeCommands": {
@@ -198,7 +198,7 @@
 				"description": "Permet el canvi automàtic entre diferents modes sense requerir aprovació."
 			},
 			"subtasks": {
-				"label": "Tasques",
+				"label": "Subtasques",
 				"description": "Permet la creació i finalització de subtasques sense requerir aprovació."
 			},
 			"retryRequests": {

@@ -178,7 +178,7 @@
 				"description": "Bilgisayarınızdaki herhangi bir dosyayı okuma erişimine izin verir."
 			},
 			"editFiles": {
-				"label": "Düzenleme",
+				"label": "Yazma",
 				"description": "Bilgisayarınızdaki herhangi bir dosyanın değiştirilmesine izin verir."
 			},
 			"executeCommands": {
@@ -198,7 +198,7 @@
 				"description": "Onay gerektirmeden farklı modlar arasında otomatik geçişe izin verir."
 			},
 			"subtasks": {
-				"label": "Görevler",
+				"label": "Alt Görevler",
 				"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin verir."
 			},
 			"retryRequests": {

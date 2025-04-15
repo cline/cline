@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Roo'nun onay gerektirmeden otomatik olarak işlemler gerçekleştirmesine izin verin. Bu ayarları yalnızca yapay zekaya tamamen güveniyorsanız ve ilgili güvenlik risklerini anlıyorsanız etkinleştirin.",
 		"readOnly": {
-			"label": "Salt okunur işlemleri her zaman onayla",
+			"label": "Okuma",
 			"description": "Etkinleştirildiğinde, Roo otomatik olarak dizin içeriğini görüntüleyecek ve Onayla düğmesine tıklamanıza gerek kalmadan dosyaları okuyacaktır.",
 			"outsideWorkspace": {
 				"label": "Çalışma alanı dışındaki dosyaları dahil et",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Yazma işlemlerini her zaman onayla",
+			"label": "Yazma",
 			"description": "Onay gerektirmeden otomatik olarak dosya oluştur ve düzenle",
 			"delayLabel": "Tanılamanın potansiyel sorunları tespit etmesine izin vermek için yazmalardan sonra gecikme",
 			"outsideWorkspace": {
@@ -52,28 +52,28 @@
 			}
 		},
 		"browser": {
-			"label": "Tarayıcı eylemlerini her zaman onayla",
+			"label": "Tarayıcı",
 			"description": "Onay gerektirmeden otomatik olarak tarayıcı eylemleri gerçekleştir. Not: Yalnızca model bilgisayar kullanımını desteklediğinde geçerlidir"
 		},
 		"retry": {
-			"label": "Başarısız API isteklerini her zaman yeniden dene",
+			"label": "Yeniden Dene",
 			"description": "Sunucu bir hata yanıtı döndürdüğünde başarısız API isteklerini otomatik olarak yeniden dene",
 			"delayLabel": "İsteği yeniden denemeden önce gecikme"
 		},
 		"mcp": {
-			"label": "MCP araçlarını her zaman onayla",
+			"label": "MCP",
 			"description": "MCP Sunucuları görünümünde bireysel MCP araçlarının otomatik onayını etkinleştir (hem bu ayar hem de aracın \"Her zaman izin ver\" onay kutusu gerekir)"
 		},
 		"modeSwitch": {
-			"label": "Mod değiştirmeyi her zaman onayla",
+			"label": "Mod",
 			"description": "Onay gerektirmeden otomatik olarak farklı modlar arasında geçiş yap"
 		},
 		"subtasks": {
-			"label": "Görevler",
+			"label": "Alt Görevler",
 			"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin ver"
 		},
 		"execute": {
-			"label": "İzin verilen yürütme işlemlerini her zaman onayla",
+			"label": "Yürüt",
 			"description": "Onay gerektirmeden otomatik olarak izin verilen terminal komutlarını yürüt",
 			"allowedCommands": "İzin Verilen Otomatik Yürütme Komutları",
 			"allowedCommandsDescription": "\"Yürütme işlemlerini her zaman onayla\" etkinleştirildiğinde otomatik olarak yürütülebilen komut önekleri. Tüm komutlara izin vermek için * ekleyin (dikkatli kullanın).",

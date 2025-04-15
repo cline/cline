@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Permitir que Roo realice operaciones automáticamente sin requerir aprobación. Habilite esta configuración solo si confía plenamente en la IA y comprende los riesgos de seguridad asociados.",
 		"readOnly": {
-			"label": "Leer",
+			"label": "Lectura",
 			"description": "Cuando está habilitado, Roo verá automáticamente el contenido del directorio y leerá archivos sin que necesite hacer clic en el botón Aprobar.",
 			"outsideWorkspace": {
 				"label": "Incluir archivos fuera del espacio de trabajo",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Escribir",
+			"label": "Escritura",
 			"description": "Crear y editar archivos automáticamente sin requerir aprobación",
 			"delayLabel": "Retraso después de escritura para permitir que los diagnósticos detecten posibles problemas",
 			"outsideWorkspace": {

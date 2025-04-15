@@ -69,7 +69,7 @@
 			"description": "Tự động chuyển đổi giữa các chế độ khác nhau mà không cần phê duyệt"
 		},
 		"subtasks": {
-			"label": "Nhiệm vụ",
+			"label": "Công việc phụ",
 			"description": "Cho phép tạo và hoàn thành các công việc phụ mà không cần phê duyệt"
 		},
 		"execute": {

@@ -35,7 +35,7 @@
 	"autoApprove": {
 		"description": "Pozwól Roo na automatyczne wykonywanie operacji bez wymagania zatwierdzenia. Włącz te ustawienia tylko jeśli w pełni ufasz AI i rozumiesz związane z tym zagrożenia bezpieczeństwa.",
 		"readOnly": {
-			"label": "Zawsze zatwierdzaj operacje tylko do odczytu",
+			"label": "Odczyt",
 			"description": "Gdy włączone, Roo automatycznie będzie wyświetlać zawartość katalogów i czytać pliki bez konieczności klikania przycisku Zatwierdź.",
 			"outsideWorkspace": {
 				"label": "Uwzględnij pliki poza obszarem roboczym",
@@ -43,7 +43,7 @@
 			}
 		},
 		"write": {
-			"label": "Zawsze zatwierdzaj operacje zapisu",
+			"label": "Zapis",
 			"description": "Automatycznie twórz i edytuj pliki bez konieczności zatwierdzania",
 			"delayLabel": "Opóźnienie po zapisach, aby umożliwić diagnostyce wykrycie potencjalnych problemów",
 			"outsideWorkspace": {
@@ -52,20 +52,20 @@
 			}
 		},
 		"browser": {
-			"label": "Zawsze zatwierdzaj akcje przeglądarki",
+			"label": "Przeglądarka",
 			"description": "Automatycznie wykonuj akcje przeglądarki bez konieczności zatwierdzania. Uwaga: Dotyczy tylko gdy model obsługuje używanie komputera"
 		},
 		"retry": {
-			"label": "Zawsze ponawiaj nieudane żądania API",
+			"label": "Ponów",
 			"description": "Automatycznie ponawiaj nieudane żądania API, gdy serwer zwraca odpowiedź z błędem",
 			"delayLabel": "Opóźnienie przed ponowieniem żądania"
 		},
 		"mcp": {
-			"label": "Zawsze zatwierdzaj narzędzia MCP",
+			"label": "MCP",
 			"description": "Włącz automatyczne zatwierdzanie poszczególnych narzędzi MCP w widoku Serwerów MCP (wymaga zarówno tego ustawienia, jak i pola wyboru \"Zawsze zezwalaj\" narzędzia)"
 		},
 		"modeSwitch": {
-			"label": "Zawsze zatwierdzaj przełączanie trybów",
+			"label": "Tryb",
 			"description": "Automatycznie przełączaj między różnymi trybami bez konieczności zatwierdzania"
 		},
 		"subtasks": {
@@ -73,7 +73,7 @@
 			"description": "Zezwalaj na tworzenie i ukończenie podzadań bez konieczności zatwierdzania"
 		},
 		"execute": {
-			"label": "Zawsze zatwierdzaj dozwolone operacje wykonania",
+			"label": "Wykonaj",
 			"description": "Automatycznie wykonuj dozwolone polecenia terminala bez konieczności zatwierdzania",
 			"allowedCommands": "Dozwolone polecenia auto-wykonania",
 			"allowedCommandsDescription": "Prefiksy poleceń, które mogą być automatycznie wykonywane, gdy \"Zawsze zatwierdzaj operacje wykonania\" jest włączone. Dodaj * aby zezwolić na wszystkie polecenia (używaj z ostrożnością).",

@@ -3,11 +3,70 @@ import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeButton, VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 import { vscode } from "@/utils/vscode"
-import { Slider } from "@/components/ui"
+import { Button, Slider } from "@/components/ui"
 
 import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
+
+const AUTO_APPROVE_SETTINGS_CONFIG = [
+	{
+		key: "alwaysAllowReadOnly",
+		labelKey: "settings:autoApprove.readOnly.label",
+		descriptionKey: "settings:autoApprove.readOnly.description",
+		icon: "eye",
+		testId: "always-allow-readonly-toggle",
+	},
+	{
+		key: "alwaysAllowWrite",
+		labelKey: "settings:autoApprove.write.label",
+		descriptionKey: "settings:autoApprove.write.description",
+		icon: "edit",
+		testId: "always-allow-write-toggle",
+	},
+	{
+		key: "alwaysAllowBrowser",
+		labelKey: "settings:autoApprove.browser.label",
+		descriptionKey: "settings:autoApprove.browser.description",
+		icon: "globe",
+		testId: "always-allow-browser-toggle",
+	},
+	{
+		key: "alwaysApproveResubmit",
+		labelKey: "settings:autoApprove.retry.label",
+		descriptionKey: "settings:autoApprove.retry.description",
+		icon: "refresh",
+		testId: "always-approve-resubmit-toggle",
+	},
+	{
+		key: "alwaysAllowMcp",
+		labelKey: "settings:autoApprove.mcp.label",
+		descriptionKey: "settings:autoApprove.mcp.description",
+		icon: "plug",
+		testId: "always-allow-mcp-toggle",
+	},
+	{
+		key: "alwaysAllowModeSwitch",
+		labelKey: "settings:autoApprove.modeSwitch.label",
+		descriptionKey: "settings:autoApprove.modeSwitch.description",
+		icon: "sync",
+		testId: "always-allow-mode-switch-toggle",
+	},
+	{
+		key: "alwaysAllowSubtasks",
+		labelKey: "settings:autoApprove.subtasks.label",
+		descriptionKey: "settings:autoApprove.subtasks.description",
+		icon: "discard",
+		testId: "always-allow-subtasks-toggle",
+	},
+	{
+		key: "alwaysAllowExecute",
+		labelKey: "settings:autoApprove.execute.label",
+		descriptionKey: "settings:autoApprove.execute.description",
+		icon: "terminal",
+		testId: "always-allow-execute-toggle",
+	},
+]
 
 type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	alwaysAllowReadOnly?: boolean
@@ -81,70 +140,8 @@ export const AutoApproveSettings = ({
 			</SectionHeader>
 
 			<Section>
-				<div
-					className="flex flex-row gap-2 [@media(min-width:400px)]:gap-4 flex-wrap justify-center"
-					style={{
-						paddingBottom: "1rem",
-						transition: "all 0.2s",
-					}}>
-					{[
-						{
-							key: "alwaysAllowReadOnly",
-							labelKey: "settings:autoApprove.readOnly.label",
-							descriptionKey: "settings:autoApprove.readOnly.description",
-							icon: "eye",
-							testId: "always-allow-readonly-toggle",
-						},
-						{
-							key: "alwaysAllowWrite",
-							labelKey: "settings:autoApprove.write.label",
-							descriptionKey: "settings:autoApprove.write.description",
-							icon: "edit",
-							testId: "always-allow-write-toggle",
-						},
-						{
-							key: "alwaysAllowBrowser",
-							labelKey: "settings:autoApprove.browser.label",
-							descriptionKey: "settings:autoApprove.browser.description",
-							icon: "globe",
-							testId: "always-allow-browser-toggle",
-						},
-						{
-							key: "alwaysApproveResubmit",
-							labelKey: "settings:autoApprove.retry.label",
-							descriptionKey: "settings:autoApprove.retry.description",
-							icon: "refresh",
-							testId: "always-approve-resubmit-toggle",
-						},
-						{
-							key: "alwaysAllowMcp",
-							labelKey: "settings:autoApprove.mcp.label",
-							descriptionKey: "settings:autoApprove.mcp.description",
-							icon: "plug",
-							testId: "always-allow-mcp-toggle",
-						},
-						{
-							key: "alwaysAllowModeSwitch",
-							labelKey: "settings:autoApprove.modeSwitch.label",
-							descriptionKey: "settings:autoApprove.modeSwitch.description",
-							icon: "sync",
-							testId: "always-allow-mode-switch-toggle",
-						},
-						{
-							key: "alwaysAllowSubtasks",
-							labelKey: "settings:autoApprove.subtasks.label",
-							descriptionKey: "settings:autoApprove.subtasks.description",
-							icon: "discard",
-							testId: "always-allow-subtasks-toggle",
-						},
-						{
-							key: "alwaysAllowExecute",
-							labelKey: "settings:autoApprove.execute.label",
-							descriptionKey: "settings:autoApprove.execute.description",
-							icon: "terminal",
-							testId: "always-allow-execute-toggle",
-						},
-					].map((cfg) => {
+				<div className="grid grid-cols-2 [@media(min-width:320px)]:grid-cols-4 gap-2">
+					{AUTO_APPROVE_SETTINGS_CONFIG.map((cfg) => {
 						const boolValues = {
 							alwaysAllowReadOnly,
 							alwaysAllowWrite,
@@ -155,25 +152,22 @@ export const AutoApproveSettings = ({
 							alwaysAllowSubtasks,
 							alwaysAllowExecute,
 						}
+
 						const value = boolValues[cfg.key as keyof typeof boolValues] ?? false
-						const title = t(cfg.descriptionKey || "")
+
 						return (
-							<VSCodeButton
+							<Button
 								key={cfg.key}
-								appearance={value ? "primary" : "secondary"}
+								variant={value ? "default" : "ghost"}
 								onClick={() => setCachedStateField(cfg.key as any, !value)}
-								title={title}
+								title={t(cfg.descriptionKey || "")}
 								data-testid={cfg.testId}
-								className="aspect-square min-h-[80px] min-w-[80px]"
-								style={{ flexBasis: "20%", transition: "background-color 0.2s" }}>
-								<span className="flex flex-col items-center gap-1 h-full">
-									<span
-										className={`codicon codicon-${cfg.icon}`}
-										style={{ fontSize: "1.5rem", paddingTop: "0.5rem" }}
-									/>
+								className="h-12">
+								<span className="flex flex-col items-center gap-1">
+									<span className={`codicon codicon-${cfg.icon}`} />
 									<span className="text-sm text-center">{t(cfg.labelKey)}</span>
 								</span>
-							</VSCodeButton>
+							</Button>
 						)
 					})}
 				</div>

@@ -174,7 +174,7 @@
 		"description": "Automatyczne zatwierdzanie pozwala Roo Code wykonywać działania bez pytania o pozwolenie. Włącz tylko dla działań, którym w pełni ufasz. Bardziej szczegółowa konfiguracja dostępna w <settingsLink>Ustawieniach</settingsLink>.",
 		"actions": {
 			"readFiles": {
-				"label": "Czytanie",
+				"label": "Odczyt",
 				"description": "Pozwala na dostęp do odczytu dowolnego pliku na Twoim komputerze."
 			},
 			"editFiles": {

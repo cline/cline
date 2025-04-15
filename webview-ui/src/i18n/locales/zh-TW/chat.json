@@ -198,7 +198,7 @@
 				"description": "允許在不需要核准的情況下自動切換不同模式。"
 			},
 			"subtasks": {
-				"label": "回力鏢",
+				"label": "子工作",
 				"description": "允許在不需要核准的情況下建立和完成子工作。"
 			},
 			"retryRequests": {
