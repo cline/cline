@@ -912,7 +912,7 @@ export class Controller {
 				}
 				break
 			}
-			case "optimizePrompt": {
+			case "optimizationPromptRequest": {
 				if (!message.prompt || !message.model) {
 					await this.postMessageToWebview({
 						type: "optimizedPromptResult",
@@ -2134,7 +2134,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	}
 
 	// Add new method to the class
-	async optimizePrompt(prompt: string, modelId: string): Promise<string> {
+	async optimizationPromptRequest(prompt: string, modelId: string): Promise<string> {
 		try {
 			const { apiConfiguration } = await getAllExtensionState(this.context)
 
