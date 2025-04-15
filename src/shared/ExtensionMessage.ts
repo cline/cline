@@ -111,9 +111,9 @@ export interface ExtensionMessage {
 		error?: string
 	}
 	tab?: McpViewTab
-	prompt?: string 
-	model?: string 
-	optimizedPrompt?: string 
+	prompt?: string
+	model?: string
+	optimizedPrompt?: string
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
