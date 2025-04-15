@@ -1358,7 +1358,7 @@ export const mistralModels = {
 // LiteLLM
 // https://docs.litellm.ai/docs/
 export type LiteLLMModelId = string
-export const liteLlmDefaultModelId = "anthropic/claude-3-5-sonnet-20240620"
+export const liteLlmDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
 export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
