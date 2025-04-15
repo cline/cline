@@ -181,7 +181,13 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
-		const katexCssUri = getUri(webview, this.context.extensionUri, ["node_modules", "katex", "dist", "katex.min.css"])
+		const katexCssUri = getUri(webview, this.context.extensionUri, [
+			"webview-ui",
+			"node_modules",
+			"katex",
+			"dist",
+			"katex.min.css",
+		])
 
 		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
 
@@ -260,7 +266,13 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		])
 
 		// Get KaTeX resources
-		const katexCssUri = getUri(webview, this.context.extensionUri, ["node_modules", "katex", "dist", "katex.min.css"])
+		const katexCssUri = getUri(webview, this.context.extensionUri, [
+			"webview-ui",
+			"node_modules",
+			"katex",
+			"dist",
+			"katex.min.css",
+		])
 
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
@@ -277,7 +289,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 		const csp = [
 			"default-src 'none'",
-			`font-src ${webview.cspSource}`,
+			`font-src ${webview.cspSource} data:`,
 			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`img-src ${webview.cspSource} https: data:`,
 			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
