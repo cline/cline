@@ -1499,6 +1499,8 @@ export class Task {
 							return `[${block.name} for '${block.params.path}']`
 						case "list_code_definition_names":
 							return `[${block.name} for '${block.params.path}']`
+						case "read_function":
+							return `[${block.name} for '${block.params.functionName}' in '${block.params.path}']`
 						case "browser_action":
 							return `[${block.name} for '${block.params.action}']`
 						case "use_mcp_tool":
@@ -2011,6 +2013,97 @@ export class Task {
 							break
 						}
 					}
+					case "read_function": {
+						const relPath: string | undefined = block.params.path
+						const functionName: string | undefined = block.params.functionName
+						const sharedMessageProps: ClineSayTool = {
+							tool: "readFunction",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
+							functionName: removeClosingTag("functionName", functionName),
+						}
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: "",
+								} satisfies ClineSayTool)
+								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								if (!relPath) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("read_function", "path"))
+									break
+								}
+								if (!functionName) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("read_function", "functionName"))
+									break
+								}
+
+								const accessAllowed = this.clineIgnoreController.validateAccess(relPath)
+								if (!accessAllowed) {
+									await this.say("clineignore_error", relPath)
+									pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(relPath)))
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+								const absolutePath = path.resolve(cwd, relPath)
+								// Import the function if it's not already imported
+								const { parseSourceCodeForFunctionDefinition } = await import("../../services/tree-sitter")
+								const result = await parseSourceCodeForFunctionDefinition(
+									absolutePath,
+									functionName,
+									this.clineIgnoreController,
+								)
+
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: result ?? "(Function not found or error occurred)",
+								} satisfies ClineSayTool)
+
+								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+									await this.say("tool", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
+									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Cline wants to read function '${functionName}' from ${path.basename(absolutePath)}`,
+									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										break
+									}
+									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
+								}
+
+								if (result) {
+									// Track file read operation (similar to read_file)
+									await this.fileContextTracker.trackFileContext(relPath, "read_tool")
+									pushToolResult(result)
+								} else {
+									pushToolResult(
+										formatResponse.toolError(`Function '${functionName}' not found in ${relPath}.`),
+									)
+								}
+								break
+							}
+						} catch (error) {
+							await handleError("reading function definition", error)
+							break
+						}
+					}
+
 					case "list_files": {
 						const relDirPath: string | undefined = block.params.path
 						const recursiveRaw: string | undefined = block.params.recursive

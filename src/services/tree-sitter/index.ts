@@ -178,3 +178,155 @@ async function parseFile(
 	}
 	return null
 }
+
+/**
+ * Parses a source code file to find and extract the full text content of a specific function definition.
+ * @param filePath The path to the source code file.
+ * @param functionName The name of the function to find.
+ * @param languageParsers Preloaded language parsers.
+ * @param clineIgnoreController Optional controller for handling ignored files.
+ * @returns The full text block containing the function definition, extracted based on sibling nodes, or null/error string.
+ */
+async function parseFunctionDefinition(
+	filePath: string,
+	functionName: string,
+	languageParsers: LanguageParser,
+	clineIgnoreController?: ClineIgnoreController,
+): Promise<string | null> {
+	if (clineIgnoreController && !clineIgnoreController.validateAccess(filePath)) {
+		console.log(`Access denied for file: ${filePath}`)
+		return null // Access denied
+	}
+
+	let fileContent: string
+	try {
+		fileContent = await fs.readFile(filePath, "utf8")
+	} catch (error) {
+		console.error(`Error reading file ${filePath}:`, error)
+		return `Error reading file: ${filePath}` // File read error
+	}
+
+	const ext = path.extname(filePath).toLowerCase().slice(1)
+	const { parser, query } = languageParsers[ext] || {}
+
+	if (!parser || !query) {
+		console.log(`Unsupported file type or missing parser/query for: ${filePath}`)
+		return `Unsupported file type: ${ext}` // Unsupported type
+	}
+
+	try {
+		const tree = parser.parse(fileContent)
+		const captures = query.captures(tree.rootNode)
+		const lines = fileContent.split("\n") // Split content into lines for extraction
+
+		// Find the capture that corresponds to the function definition name
+		for (const capture of captures) {
+			const { node, name } = capture
+			// Check if the capture is a definition name and matches the requested functionName
+			if (name.includes("name") && node.text.trim() === functionName) {
+				// Traverse upwards from the name node to find a suitable definition node.
+				let definitionNode = node
+				// Common function/method definition types across languages - adjust as needed
+				const definitionTypes = [
+					"function_definition",
+					"function_declaration",
+					"method_definition",
+					"arrow_function",
+					"function_item", // Rust
+					"function_spec", // Go
+					// C/C++ uses 'function_definition'
+					"method_declaration", // C#, Java
+					"method", // Ruby
+					// PHP uses 'function_declaration'
+					// Swift uses 'function_declaration'
+					// Kotlin uses 'function_declaration'
+					"lexical_declaration", // For JS/TS const/let func = ...
+					"variable_declarator", // Often part of lexical_declaration
+					"pair", // For object methods in JS/TS
+				]
+
+				// Traverse up until we find a recognized definition type or hit a boundary
+				while (definitionNode.parent && !definitionTypes.includes(definitionNode.type)) {
+					// Avoid going too high (e.g., module/program level)
+					if (
+						!definitionNode.parent.parent ||
+						definitionNode.parent.type === "program" ||
+						definitionNode.parent.type === "module"
+					) {
+						// If parent is program/module, the current node might be the best we can get
+						break
+					}
+					definitionNode = definitionNode.parent
+				}
+
+				// If the found node is just an identifier, try its parent one last time
+				if (definitionNode.type.includes("identifier") && definitionNode.parent) {
+					definitionNode = definitionNode.parent
+				}
+
+				// Ensure we have a valid node to work with
+				if (!definitionNode) {
+					console.warn(`Could not reliably identify definition node for ${functionName} in ${filePath}.`)
+					return node.text // Fallback to the name node's text if traversal fails
+				}
+
+				// Found the potential definition node, now find its named siblings
+				const prevSibling = definitionNode.previousNamedSibling
+				const nextSibling = definitionNode.nextNamedSibling
+
+				// Determine start line: line after previous sibling ends, or 0 if no previous sibling
+				const startLine = prevSibling ? prevSibling.endPosition.row + 1 : 0
+
+				// Determine end line: line where next sibling starts, or end of file if no next sibling
+				const endLine = nextSibling ? nextSibling.startPosition.row : lines.length
+
+				// Extract the text block between the siblings
+				if (startLine < endLine) {
+					// Slice lines (exclusive of endLine) and join back with newline
+					return lines.slice(startLine, endLine).join("\n")
+				} else {
+					// Fallback if slicing range is invalid (e.g., siblings overlap or parsing issue)
+					console.warn(
+						`Invalid slice range [${startLine}, ${endLine}) for ${functionName} in ${filePath}. Falling back to definition node text.`,
+					)
+					return definitionNode.text
+				}
+			}
+		}
+
+		console.log(`Function "${functionName}" not found in ${filePath}`)
+		return null // Function not found
+	} catch (error) {
+		console.error(`Error parsing file ${filePath} with tree-sitter:`, error)
+		return `Error parsing file: ${filePath}` // Parsing error
+	}
+}
+
+// Exported function to be called by the tool execution logic
+export async function parseSourceCodeForFunctionDefinition(
+	filePath: string,
+	functionName: string,
+	clineIgnoreController?: ClineIgnoreController,
+): Promise<string | null> {
+	// Basic validation
+	if (!filePath || !functionName) {
+		return "File path and function name are required."
+	}
+	const fileExists = await fileExistsAtPath(path.resolve(filePath))
+	if (!fileExists) {
+		return `File not found: ${filePath}`
+	}
+
+	// Determine the language and load the necessary parser
+	const ext = path.extname(filePath).toLowerCase().slice(1)
+	if (!ext) {
+		return "Could not determine file type from extension."
+	}
+	const languageParsers = await loadRequiredLanguageParsers([filePath])
+	if (!languageParsers[ext]) {
+		return `Unsupported language or parser not available for: ${ext}`
+	}
+
+	// Call the internal parsing function
+	return parseFunctionDefinition(filePath, functionName, languageParsers, clineIgnoreController)
+}

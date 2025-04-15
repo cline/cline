@@ -49,13 +49,24 @@ Usage:
 </execute_command>
 
 ## read_file
-Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.
+Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. **Prefer using \`list_code_definition_names\` or \`read_function\` over this tool when possible.**
 Parameters:
 - path: (required) The path of the file to read (relative to the current working directory ${cwd.toPosix()})
 Usage:
 <read_file>
 <path>File path here</path>
 </read_file>
+
+## read_function
+Description: Request to read the definition of a specific function from a source code file. Use this when you know the name of the function you need to examine within a specific file. Prefer using this tool or \`list_code_definition_names\` over \`read_file\` when possible.
+Parameters:
+- path: (required) The path of the file to read (relative to the current working directory ${cwd.toPosix()})
+- function_name: (required) The name of the function definition to extract from the file.
+Usage:
+<read_function>
+<path>File path here</path>
+<function_name>Function name here</function_name>
+</read_function>
 
 ## write_to_file
 Description: Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.

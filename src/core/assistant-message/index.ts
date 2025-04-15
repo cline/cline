@@ -11,6 +11,7 @@ export interface TextContent {
 export const toolUseNames = [
 	"execute_command",
 	"read_file",
+	"read_function",
 	"write_to_file",
 	"replace_in_file",
 	"search_files",
@@ -32,6 +33,7 @@ export type ToolUseName = (typeof toolUseNames)[number]
 export const toolParamNames = [
 	"command",
 	"requires_approval",
+	"functionName",
 	"path",
 	"content",
 	"diff",
