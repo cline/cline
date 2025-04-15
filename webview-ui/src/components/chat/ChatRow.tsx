@@ -4,6 +4,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { useCopyToClipboard } from "../../utils/clipboard"
 import { useTranslation, Trans } from "react-i18next"
+import { safeJsonParse } from "../../utils/json"
 import {
 	ClineApiReqInfo,
 	ClineAskUseMcpServer,
@@ -92,8 +93,8 @@ export const ChatRowContent = ({
 
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text !== null && message.text !== undefined && message.say === "api_req_started") {
-			const info: ClineApiReqInfo = JSON.parse(message.text)
-			return [info.cost, info.cancelReason, info.streamingFailedMessage]
+			const info = safeJsonParse<ClineApiReqInfo>(message.text)
+			return [info?.cost, info?.cancelReason, info?.streamingFailedMessage]
 		}
 
 		return [undefined, undefined, undefined]
@@ -147,7 +148,10 @@ export const ChatRowContent = ({
 					<span style={{ color: normalColor, fontWeight: "bold" }}>{t("chat:runCommand.title")}:</span>,
 				]
 			case "use_mcp_server":
-				const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+				const mcpServerUse = safeJsonParse<ClineAskUseMcpServer>(message.text)
+				if (mcpServerUse === undefined) {
+					return [null, null]
+				}
 				return [
 					isMcpServerResponding ? (
 						<ProgressIndicator />
@@ -250,14 +254,14 @@ export const ChatRowContent = ({
 
 	const tool = useMemo(() => {
 		if (message.ask === "tool" || message.say === "tool") {
-			return JSON.parse(message.text || "{}") as ClineSayTool
+			return safeJsonParse<ClineSayTool>(message.text)
 		}
 		return null
 	}, [message.ask, message.say, message.text])
 
 	const followUpData = useMemo(() => {
 		if (message.type === "ask" && message.ask === "followup" && !message.partial) {
-			return JSON.parse(message.text || "{}")
+			return safeJsonParse<any>(message.text)
 		}
 		return null
 	}, [message.type, message.ask, message.partial, message.text])
@@ -830,7 +834,7 @@ export const ChatRowContent = ({
 							{isExpanded && (
 								<div style={{ marginTop: "10px" }}>
 									<CodeAccordian
-										code={JSON.parse(message.text || "{}").request}
+										code={safeJsonParse<any>(message.text)?.request}
 										language="markdown"
 										isExpanded={true}
 										onToggleExpand={onToggleExpand}
@@ -897,7 +901,7 @@ export const ChatRowContent = ({
 						</div>
 					)
 				case "user_feedback_diff":
-					const tool = JSON.parse(message.text || "{}") as ClineSayTool
+					const tool = safeJsonParse<ClineSayTool>(message.text)
 					return (
 						<div
 							style={{
@@ -905,7 +909,7 @@ export const ChatRowContent = ({
 								width: "100%",
 							}}>
 							<CodeAccordian
-								diff={tool.diff!}
+								diff={tool?.diff!}
 								isFeedback={true}
 								isExpanded={isExpanded}
 								onToggleExpand={onToggleExpand}
@@ -1113,7 +1117,10 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "use_mcp_server":
-					const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+					const useMcpServer = safeJsonParse<ClineAskUseMcpServer>(message.text)
+					if (!useMcpServer) {
+						return null
+					}
 					const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
 					return (
 						<>
