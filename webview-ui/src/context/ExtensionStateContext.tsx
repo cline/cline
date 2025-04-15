@@ -132,7 +132,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		ttsSpeed: 1.0,
 		diffEnabled: false,
 		enableCheckpoints: true,
-		checkpointStorage: "task",
 		fuzzyMatchThreshold: 1.0,
 		language: "en", // Default language code
 		writeDelayMs: 1000,

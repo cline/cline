@@ -112,7 +112,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		browserToolEnabled,
 		browserViewportSize,
 		enableCheckpoints,
-		checkpointStorage,
 		diffEnabled,
 		experiments,
 		fuzzyMatchThreshold,
@@ -235,7 +234,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
 			vscode.postMessage({ type: "enableCheckpoints", bool: enableCheckpoints })
-			vscode.postMessage({ type: "checkpointStorage", text: checkpointStorage })
 			vscode.postMessage({ type: "browserViewportSize", text: browserViewportSize })
 			vscode.postMessage({ type: "remoteBrowserHost", text: remoteBrowserHost })
 			vscode.postMessage({ type: "remoteBrowserEnabled", bool: remoteBrowserEnabled })
@@ -466,7 +464,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				<div ref={checkpointsRef}>
 					<CheckpointSettings
 						enableCheckpoints={enableCheckpoints}
-						checkpointStorage={checkpointStorage}
 						setCachedStateField={setCachedStateField}
 					/>
 				</div>

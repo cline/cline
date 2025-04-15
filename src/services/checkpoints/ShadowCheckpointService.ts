@@ -5,11 +5,10 @@ import crypto from "crypto"
 import EventEmitter from "events"
 
 import simpleGit, { SimpleGit } from "simple-git"
-import { globby } from "globby"
 import pWaitFor from "p-wait-for"
 
 import { fileExistsAtPath } from "../../utils/fs"
-import { CheckpointStorage } from "../../shared/checkpoints"
+import { executeRipgrep } from "../../services/search/file-search"
 
 import { GIT_DISABLED_SUFFIX } from "./constants"
 import { CheckpointDiff, CheckpointResult, CheckpointEventMap } from "./types"
@@ -150,39 +149,54 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 	// nested git repos to work around git's requirement of using submodules for
 	// nested repos.
 	private async renameNestedGitRepos(disable: boolean) {
-		// Find all .git directories that are not at the root level.
-		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
-			cwd: this.workspaceDir,
-			onlyDirectories: true,
-			ignore: [".git"], // Ignore root level .git.
-			dot: true,
-			markDirectories: false,
-		})
+		try {
+			// Find all .git directories that are not at the root level.
+			const gitDir = ".git" + (disable ? "" : GIT_DISABLED_SUFFIX)
+			const args = ["--files", "--hidden", "--follow", "-g", `**/${gitDir}/HEAD`, this.workspaceDir]
 
-		// For each nested .git directory, rename it based on operation.
-		for (const gitPath of gitPaths) {
-			const fullPath = path.join(this.workspaceDir, gitPath)
-			let newPath: string
+			const gitPaths = await (
+				await executeRipgrep({ args, workspacePath: this.workspaceDir })
+			).filter(({ type, path }) => type === "folder" && path.includes(".git") && !path.startsWith(".git"))
 
-			if (disable) {
-				newPath = fullPath + GIT_DISABLED_SUFFIX
-			} else {
-				newPath = fullPath.endsWith(GIT_DISABLED_SUFFIX)
-					? fullPath.slice(0, -GIT_DISABLED_SUFFIX.length)
-					: fullPath
+			// For each nested .git directory, rename it based on operation.
+			for (const gitPath of gitPaths) {
+				if (gitPath.path.startsWith(".git")) {
+					continue
+				}
+
+				const currentPath = path.join(this.workspaceDir, gitPath.path)
+				let newPath: string
+
+				if (disable) {
+					newPath = !currentPath.endsWith(GIT_DISABLED_SUFFIX)
+						? currentPath + GIT_DISABLED_SUFFIX
+						: currentPath
+				} else {
+					newPath = currentPath.endsWith(GIT_DISABLED_SUFFIX)
+						? currentPath.slice(0, -GIT_DISABLED_SUFFIX.length)
+						: currentPath
+				}
+
+				if (currentPath === newPath) {
+					continue
+				}
+
+				try {
+					await fs.rename(currentPath, newPath)
+
+					this.log(
+						`[${this.constructor.name}#renameNestedGitRepos] ${disable ? "disabled" : "enabled"} nested git repo ${currentPath}`,
+					)
+				} catch (error) {
+					this.log(
+						`[${this.constructor.name}#renameNestedGitRepos] failed to ${disable ? "disable" : "enable"} nested git repo ${currentPath}: ${error instanceof Error ? error.message : String(error)}`,
+					)
+				}
 			}
-
-			try {
-				await fs.rename(fullPath, newPath)
-
-				this.log(
-					`[${this.constructor.name}#renameNestedGitRepos] ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`,
-				)
-			} catch (error) {
-				this.log(
-					`[${this.constructor.name}#renameNestedGitRepos] failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}: ${error instanceof Error ? error.message : String(error)}`,
-				)
-			}
+		} catch (error) {
+			this.log(
+				`[${this.constructor.name}#renameNestedGitRepos] failed to ${disable ? "disable" : "enable"} nested git repos: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
 	}
 
@@ -344,39 +358,6 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 		return path.join(globalStorageDir, "checkpoints", this.hashWorkspaceDir(workspaceDir))
 	}
 
-	public static async getTaskStorage({
-		taskId,
-		globalStorageDir,
-		workspaceDir,
-	}: {
-		taskId: string
-		globalStorageDir: string
-		workspaceDir: string
-	}): Promise<CheckpointStorage | undefined> {
-		// Is there a checkpoints repo in the task directory?
-		const taskRepoDir = this.taskRepoDir({ taskId, globalStorageDir })
-
-		if (await fileExistsAtPath(taskRepoDir)) {
-			return "task"
-		}
-
-		// Does the workspace checkpoints repo have a branch for this task?
-		const workspaceRepoDir = this.workspaceRepoDir({ globalStorageDir, workspaceDir })
-
-		if (!(await fileExistsAtPath(workspaceRepoDir))) {
-			return undefined
-		}
-
-		const git = simpleGit(workspaceRepoDir)
-		const branches = await git.branchLocal()
-
-		if (branches.all.includes(`roo-${taskId}`)) {
-			return "workspace"
-		}
-
-		return undefined
-	}
-
 	public static async deleteTask({
 		taskId,
 		globalStorageDir,
@@ -386,23 +367,15 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 		globalStorageDir: string
 		workspaceDir: string
 	}) {
-		const storage = await this.getTaskStorage({ taskId, globalStorageDir, workspaceDir })
+		const workspaceRepoDir = this.workspaceRepoDir({ globalStorageDir, workspaceDir })
+		const branchName = `roo-${taskId}`
+		const git = simpleGit(workspaceRepoDir)
+		const success = await this.deleteBranch(git, branchName)
 
-		if (storage === "task") {
-			const taskRepoDir = this.taskRepoDir({ taskId, globalStorageDir })
-			await fs.rm(taskRepoDir, { recursive: true, force: true })
-			console.log(`[${this.name}#deleteTask.${taskId}] removed ${taskRepoDir}`)
-		} else if (storage === "workspace") {
-			const workspaceRepoDir = this.workspaceRepoDir({ globalStorageDir, workspaceDir })
-			const branchName = `roo-${taskId}`
-			const git = simpleGit(workspaceRepoDir)
-			const success = await this.deleteBranch(git, branchName)
-
-			if (success) {
-				console.log(`[${this.name}#deleteTask.${taskId}] deleted branch ${branchName}`)
-			} else {
-				console.error(`[${this.name}#deleteTask.${taskId}] failed to delete branch ${branchName}`)
-			}
+		if (success) {
+			console.log(`[${this.name}#deleteTask.${taskId}] deleted branch ${branchName}`)
+		} else {
+			console.error(`[${this.name}#deleteTask.${taskId}] failed to delete branch ${branchName}`)
 		}
 	}
 

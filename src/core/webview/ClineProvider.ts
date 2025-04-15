@@ -483,7 +483,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				| "customInstructions"
 				| "enableDiff"
 				| "enableCheckpoints"
-				| "checkpointStorage"
 				| "fuzzyMatchThreshold"
 				| "consecutiveMistakeLimit"
 				| "experiments"
@@ -495,7 +494,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			customModePrompts,
 			diffEnabled: enableDiff,
 			enableCheckpoints,
-			checkpointStorage,
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
@@ -511,7 +509,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			customInstructions: effectiveInstructions,
 			enableDiff,
 			enableCheckpoints,
-			checkpointStorage,
 			fuzzyMatchThreshold,
 			task,
 			images,
@@ -540,7 +537,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			customModePrompts,
 			diffEnabled: enableDiff,
 			enableCheckpoints,
-			checkpointStorage,
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
@@ -550,38 +546,12 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
-		const taskId = historyItem.id
-		const globalStorageDir = this.contextProxy.globalStorageUri.fsPath
-		const workspaceDir = this.cwd
-
-		const checkpoints: Pick<ClineOptions, "enableCheckpoints" | "checkpointStorage"> = {
-			enableCheckpoints,
-			checkpointStorage,
-		}
-
-		if (enableCheckpoints) {
-			try {
-				checkpoints.checkpointStorage = await ShadowCheckpointService.getTaskStorage({
-					taskId,
-					globalStorageDir,
-					workspaceDir,
-				})
-
-				this.log(
-					`[ClineProvider#initClineWithHistoryItem] Using ${checkpoints.checkpointStorage} storage for ${taskId}`,
-				)
-			} catch (error) {
-				checkpoints.enableCheckpoints = false
-				this.log(`[ClineProvider#initClineWithHistoryItem] Error getting task storage: ${error.message}`)
-			}
-		}
-
 		const cline = new Cline({
 			provider: this,
 			apiConfiguration,
 			customInstructions: effectiveInstructions,
 			enableDiff,
-			...checkpoints,
+			enableCheckpoints,
 			fuzzyMatchThreshold,
 			historyItem,
 			experiments,
@@ -1210,7 +1180,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			ttsSpeed,
 			diffEnabled,
 			enableCheckpoints,
-			checkpointStorage,
 			taskHistory,
 			soundVolume,
 			browserViewportSize,
@@ -1282,7 +1251,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			ttsSpeed: ttsSpeed ?? 1.0,
 			diffEnabled: diffEnabled ?? true,
 			enableCheckpoints: enableCheckpoints ?? true,
-			checkpointStorage: checkpointStorage ?? "task",
 			shouldShowAnnouncement:
 				telemetrySetting !== "unset" && lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
@@ -1377,7 +1345,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			ttsSpeed: stateValues.ttsSpeed ?? 1.0,
 			diffEnabled: stateValues.diffEnabled ?? true,
 			enableCheckpoints: stateValues.enableCheckpoints ?? true,
-			checkpointStorage: stateValues.checkpointStorage ?? "task",
 			soundVolume: stateValues.soundVolume,
 			browserViewportSize: stateValues.browserViewportSize ?? "900x600",
 			screenshotQuality: stateValues.screenshotQuality ?? 75,

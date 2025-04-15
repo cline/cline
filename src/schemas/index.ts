@@ -45,19 +45,6 @@ export const toolGroupsSchema = z.enum(toolGroups)
 export type ToolGroup = z.infer<typeof toolGroupsSchema>
 
 /**
- * CheckpointStorage
- */
-
-export const checkpointStorages = ["task", "workspace"] as const
-
-export const checkpointStoragesSchema = z.enum(checkpointStorages)
-
-export type CheckpointStorage = z.infer<typeof checkpointStoragesSchema>
-
-export const isCheckpointStorage = (value: string): value is CheckpointStorage =>
-	checkpointStorages.includes(value as CheckpointStorage)
-
-/**
  * Language
  */
 
@@ -536,7 +523,6 @@ export const globalSettingsSchema = z.object({
 	cachedChromeHostUrl: z.string().optional(),
 
 	enableCheckpoints: z.boolean().optional(),
-	checkpointStorage: checkpointStoragesSchema.optional(),
 
 	showGreeting: z.boolean().optional(),
 
@@ -614,7 +600,6 @@ const globalSettingsRecord: GlobalSettingsRecord = {
 	remoteBrowserHost: undefined,
 
 	enableCheckpoints: undefined,
-	checkpointStorage: undefined,
 
 	showGreeting: undefined,
 

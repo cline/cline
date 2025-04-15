@@ -6,35 +6,29 @@ import * as readline from "readline"
 import { byLengthAsc, Fzf } from "fzf"
 import { getBinPath } from "../ripgrep"
 
-async function executeRipgrepForFiles(
-	rgPath: string,
-	workspacePath: string,
-	limit: number = 5000,
-): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+export type FileResult = { path: string; type: "file" | "folder"; label?: string }
+
+export async function executeRipgrep({
+	args,
+	workspacePath,
+	limit = 500,
+}: {
+	args: string[]
+	workspacePath: string
+	limit?: number
+}): Promise<FileResult[]> {
+	const rgPath = await getBinPath(vscode.env.appRoot)
+
+	if (!rgPath) {
+		throw new Error(`ripgrep not found: ${rgPath}`)
+	}
+
 	return new Promise((resolve, reject) => {
-		const args = [
-			"--files",
-			"--follow",
-			"--hidden",
-			"-g",
-			"!**/node_modules/**",
-			"-g",
-			"!**/.git/**",
-			"-g",
-			"!**/out/**",
-			"-g",
-			"!**/dist/**",
-			workspacePath,
-		]
-
 		const rgProcess = childProcess.spawn(rgPath, args)
-		const rl = readline.createInterface({
-			input: rgProcess.stdout,
-			crlfDelay: Infinity,
-		})
+		const rl = readline.createInterface({ input: rgProcess.stdout, crlfDelay: Infinity })
+		const fileResults: FileResult[] = []
+		const dirSet = new Set<string>() // Track unique directory paths.
 
-		const fileResults: { path: string; type: "file" | "folder"; label?: string }[] = []
-		const dirSet = new Set<string>() // Track unique directory paths
 		let count = 0
 
 		rl.on("line", (line) => {
@@ -42,15 +36,12 @@ async function executeRipgrepForFiles(
 				try {
 					const relativePath = path.relative(workspacePath, line)
 
-					// Add the file itself
-					fileResults.push({
-						path: relativePath,
-						type: "file",
-						label: path.basename(relativePath),
-					})
+					// Add the file itself.
+					fileResults.push({ path: relativePath, type: "file", label: path.basename(relativePath) })
 
-					// Extract and store all parent directory paths
+					// Extract and store all parent directory paths.
 					let dirPath = path.dirname(relativePath)
+
 					while (dirPath && dirPath !== "." && dirPath !== "/") {
 						dirSet.add(dirPath)
 						dirPath = path.dirname(dirPath)
@@ -58,7 +49,7 @@ async function executeRipgrepForFiles(
 
 					count++
 				} catch (error) {
-					// Silently ignore errors processing individual paths
+					// Silently ignore errors processing individual paths.
 				}
 			} else {
 				rl.close()
@@ -67,6 +58,7 @@ async function executeRipgrepForFiles(
 		})
 
 		let errorOutput = ""
+
 		rgProcess.stderr.on("data", (data) => {
 			errorOutput += data.toString()
 		})
@@ -75,14 +67,14 @@ async function executeRipgrepForFiles(
 			if (errorOutput && fileResults.length === 0) {
 				reject(new Error(`ripgrep process error: ${errorOutput}`))
 			} else {
-				// Convert directory set to array of directory objects
+				// Convert directory set to array of directory objects.
 				const dirResults = Array.from(dirSet).map((dirPath) => ({
 					path: dirPath,
 					type: "folder" as const,
 					label: path.basename(dirPath),
 				}))
 
-				// Combine files and directories and resolve
+				// Combine files and directories and resolve.
 				resolve([...fileResults, ...dirResults])
 			}
 		})
@@ -93,21 +85,36 @@ async function executeRipgrepForFiles(
 	})
 }
 
+export async function executeRipgrepForFiles(
+	workspacePath: string,
+	limit: number = 5000,
+): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+	const args = [
+		"--files",
+		"--follow",
+		"--hidden",
+		"-g",
+		"!**/node_modules/**",
+		"-g",
+		"!**/.git/**",
+		"-g",
+		"!**/out/**",
+		"-g",
+		"!**/dist/**",
+		workspacePath,
+	]
+
+	return executeRipgrep({ args, workspacePath, limit })
+}
+
 export async function searchWorkspaceFiles(
 	query: string,
 	workspacePath: string,
 	limit: number = 20,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	try {
-		const vscodeAppRoot = vscode.env.appRoot
-		const rgPath = await getBinPath(vscodeAppRoot)
-
-		if (!rgPath) {
-			throw new Error("Could not find ripgrep binary")
-		}
-
 		// Get all files and directories (from our modified function)
-		const allItems = await executeRipgrepForFiles(rgPath, workspacePath, 5000)
+		const allItems = await executeRipgrepForFiles(workspacePath, 5000)
 
 		// If no query, just return the top items
 		if (!query.trim()) {

@@ -3,24 +3,16 @@ import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { GitBranch } from "lucide-react"
 
-import { CheckpointStorage } from "../../../../src/shared/checkpoints"
-
 import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 
 type CheckpointSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	enableCheckpoints?: boolean
-	checkpointStorage?: CheckpointStorage
-	setCachedStateField: SetCachedStateField<"enableCheckpoints" | "checkpointStorage">
+	setCachedStateField: SetCachedStateField<"enableCheckpoints">
 }
 
-export const CheckpointSettings = ({
-	enableCheckpoints,
-	checkpointStorage = "task",
-	setCachedStateField,
-	...props
-}: CheckpointSettingsProps) => {
+export const CheckpointSettings = ({ enableCheckpoints, setCachedStateField, ...props }: CheckpointSettingsProps) => {
 	const { t } = useAppTranslation()
 	return (
 		<div {...props}>

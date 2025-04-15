@@ -4,7 +4,7 @@ import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 
 import { ClineProvider } from "./ClineProvider"
-import { CheckpointStorage, Language, ApiConfigMeta } from "../../schemas"
+import { Language, ApiConfigMeta } from "../../schemas"
 import { changeLanguage, t } from "../../i18n"
 import { ApiConfiguration } from "../../shared/api"
 import { supportPrompt } from "../../shared/support-prompt"
@@ -653,12 +653,6 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		case "enableCheckpoints":
 			const enableCheckpoints = message.bool ?? true
 			await updateGlobalState("enableCheckpoints", enableCheckpoints)
-			await provider.postStateToWebview()
-			break
-		case "checkpointStorage":
-			console.log(`[ClineProvider] checkpointStorage: ${message.text}`)
-			const checkpointStorage = message.text ?? "task"
-			await updateGlobalState("checkpointStorage", checkpointStorage as CheckpointStorage)
 			await provider.postStateToWebview()
 			break
 		case "browserViewportSize":
