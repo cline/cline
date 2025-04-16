@@ -786,7 +786,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
 
-					const highlighted = `<mark class="slash-command-match">${fullCommand}</mark>`
+					const highlighted = `<mark class="slash-command-match-textarea-highlight">${fullCommand}</mark>`
 					processedText = processedText.substring(0, slashIndex) + highlighted + processedText.substring(endIndex)
 				}
 			}

@@ -20,14 +20,18 @@ export const slashCommandRegexGlobal = new RegExp(slashCommandRegex.source, "g")
 export function shouldShowSlashCommandsMenu(text: string): boolean {
 	// slash commands can effectively only show up at the start of the text box
 	const startsWithSlash = /^\s*\//.test(text)
-	if (!startsWithSlash) return false
+	if (!startsWithSlash) {
+		return false
+	}
 
 	const slashIndex = text.indexOf("/")
 	// if (position <= slashIndex) return false
 
 	//const partialCommand = text.slice(slashIndex + 1, position)
 	const partialCommand = text.slice(slashIndex, text.length) // makes more sense to check the entire text here
-	if (/\s/.test(partialCommand)) return false
+	if (/\s/.test(partialCommand)) {
+		return false
+	}
 
 	return true
 }
@@ -65,16 +69,22 @@ export function insertSlashCommand(text: string, commandName: string): string {
  * Returns partial if we have a partial match against valid commands, or full for full match
  */
 export function validateSlashCommand(command: string): "full" | "partial" | null {
-	if (!command) return null
+	if (!command) {
+		return null
+	}
 
 	// case sensitive matching
 	const exactMatch = SUPPORTED_SLASH_COMMANDS.some((cmd) => cmd.name === command)
 
-	if (exactMatch) return "full"
+	if (exactMatch) {
+		return "full"
+	}
 
 	const partialMatch = SUPPORTED_SLASH_COMMANDS.some((cmd) => cmd.name.startsWith(command))
 
-	if (partialMatch) return "partial"
+	if (partialMatch) {
+		return "partial"
+	}
 
 	return null // no match
 }
