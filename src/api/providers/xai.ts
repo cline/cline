@@ -39,7 +39,7 @@ export class XAIHandler implements ApiHandler {
 		})
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices[0]?.delta as { content?: string; reasoning_content?: string }
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -47,7 +47,7 @@ export class XAIHandler implements ApiHandler {
 				}
 			}
 
-			if ("reasoning_content" in delta && delta.reasoning_content) {
+			if (delta?.reasoning_content) {
 				yield {
 					type: "reasoning",
 					// @ts-ignore-next-line
