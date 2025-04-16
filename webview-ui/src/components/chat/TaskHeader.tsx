@@ -639,7 +639,7 @@ const DeleteButton: React.FC<{
 }> = ({ taskSize, taskId }) => (
 	<VSCodeButton
 		appearance="icon"
-		onClick={() => vscode.postMessage({ type: "deleteTaskWithId", text: taskId })}
+		onClick={() => vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify([taskId]) })}
 		style={{ padding: "0px 0px" }}>
 		<div
 			style={{
