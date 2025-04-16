@@ -1,4 +1,4 @@
-# Cline – OpenRouter 排名第一
+# Cline
 
 <p align="center">
     <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
@@ -20,7 +20,7 @@
 <a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>功能请求</strong></a>
 </td>
 <td align="center">
-<a href="https://cline.bot/join-us" target="_blank"><strong>我们正在招聘！</strong></a>
+<a href="https://docs.cline.bot/getting-started/for-new-coders" target="_blank"><strong>新手上路</strong></a>
 </td>
 </tbody>
 </table>
@@ -33,12 +33,12 @@
 1. 输入你的任务并添加图像，将模型转换为功能应用程序或通过截图修复错误。
 2. Cline 首先分析你的文件结构和源代码 AST，运行正则表达式搜索，并阅读相关文件以了解现有项目。通过仔细管理添加到上下文中的信息，Cline 即使在大型复杂项目中也能提供有价值的帮助，而不会使上下文窗口过载。
 3. 一旦 Cline 获得所需信息，他可以：
-        - 创建和编辑文件 + 监控 linter/编译器错误，从而主动修复诸如缺少导入和语法错误等问题。
-        - 直接在你的终端中执行命令并监控其输出，从而在编辑文件后对开发服务器问题做出反应。
-        - 对于 Web 开发任务，Cline 可以在无头浏览器中启动网站，点击、输入、滚动并捕获截图和控制台日志，从而修复运行时错误和视觉错误。
+   - 创建和编辑文件 + 监控 linter/编译器错误，从而主动修复诸如缺少导入和语法错误等问题。
+   - 直接在你的终端中执行命令并监控其输出，从而在编辑文件后对开发服务器问题做出反应。
+   - 对于 Web 开发任务，Cline 可以在无头浏览器中启动网站，点击、输入、滚动并捕获截图和控制台日志，从而修复运行时错误和视觉错误。
 4. 当任务完成时，Cline 将通过终端命令如 `open -a "Google Chrome" index.html` 向你展示结果，你可以通过点击按钮运行该命令。
 
-> [!提示]
+> [!TIP]
 > 使用 `CMD/CTRL + Shift + P` 快捷键打开命令面板并输入 "Cline: Open In New Tab" 将扩展作为标签在编辑器中打开。这让你可以与文件资源管理器并排使用 Cline，更清楚地看到他如何改变你的工作空间。
 
 ---
