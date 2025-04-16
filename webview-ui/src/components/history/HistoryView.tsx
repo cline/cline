@@ -2,7 +2,7 @@ import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio, VSCodeChe
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { Virtuoso } from "react-virtuoso"
-import { memo, useMemo, useState, useEffect, useCallback, useRef } from "react"
+import { memo, useMemo, useState, useEffect, useCallback } from "react"
 import Fuse, { FuseResult } from "fuse.js"
 import { formatLargeNumber } from "@/utils/format"
 import { formatSize } from "@/utils/format"
