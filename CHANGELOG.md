@@ -1,5 +1,16 @@
 # Roo Code Changelog
 
+## [3.12.0] - 2025-04-15
+
+- Add xAI provider and expose reasoning effort options for Grok on OpenRouter (thanks Cline!)
+- Make diff editing config per-profile and improve pre-diff string normalization
+- Make checkpoints faster and more reliable
+- Add a search bar to mode and profile select dropdowns (thanks @samhvw8!)
+- Add telemetry for code action usage, prompt enhancement usage, and consecutive mistake errors
+- Suppress zero cost values in the task header (thanks @do-it!)
+- Make JSON parsing safer to avoid crashing the webview on bad input
+- Allow users to bind a keyboard shortcut for accepting suggestions or input in the chat view (thanks @axkirillov!)
+
 ## [3.11.17] - 2025-04-14
 
 - Improvements to OpenAI cache reporting and cost estimates (thanks @monotykamary and Cline!)
