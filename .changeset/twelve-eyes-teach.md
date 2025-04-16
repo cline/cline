@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-adding o4-mini and o3 models
+Add OpenAI o3 & 4o-mini
