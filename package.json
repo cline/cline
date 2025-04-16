@@ -118,32 +118,32 @@
 			{
 				"command": "roo-cline.openInNewTab",
 				"title": "%command.openInNewTab.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "roo-cline.explainCode",
 				"title": "%command.explainCode.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "roo-cline.fixCode",
 				"title": "%command.fixCode.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "roo-cline.improveCode",
 				"title": "%command.improveCode.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "roo-cline.addToContext",
 				"title": "%command.addToContext.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "roo-cline.newTask",
 				"title": "%command.newTask.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "roo-cline.terminalAddToContext",
@@ -173,17 +173,17 @@
 			{
 				"command": "roo-cline.setCustomStoragePath",
 				"title": "%command.setCustomStoragePath.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "roo-cline.focusInput",
 				"title": "%command.focusInput.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "roo.acceptInput",
 				"title": "%command.acceptInput.title%",
-				"category": "%extension.displayName%"
+				"category": "%configuration.title%"
 			}
 		],
 		"menus": {
