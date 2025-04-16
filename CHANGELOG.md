@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.12.1] - 2025-04-16
+
+- Bugfix to Edit button visibility in the select dropdowns
+
 ## [3.12.0] - 2025-04-15
 
 - Add xAI provider and expose reasoning effort options for Grok on OpenRouter (thanks Cline!)
