@@ -1268,11 +1268,13 @@ export class Task {
 		})
 
 		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
-		const modelSupportsComputerUse = this.api.getModel().info.supportsComputerUse ?? false
+		const modelInfo = this.api.getModel().info
+		const modelSupportsComputerUse = modelInfo.supportsComputerUse ?? false
+		const modelSupportsImages = modelInfo.supportsImages ?? false
 
 		const supportsComputerUse = modelSupportsComputerUse && !disableBrowserTool // only enable computer use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, this.mcpHub, this.browserSettings)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, modelSupportsImages, this.mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const preferredLanguage = getLanguageKey(
