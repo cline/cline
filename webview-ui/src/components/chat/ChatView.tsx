@@ -461,6 +461,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								textAreaRef.current?.focus()
 							}
 							break
+						case "focusChatInput":
+							textAreaRef.current?.focus()
+							if (isHidden) {
+								// Send message back to extension to show chat view
+								vscode.postMessage({ type: "showChatView" })
+							}
+							break
 					}
 					break
 				case "selectedImages":
