@@ -906,6 +906,8 @@ export class Controller {
 						success: false,
 						error: `There is an error in optimizing the prompt words: ${error instanceof Error ? error.message : String(error)}`,
 					})
+				}
+			}
 			case "grpc_request": {
 				if (message.grpc_request) {
 					await handleGrpcRequest(this, message.grpc_request)
