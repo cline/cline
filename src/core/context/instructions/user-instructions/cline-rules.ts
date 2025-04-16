@@ -3,8 +3,7 @@ import { GlobalFileNames } from "../../../storage/disk"
 import { fileExistsAtPath, isDirectory, readDirectory } from "../../../../utils/fs"
 import { formatResponse } from "../../../prompts/responses"
 import fs from "fs/promises"
-
-export type ClineRulesToggles = Record<string, boolean> // filepath -> enabled/disabled
+import { ClineRulesToggles } from "../../../../shared/cline-rules"
 
 export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
 	if (await fileExistsAtPath(globalClineRulesFilePath)) {

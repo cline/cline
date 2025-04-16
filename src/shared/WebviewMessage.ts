@@ -81,6 +81,7 @@ export interface WebviewMessage {
 		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
 		| "toggleFavoriteModel"
+		| "toggleClineRule"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	uris?: string[] // Used for getRelativePaths
@@ -117,6 +118,10 @@ export interface WebviewMessage {
 	query?: string
 	// For toggleFavoriteModel
 	modelId?: string
+	// For toggleClineRule
+	isGlobal?: boolean
+	rulePath?: string
+	enabled?: boolean
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
