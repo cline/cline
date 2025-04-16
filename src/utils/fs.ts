@@ -93,7 +93,6 @@ export const readDirectory = async (directoryPath: string) => {
 	try {
 		const filePaths = await fs
 			.readdir(directoryPath, { withFileTypes: true, recursive: true })
-			.then((entries) => entries.filter((entry) => !entry.name.startsWith(".")))
 			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
 			.then((entries) => entries.filter((entry) => entry.isFile()))
 			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
