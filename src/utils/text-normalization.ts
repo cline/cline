@@ -75,3 +75,21 @@ export function normalizeString(str: string, options: NormalizeOptions = DEFAULT
 
 	return normalized
 }
+
+/**
+ * Unescapes common HTML entities in a string
+ *
+ * @param text The string containing HTML entities to unescape
+ * @returns The unescaped string with HTML entities converted to their literal characters
+ */
+export function unescapeHtmlEntities(text: string): string {
+	if (!text) return text
+
+	return text
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/&apos;/g, "'")
+		.replace(/&amp;/g, "&")
+}

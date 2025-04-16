@@ -2,6 +2,7 @@ import { Cline } from "../Cline"
 import { ToolUse } from "../assistant-message"
 import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
 import { formatResponse } from "../prompts/responses"
+import { unescapeHtmlEntities } from "../../utils/text-normalization"
 
 export async function executeCommandTool(
 	cline: Cline,
@@ -32,8 +33,8 @@ export async function executeCommandTool(
 				return
 			}
 
-			// unescape html entities (e.g. &lt; -> <)
-			command = command.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
+			// Unescape HTML entities
+			command = unescapeHtmlEntities(command)
 
 			cline.consecutiveMistakeCount = 0
 

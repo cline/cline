@@ -14,6 +14,7 @@ import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { everyLineHasLineNumbers } from "../../integrations/misc/extract-text"
 import delay from "delay"
 import { detectCodeOmission } from "../../integrations/editor/detect-omission"
+import { unescapeHtmlEntities } from "../../utils/text-normalization"
 
 export async function writeToFileTool(
 	cline: Cline,
@@ -60,13 +61,7 @@ export async function writeToFileTool(
 	}
 
 	if (!cline.api.getModel().id.includes("claude")) {
-		// it seems not just llama models are doing cline, but also gemini and potentially others
-		if (newContent.includes("&gt;") || newContent.includes("&lt;") || newContent.includes("&quot;")) {
-			newContent = newContent
-				.replace(/&gt;/g, ">")
-				.replace(/&lt;/g, "<")
-				.replace(/&quot;/g, '"')
-		}
+		newContent = unescapeHtmlEntities(newContent)
 	}
 
 	// Determine if the path is outside the workspace
