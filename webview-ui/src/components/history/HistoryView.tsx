@@ -45,15 +45,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
-	const handleHistorySelect = (id: string) => {
+	const handleHistorySelect = useCallback((id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
-	}
+	}, [])
 
-	const handleDeleteHistoryItem = (id: string) => {
+	const handleDeleteHistoryItem = useCallback((id: string) => {
 		vscode.postMessage({ type: "deleteTaskWithId", text: id })
-	}
+	}, [])
 
-	const formatDate = (timestamp: number) => {
+	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
 		return date
 			?.toLocaleString("en-US", {
@@ -66,7 +66,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			.replace(", ", " ")
 			.replace(" at", ",")
 			.toUpperCase()
-	}
+	}, [])
 
 	const presentableTasks = useMemo(() => {
 		return taskHistory.filter((item) => item.ts && item.task)

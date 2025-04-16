@@ -2,7 +2,7 @@
 العربية | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">الإسبانية</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">الألمانية</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">اليابانية</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">الصينية المبسطة</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">الصينية التقليدية</a> | <a href="https://github.com/cline/cline/blob/main/locales/pt-BR/README.md" target="_blank">البرتغالية</a>
 </sub></div>
 
-# Cline – \#1 على OpenRouter
+# Cline
 
 <p align="center">
   <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />

@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Remove WeakRef usage
+fix vertexai token count

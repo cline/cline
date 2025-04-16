@@ -74,7 +74,7 @@ const ServersToggleModal: React.FC = () => {
 					/>
 
 					<div className="flex justify-between items-center mb-2.5">
-						<h3 className="m-0">MCP Servers</h3>
+						<div className="m-0">MCP Servers</div>
 						<VSCodeButton
 							appearance="icon"
 							onClick={() => {
@@ -88,7 +88,9 @@ const ServersToggleModal: React.FC = () => {
 						</VSCodeButton>
 					</div>
 
-					<ServersToggleList servers={mcpServers} isExpandable={false} hasTrashIcon={false} listGap="small" />
+					<div style={{ marginBottom: -10 }}>
+						<ServersToggleList servers={mcpServers} isExpandable={false} hasTrashIcon={false} listGap="small" />
+					</div>
 				</div>
 			)}
 		</div>
