@@ -10,6 +10,7 @@ import { BrowserSettings } from "../../shared/BrowserSettings"
 import { ChatSettings } from "../../shared/ChatSettings"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { UserInfo } from "../../shared/UserInfo"
+import { ClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -97,6 +98,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		customInstructions,
 		taskHistory,
 		autoApprovalSettings,
+		globalClineRulesToggles,
 		browserSettings,
 		chatSettings,
 		vsCodeLmModelSelector,
@@ -167,6 +169,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "customInstructions") as Promise<string | undefined>,
 		getGlobalState(context, "taskHistory") as Promise<HistoryItem[] | undefined>,
 		getGlobalState(context, "autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
+		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "browserSettings") as Promise<BrowserSettings | undefined>,
 		getGlobalState(context, "chatSettings") as Promise<ChatSettings | undefined>,
 		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
@@ -291,6 +294,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		customInstructions,
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
+		clineRulesToggles: globalClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 		userInfo,
