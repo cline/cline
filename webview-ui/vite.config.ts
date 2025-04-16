@@ -18,7 +18,6 @@ export default defineConfig({
 	},
 	build: {
 		outDir: "build",
-		sourcemap: true,
 		rollupOptions: {
 			output: {
 				inlineDynamicImports: true,
