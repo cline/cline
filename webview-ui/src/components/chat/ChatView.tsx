@@ -796,7 +796,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					lastModifiedMessage={modifiedMessages.at(-1)}
 					isLast={index === groupedMessages.length - 1}
 					onHeightChange={handleRowHeightChange}
+<<<<<<< HEAD
 					inputValue={inputValue}
+=======
+					sendMessageFromChatRow={handleSendMessage}
+>>>>>>> 3b3f7848 (User message editing)
 				/>
 			)
 		},
