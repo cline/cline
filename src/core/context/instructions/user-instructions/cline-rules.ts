@@ -17,8 +17,10 @@ export const getGlobalClineRules = async (globalClineRulesFilePath: string, togg
 					toggles,
 				)
 				if (rulesFilesTotalContent) {
-					const clineRulesFileInstructions =
-						formatResponse.clineRulesGlobalDirectoryInstructions(rulesFilesTotalContent)
+					const clineRulesFileInstructions = formatResponse.clineRulesGlobalDirectoryInstructions(
+						globalClineRulesFilePath,
+						rulesFilesTotalContent,
+					)
 					return clineRulesFileInstructions
 				}
 			} catch {
