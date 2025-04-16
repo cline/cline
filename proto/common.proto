@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package cline;
+
+message Metadata {
+}
+
+message EmptyRequest {
+  Metadata metadata = 1;
+}
+
+message Empty {
+}
