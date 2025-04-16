@@ -91,7 +91,7 @@ function getWindowsShellFromVSCode(): string | null {
 
 	// If the profile name indicates PowerShell, do version-based detection.
 	// In testing it was found these typically do not have a path, and this
-	// implementation manages to deductively get the corect version of PowerShell
+	// implementation manages to deductively get the correct version of PowerShell
 	if (defaultProfileName.toLowerCase().includes("powershell")) {
 		if (profile?.path) {
 			// If there's an explicit PowerShell path, return that

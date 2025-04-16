@@ -114,7 +114,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		})
 
 		// If the field is the provider, save it immediately
-		// Neccesary for favorite model selection to work without undoing provider changes
+		// Necessary for favorite model selection to work without undoing provider changes
 		if (field === "apiProvider") {
 			vscode.postMessage({
 				type: "apiConfiguration",
