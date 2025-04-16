@@ -1120,34 +1120,85 @@ export class Task {
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
-		const sendCommandOutput = async (line: string): Promise<void> => {
+
+		// Chunked terminal output buffering
+		let terminalLineCount = 0
+		let totalTerminalOutputSize = 0
+		const CHUNK_LINE_COUNT = 20
+		const CHUNK_BYTE_SIZE = 2048 // 2KB
+		const CHUNK_DEBOUNCE_MS = 100
+
+		let outputBuffer: string[] = []
+		let outputBufferSize: number = 0
+		let chunkTimer: NodeJS.Timeout | null = null
+		let chunkEnroute = false
+
+		const flushBuffer = async (force = false) => {
+			if (chunkEnroute || outputBuffer.length === 0) {
+				if (force && !chunkEnroute && outputBuffer.length > 0) {
+					// If force is true and no chunkEnroute, flush anyway
+				} else {
+					return
+				}
+			}
+			const chunk = outputBuffer.join("\n")
+			outputBuffer = []
+			outputBufferSize = 0
+			chunkEnroute = true
 			try {
-				const { response, text, images } = await this.ask("command_output", line)
+				const { response, text, images } = await this.ask("command_output", chunk)
 				if (response === "yesButtonClicked") {
 					// proceed while running
 				} else {
 					userFeedback = { text, images }
 				}
 				didContinue = true
-				process.continue() // continue past the await
+				process.continue()
 			} catch {
-				// This can only happen if this ask promise was ignored, so ignore this error
+				// ask promise was ignored
+			} finally {
+				chunkEnroute = false
+				// If more output accumulated while chunkEnroute, flush again
+				if (outputBuffer.length > 0) {
+					flushBuffer()
+				}
 			}
+		}
+
+		const scheduleFlush = () => {
+			if (chunkTimer) {
+				clearTimeout(chunkTimer)
+			}
+			chunkTimer = setTimeout(() => flushBuffer(), CHUNK_DEBOUNCE_MS)
 		}
 
 		let result = ""
 		process.on("line", (line) => {
+			terminalLineCount++
+			totalTerminalOutputSize += line.length
 			result += line + "\n"
+
 			if (!didContinue) {
-				sendCommandOutput(line)
+				outputBuffer.push(line)
+				outputBufferSize += Buffer.byteLength(line, "utf8")
+				// Flush if buffer is large enough
+				if (outputBuffer.length >= CHUNK_LINE_COUNT || outputBufferSize >= CHUNK_BYTE_SIZE) {
+					flushBuffer()
+				} else {
+					scheduleFlush()
+				}
 			} else {
 				this.say("command_output", line)
 			}
 		})
 
 		let completed = false
-		process.once("completed", () => {
+		process.once("completed", async () => {
 			completed = true
+			// Flush any remaining buffered output
+			if (!didContinue && outputBuffer.length > 0) {
+				await flushBuffer(true)
+			}
 		})
 
 		process.once("no_shell_integration", async () => {
