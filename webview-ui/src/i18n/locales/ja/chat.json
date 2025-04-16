@@ -181,10 +181,14 @@
 		"copyToInput": "入力欄にコピー（またはShift + クリック）"
 	},
 	"announcement": {
-		"title": "ブーメランタスクでさらに便利に 🪃",
-		"description": "作業をサブタスクに分割し、それぞれをcode、architect、debugなどの専門モードや、カスタムモードで実行できます。",
-		"learnMore": "詳細を見る →",
-		"hideButton": "通知を非表示"
+		"title": "🎉 Roo Code 3.12 リリース",
+		"description": "Roo Code 3.12は新機能とあなたのフィードバックに基づく改善をもたらします。",
+		"whatsNew": "新機能",
+		"feature1": "<bold>Grokサポート</bold>: xAIプロバイダーが追加され、OpenRouterでGrokの推論努力オプションが利用可能に",
+		"feature2": "<bold>差分編集の改善</bold>: プロファイルごとの設定と、エラー削減のための文字列正規化の改善",
+		"feature3": "<bold>チェックポイントの強化</bold>: より高速で信頼性の高いチェックポイント",
+		"hideButton": "通知を非表示",
+		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Rooはブラウザを使用したい:",

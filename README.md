@@ -49,15 +49,13 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.11 Released
+## 🎉 Roo Code 3.12 Released
 
-Roo Code 3.11 brings significant performance improvements and new features!
+Roo Code 3.12 brings new features and improvements based on your feedback!
 
-- Fast Edits - Edits now apply way faster. Less waiting, more coding.
-- API Key Balances - View your OpenRouter and Requesty balances in settings.
-- Project-Level MCP Config - Now you can configure it per project/workspace.
-- Improved Gemini Support - Smarter retries, fixed escaping, added to Vertex provider.
-- Import/Export Settings - Easily back up or share your config across setups.
+- **Grok Support** - Added the xAI provider and Grok reasoning effort options on OpenRouter.
+- **Diff Editing Improvements** - Per-profile configuration and better string normalization for fewer errors.
+- **Checkpoint Enhancements** - Faster and more reliable checkpoints.
 
 ---
 

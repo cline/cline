@@ -181,10 +181,14 @@
 		"copyToInput": "复制到输入框（或按住Shift点击）"
 	},
 	"announcement": {
-		"title": "允许任务拆分",
-		"description": "将复杂任务拆分到不同模式（编程/架构/调试）执行",
-		"learnMore": "了解更多 →",
-		"hideButton": "隐藏公告"
+		"title": "🎉 Roo Code 3.12 已发布",
+		"description": "Roo Code 3.12 带来基于您反馈的新功能和改进。",
+		"whatsNew": "新特性",
+		"feature1": "<bold>Grok 支持</bold>: 添加 xAI 提供商并在 OpenRouter 上提供 Grok 推理强度选项",
+		"feature2": "<bold>差异编辑改进</bold>: 支持按配置文件设置和改进字符串规范化以减少错误",
+		"feature3": "<bold>检查点增强</bold>: 更快速可靠的检查点功能",
+		"hideButton": "隐藏公告",
+		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 获取更多详情并参与讨论 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo想使用浏览器:",

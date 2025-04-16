@@ -181,10 +181,14 @@
 		"copyToInput": "Copiar para entrada (ou Shift + clique)"
 	},
 	"announcement": {
-		"title": "Faça mais com Tarefas Boomerang 🪃",
-		"description": "Divida o trabalho em subtarefas, cada uma executando em um modo especializado, como code, architect, debug ou um modo personalizado.",
-		"learnMore": "Saiba mais →",
-		"hideButton": "Ocultar anúncio"
+		"title": "🎉 Roo Code 3.12 Lançado",
+		"description": "Roo Code 3.12 traz novos recursos e melhorias baseados no seu feedback.",
+		"whatsNew": "O que há de novo",
+		"feature1": "<bold>Suporte ao Grok</bold>: Adicionado o provedor xAI e opções de esforço de raciocínio para Grok no OpenRouter",
+		"feature2": "<bold>Melhorias na edição de diferenças</bold>: Configuração por perfil e melhor normalização de strings para menos erros",
+		"feature3": "<bold>Melhorias nos pontos de verificação</bold>: Pontos de verificação mais rápidos e confiáveis",
+		"hideButton": "Ocultar anúncio",
+		"detailsDiscussLinks": "Obtenha mais detalhes e participe da discussão no <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo quer usar o navegador:",

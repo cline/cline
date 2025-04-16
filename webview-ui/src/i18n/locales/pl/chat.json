@@ -181,10 +181,14 @@
 		"copyToInput": "Kopiuj do pola wprowadzania (lub Shift + kliknięcie)"
 	},
 	"announcement": {
-		"title": "Zrób więcej z Zadaniami Bumerang 🪃",
-		"description": "Podziel pracę na podzadania, każde działające w wyspecjalizowanym trybie, takim jak code, architect, debug lub trybie niestandardowym.",
-		"learnMore": "Dowiedz się więcej →",
-		"hideButton": "Ukryj ogłoszenie"
+		"title": "🎉 Roo Code 3.12 wydany",
+		"description": "Roo Code 3.12 przynosi nowe funkcje i ulepszenia na podstawie Twoich opinii.",
+		"whatsNew": "Co nowego",
+		"feature1": "<bold>Wsparcie dla Grok</bold>: Dodano dostawcę xAI i opcje wysiłku rozumowania Grok na OpenRouter",
+		"feature2": "<bold>Ulepszenia edycji różnic</bold>: Konfiguracja dla poszczególnych profili i lepsza normalizacja ciągów znaków dla mniejszej liczby błędów",
+		"feature3": "<bold>Ulepszenia punktów kontrolnych</bold>: Szybsze i bardziej niezawodne punkty kontrolne",
+		"hideButton": "Ukryj ogłoszenie",
+		"detailsDiscussLinks": "Uzyskaj więcej szczegółów i dołącz do dyskusji na <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo chce użyć przeglądarki:",

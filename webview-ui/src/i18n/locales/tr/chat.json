@@ -181,10 +181,14 @@
 		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)"
 	},
 	"announcement": {
-		"title": "Bumerang Görevleriyle Daha Fazlasını Yapın 🪃",
-		"description": "İşi alt görevlere bölerek, her birini code, architect, debug veya özel mod gibi özelleştirilmiş bir modda çalıştırın.",
-		"learnMore": "Daha fazla bilgi →",
-		"hideButton": "Duyuruyu gizle"
+		"title": "🎉 Roo Code 3.12 Yayınlandı",
+		"description": "Roo Code 3.12 geri bildirimlerinize dayalı yeni özellikler ve iyileştirmeler getiriyor.",
+		"whatsNew": "Yenilikler",
+		"feature1": "<bold>Grok Desteği</bold>: xAI sağlayıcısı eklendi ve OpenRouter'da Grok için akıl yürütme çaba seçenekleri sunuldu",
+		"feature2": "<bold>Fark Düzenleme İyileştirmeleri</bold>: Profil bazlı yapılandırma ve daha az hata için geliştirilmiş dize normalleştirme",
+		"feature3": "<bold>Kontrol Noktası Geliştirmeleri</bold>: Daha hızlı ve güvenilir kontrol noktaları",
+		"hideButton": "Duyuruyu gizle",
+		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo tarayıcıyı kullanmak istiyor:",

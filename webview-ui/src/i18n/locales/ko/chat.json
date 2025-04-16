@@ -181,10 +181,14 @@
 		"copyToInput": "입력창에 복사 (또는 Shift + 클릭)"
 	},
 	"announcement": {
-		"title": "부메랑 태스크로 더 많은 작업 수행 🪃",
-		"description": "작업을 하위 태스크로 분할하여 각각 code, architect, debug 또는 사용자 정의 모드와 같은 전문 모드에서 실행하세요.",
-		"learnMore": "더 알아보기 →",
-		"hideButton": "공지 숨기기"
+		"title": "🎉 Roo Code 3.12 출시",
+		"description": "Roo Code 3.12는 사용자 피드백을 기반으로 새로운 기능과 개선사항을 제공합니다.",
+		"whatsNew": "새로운 기능",
+		"feature1": "<bold>Grok 지원</bold>: xAI 제공업체 추가 및 OpenRouter에서 Grok 추론 노력 옵션 제공",
+		"feature2": "<bold>차이점 편집 개선</bold>: 프로필별 구성 및 오류 감소를 위한 문자열 정규화 개선",
+		"feature3": "<bold>체크포인트 향상</bold>: 더 빠르고 안정적인 체크포인트",
+		"hideButton": "공지 숨기기",
+		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo가 브라우저를 사용하고 싶어합니다:",

@@ -181,10 +181,14 @@
 		"copyToInput": "複製到輸入框（或按住 Shift 並點選）"
 	},
 	"announcement": {
-		"title": "使用迴旋鏢任務完成更多工作 🪃",
-		"description": "將工作拆分成子任務，每個子任務在專門的模式中執行，如 code、architect、debug 或自訂模式。",
-		"learnMore": "了解更多 →",
-		"hideButton": "隱藏公告"
+		"title": "🎉 Roo Code 3.12 已發布",
+		"description": "Roo Code 3.12 帶來基於您意見回饋的新功能與改進。",
+		"whatsNew": "新功能",
+		"feature1": "<bold>Grok 支援</bold>: 新增 xAI 提供者並在 OpenRouter 上提供 Grok 推理強度選項",
+		"feature2": "<bold>差異編輯改進</bold>: 依設定檔配置及改進字串正規化以減少錯誤",
+		"feature3": "<bold>檢查點強化</bold>: 更快速且更可靠的檢查點功能",
+		"hideButton": "隱藏公告",
+		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo 想要使用瀏覽器：",
