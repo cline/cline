@@ -64,15 +64,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify([id]) })
 	}, [])
 
-	const handleDeleteSelectedHistoryItems = useCallback(
-		(ids: string[]) => {
-			if (ids.length > 0) {
-				vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify(ids) })
-				setSelectedItems([])
-			}
-		},
-		[selectedItems],
-	)
+	const handleDeleteSelectedHistoryItems = useCallback((ids: string[]) => {
+		if (ids.length > 0) {
+			vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify(ids) })
+			setSelectedItems([])
+		}
+	}, [])
 
 	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
