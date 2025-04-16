@@ -14,6 +14,7 @@
 	"command.terminal.explainCommand.title": "Expliquer cette Commande",
 	"command.terminal.fixCommandInCurrentTask.title": "Corriger cette Commande (Tâche Actuelle)",
 	"command.terminal.explainCommandInCurrentTask.title": "Expliquer cette Commande (Tâche Actuelle)",
+	"command.acceptInput.title": "Accepter l'Entrée/Suggestion",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",

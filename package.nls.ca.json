@@ -14,6 +14,7 @@
 	"command.terminal.explainCommand.title": "Explicar Aquesta Ordre",
 	"command.terminal.fixCommandInCurrentTask.title": "Corregir Aquesta Ordre (Tasca Actual)",
 	"command.terminal.explainCommandInCurrentTask.title": "Explicar Aquesta Ordre (Tasca Actual)",
+	"command.acceptInput.title": "Acceptar Entrada/Suggeriment",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",

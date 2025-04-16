@@ -14,6 +14,7 @@
 	"command.terminal.explainCommand.title": "解释此命令",
 	"command.terminal.fixCommandInCurrentTask.title": "修复此命令（当前任务）",
 	"command.terminal.explainCommandInCurrentTask.title": "解释此命令（当前任务）",
+	"command.acceptInput.title": "接受输入/建议",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",

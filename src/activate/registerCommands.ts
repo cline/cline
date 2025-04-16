@@ -117,6 +117,11 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 		"roo-cline.focusInput": () => {
 			provider.postMessageToWebview({ type: "action", action: "focusInput" })
 		},
+		"roo.acceptInput": () => {
+			const visibleProvider = getVisibleProviderOrLog(outputChannel)
+			if (!visibleProvider) return
+			visibleProvider.postMessageToWebview({ type: "acceptInput" })
+		},
 	}
 }
 

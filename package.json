@@ -179,6 +179,11 @@
 				"command": "roo-cline.focusInput",
 				"title": "%command.focusInput.title%",
 				"category": "%extension.displayName%"
+			},
+			{
+				"command": "roo.acceptInput",
+				"title": "%command.acceptInput.title%",
+				"category": "%extension.displayName%"
 			}
 		],
 		"menus": {
