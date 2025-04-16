@@ -41,7 +41,17 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		}
 
 		if (model.id.startsWith("o3-mini")) {
-			yield* this.handleO3FamilyMessage(model, systemPrompt, messages)
+			yield* this.handleReasonerMessage(model, "o3-mini", systemPrompt, messages)
+			return
+		}
+
+		if (model.id.startsWith("o3")) {
+			yield* this.handleReasonerMessage(model, "o3", systemPrompt, messages)
+			return
+		}
+
+		if (model.id.startsWith("o4-mini")) {
+			yield* this.handleReasonerMessage(model, "o4-mini", systemPrompt, messages)
 			return
 		}
 
@@ -72,13 +82,14 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		yield* this.handleStreamResponse(response, model)
 	}
 
-	private async *handleO3FamilyMessage(
+	private async *handleReasonerMessage(
 		model: OpenAiNativeModel,
+		family: "o3-mini" | "o3" | "o4-mini",
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 	): ApiStream {
 		const stream = await this.client.chat.completions.create({
-			model: "o3-mini",
+			model: family,
 			messages: [
 				{
 					role: "developer",
