@@ -198,6 +198,11 @@ export class McpHub {
 					capabilities: {},
 				},
 			)
+			client.setNotificationHandler(ToolListChangedNotificationSchema, async (notification) => {
+				console.log(`[MCP] Notification for "${name}":`, notification)
+				connection.server.tools = await this.fetchToolsList(name)
+				this.notifyWebviewOfServerChanges()
+			})
 
 			let transport: StdioClientTransport | SSEClientTransport
 
