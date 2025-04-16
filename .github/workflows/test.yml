@@ -70,8 +70,8 @@ jobs:
               run: npm run format
 
             # Build the extension before running tests
-            - name: Build Extension
-              run: npm run compile
+            - name: Build Tests and Extension
+              run: npm run pretest
 
             - name: Unit Tests
               run: npm run test:unit
