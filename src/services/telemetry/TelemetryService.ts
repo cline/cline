@@ -290,9 +290,10 @@ class TelemetryService {
 		})
 	}
 
-	public captureDiffApplicationError(taskId: string): void {
+	public captureDiffApplicationError(taskId: string, consecutiveMistakeCount: number): void {
 		this.captureEvent(PostHogClient.EVENTS.ERRORS.DIFF_APPLICATION_ERROR, {
 			taskId,
+			consecutiveMistakeCount,
 		})
 	}
 

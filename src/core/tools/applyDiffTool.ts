@@ -90,7 +90,7 @@ export async function applyDiffTool(
 				cline.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
 				let formattedError = ""
 
-				telemetryService.captureDiffApplicationError(cline.taskId)
+				telemetryService.captureDiffApplicationError(cline.taskId, currentCount)
 
 				if (diffResult.failParts && diffResult.failParts.length > 0) {
 					for (const failPart of diffResult.failParts) {
