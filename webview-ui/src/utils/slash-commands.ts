@@ -59,3 +59,22 @@ export function insertSlashCommand(text: string, commandName: string): string {
 
 	return newValue
 }
+
+/**
+ * Determines the validation state of a slash command
+ * Returns partial if we have a partial match against valid commands, or full for full match
+ */
+export function validateSlashCommand(command: string): "full" | "partial" | null {
+	if (!command) return null
+
+	// case sensitive matching
+	const exactMatch = SUPPORTED_SLASH_COMMANDS.some((cmd) => cmd.name === command)
+
+	if (exactMatch) return "full"
+
+	const partialMatch = SUPPORTED_SLASH_COMMANDS.some((cmd) => cmd.name.startsWith(command))
+
+	if (partialMatch) return "partial"
+
+	return null // no match
+}

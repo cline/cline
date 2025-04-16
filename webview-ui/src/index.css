@@ -173,3 +173,8 @@ vscode-dropdown::part(listbox) {
 	border-radius: 3px;
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 }
+
+.slash-command-match {
+	background-color: rgba(97, 175, 239, 0.3);
+	border-radius: 2px;
+}

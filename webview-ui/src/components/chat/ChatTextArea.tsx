@@ -15,7 +15,13 @@ import {
 	shouldShowContextMenu,
 	SearchResult,
 } from "@/utils/context-mentions"
-import { SlashCommand, shouldShowSlashCommandsMenu, getMatchingSlashCommands, insertSlashCommand } from "@/utils/slash-commands"
+import {
+	SlashCommand,
+	shouldShowSlashCommandsMenu,
+	getMatchingSlashCommands,
+	insertSlashCommand,
+	validateSlashCommand,
+} from "@/utils/slash-commands"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
@@ -757,13 +763,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const updateHighlights = useCallback(() => {
 			if (!textAreaRef.current || !highlightLayerRef.current) return
 
-			const text = textAreaRef.current.value
+			let processedText = textAreaRef.current.value
 
-			highlightLayerRef.current.innerHTML = text
+			processedText = processedText
 				.replace(/\n$/, "\n\n")
 				.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c] || c)
+				// highlight @mentions
 				.replace(mentionRegexGlobal, '<mark class="mention-context-textarea-highlight">$&</mark>')
 
+			// check for highlighting /slash-commands
+			if (/^\s*\//.test(processedText)) {
+				const slashIndex = processedText.indexOf("/")
+
+				// end of command is end of text or first whitespace
+				const spaceIndex = processedText.indexOf(" ", slashIndex)
+				const endIndex = spaceIndex > -1 ? spaceIndex : processedText.length
+
+				// extract and validate the exact command text
+				const commandText = processedText.substring(slashIndex + 1, endIndex)
+				const isValidCommand = validateSlashCommand(commandText)
+
+				if (isValidCommand) {
+					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
+
+					const highlighted = `<mark class="slash-command-match">${fullCommand}</mark>`
+					processedText = processedText.substring(0, slashIndex) + highlighted + processedText.substring(endIndex)
+				}
+			}
+
+			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
 		}, [])
