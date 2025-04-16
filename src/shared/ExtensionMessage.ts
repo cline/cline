@@ -43,12 +43,12 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
-		| "browserConnectionInfo"
 		| "detectedChromePath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
+		| "grpc_response" // New type for gRPC responses
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
@@ -109,6 +109,11 @@ export interface ExtensionMessage {
 		error?: string
 	}
 	tab?: McpViewTab
+	grpc_response?: {
+		message?: any // JSON serialized protobuf message
+		request_id: string // Same ID as the request
+		error?: string // Optional error message
+	}
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -234,12 +239,6 @@ export type BrowserActionResult = {
 	logs?: string
 	currentUrl?: string
 	currentMousePosition?: string
-}
-
-export interface BrowserConnectionInfo {
-	isConnected: boolean
-	isRemote: boolean
-	host?: string
 }
 
 export interface ClineAskUseMcpServer {
