@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.12.2] - 2025-04-16
+
+- Add OpenAI o3 & 4o-mini (thanks @PeterDaveHello!)
+- Improve file/folder context mention UI (thanks @elianiva!)
+- Improve diff error telemetry
+
 ## [3.12.1] - 2025-04-16
 
 - Bugfix to Edit button visibility in the select dropdowns
