@@ -1122,8 +1122,6 @@ export class Task {
 		let didContinue = false
 
 		// Chunked terminal output buffering
-		let terminalLineCount = 0
-		let totalTerminalOutputSize = 0
 		const CHUNK_LINE_COUNT = 20
 		const CHUNK_BYTE_SIZE = 2048 // 2KB
 		const CHUNK_DEBOUNCE_MS = 100
@@ -1174,8 +1172,6 @@ export class Task {
 
 		let result = ""
 		process.on("line", (line) => {
-			terminalLineCount++
-			totalTerminalOutputSize += line.length
 			result += line + "\n"
 
 			if (!didContinue) {
@@ -1197,6 +1193,10 @@ export class Task {
 			completed = true
 			// Flush any remaining buffered output
 			if (!didContinue && outputBuffer.length > 0) {
+				if (chunkTimer) {
+					clearTimeout(chunkTimer)
+					chunkTimer = null
+				}
 				await flushBuffer(true)
 			}
 		})
