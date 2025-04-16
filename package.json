@@ -119,7 +119,7 @@
 			},
 			{
 				"command": "cline.focusChatInput",
-				"title": "Focus on Chat Input",
+				"title": "Jump to Chat Input",
 				"category": "Cline"
 			}
 		],

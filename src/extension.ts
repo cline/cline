@@ -401,6 +401,11 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.focusChatInput", () => {
 			const visibleWebview = WebviewProvider.getVisibleInstance()
+			if (!visibleWebview) {
+				vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				return // didBecomeVisible event will focus the chat input already
+			}
+
 			visibleWebview?.controller.postMessageToWebview({
 				type: "action",
 				action: "focusChatInput",
