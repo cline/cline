@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.12.3]
+
+-   Add copy button to MermaidBlock component (Thanks @cacosub7!)
+-   Add the ability to fetch from global cline rules files
+-   Add icon to indicate when a file outside of the users workspace is edited
+
+## [3.12.2]
+
+-   Add gpt-4.1
+
 ## [3.12.1]
 
 -   Use visual checkpoint indicator to make it clear when checkpoints are created

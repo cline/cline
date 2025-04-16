@@ -74,7 +74,6 @@ export interface WebviewMessage {
 		| "requestTotalTasksSize"
 		| "relaunchChromeDebugMode"
 		| "taskFeedback"
-		| "getBrowserConnectionInfo"
 		| "getDetectedChromePath"
 		| "detectedChromePath"
 		| "scrollToSettings"
@@ -82,6 +81,7 @@ export interface WebviewMessage {
 		| "searchFiles"
 		| "toggleFavoriteModel"
 		| "optimizationPromptRequest" // Message type for prompt optimization
+		| "grpc_request"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	uris?: string[] // Used for getRelativePaths
@@ -118,10 +118,15 @@ export interface WebviewMessage {
 	query?: string
 	// For toggleFavoriteModel
 	modelId?: string
-
 	// For optimizePrompt
 	prompt?: string // Original prompt input by user
 	model?: string // Model ID used for prompt optimization
+	grpc_request?: {
+		service: string
+		method: string
+		message: any // JSON serialized protobuf message
+		request_id: string // For correlating requests and responses
+	}
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

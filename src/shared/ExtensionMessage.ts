@@ -43,7 +43,6 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
-		| "browserConnectionInfo"
 		| "detectedChromePath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
@@ -51,6 +50,7 @@ export interface ExtensionMessage {
 		| "fileSearchResults"
 		| "optimizationPromptRequest"
 		| "optimizedPromptResult"
+		| "grpc_response" // New type for gRPC responses
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
@@ -114,6 +114,11 @@ export interface ExtensionMessage {
 	prompt?: string
 	model?: string
 	optimizedPrompt?: string
+	grpc_response?: {
+		message?: any // JSON serialized protobuf message
+		request_id: string // Same ID as the request
+		error?: string // Optional error message
+	}
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -159,6 +164,7 @@ export interface ClineMessage {
 	partial?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
+	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
@@ -220,6 +226,7 @@ export interface ClineSayTool {
 	content?: string
 	regex?: string
 	filePattern?: string
+	operationIsLocatedInWorkspace?: boolean
 }
 
 // must keep in sync with system prompt
@@ -237,12 +244,6 @@ export type BrowserActionResult = {
 	logs?: string
 	currentUrl?: string
 	currentMousePosition?: string
-}
-
-export interface BrowserConnectionInfo {
-	isConnected: boolean
-	isRemote: boolean
-	host?: string
 }
 
 export interface ClineAskUseMcpServer {
