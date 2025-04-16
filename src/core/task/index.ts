@@ -1160,7 +1160,7 @@ export class Task {
 				chunkEnroute = false
 				// If more output accumulated while chunkEnroute, flush again
 				if (outputBuffer.length > 0) {
-					flushBuffer()
+					await flushBuffer()
 				}
 			}
 		}
