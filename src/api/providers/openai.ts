@@ -15,16 +15,9 @@ import { convertToSimpleMessages } from "../transform/simple-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
 import { XmlMatcher } from "../../utils/xml-matcher"
-import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
-
-export const defaultHeaders = {
-	"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-	"X-Title": "Roo Code",
-}
+import { DEEP_SEEK_DEFAULT_TEMPERATURE, DEFAULT_HEADERS, AZURE_AI_INFERENCE_PATH } from "./constants"
 
 export interface OpenAiHandlerOptions extends ApiHandlerOptions {}
-
-const AZURE_AI_INFERENCE_PATH = "/models/chat/completions"
 
 export class OpenAiHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: OpenAiHandlerOptions
@@ -45,7 +38,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			this.client = new OpenAI({
 				baseURL,
 				apiKey,
-				defaultHeaders,
+				defaultHeaders: DEFAULT_HEADERS,
 				defaultQuery: { "api-version": this.options.azureApiVersion || "2024-05-01-preview" },
 			})
 		} else if (isAzureOpenAi) {
@@ -56,7 +49,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				apiKey,
 				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 				defaultHeaders: {
-					...defaultHeaders,
+					...DEFAULT_HEADERS,
 					...(this.options.openAiHostHeader ? { Host: this.options.openAiHostHeader } : {}),
 				},
 			})
@@ -65,7 +58,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				baseURL,
 				apiKey,
 				defaultHeaders: {
-					...defaultHeaders,
+					...DEFAULT_HEADERS,
 					...(this.options.openAiHostHeader ? { Host: this.options.openAiHostHeader } : {}),
 				},
 			})

@@ -8,7 +8,11 @@ import {
 	mistralModels,
 	openAiNativeModels,
 	vertexModels,
+	xaiModels,
+	REASONING_MODELS,
 } from "../../../../src/shared/api"
+
+export { REASONING_MODELS }
 
 export const MODELS_BY_PROVIDER: Partial<Record<ApiProvider, Record<string, ModelInfo>>> = {
 	anthropic: anthropicModels,
@@ -18,6 +22,7 @@ export const MODELS_BY_PROVIDER: Partial<Record<ApiProvider, Record<string, Mode
 	mistral: mistralModels,
 	"openai-native": openAiNativeModels,
 	vertex: vertexModels,
+	xai: xaiModels,
 }
 
 export const PROVIDERS = [
@@ -37,6 +42,7 @@ export const PROVIDERS = [
 	{ value: "unbound", label: "Unbound" },
 	{ value: "requesty", label: "Requesty" },
 	{ value: "human-relay", label: "Human Relay" },
+	{ value: "xai", label: "xAI" },
 ].sort((a, b) => a.label.localeCompare(b.label))
 
 export const VERTEX_REGIONS = [
@@ -46,5 +52,3 @@ export const VERTEX_REGIONS = [
 	{ value: "europe-west4", label: "europe-west4" },
 	{ value: "asia-southeast1", label: "asia-southeast1" },
 ]
-
-export const REASONING_MODELS = new Set(["x-ai/grok-3-mini-beta"])

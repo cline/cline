@@ -35,6 +35,8 @@ import {
 	unboundDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
+	xaiDefaultModelId,
+	xaiModels,
 	ApiProvider,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
@@ -1444,6 +1446,27 @@ const ApiOptions = ({
 				</>
 			)}
 
+			{selectedProvider === "xai" && (
+				<>
+					<VSCodeTextField
+						value={apiConfiguration?.xaiApiKey || ""}
+						type="password"
+						onInput={handleInputChange("xaiApiKey")}
+						placeholder={t("settings:placeholders.apiKey")}
+						className="w-full">
+						<label className="block font-medium mb-1">{t("settings:providers.xaiApiKey")}</label>
+					</VSCodeTextField>
+					<div className="text-sm text-vscode-descriptionForeground -mt-2">
+						{t("settings:providers.apiKeyStorageNotice")}
+					</div>
+					{!apiConfiguration?.xaiApiKey && (
+						<VSCodeButtonLink href="https://api.x.ai/docs" appearance="secondary">
+							{t("settings:providers.getXaiApiKey")}
+						</VSCodeButtonLink>
+					)}
+				</>
+			)}
+
 			{selectedProvider === "unbound" && (
 				<>
 					<VSCodeTextField
@@ -1538,13 +1561,6 @@ const ApiOptions = ({
 						</div>
 					</div>
 				)}
-
-			{selectedProvider === "openrouter" && REASONING_MODELS.has(selectedModelId) && (
-				<ReasoningEffort
-					apiConfiguration={apiConfiguration}
-					setApiConfigurationField={setApiConfigurationField}
-				/>
-			)}
 
 			{selectedProvider === "glama" && (
 				<ModelPicker
@@ -1690,6 +1706,13 @@ const ApiOptions = ({
 				</>
 			)}
 
+			{REASONING_MODELS.has(selectedModelId) && (
+				<ReasoningEffort
+					apiConfiguration={apiConfiguration}
+					setApiConfigurationField={setApiConfigurationField}
+				/>
+			)}
+
 			{!fromWelcomeView && (
 				<>
 					<DiffSettingsControl
@@ -1734,6 +1757,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	switch (provider) {
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
+		case "xai":
+			return getProviderData(xaiModels, xaiDefaultModelId)
 		case "bedrock":
 			// Special case for custom ARN
 			if (modelId === "custom-arn") {

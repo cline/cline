@@ -9,10 +9,9 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 
-import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
+import { DEFAULT_HEADERS, DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
 import { getModelParams, SingleCompletionHandler } from ".."
 import { BaseProvider } from "./base-provider"
-import { defaultHeaders } from "./openai"
 
 const OPENROUTER_DEFAULT_PROVIDER_NAME = "[default]"
 
@@ -40,7 +39,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		const baseURL = this.options.openRouterBaseUrl || "https://openrouter.ai/api/v1"
 		const apiKey = this.options.openRouterApiKey ?? "not-provided"
 
-		this.client = new OpenAI({ baseURL, apiKey, defaultHeaders })
+		this.client = new OpenAI({ baseURL, apiKey, defaultHeaders: DEFAULT_HEADERS })
 	}
 
 	override async *createMessage(

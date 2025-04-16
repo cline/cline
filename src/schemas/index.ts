@@ -28,6 +28,7 @@ export const providerNames = [
 	"requesty",
 	"human-relay",
 	"fake-ai",
+	"xai",
 ] as const
 
 export const providerNamesSchema = z.enum(providerNames)
@@ -380,6 +381,8 @@ export const providerSettingsSchema = z.object({
 	requestyApiKey: z.string().optional(),
 	requestyModelId: z.string().optional(),
 	requestyModelInfo: modelInfoSchema.nullish(),
+	// X.AI (Grok)
+	xaiApiKey: z.string().optional(),
 	// Claude 3.7 Sonnet Thinking
 	modelMaxTokens: z.number().optional(),
 	modelMaxThinkingTokens: z.number().optional(),
@@ -483,6 +486,8 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	fuzzyMatchThreshold: undefined,
 	// Fake AI
 	fakeAi: undefined,
+	// X.AI (Grok)
+	xaiApiKey: undefined,
 }
 
 export const PROVIDER_SETTINGS_KEYS = Object.keys(providerSettingsRecord) as Keys<ProviderSettings>[]
@@ -672,6 +677,7 @@ export type SecretState = Pick<
 	| "mistralApiKey"
 	| "unboundApiKey"
 	| "requestyApiKey"
+	| "xaiApiKey"
 >
 
 type SecretStateRecord = Record<Keys<SecretState>, undefined>
@@ -690,6 +696,7 @@ const secretStateRecord: SecretStateRecord = {
 	mistralApiKey: undefined,
 	unboundApiKey: undefined,
 	requestyApiKey: undefined,
+	xaiApiKey: undefined,
 }
 
 export const SECRET_STATE_KEYS = Object.keys(secretStateRecord) as Keys<SecretState>[]

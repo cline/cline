@@ -20,6 +20,7 @@ type ProviderSettings = {
 				| "requesty"
 				| "human-relay"
 				| "fake-ai"
+				| "xai"
 		  )
 		| undefined
 	apiModelId?: string | undefined
@@ -176,6 +177,7 @@ type ProviderSettings = {
 				cachableFields?: string[] | undefined
 		  } | null)
 		| undefined
+	xaiApiKey?: string | undefined
 	modelMaxTokens?: number | undefined
 	modelMaxThinkingTokens?: number | undefined
 	includeMaxTokens?: boolean | undefined
@@ -212,6 +214,7 @@ type GlobalSettings = {
 							| "requesty"
 							| "human-relay"
 							| "fake-ai"
+							| "xai"
 					  )
 					| undefined
 		  }[]

@@ -128,6 +128,8 @@
 		"getMistralApiKey": "获取 Mistral / Codestral API 密钥",
 		"codestralBaseUrl": "Codestral 基础 URL（可选）",
 		"codestralBaseUrlDesc": "为 Codestral 模型设置替代 URL。",
+		"xaiApiKey": "xAI API 密钥",
+		"getXaiApiKey": "获取 xAI API 密钥",
 		"awsCredentials": "AWS 凭证",
 		"awsProfile": "AWS 配置文件",
 		"awsProfileName": "AWS 配置文件名称",

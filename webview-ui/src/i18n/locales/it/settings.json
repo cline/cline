@@ -128,6 +128,8 @@
 		"getMistralApiKey": "Ottieni chiave API Mistral / Codestral",
 		"codestralBaseUrl": "URL base Codestral (opzionale)",
 		"codestralBaseUrlDesc": "Imposta un URL opzionale per i modelli Codestral.",
+		"xaiApiKey": "Chiave API xAI",
+		"getXaiApiKey": "Ottieni chiave API xAI",
 		"awsCredentials": "Credenziali AWS",
 		"awsProfile": "Profilo AWS",
 		"awsProfileName": "Nome profilo AWS",

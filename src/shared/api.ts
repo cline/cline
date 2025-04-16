@@ -1,4 +1,7 @@
 import { ModelInfo, ProviderName, ProviderSettings } from "../schemas"
+import { REASONING_MODELS } from "../api/providers/constants"
+
+export { REASONING_MODELS }
 
 export type { ModelInfo, ProviderName as ApiProvider }
 
@@ -77,6 +80,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.03,
 	},
 } as const satisfies Record<string, ModelInfo> // as const assertion makes the object deeply readonly
+
 // Amazon Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export interface MessageContent {
@@ -950,6 +954,7 @@ export const mistralModels = {
 } as const satisfies Record<string, ModelInfo>
 
 // Unbound Security
+// https://www.unboundsecurity.ai/ai-gateway
 export const unboundDefaultModelId = "anthropic/claude-3-5-sonnet-20241022"
 export const unboundDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
@@ -961,3 +966,118 @@ export const unboundDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 }
+
+// xAI
+// https://docs.x.ai/docs/api-reference
+export type XAIModelId = keyof typeof xaiModels
+export const xaiDefaultModelId: XAIModelId = "grok-3-beta"
+export const xaiModels = {
+	"grok-3-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description: "xAI's Grok-3 beta model with 131K context window",
+	},
+	"grok-3-fast-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "xAI's Grok-3 fast beta model with 131K context window",
+	},
+	"grok-3-mini-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.5,
+		description: "xAI's Grok-3 mini beta model with 131K context window",
+	},
+	"grok-3-mini-fast-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 4.0,
+		description: "xAI's Grok-3 mini fast beta model with 131K context window",
+	},
+	"grok-2-latest": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "xAI's Grok-2 model - latest version with 131K context window",
+	},
+	"grok-2": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "xAI's Grok-2 model with 131K context window",
+	},
+	"grok-2-1212": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "xAI's Grok-2 model (version 1212) with 131K context window",
+	},
+	"grok-2-vision-latest": {
+		maxTokens: 8192,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "xAI's Grok-2 Vision model - latest version with image support and 32K context window",
+	},
+	"grok-2-vision": {
+		maxTokens: 8192,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "xAI's Grok-2 Vision model with image support and 32K context window",
+	},
+	"grok-2-vision-1212": {
+		maxTokens: 8192,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "xAI's Grok-2 Vision model (version 1212) with image support and 32K context window",
+	},
+	"grok-vision-beta": {
+		maxTokens: 8192,
+		contextWindow: 8192,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 15.0,
+		description: "xAI's Grok Vision Beta model with image support and 8K context window",
+	},
+	"grok-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 15.0,
+		description: "xAI's Grok Beta model (legacy) with 131K context window",
+	},
+} as const satisfies Record<string, ModelInfo>
