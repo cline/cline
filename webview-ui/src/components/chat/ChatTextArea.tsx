@@ -15,6 +15,7 @@ import {
 	shouldShowContextMenu,
 	SearchResult,
 } from "@/utils/context-mentions"
+import { SlashCommand, shouldShowSlashCommandsMenu, getMatchingSlashCommands, insertSlashCommand } from "@/utils/slash-commands"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
@@ -24,6 +25,7 @@ import Tooltip from "@/components/common/Tooltip"
 import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
 import ContextMenu from "@/components/chat/ContextMenu"
+import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { ChatSettings } from "@shared/ChatSettings"
 import ServersToggleModal from "./ServersToggleModal"
 
@@ -228,6 +230,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 
+		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
+		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
+		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
+		const slashCommandsMenuContainerRef = useRef<HTMLDivElement>(null)
+
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
@@ -388,8 +395,57 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[setInputValue, cursorPosition],
 		)
 
+		const handleSlashCommandsSelect = useCallback(
+			(command: SlashCommand) => {
+				setShowSlashCommandsMenu(false)
+
+				if (textAreaRef.current) {
+					const newValue = insertSlashCommand(textAreaRef.current.value, command.name)
+
+					setInputValue(newValue)
+					const newCursorPosition = newValue.length
+					setCursorPosition(newCursorPosition)
+					setIntendedCursorPosition(newCursorPosition)
+
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.blur()
+							textAreaRef.current.focus()
+						}
+					}, 0)
+				}
+			},
+			[setInputValue, cursorPosition],
+		)
+
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+				if (showSlashCommandsMenu) {
+					if (event.key === "Escape") {
+						setShowSlashCommandsMenu(false)
+						return
+					}
+
+					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+						event.preventDefault()
+						setSelectedSlashCommandsIndex((prevIndex) => {
+							const direction = event.key === "ArrowUp" ? -1 : 1
+							const commands = getMatchingSlashCommands(slashCommandsQuery)
+							const newIndex = (prevIndex + direction + commands.length) % commands.length
+							return newIndex
+						})
+						return
+					}
+
+					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
+						event.preventDefault()
+						const commands = getMatchingSlashCommands(slashCommandsQuery)
+						if (commands.length > 0) {
+							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
+						}
+						return
+					}
+				}
 				if (showContextMenu) {
 					if (event.key === "Escape") {
 						// event.preventDefault()
@@ -541,9 +597,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const newCursorPosition = e.target.selectionStart
 				setInputValue(newValue)
 				setCursorPosition(newCursorPosition)
-				const showMenu = shouldShowContextMenu(newValue, newCursorPosition)
+				let showMenu = shouldShowContextMenu(newValue, newCursorPosition)
+				const showSlashCommandsMenu = shouldShowSlashCommandsMenu(newValue)
 
+				// we do not allow both menus to be shown at the same time
+				// the slash commands menu has precedence bc its a narrower component
+				if (showSlashCommandsMenu) {
+					showMenu = false
+				}
+
+				setShowSlashCommandsMenu(showSlashCommandsMenu)
 				setShowContextMenu(showMenu)
+
+				if (showSlashCommandsMenu) {
+					const slashIndex = newValue.indexOf("/")
+					const query = newValue.slice(slashIndex + 1, newCursorPosition)
+					setSlashCommandsQuery(query)
+					setSelectedSlashCommandsIndex(0)
+				} else {
+					setSlashCommandsQuery("")
+					setSelectedSlashCommandsIndex(0)
+				}
+
 				if (showMenu) {
 					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
 					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
@@ -590,6 +665,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			// Only hide the context menu if the user didn't click on it
 			if (!isMouseDownOnMenu) {
 				setShowContextMenu(false)
+				setShowSlashCommandsMenu(false)
 			}
 			setIsTextAreaFocused(false)
 		}, [isMouseDownOnMenu])
@@ -1011,6 +1087,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}}
 					onDrop={onDrop}
 					onDragOver={onDragOver}>
+					{showSlashCommandsMenu && (
+						<div ref={slashCommandsMenuContainerRef}>
+							<SlashCommandMenu
+								onSelect={handleSlashCommandsSelect}
+								selectedIndex={selectedSlashCommandsIndex}
+								setSelectedIndex={setSelectedSlashCommandsIndex}
+								onMouseDown={handleMenuMouseDown}
+								query={slashCommandsQuery}
+							/>
+						</div>
+					)}
+
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
