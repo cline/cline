@@ -907,6 +907,7 @@ export class Controller {
 						error: `There is an error in optimizing the prompt words: ${error instanceof Error ? error.message : String(error)}`,
 					})
 				}
+				break
 			}
 			case "grpc_request": {
 				if (message.grpc_request) {
