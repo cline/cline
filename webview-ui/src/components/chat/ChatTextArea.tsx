@@ -25,6 +25,7 @@ import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/Api
 import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { ChatSettings } from "@shared/ChatSettings"
+import ServersToggleModal from "./ServersToggleModal"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -37,6 +38,13 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
+}
+
+interface GitCommit {
+	type: ContextMenuOptionType.Git
+	value: string
+	label: string
+	description: string
 }
 
 const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
@@ -218,7 +226,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	) => {
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
-		const [gitCommits, setGitCommits] = useState<any[]>([])
+		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -263,8 +271,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const message: ExtensionMessage = event.data
 			switch (message.type) {
 				case "commitSearchResults": {
-					const commits =
-						message.commits?.map((commit: any) => ({
+					const commits: GitCommit[] =
+						message.commits?.map((commit) => ({
 							type: ContextMenuOptionType.Git,
 							value: commit.hash,
 							label: commit.subject,
@@ -1190,7 +1198,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							onClick={handleContextButtonClick}
 							style={{ padding: "0px 0px", height: "20px" }}>
 							<ButtonContainer>
-								<span style={{ fontSize: "13px", marginBottom: 1 }}>@</span>
+								<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
+									@
+								</span>
 								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
 							</ButtonContainer>
 						</VSCodeButton>
@@ -1207,10 +1217,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}}
 							style={{ padding: "0px 0px", height: "20px" }}>
 							<ButtonContainer>
-								<span className="codicon codicon-device-camera" style={{ fontSize: "14px", marginBottom: -3 }} />
+								<span
+									className="codicon codicon-device-camera flex items-center"
+									style={{ fontSize: "14px", marginBottom: -3 }}
+								/>
 								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
 							</ButtonContainer>
 						</VSCodeButton>
+						<ServersToggleModal />
 
 						<ModelContainer ref={modelSelectorRef}>
 							<ModelButtonWrapper ref={buttonRef}>
