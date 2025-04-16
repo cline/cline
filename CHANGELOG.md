@@ -536,7 +536,7 @@
 -   Adds "Always allow read-only operations" setting to let Claude read files and view directories without needing approval (off by default)
 -   Implement sliding window context management to keep tasks going past 200k tokens
 -   Adds Google Cloud Vertex AI support and updates Claude 3.5 Sonnet max output to 8192 tokens for all providers.
--   Improves system prompt to gaurd against lazy edits (less "//rest of code here")
+-   Improves system prompt to guard against lazy edits (less "//rest of code here")
 
 ## [1.3.0]
 

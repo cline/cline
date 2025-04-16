@@ -3003,7 +3003,7 @@ export class Task {
 										)
 									} else {
 										// last message is completion_result
-										// we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
+										// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
 										await this.say("completion_result", removeClosingTag("result", result), undefined, false)
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
