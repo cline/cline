@@ -6,6 +6,7 @@ import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as chardet from "jschardet"
 import * as iconv from "iconv-lite"
+import { getMimeType } from "./process-images"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
@@ -21,23 +22,6 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 			}
 		}
 		return "utf8"
-	}
-}
-
-// Function to get MIME type based on file extension
-function getMimeType(filePath: string): string {
-	const ext = path.extname(filePath).toLowerCase()
-	switch (ext) {
-		case ".png":
-			return "image/png"
-		case ".jpeg":
-		case ".jpg":
-			return "image/jpeg"
-		case ".webp":
-			return "image/webp"
-		default:
-			// Return a generic type or handle as needed for non-image files
-			return "application/octet-stream" // Or throw an error if only image types are expected
 	}
 }
 
