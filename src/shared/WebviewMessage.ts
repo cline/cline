@@ -38,8 +38,6 @@ export interface WebviewMessage {
 		| "autoApprovalSettings"
 		| "browserSettings"
 		| "discoverBrowser"
-		| "testBrowserConnection"
-		| "browserConnectionResult"
 		| "browserRelaunchResult"
 		| "togglePlanActMode"
 		| "checkpointDiff"
