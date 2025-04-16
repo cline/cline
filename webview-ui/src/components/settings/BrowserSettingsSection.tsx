@@ -97,24 +97,24 @@ export const BrowserSettingsSection: React.FC = () => {
 				if (browserSettings.remoteBrowserHost) {
 					// Use gRPC for testBrowserConnection
 					BrowserServiceClient.testBrowserConnection({ value: browserSettings.remoteBrowserHost })
-						.then(result => {
-							setConnectionStatus(result.success);
-							setIsCheckingConnection(false);
+						.then((result) => {
+							setConnectionStatus(result.success)
+							setIsCheckingConnection(false)
 						})
-						.catch(error => {
-							console.error("Error testing browser connection:", error);
-							setConnectionStatus(false);
-							setIsCheckingConnection(false);
-						});
+						.catch((error) => {
+							console.error("Error testing browser connection:", error)
+							setConnectionStatus(false)
+							setIsCheckingConnection(false)
+						})
 				} else {
 					// Use old message passing for discoverBrowser (not yet migrated)
 					vscode.postMessage({
-						type: "discoverBrowser"
+						type: "discoverBrowser",
 					})
 				}
 			}
 		}, 1000),
-		[browserSettings.remoteBrowserEnabled, browserSettings.remoteBrowserHost]
+		[browserSettings.remoteBrowserEnabled, browserSettings.remoteBrowserHost],
 	)
 
 	// Check connection when component mounts or when remote settings change
@@ -171,17 +171,17 @@ export const BrowserSettingsSection: React.FC = () => {
 		if (browserSettings.remoteBrowserHost) {
 			// Use gRPC for testBrowserConnection
 			BrowserServiceClient.testBrowserConnection({ value: browserSettings.remoteBrowserHost })
-				.then(result => {
-					setConnectionStatus(result.success);
+				.then((result) => {
+					setConnectionStatus(result.success)
 				})
-				.catch(error => {
-					console.error("Error testing browser connection:", error);
-					setConnectionStatus(false);
-				});
+				.catch((error) => {
+					console.error("Error testing browser connection:", error)
+					setConnectionStatus(false)
+				})
 		} else {
 			// Use old message passing for discoverBrowser (not yet migrated)
 			vscode.postMessage({
-				type: "discoverBrowser"
+				type: "discoverBrowser",
 			})
 		}
 	}, [browserSettings.remoteBrowserHost])

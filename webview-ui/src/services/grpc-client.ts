@@ -59,15 +59,15 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 				window.addEventListener("message", handleResponse)
 
 				let encodedRequest = {}
-				
+
 				// Handle different types of requests
 				if (request === null || request === undefined) {
 					// Empty request
 					encodedRequest = {}
-				} else if (typeof request.toJSON === 'function') {
+				} else if (typeof request.toJSON === "function") {
 					// Proper protobuf object
 					encodedRequest = request.toJSON()
-				} else if (typeof request === 'object') {
+				} else if (typeof request === "object") {
 					// Plain JavaScript object
 					encodedRequest = { ...request }
 				} else {
