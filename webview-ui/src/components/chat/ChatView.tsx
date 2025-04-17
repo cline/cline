@@ -575,6 +575,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				"browser_action",
 				"browser_action_result",
 				"checkpoint_created",
+				"reasoning",
 			].includes(message.say!)
 		}
 		return false
