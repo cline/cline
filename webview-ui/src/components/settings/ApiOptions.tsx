@@ -804,7 +804,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<div>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiBaseUrl || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						type="url"
 						onInput={handleInputChange("openAiBaseUrl")}
 						placeholder={"Enter base URL..."}>
@@ -812,7 +812,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiApiKey || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						type="password"
 						onInput={handleInputChange("openAiApiKey")}
 						placeholder="Enter API Key...">
@@ -820,17 +820,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiModelId || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						onInput={handleInputChange("openAiModelId")}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 
-					{/* Custom Headers Section */}
+					{/* OpenAI Compatible Custom Headers */}
 					{(() => {
 						const headerEntries = Object.entries(apiConfiguration?.openAiHeaders ?? {})
 						return (
-							<div style={{ marginTop: 10 }}>
+							<div style={{ marginBottom: 10 }}>
 								<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 									<span style={{ fontWeight: 500 }}>Custom Headers</span>
 									<VSCodeButton
