@@ -64,6 +64,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 				break
 			}
+			case "o4-mini":
+			case "o3":
 			case "o3-mini": {
 				const stream = await this.client.chat.completions.create({
 					model: model.id,
