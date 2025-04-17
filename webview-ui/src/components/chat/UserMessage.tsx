@@ -3,8 +3,7 @@ import Thumbnails from "@/components/common/Thumbnails"
 import { highlightMentions } from "./TaskHeader"
 import { vscode } from "@/utils/vscode"
 import DynamicTextArea from "react-textarea-autosize"
-import { useEvent } from "react-use"
-import type { ExtensionMessage } from "@shared/ExtensionMessage"
+
 interface UserMessageProps {
 	text?: string
 	images?: any[] // Using any[] for now, but you might want to specify the correct type from your codebase
@@ -31,8 +30,13 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 			type: "checkpointRestore",
 			number: messageTs,
 			text: type,
+			offset: 1,
 		})
 		setIsEditing(false)
+
+		setTimeout(() => {
+			sendMessageFromChatRow?.(editedText, images || [])
+		}, 500)
 	}
 
 	const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
@@ -55,17 +59,6 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 			handleRestoreWorkspace("taskAndWorkspace")
 		}
 	}
-
-	const handleMessage = useCallback(
-		(event: MessageEvent<ExtensionMessage>) => {
-			if (event.data.type === "relinquishControl" && editedText != text && sendMessageFromChatRow) {
-				sendMessageFromChatRow(editedText, images || [])
-			}
-		},
-		[editedText],
-	)
-
-	useEvent("message", handleMessage)
 
 	return (
 		<div

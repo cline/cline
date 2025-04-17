@@ -121,6 +121,7 @@ export interface WebviewMessage {
 	query?: string
 	// For toggleFavoriteModel
 	modelId?: string
+<<<<<<< HEAD
 	grpc_request?: {
 		service: string
 		method: string
@@ -131,6 +132,9 @@ export interface WebviewMessage {
 	isGlobal?: boolean
 	rulePath?: string
 	enabled?: boolean
+=======
+	offset?: number
+>>>>>>> e0fd93b7 (restore and send)
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

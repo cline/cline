@@ -307,8 +307,8 @@ export class Task {
 		}
 	}
 
-	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore) {
-		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs)
+	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
+		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 		const message = this.clineMessages[messageIndex]
 		if (!message) {
 			console.error("Message not found", this.clineMessages)
