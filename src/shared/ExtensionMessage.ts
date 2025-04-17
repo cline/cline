@@ -8,7 +8,7 @@ import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse, McpViewTab } from "./mcp"
 import { TelemetrySetting } from "./TelemetrySetting"
-import type { BalanceResponse, UsageTransaction, PaymentTransaction } from "../shared/ClineAccount"
+import type { BalanceResponse, UsageTransaction, PaymentTransaction, ApiRequestHistoryEntry } from "../shared/ClineAccount"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -49,6 +49,7 @@ export interface ExtensionMessage {
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
+		| "apiRequestHistory"
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
@@ -109,6 +110,7 @@ export interface ExtensionMessage {
 		error?: string
 	}
 	tab?: McpViewTab
+	history?: ApiRequestHistoryEntry[]
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"

@@ -11,6 +11,17 @@ export interface UsageTransaction {
 	completionTokens: string
 }
 
+export interface ApiRequestHistoryEntry {
+	timestamp: number // Unix timestamp (ms)
+	provider: string
+	model: string
+	taskSnippet: string // First 50 chars of the task
+	taskId: string
+	inputTokens: number
+	outputTokens: number
+	cost?: number // Optional, as cost calculation might vary or fail
+}
+
 export interface PaymentTransaction {
 	paidAt: string
 	amountCents: string

@@ -6,7 +6,8 @@ import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
-import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import ApiRequestHistoryTable from "./ApiRequestHistoryTable"
+import { UsageTransaction, PaymentTransaction, ApiRequestHistoryEntry } from "@shared/ClineAccount"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
 type AccountViewProps = {
@@ -39,6 +40,7 @@ export const ClineAccountView = () => {
 	const [isLoading, setIsLoading] = useState(true)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
+	const [apiRequestHistory, setApiRequestHistory] = useState<ApiRequestHistoryEntry[]>([])
 
 	// Listen for balance and transaction data updates from the extension
 	useEffect(() => {
@@ -50,6 +52,8 @@ export const ClineAccountView = () => {
 				setUsageData(message.userCreditsUsage.usageTransactions)
 			} else if (message.type === "userCreditsPayments" && message.userCreditsPayments) {
 				setPaymentsData(message.userCreditsPayments.paymentTransactions)
+			} else if (message.type === "apiRequestHistory") {
+				setApiRequestHistory(message.history)
 			}
 			setIsLoading(false)
 		}
@@ -60,6 +64,7 @@ export const ClineAccountView = () => {
 		if (user) {
 			setIsLoading(true)
 			vscode.postMessage({ type: "fetchUserCreditsData" })
+			vscode.postMessage({ type: "getApiRequestHistory" })
 		}
 
 		return () => {
@@ -147,8 +152,16 @@ export const ClineAccountView = () => {
 
 					<VSCodeDivider className="mt-6 mb-3 w-full" />
 
-					<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
-						<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
+					{/* Make this container scrollable */}
+					<div className="flex-grow flex flex-col min-h-0 pb-[0px] overflow-y-auto">
+						{/* API Request History Table (Moved up) */}
+						<div className="mb-6">
+							<ApiRequestHistoryTable isLoading={isLoading} historyData={apiRequestHistory} />
+						</div>
+						{/* Credits History Table */}
+						<div className="mb-6">
+							<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
+						</div>
 					</div>
 				</div>
 			) : (

@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ApiRequestHistoryEntry } from "../../shared/ClineAccount"
 import axios from "axios"
 import type { AxiosRequestConfig } from "axios"
 import crypto from "crypto"
@@ -551,6 +552,13 @@ export class Controller {
 				break
 			case "getLatestState":
 				await this.postStateToWebview()
+				break
+			case "getApiRequestHistory":
+				const history = ((await getGlobalState(this.context, "apiRequestHistory")) as ApiRequestHistoryEntry[]) || []
+				await this.postMessageToWebview({
+					type: "apiRequestHistory",
+					history,
+				})
 				break
 			case "accountLoginClicked": {
 				// Generate nonce for state validation

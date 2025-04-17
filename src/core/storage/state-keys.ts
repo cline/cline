@@ -20,6 +20,7 @@ export type SecretKey =
 	| "xaiApiKey"
 	| "sambanovaApiKey"
 export type GlobalStateKey =
+	| "apiRequestHistory"
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"

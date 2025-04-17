@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import { ApiRequestHistoryEntry } from "../../shared/ClineAccount"
 import { DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
@@ -52,6 +53,7 @@ export async function getWorkspaceState(context: vscode.ExtensionContext, key: s
 
 export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	const [
+		apiRequestHistory,
 		storedApiProvider,
 		apiModelId,
 		apiKey,
@@ -122,6 +124,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
 	] = await Promise.all([
+		getGlobalState(context, "apiRequestHistory") as Promise<ApiRequestHistoryEntry[] | undefined>,
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
 		getSecret(context, "apiKey") as Promise<string | undefined>,
@@ -230,6 +233,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 	}
 
 	return {
+		apiRequestHistory: apiRequestHistory || [],
 		apiConfiguration: {
 			apiProvider,
 			apiModelId,
