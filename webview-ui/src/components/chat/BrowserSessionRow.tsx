@@ -131,6 +131,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		return false
 	}, [messages, lastModifiedMessage, isLast])
 
+	// If last message is a resume, it means the task was cancelled and the browser was closed
+	const isLastMessageResume = useMemo(() => {
+		// Check if last message is resume completion
+		return lastModifiedMessage?.ask === "resume_task" || lastModifiedMessage?.ask === "resume_completed_task"
+	}, [lastModifiedMessage?.ask])
+
 	const isBrowsing = useMemo(() => {
 		return isLast && messages.some((m) => m.say === "browser_action_result") && !isLastApiReqInterrupted // after user approves, browser_action_result with "" is sent to indicate that the session has started
 	}, [isLast, messages, isLastApiReqInterrupted])
@@ -186,7 +192,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				// Reset for next page
 				currentStateMessages = []
 				nextActionMessages = []
-			} else if (message.say === "api_req_started" || message.say === "text" || message.say === "browser_action") {
+			} else if (
+				message.say === "api_req_started" ||
+				message.say === "text" ||
+				message.say === "reasoning" ||
+				message.say === "browser_action"
+			) {
 				// These messages lead to the next result, so they should always go in nextActionMessages
 				nextActionMessages.push(message)
 			} else {
@@ -335,7 +346,11 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		// Which will cause `Uncaught TypeError: Cannot assign to read only property 'position' of object '#<Object>'`
 		<BrowserSessionRowContainer style={{ marginBottom: -10 }}>
 			<div style={browserSessionRowContainerInnerStyle}>
-				{isBrowsing ? <ProgressIndicator /> : <span className="codicon codicon-inspect" style={browserIconStyle}></span>}
+				{isBrowsing && !isLastMessageResume ? (
+					<ProgressIndicator />
+				) : (
+					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
+				)}
 				<span style={approveTextStyle}>
 					<>{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}</>
 				</span>
@@ -365,7 +380,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						}}>
 						<div style={urlTextStyle}>{displayState.url || "http"}</div>
 					</div>
-					<BrowserSettingsMenu disabled={!shouldShowSettings} maxWidth={maxWidth} />
+					<BrowserSettingsMenu />
 				</div>
 
 				{/* Screenshot Area */}
@@ -501,6 +516,7 @@ const BrowserSessionRowContent = ({
 			switch (message.say) {
 				case "api_req_started":
 				case "text":
+				case "reasoning":
 					return (
 						<div style={chatRowContentContainerStyle}>
 							<ChatRowContent

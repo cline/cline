@@ -105,3 +105,5 @@ export interface McpDownloadResponse {
 	llmsInstallationContent: string
 	requiresApiKey: boolean
 }
+
+export type McpViewTab = "marketplace" | "addRemote" | "installed"

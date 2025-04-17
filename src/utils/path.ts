@@ -1,5 +1,7 @@
 import * as path from "path"
 import os from "os"
+import * as vscode from "vscode"
+import { realpathSync } from "fs"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -97,5 +99,36 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 			// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
 			return absolutePath.toPosix()
 		}
+	}
+}
+
+export const getWorkspacePath = (defaultCwdPath = "") => {
+	const cwdPath = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || defaultCwdPath
+	const currentFileUri = vscode.window.activeTextEditor?.document.uri
+	if (currentFileUri) {
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentFileUri)
+		return workspaceFolder?.uri.fsPath || cwdPath
+	}
+	return cwdPath
+}
+
+export const isLocatedInWorkspace = (pathToCheck: string = ""): boolean => {
+	const workspacePath = getWorkspacePath()
+
+	// Handle long paths in Windows
+	if (pathToCheck.startsWith("\\\\?\\") || workspacePath.startsWith("\\\\?\\")) {
+		return pathToCheck.startsWith(workspacePath)
+	}
+
+	const resolvedPath = path.resolve(workspacePath, pathToCheck)
+
+	// Using realpathSync to resolve any symbolic links
+	try {
+		const realWorkspacePath = realpathSync(workspacePath)
+		const realPath = realpathSync(resolvedPath)
+		return realPath.startsWith(realWorkspacePath)
+	} catch (error) {
+		console.error("Error resolving paths:", error)
+		return false
 	}
 }

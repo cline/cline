@@ -1,26 +1,18 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import { Controller } from "../../core/controller"
 import type { BalanceResponse, PaymentTransaction, UsageTransaction } from "../../shared/ClineAccount"
+import { ExtensionMessage } from "../../shared/ExtensionMessage"
 
 export class ClineAccountService {
 	private readonly baseUrl = "https://api.cline.bot/v1"
-	private controllerRef: WeakRef<Controller>
+	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
+	private getClineApiKey: () => Promise<string | undefined>
 
-	constructor(controller: Controller) {
-		this.controllerRef = new WeakRef(controller)
-	}
-
-	/**
-	 * Get the user's Cline Account key from the apiConfiguration
-	 */
-	private async getClineApiKey(): Promise<string | undefined> {
-		const provider = this.controllerRef.deref()
-		if (!provider) {
-			return undefined
-		}
-
-		const { apiConfiguration } = await provider.getStateToPostToWebview()
-		return apiConfiguration?.clineApiKey
+	constructor(
+		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
+		getClineApiKey: () => Promise<string | undefined>,
+	) {
+		this.postMessageToWebview = postMessageToWebview
+		this.getClineApiKey = getClineApiKey
 	}
 
 	/**
@@ -64,7 +56,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<BalanceResponse>("/user/credits/balance")
 
 			// Post to webview
-			await this.controllerRef.deref()?.postMessageToWebview({
+			await this.postMessageToWebview({
 				type: "userCreditsBalance",
 				userCreditsBalance: data,
 			})
@@ -84,7 +76,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<UsageTransaction[]>("/user/credits/usage")
 
 			// Post to webview
-			await this.controllerRef.deref()?.postMessageToWebview({
+			await this.postMessageToWebview({
 				type: "userCreditsUsage",
 				userCreditsUsage: data,
 			})
@@ -104,7 +96,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<PaymentTransaction[]>("/user/credits/payments")
 
 			// Post to webview
-			await this.controllerRef.deref()?.postMessageToWebview({
+			await this.postMessageToWebview({
 				type: "userCreditsPayments",
 				userCreditsPayments: data,
 			})

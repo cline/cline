@@ -114,7 +114,7 @@ export class AnthropicHandler implements ApiHandler {
 				break
 			}
 			default: {
-				stream = (await this.client.messages.create({
+				stream = await this.client.messages.create({
 					model: modelId,
 					max_tokens: model.info.maxTokens || 8192,
 					temperature: 0,
@@ -123,7 +123,7 @@ export class AnthropicHandler implements ApiHandler {
 					// tools,
 					// tool_choice: { type: "auto" },
 					stream: true,
-				})) as any
+				})
 				break
 			}
 		}

@@ -14,7 +14,10 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	// Accept the event object
 	const handleAutoApproveChange = (event: any) => {
 		// Only proceed if the event was triggered by a direct user interaction
-		if (!serverName || !event.isTrusted) return
+
+		if (!serverName) {
+			return
+		}
 
 		vscode.postMessage({
 			type: "toggleToolAutoApprove",

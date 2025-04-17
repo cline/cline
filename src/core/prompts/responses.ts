@@ -5,6 +5,12 @@ import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreCo
 import { McpToolCallResponse } from "../../shared/mcp"
 
 export const formatResponse = {
+	duplicateFileReadNotice: () =>
+		`[[NOTE] This file read has been removed to save space in the context window. Refer to the latest file read for the most up to date version of this file.]`,
+
+	contextTruncationNotice: () =>
+		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task and the most recent exchanges have been retained for continuity, while intermediate conversation history has been removed. Please keep this in mind as you continue assisting the user.`,
+
 	toolDenied: () => `The user denied this operation.`,
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
@@ -125,8 +131,8 @@ Otherwise, if you have not completed the task and do not need additional informa
 		cwd: string,
 		wasRecent: boolean | 0 | undefined,
 		responseText?: string,
-	) => {
-		return `[TASK RESUMPTION] ${
+	): [string, string] => {
+		const taskResumptionMessage = `[TASK RESUMPTION] ${
 			mode === "plan"
 				? `This task was interrupted ${agoText}. The conversation may have been incomplete. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful. However you are in PLAN MODE, so rather than continuing the task, you must respond to the user's message.`
 				: `This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.`
@@ -134,13 +140,17 @@ Otherwise, if you have not completed the task and do not need additional informa
 			wasRecent
 				? "\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 				: ""
-		}${
+		}`
+
+		const userResponseMessage = `${
 			responseText
-				? `\n\n${mode === "plan" ? "New message to respond to with plan_mode_respond tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
+				? `${mode === "plan" ? "New message to respond to with plan_mode_respond tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
 				: mode === "plan"
-					? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
+					? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or suggest to them to switch to Act mode to continue with the task.)"
 					: ""
 		}`
+
+		return [taskResumptionMessage, userResponseMessage]
 	},
 
 	planModeInstructions: () => {
@@ -187,7 +197,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		`This is likely because the SEARCH block content doesn't match exactly with what's in the file, or if you used multiple SEARCH/REPLACE blocks they may not have been in the order they appear in the file.\n\n` +
 		`The file was reverted to its original state:\n\n` +
 		`<file_content path="${relPath.toPosix()}">\n${originalContent}\n</file_content>\n\n` +
-		`Now that you have the latest state of the file, try the operation again with fewer/more precise SEARCH blocks.\n(If you run into this error 3 times in a row, you may use the write_to_file tool as a fallback. Keep in mind, the write_to_file fallback is far from ideal, as this means you'll be re-writing the entire contents of the file just to make a few edits, which takes time and money. So let's bias towards using replace_in_file as effectively as possible)`,
+		`Now that you have the latest state of the file, try the operation again with fewer, more precise SEARCH blocks. For large files especially, it may be prudent to try to limit yourself to <5 SEARCH/REPLACE blocks at a time, then wait for the user to respond with the result of the operation before following up with another replace_in_file call to make additional edits.\n(If you run into this error 3 times in a row, you may use the write_to_file tool as a fallback.)`,
 
 	toolAlreadyUsed: (toolName: string) =>
 		`Tool [${toolName}] was not executed because a tool has already been used in this message. Only one tool may be used per message. You must assess the first tool's result before proceeding to use the next tool.`,
@@ -195,10 +205,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 	clineIgnoreInstructions: (content: string) =>
 		`# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.clineignore`,
 
-	clineRulesDirectoryInstructions: (cwd: string, content: string) =>
+	clineRulesGlobalDirectoryInstructions: (globalClineRulesFilePath: string, content: string) =>
+		`# .clinerules/\n\nThe following is provided by a global .clinerules/ directory, located at ${globalClineRulesFilePath.toPosix()}, where the user has specified instructions for all working directories:\n\n${content}`,
+
+	clineRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
 		`# .clinerules/\n\nThe following is provided by a root-level .clinerules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 
-	clineRulesFileInstructions: (cwd: string, content: string) =>
+	clineRulesLocalFileInstructions: (cwd: string, content: string) =>
 		`# .clinerules\n\nThe following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 }
 
