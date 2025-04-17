@@ -11,23 +11,17 @@ import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
 import { ErrorService } from "./services/error/ErrorService"
-import * as packageJson from "../package.json"
+
+/*
+Built using https://github.com/microsoft/vscode-webview-ui-toolkit
+
+Inspired by
+https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/default/weather-webview
+https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/frameworks/hello-world-react-cra
+
+*/
 
 let outputChannel: vscode.OutputChannel
-
-function showExtensionInfo(context: vscode.ExtensionContext) {
-	const version = packageJson.version
-	const isDevMode = IS_DEV && IS_DEV === "true"
-	const displayName = `Cline v${version}${isDevMode ? " (Dev)" : ""}`
-	const message = `${displayName} activated`
-	vscode.window.showInformationMessage(message)
-	Logger.log(message)
-
-	// Update VSCode's displayed name for the extension
-	vscode.commands.executeCommand("setContext", "cline.displayName", displayName)
-	vscode.commands.executeCommand("setContext", "cline.version", version)
-	vscode.commands.executeCommand("setContext", "cline.isDevMode", isDevMode)
-}
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -37,7 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	ErrorService.initialize()
 	Logger.initialize(outputChannel)
-	showExtensionInfo(context)
+	Logger.log("Cline extension activated")
 
 	const sidebarWebview = new WebviewProvider(context, outputChannel)
 

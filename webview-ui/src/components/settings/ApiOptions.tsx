@@ -2015,7 +2015,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			}
 		case "litellm":
 			// Check if live info was added by the Controller under the specific key
-			const liveLiteLlmInfo = (apiConfiguration as any)?.liteLlmModelInfo;
+			const liveLiteLlmInfo = (apiConfiguration as any)?.liteLlmModelInfo
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.liteLlmModelId || "",
