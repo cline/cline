@@ -5,7 +5,7 @@
 // source: common.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
+import * as _m0 from "protobufjs/minimal"
 
 export const protobufPackage = "cline"
 
@@ -49,12 +49,12 @@ function createBaseMetadata(): Metadata {
 }
 
 export const Metadata: MessageFns<Metadata> = {
-	encode(_: Metadata, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+	encode(_: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): Metadata {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+	decode(input: _m0.Reader | Uint8Array, length?: number): Metadata {
+		const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
 		const message = createBaseMetadata()
 		while (reader.pos < end) {
@@ -64,7 +64,7 @@ export const Metadata: MessageFns<Metadata> = {
 			if ((tag & 7) === 4 || tag === 0) {
 				break
 			}
-			reader.skip(tag & 7)
+			reader.skipType(tag & 7)
 		}
 		return message
 	},
@@ -92,15 +92,15 @@ function createBaseEmptyRequest(): EmptyRequest {
 }
 
 export const EmptyRequest: MessageFns<EmptyRequest> = {
-	encode(message: EmptyRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+	encode(message: EmptyRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
 		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim()
 		}
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): EmptyRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+	decode(input: _m0.Reader | Uint8Array, length?: number): EmptyRequest {
+		const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
 		const message = createBaseEmptyRequest()
 		while (reader.pos < end) {
@@ -118,7 +118,7 @@ export const EmptyRequest: MessageFns<EmptyRequest> = {
 			if ((tag & 7) === 4 || tag === 0) {
 				break
 			}
-			reader.skip(tag & 7)
+			reader.skipType(tag & 7)
 		}
 		return message
 	},
@@ -151,12 +151,12 @@ function createBaseEmpty(): Empty {
 }
 
 export const Empty: MessageFns<Empty> = {
-	encode(_: Empty, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+	encode(_: Empty, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): Empty {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+	decode(input: _m0.Reader | Uint8Array, length?: number): Empty {
+		const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
 		const message = createBaseEmpty()
 		while (reader.pos < end) {
@@ -166,7 +166,7 @@ export const Empty: MessageFns<Empty> = {
 			if ((tag & 7) === 4 || tag === 0) {
 				break
 			}
-			reader.skip(tag & 7)
+			reader.skipType(tag & 7)
 		}
 		return message
 	},
@@ -635,8 +635,8 @@ function isSet(value: any): boolean {
 }
 
 export interface MessageFns<T> {
-	encode(message: T, writer?: BinaryWriter): BinaryWriter
-	decode(input: BinaryReader | Uint8Array, length?: number): T
+	encode(message: T, writer?: _m0.Writer): _m0.Writer
+	decode(input: _m0.Reader | Uint8Array, length?: number): T
 	fromJSON(object: any): T
 	toJSON(message: T): unknown
 	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T

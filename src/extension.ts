@@ -18,7 +18,7 @@ let outputChannel: vscode.OutputChannel
 function showExtensionInfo(context: vscode.ExtensionContext) {
 	const version = packageJson.version
 	const isDevMode = IS_DEV && IS_DEV === "true"
-	const displayName = `Clone v${version}${isDevMode ? " (Dev)" : ""}`
+	const displayName = `Cline v${version}${isDevMode ? " (Dev)" : ""}`
 	const message = `${displayName} activated`
 	vscode.window.showInformationMessage(message)
 	Logger.log(message)
@@ -32,7 +32,7 @@ function showExtensionInfo(context: vscode.ExtensionContext) {
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	outputChannel = vscode.window.createOutputChannel("Clone")
+	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
 	ErrorService.initialize()
@@ -102,7 +102,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(WebviewProvider.tabPanelId, "Clone", targetCol, {
+		const panel = vscode.window.createWebviewPanel(WebviewProvider.tabPanelId, "Cline", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],

@@ -99,6 +99,9 @@ async function main() {
 	console.log(chalk.green("Protocol Buffer code generation completed successfully."))
 	console.log(chalk.green(`TypeScript files generated in: ${TS_OUT_DIR}`))
 
+	// Post-process generated files to remove duplicate helpers
+	await postProcessGeneratedFiles(TS_OUT_DIR)
+
 	// Generate method registration files
 	await generateMethodRegistrations()
 
@@ -178,3 +181,70 @@ main().catch((error) => {
 	console.error(chalk.red("Error:"), error)
 	process.exit(1)
 })
+
+// Post-processes generated TypeScript files to remove duplicate helper types/interfaces
+// and import them from common.ts instead.
+async function postProcessGeneratedFiles(outputDir) {
+	console.log(chalk.cyan("Post-processing generated TypeScript files to remove duplicate helpers..."))
+	const generatedFiles = await globby("*.ts", { cwd: outputDir, absolute: true })
+	const commonFilePath = path.join(outputDir, "common.ts")
+
+	// Define the start patterns of the helper blocks to remove
+	const helperStartPatterns = [
+		"type Builtin =",
+		"export type DeepPartial<T>",
+		"type KeysOfUnion<T>",
+		"export type Exact<P, I extends P>",
+		"function isSet(value: any): boolean",
+		"export interface MessageFns<T>",
+	]
+
+	// Prepare regexes for finding the full blocks. This handles potential variations in spacing/comments.
+	const helperRegexes = helperStartPatterns.map((pattern) => {
+		if (pattern.startsWith("function")) {
+			// Simpler regex for single-line function
+			return new RegExp(`^\\s*${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*?^\\s*\\}\\s*$`, "m")
+		} else {
+			// Regex for potentially multi-line types/interfaces
+			return new RegExp(`^\\s*${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*?^\\s*\\}\\s*$`, "ms")
+		}
+	})
+
+	const importStatement = `import type { Builtin, DeepPartial, Exact, KeysOfUnion, MessageFns } from "./common";\nimport { isSet } from "./common";\n`
+
+	for (const filePath of generatedFiles) {
+		// Skip the common file itself - it's the source of truth
+		if (filePath === commonFilePath) {
+			continue
+		}
+
+		let content = await fs.readFile(filePath, "utf-8")
+		let modified = false
+		let originalContent = content // Keep original for comparison
+
+		// Remove helper definitions using regexes
+		for (const regex of helperRegexes) {
+			content = content.replace(regex, "")
+		}
+
+		// Check if content actually changed
+		modified = content !== originalContent
+
+		// Add import statement if helpers were removed and it's not already there
+		if (modified && !content.includes('from "./common"')) {
+			// Find a suitable place to insert the import statement
+			const importInsertionPoint = (
+				content.match(/^(\/\* eslint-disable \*\/|import .*;\n|import .*\n|\/\/.*?\n)*/m)?.[0] ?? ""
+			).length
+			content = content.slice(0, importInsertionPoint) + importStatement + content.slice(importInsertionPoint)
+		}
+
+		// Write back the modified content only if changed
+		if (modified) {
+			console.log(chalk.cyan(`  Processing ${path.basename(filePath)}...`))
+			await fs.writeFile(filePath, content.trim() + "\n") // Ensure trailing newline
+			console.log(chalk.green(`    Removed duplicate helpers and added imports in ${path.basename(filePath)}.`))
+		}
+	}
+	console.log(chalk.green("Post-processing complete."))
+}
