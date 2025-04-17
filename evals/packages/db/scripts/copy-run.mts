@@ -57,7 +57,17 @@ const copyRun = async (runId: number) => {
 		tasks,
 		async (task) => {
 			// eslint-disable-next-line @typescript-eslint/no-unused-vars
-			const { id: _, ...newTaskMetricsValues } = task.taskMetrics!
+			const { id: _, ...newTaskMetricsValues } = task.taskMetrics || {
+				duration: 0,
+				tokensIn: 0,
+				tokensOut: 0,
+				tokensContext: 0,
+				cacheWrites: 0,
+				cacheReads: 0,
+				cost: 0,
+				createdAt: new Date(),
+			}
+
 			const [newTaskMetrics] = await destDb.insert(schema.taskMetrics).values(newTaskMetricsValues).returning()
 
 			if (!newTaskMetrics) {
