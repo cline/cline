@@ -537,7 +537,7 @@ export class ContextManager {
 
 			// we can assume that thisExistingFileReads does not have many entries
 			if (!thisExistingFileReads.includes(filePath)) {
-				// meaning we havent already replaced this file read
+				// meaning we haven't already replaced this file read
 
 				const entireMatch = match[0] // The entire matched string
 
@@ -590,7 +590,7 @@ export class ContextManager {
 	) {
 		const pattern = new RegExp(`(<final_file_content path="[^"]*">)[\\s\\S]*?(</final_file_content>)`)
 
-		// check if this exists in the text, it wont exist if the user rejects the file change for example
+		// check if this exists in the text, it won't exist if the user rejects the file change for example
 		if (pattern.test(secondBlockText)) {
 			const replacementText = secondBlockText.replace(pattern, `$1 ${formatResponse.duplicateFileReadNotice()} $2`)
 			const indices = fileReadIndices.get(filePath) || []
@@ -741,7 +741,7 @@ export class ContextManager {
 		let totalCharactersSaved = 0
 
 		for (let i = startIndex; i < endIndex; i++) {
-			// looping over the outer indicies of messages
+			// looping over the outer indices of messages
 			const message = apiMessages[i]
 
 			if (!message.content) {
@@ -782,7 +782,7 @@ export class ContextManager {
 
 									totalCharCount += originalTextLength
 								} else {
-									// meaning there was an update to this text previously, but we didnt just alter it
+									// meaning there was an update to this text previously, but we didn't just alter it
 									totalCharCount += latestUpdate[2][0].length
 								}
 							} else {
@@ -790,7 +790,7 @@ export class ContextManager {
 								totalCharCount += block.text.length
 							}
 						} else {
-							// reach here if there's no alterations for this outer index, meaning each inner index wont have any changes either
+							// reach here if there's no alterations for this outer index, meaning each inner index won't have any changes either
 							totalCharCount += block.text.length
 						}
 					} else if (block.type === "image" && block.source) {

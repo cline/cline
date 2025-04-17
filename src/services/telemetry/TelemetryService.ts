@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../package.json"
 
 import type { TaskFeedbackType } from "../../shared/WebviewMessage"
+import type { BrowserSettings } from "../../shared/BrowserSettings"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
@@ -474,7 +475,7 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param browserSettings The browser settings being used
 	 */
-	public captureBrowserToolStart(taskId: string, browserSettings: any) {
+	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
 			properties: {

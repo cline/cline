@@ -26,6 +26,7 @@ import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { ChatSettings } from "@shared/ChatSettings"
 import ServersToggleModal from "./ServersToggleModal"
+import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -1153,7 +1154,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							display: "flex",
 							alignItems: "flex-center",
 							height: textAreaBaseHeight || 31,
-							bottom: 9.5, // should be 10 but doesnt look good on mac
+							bottom: 9.5, // should be 10 but doesn't look good on mac
 							zIndex: 2,
 						}}>
 						<div
@@ -1225,6 +1226,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</ButtonContainer>
 						</VSCodeButton>
 						<ServersToggleModal />
+						<ClineRulesToggleModal />
 
 						<ModelContainer ref={modelSelectorRef}>
 							<ModelButtonWrapper ref={buttonRef}>
