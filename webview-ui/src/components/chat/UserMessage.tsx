@@ -34,6 +34,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 	}, [isEditing])
 
 	const handleRestoreWorkspace = (type: string) => {
+		const delay = type === "task" ? 500 : 1000 // Delay for task and workspace restore
 		setIsEditing(false)
 
 		if (text === editedText) {
@@ -49,7 +50,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 
 		setTimeout(() => {
 			sendMessageFromChatRow?.(editedText, images || [])
-		}, 500)
+		}, delay)
 	}
 
 	const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
