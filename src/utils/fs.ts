@@ -75,6 +75,13 @@ export async function getFileSizeInKB(filePath: string): Promise<number> {
 	}
 }
 
+// Common OS-generated files that would appear in an otherwise clean directory
+const OS_GENERATED_FILES = [
+	".DS_Store", // macOS Finder
+	"Thumbs.db", // Windows Explorer thumbnails
+	"desktop.ini", // Windows folder settings
+]
+
 /**
  * Recursively reads a directory and returns an array of absolute file paths.
  *
@@ -86,7 +93,8 @@ export const readDirectory = async (directoryPath: string) => {
 	try {
 		const filePaths = await fs
 			.readdir(directoryPath, { withFileTypes: true, recursive: true })
-			.then((files) => files.filter((file) => file.isFile()))
+			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
+			.then((entries) => entries.filter((entry) => entry.isFile()))
 			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
 		return filePaths
 	} catch {

@@ -116,6 +116,11 @@
 				"command": "cline.fixWithCline",
 				"title": "Fix with Cline",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.focusChatInput",
+				"title": "Jump to Chat Input",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
@@ -290,6 +295,7 @@
 		"watch:esbuild:test": "IS_TEST=true node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
 		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+		"protos": "node proto/build-proto.js && prettier src/shared/proto --write && prettier src/core/controller --write",
 		"package:test": "IS_TEST=true npm run build:webview:test && npm run check-types && npm run lint && IS_TEST=true node esbuild.js --production",
 		"build:webview:test": "cd webview-ui && IS_TEST=true npm run build",
 		"watch:test": "IS_TEST=true npm-run-all -p watch:tsc watch:esbuild:test",
@@ -336,14 +342,17 @@
 		"@vscode/test-cli": "^0.0.9",
 		"@vscode/test-electron": "^2.4.0",
 		"chai": "^5.2.0",
+		"chalk": "^5.3.0",
 		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
 		"husky": "^9.1.7",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
+		"protoc-gen-ts": "^0.8.7",
 		"should": "^13.2.3",
 		"sinon": "^20.0.0",
 		"ts-node": "^10.9.2",
+		"ts-proto": "^2.6.1",
 		"typescript": "^5.4.5",
 		"vitest": "^3.1.1"
 	},
@@ -352,8 +361,10 @@
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
 		"@aws-sdk/client-bedrock-runtime": "^3.758.0",
+		"@bufbuild/protobuf": "^2.2.5",
 		"@google-cloud/vertexai": "^1.9.3",
 		"@google/generative-ai": "^0.18.0",
+		"@grpc/grpc-js": "^1.9.15",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.7.0",
 		"@opentelemetry/api": "^1.4.1",

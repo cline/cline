@@ -70,8 +70,6 @@ import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "../context/context-management/context-error-handling"
-import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { McpHub } from "../../services/mcp/McpHub"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 import {
@@ -79,11 +77,19 @@ import {
 	ensureTaskDirectoryExists,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
+	GlobalFileNames,
 	saveApiConversationHistory,
 	saveClineMessages,
 } from "../storage/disk"
-import { getGlobalClineRules, getLocalClineRules } from "../context/instructions/user-instructions/cline-rules"
-import { getGlobalState } from "../storage/state"
+import { McpHub } from "../../services/mcp/McpHub"
+import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import {
+	ClineRulesToggles,
+	getGlobalClineRules,
+	getLocalClineRules,
+	synchronizeRuleToggles,
+} from "../context/instructions/user-instructions/cline-rules"
+import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../storage/state"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1280,10 +1286,19 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
-		const localClineRulesFileInstructions = await getLocalClineRules(cwd)
-
+		const globalClineRulesToggles =
+			((await getGlobalState(this.getContext(), "globalClineRulesToggles")) as ClineRulesToggles) || {}
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
-		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath)
+		const updatedGlobalToggles = await synchronizeRuleToggles(globalClineRulesFilePath, globalClineRulesToggles)
+		await updateGlobalState(this.getContext(), "globalClineRulesToggles", updatedGlobalToggles)
+		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, updatedGlobalToggles)
+
+		const localClineRulesToggles =
+			((await getWorkspaceState(this.getContext(), "localClineRulesToggles")) as ClineRulesToggles) || {}
+		const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
+		const updatedLocalToggles = await synchronizeRuleToggles(localClineRulesFilePath, localClineRulesToggles)
+		await updateWorkspaceState(this.getContext(), "localClineRulesToggles", updatedLocalToggles)
+		const localClineRulesFileInstructions = await getLocalClineRules(cwd, updatedLocalToggles)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
