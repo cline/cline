@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.12.3-dev.6",
+	"version": "3.12.3-dev.8",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -87,6 +87,11 @@
 				"icon": "$(account)"
 			},
 			{
+				"command": "cline.apiStatsButtonClicked",
+				"title": "API Stats",
+				"icon": "$(graph)"
+			},
+			{
 				"command": "cline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -156,8 +161,13 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "cline.apiStatsButtonClicked",
 					"group": "navigation@6",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.settingsButtonClicked",
+					"group": "navigation@7",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			],
@@ -188,8 +198,13 @@
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "cline.apiStatsButtonClicked",
 					"group": "navigation@6",
+					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+				},
+				{
+					"command": "cline.settingsButtonClicked",
+					"group": "navigation@7",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				}
 			],

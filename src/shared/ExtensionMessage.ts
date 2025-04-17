@@ -61,6 +61,7 @@ export interface ExtensionMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
+		| "apiStatsButtonClicked" // Added new action
 	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]

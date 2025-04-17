@@ -172,6 +172,35 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register the new command for API Stats
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.apiStatsButtonClicked", (webview: any) => {
+			const openApiStats = (instance?: WebviewProvider) =>
+				instance?.controller.postMessageToWebview({
+					type: "action",
+					action: "apiStatsButtonClicked",
+				})
+
+			const isSidebar = !webview
+			if (isSidebar) {
+				// If triggered from sidebar context menu or command palette without webview context
+				openApiStats(WebviewProvider.getSidebarInstance())
+			} else {
+				// If triggered from a tab's context menu
+				// Find the specific tab instance that triggered the command
+				const triggeringInstance = WebviewProvider.getTabInstances().find((inst) => inst.view === webview)
+				if (triggeringInstance) {
+					openApiStats(triggeringInstance)
+				} else {
+					// Fallback: If we can't find the specific instance, maybe open in sidebar? Or log error?
+					// For now, let's try opening in the sidebar as a fallback.
+					openApiStats(WebviewProvider.getSidebarInstance())
+					Logger.log("Could not find triggering tab instance for apiStatsButtonClicked, opening in sidebar.")
+				}
+			}
+		}),
+	)
+
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
 
