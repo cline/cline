@@ -90,7 +90,7 @@ describe("getContextMenuOptions", () => {
 	]
 
 	it("should return all option types for empty query", () => {
-		const result = getContextMenuOptions("", null, [])
+		const result = getContextMenuOptions("", "", null, [])
 		expect(result).toHaveLength(6)
 		expect(result.map((item) => item.type)).toEqual([
 			ContextMenuOptionType.Problems,
@@ -103,7 +103,7 @@ describe("getContextMenuOptions", () => {
 	})
 
 	it("should filter by selected type when query is empty", () => {
-		const result = getContextMenuOptions("", ContextMenuOptionType.File, mockQueryItems)
+		const result = getContextMenuOptions("", "", ContextMenuOptionType.File, mockQueryItems)
 		expect(result).toHaveLength(2)
 		expect(result.map((item) => item.type)).toContain(ContextMenuOptionType.File)
 		expect(result.map((item) => item.type)).toContain(ContextMenuOptionType.OpenedFile)
@@ -112,19 +112,19 @@ describe("getContextMenuOptions", () => {
 	})
 
 	it("should match git commands", () => {
-		const result = getContextMenuOptions("git", null, mockQueryItems)
+		const result = getContextMenuOptions("git", "git", null, mockQueryItems)
 		expect(result[0].type).toBe(ContextMenuOptionType.Git)
 		expect(result[0].label).toBe("Git Commits")
 	})
 
 	it("should match git commit hashes", () => {
-		const result = getContextMenuOptions("abc1234", null, mockQueryItems)
+		const result = getContextMenuOptions("abc1234", "abc1234", null, mockQueryItems)
 		expect(result[0].type).toBe(ContextMenuOptionType.Git)
 		expect(result[0].value).toBe("abc1234")
 	})
 
 	it("should return NoResults when no matches found", () => {
-		const result = getContextMenuOptions("nonexistent", null, mockQueryItems)
+		const result = getContextMenuOptions("nonexistent", "nonexistent", null, mockQueryItems)
 		expect(result).toHaveLength(1)
 		expect(result[0].type).toBe(ContextMenuOptionType.NoResults)
 	})
@@ -145,7 +145,7 @@ describe("getContextMenuOptions", () => {
 			},
 		]
 
-		const result = getContextMenuOptions("test", null, testItems, mockDynamicSearchResults)
+		const result = getContextMenuOptions("test", "test", null, testItems, mockDynamicSearchResults)
 
 		// Check if opened files and dynamic search results are included
 		expect(result.some((item) => item.type === ContextMenuOptionType.OpenedFile)).toBe(true)
@@ -154,7 +154,7 @@ describe("getContextMenuOptions", () => {
 
 	it("should maintain correct result ordering according to implementation", () => {
 		// Add multiple item types to test ordering
-		const result = getContextMenuOptions("t", null, mockQueryItems, mockDynamicSearchResults)
+		const result = getContextMenuOptions("t", "t", null, mockQueryItems, mockDynamicSearchResults)
 
 		// Find the different result types
 		const fileResults = result.filter(
@@ -185,7 +185,7 @@ describe("getContextMenuOptions", () => {
 	})
 
 	it("should include opened files when dynamic search results exist", () => {
-		const result = getContextMenuOptions("open", null, mockQueryItems, mockDynamicSearchResults)
+		const result = getContextMenuOptions("open", "open", null, mockQueryItems, mockDynamicSearchResults)
 
 		// Verify opened files are included
 		expect(result.some((item) => item.type === ContextMenuOptionType.OpenedFile)).toBe(true)
@@ -194,7 +194,7 @@ describe("getContextMenuOptions", () => {
 	})
 
 	it("should include git results when dynamic search results exist", () => {
-		const result = getContextMenuOptions("commit", null, mockQueryItems, mockDynamicSearchResults)
+		const result = getContextMenuOptions("commit", "commit", null, mockQueryItems, mockDynamicSearchResults)
 
 		// Verify git results are included
 		expect(result.some((item) => item.type === ContextMenuOptionType.Git)).toBe(true)
@@ -215,7 +215,7 @@ describe("getContextMenuOptions", () => {
 			},
 		]
 
-		const result = getContextMenuOptions("test", null, mockQueryItems, duplicateSearchResults)
+		const result = getContextMenuOptions("test", "test", null, mockQueryItems, duplicateSearchResults)
 
 		// Count occurrences of src/test.ts in results
 		const duplicateCount = result.filter(
@@ -233,6 +233,7 @@ describe("getContextMenuOptions", () => {
 	it("should return NoResults when all combined results are empty with dynamic search", () => {
 		// Use a query that won't match anything
 		const result = getContextMenuOptions(
+			"nonexistentquery123456",
 			"nonexistentquery123456",
 			null,
 			mockQueryItems,
@@ -281,7 +282,7 @@ describe("getContextMenuOptions", () => {
 		]
 
 		// Get results for "test" query
-		const result = getContextMenuOptions(testQuery, null, testItems, testSearchResults)
+		const result = getContextMenuOptions(testQuery, testQuery, null, testItems, testSearchResults)
 
 		// Verify we have results
 		expect(result.length).toBeGreaterThan(0)
@@ -309,6 +310,40 @@ describe("getContextMenuOptions", () => {
 		if (firstGitResultIndex !== -1 && firstSearchResultIndex !== -1) {
 			expect(firstGitResultIndex).toBeGreaterThan(firstSearchResultIndex)
 		}
+	})
+
+	it("should process slash commands when both query and inputValue start with slash", () => {
+		const mockModes = [
+			{
+				slug: "code",
+				name: "Code",
+				roleDefinition: "You are a coding assistant",
+				groups: ["read" as const, "edit" as const],
+			},
+			{
+				slug: "architect",
+				name: "Architect",
+				roleDefinition: "You are an architecture assistant",
+				groups: ["read" as const],
+			},
+		]
+
+		const result = getContextMenuOptions("/co", "/co", null, [], [], mockModes)
+
+		// Verify mode results are returned
+		expect(result[0].type).toBe(ContextMenuOptionType.Mode)
+		expect(result[0].value).toBe("code")
+	})
+
+	it("should not process slash commands when query starts with slash but inputValue doesn't", () => {
+		// Use a completely non-matching query to ensure we get NoResults
+		// and provide empty query items to avoid any matches
+		const result = getContextMenuOptions("/nonexistentquery", "Hello /code", null, [], [])
+
+		// Should not process as a mode command
+		expect(result[0].type).not.toBe(ContextMenuOptionType.Mode)
+		// Should return NoResults since it won't match anything
+		expect(result[0].type).toBe(ContextMenuOptionType.NoResults)
 	})
 })
 
