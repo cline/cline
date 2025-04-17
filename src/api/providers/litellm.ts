@@ -1,17 +1,30 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { HttpsProxyAgent } from "https-proxy-agent" // Import the proxy agent
 import { ApiHandlerOptions, ModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "../../shared/api"
 import { ApiHandler } from ".."
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 
+// Helper function to get proxy agent if environment variables are set
+const getProxyAgent = () => {
+	const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+	if (proxyUrl) {
+		console.log("Using proxy:", proxyUrl); // Log if proxy is being used
+		return new HttpsProxyAgent(proxyUrl);
+	}
+	return undefined;
+};
+
 export class LiteLlmHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: OpenAI
-	private modelInfo: ModelInfo
+	private options: ApiHandlerOptions;
+	private client: OpenAI;
+	private modelInfo: ModelInfo;
+	private onModelInfoUpdate?: () => void; // Store the callback
 
 	constructor(options: ApiHandlerOptions) {
-		this.options = options
+		this.options = options;
+		this.onModelInfoUpdate = options.onModelInfoUpdate; // Store the callback from options
 		this.client = new OpenAI({
 			baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
 			apiKey: this.options.liteLlmApiKey || "noop",
@@ -24,9 +37,8 @@ export class LiteLlmHandler implements ApiHandler {
 		this.fetchModelInfo()
 			.then((info) => {
 				if (info) {
-					this.modelInfo = info
-					// Force a refresh of the UI by triggering a usage update
-					this.getApiStreamUsage()
+					this.modelInfo = info; // Update internal state
+					this.onModelInfoUpdate?.(); // Call the callback if it exists
 				}
 			})
 			.catch((error) => {
@@ -35,16 +47,43 @@ export class LiteLlmHandler implements ApiHandler {
 	}
 
 	private async fetchModelInfo(): Promise<ModelInfo | undefined> {
+		// Use URL constructor for robust path joining
+		const url = new URL("model/info", this.client.baseURL).toString();
+		const requestOptions = {
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${this.options.liteLlmApiKey}`,
+			},
+		};
+			console.log("LiteLLM fetchModelInfo request:", { url, options: requestOptions }); // Log the request details
+
 		try {
-			const response = await fetch(`${this.client.baseURL}/model/info`, {
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${this.options.liteLlmApiKey}`,
-				},
-			})
+			const agent = getProxyAgent(); // Get proxy agent
+			// Cast options to 'any' to bypass TypeScript error for 'agent' property
+			const fetchOptions: any = { ...requestOptions, agent };
+			const response = await fetch(url, fetchOptions); // Pass agent to fetch
+			// Extract relevant properties from the Response object for logging
+			const responseLog = {
+				ok: response.ok,
+				status: response.status,
+				statusText: response.statusText,
+				headers: (() => { // Use forEach to build the headers object
+					const headersObj: { [key: string]: string } = {};
+					response.headers.forEach((value, key) => {
+						headersObj[key] = value;
+					});
+					return headersObj;
+				})(),
+				redirected: response.redirected,
+				type: response.type,
+				url: response.url,
+			};
+			console.log("LiteLLM fetchModelInfo raw response (JSON):", JSON.stringify(responseLog, null, 2)); // Log extracted properties as JSON string
 
 			if (response.ok) {
+				// Clone the response before reading the body to allow logging it later if needed
+				const responseClone = response.clone();
 				const data = await response.json()
 				// Find the model info for the current model
 				const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
@@ -52,9 +91,11 @@ export class LiteLlmHandler implements ApiHandler {
 
 				if (modelData?.model_info) {
 					// Extract relevant model information
+					const contextWindowSize = modelData.model_info.max_input_tokens || 128_000;
+					console.log("LiteLLM fetchModelInfo - Context Window Size:", contextWindowSize); // Log the context window size
 					return {
 						maxTokens: modelData.model_info.max_output_tokens || -1,
-						contextWindow: modelData.model_info.max_input_tokens || 128_000,
+						contextWindow: contextWindowSize,
 						supportsImages: !!modelData.model_info.supports_images,
 						supportsPromptCache: !!modelData.model_info.supports_prompt_cache || true,
 						inputPrice: modelData.model_info.input_cost_per_token
@@ -84,8 +125,12 @@ export class LiteLlmHandler implements ApiHandler {
 	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
+		// Use URL constructor for robust path joining
+		const url = new URL("spend/calculate", this.client.baseURL).toString();
 		try {
-			const response = await fetch(`${this.client.baseURL}/spend/calculate`, {
+			const agent = getProxyAgent(); // Get proxy agent
+			// Cast options to 'any' to bypass TypeScript error for 'agent' property
+			const fetchOptions: any = {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -100,7 +145,9 @@ export class LiteLlmHandler implements ApiHandler {
 						},
 					},
 				}),
-			})
+				agent, // Pass agent to fetch
+			};
+			const response = await fetch(url, fetchOptions);
 
 			if (response.ok) {
 				const data: { cost: number } = await response.json()
@@ -239,22 +286,20 @@ export class LiteLlmHandler implements ApiHandler {
 	}
 
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
-		try {
-			const modelInfo = await this.fetchModelInfo()
-			if (modelInfo) {
-				this.modelInfo = modelInfo
-				// Return a standard usage chunk to trigger UI update
-				return {
-					type: "usage",
-					inputTokens: 0,
-					outputTokens: 0,
-					modelName: this.options.liteLlmModelId || liteLlmDefaultModelId,
-				}
-			}
-			return undefined
-		} catch (error) {
-			console.error("Error getting API stream usage:", error)
-			return undefined
+		// Use the CURRENT modelInfo, don't fetch again.
+		const currentModelInfo = this.modelInfo;
+		if (currentModelInfo) {
+			// Return a standard usage chunk based on current info
+			return {
+				type: "usage",
+				inputTokens: 0,
+				outputTokens: 0,
+				modelName: this.options.liteLlmModelId || liteLlmDefaultModelId,
+				// We could potentially calculate a dummy cost here using currentModelInfo prices if needed
+			};
 		}
+		// If modelInfo hasn't been fetched successfully yet, return undefined
+		console.warn("getApiStreamUsage called before modelInfo was successfully fetched.");
+		return undefined;
 	}
 }
