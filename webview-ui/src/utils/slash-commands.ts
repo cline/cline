@@ -8,10 +8,6 @@ export const SUPPORTED_SLASH_COMMANDS: SlashCommand[] = [
 		name: "newtask",
 		description: "Create a new task with context from the current task",
 	},
-	{
-		name: "other",
-		description: "Some other description about things yeah",
-	},
 ]
 
 // Regex for detecting slash commands in text

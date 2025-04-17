@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useEffect } from "react"
 import styled from "styled-components"
-import { SlashCommand, SUPPORTED_SLASH_COMMANDS, getMatchingSlashCommands } from "@/utils/slash-commands"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { SlashCommand, getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
 	onSelect: (command: SlashCommand) => void
@@ -21,7 +20,7 @@ const MenuContainer = styled.div`
 `
 
 const MenuContent = styled.div`
-	background: ${CODE_BLOCK_BG_COLOR};
+	background: var(--vscode-dropdown-background);
 	border: 1px solid var(--vscode-editorGroup-border);
 	border-radius: 3px;
 	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
