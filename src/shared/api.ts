@@ -606,6 +606,24 @@ export const geminiModels = {
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4.1"
 export const openAiNativeModels = {
+	o3: {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 10.0,
+		outputPrice: 40.0,
+		cacheReadsPrice: 2.5,
+	},
+	"o4-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.275,
+	},
 	"gpt-4.1": {
 		maxTokens: 32_768,
 		contextWindow: 1_047_576,
@@ -613,6 +631,7 @@ export const openAiNativeModels = {
 		supportsPromptCache: true,
 		inputPrice: 2,
 		outputPrice: 8,
+		cacheReadsPrice: 0.5,
 	},
 	"gpt-4.1-mini": {
 		maxTokens: 32_768,
@@ -621,6 +640,7 @@ export const openAiNativeModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.4,
 		outputPrice: 1.6,
+		cacheReadsPrice: 0.1,
 	},
 	"gpt-4.1-nano": {
 		maxTokens: 32_768,
@@ -629,6 +649,7 @@ export const openAiNativeModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.1,
 		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
 	},
 	"o3-mini": {
 		maxTokens: 100_000,
