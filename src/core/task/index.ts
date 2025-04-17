@@ -207,13 +207,13 @@ export class Task {
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(context, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(context, this.taskId);
+		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
 		// Now that taskId is initialized, we can build the API handler
 		this.api = buildApiHandler({
 			...apiConfiguration,
 			taskId: this.taskId,
 			onModelInfoUpdate: this.handleModelInfoUpdate.bind(this), // Pass the callback
-		});
+		})
 
 		// Set taskId on browserSession for telemetry tracking
 		this.browserSession.setTaskId(this.taskId)
@@ -248,9 +248,9 @@ export class Task {
 	// Callback function to handle model info updates from the API handler
 	private async handleModelInfoUpdate() {
 		// Log the context window size from the handler's perspective *before* posting state
-		const modelInfo = this.api?.getModel()?.info;
-		console.log(`Task: handleModelInfoUpdate called. Context Window from API handler: ${modelInfo?.contextWindow}`);
-		await this.postStateToWebview();
+		const modelInfo = this.api?.getModel()?.info
+		console.log(`Task: handleModelInfoUpdate called. Context Window from API handler: ${modelInfo?.contextWindow}`)
+		await this.postStateToWebview()
 	}
 
 	// Storing task to disk for history
@@ -287,7 +287,7 @@ export class Task {
 			const taskMessage = this.clineMessages[0] // first message is always the task say
 			const lastRelevantMessage =
 				this.clineMessages[
-				findLastIndex(this.clineMessages, (m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
+					findLastIndex(this.clineMessages, (m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
 				]
 			const taskDir = await ensureTaskDirectoryExists(this.getContext(), this.taskId)
 			let taskDirSize = 0
@@ -465,11 +465,11 @@ export class Task {
 
 		let changedFiles:
 			| {
-				relativePath: string
-				absolutePath: string
-				before: string
-				after: string
-			}[]
+					relativePath: string
+					absolutePath: string
+					before: string
+					after: string
+			  }[]
 			| undefined
 
 		try {
@@ -818,7 +818,8 @@ export class Task {
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${relPath ? ` for '${path.posix.normalize(relPath)}'` : ""
+			`Cline tried to use ${toolName}${
+				relPath ? ` for '${path.posix.normalize(relPath)}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`,
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -1183,7 +1184,8 @@ export class Task {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					`Command is still running in the user's terminal.${
+						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images,
 				),
@@ -1195,7 +1197,8 @@ export class Task {
 		} else {
 			return [
 				false,
-				`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+				`Command is still running in the user's terminal.${
+					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
@@ -1505,8 +1508,9 @@ export class Task {
 						case "replace_in_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
-							return `[${block.name} for '${block.params.regex}'${block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
-								}]`
+							return `[${block.name} for '${block.params.regex}'${
+								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
+							}]`
 						case "list_files":
 							return `[${block.name} for '${block.params.path}']`
 						case "list_code_definition_names":
@@ -1732,7 +1736,7 @@ export class Task {
 									pushToolResult(
 										formatResponse.toolError(
 											`${(error as Error)?.message}\n\n` +
-											formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
+												formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
 										),
 									)
 									await this.diffViewProvider.revertChanges()
@@ -1779,7 +1783,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
@@ -1820,7 +1824,7 @@ export class Task {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => { }) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -1964,7 +1968,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -2043,7 +2047,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -2115,7 +2119,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -2188,7 +2192,7 @@ export class Task {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									await this.ask("tool", partialMessage, block.partial).catch(() => { })
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -2280,7 +2284,7 @@ export class Task {
 											"browser_action_launch",
 											removeClosingTag("url", url),
 											block.partial,
-										).catch(() => { })
+										).catch(() => {})
 									}
 								} else {
 									await this.say(
@@ -2395,7 +2399,8 @@ export class Task {
 										await this.say("browser_action_result", JSON.stringify(browserActionResult))
 										pushToolResult(
 											formatResponse.toolResult(
-												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${browserActionResult.logs || "(No new logs)"
+												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
+													browserActionResult.logs || "(No new logs)"
 												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
@@ -2438,7 +2443,7 @@ export class Task {
 									// ).catch(() => {})
 								} else {
 									// don't need to remove last partial since we couldn't have streamed a say
-									await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => { })
+									await this.ask("command", removeClosingTag("command", command), block.partial).catch(() => {})
 								}
 								break
 							} else {
@@ -2498,7 +2503,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-										`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										break
@@ -2558,7 +2563,7 @@ export class Task {
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => { })
+									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
 								}
 
 								break
@@ -2634,19 +2639,19 @@ export class Task {
 								// TODO: add progress indicator and ability to parse images and non-text responses
 								const toolResultPretty =
 									(toolResult?.isError ? "Error:\n" : "") +
-									toolResult?.content
-										.map((item) => {
-											if (item.type === "text") {
-												return item.text
-											}
-											if (item.type === "resource") {
-												const { blob, ...rest } = item.resource
-												return JSON.stringify(rest, null, 2)
-											}
-											return ""
-										})
-										.filter(Boolean)
-										.join("\n\n") || "(No response)"
+										toolResult?.content
+											.map((item) => {
+												if (item.type === "text") {
+													return item.text
+												}
+												if (item.type === "resource") {
+													const { blob, ...rest } = item.resource
+													return JSON.stringify(rest, null, 2)
+												}
+												return ""
+											})
+											.filter(Boolean)
+											.join("\n\n") || "(No response)"
 								await this.say("mcp_server_response", toolResultPretty)
 								pushToolResult(formatResponse.toolResult(toolResultPretty))
 
@@ -2676,7 +2681,7 @@ export class Task {
 									await this.say("use_mcp_server", partialMessage, undefined, block.partial)
 								} else {
 									this.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => { })
+									await this.ask("use_mcp_server", partialMessage, block.partial).catch(() => {})
 								}
 
 								break
@@ -2748,7 +2753,7 @@ export class Task {
 						} satisfies ClineAskQuestion
 						try {
 							if (block.partial) {
-								await this.ask("followup", JSON.stringify(sharedMessage), block.partial).catch(() => { })
+								await this.ask("followup", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!question) {
@@ -2804,7 +2809,7 @@ export class Task {
 						const context: string | undefined = block.params.context
 						try {
 							if (block.partial) {
-								await this.ask("new_task", removeClosingTag("context", context), block.partial).catch(() => { })
+								await this.ask("new_task", removeClosingTag("context", context), block.partial).catch(() => {})
 								break
 							} else {
 								if (!context) {
@@ -2854,7 +2859,7 @@ export class Task {
 						} satisfies ClinePlanModeResponse
 						try {
 							if (block.partial) {
-								await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), block.partial).catch(() => { })
+								await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!response) {
@@ -2909,9 +2914,9 @@ export class Task {
 									pushToolResult(
 										formatResponse.toolResult(
 											`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
-											(text
-												? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
-												: ""),
+												(text
+													? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
+													: ""),
 											images,
 										),
 									)
@@ -2995,7 +3000,7 @@ export class Task {
 									if (lastMessage && lastMessage.ask === "command") {
 										// update command
 										await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-											() => { },
+											() => {},
 										)
 									} else {
 										// last message is completion_result
@@ -3004,7 +3009,7 @@ export class Task {
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
 										await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-											() => { },
+											() => {},
 										)
 									}
 								} else {
@@ -3149,7 +3154,7 @@ export class Task {
 		if (currentProviderId && this.api.getModel().id) {
 			try {
 				await this.modelContextTracker.recordModelUsage(currentProviderId, this.api.getModel().id, this.chatSettings.mode)
-			} catch { }
+			} catch {}
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
@@ -3319,9 +3324,10 @@ export class Task {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${cancelReason === "streaming_failed"
-									? "Response interrupted by API Error"
-									: "Response interrupted by user"
+								`\n\n[${
+									cancelReason === "streaming_failed"
+										? "Response interrupted by API Error"
+										: "Response interrupted by user"
 								}]`,
 						},
 					],
@@ -3618,7 +3624,7 @@ export class Task {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => { })
+			}).catch(() => {})
 		}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
