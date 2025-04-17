@@ -421,7 +421,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}, 0)
 				}
 			},
-			[setInputValue, cursorPosition],
+			[setInputValue],
 		)
 
 		const handleKeyDown = useCallback(
@@ -437,6 +437,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setSelectedSlashCommandsIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
 							const commands = getMatchingSlashCommands(slashCommandsQuery)
+
+							if (commands.length === 0) {
+								return prevIndex
+							}
+
 							const newIndex = (prevIndex + direction + commands.length) % commands.length
 							return newIndex
 						})
