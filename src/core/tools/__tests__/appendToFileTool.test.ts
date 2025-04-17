@@ -1,13 +1,12 @@
 // npx jest src/core/tools/__tests__/appendToFileTool.test.ts
 
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
+
 import { appendToFileTool } from "../appendToFileTool"
 import { Cline } from "../../Cline"
-import { ToolUse } from "../../assistant-message"
 import { formatResponse } from "../../prompts/responses"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../types"
-import { ClineSayTool, ClineAsk } from "../../../shared/ExtensionMessage"
-import { RecordSource } from "../../context-tracking/FileContextTrackerTypes"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../../shared/tools"
+import { ClineAsk } from "../../../shared/ExtensionMessage"
 import { FileContextTracker } from "../../context-tracking/FileContextTracker"
 import { DiffViewProvider } from "../../../integrations/editor/DiffViewProvider"
 import { RooIgnoreController } from "../../ignore/RooIgnoreController"

@@ -1,13 +1,13 @@
+import path from "path"
+import fs from "fs/promises"
+
 import { Cline } from "../Cline"
-import { ToolUse } from "../assistant-message"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 import { formatResponse } from "../prompts/responses"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { getReadablePath } from "../../utils/path"
-import path from "path"
 import { fileExistsAtPath } from "../../utils/fs"
 import { addLineNumbers } from "../../integrations/misc/extract-text"
-import fs from "fs/promises"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 
 export async function searchAndReplaceTool(

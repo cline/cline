@@ -18,7 +18,7 @@ import { getNewTaskDescription } from "./new-task"
 import { DiffStrategy } from "../../diff/DiffStrategy"
 import { McpHub } from "../../../services/mcp/McpHub"
 import { Mode, ModeConfig, getModeConfig, isToolAllowedForMode, getGroupName } from "../../../shared/modes"
-import { ToolName, TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS } from "../../../shared/tool-groups"
+import { ToolName, TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS } from "../../../shared/tools"
 import { ToolArgs } from "./types"
 
 // Map of tool names to their description functions

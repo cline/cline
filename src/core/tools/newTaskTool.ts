@@ -1,10 +1,9 @@
-import { ToolUse } from "../assistant-message"
-import { HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import delay from "delay"
+
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 import { Cline } from "../Cline"
-import { AskApproval } from "./types"
 import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
 import { formatResponse } from "../prompts/responses"
-import delay from "delay"
 
 export async function newTaskTool(
 	cline: Cline,

@@ -2,8 +2,8 @@
  * Interface for implementing different diff strategies
  */
 
+import { ToolUse } from "../../shared/tools"
 import { ToolProgressStatus } from "../../shared/ExtensionMessage"
-import { ToolUse } from "../assistant-message"
 
 export type DiffResult =
 	| { success: true; content: string; failParts?: DiffResult[] }

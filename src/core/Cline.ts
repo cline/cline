@@ -12,20 +12,14 @@ import getFolderSize from "get-folder-size"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 
+// schemas
 import { TokenUsage } from "../schemas"
+
+// api
 import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
-import { CheckpointServiceOptions, RepoPerTaskCheckpointService } from "../services/checkpoints"
-import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { fetchInstructionsTool } from "./tools/fetchInstructionsTool"
-import { listFilesTool } from "./tools/listFilesTool"
-import { readFileTool } from "./tools/readFileTool"
-import { ExitCodeDetails, TerminalProcess } from "../integrations/terminal/TerminalProcess"
-import { Terminal } from "../integrations/terminal/Terminal"
-import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
-import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
-import { listFiles } from "../services/glob/list-files"
+
+// shared
 import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
@@ -42,26 +36,35 @@ import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse } from "../shared/WebviewMessage"
 import { GlobalFileNames } from "../shared/globalFileNames"
-import { defaultModeSlug, getModeBySlug, getFullModeDetails } from "../shared/modes"
+import { defaultModeSlug, getModeBySlug, getFullModeDetails, isToolAllowedForMode } from "../shared/modes"
 import { EXPERIMENT_IDS, experiments as Experiments, ExperimentId } from "../shared/experiments"
+import { formatLanguage } from "../shared/language"
+import { ToolParamName, ToolName, ToolResponse } from "../shared/tools"
+
+// services
+import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
+import { listFiles } from "../services/glob/list-files"
+import { BrowserSession } from "../services/browser/BrowserSession"
+import { McpHub } from "../services/mcp/McpHub"
+import { telemetryService } from "../services/telemetry/TelemetryService"
+import { CheckpointServiceOptions, RepoPerTaskCheckpointService } from "../services/checkpoints"
+
+// integrations
+import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
+import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
+import { ExitCodeDetails, TerminalProcess } from "../integrations/terminal/TerminalProcess"
+import { Terminal } from "../integrations/terminal/Terminal"
+import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
+
+// utils
 import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
-import { arePathsEqual } from "../utils/path"
-import { parseMentions } from "./mentions"
-import { FileContextTracker } from "./context-tracking/FileContextTracker"
-import { RooIgnoreController } from "./ignore/RooIgnoreController"
-import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
-import { formatResponse } from "./prompts/responses"
-import { SYSTEM_PROMPT } from "./prompts/system"
-import { truncateConversationIfNeeded } from "./sliding-window"
-import { ClineProvider } from "./webview/ClineProvider"
-import { BrowserSession } from "../services/browser/BrowserSession"
-import { formatLanguage } from "../shared/language"
-import { McpHub } from "../services/mcp/McpHub"
-import { DiffStrategy, getDiffStrategy } from "./diff/DiffStrategy"
-import { telemetryService } from "../services/telemetry/TelemetryService"
-import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validator"
-import { getWorkspacePath } from "../utils/path"
+import { arePathsEqual, getWorkspacePath } from "../utils/path"
+
+// tools
+import { fetchInstructionsTool } from "./tools/fetchInstructionsTool"
+import { listFilesTool } from "./tools/listFilesTool"
+import { readFileTool } from "./tools/readFileTool"
 import { writeToFileTool } from "./tools/writeToFileTool"
 import { applyDiffTool } from "./tools/applyDiffTool"
 import { insertContentTool } from "./tools/insertContentTool"
@@ -78,7 +81,20 @@ import { attemptCompletionTool } from "./tools/attemptCompletionTool"
 import { newTaskTool } from "./tools/newTaskTool"
 import { appendToFileTool } from "./tools/appendToFileTool"
 
-export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
+// prompts
+import { formatResponse } from "./prompts/responses"
+import { SYSTEM_PROMPT } from "./prompts/system"
+
+// ... everything else
+import { parseMentions } from "./mentions"
+import { FileContextTracker } from "./context-tracking/FileContextTracker"
+import { RooIgnoreController } from "./ignore/RooIgnoreController"
+import { type AssistantMessageContent, parseAssistantMessage } from "./assistant-message"
+import { truncateConversationIfNeeded } from "./sliding-window"
+import { ClineProvider } from "./webview/ClineProvider"
+import { DiffStrategy, getDiffStrategy } from "./diff/DiffStrategy"
+import { validateToolUse } from "./mode-validator"
+
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
 
 export type ClineEvents = {
@@ -573,7 +589,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		}
 	}
 
-	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
+	async sayAndCreateMissingParamError(toolName: ToolName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
 			`Roo tried to use ${toolName}${

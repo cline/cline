@@ -1,11 +1,12 @@
 import * as path from "path"
+
 import { Cline } from "../Cline"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
-import { ToolParamName, ToolUse } from "../assistant-message"
 import { formatResponse } from "../prompts/responses"
 import { listFiles } from "../../services/glob/list-files"
 import { getReadablePath } from "../../utils/path"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
+
 /**
  * Implements the list_files tool.
  *

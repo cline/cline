@@ -1,12 +1,6 @@
-import {
-	AssistantMessageContent,
-	TextContent,
-	ToolUse,
-	ToolParamName,
-	toolParamNames,
-	toolUseNames,
-	ToolUseName,
-} from "."
+import { TextContent, ToolUse, ToolParamName, toolParamNames, toolNames, ToolName } from "../../shared/tools"
+
+export type AssistantMessageContent = TextContent | ToolUse
 
 export function parseAssistantMessage(assistantMessage: string) {
 	let contentBlocks: AssistantMessageContent[] = []
@@ -84,13 +78,13 @@ export function parseAssistantMessage(assistantMessage: string) {
 		// no currentToolUse
 
 		let didStartToolUse = false
-		const possibleToolUseOpeningTags = toolUseNames.map((name) => `<${name}>`)
+		const possibleToolUseOpeningTags = toolNames.map((name) => `<${name}>`)
 		for (const toolUseOpeningTag of possibleToolUseOpeningTags) {
 			if (accumulator.endsWith(toolUseOpeningTag)) {
 				// start of a new tool use
 				currentToolUse = {
 					type: "tool_use",
-					name: toolUseOpeningTag.slice(1, -1) as ToolUseName,
+					name: toolUseOpeningTag.slice(1, -1) as ToolName,
 					params: {},
 					partial: true,
 				}

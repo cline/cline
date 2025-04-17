@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 
 import { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts } from "../schemas"
-import { TOOL_GROUPS, ToolGroup, ALWAYS_AVAILABLE_TOOLS } from "./tool-groups"
+import { TOOL_GROUPS, ToolGroup, ALWAYS_AVAILABLE_TOOLS } from "./tools"
 import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
 
 export type Mode = string

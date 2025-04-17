@@ -1,8 +1,9 @@
+import { distance } from "fastest-levenshtein"
+
 import { DiffStrategy, DiffResult } from "../types"
 import { addLineNumbers, everyLineHasLineNumbers, stripLineNumbers } from "../../../integrations/misc/extract-text"
-import { distance } from "fastest-levenshtein"
 import { ToolProgressStatus } from "../../../shared/ExtensionMessage"
-import { ToolUse } from "../../assistant-message"
+import { ToolUse } from "../../../shared/tools"
 import { normalizeString } from "../../../utils/text-normalization"
 
 const BUFFER_LINES = 40 // Number of extra context lines to show before and after matches

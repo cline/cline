@@ -1,10 +1,11 @@
 import path from "path"
+import { isBinaryFile } from "isbinaryfile"
+
 import { Cline } from "../Cline"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
-import { ToolUse } from "../assistant-message"
 import { formatResponse } from "../prompts/responses"
 import { t } from "../../i18n"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { getReadablePath } from "../../utils/path"
@@ -12,7 +13,6 @@ import { countFileLines } from "../../integrations/misc/line-counter"
 import { readLines } from "../../integrations/misc/read-lines"
 import { extractTextFromFile, addLineNumbers } from "../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
-import { isBinaryFile } from "isbinaryfile"
 
 export async function readFileTool(
 	cline: Cline,

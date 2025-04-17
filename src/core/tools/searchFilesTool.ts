@@ -1,9 +1,9 @@
+import path from "path"
+
 import { Cline } from "../Cline"
-import { ToolUse } from "../assistant-message"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { getReadablePath } from "../../utils/path"
-import path from "path"
 import { regexSearchFiles } from "../../services/ripgrep"
 
 export async function searchFilesTool(

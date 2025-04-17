@@ -1,15 +1,15 @@
+import delay from "delay"
+import fs from "fs/promises"
+
 import { getReadablePath } from "../../utils/path"
 import { Cline } from "../Cline"
-import { ToolUse } from "../assistant-message"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 import { formatResponse } from "../prompts/responses"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import path from "path"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import { fileExistsAtPath } from "../../utils/fs"
 import { insertGroups } from "../diff/insert-groups"
-import delay from "delay"
-import fs from "fs/promises"
 
 export async function insertContentTool(
 	cline: Cline,

@@ -1,11 +1,10 @@
-import { ToolUse } from "../assistant-message"
-import { HandleError, PushToolResult, RemoveClosingTag } from "./types"
-import { Cline } from "../Cline"
-import { AskApproval } from "./types"
-import { ClineSayTool } from "../../shared/ExtensionMessage"
-import { getReadablePath } from "../../utils/path"
 import path from "path"
 import fs from "fs/promises"
+
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
+import { Cline } from "../Cline"
+import { ClineSayTool } from "../../shared/ExtensionMessage"
+import { getReadablePath } from "../../utils/path"
 import { parseSourceCodeForDefinitionsTopLevel, parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 

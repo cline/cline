@@ -1,6 +1,5 @@
 import { Cline } from "../Cline"
-import { ToolUse } from "../assistant-message"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 import { formatResponse } from "../prompts/responses"
 import { unescapeHtmlEntities } from "../../utils/text-normalization"
 

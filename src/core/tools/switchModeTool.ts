@@ -1,10 +1,9 @@
-import { Cline } from "../Cline"
-import { ToolUse } from "../assistant-message"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
-import { formatResponse } from "../prompts/responses"
-import { defaultModeSlug } from "../../shared/modes"
-import { getModeBySlug } from "../../shared/modes"
 import delay from "delay"
+
+import { Cline } from "../Cline"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
+import { formatResponse } from "../prompts/responses"
+import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
 
 export async function switchModeTool(
 	cline: Cline,

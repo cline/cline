@@ -1,11 +1,11 @@
 import * as path from "path"
+
 import { countFileLines } from "../../integrations/misc/line-counter"
 import { readLines } from "../../integrations/misc/read-lines"
 import { extractTextFromFile, addLineNumbers } from "../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { isBinaryFile } from "isbinaryfile"
-import { ReadFileToolUse } from "../assistant-message"
-import { Cline } from "../Cline"
+import { ReadFileToolUse } from "../../shared/tools"
 
 // Mock dependencies
 jest.mock("../../integrations/misc/line-counter")

@@ -1,18 +1,18 @@
-import { ToolResponse } from "../Cline"
+import Anthropic from "@anthropic-ai/sdk"
 
-import { ToolUse } from "../assistant-message"
 import { Cline } from "../Cline"
 import {
+	ToolResponse,
+	ToolUse,
 	AskApproval,
 	HandleError,
 	PushToolResult,
 	RemoveClosingTag,
 	ToolDescription,
 	AskFinishSubTaskApproval,
-} from "./types"
+} from "../../shared/tools"
 import { formatResponse } from "../prompts/responses"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
-import Anthropic from "@anthropic-ai/sdk"
 
 export async function attemptCompletionTool(
 	cline: Cline,

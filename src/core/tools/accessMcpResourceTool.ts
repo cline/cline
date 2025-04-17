@@ -1,7 +1,5 @@
 import { ClineAskUseMcpServer } from "../../shared/ExtensionMessage"
-import { RemoveClosingTag } from "./types"
-import { ToolUse } from "../assistant-message"
-import { AskApproval, HandleError, PushToolResult } from "./types"
+import { ToolUse, RemoveClosingTag, AskApproval, HandleError, PushToolResult } from "../../shared/tools"
 import { Cline } from "../Cline"
 import { formatResponse } from "../prompts/responses"
 

@@ -1,9 +1,8 @@
 import { Cline } from "../Cline"
 import { fetchInstructions } from "../prompts/instructions/instructions"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
-import { ToolUse } from "../assistant-message"
 import { formatResponse } from "../prompts/responses"
-import { AskApproval, HandleError, PushToolResult } from "./types"
+import { ToolUse, AskApproval, HandleError, PushToolResult } from "../../shared/tools"
 
 export async function fetchInstructionsTool(
 	cline: Cline,

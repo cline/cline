@@ -1,17 +1,18 @@
-import { ClineSayTool } from "../../shared/ExtensionMessage"
-import { getReadablePath } from "../../utils/path"
-import { ToolUse } from "../assistant-message"
-import { Cline } from "../Cline"
-import { RemoveClosingTag } from "./types"
-import { formatResponse } from "../prompts/responses"
-import { AskApproval, HandleError, PushToolResult } from "./types"
-import { fileExistsAtPath } from "../../utils/fs"
-import { addLineNumbers } from "../../integrations/misc/extract-text"
 import path from "path"
 import fs from "fs/promises"
+
+import { ClineSayTool } from "../../shared/ExtensionMessage"
+import { getReadablePath } from "../../utils/path"
+import { Cline } from "../Cline"
+import { ToolUse, RemoveClosingTag } from "../../shared/tools"
+import { formatResponse } from "../prompts/responses"
+import { AskApproval, HandleError, PushToolResult } from "../../shared/tools"
+import { fileExistsAtPath } from "../../utils/fs"
+import { addLineNumbers } from "../../integrations/misc/extract-text"
 import { RecordSource } from "../context-tracking/FileContextTrackerTypes"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { unescapeHtmlEntities } from "../../utils/text-normalization"
+
 export async function applyDiffTool(
 	cline: Cline,
 	block: ToolUse,

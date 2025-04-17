@@ -1,12 +1,11 @@
 // npx jest src/core/tools/__tests__/executeCommandTool.test.ts
 
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
+
 import { executeCommandTool } from "../executeCommandTool"
 import { Cline } from "../../Cline"
-import { ToolUse } from "../../assistant-message"
 import { formatResponse } from "../../prompts/responses"
-import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../types"
-import { ClineAsk } from "../../../schemas"
+import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../../shared/tools"
 
 // Mock dependencies
 jest.mock("../../Cline")
