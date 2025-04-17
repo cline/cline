@@ -1,6 +1,4 @@
-import { describe, it, beforeEach, afterEach, before } from "mocha"
-import "should"
-import sinon from "sinon"
+import { describe, it, beforeEach, afterEach, beforeAll, expect, vi } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { OllamaHandler } from "../ollama"
 import { ApiHandlerOptions } from "../../../shared/api"
@@ -10,8 +8,7 @@ describe("OllamaHandler", () => {
 	let ollamaAvailable = false
 
 	// Check if Ollama is running before running tests
-	before(async function () {
-		this.timeout(5000)
+	beforeAll(async function () {
 		try {
 			await axios.get("http://localhost:11434/api/version", { timeout: 2000 })
 			ollamaAvailable = true
@@ -19,10 +16,10 @@ describe("OllamaHandler", () => {
 			console.log("Ollama server not available, skipping tests")
 			ollamaAvailable = false
 		}
-	})
+	}, 5000)
+
 	let handler: OllamaHandler
 	let options: ApiHandlerOptions
-	let clock: sinon.SinonFakeTimers
 
 	beforeEach(() => {
 		options = {
@@ -31,22 +28,21 @@ describe("OllamaHandler", () => {
 		}
 		handler = new OllamaHandler(options)
 		// Use fake timers for testing timeouts
-		clock = sinon.useFakeTimers()
+		vi.useFakeTimers()
 	})
 
 	afterEach(() => {
-		clock.restore()
-		sinon.restore()
+		vi.useRealTimers()
+		vi.restoreAllMocks()
 	})
 
 	describe("createMessage", () => {
-		it("should handle successful responses", async function () {
+		it("should handle successful responses", async function ({ skip }) {
 			if (!ollamaAvailable) {
-				this.skip()
+				skip()
 			}
-			this.timeout(5000)
 			// Mock the Ollama client's chat method
-			const chatStub = sinon.stub(handler["client"], "chat").resolves({
+			const chatStub = vi.spyOn(handler["client"], "chat").mockResolvedValue({
 				[Symbol.asyncIterator]: async function* () {
 					yield {
 						message: { content: "Hello, world!" },
@@ -75,18 +71,18 @@ describe("OllamaHandler", () => {
 			}
 
 			// Verify the results
-			result.should.deepEqual(["Hello, world!"])
-			usageInfo.should.deepEqual([{ inputTokens: 20, outputTokens: 10 }])
-			chatStub.calledOnce.should.be.true()
+			expect(result).toEqual(["Hello, world!"])
+			expect(usageInfo).toEqual([{ inputTokens: 20, outputTokens: 10 }])
+			expect(chatStub).toHaveBeenCalledTimes(1)
 		})
 
-		it("should handle timeout errors", async function () {
+		it("should handle timeout errors", { timeout: 10000 }, async function ({ skip }) {
 			if (!ollamaAvailable) {
-				this.skip()
+				skip()
 			}
-			this.timeout(10000)
+
 			// Restore real timers for this test
-			clock.restore()
+			vi.useRealTimers()
 
 			// Create a handler with a very short timeout for testing
 			const testHandler = new OllamaHandler(options)
@@ -125,28 +121,28 @@ describe("OllamaHandler", () => {
 			}
 
 			// Check the result
-			errorMessage.should.equal("Ollama request timed out after 30 seconds")
+			expect(errorMessage).toBe("Ollama request timed out after 30 seconds")
 
 			// Restore the fake timers for other tests
-			clock = sinon.useFakeTimers()
+			vi.useFakeTimers()
 		})
 
-		it("should retry on errors when using the withRetry decorator", async function () {
+		it("should retry on errors when using the withRetry decorator", { timeout: 10000 }, async function ({ skip }) {
 			if (!ollamaAvailable) {
-				this.skip()
+				skip()
 			}
-			this.timeout(10000)
+
 			// Restore real timers for this test
-			clock.restore()
+			vi.useRealTimers()
 
 			// Mock the Ollama client's chat method to fail on first call and succeed on second
-			const chatStub = sinon.stub(handler["client"], "chat")
+			const chatStub = vi.spyOn(handler["client"], "chat")
 
 			// First call throws an error
-			chatStub.onFirstCall().rejects(new Error("API Error"))
+			chatStub.mockRejectedValueOnce(new Error("API Error"))
 
 			// Second call succeeds
-			chatStub.onSecondCall().resolves({
+			chatStub.mockResolvedValueOnce({
 				[Symbol.asyncIterator]: async function* () {
 					yield {
 						message: { content: "Success after retry" },
@@ -170,20 +166,20 @@ describe("OllamaHandler", () => {
 			}
 
 			// Verify the results
-			result.should.deepEqual(["Success after retry"])
-			chatStub.calledTwice.should.be.true()
+			expect(result).toEqual(["Success after retry"])
+			expect(chatStub).toHaveBeenCalledTimes(2)
 
 			// Restore the fake timers for other tests
-			clock = sinon.useFakeTimers()
+			vi.useFakeTimers()
 		})
 
-		it("should handle stream processing errors", async function () {
+		it("should handle stream processing errors", { timeout: 10000 }, async function ({ skip }) {
 			if (!ollamaAvailable) {
-				this.skip()
+				skip()
 			}
-			this.timeout(10000)
+
 			// Restore real timers for this test
-			clock.restore()
+			vi.useRealTimers()
 
 			// Create a handler with a custom implementation for testing
 			const testHandler = new OllamaHandler(options)
@@ -218,11 +214,11 @@ describe("OllamaHandler", () => {
 			}
 
 			// Verify the results
-			errorMessage.should.equal("Ollama stream processing error: Stream error")
-			result.should.deepEqual(["Partial response"])
+			expect(errorMessage).toBe("Ollama stream processing error: Stream error")
+			expect(result).toEqual(["Partial response"])
 
 			// Restore the fake timers for other tests
-			clock = sinon.useFakeTimers()
+			vi.useFakeTimers()
 		})
 	})
 })

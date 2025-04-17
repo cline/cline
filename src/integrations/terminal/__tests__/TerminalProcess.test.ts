@@ -1,7 +1,10 @@
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest"
+import { describe, it, beforeEach, afterEach } from "mocha"
+import "should"
+import * as sinon from "sinon"
 import { TerminalProcess } from "../TerminalProcess"
 import * as vscode from "vscode"
 import { TerminalRegistry } from "../TerminalRegistry"
+import { EventEmitter } from "events"
 
 declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
@@ -29,16 +32,17 @@ function createMockStream(lines: string[] = ["test-command", "line1", "line2", "
 
 describe("TerminalProcess (Integration Tests)", () => {
 	let process: TerminalProcess
+	let sandbox: sinon.SinonSandbox
 	let createdTerminals: vscode.Terminal[] = []
 
 	beforeEach(() => {
-		vi.useFakeTimers()
+		sandbox = sinon.createSandbox({ useFakeTimers: true })
 		process = new TerminalProcess()
 	})
 
 	afterEach(() => {
-		// Restore timers
-		vi.useRealTimers()
+		// Restore sandbox, which restores timers and all Sinon fakes
+		sandbox.restore()
 		// Remove any event listeners left on the TerminalProcess
 		process.removeAllListeners()
 		// Dispose all terminals created during the test
@@ -54,14 +58,14 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify behavior
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			// Run a simple command
 			await process.run(terminal, "echo test")
 
 			// Verify that the continue event was emitted
-			expect(emitSpy).toHaveBeenCalledWith("continue")
-			expect(emitSpy).toHaveBeenCalledWith("completed")
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		})
 
 		it("should execute and capture events from a simple command", async () => {
@@ -70,14 +74,14 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify line events
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			// Run a command that produces predictable output
 			await process.run(terminal, "echo 'Line 1' && echo 'Line 2'")
 
 			// Check that the events were emitted
-			expect(emitSpy).toHaveBeenCalledWith("completed")
-			expect(emitSpy).toHaveBeenCalledWith("continue")
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
 		})
 
 		it("should execute a command that lists files", async () => {
@@ -86,14 +90,14 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify behavior
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			// Run a command that lists files
 			await process.run(terminal, "ls -la")
 
 			// Verify that the continue event was emitted
-			expect(emitSpy).toHaveBeenCalledWith("continue")
-			expect(emitSpy).toHaveBeenCalledWith("completed")
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		})
 
 		it("should handle a longer running command", async () => {
@@ -102,20 +106,20 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify behavior
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			// Un-fake timers temporarily for this test since we need real timing
-			vi.useRealTimers()
+			sandbox.clock.restore()
 
 			// Run a command that sleeps for a short period
 			await process.run(terminal, "sleep 0.5 && echo 'Done sleeping'")
 
 			// Verify that the continue and completed events were emitted
-			expect(emitSpy).toHaveBeenCalledWith("continue")
-			expect(emitSpy).toHaveBeenCalledWith("completed")
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 
 			// Restore fake timers for other tests
-			vi.useFakeTimers()
+			sandbox.useFakeTimers()
 		})
 
 		it("should execute a command with arguments", async () => {
@@ -124,14 +128,14 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify line events
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			// Run a command that produces predictable output
 			await process.run(terminal, "echo 'Line 1' 'Line 2'")
 
 			// Check that the events were emitted
-			expect(emitSpy).toHaveBeenCalledWith("completed")
-			expect(emitSpy).toHaveBeenCalledWith("continue")
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
 		})
 
 		it("should execute a command with quotes", async () => {
@@ -140,14 +144,14 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Spy on emit to verify line events
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			// Run a command that produces predictable output
 			await process.run(terminal, "echo \"Line 1\" && echo 'Line 2'")
 
 			// Check that the events were emitted
-			expect(emitSpy).toHaveBeenCalledWith("completed")
-			expect(emitSpy).toHaveBeenCalledWith("continue")
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
 		})
 	})
 
@@ -158,24 +162,24 @@ describe("TerminalProcess (Integration Tests)", () => {
 		createdTerminals.push(terminal)
 
 		// Stub the shellIntegration getter to return undefined for this test
-		vi.spyOn(terminal, "shellIntegration", "get").mockReturnValue(undefined)
+		sandbox.stub(terminal, "shellIntegration").get(() => undefined)
 
 		// Stub the sendText method to verify it's called
-		const sendTextStub = vi.spyOn(terminal, "sendText").mockImplementation(() => {})
+		const sendTextStub = sandbox.stub(terminal, "sendText")
 
 		// Spy on the emit function to verify events
-		const emitSpy = vi.spyOn(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 
 		// Run the command
 		await process.run(terminal, "test-command")
 
 		// Check that the correct methods were called and events emitted
-		expect(sendTextStub).toHaveBeenCalledWith("test-command", true)
-		expect(emitSpy).toHaveBeenCalledWith("completed")
-		expect(emitSpy).toHaveBeenCalledWith("continue")
+		sendTextStub.calledWith("test-command", true).should.be.true()
+		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+		;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
 
 		// This event should be emitted for terminals without shell integration
-		expect(emitSpy).toHaveBeenCalledWith("no_shell_integration")
+		;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
 	})
 
 	// The following tests require shell integration and controlled terminal output
@@ -187,7 +191,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Create a mock implementation of executeCommand
-			const mockExecuteCommand = vi.fn().mockReturnValue({
+			const mockExecuteCommand = sandbox.stub().returns({
 				read: () => createMockStream(["echo test", "test output"]),
 			})
 
@@ -197,20 +201,20 @@ describe("TerminalProcess (Integration Tests)", () => {
 			}
 
 			// Stub terminal.shellIntegration to return our mock
-			vi.spyOn(terminal, "shellIntegration", "get").mockReturnValue(mockShellIntegration)
+			sandbox.stub(terminal, "shellIntegration").get(() => mockShellIntegration)
 
 			// Spy on emit to verify behavior
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			// Run the command
 			await process.run(terminal, "echo test")
 
 			// Verify the executeCommand was called with the right command
-			expect(mockExecuteCommand).toHaveBeenCalledWith("echo test")
+			mockExecuteCommand.calledWith("echo test").should.be.true()
 
 			// Check that the events were emitted
-			expect(emitSpy).toHaveBeenCalledWith("completed")
-			expect(emitSpy).toHaveBeenCalledWith("continue")
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
 		})
 	})
 
@@ -222,23 +226,23 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration with controlled output
-			const mockExecuteCommand = vi.fn().mockReturnValue({
+			const mockExecuteCommand = sandbox.stub().returns({
 				read: () => createMockStream(["test-command", "line1", "line2", "line3"]),
 			})
 
 			// Create a mock shell integration object and stub the getter
-			vi.spyOn(terminal, "shellIntegration", "get").mockReturnValue({
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
 				executeCommand: mockExecuteCommand,
-			})
+			}))
 
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			await process.run(terminal, "test-command")
 
 			// Check that line events were emitted for each line
-			expect(emitSpy).toHaveBeenCalledWith("line", "line1")
-			expect(emitSpy).toHaveBeenCalledWith("line", "line2")
-			expect(emitSpy).toHaveBeenCalledWith("line", "line3")
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "line1").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "line2").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "line3").should.be.true()
 		})
 
 		it("should properly handle process hot state (e.g. compiling)", async function () {
@@ -247,26 +251,26 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration
-			const mockExecuteCommand = vi.fn().mockReturnValue({
+			const mockExecuteCommand = sandbox.stub().returns({
 				read: () => createMockStream(["compiling..."]),
 			})
 
 			// Create a mock shell integration object and stub the getter
-			vi.spyOn(terminal, "shellIntegration", "get").mockReturnValue({
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
 				executeCommand: mockExecuteCommand,
-			})
+			}))
 
 			// Spy on global setTimeout
-			const setTimeoutSpy = vi.spyOn(global, "setTimeout")
+			const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
 			await process.run(terminal, "build command")
 
 			// Move time forward enough to schedule
-			vi.advanceTimersByTime(100)
+			sandbox.clock.tick(100)
 
 			// Expect a 15-second (>= 10000ms) hot timeout, since it saw "compiling"
-			const foundCompilingTimeout = setTimeoutSpy.mock.calls.filter((args) => args[1] && args[1] >= 10000)
-			expect(foundCompilingTimeout.length).toBeGreaterThan(0)
+			const foundCompilingTimeout = setTimeoutSpy.args.filter((args) => args[1] && args[1] >= 10000)
+			foundCompilingTimeout.length.should.be.greaterThan(0)
 		})
 
 		it("should handle standard commands with normal hot timeout", async function () {
@@ -275,28 +279,28 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration
-			const mockExecuteCommand = vi.fn().mockReturnValue({
+			const mockExecuteCommand = sandbox.stub().returns({
 				read: () => createMockStream(["some normal output"]),
 			})
 
 			// Create a mock shell integration object and stub the getter
-			vi.spyOn(terminal, "shellIntegration", "get").mockReturnValue({
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
 				executeCommand: mockExecuteCommand,
-			})
+			}))
 
-			const setTimeoutSpy = vi.spyOn(global, "setTimeout")
+			const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
 			await process.run(terminal, "standard command")
-			vi.advanceTimersByTime(100)
+			sandbox.clock.tick(100)
 
 			// Expect a short hot timeout (<= 5000)
-			const foundNormalTimeout = setTimeoutSpy.mock.calls.filter((args) => args[1] && args[1] <= 5000)
-			expect(foundNormalTimeout.length).toBeGreaterThan(0)
+			const foundNormalTimeout = setTimeoutSpy.args.filter((args) => args[1] && args[1] <= 5000)
+			foundNormalTimeout.length.should.be.greaterThan(0)
 
 			// Also check that "completed" eventually emits
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 			await process.run(terminal, "another command")
-			expect(emitSpy).toHaveBeenCalledWith("completed")
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		})
 
 		it("should correctly filter command echoes based on current implementation", async function () {
@@ -305,7 +309,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration
-			const mockExecuteCommand = vi.fn().mockReturnValue({
+			const mockExecuteCommand = sandbox.stub().returns({
 				read: () =>
 					createMockStream([
 						"test-command", // This should be filtered (command contains this exactly)
@@ -315,19 +319,19 @@ describe("TerminalProcess (Integration Tests)", () => {
 			})
 
 			// Create a mock shell integration object and stub the getter
-			vi.spyOn(terminal, "shellIntegration", "get").mockReturnValue({
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
 				executeCommand: mockExecuteCommand,
-			})
+			}))
 
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			await process.run(terminal, "test-command")
 
 			// Check that "test-command" was filtered out but "test command" was not
-			expect(emitSpy).toHaveBeenCalledWith("line", "test command")
-			expect(emitSpy).toHaveBeenCalledWith("line", "other output")
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "test command").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "other output").should.be.true()
 			// This should never be called because it should be filtered
-			expect(emitSpy).not.toHaveBeenCalledWith("line", "test-command")
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "test-command").should.be.false()
 		})
 
 		it("should handle npm run commands", async function () {
@@ -336,23 +340,23 @@ describe("TerminalProcess (Integration Tests)", () => {
 			createdTerminals.push(terminal)
 
 			// Mock the shell integration
-			const mockExecuteCommand = vi.fn().mockReturnValue({
+			const mockExecuteCommand = sandbox.stub().returns({
 				read: () => createMockStream(["npm run build", "> project@1.0.0 build", "> tsc", "files built successfully"]),
 			})
 
 			// Create a mock shell integration object and stub the getter
-			vi.spyOn(terminal, "shellIntegration", "get").mockReturnValue({
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
 				executeCommand: mockExecuteCommand,
-			})
+			}))
 
-			const emitSpy = vi.spyOn(process, "emit")
+			const emitSpy = sandbox.spy(process, "emit")
 
 			await process.run(terminal, "npm run build")
 
 			// The "npm run build" line should be filtered, but the rest should be emitted
-			expect(emitSpy).toHaveBeenCalledWith("line", "> project@1.0.0 build")
-			expect(emitSpy).toHaveBeenCalledWith("line", "> tsc")
-			expect(emitSpy).toHaveBeenCalledWith("line", "files built successfully")
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "> project@1.0.0 build").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "> tsc").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "files built successfully").should.be.true()
 		})
 	})
 
@@ -363,32 +367,32 @@ describe("TerminalProcess (Integration Tests)", () => {
 		processAny.buffer = "test buffer content"
 		processAny.isListening = true
 
-		const emitSpy = vi.spyOn(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 		processAny.emitRemainingBufferIfListening()
-		expect(emitSpy).toHaveBeenCalledWith("line", "test buffer content")
-		expect(processAny.buffer).toBe("")
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "test buffer content").should.be.true()
+		processAny.buffer.should.equal("")
 	})
 
 	it("should remove prompt characters from the last line of output", () => {
 		const processAny = process as any
 
-		expect(processAny.removeLastLineArtifacts("line 1\nline 2 %")).toBe("line 1\nline 2")
-		expect(processAny.removeLastLineArtifacts("line 1\nline 2 $")).toBe("line 1\nline 2")
-		expect(processAny.removeLastLineArtifacts("line 1\nline 2 #")).toBe("line 1\nline 2")
-		expect(processAny.removeLastLineArtifacts("line 1\nline 2 >")).toBe("line 1\nline 2")
+		processAny.removeLastLineArtifacts("line 1\nline 2 %").should.equal("line 1\nline 2")
+		processAny.removeLastLineArtifacts("line 1\nline 2 $").should.equal("line 1\nline 2")
+		processAny.removeLastLineArtifacts("line 1\nline 2 #").should.equal("line 1\nline 2")
+		processAny.removeLastLineArtifacts("line 1\nline 2 >").should.equal("line 1\nline 2")
 	})
 
 	it("should process buffer and emit lines when newline characters are found", () => {
 		const processAny = process as any
-		const emitSpy = vi.spyOn(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 
 		processAny.emitIfEol("line 1\nline 2\nline 3")
-		expect(emitSpy).toHaveBeenCalledWith("line", "line 1")
-		expect(emitSpy).toHaveBeenCalledWith("line", "line 2")
-		expect(processAny.buffer).toBe("line 3")
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "line 1").should.be.true()
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "line 2").should.be.true()
+		processAny.buffer.should.equal("line 3")
 
 		processAny.emitIfEol(" continued\n")
-		expect(emitSpy).toHaveBeenCalledWith("line", "line 3 continued")
-		expect(processAny.buffer).toBe("")
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "line 3 continued").should.be.true()
+		processAny.buffer.should.equal("")
 	})
 })

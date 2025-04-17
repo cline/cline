@@ -1,209 +1,174 @@
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest"
-import { Readable } from "stream"
-import type { FzfResultItem } from "fzf"
-import * as childProcess from "child_process"
 import * as vscode from "vscode"
+import * as path from "path"
 import * as fs from "fs"
-import * as fileSearch from "../file-search"
-import * as ripgrep from "../../ripgrep"
+import * as childProcess from "child_process"
+import * as readline from "readline"
+import { getBinPath } from "../../ripgrep"
+import type { Fzf, FzfResultItem } from "fzf"
 
-describe("File Search", function () {
-	let spawnStub: ReturnType<typeof vi.fn>
+// Wrapper function for childProcess.spawn
+export type SpawnFunction = typeof childProcess.spawn
+export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
-	beforeEach(function () {
-		vi.resetAllMocks()
-		spawnStub = vi.fn()
+export async function executeRipgrepForFiles(
+	rgPath: string,
+	workspacePath: string,
+	limit: number = 5000,
+): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+	return new Promise((resolve, reject) => {
+		// Arguments for ripgrep to list files, follow symlinks, include hidden, and exclude common directories
+		const args = [
+			"--files",
+			"--follow",
+			"--hidden",
+			"-g",
+			"!**/{node_modules,.git,.github,out,dist,__pycache__,.venv,.env,venv,env,.cache,tmp,temp}/**",
+			workspacePath,
+		]
 
-		// Create a wrapper function that matches the signature of childProcess.spawn
-		const spawnWrapper: typeof childProcess.spawn = function (command, options) {
-			return spawnStub(command, options)
+		// Spawn the ripgrep process with the specified arguments
+		const rgProcess = getSpawnFunction()(rgPath, args)
+		const rl = readline.createInterface({ input: rgProcess.stdout })
+
+		// Array to store file results and Set to track unique directories
+		const fileResults: { path: string; type: "file" | "folder"; label?: string }[] = []
+		const dirSet = new Set<string>()
+		let count = 0
+
+		// Handle each line of output from ripgrep (each line is a file path)
+		rl.on("line", (line) => {
+			if (count >= limit) {
+				rl.close()
+				rgProcess.kill()
+				return
+			}
+
+			// Convert absolute path to a relative path from workspace root
+			const relativePath = path.relative(workspacePath, line)
+
+			// Add file result to array
+			fileResults.push({
+				path: relativePath,
+				type: "file",
+				label: path.basename(relativePath),
+			})
+
+			// Extract and add parent directories to the set
+			let dirPath = path.dirname(relativePath)
+			while (dirPath && dirPath !== "." && dirPath !== "/") {
+				dirSet.add(dirPath)
+				dirPath = path.dirname(dirPath)
+			}
+
+			count++
+		})
+
+		// Capture any error output from ripgrep
+		let errorOutput = ""
+		rgProcess.stderr.on("data", (data) => (errorOutput += data.toString()))
+
+		// When ripgrep finishes or is closed
+		rl.on("close", () => {
+			if (errorOutput && fileResults.length === 0) {
+				reject(new Error(`ripgrep process error: ${errorOutput.trim()}`))
+				return
+			}
+
+			// Transform directory paths from Set into structured results
+			const dirResults = Array.from(dirSet, (dirPath): { path: string; type: "folder"; label?: string } => ({
+				path: dirPath,
+				type: "folder",
+				label: path.basename(dirPath),
+			}))
+
+			// Resolve combined results of files and directories
+			resolve([...fileResults, ...dirResults])
+		})
+
+		// Handle process-level errors
+		rgProcess.on("error", (error) => reject(new Error(`ripgrep process error: ${error.message}`)))
+	})
+}
+
+export async function searchWorkspaceFiles(
+	query: string,
+	workspacePath: string,
+	limit: number = 20,
+): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+	try {
+		const rgPath = await getBinPath(vscode.env.appRoot)
+
+		if (!rgPath) {
+			throw new Error("Could not find ripgrep binary")
 		}
 
-		vi.spyOn(fileSearch, "getSpawnFunction").mockReturnValue(spawnWrapper)
-		// Mock vscode.env.appRoot
-		vi.spyOn(vscode.env, "appRoot", "get").mockReturnValue("mock/app/root")
-		vi.spyOn(fs.promises, "lstat").mockResolvedValue({ isDirectory: () => false } as fs.Stats)
-		vi.spyOn(ripgrep, "getBinPath").mockResolvedValue("mock/ripgrep/path")
-	})
+		// Get all files and directories
+		const allItems = await executeRipgrepForFiles(rgPath, workspacePath, 5000)
 
-	afterEach(function () {
-		vi.restoreAllMocks()
-	})
+		// If no query, just return the top items
+		if (!query.trim()) {
+			return allItems.slice(0, limit)
+		}
 
-	describe("executeRipgrepForFiles", function () {
-		it("should correctly process and return file and folder results", async function () {
-			const mockFiles = ["file1.txt", "folder1/file2.js", "folder1/subfolder/file3.py"]
-
-			// Create a proper mock for the child process
-			const mockStdout = new Readable({
-				read() {
-					this.push(mockFiles.join("\n"))
-					this.push(null) // Signal the end of the stream
-				},
-			})
-
-			const mockStderr = new Readable({
-				read() {
-					this.push(null) // Empty stream
-				},
-			})
-
-			spawnStub.mockReturnValue({
-				stdout: mockStdout,
-				stderr: mockStderr,
-				on: vi.fn().mockReturnValue({}),
-			} as unknown as childProcess.ChildProcess)
-
-			// Instead of stubbing path functions, we'll stub the executeRipgrepForFiles function
-			// to return a predictable result for this test
-			const expectedResult: { path: string; type: "file" | "folder"; label?: string }[] = [
-				{ path: "file1.txt", type: "file", label: "file1.txt" },
-				{ path: "folder1/file2.js", type: "file", label: "file2.js" },
-				{ path: "folder1/subfolder/file3.py", type: "file", label: "file3.py" },
-				{ path: "folder1", type: "folder", label: "folder1" },
-				{ path: "folder1/subfolder", type: "folder", label: "subfolder" },
-			]
-
-			// Create a new stub for executeRipgrepForFiles
-			vi.spyOn(fileSearch, "executeRipgrepForFiles").mockResolvedValue(expectedResult)
-
-			const result = await fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)
-
-			expect(result).toBeInstanceOf(Array)
-			// Don't assert on the exact length as it may vary
-
-			const files = result.filter((item) => item.type === "file")
-			const folders = result.filter((item) => item.type === "folder")
-
-			// Verify we have at least the expected files and folders
-			expect(files.length).toBeGreaterThanOrEqual(3)
-			expect(folders.length).toBeGreaterThanOrEqual(2)
-
-			expect(files[0]).toEqual(
-				expect.objectContaining({
-					path: "file1.txt",
-					type: "file",
-					label: "file1.txt",
-				}),
-			)
-
-			expect(folders).toEqual(
-				expect.arrayContaining([
-					expect.objectContaining({ path: "folder1", type: "folder", label: "folder1" }),
-					expect.objectContaining({ path: "folder1/subfolder", type: "folder", label: "subfolder" }),
-				]),
-			)
+		// Match Scoring - Prioritize the label (filename) by including it twice in the search string
+		// Use multiple tiebreakers in order of importance: Match score, then length of match (shorter=better)
+		// Get more (2x) results than needed for filtering, we pick the top half after sorting
+		const fzfModule = await import("fzf")
+		const fzf = new fzfModule.Fzf(allItems, {
+			selector: (item: { label?: string; path: string }) => `${item.label || ""} ${item.label || ""} ${item.path}`,
+			tiebreakers: [OrderbyMatchScore, fzfModule.byLengthAsc],
+			limit: limit * 2,
 		})
 
-		it("should handle errors from ripgrep", async function () {
-			const mockError = "Mock ripgrep error"
+		// The min threshold value will require some testing and tuning as the scores are exponential, and exagerated
+		const MIN_SCORE_THRESHOLD = 100
 
-			// Create proper mock streams for error case
-			const mockStdout = new Readable({
-				read() {
-					this.push(null) // Empty stream
-				},
-			})
+		// Filter results by score and map to original items
+		// Use exponential scaling for normalization
+		// This gives a more dramatic difference between good and bad matches
+		const filteredResults = fzf
+			.find(query)
+			.filter(({ score }: { score: number }) => Math.exp(score / 20) >= MIN_SCORE_THRESHOLD)
+			.slice(0, limit)
 
-			const mockStderr = new Readable({
-				read() {
-					this.push(mockError)
-					this.push(null) // Signal the end of the stream
-				},
-			})
+		// Verify if the path exists and is actually a directory
+		const verifiedResultsPromises = filteredResults.map(
+			async ({ item }: { item: { path: string; type: "file" | "folder"; label?: string } }) => {
+				const fullPath = path.join(workspacePath, item.path)
+				let type = item.type
 
-			spawnStub.mockReturnValue({
-				stdout: mockStdout,
-				stderr: mockStderr,
-				on: function (event: string, callback: Function) {
-					if (event === "error") {
-						callback(new Error(mockError))
-					}
-					return this
-				},
-			} as unknown as childProcess.ChildProcess)
-
-			await expect(fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)).rejects.toThrow(
-				`ripgrep process error: ${mockError}`,
-			)
-		})
-	})
-
-	describe("searchWorkspaceFiles", function () {
-		it("should return top N results for empty query", async function () {
-			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
-				{ path: "file1.txt", type: "file", label: "file1.txt" },
-				{ path: "folder1", type: "folder", label: "folder1" },
-				{ path: "file2.js", type: "file", label: "file2.js" },
-			]
-
-			// Directly stub the searchWorkspaceFiles function for this test
-			// This avoids issues with the executeRipgrepForFiles function
-			const searchStub = vi.spyOn(fileSearch, "searchWorkspaceFiles")
-			searchStub.mockImplementation(async (query, workspacePath, limit) => {
-				if (query === "" && workspacePath === "/workspace" && limit === 2) {
-					return mockItems.slice(0, 2)
-				}
-				return []
-			})
-
-			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 2)
-
-			expect(result).toBeInstanceOf(Array)
-			expect(result).toHaveLength(2)
-			expect(result).toEqual(mockItems.slice(0, 2))
-		})
-
-		it("should apply fuzzy matching for non-empty query", async function () {
-			const mockItems: { path: string; type: "file" | "folder"; label?: string }[] = [
-				{ path: "file1.txt", type: "file", label: "file1.txt" },
-				{ path: "folder1/important.js", type: "file", label: "important.js" },
-				{ path: "file2.js", type: "file", label: "file2.js" },
-			]
-
-			vi.spyOn(fileSearch, "executeRipgrepForFiles").mockResolvedValue(mockItems)
-			const fzfStub = {
-				find: vi.fn().mockReturnValue([{ item: mockItems[1], score: 0 }]),
-			}
-			// Create a mock for the fzf module
-			const fzfModuleStub = {
-				Fzf: vi.fn().mockReturnValue(fzfStub),
-				byLengthAsc: vi.fn(),
-			}
-
-			// Use a more reliable approach to mock dynamic imports
-			// This replaces the actual implementation of searchWorkspaceFiles to avoid the dynamic import
-			vi.spyOn(fileSearch, "searchWorkspaceFiles").mockImplementation(async (query, workspacePath, limit) => {
-				if (!query.trim()) {
-					return mockItems.slice(0, limit)
+				try {
+					const stats = await fs.promises.lstat(fullPath)
+					type = stats.isDirectory() ? "folder" : "file"
+				} catch {
+					// Keep original type if path doesn't exist
 				}
 
-				// Simulate the fuzzy search behavior
-				return [mockItems[1]]
-			})
+				return { ...item, type }
+			},
+		)
 
-			const result = await fileSearch.searchWorkspaceFiles("imp", "/workspace", 2)
+		return await Promise.all(verifiedResultsPromises)
+	} catch (error) {
+		console.error("Error in searchWorkspaceFiles:", error)
+		return []
+	}
+}
 
-			expect(result).toBeInstanceOf(Array)
-			expect(result).toHaveLength(1)
-			expect(result[0]).toEqual(
-				expect.objectContaining({
-					path: "folder1/important.js",
-					type: "file",
-					label: "important.js",
-				}),
-			)
-		})
-	})
+// Custom match scoring for results ordering
+// Candidate score tiebreaker - fewer gaps between matched characters scores higher
+export const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
+	const countGaps = (positions: Iterable<number>) => {
+		let gaps = 0,
+			prev = -Infinity
+		for (const pos of positions) {
+			if (prev !== -Infinity && pos - prev > 1) {
+				gaps++
+			}
+			prev = pos
+		}
+		return gaps
+	}
 
-	describe("OrderbyMatchScore", function () {
-		it("should prioritize results with fewer gaps between matched characters", function () {
-			const mockItemA: FzfResultItem<any> = { item: {}, positions: new Set([0, 1, 2, 5]), start: 0, end: 5, score: 0 }
-			const mockItemB: FzfResultItem<any> = { item: {}, positions: new Set([0, 2, 4, 6]), start: 0, end: 6, score: 0 }
-
-			const result = fileSearch.OrderbyMatchScore(mockItemA, mockItemB)
-
-			expect(result).toBeLessThan(0)
-		})
-	})
-})
+	return countGaps(a.positions) - countGaps(b.positions)
+}

@@ -38,16 +38,16 @@ describe("removeInvalidChars", () => {
 		expect(removeInvalidChars("hello\uFFFDworld")).toBe("helloworld")
 	})
 
-	it("should remove  characters", () => {
-		expect(removeInvalidChars("helloworld")).toBe("helloworld")
+	it("should remove � characters", () => {
+		expect(removeInvalidChars("hello�world")).toBe("helloworld")
 	})
 
 	it("should remove multiple replacement characters", () => {
 		expect(removeInvalidChars("h\uFFFDe\uFFFDl\uFFFDl\uFFFDo")).toBe("hello")
 	})
 
-	it("should remove multiple  characters", () => {
-		expect(removeInvalidChars("hello")).toBe("hello")
+	it("should remove multiple � characters", () => {
+		expect(removeInvalidChars("h�e�l�lo")).toBe("hello")
 	})
 
 	it("should return unchanged string when no replacement characters are present", () => {

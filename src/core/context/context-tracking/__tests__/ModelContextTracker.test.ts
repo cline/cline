@@ -2,9 +2,9 @@ import { describe, it, beforeEach, afterEach } from "mocha"
 import { expect } from "chai"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import { ModelContextTracker } from "./ModelContextTracker"
-import * as diskModule from "../../storage/disk"
-import type { TaskMetadata } from "./ContextTrackerTypes"
+import { ModelContextTracker } from "../ModelContextTracker"
+import * as diskModule from "../../../storage/disk"
+import type { TaskMetadata } from "../ContextTrackerTypes"
 
 describe("ModelContextTracker", () => {
 	let sandbox: sinon.SinonSandbox

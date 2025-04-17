@@ -11,6 +11,8 @@ export default defineConfig({
 		environment: "jsdom",
 		globals: true,
 		setupFiles: ["./src/setupTests.ts"],
+		reporters: "verbose",
+		silent: "passed-only",
 		coverage: {
 			provider: "v8",
 			reportOnFailure: true,

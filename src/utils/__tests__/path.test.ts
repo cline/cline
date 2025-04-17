@@ -1,27 +1,28 @@
-import { describe, it, expect } from "vitest"
+import { describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
+import "should"
 import { arePathsEqual, getReadablePath } from "../path"
 
 describe("Path Utilities", () => {
 	describe("arePathsEqual", () => {
 		it("should handle undefined paths", () => {
-			expect(arePathsEqual(undefined, undefined)).toBe(true)
-			expect(arePathsEqual("foo", undefined)).toBe(false)
-			expect(arePathsEqual(undefined, "foo")).toBe(false)
+			arePathsEqual(undefined, undefined).should.be.true()
+			arePathsEqual("foo", undefined).should.be.false()
+			arePathsEqual(undefined, "foo").should.be.false()
 		})
 
 		it("should handle case sensitivity based on platform", () => {
 			if (process.platform === "win32") {
-				expect(arePathsEqual("FOO/BAR", "foo/bar")).toBe(true)
+				arePathsEqual("FOO/BAR", "foo/bar").should.be.true()
 			} else {
-				expect(arePathsEqual("FOO/BAR", "foo/bar")).toBe(false)
+				arePathsEqual("FOO/BAR", "foo/bar").should.be.false()
 			}
 		})
 
 		it("should handle normalized paths", () => {
-			expect(arePathsEqual("/tmp/./dir", "/tmp/../tmp/dir")).toBe(true)
-			expect(arePathsEqual("/tmp/./dir", "/tmp/../dir")).toBe(false)
+			arePathsEqual("/tmp/./dir", "/tmp/../tmp/dir").should.be.true()
+			arePathsEqual("/tmp/./dir", "/tmp/../dir").should.be.false()
 		})
 	})
 
@@ -29,24 +30,24 @@ describe("Path Utilities", () => {
 		it("should handle desktop path", () => {
 			const desktop = path.join(os.homedir(), "Desktop")
 			const testPath = path.join(desktop, "test.txt")
-			expect(getReadablePath(desktop, "test.txt")).toBe(testPath.replace(/\\/g, "/"))
+			getReadablePath(desktop, "test.txt").should.equal(testPath.replace(/\\/g, "/"))
 		})
 
 		it("should show relative paths within cwd", () => {
 			const cwd = "/home/user/project"
 			const filePath = "/home/user/project/src/file.txt"
-			expect(getReadablePath(cwd, filePath)).toBe("src/file.txt")
+			getReadablePath(cwd, filePath).should.equal("src/file.txt")
 		})
 
 		it("should show basename when path equals cwd", () => {
 			const cwd = "/home/user/project"
-			expect(getReadablePath(cwd, cwd)).toBe("project")
+			getReadablePath(cwd, cwd).should.equal("project")
 		})
 
 		it("should show absolute path when outside cwd", () => {
 			const cwd = "/home/user/project"
 			const filePath = "/home/user/other/file.txt"
-			expect(getReadablePath(cwd, filePath)).toBe(filePath)
+			getReadablePath(cwd, filePath).should.equal(filePath)
 		})
 	})
 })
