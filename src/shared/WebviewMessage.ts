@@ -129,6 +129,7 @@ export interface WebviewMessage {
 	isGlobal?: boolean
 	rulePath?: string
 	enabled?: boolean
+	offset?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

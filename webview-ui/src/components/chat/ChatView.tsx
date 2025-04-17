@@ -797,6 +797,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					isLast={index === groupedMessages.length - 1}
 					onHeightChange={handleRowHeightChange}
 					inputValue={inputValue}
+					sendMessageFromChatRow={handleSendMessage}
 				/>
 			)
 		},
