@@ -1320,7 +1320,7 @@ export class Task {
 				settingsCustomInstructions,
 				globalClineRulesFileInstructions,
 				memoryBankInstructions,
-				clineRulesFileInstructions,
+				localClineRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
