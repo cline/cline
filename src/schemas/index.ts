@@ -529,8 +529,6 @@ export const globalSettingsSchema = z.object({
 
 	enableCheckpoints: z.boolean().optional(),
 
-	showGreeting: z.boolean().optional(),
-
 	ttsEnabled: z.boolean().optional(),
 	ttsSpeed: z.number().optional(),
 	soundEnabled: z.boolean().optional(),
@@ -605,8 +603,6 @@ const globalSettingsRecord: GlobalSettingsRecord = {
 	remoteBrowserHost: undefined,
 
 	enableCheckpoints: undefined,
-
-	showGreeting: undefined,
 
 	ttsEnabled: undefined,
 	ttsSpeed: undefined,

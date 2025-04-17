@@ -478,11 +478,5 @@
 	"labels": {
 		"customArn": "Custom ARN",
 		"useCustomArn": "Use custom ARN..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "Show greeting message",
-			"description": "When enabled, Roo will display a welcome message and introduction."
-		}
 	}
 }

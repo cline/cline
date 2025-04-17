@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "कस्टम ARN",
 		"useCustomArn": "कस्टम ARN का उपयोग करें..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "स्वागत संदेश दिखाएँ",
-			"description": "जब सक्षम किया जाता है, तो Roo एक स्वागत संदेश और परिचय प्रदर्शित करेगा।"
-		}
 	}
 }

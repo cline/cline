@@ -1,5 +1,5 @@
 {
-	"greeting": "Què pot fer Roo per tu?",
+	"greeting": "Benvingut a Roo",
 	"task": {
 		"title": "Tasca",
 		"seeMore": "Veure més",
@@ -65,7 +65,7 @@
 		"tooltip": "Cancel·la l'operació actual"
 	},
 	"scrollToBottom": "Desplaça't al final del xat",
-	"aboutMe": "Gràcies als últims avenços en capacitats de codificació intel·ligent, puc gestionar tasques complexes de desenvolupament de programari pas a pas. Amb eines que em permeten crear i editar fitxers, explorar projectes complexos, utilitzar el navegador i executar ordres de terminal (després que em donis permís), puc ajudar-te de maneres que van més enllà de la finalització de codi o el suport tècnic. Fins i tot puc utilitzar MCP per crear noves eines i ampliar les meves capacitats.",
+	"onboarding": "<strong> La vostra llista de tasques en aquest espai de treball està buida. </strong> Comença escrivint una tasca a continuació. \nNo esteu segur per on començar? \nMés informació sobre què pot fer Roo als documents.",
 	"selectMode": "Selecciona el mode d'interacció",
 	"selectApiConfig": "Selecciona la configuració de l'API",
 	"enhancePrompt": "Millora la sol·licitud amb context addicional",

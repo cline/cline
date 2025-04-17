@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "ARN tùy chỉnh",
 		"useCustomArn": "Sử dụng ARN tùy chỉnh..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "Hiển thị thông báo chào mừng",
-			"description": "Khi được bật, Roo sẽ hiển thị thông báo chào mừng và giới thiệu."
-		}
 	}
 }

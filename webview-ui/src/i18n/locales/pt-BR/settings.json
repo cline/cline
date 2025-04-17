@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "ARN personalizado",
 		"useCustomArn": "Usar ARN personalizado..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "Mostrar mensagem de boas-vindas",
-			"description": "Quando ativado, o Roo exibirá uma mensagem de boas-vindas e introdução."
-		}
 	}
 }

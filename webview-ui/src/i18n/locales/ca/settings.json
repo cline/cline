@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "ARN personalitzat",
 		"useCustomArn": "Utilitza ARN personalitzat..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "Mostrar missatge de benvinguda",
-			"description": "Quan està activat, Roo mostrarà un missatge de benvinguda i introducció."
-		}
 	}
 }

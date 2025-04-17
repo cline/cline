@@ -1,6 +1,6 @@
 {
 	"greeting": "Hola, sóc en Roo!",
-	"introduction": "Puc fer tot tipus de tasques gràcies als últims avenços en capacitats de codificació agent i accés a eines que em permeten crear i editar fitxers, explorar projectes complexos, utilitzar el navegador i executar ordres de terminal (amb el teu permís, és clar). Fins i tot puc utilitzar MCP per crear noves eines i ampliar les meves pròpies capacitats.",
+	"introduction": "<strong>Roo Code és el principal agent de codificació autònom.</strong> Prepara't per arquitectar, codificar, depurar i augmentar la teva productivitat com mai abans. Per continuar, Roo Code necessita una clau API.",
 	"notice": "Per començar, aquesta extensió necessita un proveïdor d'API.",
 	"start": "Som-hi!",
 	"chooseProvider": "Tria un proveïdor d'API per començar:",

@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "カスタム ARN",
 		"useCustomArn": "カスタム ARN を使用..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "ようこそメッセージを表示",
-			"description": "有効にすると、Rooはようこそメッセージと紹介を表示します。"
-		}
 	}
 }

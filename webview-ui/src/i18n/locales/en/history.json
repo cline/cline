@@ -1,6 +1,6 @@
 {
 	"recentTasks": "Recent Tasks",
-	"viewAll": "View All",
+	"viewAll": "View All Tasks",
 	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
 	"cache": "Cache: +{{writes}} → {{reads}}",
 	"apiCost": "API Cost: ${{cost}}",

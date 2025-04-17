@@ -1,5 +1,5 @@
 {
-	"greeting": "Was kann Roo für dich tun?",
+	"greeting": "Willkommen in Roo",
 	"task": {
 		"title": "Aufgabe",
 		"seeMore": "Mehr anzeigen",
@@ -65,7 +65,7 @@
 		"tooltip": "Aktuelle Operation abbrechen"
 	},
 	"scrollToBottom": "Zum Chat-Ende scrollen",
-	"aboutMe": "Dank neuester Durchbrüche in agentischen Coding-Fähigkeiten kann ich komplexe Softwareentwicklungsaufgaben schrittweise bearbeiten. Mit Werkzeugen, die mir erlauben, Dateien zu erstellen und zu bearbeiten, komplexe Projekte zu erkunden, den Browser zu nutzen und Terminalbefehle auszuführen (nachdem du die Erlaubnis erteilt hast), kann ich dir auf Weisen helfen, die über Code-Vervollständigung oder technischen Support hinausgehen. Ich kann sogar MCP nutzen, um neue Werkzeuge zu erstellen und meine eigenen Fähigkeiten zu erweitern.",
+	"onboarding": "<strong>Deine Aufgabenliste in diesem Arbeitsbereich ist leer.</strong> Beginne mit der Eingabe einer Aufgabe unten. Du bist dir nicht sicher, wie du anfangen sollst? Lies mehr darüber, was Roo für dich tun kann, in <DocsLink>den Dokumenten</DocsLink>.",
 	"selectMode": "Interaktionsmodus auswählen",
 	"selectApiConfig": "API-Konfiguration auswählen",
 	"enhancePrompt": "Prompt mit zusätzlichem Kontext verbessern",

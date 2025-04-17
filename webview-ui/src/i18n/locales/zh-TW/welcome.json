@@ -1,7 +1,7 @@
 {
-	"greeting": "嗨，我是 Roo！",
-	"introduction": "由於程式代理功能的最新突破，以及能夠讓我建立和編輯檔案、探索複雜專案、使用瀏覽器和執行終端機命令的工具（在您授權後），我能完成各種工作。我甚至可以使用 MCP 建立新工具並擴展自己的功能。",
-	"notice": "要開始使用，此擴充功能需要一個 API 提供者。",
+	"greeting": "歡迎來到 Roo",
+	"introduction": "<strong>Roo Code 是頂尖的自主編程助手。</strong>準備好以前所未有的方式進行架構設計、編碼、除錯並提升您的工作效率。要繼續使用，Roo Code 需要一個 API 金鑰。",
+	"notice": "開始使用前，此擴充功能需要一個 API 提供者。",
 	"start": "讓我們開始吧！",
 	"chooseProvider": "選擇一個 API 提供者開始：",
 	"routers": {

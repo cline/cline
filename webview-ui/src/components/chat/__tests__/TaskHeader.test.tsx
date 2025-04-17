@@ -1,3 +1,5 @@
+// npx jest src/components/chat/__tests__/TaskHeader.test.tsx
+
 import React from "react"
 import { render, screen } from "@testing-library/react"
 import TaskHeader from "../TaskHeader"
@@ -45,7 +47,7 @@ describe("TaskHeader", () => {
 				}}
 			/>,
 		)
-		expect(screen.getByText("$0.0500")).toBeInTheDocument()
+		expect(screen.getByText("$0.05")).toBeInTheDocument()
 	})
 
 	it("should not display cost when totalCost is 0", () => {

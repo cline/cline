@@ -854,11 +854,10 @@ export const ChatRowContent = ({
 				case "user_feedback":
 					return (
 						<div
+							className="outline rounded p-4"
 							style={{
-								backgroundColor: "var(--vscode-badge-background)",
 								color: "var(--vscode-badge-foreground)",
-								borderRadius: "3px",
-								padding: "9px",
+								padding: "4px",
 								overflow: "hidden",
 								whiteSpace: "pre-wrap",
 								wordBreak: "break-word",

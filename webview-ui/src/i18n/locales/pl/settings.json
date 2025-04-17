@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "Niestandardowy ARN",
 		"useCustomArn": "Użyj niestandardowego ARN..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "Pokaż wiadomość powitalną",
-			"description": "Gdy włączone, Roo wyświetli wiadomość powitalną i wprowadzenie."
-		}
 	}
 }

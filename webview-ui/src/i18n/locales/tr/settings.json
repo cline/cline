@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "Özel ARN",
 		"useCustomArn": "Özel ARN kullan..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "Karşılama mesajını göster",
-			"description": "Etkinleştirildiğinde, Roo bir karşılama mesajı ve tanıtım gösterecektir."
-		}
 	}
 }

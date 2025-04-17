@@ -7,7 +7,7 @@
 		"tokens": "Tokens:",
 		"cache": "快取：",
 		"apiCost": "API 費用：",
-		"contextWindow": "上下文視窗：",
+		"contextWindow": "上下文長度：",
 		"closeAndStart": "關閉現有工作並開始一項新的工作",
 		"export": "匯出工作紀錄",
 		"delete": "刪除工作（按住 Shift 並點選可跳過確認）"
@@ -65,7 +65,7 @@
 		"tooltip": "取消目前操作"
 	},
 	"scrollToBottom": "捲動至對話框底部",
-	"aboutMe": "由於程式代理功能的最新突破，我能夠逐步處理複雜的軟體開發工作。透過允許我建立和編輯檔案、探索複雜專案、使用瀏覽器和執行終端機命令（在您授權後）的工具，我可以以超越程式碼補全或技術支援的方式協助您。我甚至可以使用 MCP 建立新工具並擴展自己的能力。",
+	"onboarding": "<strong>您在此工作區中的工作清單是空的。</strong> 請在下方輸入工作以開始。 不確定如何開始？ 在 <DocsLink>說明文件</DocsLink> 中閱讀更多關於 Roo 能為您做什麼的資訊。",
 	"selectMode": "選擇互動模式",
 	"selectApiConfig": "選擇 API 設定",
 	"enhancePrompt": "使用額外內容增強提示",

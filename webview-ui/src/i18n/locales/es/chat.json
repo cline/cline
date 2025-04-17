@@ -7,7 +7,7 @@
 		"tokens": "Tokens:",
 		"cache": "Caché:",
 		"apiCost": "Costo de API:",
-		"contextWindow": "Ventana de contexto:",
+		"contextWindow": "Longitud del contexto:",
 		"closeAndStart": "Cerrar tarea e iniciar una nueva",
 		"export": "Exportar historial de tareas",
 		"delete": "Eliminar tarea (Shift + Clic para omitir confirmación)"
@@ -65,7 +65,7 @@
 		"tooltip": "Cancelar la operación actual"
 	},
 	"scrollToBottom": "Desplazarse al final del chat",
-	"aboutMe": "Gracias a los últimos avances en capacidades de codificación agentiva, puedo manejar tareas complejas de desarrollo de software paso a paso. Con herramientas que me permiten crear y editar archivos, explorar proyectos complejos, usar el navegador y ejecutar comandos de terminal (después de tu aprobación), puedo ayudarte de maneras que van más allá de la finalización de código o el soporte técnico. Incluso puedo usar MCP para crear nuevas herramientas y ampliar mis propias capacidades.",
+	"onboarding": "",
 	"selectMode": "Seleccionar modo de interacción",
 	"selectApiConfig": "Seleccionar configuración de API",
 	"enhancePrompt": "Mejorar el mensaje con contexto adicional",

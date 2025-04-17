@@ -5,8 +5,10 @@ import { validateApiConfiguration } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "../settings/ApiOptions"
 import { Tab, TabContent } from "../common/Tab"
+import { Trans } from "react-i18next"
 import { useAppTranslation } from "../../i18n/TranslationContext"
 import { getRequestyAuthUrl, getOpenRouterAuthUrl } from "../../oauth/urls"
+import RooHero from "./RooHero"
 import knuthShuffle from "knuth-shuffle-seeded"
 
 const WelcomeView = () => {
@@ -35,12 +37,14 @@ const WelcomeView = () => {
 	return (
 		<Tab>
 			<TabContent className="flex flex-col gap-5">
-				<h2 className="m-0 p-0">{t("welcome:greeting")}</h2>
-				<div>{t("welcome:introduction")}</div>
-				<div>{t("welcome:chooseProvider")}</div>
+				<RooHero />
+
+				<div className="outline rounded p-4">
+					<Trans i18nKey="welcome:introduction" />
+				</div>
 
 				<div className="mb-4">
-					<h4 className="mt-3 mb-2">{t("welcome:startRouter")}</h4>
+					<h4 className="mt-3 mb-2 text-center">{t("welcome:startRouter")}</h4>
 
 					<div className="flex gap-4">
 						{/* Define the providers */}
@@ -71,10 +75,11 @@ const WelcomeView = () => {
 								<a
 									key={index}
 									href={provider.authUrl}
-									className="flex-1 border border-vscode-panel-border rounded p-4 flex flex-col items-center cursor-pointer transition-all hover:bg-vscode-button-hoverBackground hover:border-vscode-button-border no-underline text-inherit"
+									className="flex-1 border border-vscode-panel-border rounded p-4 flex flex-col items-center cursor-pointer transition-all  no-underline text-inherit"
 									target="_blank"
 									rel="noopener noreferrer">
-									<div className="w-16 h-16 flex items-center justify-center rounded mb-2 overflow-hidden bg-white relative">
+									<div className="font-bold">{provider.name}</div>
+									<div className="w-16 h-16 flex items-center justify-center rounded m-2 overflow-hidden relative">
 										<img
 											src={`${imagesBaseUri}/${provider.slug}.png`}
 											alt={provider.name}
@@ -82,12 +87,11 @@ const WelcomeView = () => {
 										/>
 									</div>
 									<div className="text-center">
-										<div className="font-bold">{provider.name}</div>
-										<div className="text-sm text-vscode-descriptionForeground">
+										<div className="text-xs text-vscode-descriptionForeground">
 											{provider.description}
 										</div>
 										{provider.incentive && (
-											<div className="text-sm font-bold">{provider.incentive}</div>
+											<div className="text-xs font-bold">{provider.incentive}</div>
 										)}
 									</div>
 								</a>
@@ -95,8 +99,8 @@ const WelcomeView = () => {
 						})()}
 					</div>
 
-					<div className="text-center my-4">{t("welcome:or")}</div>
-					<h4 className="mt-3 mb-2">{t("welcome:startCustom")}</h4>
+					<div className="text-center my-4 text-xl uppercase font-bold">{t("welcome:or")}</div>
+					<h4 className="mt-3 mb-2 text-center">{t("welcome:startCustom")}</h4>
 					<ApiOptions
 						fromWelcomeView
 						apiConfiguration={apiConfiguration || {}}

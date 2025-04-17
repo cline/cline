@@ -7,7 +7,7 @@
 		"tokens": "Token 用量:",
 		"cache": "缓存:",
 		"apiCost": "API 费用:",
-		"contextWindow": "上下文窗口:",
+		"contextWindow": "上下文长度：",
 		"closeAndStart": "关闭任务并开始新任务",
 		"export": "导出任务历史",
 		"delete": "删除任务（Shift + 点击跳过确认）"
@@ -65,7 +65,7 @@
 		"tooltip": "取消当前操作"
 	},
 	"scrollToBottom": "滚动到聊天底部",
-	"aboutMe": "基于最新的AI编程技术，我可以逐步处理复杂软件开发任务。支持创建编辑文件、分析复杂项目、浏览器操作及运行终端命令，不仅能提供代码补全和基础答疑，还能完成更高阶的开发协助。通过MCP系统，我甚至可以自己制作新工具，持续提升解决问题的能力。",
+	"onboarding": "<strong>此工作区中的任务列表为空。</strong> 请在下方输入任务开始。 不确定如何开始？ 在 <DocsLink>文档</DocsLink> 中阅读更多关于 Roo 可以为您做什么的信息。",
 	"selectMode": "选择交互模式",
 	"selectApiConfig": "选择API配置",
 	"enhancePrompt": "增强提示词",

@@ -7,7 +7,7 @@
 		"tokens": "Tokens:",
 		"cache": "Bộ nhớ đệm:",
 		"apiCost": "Chi phí API:",
-		"contextWindow": "Cửa sổ ngữ cảnh:",
+		"contextWindow": "Chiều dài bối cảnh:",
 		"closeAndStart": "Đóng nhiệm vụ và bắt đầu nhiệm vụ mới",
 		"export": "Xuất lịch sử nhiệm vụ",
 		"delete": "Xóa nhiệm vụ (Shift + Click để bỏ qua xác nhận)"
@@ -65,7 +65,7 @@
 		"tooltip": "Hủy thao tác hiện tại"
 	},
 	"scrollToBottom": "Cuộn xuống cuối cuộc trò chuyện",
-	"aboutMe": "Nhờ những đột phá mới nhất trong khả năng lập trình tác nhân, tôi có thể xử lý các nhiệm vụ phát triển phần mềm phức tạp từng bước một. Với các công cụ cho phép tôi tạo và chỉnh sửa tệp, khám phá các dự án phức tạp, sử dụng trình duyệt và thực thi lệnh terminal (sau khi bạn cấp quyền), tôi có thể hỗ trợ bạn theo cách vượt xa việc hoàn thành mã hoặc hỗ trợ kỹ thuật. Tôi thậm chí có thể sử dụng MCP để tạo các công cụ mới và mở rộng khả năng của mình.",
+	"onboarding": "<strong>Danh sách nhiệm vụ của bạn trong không gian làm việc này trống.</strong> Bắt đầu bằng cách nhập nhiệm vụ bên dưới. Bạn không chắc chắn nên bắt đầu như thế nào? Đọc thêm về những gì Roo có thể làm cho bạn trong <DocsLink>tài liệu</DocsLink>.",
 	"selectMode": "Chọn chế độ tương tác",
 	"selectApiConfig": "Chọn cấu hình API",
 	"enhancePrompt": "Nâng cao yêu cầu với ngữ cảnh bổ sung",

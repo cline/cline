@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "自定义 ARN",
 		"useCustomArn": "使用自定义 ARN..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "显示欢迎消息",
-			"description": "启用后，Roo 将显示欢迎语和简介。"
-		}
 	}
 }

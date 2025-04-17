@@ -7,7 +7,7 @@
 		"tokens": "Tokenlar:",
 		"cache": "Önbellek:",
 		"apiCost": "API Maliyeti:",
-		"contextWindow": "Bağlam Penceresi:",
+		"contextWindow": "Bağlam Uzunluğu:",
 		"closeAndStart": "Görevi kapat ve yeni bir görev başlat",
 		"export": "Görev geçmişini dışa aktar",
 		"delete": "Görevi sil (Onayı atlamak için Shift + Tıkla)"
@@ -65,7 +65,7 @@
 		"tooltip": "Mevcut işlemi iptal et"
 	},
 	"scrollToBottom": "Sohbetin altına kaydır",
-	"aboutMe": "Ajansal kodlama yeteneklerindeki son atılımlar sayesinde, karmaşık yazılım geliştirme görevlerini adım adım ele alabilirim. Dosya oluşturma ve düzenleme, karmaşık projeleri keşfetme, tarayıcıyı kullanma ve terminal komutlarını çalıştırma (izin verdikten sonra) olanağı sağlayan araçlarla, kod tamamlama veya teknik desteğin ötesinde size yardımcı olabilirim. Hatta yeni araçlar oluşturmak ve kendi yeteneklerimi genişletmek için MCP'yi bile kullanabilirim.",
+	"onboarding": "<strong>Bu çalışma alanındaki görev listeniz boş.</strong> Aşağıya bir görev yazarak başlayın. Nasıl başlayacağınızdan emin değil misiniz? Roo'nun sizin için neler yapabileceği hakkında daha fazla bilgiyi <DocsLink>belgelerde</DocsLink> okuyun.",
 	"selectMode": "Etkileşim modunu seçin",
 	"selectApiConfig": "API yapılandırmasını seçin",
 	"enhancePrompt": "Ek bağlamla istemi geliştir",

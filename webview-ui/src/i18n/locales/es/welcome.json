@@ -1,6 +1,6 @@
 {
-	"greeting": "¡Hola, soy Roo!",
-	"introduction": "Puedo realizar todo tipo de tareas gracias a los últimos avances en capacidades de codificación agentica y acceso a herramientas que me permiten crear y editar archivos, explorar proyectos complejos, usar el navegador y ejecutar comandos de terminal (con tu permiso, por supuesto). Incluso puedo usar MCP para crear nuevas herramientas y ampliar mis propias capacidades.",
+	"greeting": "Bienvenido a Roo",
+	"introduction": "<strong>Roo Code es el principal agente de codificación autónomo.</strong> Prepárate para arquitectar, codificar, depurar y aumentar tu productividad como nunca antes. Para continuar, Roo Code requiere una clave API.",
 	"notice": "Para comenzar, esta extensión necesita un proveedor de API.",
 	"start": "¡Vamos!",
 	"chooseProvider": "Elige un proveedor de API para comenzar:",

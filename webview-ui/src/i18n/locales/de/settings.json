@@ -479,11 +479,5 @@
 	"labels": {
 		"customArn": "Benutzerdefinierte ARN",
 		"useCustomArn": "Benutzerdefinierte ARN verwenden..."
-	},
-	"interface": {
-		"showgreeting": {
-			"label": "Begrüßungsnachricht anzeigen",
-			"description": "Wenn aktiviert, zeigt Roo eine Willkommensnachricht und Einführung an."
-		}
 	}
 }
