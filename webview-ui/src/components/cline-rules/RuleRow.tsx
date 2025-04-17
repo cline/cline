@@ -4,8 +4,9 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 const RuleRow: React.FC<{
 	rulePath: string
 	enabled: boolean
+	isGlobal: boolean
 	toggleRule: (rulePath: string, enabled: boolean) => void
-}> = ({ rulePath, enabled, toggleRule }) => {
+}> = ({ rulePath, enabled, isGlobal, toggleRule }) => {
 	// Get the filename from the path for display
 	const displayName = rulePath.split("/").pop() || rulePath
 
@@ -13,6 +14,14 @@ const RuleRow: React.FC<{
 		vscode.postMessage({
 			type: "openFile",
 			text: rulePath,
+		})
+	}
+
+	const handleDeleteClick = () => {
+		vscode.postMessage({
+			type: "deleteClineRule",
+			rulePath: rulePath,
+			isGlobal: isGlobal,
 		})
 	}
 
@@ -57,6 +66,14 @@ const RuleRow: React.FC<{
 						onClick={handleEditClick}
 						style={{ height: "20px" }}>
 						<span className="codicon codicon-edit" style={{ fontSize: "14px" }} />
+					</VSCodeButton>
+					<VSCodeButton
+						appearance="icon"
+						aria-label="Delete rule file"
+						title="Delete rule file"
+						onClick={handleDeleteClick}
+						style={{ height: "20px" }}>
+						<span className="codicon codicon-trash" style={{ fontSize: "14px" }} />
 					</VSCodeButton>
 				</div>
 			</div>

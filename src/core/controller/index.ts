@@ -49,7 +49,7 @@ import {
 } from "../storage/state"
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "../../shared/cline-rules"
-import { refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -630,6 +630,24 @@ export class Controller {
 						rulePath,
 						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
+					})
+				}
+				break
+			}
+			case "deleteClineRule": {
+				const { isGlobal, rulePath } = message
+				if (rulePath && typeof isGlobal === "boolean") {
+					const result = await deleteRuleFile(this.context, rulePath, isGlobal)
+					if (result.success) {
+						await refreshClineRulesToggles(this.context, cwd)
+						await this.postStateToWebview()
+					} else {
+						console.error("Failed to delete rule file:", result.message)
+					}
+				} else {
+					console.error("deleteClineRule: Missing or invalid parameters", {
+						rulePath,
+						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 					})
 				}
 				break
