@@ -2,18 +2,44 @@ import React, { useRef, useState, useEffect } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
 import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import RulesToggleList from "./RulesToggleList"
 
-const ServersToggleModal: React.FC = () => {
-	const { mcpServers } = useExtensionState()
+const ClineRulesToggleModal: React.FC = () => {
+	const { globalClineRulesToggles = {}, localClineRulesToggles = {} } = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
+
+	useEffect(() => {
+		if (isVisible) {
+			vscode.postMessage({ type: "refreshClineRules" })
+		}
+	}, [isVisible])
+
+	// Format global rules for display with proper typing
+	const globalRules = Object.entries(globalClineRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	// Format local rules for display with proper typing
+	const localRules = Object.entries(localClineRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	// Handle toggle rule
+	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
+		vscode.postMessage({
+			type: "toggleClineRule",
+			isGlobal,
+			rulePath,
+			enabled,
+		})
+	}
 
 	// Close modal when clicking outside
 	useClickAway(modalRef, () => {
@@ -32,25 +58,16 @@ const ServersToggleModal: React.FC = () => {
 		}
 	}, [isVisible, viewportWidth, viewportHeight])
 
-	useEffect(() => {
-		if (isVisible) {
-			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
-		}
-	}, [isVisible])
-
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
 				<VSCodeButton
 					appearance="icon"
-					aria-label="MCP Servers"
+					aria-label="Cline Rules"
 					onClick={() => setIsVisible(!isVisible)}
 					style={{ padding: "0px 0px", height: "20px" }}>
 					<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-						<span
-							className="codicon codicon-server flex items-center"
-							style={{ fontSize: "12.5px", marginBottom: 1 }}
-						/>
+						<span className="codicon codicon-law flex items-center" style={{ fontSize: "12.5px", marginBottom: 1 }} />
 					</div>
 				</VSCodeButton>
 			</div>
@@ -74,22 +91,38 @@ const ServersToggleModal: React.FC = () => {
 					/>
 
 					<div className="flex justify-between items-center mb-2.5">
-						<div className="m-0 text-base font-semibold">MCP Servers</div>
+						<div className="m-0 text-base font-semibold">Cline Rules</div>
+
 						<VSCodeButton
 							appearance="icon"
 							onClick={() => {
 								vscode.postMessage({
-									type: "showMcpView",
-									tab: "installed",
+									type: "openExtensionSettings",
 								})
 								setIsVisible(false)
 							}}>
-							<span className="codicon codicon-gear text-[10px]"></span>
+							{/* <span className="codicon codicon-gear text-[10px]"></span> */}
 						</VSCodeButton>
 					</div>
 
+					{/* Global Rules Section */}
+					<div className="mb-3">
+						<div className="text-sm font-normal mb-2">Global Rules</div>
+						<RulesToggleList
+							rules={globalRules}
+							toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
+							listGap="small"
+						/>
+					</div>
+
+					{/* Local Rules Section */}
 					<div style={{ marginBottom: -10 }}>
-						<ServersToggleList servers={mcpServers} isExpandable={false} hasTrashIcon={false} listGap="small" />
+						<div className="text-sm font-normal mb-2">Workspace Rules</div>
+						<RulesToggleList
+							rules={localRules}
+							toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
+							listGap="small"
+						/>
 					</div>
 				</div>
 			)}
@@ -97,4 +130,4 @@ const ServersToggleModal: React.FC = () => {
 	)
 }
 
-export default ServersToggleModal
+export default ClineRulesToggleModal

@@ -40,12 +40,16 @@ import {
 	getAllExtensionState,
 	getGlobalState,
 	getSecret,
+	getWorkspaceState,
 	resetExtensionState,
 	storeSecret,
 	updateApiConfiguration,
 	updateGlobalState,
+	updateWorkspaceState,
 } from "../storage/state"
-import { Task } from "../task"
+import { Task, cwd } from "../task"
+import { ClineRulesToggles } from "../../shared/cline-rules"
+import { refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -477,6 +481,10 @@ export class Controller {
 				const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
 				this.postMessageToWebview({ type: "openAiModels", openAiModels })
 				break
+			case "refreshClineRules":
+				await refreshClineRulesToggles(this.context, cwd)
+				await this.postStateToWebview()
+				break
 			case "openImage":
 				openImage(message.text!)
 				break
@@ -651,6 +659,30 @@ export class Controller {
 					} else {
 						console.error(`Failed to toggle auto-approve tools for server ${message.serverName}:`, error)
 					}
+				}
+				break
+			}
+			case "toggleClineRule": {
+				const { isGlobal, rulePath, enabled } = message
+				if (rulePath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
+					if (isGlobal) {
+						const toggles =
+							((await getGlobalState(this.context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
+						toggles[rulePath] = enabled
+						await updateGlobalState(this.context, "globalClineRulesToggles", toggles)
+					} else {
+						const toggles =
+							((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
+						toggles[rulePath] = enabled
+						await updateWorkspaceState(this.context, "localClineRulesToggles", toggles)
+					}
+					await this.postStateToWebview()
+				} else {
+					console.error("toggleClineRule: Missing or invalid parameters", {
+						rulePath,
+						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
+						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
+					})
 				}
 				break
 			}
@@ -1872,7 +1904,11 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			globalClineRulesToggles,
 		} = await getAllExtensionState(this.context)
+
+		const localClineRulesToggles =
+			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1896,6 +1932,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			vscMachineId: vscode.env.machineId,
+			globalClineRulesToggles: globalClineRulesToggles || {},
+			localClineRulesToggles: localClineRulesToggles || {},
 		}
 	}
 
