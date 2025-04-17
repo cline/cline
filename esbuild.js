@@ -4,6 +4,7 @@ const path = require("path")
 
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
+const test = process.env.IS_TEST === "true"
 
 /**
  * @type {import('esbuild').Plugin}
@@ -68,10 +69,22 @@ const extensionConfig = {
 	minify: production,
 	sourcemap: !production,
 	logLevel: "silent",
+	define: {
+		"process.env.IS_DEV": JSON.stringify(!production),
+		"process.env.IS_TEST": JSON.stringify(test),
+	},
 	plugins: [
 		copyWasmFiles,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
+		{
+			name: "alias-plugin",
+			setup(build) {
+				build.onResolve({ filter: /^pkce-challenge$/ }, (args) => {
+					return { path: require.resolve("pkce-challenge/dist/index.browser.js") }
+				})
+			},
+		},
 	],
 	entryPoints: ["src/extension.ts"],
 	format: "cjs",

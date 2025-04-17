@@ -71,7 +71,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// remove ansi
 					data = stripAnsi(data)
 					// Split data by newlines
-					let lines = data ? data.split("\n") : []
+					const lines = data ? data.split("\n") : []
 					// Remove non-human readable characters from the first line
 					if (lines.length > 0) {
 						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
@@ -95,7 +95,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				}
 
 				// first few chunks could be the command being echoed back, so we must ignore
-				// note this means that 'echo' commands wont work
+				// note this means that 'echo' commands won't work
 				if (!didOutputNonCommand) {
 					const lines = data.split("\n")
 					for (let i = 0; i < lines.length; i++) {
@@ -145,7 +145,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
 				)
 
-				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
+				// For non-immediately returning commands we want to show loading spinner right away but this wouldn't happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
 				if (!didEmitEmptyLine && !this.fullOutput && data) {
 					this.emit("line", "") // empty line to indicate start of command output stream
 					didEmitEmptyLine = true

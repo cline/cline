@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package cline;
+
+import "common.proto";
+
+service BrowserService {
+  rpc getBrowserConnectionInfo(EmptyRequest) returns (BrowserConnectionInfo);
+}
+
+message BrowserConnectionInfo {
+  bool is_connected = 1;
+  bool is_remote = 2;
+  string host = 3; // Optional, may be empty
+}

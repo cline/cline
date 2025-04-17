@@ -1,16 +1,16 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { memo, useEffect, useMemo, useRef, useState } from "react"
+import React, { CSSProperties, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
-import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
-import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import { BrowserSettingsMenu } from "../browser/BrowserSettingsMenu"
-import { CheckpointControls } from "../common/CheckpointControls"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { ChatRowContent, ProgressIndicator } from "./ChatRow"
+import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
+import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
+import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
+import { CheckpointControls } from "@/components/common/CheckpointControls"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -19,6 +19,93 @@ interface BrowserSessionRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+}
+
+const browserSessionRowContainerInnerStyle: CSSProperties = {
+	display: "flex",
+	alignItems: "center",
+	gap: "10px",
+	marginBottom: "10px",
+}
+const browserIconStyle: CSSProperties = {
+	color: "var(--vscode-foreground)",
+	marginBottom: "-1.5px",
+}
+const approveTextStyle: CSSProperties = { fontWeight: "bold" }
+const urlBarContainerStyle: CSSProperties = {
+	margin: "5px auto",
+	width: "calc(100% - 10px)",
+	display: "flex",
+	alignItems: "center",
+	gap: "4px",
+}
+const urlTextStyle: CSSProperties = {
+	textOverflow: "ellipsis",
+	overflow: "hidden",
+	whiteSpace: "nowrap",
+	width: "100%",
+	textAlign: "center",
+}
+const imgScreenshotStyle: CSSProperties = {
+	position: "absolute",
+	top: 0,
+	left: 0,
+	width: "100%",
+	height: "100%",
+	objectFit: "contain",
+	cursor: "pointer",
+}
+const noScreenshotContainerStyle: CSSProperties = {
+	position: "absolute",
+	top: "50%",
+	left: "50%",
+	transform: "translate(-50%, -50%)",
+}
+const noScreenshotIconStyle: CSSProperties = {
+	fontSize: "80px",
+	color: "var(--vscode-descriptionForeground)",
+}
+const consoleLogsContainerStyle: CSSProperties = { width: "100%" }
+const consoleLogsTextStyle: CSSProperties = { fontSize: "0.8em" }
+const paginationContainerStyle: CSSProperties = {
+	display: "flex",
+	justifyContent: "space-between",
+	alignItems: "center",
+	padding: "8px 0px",
+	marginTop: "15px",
+	borderTop: "1px solid var(--vscode-editorGroup-border)",
+}
+const paginationButtonGroupStyle: CSSProperties = { display: "flex", gap: "4px" }
+const browserSessionStartedTextStyle: CSSProperties = { fontWeight: "bold" }
+const codeBlockContainerStyle: CSSProperties = {
+	borderRadius: 3,
+	border: "1px solid var(--vscode-editorGroup-border)",
+	overflow: "hidden",
+	backgroundColor: CODE_BLOCK_BG_COLOR,
+}
+const browserActionBoxContainerStyle: CSSProperties = { padding: "10px 0 0 0" }
+const browserActionBoxContainerInnerStyle: CSSProperties = {
+	borderRadius: 3,
+	backgroundColor: CODE_BLOCK_BG_COLOR,
+	overflow: "hidden",
+	border: "1px solid var(--vscode-editorGroup-border)",
+}
+const browseActionRowContainerStyle: CSSProperties = {
+	display: "flex",
+	alignItems: "center",
+	padding: "9px 10px",
+}
+const browseActionRowStyle: CSSProperties = {
+	whiteSpace: "normal",
+	wordBreak: "break-word",
+}
+const browseActionTextStyle: CSSProperties = { fontWeight: 500 }
+const chatRowContentContainerStyle: CSSProperties = { padding: "10px 0 10px 0" }
+const headerStyle: CSSProperties = {
+	display: "flex",
+	alignItems: "center",
+	gap: "10px",
+	marginBottom: "10px",
 }
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
@@ -43,6 +130,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		}
 		return false
 	}, [messages, lastModifiedMessage, isLast])
+
+	// If last message is a resume, it means the task was cancelled and the browser was closed
+	const isLastMessageResume = useMemo(() => {
+		// Check if last message is resume completion
+		return lastModifiedMessage?.ask === "resume_task" || lastModifiedMessage?.ask === "resume_completed_task"
+	}, [lastModifiedMessage?.ask])
 
 	const isBrowsing = useMemo(() => {
 		return isLast && messages.some((m) => m.say === "browser_action_result") && !isLastApiReqInterrupted // after user approves, browser_action_result with "" is sent to indicate that the session has started
@@ -244,25 +337,16 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const maxWidth = browserSettings.viewport.width < BROWSER_VIEWPORT_PRESETS["Small Desktop (900x600)"].width ? 200 : undefined
 
 	const [browserSessionRow, { height }] = useSize(
+		// We don't declare a constant for the inline style here because `useSize` will try to modify the style object
+		// Which will cause `Uncaught TypeError: Cannot assign to read only property 'position' of object '#<Object>'`
 		<BrowserSessionRowContainer style={{ marginBottom: -10 }}>
-			<div
-				style={{
-					display: "flex",
-					alignItems: "center",
-					gap: "10px",
-					marginBottom: "10px",
-				}}>
-				{isBrowsing ? (
+			<div style={browserSessionRowContainerInnerStyle}>
+				{isBrowsing && !isLastMessageResume ? (
 					<ProgressIndicator />
 				) : (
-					<span
-						className={`codicon codicon-inspect`}
-						style={{
-							color: "var(--vscode-foreground)",
-							marginBottom: "-1.5px",
-						}}></span>
+					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
 				)}
-				<span style={{ fontWeight: "bold" }}>
+				<span style={approveTextStyle}>
 					<>{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}</>
 				</span>
 			</div>
@@ -277,14 +361,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					margin: "0 auto 10px auto", // Center the container
 				}}>
 				{/* URL Bar */}
-				<div
-					style={{
-						margin: "5px auto",
-						width: "calc(100% - 10px)",
-						display: "flex",
-						alignItems: "center",
-						gap: "4px",
-					}}>
+				<div style={urlBarContainerStyle}>
 					<div
 						style={{
 							flex: 1,
@@ -296,18 +373,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
 						}}>
-						<div
-							style={{
-								textOverflow: "ellipsis",
-								overflow: "hidden",
-								whiteSpace: "nowrap",
-								width: "100%",
-								textAlign: "center",
-							}}>
-							{displayState.url || "http"}
-						</div>
+						<div style={urlTextStyle}>{displayState.url || "http"}</div>
 					</div>
-					<BrowserSettingsMenu disabled={!shouldShowSettings} maxWidth={maxWidth} />
+					<BrowserSettingsMenu />
 				</div>
 
 				{/* Screenshot Area */}
@@ -322,15 +390,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<img
 							src={displayState.screenshot}
 							alt="Browser screenshot"
-							style={{
-								position: "absolute",
-								top: 0,
-								left: 0,
-								width: "100%",
-								height: "100%",
-								objectFit: "contain",
-								cursor: "pointer",
-							}}
+							style={imgScreenshotStyle}
 							onClick={() =>
 								vscode.postMessage({
 									type: "openImage",
@@ -339,20 +399,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							}
 						/>
 					) : (
-						<div
-							style={{
-								position: "absolute",
-								top: "50%",
-								left: "50%",
-								transform: "translate(-50%, -50%)",
-							}}>
-							<span
-								className="codicon codicon-globe"
-								style={{
-									fontSize: "80px",
-									color: "var(--vscode-descriptionForeground)",
-								}}
-							/>
+						<div style={noScreenshotContainerStyle}>
+							<span className="codicon codicon-globe" style={noScreenshotIconStyle} />
 						</div>
 					)}
 					{displayState.mousePosition && (
@@ -367,7 +415,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					)}
 				</div>
 
-				<div style={{ width: "100%" }}>
+				<div style={consoleLogsContainerStyle}>
 					<div
 						onClick={() => {
 							setConsoleLogsExpanded(!consoleLogsExpanded)
@@ -382,7 +430,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
 						}}>
 						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
-						<span style={{ fontSize: "0.8em" }}>Console Logs</span>
+						<span style={consoleLogsTextStyle}>Console Logs</span>
 					</div>
 					{consoleLogsExpanded && (
 						<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
@@ -395,19 +443,11 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 			{/* Pagination moved to bottom */}
 			{pages.length > 1 && (
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-						padding: "8px 0px",
-						marginTop: "15px",
-						borderTop: "1px solid var(--vscode-editorGroup-border)",
-					}}>
+				<div style={paginationContainerStyle}>
 					<div>
 						Step {currentPageIndex + 1} of {pages.length}
 					</div>
-					<div style={{ display: "flex", gap: "4px" }}>
+					<div style={paginationButtonGroupStyle}>
 						<VSCodeButton
 							disabled={currentPageIndex === 0 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i - 1)}>
@@ -453,26 +493,13 @@ const BrowserSessionRowContent = ({
 	isLast,
 	setMaxActionHeight,
 }: BrowserSessionRowContentProps) => {
-	const headerStyle: React.CSSProperties = {
-		display: "flex",
-		alignItems: "center",
-		gap: "10px",
-		marginBottom: "10px",
-	}
-
 	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 		return (
 			<>
 				<div style={headerStyle}>
-					<span style={{ fontWeight: "bold" }}>Browser Session Started</span>
+					<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
 				</div>
-				<div
-					style={{
-						borderRadius: 3,
-						border: "1px solid var(--vscode-editorGroup-border)",
-						overflow: "hidden",
-						backgroundColor: CODE_BLOCK_BG_COLOR,
-					}}>
+				<div style={codeBlockContainerStyle}>
 					<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} forceWrap={true} />
 				</div>
 			</>
@@ -485,7 +512,7 @@ const BrowserSessionRowContent = ({
 				case "api_req_started":
 				case "text":
 					return (
-						<div style={{ padding: "10px 0 10px 0" }}>
+						<div style={chatRowContentContainerStyle}>
 							<ChatRowContent
 								message={message}
 								isExpanded={isExpanded(message.ts)}
@@ -543,26 +570,11 @@ const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction;
 		}
 	}
 	return (
-		<div style={{ padding: "10px 0 0 0" }}>
-			<div
-				style={{
-					borderRadius: 3,
-					backgroundColor: CODE_BLOCK_BG_COLOR,
-					overflow: "hidden",
-					border: "1px solid var(--vscode-editorGroup-border)",
-				}}>
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						padding: "9px 10px",
-					}}>
-					<span
-						style={{
-							whiteSpace: "normal",
-							wordBreak: "break-word",
-						}}>
-						<span style={{ fontWeight: 500 }}>Browse Action: </span>
+		<div style={browserActionBoxContainerStyle}>
+			<div style={browserActionBoxContainerInnerStyle}>
+				<div style={browseActionRowContainerStyle}>
+					<span style={browseActionRowStyle}>
+						<span style={browseActionTextStyle}>Browse Action: </span>
 						{getBrowserActionText(action, coordinate, text)}
 					</span>
 				</div>
@@ -571,7 +583,7 @@ const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction;
 	)
 }
 
-const BrowserCursor: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
+const BrowserCursor: React.FC<{ style?: CSSProperties }> = ({ style }) => {
 	// (can't use svgs in vsc extensions)
 	const cursorBase64 =
 		"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAYCAYAAAAVibZIAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAFaADAAQAAAABAAAAGAAAAADwi9a/AAADGElEQVQ4EZ2VbUiTURTH772be/PxZdsz3cZwC4RVaB8SAjMpxQwSWZbQG/TFkN7oW1Df+h6IRV9C+hCpKUSIZUXOfGM5tAKViijFFEyfZ7Ol29S1Pbdzl8Uw9+aBu91zzv3/nt17zt2DEZjBYOAkKrtFMXIghAWM8U2vMN/FctsxGRMpM7NbEEYNMM2CYUSInlJx3OpawO9i+XSNQYkmk2uFb9njzkcfVSr1p/GJiQKMULVaw2WuBv296UKRxWJR6wxGCmM1EAhSNppv33GBH9qI32cPTAtss9lUm6EM3N7R+RbigT+5/CeosFCZKpjEW+iorS1pb30wDUXzQfHqtD/9L3ieZ2ee1OJCmbL8QHnRs+4uj0wmW4QzrpCwvJ8zGg3JqAmhTLynuLiwv8/5KyND8Q3cEkUEDWu15oJE4KRQJt5hs1rcriGNRqP+DK4dyyWXXm/aFQ+cEpSJ8/LyDGPuEZNOmzsOroUSOqzXG/dtBU4ZysTZYKNut91sNo2Cq6cE9enz86s2g9OCMrFSqVC5hgb32u072W3jKMU90Hb1seC0oUwsB+t92bO/rKx0EFGkgFCnjjc1/gVvC8rE0L+4o63t4InjxwbAJQjTe3qD8QrLkXA4DC24fWtuajp06cLFYSBIFKGmXKPRRmAnME9sPt+yLwIWb9WN69fKoTneQz4Dh2mpPNkvfeV0jjecb9wNAkwIEVQq5VJOds4Kb+DXoAsiVquVwI1Dougpij6UyGYx+5cKroeDEFibm5lWRRMbH1+npmYrq6qhwlQHIbajZEf1fElcqGGFpGg9HMuKzpfBjhytCTMgkJ56RX09zy/ysENTBElmjIgJnmNChJqohDVQqpEfwkILE8v/o0GAnV9F1eEvofVQCbiTBEXOIPQh5PGgefDZeAcjrpGZjULBr/m3tZOnz7oEQWRAQZLjWlEU/XEJWySiILgRc5Cz1DkcAyuBFcnpfF0JiXWKpcolQXizhS5hKAqFpr0MVbgbuxJ6+5xX+P4wNpbqPPrugZfbmIbLmgQR3Aw8QSi66hUXulOFbF73GxqjE5BNXWNeAAAAAElFTkSuQmCC"

@@ -1,6 +1,6 @@
 import styled from "styled-components"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { vscode } from "../../utils/vscode"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { vscode } from "@/utils/vscode"
 
 const OptionButton = styled.button<{ isSelected?: boolean; isNotSelectable?: boolean }>`
 	padding: 8px 12px;
@@ -26,10 +26,12 @@ export const OptionsButtons = ({
 	options,
 	selected,
 	isActive,
+	inputValue,
 }: {
 	options?: string[]
 	selected?: string
 	isActive?: boolean
+	inputValue?: string
 }) => {
 	if (!options?.length) return null
 
@@ -58,7 +60,7 @@ export const OptionsButtons = ({
 						}
 						vscode.postMessage({
 							type: "optionsResponse",
-							text: option,
+							text: option + (inputValue ? `: ${inputValue?.trim()}` : ""),
 						})
 					}}>
 					{option}
