@@ -8,6 +8,10 @@ export const SUPPORTED_SLASH_COMMANDS: SlashCommand[] = [
 		name: "newtask",
 		description: "Create a new task with context from the current task",
 	},
+	{
+		name: "other",
+		description: "Some other description about things yeah",
+	},
 ]
 
 // Regex for detecting slash commands in text
@@ -15,21 +19,29 @@ export const slashCommandRegex = /\/([a-zA-Z0-9_-]+)(\s|$)/
 export const slashCommandRegexGlobal = new RegExp(slashCommandRegex.source, "g")
 
 /**
- * Determines whether the slash command menu should be displayed based on text input and cursor position
+ * Determines whether the slash command menu should be displayed based on text input
  */
-export function shouldShowSlashCommandsMenu(text: string): boolean {
-	// slash commands can effectively only show up at the start of the text box
-	const startsWithSlash = /^\s*\//.test(text)
-	if (!startsWithSlash) {
+export function shouldShowSlashCommandsMenu(text: string, cursorPosition: number): boolean {
+	const beforeCursor = text.slice(0, cursorPosition)
+
+	// first check if there is a slash before the cursor
+	const slashIndex = beforeCursor.lastIndexOf("/")
+
+	if (slashIndex === -1) {
 		return false
 	}
 
-	const slashIndex = text.indexOf("/")
-	// if (position <= slashIndex) return false
+	// check if slash is at the very beginning (with optional whitespace)
+	const textBeforeSlash = beforeCursor.slice(0, slashIndex)
+	if (!/^\s*$/.test(textBeforeSlash)) {
+		return false
+	}
 
-	//const partialCommand = text.slice(slashIndex + 1, position)
-	const partialCommand = text.slice(slashIndex, text.length) // makes more sense to check the entire text here
-	if (/\s/.test(partialCommand)) {
+	// potential partial or full command
+	const textAfterSlash = beforeCursor.slice(slashIndex + 1)
+
+	// don't show menu if there's whitespace after the slash but before the cursor
+	if (/\s/.test(textAfterSlash)) {
 		return false
 	}
 
@@ -49,7 +61,7 @@ export function getMatchingSlashCommands(query: string): SlashCommand[] {
 }
 
 /**
- * Insert a slash command at the cursor position or replace partial command
+ * Insert a slash command at position or replace partial command
  */
 export function insertSlashCommand(text: string, commandName: string): string {
 	const slashIndex = text.indexOf("/")

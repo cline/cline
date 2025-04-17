@@ -609,7 +609,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue(newValue)
 				setCursorPosition(newCursorPosition)
 				let showMenu = shouldShowContextMenu(newValue, newCursorPosition)
-				const showSlashCommandsMenu = shouldShowSlashCommandsMenu(newValue)
+				const showSlashCommandsMenu = shouldShowSlashCommandsMenu(newValue, newCursorPosition)
 
 				// we do not allow both menus to be shown at the same time
 				// the slash commands menu has precedence bc its a narrower component
