@@ -7,7 +7,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface UserMessageProps {
 	text?: string
-	images?: any[] // Using any[] for now, but you might want to specify the correct type from your codebase
+	images?: string[]
 	messageTs?: number // Timestamp for the message, needed for checkpoint restore
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
 }
