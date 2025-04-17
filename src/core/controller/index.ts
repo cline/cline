@@ -47,8 +47,9 @@ import {
 	updateGlobalState,
 	updateWorkspaceState,
 } from "../storage/state"
-import { Task } from "../task"
+import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "../../shared/cline-rules"
+import { refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -472,6 +473,10 @@ export class Controller {
 				const { apiConfiguration } = await getAllExtensionState(this.context)
 				const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
 				this.postMessageToWebview({ type: "openAiModels", openAiModels })
+				break
+			case "refreshClineRules":
+				await refreshClineRulesToggles(this.context, cwd)
+				await this.postStateToWebview()
 				break
 			case "openImage":
 				openImage(message.text!)

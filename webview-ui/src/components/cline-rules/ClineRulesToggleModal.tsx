@@ -15,6 +15,12 @@ const ClineRulesToggleModal: React.FC = () => {
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
 
+	useEffect(() => {
+		if (isVisible) {
+			vscode.postMessage({ type: "refreshClineRules" })
+		}
+	}, [isVisible])
+
 	// Format global rules for display with proper typing
 	const globalRules = Object.entries(globalClineRulesToggles || {})
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
