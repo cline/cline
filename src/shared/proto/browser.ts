@@ -5,7 +5,7 @@
 // source: browser.proto
 
 /* eslint-disable */
-import * as _m0 from "protobufjs/minimal"
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
 import { EmptyRequest } from "./common"
 
 export const protobufPackage = "cline"
@@ -27,7 +27,7 @@ function createBaseBrowserConnectionInfo(): BrowserConnectionInfo {
 }
 
 export const BrowserConnectionInfo: MessageFns<BrowserConnectionInfo> = {
-	encode(message: BrowserConnectionInfo, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+	encode(message: BrowserConnectionInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		if (message.isConnected !== false) {
 			writer.uint32(8).bool(message.isConnected)
 		}
@@ -40,8 +40,8 @@ export const BrowserConnectionInfo: MessageFns<BrowserConnectionInfo> = {
 		return writer
 	},
 
-	decode(input: _m0.Reader | Uint8Array, length?: number): BrowserConnectionInfo {
-		const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input)
+	decode(input: BinaryReader | Uint8Array, length?: number): BrowserConnectionInfo {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
 		const message = createBaseBrowserConnectionInfo()
 		while (reader.pos < end) {
@@ -75,7 +75,7 @@ export const BrowserConnectionInfo: MessageFns<BrowserConnectionInfo> = {
 			if ((tag & 7) === 4 || tag === 0) {
 				break
 			}
-			reader.skipType(tag & 7)
+			reader.skip(tag & 7)
 		}
 		return message
 	},
@@ -260,8 +260,8 @@ function isSet(value: any): boolean {
 }
 
 export interface MessageFns<T> {
-	encode(message: T, writer?: _m0.Writer): _m0.Writer
-	decode(input: _m0.Reader | Uint8Array, length?: number): T
+	encode(message: T, writer?: BinaryWriter): BinaryWriter
+	decode(input: BinaryReader | Uint8Array, length?: number): T
 	fromJSON(object: any): T
 	toJSON(message: T): unknown
 	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T

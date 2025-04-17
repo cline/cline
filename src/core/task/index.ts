@@ -13,7 +13,6 @@ import { ApiHandler, buildApiHandler } from "../../api"
 import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
-import { getContextWindowInfo } from "../context/context-management/context-window-utils"
 import { ApiStream } from "../../api/transform/stream"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
@@ -59,12 +58,13 @@ import { calculateApiCostAnthropic } from "../../utils/cost"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "../../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
-import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "../assistant-message"
-import { constructNewFileContent } from "../assistant-message/diff"
-import { ClineIgnoreController } from "../ignore/ClineIgnoreController"
-import { parseMentions } from "../mentions"
-import { formatResponse } from "../prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "../prompts/system"
+import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
+import { constructNewFileContent } from ".././assistant-message/diff"
+import { ClineIgnoreController } from ".././ignore/ClineIgnoreController"
+import { parseMentions } from ".././mentions"
+import { formatResponse } from ".././prompts/responses"
+import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
+import { getContextWindowInfo } from "../context/context-management/context-window-utils"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "../context/context-tracking/ModelContextTracker"
 import {
@@ -834,7 +834,7 @@ export class Task {
 		await this.say(
 			"error",
 			`Cline tried to use ${toolName}${
-				relPath ? ` for '${path.posix.normalize(relPath)}'` : ""
+				relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`,
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -3878,7 +3878,7 @@ export class Task {
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
 		if (includeFileDetails) {
-			details += `\n\n# Current Working Directory (${path.posix.normalize(cwd)}) Files\n`
+			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
 			const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))
 			if (isDesktop) {
 				// don't want to immediately access desktop since it would show permission popup
