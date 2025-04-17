@@ -3,6 +3,7 @@ import Thumbnails from "@/components/common/Thumbnails"
 import { highlightMentions } from "./TaskHeader"
 import { vscode } from "@/utils/vscode"
 import DynamicTextArea from "react-textarea-autosize"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 interface UserMessageProps {
 	text?: string
@@ -15,6 +16,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
+	const { checkpointTrackerErrorMessage } = useExtensionState()
 
 	// Create refs for the buttons to check in the blur handler
 	const restoreAllButtonRef = useRef<HTMLButtonElement>(null)
@@ -68,9 +70,9 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 		if (e.key === "Escape") {
 			setIsEditing(false)
 		} else if (e.key === "Enter" && e.metaKey) {
-			handleRestoreWorkspace("task")
-		} else if (e.key === "Enter") {
 			handleRestoreWorkspace("taskAndWorkspace")
+		} else if (e.key === "Enter" && !checkpointTrackerErrorMessage) {
+			handleRestoreWorkspace("task")
 		}
 	}
 
@@ -113,21 +115,23 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 						}}
 					/>
 					<div style={{ display: "flex", gap: "8px", marginTop: "8px", justifyContent: "flex-end" }}>
+						{!checkpointTrackerErrorMessage && (
+							<RestoreButton
+								ref={restoreAllButtonRef}
+								type="taskAndWorkspace"
+								label="Restore All"
+								isPrimary={false}
+								onClick={handleRestoreWorkspace}
+								title="Restore both the chat and workspace files to this checkpoint and send your message"
+							/>
+						)}
 						<RestoreButton
 							ref={restoreChatButtonRef}
 							type="task"
 							label="Restore Chat"
-							isPrimary={false}
-							onClick={handleRestoreWorkspace}
-							title="Restore just the chat to this checkpoint and send your message"
-						/>
-						<RestoreButton
-							ref={restoreAllButtonRef}
-							type="taskAndWorkspace"
-							label="Restore All"
 							isPrimary={true}
 							onClick={handleRestoreWorkspace}
-							title="Restore both the chat and workspace files to this checkpoint and send your message"
+							title="Restore just the chat to this checkpoint and send your message"
 						/>
 					</div>
 				</>
