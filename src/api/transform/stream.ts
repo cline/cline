@@ -18,4 +18,5 @@ export interface ApiStreamUsageChunk {
 	cacheWriteTokens?: number
 	cacheReadTokens?: number
 	totalCost?: number // openrouter
+	modelName?: string // model name from provider
 }

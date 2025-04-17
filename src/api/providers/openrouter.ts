@@ -80,6 +80,7 @@ export class OpenRouterHandler implements ApiHandler {
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-ignore-next-line
 					totalCost: chunk.usage.cost || 0,
+					modelName: this.getModel().id,
 				}
 				didOutputUsage = true
 			}
@@ -109,6 +110,7 @@ export class OpenRouterHandler implements ApiHandler {
 					inputTokens: generation?.native_tokens_prompt || 0,
 					outputTokens: generation?.native_tokens_completion || 0,
 					totalCost: generation?.total_cost || 0,
+					modelName: this.getModel().id,
 				}
 			} catch (error) {
 				// ignore if fails

@@ -11,28 +11,33 @@ import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
 import { ErrorService } from "./services/error/ErrorService"
-import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
-
-/*
-Built using https://github.com/microsoft/vscode-webview-ui-toolkit
-
-Inspired by
-https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/default/weather-webview
-https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/frameworks/hello-world-react-cra
-
-*/
+import * as packageJson from "../package.json"
 
 let outputChannel: vscode.OutputChannel
+
+function showExtensionInfo(context: vscode.ExtensionContext) {
+	const version = packageJson.version
+	const isDevMode = IS_DEV && IS_DEV === "true"
+	const displayName = `Clone v${version}${isDevMode ? " (Dev)" : ""}`
+	const message = `${displayName} activated`
+	vscode.window.showInformationMessage(message)
+	Logger.log(message)
+
+	// Update VSCode's displayed name for the extension
+	vscode.commands.executeCommand("setContext", "cline.displayName", displayName)
+	vscode.commands.executeCommand("setContext", "cline.version", version)
+	vscode.commands.executeCommand("setContext", "cline.isDevMode", isDevMode)
+}
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	outputChannel = vscode.window.createOutputChannel("Cline")
+	outputChannel = vscode.window.createOutputChannel("Clone")
 	context.subscriptions.push(outputChannel)
 
 	ErrorService.initialize()
 	Logger.initialize(outputChannel)
-	Logger.log("Cline extension activated")
+	showExtensionInfo(context)
 
 	const sidebarWebview = new WebviewProvider(context, outputChannel)
 
@@ -97,7 +102,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(WebviewProvider.tabPanelId, "Cline", targetCol, {
+		const panel = vscode.window.createWebviewPanel(WebviewProvider.tabPanelId, "Clone", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],

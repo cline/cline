@@ -1,13 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { ApiHandlerOptions, ModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "../../shared/api"
 import { ApiHandler } from ".."
-import { ApiStream } from "../transform/stream"
+import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 
 export class LiteLlmHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
+	private modelInfo: ModelInfo
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -15,6 +16,69 @@ export class LiteLlmHandler implements ApiHandler {
 			baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
 			apiKey: this.options.liteLlmApiKey || "noop",
 		})
+
+		// Initialize model info with defaults
+		this.modelInfo = { ...liteLlmModelInfoSaneDefaults }
+
+		// Fetch model info asynchronously
+		this.fetchModelInfo()
+			.then((info) => {
+				if (info) {
+					this.modelInfo = info
+					// Force a refresh of the UI by triggering a usage update
+					this.getApiStreamUsage()
+				}
+			})
+			.catch((error) => {
+				console.error("Failed to initialize model info:", error)
+			})
+	}
+
+	private async fetchModelInfo(): Promise<ModelInfo | undefined> {
+		try {
+			const response = await fetch(`${this.client.baseURL}/model/info`, {
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${this.options.liteLlmApiKey}`,
+				},
+			})
+
+			if (response.ok) {
+				const data = await response.json()
+				// Find the model info for the current model
+				const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
+				const modelData = data.data.find((model: any) => model.model_name === modelId)
+
+				if (modelData?.model_info) {
+					// Extract relevant model information
+					return {
+						maxTokens: modelData.model_info.max_output_tokens || -1,
+						contextWindow: modelData.model_info.max_input_tokens || 128_000,
+						supportsImages: !!modelData.model_info.supports_images,
+						supportsPromptCache: !!modelData.model_info.supports_prompt_cache || true,
+						inputPrice: modelData.model_info.input_cost_per_token
+							? modelData.model_info.input_cost_per_token * 1e6
+							: 0,
+						outputPrice: modelData.model_info.output_cost_per_token
+							? modelData.model_info.output_cost_per_token * 1e6
+							: 0,
+						cacheWritesPrice: modelData.model_info.cache_writes_cost_per_token
+							? modelData.model_info.cache_writes_cost_per_token * 1e6
+							: 0,
+						cacheReadsPrice: modelData.model_info.cache_reads_cost_per_token
+							? modelData.model_info.cache_reads_cost_per_token * 1e6
+							: 0,
+					}
+				}
+			}
+
+			console.error("Failed to fetch model info:", response.statusText)
+			return undefined
+		} catch (error) {
+			console.error("Error fetching model info:", error)
+			return undefined
+		}
 	}
 
 	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
@@ -161,6 +225,7 @@ export class LiteLlmHandler implements ApiHandler {
 					cacheWriteTokens: cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
 					cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : undefined,
 					totalCost,
+					modelName: this.options.liteLlmModelId || liteLlmDefaultModelId,
 				}
 			}
 		}
@@ -169,7 +234,27 @@ export class LiteLlmHandler implements ApiHandler {
 	getModel() {
 		return {
 			id: this.options.liteLlmModelId || liteLlmDefaultModelId,
-			info: liteLlmModelInfoSaneDefaults,
+			info: this.modelInfo,
+		}
+	}
+
+	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
+		try {
+			const modelInfo = await this.fetchModelInfo()
+			if (modelInfo) {
+				this.modelInfo = modelInfo
+				// Return a standard usage chunk to trigger UI update
+				return {
+					type: "usage",
+					inputTokens: 0,
+					outputTokens: 0,
+					modelName: this.options.liteLlmModelId || liteLlmDefaultModelId,
+				}
+			}
+			return undefined
+		} catch (error) {
+			console.error("Error getting API stream usage:", error)
+			return undefined
 		}
 	}
 }
