@@ -8,7 +8,7 @@ The Memory Bank consists of required core files and optional context files, all 
 
 ```mermaid
 flowchart TD
-    PB[projectbrief.md] --> PC[productContext.md]
+    PB[projectBrief.md] --> PC[productContext.md]
     PB --> SP[systemPatterns.md]
     PB --> TC[techContext.md]
     
@@ -20,7 +20,7 @@ flowchart TD
 ```
 
 ### Core Files (Required)
-1. `projectbrief.md`
+1. `projectBrief.md`
    - Foundation document that shapes all other files
    - Created at project start if it doesn't exist
    - Defines core requirements and goals
