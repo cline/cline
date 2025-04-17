@@ -50,11 +50,8 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
-<<<<<<< HEAD
 	inputValue?: string
-=======
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
->>>>>>> 3b3f7848 (User message editing)
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -129,11 +126,8 @@ export const ChatRowContent = ({
 	onToggleExpand,
 	lastModifiedMessage,
 	isLast,
-<<<<<<< HEAD
 	inputValue,
-=======
 	sendMessageFromChatRow,
->>>>>>> 3b3f7848 (User message editing)
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
