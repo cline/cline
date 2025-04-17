@@ -587,7 +587,7 @@ const highlightSlashCommands = (text: string, withShadow = true) => {
 /**
  * Highlights & formats all mentions inside this text
  */
-const highlightMentions = (text: string, withShadow = true) => {
+export const highlightMentions = (text: string, withShadow = true) => {
 	const parts = text.split(mentionRegexGlobal)
 
 	return parts.map((part, index) => {
