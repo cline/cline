@@ -12,6 +12,7 @@ export const TOOL_DISPLAY_NAMES = {
 	read_file: "read files",
 	fetch_instructions: "fetch instructions",
 	write_to_file: "write files",
+	append_to_file: "append to files",
 	apply_diff: "apply changes",
 	search_files: "search files",
 	list_files: "list files",
@@ -33,7 +34,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["read_file", "fetch_instructions", "search_files", "list_files", "list_code_definition_names"],
 	},
 	edit: {
-		tools: ["apply_diff", "write_to_file", "insert_content", "search_and_replace"],
+		tools: ["apply_diff", "write_to_file", "append_to_file", "insert_content", "search_and_replace"],
 	},
 	browser: {
 		tools: ["browser_action"],

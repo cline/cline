@@ -16,6 +16,9 @@ function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Recor
 	if (experiments?.["insert_content"]) {
 		availableTools.push("insert_content (for adding lines to existing files)")
 	}
+	if (experiments?.["append_to_file"]) {
+		availableTools.push("append_to_file (for appending content to the end of files)")
+	}
 	if (experiments?.["search_and_replace"]) {
 		availableTools.push("search_and_replace (for finding and replacing individual pieces of text)")
 	}
@@ -29,6 +32,12 @@ function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Recor
 	if (experiments?.["insert_content"]) {
 		instructions.push(
 			"- The insert_content tool adds lines of text to files, such as adding a new function to a JavaScript file or inserting a new route in a Python file. This tool will insert it at the specified line location. It can support multiple operations at once.",
+		)
+	}
+
+	if (experiments?.["append_to_file"]) {
+		instructions.push(
+			"- The append_to_file tool adds content to the end of files, such as appending new log entries or adding new data records. This tool will always add the content at the end of the file.",
 		)
 	}
 

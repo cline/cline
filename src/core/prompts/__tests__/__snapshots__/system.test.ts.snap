@@ -179,6 +179,28 @@ Example: Requesting to write to frontend-config.json
 <line_count>14</line_count>
 </write_to_file>
 
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
+
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Prefer relative commands and paths that avoid location sensitivity for terminal consistency, e.g: \`touch ./testdata/example.file\`, \`dir ./examples/model1/data/yaml\`, or \`go test ./cmd/front --config ./cmd/front/config.yml\`. If directed by the user, you may open a terminal in a different directory by using the \`cwd\` parameter.
 Parameters:
@@ -575,6 +597,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## insert_content
 Description: Inserts content at specific line positions in a file. This is the primary tool for adding new content and code (functions/methods/classes, imports, attributes etc.) as it allows for precise insertions without overwriting existing content. The tool uses an efficient line-based insertion system that maintains file integrity and proper ordering of multiple insertions. Beware to use the proper indentation. This tool is the preferred way to add new content and code to files.
@@ -1062,6 +1106,28 @@ Example: Requesting to write to frontend-config.json
 <line_count>14</line_count>
 </write_to_file>
 
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
+
 ## search_and_replace
 Description: Request to perform search and replace operations on a file. Each operation can specify a search pattern (string or regex) and replacement text, with optional line range restrictions and regex flags. Shows a diff preview before applying changes.
 Parameters:
@@ -1512,6 +1578,28 @@ Example: Requesting to write to frontend-config.json
 <line_count>14</line_count>
 </write_to_file>
 
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
+
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Prefer relative commands and paths that avoid location sensitivity for terminal consistency, e.g: \`touch ./testdata/example.file\`, \`dir ./examples/model1/data/yaml\`, or \`go test ./cmd/front --config ./cmd/front/config.yml\`. If directed by the user, you may open a terminal in a different directory by using the \`cwd\` parameter.
 Parameters:
@@ -1908,6 +1996,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Prefer relative commands and paths that avoid location sensitivity for terminal consistency, e.g: \`touch ./testdata/example.file\`, \`dir ./examples/model1/data/yaml\`, or \`go test ./cmd/front --config ./cmd/front/config.yml\`. If directed by the user, you may open a terminal in a different directory by using the \`cwd\` parameter.
@@ -2306,6 +2416,28 @@ Example: Requesting to write to frontend-config.json
 <line_count>14</line_count>
 </write_to_file>
 
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
+
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Prefer relative commands and paths that avoid location sensitivity for terminal consistency, e.g: \`touch ./testdata/example.file\`, \`dir ./examples/model1/data/yaml\`, or \`go test ./cmd/front --config ./cmd/front/config.yml\`. If directed by the user, you may open a terminal in a different directory by using the \`cwd\` parameter.
 Parameters:
@@ -2702,6 +2834,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## browser_action
 Description: Request to interact with a Puppeteer-controlled browser. Every action, except \`close\`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.
@@ -3155,6 +3309,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Prefer relative commands and paths that avoid location sensitivity for terminal consistency, e.g: \`touch ./testdata/example.file\`, \`dir ./examples/model1/data/yaml\`, or \`go test ./cmd/front --config ./cmd/front/config.yml\`. If directed by the user, you may open a terminal in a different directory by using the \`cwd\` parameter.
@@ -3620,6 +3796,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## browser_action
 Description: Request to interact with a Puppeteer-controlled browser. Every action, except \`close\`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.
@@ -4164,6 +4362,28 @@ Example: Requesting to write to frontend-config.json
 <line_count>14</line_count>
 </write_to_file>
 
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
+
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Prefer relative commands and paths that avoid location sensitivity for terminal consistency, e.g: \`touch ./testdata/example.file\`, \`dir ./examples/model1/data/yaml\`, or \`go test ./cmd/front --config ./cmd/front/config.yml\`. If directed by the user, you may open a terminal in a different directory by using the \`cwd\` parameter.
 Parameters:
@@ -4562,6 +4782,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## execute_command
 Description: Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Prefer relative commands and paths that avoid location sensitivity for terminal consistency, e.g: \`touch ./testdata/example.file\`, \`dir ./examples/model1/data/yaml\`, or \`go test ./cmd/front --config ./cmd/front/config.yml\`. If directed by the user, you may open a terminal in a different directory by using the \`cwd\` parameter.
@@ -5001,6 +5243,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## insert_content
 Description: Inserts content at specific line positions in a file. This is the primary tool for adding new content and code (functions/methods/classes, imports, attributes etc.) as it allows for precise insertions without overwriting existing content. The tool uses an efficient line-based insertion system that maintains file integrity and proper ordering of multiple insertions. Beware to use the proper indentation. This tool is the preferred way to add new content and code to files.
@@ -5560,6 +5824,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## insert_content
 Description: Inserts content at specific line positions in a file. This is the primary tool for adding new content and code (functions/methods/classes, imports, attributes etc.) as it allows for precise insertions without overwriting existing content. The tool uses an efficient line-based insertion system that maintains file integrity and proper ordering of multiple insertions. Beware to use the proper indentation. This tool is the preferred way to add new content and code to files.
@@ -6404,6 +6690,28 @@ Example: Requesting to write to frontend-config.json
 </content>
 <line_count>14</line_count>
 </write_to_file>
+
+## append_to_file
+Description: Request to append content to a file at the specified path. If the file exists, the content will be appended to the end of the file. If the file doesn't exist, it will be created with the provided content. This tool will automatically create any directories needed to write the file.
+Parameters:
+- path: (required) The path of the file to append to (relative to the current workspace directory /test/path)
+- content: (required) The content to append to the file. The content will be added at the end of the existing file content. Do NOT include line numbers in the content.
+Usage:
+<append_to_file>
+<path>File path here</path>
+<content>
+Your content to append here
+</content>
+</append_to_file>
+
+Example: Requesting to append to a log file
+<append_to_file>
+<path>logs/app.log</path>
+<content>
+[2024-04-17 15:20:30] New log entry
+[2024-04-17 15:20:31] Another log entry
+</content>
+</append_to_file>
 
 ## insert_content
 Description: Inserts content at specific line positions in a file. This is the primary tool for adding new content and code (functions/methods/classes, imports, attributes etc.) as it allows for precise insertions without overwriting existing content. The tool uses an efficient line-based insertion system that maintains file integrity and proper ordering of multiple insertions. Beware to use the proper indentation. This tool is the preferred way to add new content and code to files.
