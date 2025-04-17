@@ -12,11 +12,14 @@
  * @returns A mention-friendly path
  */
 export function convertToMentionPath(path: string, cwd?: string): string {
-	const normalizedPath = path.replace(/\\/g, "/")
+	// Strip file:// protocol if present
+	const pathWithoutProtocol = path.startsWith("file://") ? path.substring(7) : path
+
+	const normalizedPath = pathWithoutProtocol.replace(/\\/g, "/")
 	let normalizedCwd = cwd ? cwd.replace(/\\/g, "/") : ""
 
 	if (!normalizedCwd) {
-		return path
+		return pathWithoutProtocol
 	}
 
 	// Remove trailing slash from cwd if it exists
@@ -34,5 +37,5 @@ export function convertToMentionPath(path: string, cwd?: string): string {
 		return "@" + (relativePath.startsWith("/") ? relativePath : "/" + relativePath)
 	}
 
-	return path
+	return pathWithoutProtocol
 }

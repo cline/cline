@@ -41,5 +41,20 @@ describe("path-mentions", () => {
 				"@/nested/deeply/file.txt",
 			)
 		})
+
+		it("should strip file:// protocol from paths if present", () => {
+			// Without cwd
+			expect(convertToMentionPath("file:///Users/user/project/file.txt")).toBe("/Users/user/project/file.txt")
+
+			// With cwd - should strip protocol and then apply mention path logic
+			expect(convertToMentionPath("file:///Users/user/project/file.txt", "/Users/user/project")).toBe(
+				"@/file.txt",
+			)
+
+			// With Windows paths
+			expect(convertToMentionPath("file://C:/Users/user/project/file.txt", "C:/Users/user/project")).toBe(
+				"@/file.txt",
+			)
+		})
 	})
 })

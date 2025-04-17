@@ -612,7 +612,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				e.preventDefault()
 				setIsDraggingOver(false)
 
-				const text = e.dataTransfer.getData("text")
+				const text = e.dataTransfer.getData("application/vnd.code.uri-list")
 				if (text) {
 					// Split text on newlines to handle multiple files
 					const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "")
