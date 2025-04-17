@@ -18,6 +18,7 @@ export const providerNames = [
 	"lmstudio",
 	"gemini",
 	"openai-native",
+	"xai",
 	"mistral",
 	"deepseek",
 	"unbound",
@@ -360,6 +361,8 @@ export const providerSettingsSchema = z.object({
 	googleGeminiBaseUrl: z.string().optional(),
 	// OpenAI Native
 	openAiNativeApiKey: z.string().optional(),
+	// XAI
+	xaiApiKey: z.string().optional(),
 	// Mistral
 	mistralApiKey: z.string().optional(),
 	mistralCodestralUrl: z.string().optional(),
@@ -433,6 +436,8 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	openAiUseAzure: undefined,
 	azureApiVersion: undefined,
 	openAiStreamingEnabled: undefined,
+	// xAI
+	xaiApiKey: undefined,
 	// Ollama
 	ollamaModelId: undefined,
 	ollamaBaseUrl: undefined,

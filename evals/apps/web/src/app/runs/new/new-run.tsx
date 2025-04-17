@@ -158,6 +158,7 @@ export function NewRun() {
 					.parse(JSON.parse(await file.text()))
 
 				const providerSettings = providerProfiles.apiConfigs[providerProfiles.currentApiConfigName] ?? {}
+
 				const {
 					apiProvider,
 					apiModelId,
@@ -177,6 +178,7 @@ export function NewRun() {
 					case "gemini":
 					case "mistral":
 					case "openai-native":
+					case "xai":
 					case "vertex":
 						setValue("model", apiModelId ?? "")
 						break

@@ -9,7 +9,7 @@ export const rooCodeDefaults: RooCodeSettings = {
 	rateLimitSeconds: 0,
 
 	pinnedApiConfigs: {},
-	lastShownAnnouncementId: "apr-04-2025-boomerang",
+	lastShownAnnouncementId: "apr-16-2025-3-12",
 
 	autoApprovalEnabled: true,
 	alwaysAllowReadOnly: true,
@@ -45,7 +45,7 @@ export const rooCodeDefaults: RooCodeSettings = {
 	maxReadFileLine: 500,
 
 	terminalOutputLineLimit: 500,
-	terminalShellIntegrationTimeout: 15_000,
+	terminalShellIntegrationTimeout: 30000,
 	terminalCommandDelay: 0,
 	terminalPowershellCounter: false,
 	terminalZshClearEolMark: true,
