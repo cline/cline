@@ -26,13 +26,18 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 	}
 
 	const handleRestoreWorkspace = (type: string) => {
+		setIsEditing(false)
+
+		if (text === editedText) {
+			return
+		}
+
 		vscode.postMessage({
 			type: "checkpointRestore",
 			number: messageTs,
 			text: type,
 			offset: 1,
 		})
-		setIsEditing(false)
 
 		setTimeout(() => {
 			sendMessageFromChatRow?.(editedText, images || [])
@@ -53,7 +58,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Escape") {
 			setIsEditing(false)
-		} else if (e.key === "Enter" && e.ctrlKey) {
+		} else if (e.key === "Enter" && e.metaKey) {
 			handleRestoreWorkspace("task")
 		} else if (e.key === "Enter") {
 			handleRestoreWorkspace("taskAndWorkspace")
@@ -99,17 +104,17 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 					/>
 					<div style={{ display: "flex", gap: "8px", marginTop: "8px", justifyContent: "flex-end" }}>
 						<RestoreButton
-							ref={restoreAllButtonRef}
-							type="taskAndWorkspace"
-							label="Restore All"
-							isPrimary={true}
-							onClick={handleRestoreWorkspace}
-						/>
-						<RestoreButton
 							ref={restoreChatButtonRef}
 							type="task"
 							label="Restore Chat"
 							isPrimary={false}
+							onClick={handleRestoreWorkspace}
+						/>
+						<RestoreButton
+							ref={restoreAllButtonRef}
+							type="taskAndWorkspace"
+							label="Restore All"
+							isPrimary={true}
 							onClick={handleRestoreWorkspace}
 						/>
 					</div>
