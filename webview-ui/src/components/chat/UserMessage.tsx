@@ -14,6 +14,7 @@ interface UserMessageProps {
 const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, sendMessageFromChatRow }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
+	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 
 	// Create refs for the buttons to check in the blur handler
 	const restoreAllButtonRef = useRef<HTMLButtonElement>(null)
@@ -24,6 +25,13 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 			setIsEditing(true)
 		}
 	}
+
+	// Select all text when entering edit mode
+	React.useEffect(() => {
+		if (isEditing && textAreaRef.current) {
+			textAreaRef.current.select()
+		}
+	}, [isEditing])
 
 	const handleRestoreWorkspace = (type: string) => {
 		setIsEditing(false)
@@ -79,6 +87,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 			{isEditing ? (
 				<>
 					<DynamicTextArea
+						ref={textAreaRef}
 						value={editedText}
 						onChange={(e) => setEditedText(e.target.value)}
 						onBlur={(e) => handleBlur(e)}
