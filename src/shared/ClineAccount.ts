@@ -20,6 +20,7 @@ export interface ApiRequestHistoryEntry {
 	inputTokens: number
 	outputTokens: number
 	cost?: number // Optional, as cost calculation might vary or fail
+	workspace?: string // Optional, workspace identifier (e.g., folder name)
 }
 
 export interface PaymentTransaction {

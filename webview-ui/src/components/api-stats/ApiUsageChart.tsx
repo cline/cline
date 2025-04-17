@@ -43,7 +43,7 @@ type ApiUsageChartProps = {
 }
 
 const DATE_FORMAT = "yyyy-MM-dd"
-const DEFAULT_TIME_RANGE: TimeRange = "lastWeek"
+const DEFAULT_TIME_RANGE: TimeRange = "lastDay" // Changed default to Last 24 Hours
 
 // Helper to calculate date range based on selection
 const calculateDateRange = (range: TimeRange): { start: Date; end: Date } => {
@@ -78,11 +78,24 @@ const formatNumber = (num: number): string => {
 }
 
 const ApiUsageChart = ({ historyData }: ApiUsageChartProps) => {
-	const [granularity, setGranularity] = useState<Granularity>("daily")
+	// Set initial granularity based on the default time range
+	const getInitialGranularity = (range: TimeRange): Granularity => {
+		switch (range) {
+			case "lastHour":
+				return "15min"
+			case "last6Hours":
+			case "lastDay":
+				return "hourly"
+			case "lastWeek":
+			case "lastMonth":
+			default:
+				return "daily"
+		}
+	}
+	const [granularity, setGranularity] = useState<Granularity>(getInitialGranularity(DEFAULT_TIME_RANGE))
 	const [valueType, setValueType] = useState<ValueType>("requests")
 	const [timeRange, setTimeRange] = useState<TimeRange>(DEFAULT_TIME_RANGE)
 	const [selectedProvider, setSelectedProvider] = useState<string>("all")
-
 	// Initialize dates based on default time range
 	const initialRange = calculateDateRange(DEFAULT_TIME_RANGE)
 	const [startDate, setStartDate] = useState<Date>(initialRange.start)
@@ -102,6 +115,24 @@ const ApiUsageChart = ({ historyData }: ApiUsageChartProps) => {
 	const handleTimeRangeChange = (e: any) => {
 		const newRange = e.target.value as TimeRange
 		setTimeRange(newRange)
+		// Auto-adjust granularity based on the new time range
+		if (newRange !== "custom") {
+			let newGranularity: Granularity = "daily" // Default fallback
+			switch (newRange) {
+				case "lastHour":
+					newGranularity = "15min"
+					break
+				case "last6Hours":
+				case "lastDay":
+					newGranularity = "hourly"
+					break
+				case "lastWeek":
+				case "lastMonth":
+					newGranularity = "daily"
+					break
+			}
+			setGranularity(newGranularity)
+		}
 		// Dates will be updated by the useEffect hook
 	}
 

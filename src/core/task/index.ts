@@ -3159,6 +3159,7 @@ export class Task {
 		const provider = modelInfo.id.split("/")[0]
 
 		// Create history entry
+		const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name // Get workspace name directly
 		const historyEntry: ApiRequestHistoryEntry = {
 			timestamp: Date.now(),
 			provider,
@@ -3168,11 +3169,17 @@ export class Task {
 			inputTokens,
 			outputTokens,
 			cost,
+			workspace: workspaceName, // Add workspace name
 		}
 
 		// Get current history and append new entry
 		const currentHistory = ((await getGlobalState(this.getContext(), "apiRequestHistory")) as ApiRequestHistoryEntry[]) || []
-		await updateGlobalState(this.getContext(), "apiRequestHistory", [...currentHistory, historyEntry])
+		// Keep only the last N entries (e.g., 1000)
+		const updatedHistory = [...currentHistory, historyEntry].slice(-1000)
+		await updateGlobalState(this.getContext(), "apiRequestHistory", updatedHistory)
+
+		// Also send the updated history to the webview if it's relevant
+		await this.postMessageToWebview({ type: "apiRequestHistory", history: updatedHistory })
 	}
 
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {

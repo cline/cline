@@ -7,9 +7,9 @@ import { memo, useEffect, useMemo, useState } from "react"
 import CountUp from "react-countup"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import ApiRequestHistoryTable from "./ApiRequestHistoryTable"
-import ApiTaskSummaryTable, { TaskSummaryEntry } from "./ApiTaskSummaryTable"
-import ApiUsageChart from "./ApiUsageChart" // Import the new chart component
+import ApiRequestHistoryTable from "../api-stats/ApiRequestHistoryTable"
+import ApiTaskSummaryTable, { TaskSummaryEntry } from "../api-stats/ApiTaskSummaryTable"
+import ApiUsageChart from "../api-stats/ApiUsageChart" // Import the new chart component
 import CreditsHistoryTable from "./CreditsHistoryTable"
 
 type AccountViewProps = {
