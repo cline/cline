@@ -3,6 +3,7 @@ import {
 	ConverseStreamCommand,
 	ConverseCommand,
 	BedrockRuntimeClientConfig,
+	ContentBlock,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromIni } from "@aws-sdk/credential-providers"
 import { Anthropic } from "@anthropic-ai/sdk"
@@ -23,6 +24,7 @@ import { Message, SystemContentBlock } from "@aws-sdk/client-bedrock-runtime"
 import { MultiPointStrategy } from "../transform/cache-strategy/multi-point-strategy"
 import { ModelInfo as CacheModelInfo } from "../transform/cache-strategy/types"
 import { AMAZON_BEDROCK_REGION_INFO } from "../../shared/aws_regions"
+import { convertToBedrockConverseMessages as sharedConverter } from "../transform/bedrock-converse-format"
 
 const BEDROCK_DEFAULT_TEMPERATURE = 0.3
 const BEDROCK_MAX_TOKENS = 4096
@@ -434,7 +436,18 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		modelInfo?: any,
 		conversationId?: string, // Optional conversation ID to track cache points across messages
 	): { system: SystemContentBlock[]; messages: Message[] } {
-		// Convert model info to expected format
+		// First convert messages using shared converter for proper image handling
+		const convertedMessages = sharedConverter(anthropicMessages as Anthropic.Messages.MessageParam[])
+
+		// If prompt caching is disabled, return the converted messages directly
+		if (!usePromptCache) {
+			return {
+				system: systemMessage ? [{ text: systemMessage } as SystemContentBlock] : [],
+				messages: convertedMessages,
+			}
+		}
+
+		// Convert model info to expected format for cache strategy
 		const cacheModelInfo: CacheModelInfo = {
 			maxTokens: modelInfo?.maxTokens || 8192,
 			contextWindow: modelInfo?.contextWindow || 200_000,
@@ -443,18 +456,6 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			minTokensPerCachePoint: modelInfo?.minTokensPerCachePoint || 50,
 			cachableFields: modelInfo?.cachableFields || [],
 		}
-
-		// Clean messages by removing any existing cache points
-		const cleanedMessages = anthropicMessages.map((msg) => {
-			if (typeof msg.content === "string") {
-				return msg
-			}
-			const cleaned = {
-				...msg,
-				content: this.removeCachePoints(msg.content),
-			}
-			return cleaned
-		})
 
 		// Get previous cache point placements for this conversation if available
 		const previousPlacements =
@@ -466,21 +467,36 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		const config = {
 			modelInfo: cacheModelInfo,
 			systemPrompt: systemMessage,
-			messages: cleanedMessages as Anthropic.Messages.MessageParam[],
+			messages: anthropicMessages as Anthropic.Messages.MessageParam[],
 			usePromptCache,
 			previousCachePointPlacements: previousPlacements,
 		}
 
-		// Determine optimal cache points
+		// Get cache point placements
 		let strategy = new MultiPointStrategy(config)
-		const result = strategy.determineOptimalCachePoints()
+		const cacheResult = strategy.determineOptimalCachePoints()
 
 		// Store cache point placements for future use if conversation ID is provided
-		if (conversationId && result.messageCachePointPlacements) {
-			this.previousCachePointPlacements[conversationId] = result.messageCachePointPlacements
+		if (conversationId && cacheResult.messageCachePointPlacements) {
+			this.previousCachePointPlacements[conversationId] = cacheResult.messageCachePointPlacements
 		}
 
-		return result
+		// Apply cache points to the properly converted messages
+		const messagesWithCache = convertedMessages.map((msg, index) => {
+			const placement = cacheResult.messageCachePointPlacements?.find((p) => p.index === index)
+			if (placement) {
+				return {
+					...msg,
+					content: [...(msg.content || []), { cachePoint: { type: "default" } } as ContentBlock],
+				}
+			}
+			return msg
+		})
+
+		return {
+			system: systemMessage ? [{ text: systemMessage } as SystemContentBlock] : [],
+			messages: messagesWithCache,
+		}
 	}
 
 	/************************************************************************************
