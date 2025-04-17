@@ -63,7 +63,7 @@ export function getMatchingSlashCommands(query: string): SlashCommand[] {
 /**
  * Insert a slash command at position or replace partial command
  */
-export function insertSlashCommand(text: string, commandName: string): string {
+export function insertSlashCommand(text: string, commandName: string): { newValue: string; commandIndex: number } {
 	const slashIndex = text.indexOf("/")
 
 	// where the command ends, at the end of entire text or first space
@@ -73,7 +73,7 @@ export function insertSlashCommand(text: string, commandName: string): string {
 	const newValue =
 		text.substring(0, slashIndex + 1) + commandName + (commandEndIndex > -1 ? text.substring(commandEndIndex) : " ") // add extra space at the end if only slash command
 
-	return newValue
+	return { newValue, commandIndex: slashIndex }
 }
 
 /**
