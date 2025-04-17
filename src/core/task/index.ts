@@ -78,7 +78,6 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 	GlobalFileNames,
-	GlobalFileNames,
 	saveApiConversationHistory,
 	saveClineMessages,
 } from "../storage/disk"
@@ -89,6 +88,8 @@ import {
 } from "../context/instructions/user-instructions/cline-rules"
 import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../storage/state"
 import { ClineRulesToggles } from "../../shared/cline-rules"
+import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { McpHub } from "../../services/mcp/McpHub"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
