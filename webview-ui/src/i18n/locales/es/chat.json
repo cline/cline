@@ -1,5 +1,5 @@
 {
-	"greeting": "¿Qué puede hacer Roo por ti?",
+	"greeting": "Bienvenido a Roo Code",
 	"task": {
 		"title": "Tarea",
 		"seeMore": "Ver más",
@@ -65,7 +65,7 @@
 		"tooltip": "Cancelar la operación actual"
 	},
 	"scrollToBottom": "Desplazarse al final del chat",
-	"onboarding": "",
+	"onboarding": "<strong>Tu lista de tareas en este espacio de trabajo está vacía.</strong> Comienza escribiendo una tarea abajo. ¿No estás seguro cómo empezar? Lee más sobre lo que Roo puede hacer por ti en <DocsLink>la documentación</DocsLink>.",
 	"selectMode": "Seleccionar modo de interacción",
 	"selectApiConfig": "Seleccionar configuración de API",
 	"enhancePrompt": "Mejorar el mensaje con contexto adicional",

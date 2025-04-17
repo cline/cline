@@ -1,5 +1,5 @@
 {
-	"greeting": "欢迎来到Roo",
+	"greeting": "嗨，我是 Roo！",
 	"introduction": "<strong>Roo Code 是领先的自主编程助手。</strong>准备好以前所未有的方式进行架构设计、编码、调试并提升你的工作效率。要继续使用，Roo Code 需要一个 API 密钥。",
 	"notice": "请先配置大语言模型API提供商",
 	"start": "开始吧！",
