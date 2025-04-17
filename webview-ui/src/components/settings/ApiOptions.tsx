@@ -2014,10 +2014,13 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				},
 			}
 		case "litellm":
+			// Check if live info was added by the Controller under the specific key
+			const liveLiteLlmInfo = (apiConfiguration as any)?.liteLlmModelInfo;
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.liteLlmModelId || "",
-				selectedModelInfo: liteLlmModelInfoSaneDefaults,
+				// Use live info if available, otherwise fall back to defaults
+				selectedModelInfo: liveLiteLlmInfo || liteLlmModelInfoSaneDefaults,
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)

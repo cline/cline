@@ -1877,9 +1877,47 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const localClineRulesToggles =
 			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
 
+		// Get live model info from the active task's API handler, if available
+		const liveModelInfo = this.task?.api?.getModel()?.info;
+
+		// Merge live model info into the apiConfiguration for the state update
+		const finalApiConfiguration = { ...apiConfiguration };
+		if (liveModelInfo) {
+			// Depending on the provider, merge the info into the correct property
+			switch (apiConfiguration.apiProvider) {
+				case "openrouter":
+				case "cline":
+					finalApiConfiguration.openRouterModelInfo = liveModelInfo;
+					break;
+				case "openai":
+					finalApiConfiguration.openAiModelInfo = liveModelInfo;
+					break;
+				case "requesty":
+					finalApiConfiguration.requestyModelInfo = liveModelInfo;
+					break;
+				// Add cases for other providers if they store model info in apiConfiguration
+				// For providers like Anthropic, Bedrock, Gemini, LiteLLM etc.,
+				// the model info isn't typically stored directly in apiConfiguration state,
+				// but the webview might still need it. We need to ensure the webview
+				// correctly uses the info from the handler.
+				// Let's add a generic 'currentModelInfo' for the webview to potentially use.
+				default:
+					// Add a general property for the webview if needed,
+					// though ideally the webview uses the info associated with the specific model ID.
+					// finalApiConfiguration.currentModelInfo = liveModelInfo;
+					break;
+			}
+			// Also update the specific model info if the provider matches
+			if (apiConfiguration.apiProvider === "litellm" && liveModelInfo) {
+				// Add the live model info specifically for LiteLLM under a dedicated key
+				(finalApiConfiguration as any).liteLlmModelInfo = liveModelInfo;
+			}
+		}
+
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
-			apiConfiguration,
+			apiConfiguration: finalApiConfiguration, // Use the potentially updated config
 			customInstructions,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,

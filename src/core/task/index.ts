@@ -14,7 +14,6 @@ import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
 import { logQuery } from "../../api/providers/query-logger"
-import { getContextWindowInfo } from "../context-management/context-window-utils"
 import { ApiStream } from "../../api/transform/stream"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
@@ -212,12 +211,13 @@ export class Task {
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(context, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(context, this.taskId)
+		this.modelContextTracker = new ModelContextTracker(context, this.taskId);
 		// Now that taskId is initialized, we can build the API handler
 		this.api = buildApiHandler({
 			...apiConfiguration,
 			taskId: this.taskId,
-		})
+			onModelInfoUpdate: this.handleModelInfoUpdate.bind(this), // Pass the callback
+		});
 
 		// Set taskId on browserSession for telemetry tracking
 		this.browserSession.setTaskId(this.taskId)
@@ -247,6 +247,14 @@ export class Task {
 			throw new Error("Unable to access extension context")
 		}
 		return context
+	}
+
+	// Callback function to handle model info updates from the API handler
+	private async handleModelInfoUpdate() {
+		// Log the context window size from the handler's perspective *before* posting state
+		const modelInfo = this.api?.getModel()?.info;
+		console.log(`Task: handleModelInfoUpdate called. Context Window from API handler: ${modelInfo?.contextWindow}`);
+		await this.postStateToWebview();
 	}
 
 	// Storing task to disk for history
