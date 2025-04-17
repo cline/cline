@@ -108,6 +108,7 @@ export class AwsBedrockHandler implements ApiHandler {
 						outputTokens: usage.output_tokens || 0,
 						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
 						cacheReadTokens: usage.cache_read_input_tokens || undefined,
+						modelName: modelId,
 					}
 					break
 				case "message_delta":
@@ -115,6 +116,7 @@ export class AwsBedrockHandler implements ApiHandler {
 						type: "usage",
 						inputTokens: 0,
 						outputTokens: chunk.usage.output_tokens || 0,
+						modelName: modelId,
 					}
 					break
 				case "content_block_start":
@@ -337,6 +339,7 @@ export class AwsBedrockHandler implements ApiHandler {
 								inputTokens: inputTokenEstimate,
 								outputTokens: 0,
 								totalCost: totalCost,
+								modelName: modelId,
 							}
 						}
 
@@ -361,6 +364,7 @@ export class AwsBedrockHandler implements ApiHandler {
 										inputTokens: 0,
 										outputTokens: accumulatedTokens,
 										totalCost: totalCost,
+										modelName: modelId,
 									}
 									accumulatedTokens = 0
 								}
@@ -384,6 +388,7 @@ export class AwsBedrockHandler implements ApiHandler {
 									inputTokens: 0,
 									outputTokens: accumulatedTokens,
 									totalCost: totalCost,
+									modelName: modelId,
 								}
 								accumulatedTokens = 0
 							}
@@ -407,6 +412,7 @@ export class AwsBedrockHandler implements ApiHandler {
 					inputTokens: 0,
 					outputTokens: accumulatedTokens,
 					totalCost: totalCost,
+					modelName: modelId,
 				}
 			}
 
