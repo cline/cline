@@ -1,3 +1,6 @@
+import { vscode } from "@/utils/vscode"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+
 const RuleRow: React.FC<{
 	rulePath: string
 	enabled: boolean
@@ -5,6 +8,13 @@ const RuleRow: React.FC<{
 }> = ({ rulePath, enabled, toggleRule }) => {
 	// Get the filename from the path for display
 	const displayName = rulePath.split("/").pop() || rulePath
+
+	const handleEditClick = () => {
+		vscode.postMessage({
+			type: "openFile",
+			text: rulePath,
+		})
+	}
 
 	return (
 		<div className="mb-2.5">
@@ -17,7 +27,7 @@ const RuleRow: React.FC<{
 				</span>
 
 				{/* Toggle Switch */}
-				<div className="flex items-center ml-2">
+				<div className="flex items-center ml-2 space-x-2">
 					<div
 						role="switch"
 						aria-checked={enabled}
@@ -40,6 +50,14 @@ const RuleRow: React.FC<{
 							}`}
 						/>
 					</div>
+					<VSCodeButton
+						appearance="icon"
+						aria-label="Edit rule file"
+						title="Edit rule file"
+						onClick={handleEditClick}
+						style={{ height: "20px" }}>
+						<span className="codicon codicon-edit" style={{ fontSize: "14px" }} />
+					</VSCodeButton>
 				</div>
 			</div>
 		</div>
