@@ -119,6 +119,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 							label="Restore Chat"
 							isPrimary={false}
 							onClick={handleRestoreWorkspace}
+							title="Restore just the chat to this checkpoint and send your message"
 						/>
 						<RestoreButton
 							ref={restoreAllButtonRef}
@@ -126,6 +127,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 							label="Restore All"
 							isPrimary={true}
 							onClick={handleRestoreWorkspace}
+							title="Restore both the chat and workspace files to this checkpoint and send your message"
 						/>
 					</div>
 				</>
@@ -143,9 +145,10 @@ interface RestoreButtonProps {
 	label: string
 	isPrimary: boolean
 	onClick: (type: string) => void
+	title?: string
 }
 
-const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type, label, isPrimary, onClick }, ref) => {
+const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type, label, isPrimary, onClick, title }, ref) => {
 	const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
 		e.stopPropagation()
 		onClick(type)
@@ -155,6 +158,7 @@ const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type,
 		<button
 			ref={ref}
 			onClick={handleClick}
+			title={title}
 			style={{
 				backgroundColor: isPrimary
 					? "var(--vscode-button-background)"
