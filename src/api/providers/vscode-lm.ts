@@ -6,6 +6,7 @@ import { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "../../shared/vsCodeSelectorUtils"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 
 // Cline does not update VSCode type definitions or engine requirements to maintain compatibility.
 // This declaration (as seen in src/integrations/TerminalManager.ts) provides types for the Language Model API in newer versions of VSCode.
@@ -19,12 +20,7 @@ declare module "vscode" {
 		Auto = 1,
 		Required = 2,
 	}
-	interface LanguageModelChatSelector {
-		vendor?: string
-		family?: string
-		version?: string
-		id?: string
-	}
+	interface LanguageModelChatSelector extends LanguageModelChatSelectorFromTypes {}
 	interface LanguageModelChatTool {
 		name: string
 		description: string

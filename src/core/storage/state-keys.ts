@@ -19,6 +19,7 @@ export type SecretKey =
 	| "asksageApiKey"
 	| "xaiApiKey"
 	| "sambanovaApiKey"
+
 export type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -47,6 +48,7 @@ export type GlobalStateKey =
 	| "openRouterModelInfo"
 	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
+	| "globalClineRulesToggles"
 	| "browserSettings"
 	| "chatSettings"
 	| "memoryBankSettings"
@@ -72,3 +74,5 @@ export type GlobalStateKey =
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
 	| "favoritedModelIds"
+
+export type LocalStateKey = "localClineRulesToggles"

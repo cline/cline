@@ -18,11 +18,12 @@ import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { DEFAULT_MEMORY_BANK_SETTINGS } from "../../../src/shared/MemoryBankSettings"
+import { ClineRulesToggles } from "@shared/cline-rules"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
-	theme: any
+	theme: Record<string, string> | undefined
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
@@ -55,10 +56,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		telemetrySetting: "unset",
 		vscMachineId: "",
 		planActSeparateModelsSetting: true,
+		globalClineRulesToggles: {},
+		localClineRulesToggles: {},
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
-	const [theme, setTheme] = useState<any>(undefined)
+	const [theme, setTheme] = useState<Record<string, string>>()
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
@@ -130,6 +133,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 				break
 			}
+
 			case "openRouterModels": {
 				const updatedModels = message.openRouterModels ?? {}
 				setOpenRouterModels({
@@ -186,6 +190,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpMarketplaceCatalog,
 		filePaths,
 		totalTasksSize,
+		globalClineRulesToggles: state.globalClineRulesToggles || {},
+		localClineRulesToggles: state.localClineRulesToggles || {},
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,

@@ -204,10 +204,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 	clineIgnoreInstructions: (content: string) =>
 		`# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.clineignore`,
 
-	clineRulesDirectoryInstructions: (cwd: string, content: string) =>
+	clineRulesGlobalDirectoryInstructions: (globalClineRulesFilePath: string, content: string) =>
+		`# .clinerules/\n\nThe following is provided by a global .clinerules/ directory, located at ${globalClineRulesFilePath.toPosix()}, where the user has specified instructions for all working directories:\n\n${content}`,
+
+	clineRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
 		`# .clinerules/\n\nThe following is provided by a root-level .clinerules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 
-	clineRulesFileInstructions: (cwd: string, content: string) =>
+	clineRulesLocalFileInstructions: (cwd: string, content: string) =>
 		`# .clinerules\n\nThe following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 }
 

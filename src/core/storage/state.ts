@@ -11,6 +11,7 @@ import { ChatSettings } from "../../shared/ChatSettings"
 import { MemoryBankSettings, DEFAULT_MEMORY_BANK_SETTINGS } from "../../shared/MemoryBankSettings"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { UserInfo } from "../../shared/UserInfo"
+import { ClineRulesToggles } from "../../shared/cline-rules"
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -123,6 +124,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		sambanovaApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
+		globalClineRulesToggles,
 	] = await Promise.all([
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
@@ -194,6 +196,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
+		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -209,6 +212,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			apiProvider = "openrouter"
 		}
 	}
+
+	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
 
 	const o3MiniReasoningEffort = vscode.workspace.getConfiguration("cline.modelSettings.o3Mini").get("reasoningEffort", "medium")
 
@@ -294,6 +299,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		customInstructions,
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
+		globalClineRulesToggles: globalClineRulesToggles || {},
+		localClineRulesToggles: localClineRulesToggles || {},
 		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 		memoryBankSettings: memoryBankSettings || DEFAULT_MEMORY_BANK_SETTINGS,
