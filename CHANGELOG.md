@@ -58,7 +58,7 @@
 -   Add recommended models for Cline provider
 -   Add ability to detect when user edits files manually so Cline knows to re-read, leading to reduced diff edit errors
 -   Add improvements to file mention searching for faster searching
--   Add scoring logic to file mentions to sort and exlcude results based on relevance
+-   Add scoring logic to file mentions to sort and exclude results based on relevance
 -   Add Support for Bytedance Doubao (Thanks Tunixer!)
 -   Fix to prevent duplicate BOM (Thanks bamps53!)
 
@@ -536,7 +536,7 @@
 -   Adds "Always allow read-only operations" setting to let Claude read files and view directories without needing approval (off by default)
 -   Implement sliding window context management to keep tasks going past 200k tokens
 -   Adds Google Cloud Vertex AI support and updates Claude 3.5 Sonnet max output to 8192 tokens for all providers.
--   Improves system prompt to gaurd against lazy edits (less "//rest of code here")
+-   Improves system prompt to guard against lazy edits (less "//rest of code here")
 
 ## [1.3.0]
 

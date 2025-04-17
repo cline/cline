@@ -1153,7 +1153,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							display: "flex",
 							alignItems: "flex-center",
 							height: textAreaBaseHeight || 31,
-							bottom: 9.5, // should be 10 but doesnt look good on mac
+							bottom: 9.5, // should be 10 but doesn't look good on mac
 							zIndex: 2,
 						}}>
 						<div
