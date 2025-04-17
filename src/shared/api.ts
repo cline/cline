@@ -485,6 +485,14 @@ export const vertexModels = {
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 	},
+	"gemini-2.5-flash-preview-04-17": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
 	"gemini-2.5-pro-preview-03-25": {
 		maxTokens: 65_535,
 		contextWindow: 1_048_576,
@@ -632,6 +640,14 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 export type GeminiModelId = keyof typeof geminiModels
 export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
 export const geminiModels = {
+	"gemini-2.5-flash-preview-04-17": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
 	"gemini-2.5-pro-exp-03-25": {
 		maxTokens: 65_536,
 		contextWindow: 1_048_576,
