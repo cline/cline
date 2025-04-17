@@ -311,58 +311,6 @@ export class Controller {
 					await this.postStateToWebview()
 				}
 				break
-			case "testBrowserConnection":
-				try {
-					const { browserSettings } = await getAllExtensionState(this.context)
-					const browserSession = new BrowserSession(this.context, browserSettings)
-					// If no text is provided, try auto-discovery
-					if (!message.text) {
-						try {
-							const discoveredHost = await discoverChromeInstances()
-							if (discoveredHost) {
-								// Test the connection to the discovered host
-								const result = await browserSession.testConnection(discoveredHost)
-								// Send the result back to the webview
-								await this.postMessageToWebview({
-									type: "browserConnectionResult",
-									success: result.success,
-									text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
-									endpoint: result.endpoint,
-								})
-							} else {
-								await this.postMessageToWebview({
-									type: "browserConnectionResult",
-									success: false,
-									text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
-								})
-							}
-						} catch (error) {
-							await this.postMessageToWebview({
-								type: "browserConnectionResult",
-								success: false,
-								text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
-							})
-						}
-					} else {
-						// Test the provided URL
-						const result = await browserSession.testConnection(message.text)
-
-						// Send the result back to the webview
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: result.success,
-							text: result.message,
-							endpoint: result.endpoint,
-						})
-					}
-				} catch (error) {
-					await this.postMessageToWebview({
-						type: "browserConnectionResult",
-						success: false,
-						text: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
-					})
-				}
-				break
 			case "discoverBrowser":
 				try {
 					const discoveredHost = await discoverChromeInstances()
