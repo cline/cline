@@ -4,7 +4,7 @@ import { ProviderOptionsProps } from "./types/ProviderOptions"
 import { useEffect, useState } from "react"
 import { vscode } from "@/utils/vscode"
 import DropdownContainer from "../DropdownContainer"
-import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../../OpenRouterModelPicker"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../model/OpenRouterModelPicker"
 
 const VscodeLMOptions = ({ handleInputChange }: ProviderOptionsProps) => {
 	const { apiConfiguration } = useExtensionState()

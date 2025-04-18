@@ -182,7 +182,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					/>
 				)}
 
-				<div className="mb-[5px]">
+				<div className="mb-[5px] mt-4">
 					<VSCodeTextArea
 						value={customInstructions ?? ""}
 						className="w-full"

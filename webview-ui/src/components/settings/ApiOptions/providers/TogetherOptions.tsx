@@ -17,7 +17,7 @@ const TogetherOptions = ({ handleInputChange }: ProviderOptionsProps) => {
 			</VSCodeTextField>
 			<VSCodeTextField
 				value={apiConfiguration?.togetherModelId || ""}
-				style={{ width: "100%" }}
+				style={{ width: "100%", marginTop: 10 }}
 				onInput={handleInputChange("togetherModelId")}
 				placeholder={"Enter Model ID..."}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>

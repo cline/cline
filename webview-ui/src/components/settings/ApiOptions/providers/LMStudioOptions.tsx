@@ -27,7 +27,7 @@ const LMStudioOptions = ({ handleInputChange }: ProviderOptionsProps) => {
 			</VSCodeTextField>
 			<VSCodeTextField
 				value={apiConfiguration?.lmStudioModelId || ""}
-				style={{ width: "100%" }}
+				style={{ width: "100%", marginTop: 10 }}
 				onInput={handleInputChange("lmStudioModelId")}
 				placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>

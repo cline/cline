@@ -1,38 +1,17 @@
-import {
-	VSCodeButton,
-	VSCodeCheckbox,
-	VSCodeDropdown,
-	VSCodeLink,
-	VSCodeOption,
-	VSCodeRadio,
-	VSCodeRadioGroup,
-	VSCodeTextField,
-} from "@vscode/webview-ui-toolkit/react"
-import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
 import * as vscodemodels from "vscode"
-import {
-	ApiConfiguration,
-	ApiProvider,
-	azureOpenAiDefaultApiVersion,
-	ModelInfo,
-	openAiModelInfoSaneDefaults,
-	askSageDefaultURL,
-	geminiModels,
-} from "@shared/api"
+import { ApiConfiguration } from "@shared/api"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
-import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
-import OpenRouterModelPicker, { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
-import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
-import RequestyModelPicker from "../RequestyModelPicker"
+import OpenRouterModelPicker from "./model/OpenRouterModelPicker"
+import RequestyModelPicker from "./model/RequestyModelPicker"
 import ProviderSelectDropdown from "./ProviderSelectDropdown"
-import { normalizeApiConfiguration, formatTiers } from "@/utils/providers"
+import { normalizeApiConfiguration } from "@/utils/providers"
 import * as ProviderOptions from "./providers"
-import { formatPrice } from "@/utils/format"
-import ModelDescriptionMarkdown from "../ModelDescriptionMarkdown"
+import OpenRouterProviderSorter from "./OpenRouterProviderSorter"
+import ModelPicker from "./model/ModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -55,12 +34,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
-	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
-	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
-	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
-	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
-	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
-	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const newValue = event.target.value
@@ -221,7 +194,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				)
 			case "openai":
 				return (
-					<ProviderOptions.OpenAIOptions
+					<ProviderOptions.OpenAICompatOptions
 						showModelOptions={showModelOptions}
 						isPopup={isPopup}
 						handleInputChange={handleInputChange}
@@ -302,6 +275,46 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{renderProviderOptions()}
 
+			{apiErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{apiErrorMessage}
+				</p>
+			)}
+
+			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
+				<OpenRouterProviderSorter />
+			)}
+
+			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
+				<OpenRouterModelPicker isPopup={isPopup} />
+			)}
+
+			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
+
+			{/* Default model picker for providers that aren't handled separately */}
+			{selectedProvider !== "openrouter" &&
+				selectedProvider !== "cline" &&
+				selectedProvider !== "openai" &&
+				selectedProvider !== "ollama" &&
+				selectedProvider !== "lmstudio" &&
+				selectedProvider !== "vscode-lm" &&
+				selectedProvider !== "litellm" &&
+				selectedProvider !== "requesty" &&
+				showModelOptions && (
+					<ModelPicker
+						selectedProvider={selectedProvider}
+						selectedModelId={selectedModelId}
+						selectedModelInfo={selectedModelInfo}
+						isPopup={isPopup}
+						handleInputChange={handleInputChange}
+					/>
+				)}
+
 			{modelIdErrorMessage && (
 				<p
 					style={{
@@ -315,161 +328,5 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		</div>
 	)
 }
-
-export const ModelInfoView = ({
-	selectedModelId,
-	modelInfo,
-	isDescriptionExpanded,
-	setIsDescriptionExpanded,
-	isPopup,
-}: {
-	selectedModelId: string
-	modelInfo: ModelInfo
-	isDescriptionExpanded: boolean
-	setIsDescriptionExpanded: (isExpanded: boolean) => void
-	isPopup?: boolean
-}) => {
-	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
-
-	// Create elements for tiered pricing separately
-	const inputPriceElement = modelInfo.inputPriceTiers ? (
-		<Fragment key="inputPriceTiers">
-			<span style={{ fontWeight: 500 }}>Input price:</span>
-			<br />
-			{formatTiers(modelInfo.inputPriceTiers).map((tierString, i, arr) => (
-				<Fragment key={`inputTierFrag${i}`}>
-					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
-					{i < arr.length - 1 && <br />}
-				</Fragment>
-			))}
-		</Fragment>
-	) : modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 ? (
-		<span key="inputPrice">
-			<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
-		</span>
-	) : null
-
-	const outputPriceElement = modelInfo.outputPriceTiers ? (
-		<Fragment key="outputPriceTiers">
-			<span style={{ fontWeight: 500 }}>Output price:</span>
-			<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
-			<br />
-			{formatTiers(modelInfo.outputPriceTiers).map((tierString, i, arr) => (
-				<Fragment key={`outputTierFrag${i}`}>
-					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
-					{i < arr.length - 1 && <br />}
-				</Fragment>
-			))}
-		</Fragment>
-	) : modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 ? (
-		<span key="outputPrice">
-			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
-		</span>
-	) : null
-
-	const infoItems = [
-		modelInfo.description && (
-			<ModelDescriptionMarkdown
-				key="description"
-				markdown={modelInfo.description}
-				isExpanded={isDescriptionExpanded}
-				setIsExpanded={setIsDescriptionExpanded}
-				isPopup={isPopup}
-			/>
-		),
-		<ModelInfoSupportsItem
-			key="supportsImages"
-			isSupported={modelInfo.supportsImages ?? false}
-			supportsLabel="Supports images"
-			doesNotSupportLabel="Does not support images"
-		/>,
-		<ModelInfoSupportsItem
-			key="supportsComputerUse"
-			isSupported={modelInfo.supportsComputerUse ?? false}
-			supportsLabel="Supports computer use"
-			doesNotSupportLabel="Does not support computer use"
-		/>,
-		!isGemini && (
-			<ModelInfoSupportsItem
-				key="supportsPromptCache"
-				isSupported={modelInfo.supportsPromptCache}
-				supportsLabel="Supports prompt caching"
-				doesNotSupportLabel="Does not support prompt caching"
-			/>
-		),
-		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
-			<span key="maxTokens">
-				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
-			</span>
-		),
-		inputPriceElement, // Add the generated input price block
-		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
-			<span key="cacheWritesPrice">
-				<span style={{ fontWeight: 500 }}>Cache writes price:</span> {formatPrice(modelInfo.cacheWritesPrice || 0)}
-				/million tokens
-			</span>
-		),
-		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
-			<span key="cacheReadsPrice">
-				<span style={{ fontWeight: 500 }}>Cache reads price:</span> {formatPrice(modelInfo.cacheReadsPrice || 0)}/million
-				tokens
-			</span>
-		),
-		outputPriceElement, // Add the generated output price block
-		isGemini && (
-			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
-				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute. After that,
-				billing depends on prompt size.{" "}
-				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
-					For more info, see pricing details.
-				</VSCodeLink>
-			</span>
-		),
-	].filter(Boolean)
-
-	return (
-		<p
-			style={{
-				fontSize: "12px",
-				marginTop: "2px",
-				color: "var(--vscode-descriptionForeground)",
-			}}>
-			{infoItems.map((item, index) => (
-				<Fragment key={index}>
-					{item}
-					{index < infoItems.length - 1 && <br />}
-				</Fragment>
-			))}
-		</p>
-	)
-}
-
-const ModelInfoSupportsItem = ({
-	isSupported,
-	supportsLabel,
-	doesNotSupportLabel,
-}: {
-	isSupported: boolean
-	supportsLabel: string
-	doesNotSupportLabel: string
-}) => (
-	<span
-		style={{
-			fontWeight: 500,
-			color: isSupported ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)",
-		}}>
-		<i
-			className={`codicon codicon-${isSupported ? "check" : "x"}`}
-			style={{
-				marginRight: 4,
-				marginBottom: isSupported ? 1 : -1,
-				fontSize: isSupported ? 11 : 13,
-				fontWeight: 700,
-				display: "inline-block",
-				verticalAlign: "bottom",
-			}}></i>
-		{isSupported ? supportsLabel : doesNotSupportLabel}
-	</span>
-)
 
 export default memo(ApiOptions)

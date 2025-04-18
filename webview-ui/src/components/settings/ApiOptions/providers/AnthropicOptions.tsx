@@ -1,12 +1,9 @@
-import { VSCodeCheckbox, VSCodeTextField, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import ThinkingBudgetSlider from "../../ThinkingBudgetSlider"
-import DropdownContainer from "../DropdownContainer"
-import { anthropicModels, anthropicDefaultModelId } from "@shared/api"
 import { ProviderOptionsProps } from "./types/ProviderOptions"
 
-const AnthropicOptions = ({ showModelOptions, isPopup, handleInputChange }: ProviderOptionsProps) => {
+const AnthropicOptions = ({ handleInputChange }: ProviderOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration } = useExtensionState()
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 
@@ -64,39 +61,6 @@ const AnthropicOptions = ({ showModelOptions, isPopup, handleInputChange }: Prov
 					</VSCodeLink>
 				)}
 			</p>
-
-			{showModelOptions && (
-				<>
-					<DropdownContainer className="dropdown-container">
-						<label htmlFor="model-id">
-							<span style={{ fontWeight: 500 }}>Model</span>
-						</label>
-						<VSCodeDropdown
-							id="model-id"
-							value={apiConfiguration?.apiModelId || anthropicDefaultModelId}
-							onChange={handleInputChange("apiModelId")}
-							style={{ width: "100%" }}>
-							<VSCodeOption value="">Select a model...</VSCodeOption>
-							{Object.keys(anthropicModels).map((modelId) => (
-								<VSCodeOption
-									key={modelId}
-									value={modelId}
-									style={{
-										whiteSpace: "normal",
-										wordWrap: "break-word",
-										maxWidth: "100%",
-									}}>
-									{modelId}
-								</VSCodeOption>
-							))}
-						</VSCodeDropdown>
-					</DropdownContainer>
-
-					{apiConfiguration?.apiModelId === "claude-3-7-sonnet-20250219" && (
-						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-					)}
-				</>
-			)}
 		</div>
 	)
 }

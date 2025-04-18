@@ -2,7 +2,7 @@ import { VSCodeTextField, VSCodeLink, VSCodeDropdown, VSCodeOption } from "@vsco
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ProviderOptionsProps } from "./types/ProviderOptions"
 import DropdownContainer from "../DropdownContainer"
-import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../../OpenRouterModelPicker"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../model/OpenRouterModelPicker"
 
 const VertexOptions = ({ handleInputChange }: ProviderOptionsProps) => {
 	const { apiConfiguration } = useExtensionState()

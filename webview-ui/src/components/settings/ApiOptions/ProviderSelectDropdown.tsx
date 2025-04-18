@@ -34,7 +34,7 @@ interface ProviderDropdownProps {
 
 const ProviderSelectDropdown = ({ selectedProvider, onChange }: ProviderDropdownProps) => {
 	return (
-		<DropdownContainer className="dropdown-container">
+		<DropdownContainer className="dropdown-container mb-2">
 			<label htmlFor="api-provider">
 				<span style={{ fontWeight: 500 }}>API Provider</span>
 			</label>

@@ -9,7 +9,7 @@ import {
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ProviderOptionsProps } from "./types/ProviderOptions"
 import DropdownContainer from "../DropdownContainer"
-import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../../OpenRouterModelPicker"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../model/OpenRouterModelPicker"
 import { useState } from "react"
 
 const BedrockOptions = ({ handleInputChange }: ProviderOptionsProps) => {
