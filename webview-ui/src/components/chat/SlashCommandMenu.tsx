@@ -1,5 +1,4 @@
 import React, { useCallback, useRef, useEffect } from "react"
-import styled from "styled-components"
 import { SlashCommand, getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
@@ -9,55 +8,6 @@ interface SlashCommandMenuProps {
 	onMouseDown: () => void
 	query: string
 }
-
-const MenuContainer = styled.div`
-	position: absolute;
-	bottom: calc(100% - 10px);
-	left: 15px;
-	right: 15px; // Make it span the full width like ContextMenu
-	overflow-x: hidden;
-	z-index: 1000;
-`
-
-const MenuContent = styled.div`
-	background: var(--vscode-dropdown-background);
-	border: 1px solid var(--vscode-editorGroup-border);
-	border-radius: 3px;
-	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
-	display: flex;
-	flex-direction: column;
-	max-height: 200px;
-	overflow-y: auto;
-`
-
-const MenuItem = styled.div<{ isSelected: boolean }>`
-	padding: 8px 12px;
-	cursor: pointer;
-	display: flex;
-	flex-direction: column;
-	background-color: ${(props) => (props.isSelected ? "var(--vscode-quickInputList-focusBackground)" : "transparent")};
-	color: ${(props) => (props.isSelected ? "var(--vscode-quickInputList-focusForeground)" : "inherit")};
-	border-bottom: 1px solid var(--vscode-editorGroup-border);
-
-	&:hover {
-		background-color: var(--vscode-list-hoverBackground);
-	}
-`
-
-const CommandName = styled.div`
-	font-weight: bold;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-`
-
-const CommandDescription = styled.div`
-	font-size: 0.85em;
-	color: var(--vscode-descriptionForeground);
-	white-space: normal; // Allow wrapping
-	overflow: hidden;
-	text-overflow: ellipsis;
-`
 
 const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedIndex, setSelectedIndex, onMouseDown, query }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
@@ -69,7 +19,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedI
 		[onSelect],
 	)
 
-	// Auto-scroll to make selected item visible
+	// Auto-scroll logic remains the same...
 	useEffect(() => {
 		if (menuRef.current) {
 			const selectedElement = menuRef.current.children[selectedIndex] as HTMLElement
@@ -90,26 +40,40 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedI
 	const filteredCommands = getMatchingSlashCommands(query)
 
 	return (
-		<MenuContainer onMouseDown={onMouseDown}>
-			<MenuContent ref={menuRef}>
+		<div
+			className="absolute bottom-[calc(100%-10px)] left-[15px] right-[15px] overflow-x-hidden z-[1000]"
+			onMouseDown={onMouseDown}>
+			<div
+				ref={menuRef}
+				className="bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-editorGroup-border)] rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] flex flex-col max-h-[200px] overflow-y-auto" // Corrected rounded and shadow
+			>
 				{filteredCommands.length > 0 ? (
 					filteredCommands.map((command, index) => (
-						<MenuItem
+						<div
 							key={command.name}
-							isSelected={index === selectedIndex}
+							className={`py-2 px-3 cursor-pointer flex flex-col border-b border-[var(--vscode-editorGroup-border)] ${
+								// Corrected padding
+								index === selectedIndex
+									? "bg-[var(--vscode-quickInputList-focusBackground)] text-[var(--vscode-quickInputList-focusForeground)]"
+									: "" // Removed bg-transparent
+							} hover:bg-[var(--vscode-list-hoverBackground)]`}
 							onClick={() => handleClick(command)}
 							onMouseEnter={() => setSelectedIndex(index)}>
-							<CommandName>/{command.name}</CommandName>
-							<CommandDescription>{command.description}</CommandDescription>
-						</MenuItem>
+							<div className="font-bold whitespace-nowrap overflow-hidden text-ellipsis">/{command.name}</div>
+							<div className="text-[0.85em] text-[var(--vscode-descriptionForeground)] whitespace-normal overflow-hidden text-ellipsis">
+								{command.description}
+							</div>
+						</div>
 					))
 				) : (
-					<MenuItem isSelected={false}>
-						<CommandDescription>No matching commands found</CommandDescription>
-					</MenuItem>
+					<div className="py-2 px-3 cursor-default flex flex-col">
+						{" "}
+						{/* Corrected padding, removed border, changed cursor */}
+						<div className="text-[0.85em] text-[var(--vscode-descriptionForeground)]">No matching commands found</div>
+					</div>
 				)}
-			</MenuContent>
-		</MenuContainer>
+			</div>
+		</div>
 	)
 }
 
