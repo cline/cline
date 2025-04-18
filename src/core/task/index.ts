@@ -86,6 +86,7 @@ import {
 	refreshClineRulesToggles,
 } from "../context/instructions/user-instructions/cline-rules"
 import { getGlobalState } from "../storage/state"
+import { parseSlashCommands } from ".././slash-commands"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 
@@ -3619,12 +3620,10 @@ export class Task {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
-							const parsedText = await parseMentions(
-								block.text,
-								cwd,
-								this.urlContentFetcher,
-								this.fileContextTracker,
-							)
+							let parsedText = await parseMentions(block.text, cwd, this.urlContentFetcher, this.fileContextTracker)
+
+							// when parsing slash commands, we still want to allow the user to provide their desired context
+							parsedText = parseSlashCommands(parsedText)
 
 							return {
 								...block,

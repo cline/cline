@@ -27,7 +27,7 @@ import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
-import { highlightMentions } from "./TaskHeader"
+import { highlightText } from "./TaskHeader"
 import SuccessButton from "@/components/common/SuccessButton"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import NewTaskPreview from "./NewTaskPreview"
