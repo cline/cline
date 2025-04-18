@@ -114,13 +114,6 @@ jest.mock(
 	{ virtual: true },
 )
 
-// Mock DiffStrategy
-jest.mock("../../diff/DiffStrategy", () => ({
-	getDiffStrategy: jest.fn().mockImplementation(() => ({
-		getToolDescription: jest.fn().mockReturnValue("apply_diff tool description"),
-	})),
-}))
-
 // Mock dependencies
 jest.mock("vscode", () => ({
 	ExtensionContext: jest.fn(),

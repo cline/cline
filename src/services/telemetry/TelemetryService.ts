@@ -137,6 +137,10 @@ class TelemetryService {
 		this.captureEvent(PostHogClient.EVENTS.ERRORS.DIFF_APPLICATION_ERROR, { taskId, consecutiveMistakeCount })
 	}
 
+	public captureShellIntegrationError(taskId: string): void {
+		this.captureEvent(PostHogClient.EVENTS.ERRORS.SHELL_INTEGRATION_ERROR, { taskId })
+	}
+
 	public captureConsecutiveMistakeError(taskId: string): void {
 		this.captureEvent(PostHogClient.EVENTS.ERRORS.CONSECUTIVE_MISTAKE_ERROR, { taskId })
 	}

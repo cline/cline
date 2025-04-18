@@ -1,4 +1,4 @@
-import { DiffStrategy } from "../../diff/DiffStrategy"
+import { DiffStrategy } from "../../../shared/tools"
 import { McpHub } from "../../../services/mcp/McpHub"
 
 export async function getMcpServersSection(

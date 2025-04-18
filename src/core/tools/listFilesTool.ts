@@ -47,7 +47,7 @@ export async function listFilesTool(
 		} else {
 			if (!relDirPath) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "list_files", success: false })
+				cline.recordToolError("list_files")
 				pushToolResult(await cline.sayAndCreateMissingParamError("list_files", "path"))
 				return
 			}
@@ -74,7 +74,6 @@ export async function listFilesTool(
 			}
 
 			pushToolResult(result)
-			cline.recordToolUsage({ toolName: "list_files" })
 		}
 	} catch (error) {
 		await handleError("listing files", error)

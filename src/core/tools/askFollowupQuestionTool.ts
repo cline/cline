@@ -21,7 +21,7 @@ export async function askFollowupQuestionTool(
 		} else {
 			if (!question) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "ask_followup_question", success: false })
+				cline.recordToolError("ask_followup_question")
 				pushToolResult(await cline.sayAndCreateMissingParamError("ask_followup_question", "question"))
 				return
 			}
@@ -42,7 +42,7 @@ export async function askFollowupQuestionTool(
 					parsedSuggest = parseXml(follow_up, ["suggest"]) as { suggest: Suggest[] | Suggest }
 				} catch (error) {
 					cline.consecutiveMistakeCount++
-					cline.recordToolUsage({ toolName: "ask_followup_question", success: false })
+					cline.recordToolError("ask_followup_question")
 					await cline.say("error", `Failed to parse operations: ${error.message}`)
 					pushToolResult(formatResponse.toolError("Invalid operations xml format"))
 					return
@@ -59,7 +59,6 @@ export async function askFollowupQuestionTool(
 			const { text, images } = await cline.ask("followup", JSON.stringify(follow_up_json), false)
 			await cline.say("user_feedback", text ?? "", images)
 			pushToolResult(formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images))
-			cline.recordToolUsage({ toolName: "ask_followup_question" })
 
 			return
 		}

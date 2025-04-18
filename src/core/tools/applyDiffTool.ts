@@ -48,14 +48,14 @@ export async function applyDiffTool(
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "apply_diff", success: false })
+				cline.recordToolError("apply_diff")
 				pushToolResult(await cline.sayAndCreateMissingParamError("apply_diff", "path"))
 				return
 			}
 
 			if (!diffContent) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "apply_diff", success: false })
+				cline.recordToolError("apply_diff")
 				pushToolResult(await cline.sayAndCreateMissingParamError("apply_diff", "diff"))
 				return
 			}
@@ -73,7 +73,7 @@ export async function applyDiffTool(
 
 			if (!fileExists) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "apply_diff", success: false })
+				cline.recordToolError("apply_diff")
 				const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
 				await cline.say("error", formattedError)
 				pushToolResult(formattedError)
@@ -96,7 +96,7 @@ export async function applyDiffTool(
 
 			if (!diffResult.success) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "apply_diff", success: false })
+				cline.recordToolError("apply_diff")
 				const currentCount = (cline.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
 				cline.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
 				let formattedError = ""
@@ -203,7 +203,6 @@ export async function applyDiffTool(
 				)
 			}
 
-			cline.recordToolUsage({ toolName: "apply_diff" })
 			await cline.diffViewProvider.reset()
 
 			return

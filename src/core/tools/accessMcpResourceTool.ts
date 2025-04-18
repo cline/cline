@@ -27,14 +27,14 @@ export async function accessMcpResourceTool(
 		} else {
 			if (!server_name) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "access_mcp_resource", success: false })
+				cline.recordToolError("access_mcp_resource")
 				pushToolResult(await cline.sayAndCreateMissingParamError("access_mcp_resource", "server_name"))
 				return
 			}
 
 			if (!uri) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "access_mcp_resource", success: false })
+				cline.recordToolError("access_mcp_resource")
 				pushToolResult(await cline.sayAndCreateMissingParamError("access_mcp_resource", "uri"))
 				return
 			}
@@ -79,7 +79,6 @@ export async function accessMcpResourceTool(
 
 			await cline.say("mcp_server_response", resourceResultPretty, images)
 			pushToolResult(formatResponse.toolResult(resourceResultPretty, images))
-			cline.recordToolUsage({ toolName: "access_mcp_resource" })
 
 			return
 		}

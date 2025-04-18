@@ -97,7 +97,7 @@ export async function writeToFileTool(
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "write_to_file", success: false })
+				cline.recordToolError("write_to_file")
 				pushToolResult(await cline.sayAndCreateMissingParamError("write_to_file", "path"))
 				await cline.diffViewProvider.reset()
 				return
@@ -105,7 +105,7 @@ export async function writeToFileTool(
 
 			if (!newContent) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "write_to_file", success: false })
+				cline.recordToolError("write_to_file")
 				pushToolResult(await cline.sayAndCreateMissingParamError("write_to_file", "content"))
 				await cline.diffViewProvider.reset()
 				return
@@ -113,7 +113,7 @@ export async function writeToFileTool(
 
 			if (!predictedLineCount) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "write_to_file", success: false })
+				cline.recordToolError("write_to_file")
 				pushToolResult(await cline.sayAndCreateMissingParamError("write_to_file", "line_count"))
 				await cline.diffViewProvider.reset()
 				return
@@ -220,7 +220,6 @@ export async function writeToFileTool(
 				pushToolResult(`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`)
 			}
 
-			cline.recordToolUsage({ toolName: "write_to_file" })
 			await cline.diffViewProvider.reset()
 
 			return

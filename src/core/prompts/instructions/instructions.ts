@@ -1,7 +1,7 @@
 import { createMCPServerInstructions } from "./create-mcp-server"
 import { createModeInstructions } from "./create-mode"
 import { McpHub } from "../../../services/mcp/McpHub"
-import { DiffStrategy } from "../../diff/DiffStrategy"
+import { DiffStrategy } from "../../../shared/tools"
 import * as vscode from "vscode"
 
 interface InstructionsDetail {

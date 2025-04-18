@@ -37,14 +37,14 @@ export async function insertContentTool(
 		// Validate required parameters
 		if (!relPath) {
 			cline.consecutiveMistakeCount++
-			cline.recordToolUsage({ toolName: "insert_content", success: false })
+			cline.recordToolError("insert_content")
 			pushToolResult(await cline.sayAndCreateMissingParamError("insert_content", "path"))
 			return
 		}
 
 		if (!operations) {
 			cline.consecutiveMistakeCount++
-			cline.recordToolUsage({ toolName: "insert_content", success: false })
+			cline.recordToolError("insert_content")
 			pushToolResult(await cline.sayAndCreateMissingParamError("insert_content", "operations"))
 			return
 		}
@@ -54,7 +54,7 @@ export async function insertContentTool(
 
 		if (!fileExists) {
 			cline.consecutiveMistakeCount++
-			cline.recordToolUsage({ toolName: "insert_content", success: false })
+			cline.recordToolError("insert_content")
 			const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
 			await cline.say("error", formattedError)
 			pushToolResult(formattedError)
@@ -73,7 +73,7 @@ export async function insertContentTool(
 			}
 		} catch (error) {
 			cline.consecutiveMistakeCount++
-			cline.recordToolUsage({ toolName: "insert_content", success: false })
+			cline.recordToolError("insert_content")
 			await cline.say("error", `Failed to parse operations JSON: ${error.message}`)
 			pushToolResult(formatResponse.toolError("Invalid operations JSON format"))
 			return
@@ -163,7 +163,6 @@ export async function insertContentTool(
 				`${newProblemsMessage}`,
 		)
 
-		cline.recordToolUsage({ toolName: "insert_content" })
 		await cline.diffViewProvider.reset()
 	} catch (error) {
 		handleError("insert content", error)

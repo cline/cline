@@ -27,7 +27,7 @@ export async function browserActionTool(
 		if (!block.partial) {
 			// if the block is complete and we don't have a valid action cline is a mistake
 			cline.consecutiveMistakeCount++
-			cline.recordToolUsage({ toolName: "browser_action", success: false })
+			cline.recordToolError("browser_action")
 			pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "action"))
 			await cline.browserSession.closeBrowser()
 		}
@@ -59,7 +59,7 @@ export async function browserActionTool(
 			if (action === "launch") {
 				if (!url) {
 					cline.consecutiveMistakeCount++
-					cline.recordToolUsage({ toolName: "browser_action", success: false })
+					cline.recordToolError("browser_action")
 					pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "url"))
 					await cline.browserSession.closeBrowser()
 					return
@@ -83,7 +83,7 @@ export async function browserActionTool(
 				if (action === "click" || action === "hover") {
 					if (!coordinate) {
 						cline.consecutiveMistakeCount++
-						cline.recordToolUsage({ toolName: "browser_action", success: false })
+						cline.recordToolError("browser_action")
 						pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "coordinate"))
 						await cline.browserSession.closeBrowser()
 						return // can't be within an inner switch
@@ -93,7 +93,7 @@ export async function browserActionTool(
 				if (action === "type") {
 					if (!text) {
 						cline.consecutiveMistakeCount++
-						cline.recordToolUsage({ toolName: "browser_action", success: false })
+						cline.recordToolError("browser_action")
 						pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "text"))
 						await cline.browserSession.closeBrowser()
 						return
@@ -103,7 +103,7 @@ export async function browserActionTool(
 				if (action === "resize") {
 					if (!size) {
 						cline.consecutiveMistakeCount++
-						cline.recordToolUsage({ toolName: "browser_action", success: false })
+						cline.recordToolError("browser_action")
 						pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "size"))
 						await cline.browserSession.closeBrowser()
 						return
@@ -177,8 +177,6 @@ export async function browserActionTool(
 
 					break
 			}
-
-			cline.recordToolUsage({ toolName: "browser_action" })
 
 			return
 		}

@@ -43,7 +43,7 @@ export async function readFileTool(
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "read_file", success: false })
+				cline.recordToolError("read_file")
 				const errorMsg = await cline.sayAndCreateMissingParamError("read_file", "path")
 				pushToolResult(`<file><path></path><error>${errorMsg}</error></file>`)
 				return
@@ -69,7 +69,7 @@ export async function readFileTool(
 				if (isNaN(startLine)) {
 					// Invalid start_line
 					cline.consecutiveMistakeCount++
-					cline.recordToolUsage({ toolName: "read_file", success: false })
+					cline.recordToolError("read_file")
 					await cline.say("error", `Failed to parse start_line: ${startLineStr}`)
 					pushToolResult(`<file><path>${relPath}</path><error>Invalid start_line value</error></file>`)
 					return
@@ -85,7 +85,7 @@ export async function readFileTool(
 				if (isNaN(endLine)) {
 					// Invalid end_line
 					cline.consecutiveMistakeCount++
-					cline.recordToolUsage({ toolName: "read_file", success: false })
+					cline.recordToolError("read_file")
 					await cline.say("error", `Failed to parse end_line: ${endLineStr}`)
 					pushToolResult(`<file><path>${relPath}</path><error>Invalid end_line value</error></file>`)
 					return
@@ -237,7 +237,6 @@ export async function readFileTool(
 			// Format the result into the required XML structure
 			const xmlResult = `<file><path>${relPath}</path>\n${contentTag}${xmlInfo}</file>`
 			pushToolResult(xmlResult)
-			cline.recordToolUsage({ toolName: "read_file" })
 		}
 	} catch (error) {
 		const errorMsg = error instanceof Error ? error.message : String(error)

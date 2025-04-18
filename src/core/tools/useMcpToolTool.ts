@@ -28,14 +28,14 @@ export async function useMcpToolTool(
 		} else {
 			if (!server_name) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "switch_mode", success: false })
+				cline.recordToolError("use_mcp_tool")
 				pushToolResult(await cline.sayAndCreateMissingParamError("use_mcp_tool", "server_name"))
 				return
 			}
 
 			if (!tool_name) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "use_mcp_tool", success: false })
+				cline.recordToolError("use_mcp_tool")
 				pushToolResult(await cline.sayAndCreateMissingParamError("use_mcp_tool", "tool_name"))
 				return
 			}
@@ -47,7 +47,7 @@ export async function useMcpToolTool(
 					parsedArguments = JSON.parse(mcp_arguments)
 				} catch (error) {
 					cline.consecutiveMistakeCount++
-					cline.recordToolUsage({ toolName: "use_mcp_tool", success: false })
+					cline.recordToolError("use_mcp_tool")
 					await cline.say("error", `Roo tried to use ${tool_name} with an invalid JSON argument. Retrying...`)
 
 					pushToolResult(
@@ -100,7 +100,6 @@ export async function useMcpToolTool(
 
 			await cline.say("mcp_server_response", toolResultPretty)
 			pushToolResult(formatResponse.toolResult(toolResultPretty))
-			cline.recordToolUsage({ toolName: "use_mcp_tool" })
 
 			return
 		}

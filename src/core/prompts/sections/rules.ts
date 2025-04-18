@@ -1,4 +1,4 @@
-import { DiffStrategy } from "../../diff/DiffStrategy"
+import { DiffStrategy } from "../../../shared/tools"
 
 function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Record<string, boolean>): string {
 	const instructions: string[] = []

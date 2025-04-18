@@ -33,14 +33,14 @@ export async function searchFilesTool(
 		} else {
 			if (!relDirPath) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "search_files", success: false })
+				cline.recordToolError("search_files")
 				pushToolResult(await cline.sayAndCreateMissingParamError("search_files", "path"))
 				return
 			}
 
 			if (!regex) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "search_files", success: false })
+				cline.recordToolError("search_files")
 				pushToolResult(await cline.sayAndCreateMissingParamError("search_files", "regex"))
 				return
 			}
@@ -65,7 +65,6 @@ export async function searchFilesTool(
 			}
 
 			pushToolResult(results)
-			cline.recordToolUsage({ toolName: "search_files" })
 
 			return
 		}

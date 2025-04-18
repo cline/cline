@@ -38,14 +38,14 @@ export async function searchAndReplaceTool(
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "search_and_replace", success: false })
+				cline.recordToolError("search_and_replace")
 				pushToolResult(await cline.sayAndCreateMissingParamError("search_and_replace", "path"))
 				return
 			}
 
 			if (!operations) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "search_and_replace", success: false })
+				cline.recordToolError("search_and_replace")
 				pushToolResult(await cline.sayAndCreateMissingParamError("search_and_replace", "operations"))
 				return
 			}
@@ -55,7 +55,7 @@ export async function searchAndReplaceTool(
 
 			if (!fileExists) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "search_and_replace", success: false })
+				cline.recordToolError("search_and_replace")
 				const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
 				await cline.say("error", formattedError)
 				pushToolResult(formattedError)
@@ -80,7 +80,7 @@ export async function searchAndReplaceTool(
 				}
 			} catch (error) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "search_and_replace", success: false })
+				cline.recordToolError("search_and_replace")
 				await cline.say("error", `Failed to parse operations JSON: ${error.message}`)
 				pushToolResult(formatResponse.toolError("Invalid operations JSON format"))
 				return
@@ -178,7 +178,6 @@ export async function searchAndReplaceTool(
 				pushToolResult(`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`)
 			}
 
-			cline.recordToolUsage({ toolName: "search_and_replace" })
 			await cline.diffViewProvider.reset()
 
 			return

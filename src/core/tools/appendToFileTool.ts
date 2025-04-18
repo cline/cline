@@ -95,7 +95,7 @@ export async function appendToFileTool(
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "append_to_file", success: false })
+				cline.recordToolError("append_to_file")
 				pushToolResult(await cline.sayAndCreateMissingParamError("append_to_file", "path"))
 				await cline.diffViewProvider.reset()
 				return
@@ -103,7 +103,7 @@ export async function appendToFileTool(
 
 			if (!newContent) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "append_to_file", success: false })
+				cline.recordToolError("append_to_file")
 				pushToolResult(await cline.sayAndCreateMissingParamError("append_to_file", "content"))
 				await cline.diffViewProvider.reset()
 				return
@@ -179,7 +179,6 @@ export async function appendToFileTool(
 				pushToolResult(`The content was successfully appended to ${relPath.toPosix()}.${newProblemsMessage}`)
 			}
 
-			cline.recordToolUsage({ toolName: "append_to_file" })
 			await cline.diffViewProvider.reset()
 
 			return

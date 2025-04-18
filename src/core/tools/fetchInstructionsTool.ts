@@ -22,7 +22,7 @@ export async function fetchInstructionsTool(
 		} else {
 			if (!task) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "fetch_instructions", success: false })
+				cline.recordToolError("fetch_instructions")
 				pushToolResult(await cline.sayAndCreateMissingParamError("fetch_instructions", "task"))
 				return
 			}
@@ -54,7 +54,6 @@ export async function fetchInstructionsTool(
 			}
 
 			pushToolResult(content)
-			cline.recordToolUsage({ toolName: "fetch_instructions" })
 
 			return
 		}

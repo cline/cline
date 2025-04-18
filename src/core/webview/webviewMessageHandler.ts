@@ -38,10 +38,10 @@ import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { getWorkspacePath } from "../../utils/path"
 import { Mode, defaultModeSlug, getModeBySlug, getGroupName } from "../../shared/modes"
-import { getDiffStrategy } from "../diff/DiffStrategy"
 import { SYSTEM_PROMPT } from "../prompts/system"
 import { buildApiHandler } from "../../api"
 import { GlobalState } from "../../schemas"
+import { MultiSearchReplaceDiffStrategy } from "../diff/strategies/multi-search-replace"
 
 export const webviewMessageHandler = async (provider: ClineProvider, message: WebviewMessage) => {
 	// Utility functions provided for concise get/update of global state via contextProxy API.
@@ -1372,12 +1372,7 @@ const generateSystemPrompt = async (provider: ClineProvider, message: WebviewMes
 		language,
 	} = await provider.getState()
 
-	// Create diffStrategy based on current model and settings.
-	const diffStrategy = getDiffStrategy({
-		model: apiConfiguration.apiModelId || apiConfiguration.openRouterModelId || "",
-		experiments,
-		fuzzyMatchThreshold,
-	})
+	const diffStrategy = new MultiSearchReplaceDiffStrategy(fuzzyMatchThreshold)
 
 	const cwd = provider.cwd
 

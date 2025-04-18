@@ -127,8 +127,8 @@ describe("read_file tool with maxReadFileLine setting", () => {
 		mockCline.getFileContextTracker = jest.fn().mockReturnValue({
 			trackFileContext: jest.fn().mockResolvedValue(undefined),
 		})
-		mockCline.recordToolUsage = jest.fn().mockReturnValue({} as ToolUsage)
-
+		mockCline.recordToolUsage = jest.fn().mockReturnValue(undefined)
+		mockCline.recordToolError = jest.fn().mockReturnValue(undefined)
 		// Reset tool result
 		toolResult = undefined
 	})

@@ -13,6 +13,7 @@ import {
 } from "../../shared/tools"
 import { formatResponse } from "../prompts/responses"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { executeCommand } from "./executeCommandTool"
 
 export async function attemptCompletionTool(
 	cline: Cline,
@@ -57,7 +58,7 @@ export async function attemptCompletionTool(
 		} else {
 			if (!result) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "attempt_completion", success: false })
+				cline.recordToolError("attempt_completion")
 				pushToolResult(await cline.sayAndCreateMissingParamError("attempt_completion", "result"))
 				return
 			}
@@ -81,7 +82,7 @@ export async function attemptCompletionTool(
 					return
 				}
 
-				const [userRejected, execCommandResult] = await cline.executeCommandTool(command!)
+				const [userRejected, execCommandResult] = await executeCommand(cline, command!)
 
 				if (userRejected) {
 					cline.didRejectTool = true
@@ -141,7 +142,6 @@ export async function attemptCompletionTool(
 			toolResults.push(...formatResponse.imageBlocks(images))
 			cline.userMessageContent.push({ type: "text", text: `${toolDescription()} Result:` })
 			cline.userMessageContent.push(...toolResults)
-			cline.recordToolUsage({ toolName: "attempt_completion" })
 
 			return
 		}

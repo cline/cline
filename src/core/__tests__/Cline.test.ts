@@ -17,12 +17,12 @@ jest.mock("../ignore/RooIgnoreController")
 
 // Mock storagePathManager to prevent dynamic import issues
 jest.mock("../../shared/storagePathManager", () => ({
-	getTaskDirectoryPath: jest.fn().mockImplementation((globalStoragePath, taskId) => {
-		return Promise.resolve(`${globalStoragePath}/tasks/${taskId}`)
-	}),
-	getSettingsDirectoryPath: jest.fn().mockImplementation((globalStoragePath) => {
-		return Promise.resolve(`${globalStoragePath}/settings`)
-	}),
+	getTaskDirectoryPath: jest
+		.fn()
+		.mockImplementation((globalStoragePath, taskId) => Promise.resolve(`${globalStoragePath}/tasks/${taskId}`)),
+	getSettingsDirectoryPath: jest
+		.fn()
+		.mockImplementation((globalStoragePath) => Promise.resolve(`${globalStoragePath}/settings`)),
 }))
 
 // Mock fileExistsAtPath
@@ -296,50 +296,6 @@ describe("Cline", () => {
 
 			// The diff strategy should be created with default threshold (1.0).
 			expect(cline.diffStrategy).toBeDefined()
-		})
-
-		it("should use provided fuzzy match threshold", async () => {
-			const getDiffStrategySpy = jest.spyOn(require("../diff/DiffStrategy"), "getDiffStrategy")
-
-			const cline = new Cline({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				customInstructions: "custom instructions",
-				enableDiff: true,
-				fuzzyMatchThreshold: 0.9,
-				task: "test task",
-				startTask: false,
-			})
-
-			expect(cline.diffEnabled).toBe(true)
-			expect(cline.diffStrategy).toBeDefined()
-
-			expect(getDiffStrategySpy).toHaveBeenCalledWith({
-				model: "claude-3-5-sonnet-20241022",
-				experiments: {},
-				fuzzyMatchThreshold: 0.9,
-			})
-		})
-
-		it("should pass default threshold to diff strategy when not provided", async () => {
-			const getDiffStrategySpy = jest.spyOn(require("../diff/DiffStrategy"), "getDiffStrategy")
-
-			const cline = new Cline({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				customInstructions: "custom instructions",
-				enableDiff: true,
-				task: "test task",
-				startTask: false,
-			})
-
-			expect(cline.diffEnabled).toBe(true)
-			expect(cline.diffStrategy).toBeDefined()
-			expect(getDiffStrategySpy).toHaveBeenCalledWith({
-				model: "claude-3-5-sonnet-20241022",
-				experiments: {},
-				fuzzyMatchThreshold: 1.0,
-			})
 		})
 
 		it("should require either task or historyItem", () => {

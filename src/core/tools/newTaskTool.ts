@@ -29,14 +29,14 @@ export async function newTaskTool(
 		} else {
 			if (!mode) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "new_task", success: false })
+				cline.recordToolError("new_task")
 				pushToolResult(await cline.sayAndCreateMissingParamError("new_task", "mode"))
 				return
 			}
 
 			if (!message) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolUsage({ toolName: "new_task", success: false })
+				cline.recordToolError("new_task")
 				pushToolResult(await cline.sayAndCreateMissingParamError("new_task", "message"))
 				return
 			}
@@ -82,7 +82,6 @@ export async function newTaskTool(
 			cline.emit("taskSpawned", newCline.taskId)
 
 			pushToolResult(`Successfully created new task in ${targetMode.name} mode with message: ${message}`)
-			cline.recordToolUsage({ toolName: "new_task" })
 
 			// Set the isPaused flag to true so the parent
 			// task can wait for the sub-task to finish.
