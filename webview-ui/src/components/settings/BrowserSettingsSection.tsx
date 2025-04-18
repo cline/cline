@@ -107,7 +107,6 @@ export const BrowserSettingsSection: React.FC = () => {
 							setIsCheckingConnection(false)
 						})
 				} else {
-					// Use gRPC for discoverBrowser
 					BrowserServiceClient.discoverBrowser({})
 						.then((result) => {
 							setConnectionStatus(result.success)
@@ -186,7 +185,6 @@ export const BrowserSettingsSection: React.FC = () => {
 					setConnectionStatus(false)
 				})
 		} else {
-			// Use gRPC for discoverBrowser
 			BrowserServiceClient.discoverBrowser({})
 				.then((result) => {
 					setConnectionStatus(result.success)
