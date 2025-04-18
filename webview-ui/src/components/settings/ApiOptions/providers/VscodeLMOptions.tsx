@@ -1,34 +1,49 @@
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ProviderOptionsProps } from "./types/ProviderOptions"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useEvent, useInterval } from "react-use"
 import { vscode } from "@/utils/vscode"
 import DropdownContainer from "../DropdownContainer"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../model/OpenRouterModelPicker"
+import type { ExtensionMessage } from "@shared/ExtensionMessage"
+import * as vscodemodels from "vscode"
+
+declare module "vscode" {
+	interface LanguageModelChatSelector {
+		vendor?: string
+		family?: string
+		version?: string
+		id?: string
+	}
+}
 
 const VscodeLMOptions = ({ handleInputChange }: ProviderOptionsProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const [vsCodeLmModels, setVsCodeLmModels] = useState<any[]>([])
+	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 
-	// Request VS Code LM models when component mounts
-	useEffect(() => {
+	// Request VS Code LM models
+	const requestVsCodeLmModels = useCallback(() => {
 		vscode.postMessage({ type: "requestVsCodeLmModels" })
 	}, [])
 
-	// Listen for VS Code LM models
+	// Request VS Code LM models when component mounts
 	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
-				setVsCodeLmModels(message.vsCodeLmModels)
-			}
-		}
+		requestVsCodeLmModels()
+	}, [requestVsCodeLmModels])
 
-		window.addEventListener("message", handleMessage)
-		return () => {
-			window.removeEventListener("message", handleMessage)
+	// Poll VS Code LM models periodically
+	useInterval(requestVsCodeLmModels, 2000)
+
+	// Handle message events for VS Code LM models
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+		if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
+			setVsCodeLmModels(message.vsCodeLmModels)
 		}
 	}, [])
+
+	useEvent("message", handleMessage)
 
 	return (
 		<div>

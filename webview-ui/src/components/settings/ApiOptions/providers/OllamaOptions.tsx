@@ -1,19 +1,40 @@
 import { VSCodeTextField, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ProviderOptionsProps } from "./types/ProviderOptions"
-import { useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useEvent, useInterval } from "react-use"
 import { vscode } from "@/utils/vscode"
+import type { ExtensionMessage } from "@shared/ExtensionMessage"
 
 const OllamaOptions = ({ handleInputChange }: ProviderOptionsProps) => {
 	const { apiConfiguration } = useExtensionState()
+	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
-	// Request Ollama models when component mounts
-	useEffect(() => {
+	// Request Ollama models
+	const requestOllamaModels = useCallback(() => {
 		vscode.postMessage({
 			type: "requestOllamaModels",
 			text: apiConfiguration?.ollamaBaseUrl,
 		})
 	}, [apiConfiguration?.ollamaBaseUrl])
+
+	// Request Ollama models when component mounts
+	useEffect(() => {
+		requestOllamaModels()
+	}, [requestOllamaModels])
+
+	// Poll Ollama models periodically
+	useInterval(requestOllamaModels, 2000)
+
+	// Handle message events for Ollama models
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+		if (message.type === "ollamaModels" && message.ollamaModels) {
+			setOllamaModels(message.ollamaModels)
+		}
+	}, [])
+
+	useEvent("message", handleMessage)
 
 	return (
 		<div>

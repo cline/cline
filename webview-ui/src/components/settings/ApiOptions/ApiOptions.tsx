@@ -1,8 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { useEvent, useInterval } from "react-use"
-import * as vscodemodels from "vscode"
+import { memo, useCallback, useMemo } from "react"
 import { ApiConfiguration } from "@shared/api"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import OpenRouterModelPicker from "./model/OpenRouterModelPicker"
@@ -20,20 +17,13 @@ interface ApiOptionsProps {
 	isPopup?: boolean
 }
 
-declare module "vscode" {
-	interface LanguageModelChatSelector {
-		vendor?: string
-		family?: string
-		version?: string
-		id?: string
-	}
+interface ProviderOptionKey {
+	id: string
+	component: keyof typeof ProviderOptions
 }
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration } = useExtensionState()
-	const [ollamaModels, setOllamaModels] = useState<string[]>([])
-	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
-	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		const newValue = event.target.value
@@ -61,213 +51,41 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	// Poll ollama/lmstudio models
-	const requestLocalModels = useCallback(() => {
-		if (selectedProvider === "ollama") {
-			vscode.postMessage({
-				type: "requestOllamaModels",
-				text: apiConfiguration?.ollamaBaseUrl,
-			})
-		} else if (selectedProvider === "lmstudio") {
-			vscode.postMessage({
-				type: "requestLmStudioModels",
-				text: apiConfiguration?.lmStudioBaseUrl,
-			})
-		} else if (selectedProvider === "vscode-lm") {
-			vscode.postMessage({ type: "requestVsCodeLmModels" })
-		}
-	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
-	useEffect(() => {
-		if (selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm") {
-			requestLocalModels()
-		}
-	}, [selectedProvider, requestLocalModels])
-	useInterval(
-		requestLocalModels,
-		selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null,
-	)
-
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message: ExtensionMessage = event.data
-		if (message.type === "ollamaModels" && message.ollamaModels) {
-			setOllamaModels(message.ollamaModels)
-		} else if (message.type === "lmStudioModels" && message.lmStudioModels) {
-			setLmStudioModels(message.lmStudioModels)
-		} else if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
-			setVsCodeLmModels(message.vsCodeLmModels)
-		}
-	}, [])
-	useEvent("message", handleMessage)
+	const providerOptionsList: ProviderOptionKey[] = [
+		{ id: "cline", component: "ClineOptions" },
+		{ id: "asksage", component: "AskSageOptions" },
+		{ id: "anthropic", component: "AnthropicOptions" },
+		{ id: "openai-native", component: "OpenAIOptions" },
+		{ id: "deepseek", component: "DeepseekOptions" },
+		{ id: "qwen", component: "QwenOptions" },
+		{ id: "doubao", component: "DoubaoOptions" },
+		{ id: "mistral", component: "MistralOptions" },
+		{ id: "openrouter", component: "OpenRouterOptions" },
+		{ id: "bedrock", component: "BedrockOptions" },
+		{ id: "vertex", component: "VertexOptions" },
+		{ id: "gemini", component: "GeminiOptions" },
+		{ id: "openai", component: "OpenAICompatOptions" },
+		{ id: "requesty", component: "RequestyOptions" },
+		{ id: "together", component: "TogetherOptions" },
+		{ id: "vscode-lm", component: "VscodeLMOptions" },
+		{ id: "lmstudio", component: "LMStudioOptions" },
+		{ id: "litellm", component: "LiteLLMOptions" },
+		{ id: "ollama", component: "OllamaOptions" },
+		{ id: "xai", component: "XAIOptions" },
+		{ id: "sambanova", component: "SambaNovaOptions" },
+	]
 
 	// Render the provider options based on the selected provider
 	const renderProviderOptions = useCallback(() => {
-		switch (selectedProvider) {
-			case "cline":
-				return <ProviderOptions.ClineOptions />
-			case "asksage":
-				return (
-					<ProviderOptions.AskSageOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "anthropic":
-				return (
-					<ProviderOptions.AnthropicOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "openai-native":
-				return (
-					<ProviderOptions.OpenAIOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "deepseek":
-				return (
-					<ProviderOptions.DeepseekOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "qwen":
-				return (
-					<ProviderOptions.QwenOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "doubao":
-				return (
-					<ProviderOptions.DoubaoOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "mistral":
-				return (
-					<ProviderOptions.MistralOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "openrouter":
-				return (
-					<ProviderOptions.OpenRouterOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "bedrock":
-				return (
-					<ProviderOptions.BedrockOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "vertex":
-				return (
-					<ProviderOptions.VertexOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "gemini":
-				return (
-					<ProviderOptions.GeminiOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "openai":
-				return (
-					<ProviderOptions.OpenAICompatOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "requesty":
-				return (
-					<ProviderOptions.RequestyOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "together":
-				return (
-					<ProviderOptions.TogetherOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "vscode-lm":
-				return (
-					<ProviderOptions.VscodeLMOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "lmstudio":
-				return (
-					<ProviderOptions.LMStudioOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "litellm":
-				return (
-					<ProviderOptions.LiteLLMOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "ollama":
-				return (
-					<ProviderOptions.OllamaOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "xai":
-				return (
-					<ProviderOptions.XAIOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			case "sambanova":
-				return (
-					<ProviderOptions.SambaNovaOptions
-						showModelOptions={showModelOptions}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)
-			default:
-				return null
-		}
-	}, [selectedProvider, showModelOptions, isPopup, handleInputChange])
+		const providerOption = providerOptionsList.find((option) => option.id === selectedProvider)
+		if (!providerOption) return null
+
+		const ProviderOptionsComponent = ProviderOptions[providerOption.component]
+
+		return <ProviderOptionsComponent handleInputChange={handleInputChange} />
+	}, [selectedProvider, handleInputChange])
+
+	const usesSpecialModelPickers = ["openrouter", "cline", "openai", "ollama", "lmstudio", "vscode-lm", "litellm", "requesty"]
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
@@ -287,33 +105,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
-				<OpenRouterProviderSorter />
-			)}
-
-			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
-				<OpenRouterModelPicker isPopup={isPopup} />
+				<>
+					<OpenRouterProviderSorter />
+					<OpenRouterModelPicker isPopup={isPopup} />
+				</>
 			)}
 
 			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
 
 			{/* Default model picker for providers that aren't handled separately */}
-			{selectedProvider !== "openrouter" &&
-				selectedProvider !== "cline" &&
-				selectedProvider !== "openai" &&
-				selectedProvider !== "ollama" &&
-				selectedProvider !== "lmstudio" &&
-				selectedProvider !== "vscode-lm" &&
-				selectedProvider !== "litellm" &&
-				selectedProvider !== "requesty" &&
-				showModelOptions && (
-					<ModelPicker
-						selectedProvider={selectedProvider}
-						selectedModelId={selectedModelId}
-						selectedModelInfo={selectedModelInfo}
-						isPopup={isPopup}
-						handleInputChange={handleInputChange}
-					/>
-				)}
+			{!(selectedProvider in usesSpecialModelPickers) && showModelOptions && (
+				<ModelPicker
+					selectedProvider={selectedProvider}
+					selectedModelId={selectedModelId}
+					selectedModelInfo={selectedModelInfo}
+					isPopup={isPopup}
+					handleInputChange={handleInputChange}
+				/>
+			)}
 
 			{modelIdErrorMessage && (
 				<p

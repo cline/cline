@@ -1,19 +1,40 @@
 import { VSCodeTextField, VSCodeLink, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ProviderOptionsProps } from "./types/ProviderOptions"
-import { useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useEvent, useInterval } from "react-use"
 import { vscode } from "@/utils/vscode"
+import type { ExtensionMessage } from "@shared/ExtensionMessage"
 
 const LMStudioOptions = ({ handleInputChange }: ProviderOptionsProps) => {
 	const { apiConfiguration } = useExtensionState()
+	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 
-	// Request LM Studio models when component mounts
-	useEffect(() => {
+	// Request LM Studio models
+	const requestLmStudioModels = useCallback(() => {
 		vscode.postMessage({
 			type: "requestLmStudioModels",
 			text: apiConfiguration?.lmStudioBaseUrl,
 		})
 	}, [apiConfiguration?.lmStudioBaseUrl])
+
+	// Request LM Studio models when component mounts
+	useEffect(() => {
+		requestLmStudioModels()
+	}, [requestLmStudioModels])
+
+	// Poll LM Studio models periodically
+	useInterval(requestLmStudioModels, 2000)
+
+	// Handle message events for LM Studio models
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+		if (message.type === "lmStudioModels" && message.lmStudioModels) {
+			setLmStudioModels(message.lmStudioModels)
+		}
+	}, [])
+
+	useEvent("message", handleMessage)
 
 	return (
 		<div>
