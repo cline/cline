@@ -119,6 +119,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		asksageApiUrl,
 		xaiApiKey,
 		thinkingBudgetTokens,
+		reasoningEffort,
 		sambanovaApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
@@ -213,14 +214,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
 
-	const reasoningEffort = vscode.workspace.getConfiguration("cline.modelSettings").get("reasoningEffort", "medium")
-
 	const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
 	// Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
 	// On win11 state sometimes initializes as empty string instead of undefined
 	let planActSeparateModelsSetting: boolean | undefined = undefined
-	if (typeof planActSeparateModelsSettingRaw === "boolean") {
+	if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 		planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 	} else {
 		// default to true for existing users
