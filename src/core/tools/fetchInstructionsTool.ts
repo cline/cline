@@ -12,50 +12,51 @@ export async function fetchInstructionsTool(
 	pushToolResult: PushToolResult,
 ) {
 	const task: string | undefined = block.params.task
-	const sharedMessageProps: ClineSayTool = {
-		tool: "fetchInstructions",
-		content: task,
-	}
+	const sharedMessageProps: ClineSayTool = { tool: "fetchInstructions", content: task }
+
 	try {
 		if (block.partial) {
-			const partialMessage = JSON.stringify({
-				...sharedMessageProps,
-				content: undefined,
-			} satisfies ClineSayTool)
+			const partialMessage = JSON.stringify({ ...sharedMessageProps, content: undefined } satisfies ClineSayTool)
 			await cline.ask("tool", partialMessage, block.partial).catch(() => {})
 			return
 		} else {
 			if (!task) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "fetch_instructions", success: false })
 				pushToolResult(await cline.sayAndCreateMissingParamError("fetch_instructions", "task"))
 				return
 			}
 
 			cline.consecutiveMistakeCount = 0
-			const completeMessage = JSON.stringify({
-				...sharedMessageProps,
-				content: task,
-			} satisfies ClineSayTool)
 
+			const completeMessage = JSON.stringify({ ...sharedMessageProps, content: task } satisfies ClineSayTool)
 			const didApprove = await askApproval("tool", completeMessage)
+
 			if (!didApprove) {
 				return
 			}
 
-			// now fetch the content and provide it to the agent.
+			// Bow fetch the content and provide it to the agent.
 			const provider = cline.providerRef.deref()
 			const mcpHub = provider?.getMcpHub()
+
 			if (!mcpHub) {
 				throw new Error("MCP hub not available")
 			}
+
 			const diffStrategy = cline.diffStrategy
 			const context = provider?.context
 			const content = await fetchInstructions(task, { mcpHub, diffStrategy, context })
+
 			if (!content) {
 				pushToolResult(formatResponse.toolError(`Invalid instructions request: ${task}`))
 				return
 			}
+
 			pushToolResult(content)
+			cline.recordToolUsage({ toolName: "fetch_instructions" })
+
+			return
 		}
 	} catch (error) {
 		await handleError("fetch instructions", error)

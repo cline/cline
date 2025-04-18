@@ -8,7 +8,7 @@ import { Ellipsis, Rocket } from "lucide-react"
 import type { Run, TaskMetrics } from "@evals/db"
 
 import { deleteRun } from "@/lib/server/runs"
-import { formatCurrency, formatDuration, formatTokens } from "@/lib"
+import { formatCurrency, formatDuration, formatTokens, formatToolUsageSuccessRate } from "@/lib/formatters"
 import {
 	Button,
 	Table,
@@ -59,7 +59,8 @@ export function Home({ runs }: { runs: (Run & { taskMetrics: TaskMetrics | null 
 						<TableHead>Passed</TableHead>
 						<TableHead>Failed</TableHead>
 						<TableHead>% Correct</TableHead>
-						<TableHead className="text-center">Tokens In / Out</TableHead>
+						<TableHead>Tokens In / Out</TableHead>
+						<TableHead>Diff Edits</TableHead>
 						<TableHead>Cost</TableHead>
 						<TableHead>Duration</TableHead>
 						<TableHead />
@@ -79,9 +80,18 @@ export function Home({ runs }: { runs: (Run & { taskMetrics: TaskMetrics | null 
 								</TableCell>
 								<TableCell>
 									{taskMetrics && (
-										<div className="flex items-center justify-evenly">
+										<div className="flex items-center gap-1.5">
 											<div>{formatTokens(taskMetrics.tokensIn)}</div>/
 											<div>{formatTokens(taskMetrics.tokensOut)}</div>
+										</div>
+									)}
+								</TableCell>
+								<TableCell>
+									{taskMetrics?.toolUsage?.apply_diff && (
+										<div className="flex flex-row items-center gap-1.5">
+											<div>{taskMetrics.toolUsage.apply_diff.attempts}</div>
+											<div>/</div>
+											<div>{formatToolUsageSuccessRate(taskMetrics.toolUsage.apply_diff)}</div>
 										</div>
 									)}
 								</TableCell>

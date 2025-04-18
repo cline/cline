@@ -15,9 +15,7 @@
 	],
 	"tasks": {
 		"lint": {},
-		"check-types": {
-			"dependsOn": []
-		},
+		"check-types": {},
 		"test": {},
 		"format": {},
 		"dev": {

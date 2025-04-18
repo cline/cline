@@ -3,7 +3,6 @@
 import * as os from "os"
 import * as path from "path"
 
-import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { Anthropic } from "@anthropic-ai/sdk"
 

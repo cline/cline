@@ -1,4 +1,4 @@
-import { ToolName } from "../shared/tools"
+import { ToolName } from "../schemas"
 import { Mode, isToolAllowedForMode, ModeConfig } from "../shared/modes"
 
 export function validateToolUse(

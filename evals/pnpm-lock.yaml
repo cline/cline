@@ -274,6 +274,12 @@ importers:
       drizzle-kit:
         specifier: ^0.30.5
         version: 0.30.5
+      execa:
+        specifier: ^9.5.2
+        version: 9.5.2
+      vitest:
+        specifier: ^3.0.9
+        version: 3.0.9(@types/node@20.17.24)(jiti@2.4.2)(lightningcss@1.29.2)(tsx@4.19.3)
 
   packages/ipc:
     dependencies:

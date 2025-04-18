@@ -1,3 +1,5 @@
+// npx jest src/core/__tests__/read-file-tool.test.ts
+
 import * as path from "path"
 import { countFileLines } from "../../integrations/misc/line-counter"
 import { readLines } from "../../integrations/misc/read-lines"

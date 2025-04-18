@@ -520,6 +520,12 @@ type RooCodeEvents = {
 			totalCost: number
 			contextTokens: number
 		},
+		{
+			[x: string]: {
+				attempts: number
+				failures: number
+			}
+		},
 	]
 	taskTokenUsageUpdated: [
 		string,

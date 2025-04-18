@@ -1,4 +1,7 @@
+// npx jest src/core/__tests__/EditorUtils.test.ts
+
 import * as vscode from "vscode"
+
 import { EditorUtils } from "../EditorUtils"
 
 // Use simple classes to simulate VSCode's Range and Position behavior.

@@ -13,7 +13,7 @@ import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 
 // schemas
-import { TokenUsage } from "../schemas"
+import { TokenUsage, ToolUsage, ToolName } from "../schemas"
 
 // api
 import { ApiHandler, buildApiHandler } from "../api"
@@ -39,7 +39,7 @@ import { GlobalFileNames } from "../shared/globalFileNames"
 import { defaultModeSlug, getModeBySlug, getFullModeDetails, isToolAllowedForMode } from "../shared/modes"
 import { EXPERIMENT_IDS, experiments as Experiments, ExperimentId } from "../shared/experiments"
 import { formatLanguage } from "../shared/language"
-import { ToolParamName, ToolName, ToolResponse } from "../shared/tools"
+import { ToolParamName, ToolResponse } from "../shared/tools"
 
 // services
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
@@ -106,8 +106,8 @@ export type ClineEvents = {
 	taskAskResponded: []
 	taskAborted: []
 	taskSpawned: [taskId: string]
-	taskCompleted: [taskId: string, usage: TokenUsage]
-	taskTokenUsageUpdated: [taskId: string, usage: TokenUsage]
+	taskCompleted: [taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage]
+	taskTokenUsageUpdated: [taskId: string, tokenUsage: TokenUsage]
 }
 
 export type ClineOptions = {
@@ -188,6 +188,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 	didRejectTool = false
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
+
+	// metrics
+	private toolUsage: ToolUsage = {}
 
 	constructor({
 		provider,
@@ -366,19 +369,15 @@ export class Cline extends EventEmitter<ClineEvents> {
 		this.emit("message", { action: "updated", message: partialMessage })
 	}
 
-	getTokenUsage() {
-		const usage = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-		this.emit("taskTokenUsageUpdated", this.taskId, usage)
-		return usage
-	}
-
 	private async saveClineMessages() {
 		try {
 			const taskDir = await this.ensureTaskDirectoryExists()
 			const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
 			await fs.writeFile(filePath, JSON.stringify(this.clineMessages))
-			// combined as they are in ChatView
-			const apiMetrics = this.getTokenUsage()
+
+			const tokenUsage = this.getTokenUsage()
+			this.emit("taskTokenUsageUpdated", this.taskId, tokenUsage)
+
 			const taskMessage = this.clineMessages[0] // first message is always the task say
 			const lastRelevantMessage =
 				this.clineMessages[
@@ -403,11 +402,11 @@ export class Cline extends EventEmitter<ClineEvents> {
 				number: this.taskNumber,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
-				tokensIn: apiMetrics.totalTokensIn,
-				tokensOut: apiMetrics.totalTokensOut,
-				cacheWrites: apiMetrics.totalCacheWrites,
-				cacheReads: apiMetrics.totalCacheReads,
-				totalCost: apiMetrics.totalCost,
+				tokensIn: tokenUsage.totalTokensIn,
+				tokensOut: tokenUsage.totalTokensOut,
+				cacheWrites: tokenUsage.totalCacheWrites,
+				cacheReads: tokenUsage.totalCacheReads,
+				totalCost: tokenUsage.totalCost,
 				size: taskDirSize,
 				workspace: this.cwd,
 			})
@@ -2692,5 +2691,27 @@ export class Cline extends EventEmitter<ClineEvents> {
 	// Public accessor for fileContextTracker
 	public getFileContextTracker(): FileContextTracker {
 		return this.fileContextTracker
+	}
+
+	// Metrics
+
+	public getTokenUsage() {
+		return getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
+	}
+
+	public recordToolUsage({ toolName, success = true }: { toolName: ToolName; success?: boolean }) {
+		if (!this.toolUsage[toolName]) {
+			this.toolUsage[toolName] = { attempts: 0, failures: 0 }
+		}
+
+		this.toolUsage[toolName].attempts++
+
+		if (!success) {
+			this.toolUsage[toolName].failures++
+		}
+	}
+
+	public getToolUsage() {
+		return this.toolUsage
 	}
 }

@@ -1,4 +1,5 @@
-import { TextContent, ToolUse, ToolParamName, toolParamNames, toolNames, ToolName } from "../../shared/tools"
+import { TextContent, ToolUse, ToolParamName, toolParamNames } from "../../shared/tools"
+import { toolNames, ToolName } from "../../schemas"
 
 export type AssistantMessageContent = TextContent | ToolUse
 

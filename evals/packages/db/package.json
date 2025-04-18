@@ -6,6 +6,7 @@
 	"scripts": {
 		"lint": "eslint src/**/*.ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
+		"test": "vitest --globals --run",
 		"format": "prettier --write src",
 		"drizzle-kit": "dotenvx run -f ../../.env -- tsx node_modules/drizzle-kit/bin.cjs",
 		"db:generate": "pnpm drizzle-kit generate",
@@ -29,6 +30,8 @@
 	"devDependencies": {
 		"@evals/eslint-config": "workspace:^",
 		"@evals/typescript-config": "workspace:^",
-		"drizzle-kit": "^0.30.5"
+		"drizzle-kit": "^0.30.5",
+		"execa": "^9.5.2",
+		"vitest": "^3.0.9"
 	}
 }

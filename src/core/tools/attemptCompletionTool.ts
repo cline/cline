@@ -26,8 +26,10 @@ export async function attemptCompletionTool(
 ) {
 	const result: string | undefined = block.params.result
 	const command: string | undefined = block.params.command
+
 	try {
 		const lastMessage = cline.clineMessages.at(-1)
+
 		if (block.partial) {
 			if (command) {
 				// the attempt_completion text is done, now we're getting command
@@ -43,7 +45,7 @@ export async function attemptCompletionTool(
 					await cline.say("completion_result", removeClosingTag("result", result), undefined, false)
 
 					telemetryService.captureTaskCompleted(cline.taskId)
-					cline.emit("taskCompleted", cline.taskId, cline.getTokenUsage())
+					cline.emit("taskCompleted", cline.taskId, cline.getTokenUsage(), cline.getToolUsage())
 
 					await cline.ask("command", removeClosingTag("command", command), block.partial).catch(() => {})
 				}
@@ -55,6 +57,7 @@ export async function attemptCompletionTool(
 		} else {
 			if (!result) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "attempt_completion", success: false })
 				pushToolResult(await cline.sayAndCreateMissingParamError("attempt_completion", "result"))
 				return
 			}
@@ -68,7 +71,7 @@ export async function attemptCompletionTool(
 					// Haven't sent a command message yet so first send completion_result then command.
 					await cline.say("completion_result", result, undefined, false)
 					telemetryService.captureTaskCompleted(cline.taskId)
-					cline.emit("taskCompleted", cline.taskId, cline.getTokenUsage())
+					cline.emit("taskCompleted", cline.taskId, cline.getTokenUsage(), cline.getToolUsage())
 				}
 
 				// Complete command message.
@@ -91,7 +94,7 @@ export async function attemptCompletionTool(
 			} else {
 				await cline.say("completion_result", result, undefined, false)
 				telemetryService.captureTaskCompleted(cline.taskId)
-				cline.emit("taskCompleted", cline.taskId, cline.getTokenUsage())
+				cline.emit("taskCompleted", cline.taskId, cline.getTokenUsage(), cline.getToolUsage())
 			}
 
 			if (cline.parentTask) {
@@ -136,13 +139,10 @@ export async function attemptCompletionTool(
 			})
 
 			toolResults.push(...formatResponse.imageBlocks(images))
-
-			cline.userMessageContent.push({
-				type: "text",
-				text: `${toolDescription()} Result:`,
-			})
-
+			cline.userMessageContent.push({ type: "text", text: `${toolDescription()} Result:` })
 			cline.userMessageContent.push(...toolResults)
+			cline.recordToolUsage({ toolName: "attempt_completion" })
+
 			return
 		}
 	} catch (error) {

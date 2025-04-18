@@ -275,7 +275,12 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 			})
 		}
 
-		if (eventName === RooCodeEventName.TaskCompleted || eventName === RooCodeEventName.TaskAborted) {
+		if (eventName === RooCodeEventName.TaskCompleted && taskMetricsId) {
+			const toolUsage = payload[2]
+			await updateTaskMetrics(taskMetricsId, { toolUsage })
+		}
+
+		if (eventName === RooCodeEventName.TaskAborted || eventName === RooCodeEventName.TaskCompleted) {
 			taskFinishedAt = Date.now()
 			await updateTask(task.id, { finishedAt: new Date() })
 		}

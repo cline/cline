@@ -32,16 +32,20 @@ export async function searchAndReplaceTool(
 				path: removeClosingTag("path", relPath),
 				operations: removeClosingTag("operations", operations),
 			})
+
 			await cline.ask("tool", partialMessage, block.partial).catch(() => {})
 			return
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "search_and_replace", success: false })
 				pushToolResult(await cline.sayAndCreateMissingParamError("search_and_replace", "path"))
 				return
 			}
+
 			if (!operations) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "search_and_replace", success: false })
 				pushToolResult(await cline.sayAndCreateMissingParamError("search_and_replace", "operations"))
 				return
 			}
@@ -51,6 +55,7 @@ export async function searchAndReplaceTool(
 
 			if (!fileExists) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "search_and_replace", success: false })
 				const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
 				await cline.say("error", formattedError)
 				pushToolResult(formattedError)
@@ -69,11 +74,13 @@ export async function searchAndReplaceTool(
 
 			try {
 				parsedOperations = JSON.parse(operations)
+
 				if (!Array.isArray(parsedOperations)) {
 					throw new Error("Operations must be an array")
 				}
 			} catch (error) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "search_and_replace", success: false })
 				await cline.say("error", `Failed to parse operations JSON: ${error.message}`)
 				pushToolResult(formatResponse.toolError("Invalid operations JSON format"))
 				return
@@ -132,18 +139,16 @@ export async function searchAndReplaceTool(
 			await cline.diffViewProvider.update(newContent, true)
 			cline.diffViewProvider.scrollToFirstDiff()
 
-			const completeMessage = JSON.stringify({
-				...sharedMessageProps,
-				diff: diff,
-			} satisfies ClineSayTool)
-
+			const completeMessage = JSON.stringify({ ...sharedMessageProps, diff: diff } satisfies ClineSayTool)
 			const didApprove = await askApproval("tool", completeMessage)
+
 			if (!didApprove) {
 				await cline.diffViewProvider.revertChanges() // cline likely handles closing the diff view
 				return
 			}
 
 			const { newProblemsMessage, userEdits, finalContent } = await cline.diffViewProvider.saveChanges()
+
 			if (relPath) {
 				await cline.getFileContextTracker().trackFileContext(relPath, "roo_edited" as RecordSource)
 			}
@@ -158,6 +163,7 @@ export async function searchAndReplaceTool(
 						diff: userEdits,
 					} satisfies ClineSayTool),
 				)
+
 				pushToolResult(
 					`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 						`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
@@ -171,7 +177,10 @@ export async function searchAndReplaceTool(
 			} else {
 				pushToolResult(`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`)
 			}
+
+			cline.recordToolUsage({ toolName: "search_and_replace" })
 			await cline.diffViewProvider.reset()
+
 			return
 		}
 	} catch (error) {

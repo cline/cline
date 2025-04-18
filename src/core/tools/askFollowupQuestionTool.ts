@@ -13,6 +13,7 @@ export async function askFollowupQuestionTool(
 ) {
 	const question: string | undefined = block.params.question
 	const follow_up: string | undefined = block.params.follow_up
+
 	try {
 		if (block.partial) {
 			await cline.ask("followup", removeClosingTag("question", question), block.partial).catch(() => {})
@@ -20,13 +21,12 @@ export async function askFollowupQuestionTool(
 		} else {
 			if (!question) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "ask_followup_question", success: false })
 				pushToolResult(await cline.sayAndCreateMissingParamError("ask_followup_question", "question"))
 				return
 			}
 
-			type Suggest = {
-				answer: string
-			}
+			type Suggest = { answer: string }
 
 			let follow_up_json = {
 				question,
@@ -39,11 +39,10 @@ export async function askFollowupQuestionTool(
 				}
 
 				try {
-					parsedSuggest = parseXml(follow_up, ["suggest"]) as {
-						suggest: Suggest[] | Suggest
-					}
+					parsedSuggest = parseXml(follow_up, ["suggest"]) as { suggest: Suggest[] | Suggest }
 				} catch (error) {
 					cline.consecutiveMistakeCount++
+					cline.recordToolUsage({ toolName: "ask_followup_question", success: false })
 					await cline.say("error", `Failed to parse operations: ${error.message}`)
 					pushToolResult(formatResponse.toolError("Invalid operations xml format"))
 					return
@@ -57,10 +56,11 @@ export async function askFollowupQuestionTool(
 			}
 
 			cline.consecutiveMistakeCount = 0
-
 			const { text, images } = await cline.ask("followup", JSON.stringify(follow_up_json), false)
 			await cline.say("user_feedback", text ?? "", images)
 			pushToolResult(formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images))
+			cline.recordToolUsage({ toolName: "ask_followup_question" })
+
 			return
 		}
 	} catch (error) {

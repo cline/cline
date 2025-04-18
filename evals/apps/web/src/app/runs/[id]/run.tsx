@@ -5,7 +5,7 @@ import { LoaderCircle } from "lucide-react"
 
 import * as db from "@evals/db"
 
-import { formatCurrency, formatDuration, formatTokens } from "@/lib"
+import { formatCurrency, formatDuration, formatTokens } from "@/lib/formatters"
 import { useRunStatus } from "@/hooks/use-run-status"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 

@@ -59,6 +59,7 @@ export const rooCodeDefaults: RooCodeSettings = {
 		search_and_replace: false,
 		insert_content: false,
 		powerSteering: false,
+		append_to_file: false,
 	},
 
 	language: "en",

@@ -1,10 +1,13 @@
 import { desc, eq, inArray, sql, sum } from "drizzle-orm"
 
+import { ToolUsage } from "@evals/types"
+
 import { RecordNotFoundError, RecordNotCreatedError } from "./errors.js"
 import type { InsertRun, UpdateRun } from "../schema.js"
 import { insertRunSchema, schema } from "../schema.js"
 import { db } from "../db.js"
 import { createTaskMetrics } from "./taskMetrics.js"
+import { getTasks } from "./tasks.js"
 
 const table = schema.runs
 
@@ -71,17 +74,30 @@ export const finishRun = async (runId: number) => {
 		throw new RecordNotFoundError()
 	}
 
+	const tasks = await getTasks(runId)
+
+	const toolUsage = tasks.reduce((acc, task) => {
+		Object.entries(task.taskMetrics?.toolUsage || {}).forEach(([key, { attempts, failures }]) => {
+			const tool = key as keyof ToolUsage
+			acc[tool] ??= { attempts: 0, failures: 0 }
+			acc[tool].attempts += attempts
+			acc[tool].failures += failures
+		})
+
+		return acc
+	}, {} as ToolUsage)
+
 	const { passed, failed, ...rest } = values
-	const taskMetrics = await createTaskMetrics(rest)
+	const taskMetrics = await createTaskMetrics({ ...rest, toolUsage })
 	await updateRun(runId, { taskMetricsId: taskMetrics.id, passed, failed })
 
-	const run = await db.query.runs.findFirst({ where: eq(table.id, runId), with: { taskMetrics: true } })
+	const run = await findRun(runId)
 
 	if (!run) {
 		throw new RecordNotFoundError()
 	}
 
-	return run
+	return { ...run, taskMetrics }
 }
 
 export const deleteRun = async (runId: number) => {

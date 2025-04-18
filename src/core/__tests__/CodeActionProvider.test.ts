@@ -1,4 +1,7 @@
+// npx jest src/core/__tests__/CodeActionProvider.test.ts
+
 import * as vscode from "vscode"
+
 import { CodeActionProvider, ACTION_NAMES } from "../CodeActionProvider"
 import { EditorUtils } from "../EditorUtils"
 

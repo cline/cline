@@ -35,33 +35,36 @@ export async function applyDiffTool(
 
 	try {
 		if (block.partial) {
-			// update gui message
+			// Update GUI message
 			let toolProgressStatus
+
 			if (cline.diffStrategy && cline.diffStrategy.getProgressStatus) {
 				toolProgressStatus = cline.diffStrategy.getProgressStatus(block)
 			}
 
 			const partialMessage = JSON.stringify(sharedMessageProps)
-
 			await cline.ask("tool", partialMessage, block.partial, toolProgressStatus).catch(() => {})
 			return
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "apply_diff", success: false })
 				pushToolResult(await cline.sayAndCreateMissingParamError("apply_diff", "path"))
 				return
 			}
+
 			if (!diffContent) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "apply_diff", success: false })
 				pushToolResult(await cline.sayAndCreateMissingParamError("apply_diff", "diff"))
 				return
 			}
 
 			const accessAllowed = cline.rooIgnoreController?.validateAccess(relPath)
+
 			if (!accessAllowed) {
 				await cline.say("rooignore_error", relPath)
 				pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(relPath)))
-
 				return
 			}
 
@@ -70,6 +73,7 @@ export async function applyDiffTool(
 
 			if (!fileExists) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "apply_diff", success: false })
 				const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
 				await cline.say("error", formattedError)
 				pushToolResult(formattedError)
@@ -87,14 +91,15 @@ export async function applyDiffTool(
 				success: false,
 				error: "No diff strategy available",
 			}
+
 			let partResults = ""
 
 			if (!diffResult.success) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "apply_diff", success: false })
 				const currentCount = (cline.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
 				cline.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
 				let formattedError = ""
-
 				telemetryService.captureDiffApplicationError(cline.taskId, currentCount)
 
 				if (diffResult.failParts && diffResult.failParts.length > 0) {
@@ -102,14 +107,18 @@ export async function applyDiffTool(
 						if (failPart.success) {
 							continue
 						}
+
 						const errorDetails = failPart.details ? JSON.stringify(failPart.details, null, 2) : ""
+
 						formattedError = `<error_details>\n${
 							failPart.error
 						}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
+
 						partResults += formattedError
 					}
 				} else {
 					const errorDetails = diffResult.details ? JSON.stringify(diffResult.details, null, 2) : ""
+
 					formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${
 						diffResult.error
 					}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
@@ -118,12 +127,14 @@ export async function applyDiffTool(
 				if (currentCount >= 2) {
 					await cline.say("diff_error", formattedError)
 				}
+
 				pushToolResult(formattedError)
 				return
 			}
 
 			cline.consecutiveMistakeCount = 0
 			cline.consecutiveMistakeCountForApplyDiff.delete(relPath)
+
 			// Show diff view before asking for approval
 			cline.diffViewProvider.editType = "modify"
 			await cline.diffViewProvider.open(relPath)
@@ -136,26 +147,33 @@ export async function applyDiffTool(
 			} satisfies ClineSayTool)
 
 			let toolProgressStatus
+
 			if (cline.diffStrategy && cline.diffStrategy.getProgressStatus) {
 				toolProgressStatus = cline.diffStrategy.getProgressStatus(block, diffResult)
 			}
 
 			const didApprove = await askApproval("tool", completeMessage, toolProgressStatus)
+
 			if (!didApprove) {
-				await cline.diffViewProvider.revertChanges() // cline likely handles closing the diff view
+				await cline.diffViewProvider.revertChanges() // Cline likely handles closing the diff view
 				return
 			}
 
 			const { newProblemsMessage, userEdits, finalContent } = await cline.diffViewProvider.saveChanges()
+
 			// Track file edit operation
 			if (relPath) {
 				await cline.getFileContextTracker().trackFileContext(relPath, "roo_edited" as RecordSource)
 			}
-			cline.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+
+			// Used to determine if we should wait for busy terminal to update before sending api request
+			cline.didEditFile = true
 			let partFailHint = ""
+
 			if (diffResult.failParts && diffResult.failParts.length > 0) {
 				partFailHint = `But unable to apply all diff parts to file: ${absolutePath}, silently use <read_file> tool to check newest file version and re-apply diffs\n`
 			}
+
 			if (userEdits) {
 				await cline.say(
 					"user_feedback_diff",
@@ -165,6 +183,7 @@ export async function applyDiffTool(
 						diff: userEdits,
 					} satisfies ClineSayTool),
 				)
+
 				pushToolResult(
 					`The user made the following updates to your content:\n\n${userEdits}\n\n` +
 						partFailHint +
@@ -183,7 +202,10 @@ export async function applyDiffTool(
 					`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}\n` + partFailHint,
 				)
 			}
+
+			cline.recordToolUsage({ toolName: "apply_diff" })
 			await cline.diffViewProvider.reset()
+
 			return
 		}
 	} catch (error) {

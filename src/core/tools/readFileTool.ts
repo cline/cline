@@ -37,15 +37,13 @@ export async function readFileTool(
 	}
 	try {
 		if (block.partial) {
-			const partialMessage = JSON.stringify({
-				...sharedMessageProps,
-				content: undefined,
-			} satisfies ClineSayTool)
+			const partialMessage = JSON.stringify({ ...sharedMessageProps, content: undefined } satisfies ClineSayTool)
 			await cline.ask("tool", partialMessage, block.partial).catch(() => {})
 			return
 		} else {
 			if (!relPath) {
 				cline.consecutiveMistakeCount++
+				cline.recordToolUsage({ toolName: "read_file", success: false })
 				const errorMsg = await cline.sayAndCreateMissingParamError("read_file", "path")
 				pushToolResult(`<file><path></path><error>${errorMsg}</error></file>`)
 				return
@@ -67,13 +65,16 @@ export async function readFileTool(
 			// Parse start_line if provided
 			if (startLineStr) {
 				startLine = parseInt(startLineStr)
+
 				if (isNaN(startLine)) {
 					// Invalid start_line
 					cline.consecutiveMistakeCount++
+					cline.recordToolUsage({ toolName: "read_file", success: false })
 					await cline.say("error", `Failed to parse start_line: ${startLineStr}`)
 					pushToolResult(`<file><path>${relPath}</path><error>Invalid start_line value</error></file>`)
 					return
 				}
+
 				startLine -= 1 // Convert to 0-based index
 			}
 
@@ -84,6 +85,7 @@ export async function readFileTool(
 				if (isNaN(endLine)) {
 					// Invalid end_line
 					cline.consecutiveMistakeCount++
+					cline.recordToolUsage({ toolName: "read_file", success: false })
 					await cline.say("error", `Failed to parse end_line: ${endLineStr}`)
 					pushToolResult(`<file><path>${relPath}</path><error>Invalid end_line value</error></file>`)
 					return
@@ -94,6 +96,7 @@ export async function readFileTool(
 			}
 
 			const accessAllowed = cline.rooIgnoreController?.validateAccess(relPath)
+
 			if (!accessAllowed) {
 				await cline.say("rooignore_error", relPath)
 				const errorMsg = formatResponse.rooIgnoreError(relPath)
@@ -103,6 +106,7 @@ export async function readFileTool(
 
 			// Create line snippet description for approval message
 			let lineSnippet = ""
+
 			if (isFullRead) {
 				// No snippet for full read
 			} else if (startLine !== undefined && endLine !== undefined) {
@@ -127,12 +131,14 @@ export async function readFileTool(
 			} satisfies ClineSayTool)
 
 			const didApprove = await askApproval("tool", completeMessage)
+
 			if (!didApprove) {
 				return
 			}
 
 			// Count total lines in the file
 			let totalLines = 0
+
 			try {
 				totalLines = await countFileLines(absolutePath)
 			} catch (error) {
@@ -163,6 +169,7 @@ export async function readFileTool(
 
 				content = res[0].length > 0 ? addLineNumbers(res[0]) : ""
 				const result = res[1]
+
 				if (result) {
 					sourceCodeDef = `${result}`
 				}
@@ -211,9 +218,11 @@ export async function readFileTool(
 			else {
 				// For non-range reads, always show line range
 				let lines = totalLines
+
 				if (maxReadFileLine >= 0 && totalLines > maxReadFileLine) {
 					lines = maxReadFileLine
 				}
+
 				const lineRangeAttr = ` lines="1-${lines}"`
 
 				// Maintain exact format expected by tests
@@ -228,6 +237,7 @@ export async function readFileTool(
 			// Format the result into the required XML structure
 			const xmlResult = `<file><path>${relPath}</path>\n${contentTag}${xmlInfo}</file>`
 			pushToolResult(xmlResult)
+			cline.recordToolUsage({ toolName: "read_file" })
 		}
 	} catch (error) {
 		const errorMsg = error instanceof Error ? error.message : String(error)

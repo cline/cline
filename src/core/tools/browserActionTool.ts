@@ -21,14 +21,17 @@ export async function browserActionTool(
 	const coordinate: string | undefined = block.params.coordinate
 	const text: string | undefined = block.params.text
 	const size: string | undefined = block.params.size
+
 	if (!action || !browserActions.includes(action)) {
 		// checking for action to ensure it is complete and valid
 		if (!block.partial) {
 			// if the block is complete and we don't have a valid action cline is a mistake
 			cline.consecutiveMistakeCount++
+			cline.recordToolUsage({ toolName: "browser_action", success: false })
 			pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "action"))
 			await cline.browserSession.closeBrowser()
 		}
+
 		return
 	}
 
@@ -52,51 +55,63 @@ export async function browserActionTool(
 		} else {
 			// Initialize with empty object to avoid "used before assigned" errors
 			let browserActionResult: BrowserActionResult = {}
+
 			if (action === "launch") {
 				if (!url) {
 					cline.consecutiveMistakeCount++
+					cline.recordToolUsage({ toolName: "browser_action", success: false })
 					pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "url"))
 					await cline.browserSession.closeBrowser()
 					return
 				}
+
 				cline.consecutiveMistakeCount = 0
 				const didApprove = await askApproval("browser_action_launch", url)
+
 				if (!didApprove) {
 					return
 				}
 
-				// NOTE: it's okay that we call cline message since the partial inspect_site is finished streaming. The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array. For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
-				// await cline.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
-				await cline.say("browser_action_result", "") // starts loading spinner
-
+				// NOTE: It's okay that we call cline message since the partial inspect_site is finished streaming.
+				// The only scenario we have to avoid is sending messages WHILE a partial message exists at the end of the messages array.
+				// For example the api_req_finished message would interfere with the partial message, so we needed to remove that.
+				// await cline.say("inspect_site_result", "") // No result, starts the loading spinner waiting for result
+				await cline.say("browser_action_result", "") // Starts loading spinner
 				await cline.browserSession.launchBrowser()
 				browserActionResult = await cline.browserSession.navigateToUrl(url)
 			} else {
 				if (action === "click" || action === "hover") {
 					if (!coordinate) {
 						cline.consecutiveMistakeCount++
+						cline.recordToolUsage({ toolName: "browser_action", success: false })
 						pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "coordinate"))
 						await cline.browserSession.closeBrowser()
 						return // can't be within an inner switch
 					}
 				}
+
 				if (action === "type") {
 					if (!text) {
 						cline.consecutiveMistakeCount++
+						cline.recordToolUsage({ toolName: "browser_action", success: false })
 						pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "text"))
 						await cline.browserSession.closeBrowser()
 						return
 					}
 				}
+
 				if (action === "resize") {
 					if (!size) {
 						cline.consecutiveMistakeCount++
+						cline.recordToolUsage({ toolName: "browser_action", success: false })
 						pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "size"))
 						await cline.browserSession.closeBrowser()
 						return
 					}
 				}
+
 				cline.consecutiveMistakeCount = 0
+
 				await cline.say(
 					"browser_action",
 					JSON.stringify({
@@ -107,6 +122,7 @@ export async function browserActionTool(
 					undefined,
 					false,
 				)
+
 				switch (action) {
 					case "click":
 						browserActionResult = await cline.browserSession.click(coordinate!)
@@ -141,6 +157,7 @@ export async function browserActionTool(
 				case "scroll_up":
 				case "resize":
 					await cline.say("browser_action_result", JSON.stringify(browserActionResult))
+
 					pushToolResult(
 						formatResponse.toolResult(
 							`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
@@ -149,6 +166,7 @@ export async function browserActionTool(
 							browserActionResult?.screenshot ? [browserActionResult.screenshot] : [],
 						),
 					)
+
 					break
 				case "close":
 					pushToolResult(
@@ -156,8 +174,12 @@ export async function browserActionTool(
 							`The browser has been closed. You may now proceed to using other tools.`,
 						),
 					)
+
 					break
 			}
+
+			cline.recordToolUsage({ toolName: "browser_action" })
+
 			return
 		}
 	} catch (error) {

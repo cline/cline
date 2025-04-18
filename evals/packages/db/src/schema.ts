@@ -2,7 +2,7 @@ import { sqliteTable, text, real, integer, blob, uniqueIndex } from "drizzle-orm
 import { relations } from "drizzle-orm"
 import { createInsertSchema } from "drizzle-zod"
 
-import { RooCodeSettings, exerciseLanguages, rooCodeSettingsSchema } from "@evals/types"
+import { RooCodeSettings, ToolUsage, exerciseLanguages, rooCodeSettingsSchema, toolUsageSchema } from "@evals/types"
 
 /**
  * runs
@@ -84,12 +84,15 @@ export const taskMetrics = sqliteTable("taskMetrics", {
 	cacheReads: integer({ mode: "number" }).notNull(),
 	cost: real().notNull(),
 	duration: integer({ mode: "number" }).notNull(),
+	toolUsage: text({ mode: "json" }).$type<ToolUsage>(),
 	createdAt: integer({ mode: "timestamp" }).notNull(),
 })
 
 export type TaskMetrics = typeof taskMetrics.$inferSelect
 
-export const insertTaskMetricsSchema = createInsertSchema(taskMetrics).omit({ id: true, createdAt: true })
+export const insertTaskMetricsSchema = createInsertSchema(taskMetrics)
+	.omit({ id: true, createdAt: true })
+	.extend({ toolUsage: toolUsageSchema.optional() })
 
 export type InsertTaskMetrics = Omit<typeof taskMetrics.$inferInsert, "id" | "createdAt">
 

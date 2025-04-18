@@ -6,6 +6,7 @@ import { executeCommandTool } from "../executeCommandTool"
 import { Cline } from "../../Cline"
 import { formatResponse } from "../../prompts/responses"
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../../shared/tools"
+import { ToolUsage } from "../../../schemas"
 
 // Mock dependencies
 jest.mock("../../Cline")
@@ -40,6 +41,7 @@ describe("executeCommandTool", () => {
 				// @ts-expect-error - Jest mock function type issues
 				validateCommand: jest.fn().mockReturnValue(null),
 			},
+			recordToolUsage: jest.fn().mockReturnValue({} as ToolUsage),
 		}
 
 		// @ts-expect-error - Jest mock function type issues

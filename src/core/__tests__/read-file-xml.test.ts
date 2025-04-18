@@ -1,3 +1,5 @@
+// npx jest src/core/__tests__/read-file-xml.test.ts
+
 import * as path from "path"
 
 import { countFileLines } from "../../integrations/misc/line-counter"
@@ -6,6 +8,7 @@ import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { isBinaryFile } from "isbinaryfile"
 import { ReadFileToolUse } from "../../shared/tools"
+import { ToolUsage } from "../../schemas"
 
 // Mock dependencies
 jest.mock("../../integrations/misc/line-counter")
@@ -118,6 +121,7 @@ describe("read_file tool XML output structure", () => {
 		mockCline.getFileContextTracker = jest.fn().mockReturnValue({
 			trackFileContext: jest.fn().mockResolvedValue(undefined),
 		})
+		mockCline.recordToolUsage = jest.fn().mockReturnValue({} as ToolUsage)
 
 		// Reset tool result
 		toolResult = undefined

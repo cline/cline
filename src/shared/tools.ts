@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import { ClineAsk, ToolProgressStatus, ToolGroup } from "../schemas"
+import { ClineAsk, ToolProgressStatus, ToolGroup, ToolName } from "../schemas"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 
@@ -25,29 +25,6 @@ export interface TextContent {
 	content: string
 	partial: boolean
 }
-
-export const toolNames = [
-	"execute_command",
-	"read_file",
-	"write_to_file",
-	"append_to_file",
-	"apply_diff",
-	"insert_content",
-	"search_and_replace",
-	"search_files",
-	"list_files",
-	"list_code_definition_names",
-	"browser_action",
-	"use_mcp_tool",
-	"access_mcp_resource",
-	"ask_followup_question",
-	"attempt_completion",
-	"switch_mode",
-	"new_task",
-	"fetch_instructions",
-] as const
-
-export type ToolName = (typeof toolNames)[number]
 
 export const toolParamNames = [
 	"command",
@@ -166,14 +143,6 @@ export interface NewTaskToolUse extends ToolUse {
 	name: "new_task"
 	params: Partial<Pick<Record<ToolParamName, string>, "mode" | "message">>
 }
-
-export type ToolUsage = Record<
-	ToolName,
-	{
-		attempts: number
-		failures: number
-	}
->
 
 // Define tool group configuration
 export type ToolGroupConfig = {
