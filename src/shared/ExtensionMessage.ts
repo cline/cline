@@ -49,6 +49,8 @@ export interface ExtensionMessage {
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
+		| "optimizationPromptRequest"
+		| "optimizedPromptResult"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
@@ -111,6 +113,9 @@ export interface ExtensionMessage {
 		error?: string
 	}
 	tab?: McpViewTab
+	prompt?: string
+	model?: string
+	optimizedPrompt?: string
 	grpc_response?: {
 		message?: any // JSON serialized protobuf message
 		request_id: string // Same ID as the request

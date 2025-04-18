@@ -80,6 +80,7 @@ export interface WebviewMessage {
 		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
 		| "toggleFavoriteModel"
+		| "optimizationPromptRequest" // Message type for prompt optimization
 		| "grpc_request"
 		| "toggleClineRule"
 		| "deleteClineRule"
@@ -120,6 +121,9 @@ export interface WebviewMessage {
 	query?: string
 	// For toggleFavoriteModel
 	modelId?: string
+	// For optimizePrompt
+	prompt?: string // Original prompt input by user
+	model?: string // Model ID used for prompt optimization
 	grpc_request?: {
 		service: string
 		method: string

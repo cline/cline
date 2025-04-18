@@ -886,6 +886,34 @@ export class Controller {
 				}
 				break
 			}
+			case "optimizationPromptRequest": {
+				if (!message.prompt || !message.model) {
+					await this.postMessageToWebview({
+						type: "optimizedPromptResult",
+						success: false,
+						error: "The prompt words or model information are missing.",
+					})
+					break
+				}
+
+				try {
+					const optimizedPrompt = await this.optimizationPromptRequest(message.prompt, message.model)
+
+					await this.postMessageToWebview({
+						type: "optimizedPromptResult",
+						success: true,
+						optimizedPrompt: optimizedPrompt,
+					})
+				} catch (error) {
+					console.error("There is an error in optimizing the prompt words:", error)
+					await this.postMessageToWebview({
+						type: "optimizedPromptResult",
+						success: false,
+						error: `There is an error in optimizing the prompt words: ${error instanceof Error ? error.message : String(error)}`,
+					})
+				}
+				break
+			}
 			case "grpc_request": {
 				if (message.grpc_request) {
 					await handleGrpcRequest(this, message.grpc_request)
@@ -2034,5 +2062,33 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			type: "action",
 			action: "chatButtonClicked",
 		})
+	}
+
+	// Add new method to the class
+	async optimizationPromptRequest(prompt: string, modelId: string): Promise<string> {
+		try {
+			const { apiConfiguration } = await getAllExtensionState(this.context)
+
+			const api = buildApiHandler(apiConfiguration)
+
+			const systemPrompt =
+				"Please help me optimize the following prompt to make it clearer, more specific, and easier for AI models to understand. Maintain the original intent, but add necessary details and structure. Only return the optimized prompt without any explanations or comments."
+
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: prompt }]
+
+			const messageStream = api.createMessage(systemPrompt, messages)
+
+			let responseText = ""
+			for await (const chunk of messageStream) {
+				if (chunk.type === "text") {
+					responseText += chunk.text
+				}
+			}
+
+			return responseText.trim()
+		} catch (error) {
+			console.error("Failed to optimize prompt:", error)
+			throw error
+		}
 	}
 }
