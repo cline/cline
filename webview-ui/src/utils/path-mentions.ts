@@ -13,7 +13,18 @@
  */
 export function convertToMentionPath(path: string, cwd?: string): string {
 	// Strip file:// protocol if present
-	const pathWithoutProtocol = path.startsWith("file://") ? path.substring(7) : path
+	let pathWithoutProtocol = path.startsWith("file://") ? path.substring(7) : path
+
+	try {
+		pathWithoutProtocol = decodeURIComponent(pathWithoutProtocol)
+		// Fix: Remove leading slash for Windows paths like /d:/...
+		if (pathWithoutProtocol.startsWith("/") && pathWithoutProtocol[2] === ":") {
+			pathWithoutProtocol = pathWithoutProtocol.substring(1)
+		}
+	} catch (e) {
+		// Log error if decoding fails, but continue with the potentially problematic path
+		console.error("Error decoding URI component in convertToMentionPath:", e, pathWithoutProtocol)
+	}
 
 	const normalizedPath = pathWithoutProtocol.replace(/\\/g, "/")
 	let normalizedCwd = cwd ? cwd.replace(/\\/g, "/") : ""
