@@ -95,27 +95,23 @@ export const AutoApproveToggle = ({ onToggle, ...props }: AutoApproveToggleProps
 	return (
 		<div
 			className={cn(
-				"grid grid-cols-2",
-				"[@media(min-width:260px)]:grid-cols-3",
-				"[@media(min-width:320px)]:grid-cols-4",
-				"[@media(min-width:480px)]:grid-cols-6",
-				"[@media(min-width:640px)]:grid-cols-8",
-				"gap-2",
+				"flex flex-row flex-wrap justify-center gap-2 max-w-[400px] mx-auto my-2 ",
+				"[@media(min-width:600px)]:gap-4",
+				"[@media(min-width:800px)]:max-w-[800px]",
 			)}>
 			{Object.values(autoApproveSettingsConfig).map(({ key, descriptionKey, labelKey, icon, testId }) => (
-				<div key={key} className="aspect-square">
-					<Button
-						variant="secondary"
-						onClick={() => onToggle(key, !props[key])}
-						title={t(descriptionKey || "")}
-						data-testid={testId}
-						className={cn("w-full h-full", { "opacity-50": !props[key] })}>
-						<span className="flex flex-col items-center gap-1">
-							<span className={`codicon codicon-${icon}`} />
-							<span className="text-sm text-center">{t(labelKey)}</span>
-						</span>
-					</Button>
-				</div>
+				<Button
+					key={key}
+					variant={props[key] ? "default" : "outline"}
+					onClick={() => onToggle(key, !props[key])}
+					title={t(descriptionKey || "")}
+					data-testid={testId}
+					className={cn(" aspect-square h-[80px]")}>
+					<span className={cn("flex flex-col items-center gap-1")}>
+						<span className={`codicon codicon-${icon}`} />
+						<span className="text-sm text-center">{t(labelKey)}</span>
+					</span>
+				</Button>
 			))}
 		</div>
 	)
