@@ -451,7 +451,7 @@ export class Controller {
 				openFile(message.text!)
 				break
 			case "createRuleFile":
-				if (typeof message.isGlobal !== "boolean" || !message.filename) {
+				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
 					console.error("createRuleFile: Missing or invalid parameters", {
 						isGlobal:
 							typeof message.isGlobal === "boolean" ? message.isGlobal : `Invalid: ${typeof message.isGlobal}`,
