@@ -32,6 +32,7 @@ import SuccessButton from "@/components/common/SuccessButton"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import NewTaskPreview from "./NewTaskPreview"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
+import UserMessage from "./UserMessage"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -50,6 +51,7 @@ interface ChatRowProps {
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
 	inputValue?: string
+	sendMessageFromChatRow?: (text: string, images: string[]) => void
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -125,6 +127,7 @@ export const ChatRowContent = ({
 	lastModifiedMessage,
 	isLast,
 	inputValue,
+	sendMessageFromChatRow,
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
@@ -872,20 +875,12 @@ export const ChatRowContent = ({
 					)
 				case "user_feedback":
 					return (
-						<div
-							style={{
-								backgroundColor: "var(--vscode-badge-background)",
-								color: "var(--vscode-badge-foreground)",
-								borderRadius: "3px",
-								padding: "9px",
-								whiteSpace: "pre-line",
-								wordWrap: "break-word",
-							}}>
-							<span style={{ display: "block" }}>{highlightMentions(message.text)}</span>
-							{message.images && message.images.length > 0 && (
-								<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
-							)}
-						</div>
+						<UserMessage
+							text={message.text}
+							images={message.images}
+							messageTs={message.ts}
+							sendMessageFromChatRow={sendMessageFromChatRow}
+						/>
 					)
 				case "user_feedback_diff":
 					const tool = JSON.parse(message.text || "{}") as ClineSayTool

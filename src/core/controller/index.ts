@@ -49,7 +49,7 @@ import {
 } from "../storage/state"
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "../../shared/cline-rules"
-import { createRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -500,7 +500,7 @@ export class Controller {
 						console.error("Failed to init new cline instance")
 					})
 					// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
-					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore)
+					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore, message.offset)
 				}
 				break
 			}
@@ -660,6 +660,24 @@ export class Controller {
 						rulePath,
 						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
+					})
+				}
+				break
+			}
+			case "deleteClineRule": {
+				const { isGlobal, rulePath } = message
+				if (rulePath && typeof isGlobal === "boolean") {
+					const result = await deleteRuleFile(this.context, rulePath, isGlobal)
+					if (result.success) {
+						await refreshClineRulesToggles(this.context, cwd)
+						await this.postStateToWebview()
+					} else {
+						console.error("Failed to delete rule file:", result.message)
+					}
+				} else {
+					console.error("deleteClineRule: Missing or invalid parameters", {
+						rulePath,
+						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 					})
 				}
 				break

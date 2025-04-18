@@ -83,6 +83,7 @@ export interface WebviewMessage {
 		| "toggleFavoriteModel"
 		| "grpc_request"
 		| "toggleClineRule"
+		| "deleteClineRule"
 
 	// | "relaunchChromeDebugMode"
 	text?: string
@@ -131,6 +132,8 @@ export interface WebviewMessage {
 	rulePath?: string
 	enabled?: boolean
 	filename?: string
+
+	offset?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

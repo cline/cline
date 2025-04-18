@@ -192,7 +192,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				// Reset for next page
 				currentStateMessages = []
 				nextActionMessages = []
-			} else if (message.say === "api_req_started" || message.say === "text" || message.say === "browser_action") {
+			} else if (
+				message.say === "api_req_started" ||
+				message.say === "text" ||
+				message.say === "reasoning" ||
+				message.say === "browser_action"
+			) {
 				// These messages lead to the next result, so they should always go in nextActionMessages
 				nextActionMessages.push(message)
 			} else {
@@ -511,6 +516,7 @@ const BrowserSessionRowContent = ({
 			switch (message.say) {
 				case "api_req_started":
 				case "text":
+				case "reasoning":
 					return (
 						<div style={chatRowContentContainerStyle}>
 							<ChatRowContent

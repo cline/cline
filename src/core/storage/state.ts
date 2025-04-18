@@ -73,6 +73,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		openAiApiKey,
 		openAiModelId,
 		openAiModelInfo,
+		openAiHeaders,
 		ollamaModelId,
 		ollamaBaseUrl,
 		ollamaApiOptionsCtxNum,
@@ -144,6 +145,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "openAiApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "openAiModelId") as Promise<string | undefined>,
 		getGlobalState(context, "openAiModelInfo") as Promise<ModelInfo | undefined>,
+		getGlobalState(context, "openAiHeaders") as Promise<Record<string, string> | undefined>,
 		getGlobalState(context, "ollamaModelId") as Promise<string | undefined>,
 		getGlobalState(context, "ollamaBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "ollamaApiOptionsCtxNum") as Promise<string | undefined>,
@@ -256,6 +258,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			openAiApiKey,
 			openAiModelId,
 			openAiModelInfo,
+			openAiHeaders: openAiHeaders || {},
 			ollamaModelId,
 			ollamaBaseUrl,
 			ollamaApiOptionsCtxNum,
@@ -334,6 +337,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		openAiApiKey,
 		openAiModelId,
 		openAiModelInfo,
+		openAiHeaders,
 		ollamaModelId,
 		ollamaBaseUrl,
 		ollamaApiOptionsCtxNum,
@@ -389,6 +393,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "openAiApiKey", openAiApiKey)
 	await updateGlobalState(context, "openAiModelId", openAiModelId)
 	await updateGlobalState(context, "openAiModelInfo", openAiModelInfo)
+	await updateGlobalState(context, "openAiHeaders", openAiHeaders || {})
 	await updateGlobalState(context, "ollamaModelId", ollamaModelId)
 	await updateGlobalState(context, "ollamaBaseUrl", ollamaBaseUrl)
 	await updateGlobalState(context, "ollamaApiOptionsCtxNum", ollamaApiOptionsCtxNum)
