@@ -112,6 +112,7 @@ const ClineRulesToggleModal: React.FC = () => {
 							rules={globalRules}
 							toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
 							listGap="small"
+							isGlobal={true}
 						/>
 					</div>
 
@@ -122,6 +123,7 @@ const ClineRulesToggleModal: React.FC = () => {
 							rules={localRules}
 							toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
 							listGap="small"
+							isGlobal={false}
 						/>
 					</div>
 				</div>
