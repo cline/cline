@@ -649,7 +649,7 @@ export const geminiModels = {
 		outputPrice: 0.6,
 	},
 	"gemini-2.5-pro-exp-03-25": {
-		maxTokens: 65_536,
+		maxTokens: 65_535,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
