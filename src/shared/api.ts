@@ -22,6 +22,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "inference"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -79,6 +80,7 @@ export interface ApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
 	sambanovaApiKey?: string
+	inferenceApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1501,6 +1503,10 @@ export const xaiModels = {
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Inference.net - Models are fetched dynamically from the API
+export type { InferenceModelId } from "../api/providers/inference"
+export { inferenceDefaultModelId, defaultInferenceModels as inferenceModels } from "../api/providers/inference"
 
 // SambaNova
 // https://docs.sambanova.ai/cloud/docs/get-started/supported-models
