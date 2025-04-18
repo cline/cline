@@ -37,6 +37,7 @@ export type GlobalStateKey =
 	| "openAiBaseUrl"
 	| "openAiModelId"
 	| "openAiModelInfo"
+	| "openAiHeaders"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "ollamaApiOptionsCtxNum"
