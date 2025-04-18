@@ -16,7 +16,6 @@ describe("experiments", () => {
 				powerSteering: false,
 				search_and_replace: false,
 				insert_content: false,
-				append_to_file: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})
@@ -26,7 +25,6 @@ describe("experiments", () => {
 				powerSteering: true,
 				search_and_replace: false,
 				insert_content: false,
-				append_to_file: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(true)
 		})
@@ -36,7 +34,6 @@ describe("experiments", () => {
 				search_and_replace: false,
 				insert_content: false,
 				powerSteering: false,
-				append_to_file: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})

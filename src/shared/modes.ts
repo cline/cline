@@ -1,9 +1,9 @@
 import * as vscode from "vscode"
 
-import { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts } from "../schemas"
+import { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts, ExperimentId } from "../schemas"
 import { TOOL_GROUPS, ToolGroup, ALWAYS_AVAILABLE_TOOLS } from "./tools"
 import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
-
+import { EXPERIMENT_IDS } from "./experiments"
 export type Mode = string
 
 export type { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts }
@@ -161,8 +161,7 @@ export function isToolAllowedForMode(
 	if (ALWAYS_AVAILABLE_TOOLS.includes(tool as any)) {
 		return true
 	}
-
-	if (experiments && tool in experiments) {
+	if (experiments && Object.values(EXPERIMENT_IDS).includes(tool as ExperimentId)) {
 		if (!experiments[tool]) {
 			return false
 		}

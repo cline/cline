@@ -289,7 +289,6 @@ type GlobalSettings = {
 				search_and_replace: boolean
 				insert_content: boolean
 				powerSteering: boolean
-				append_to_file: boolean
 		  }
 		| undefined
 	language?:

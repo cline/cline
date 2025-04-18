@@ -71,7 +71,16 @@ export function getToolDescriptionsForMode(
 		const toolGroup = TOOL_GROUPS[groupName]
 		if (toolGroup) {
 			toolGroup.tools.forEach((tool) => {
-				if (isToolAllowedForMode(tool as ToolName, mode, customModes ?? [], experiments ?? {})) {
+				if (
+					isToolAllowedForMode(
+						tool as ToolName,
+						mode,
+						customModes ?? [],
+						undefined,
+						undefined,
+						experiments ?? {},
+					)
+				) {
 					tools.add(tool)
 				}
 			})
