@@ -1,76 +1,71 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Content, FunctionCallPart, FunctionResponsePart, InlineDataPart, Part, TextPart } from "@google/generative-ai"
+import { Content, Part } from "@google/genai"
 
-function convertAnthropicContentToGemini(content: Anthropic.Messages.MessageParam["content"]): Part[] {
+export function convertAnthropicContentToGemini(content: string | Anthropic.ContentBlockParam[]): Part[] {
 	if (typeof content === "string") {
-		return [{ text: content } as TextPart]
+		return [{ text: content }]
 	}
 
-	return content.flatMap((block) => {
+	return content.flatMap((block): Part | Part[] => {
 		switch (block.type) {
 			case "text":
-				return { text: block.text } as TextPart
+				return { text: block.text }
 			case "image":
 				if (block.source.type !== "base64") {
 					throw new Error("Unsupported image source type")
 				}
-				return {
-					inlineData: {
-						data: block.source.data,
-						mimeType: block.source.media_type,
-					},
-				} as InlineDataPart
+
+				return { inlineData: { data: block.source.data, mimeType: block.source.media_type } }
 			case "tool_use":
 				return {
 					functionCall: {
 						name: block.name,
-						args: block.input,
+						args: block.input as Record<string, unknown>,
 					},
-				} as FunctionCallPart
-			case "tool_result":
-				const name = block.tool_use_id.split("-")[0]
+				}
+			case "tool_result": {
 				if (!block.content) {
 					return []
 				}
+
+				// Extract tool name from tool_use_id (e.g., "calculator-123" -> "calculator")
+				const toolName = block.tool_use_id.split("-")[0]
+
 				if (typeof block.content === "string") {
 					return {
-						functionResponse: {
-							name,
-							response: {
-								name,
-								content: block.content,
-							},
-						},
-					} as FunctionResponsePart
-				} else {
-					// The only case when tool_result could be array is when the tool failed and we're providing ie user feedback potentially with images
-					const textParts = block.content.filter((part) => part.type === "text")
-					const imageParts = block.content.filter((part) => part.type === "image")
-					const text = textParts.length > 0 ? textParts.map((part) => part.text).join("\n\n") : ""
-					const imageText = imageParts.length > 0 ? "\n\n(See next part for image)" : ""
-					return [
-						{
-							functionResponse: {
-								name,
-								response: {
-									name,
-									content: text + imageText,
-								},
-							},
-						} as FunctionResponsePart,
-						...imageParts.map(
-							(part) =>
-								({
-									inlineData: {
-										data: part.source.data,
-										mimeType: part.source.media_type,
-									},
-								}) as InlineDataPart,
-						),
-					]
+						functionResponse: { name: toolName, response: { name: toolName, content: block.content } },
+					}
 				}
+
+				if (!Array.isArray(block.content)) {
+					return []
+				}
+
+				const textParts: string[] = []
+				const imageParts: Part[] = []
+
+				for (const item of block.content) {
+					if (item.type === "text") {
+						textParts.push(item.text)
+					} else if (item.type === "image" && item.source.type === "base64") {
+						const { data, media_type } = item.source
+						imageParts.push({ inlineData: { data, mimeType: media_type } })
+					}
+				}
+
+				// Create content text with a note about images if present
+				const contentText =
+					textParts.join("\n\n") + (imageParts.length > 0 ? "\n\n(See next part for image)" : "")
+
+				// Return function response followed by any images
+				return [
+					{ functionResponse: { name: toolName, response: { name: toolName, content: contentText } } },
+					...imageParts,
+				]
+			}
 			default:
-				throw new Error(`Unsupported content block type: ${(block as any).type}`)
+				// Currently unsupported: "thinking" | "redacted_thinking" | "document"
+				throw new Error(`Unsupported content block type: ${block.type}`)
 		}
 	})
 }

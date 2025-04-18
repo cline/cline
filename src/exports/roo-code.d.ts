@@ -31,6 +31,7 @@ type ProviderSettings = {
 	glamaModelInfo?:
 		| ({
 				maxTokens?: (number | null) | undefined
+				maxThinkingTokens?: (number | null) | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
@@ -53,6 +54,7 @@ type ProviderSettings = {
 	openRouterModelInfo?:
 		| ({
 				maxTokens?: (number | null) | undefined
+				maxThinkingTokens?: (number | null) | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
@@ -95,6 +97,7 @@ type ProviderSettings = {
 	openAiCustomModelInfo?:
 		| ({
 				maxTokens?: (number | null) | undefined
+				maxThinkingTokens?: (number | null) | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
@@ -140,6 +143,7 @@ type ProviderSettings = {
 	unboundModelInfo?:
 		| ({
 				maxTokens?: (number | null) | undefined
+				maxThinkingTokens?: (number | null) | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
@@ -161,6 +165,7 @@ type ProviderSettings = {
 	requestyModelInfo?:
 		| ({
 				maxTokens?: (number | null) | undefined
+				maxThinkingTokens?: (number | null) | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
