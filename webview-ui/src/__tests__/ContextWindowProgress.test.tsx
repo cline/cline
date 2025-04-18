@@ -9,6 +9,11 @@ jest.mock("@/utils/format", () => ({
 	formatLargeNumber: jest.fn((num) => num.toString()),
 }))
 
+// Mock VSCodeBadge component for all tests
+jest.mock("@vscode/webview-ui-toolkit/react", () => ({
+	VSCodeBadge: ({ children }: { children: React.ReactNode }) => <div data-testid="vscode-badge">{children}</div>,
+}))
+
 // Mock ExtensionStateContext since we use useExtensionState
 jest.mock("../context/ExtensionStateContext", () => ({
 	useExtensionState: jest.fn(() => ({

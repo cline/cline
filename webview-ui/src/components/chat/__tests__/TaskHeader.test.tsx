@@ -12,6 +12,11 @@ jest.mock("@/utils/vscode", () => ({
 	},
 }))
 
+// Mock the VSCodeBadge component
+jest.mock("@vscode/webview-ui-toolkit/react", () => ({
+	VSCodeBadge: ({ children }: { children: React.ReactNode }) => <div data-testid="vscode-badge">{children}</div>,
+}))
+
 // Mock the ExtensionStateContext
 jest.mock("../../../context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({

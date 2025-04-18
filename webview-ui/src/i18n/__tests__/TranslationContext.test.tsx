@@ -2,7 +2,6 @@ import React from "react"
 import { render } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import TranslationProvider, { useAppTranslation } from "../TranslationContext"
-import { setupI18nForTests } from "../test-utils"
 
 // Mock the useExtensionState hook
 jest.mock("@/context/ExtensionStateContext", () => ({
@@ -23,11 +22,6 @@ const TestComponent = () => {
 }
 
 describe("TranslationContext", () => {
-	beforeAll(() => {
-		// Initialize i18next with test translations
-		setupI18nForTests()
-	})
-
 	it("should provide translations via context", () => {
 		const { getByTestId } = render(
 			<TranslationProvider>
