@@ -21,12 +21,13 @@ import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
-import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import ApiOptions from "@/components/settings/ApiOptions/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { ChatSettings } from "@shared/ChatSettings"
 import ServersToggleModal from "./ServersToggleModal"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
+import { normalizeApiConfiguration } from "@/utils/providers"
 
 interface ChatTextAreaProps {
 	inputValue: string

@@ -1,5 +1,14 @@
 import prettyBytes from "pretty-bytes"
 
+export function formatPrice(price: number) {
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}).format(price)
+}
+
 export function formatLargeNumber(num: number): string {
 	if (num >= 1e9) {
 		return (num / 1e9).toFixed(1) + "b"

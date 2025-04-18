@@ -8,10 +8,11 @@ import { openRouterDefaultModelId } from "@shared/api"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { highlight } from "../history/HistoryView"
-import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { ModelInfoView } from "./ApiOptions/ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import FeaturedModelCard from "./FeaturedModelCard"
+import { normalizeApiConfiguration } from "@/utils/providers"
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {

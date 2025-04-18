@@ -19,7 +19,6 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import HistoryPreview from "@/components/history/HistoryPreview"
-import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import Announcement from "@/components/chat/Announcement"
 import AutoApproveMenu from "@/components/chat/AutoApproveMenu"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
@@ -27,6 +26,7 @@ import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
 import TaskHeader from "@/components/chat/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
+import { normalizeApiConfiguration } from "@/utils/providers"
 
 interface ChatViewProps {
 	isHidden: boolean

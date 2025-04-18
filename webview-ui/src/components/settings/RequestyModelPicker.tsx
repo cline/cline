@@ -8,9 +8,10 @@ import { requestyDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
-import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { ModelInfoView } from "./ApiOptions/ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import { normalizeApiConfiguration } from "@/utils/providers"
 
 export interface RequestyModelPickerProps {
 	isPopup?: boolean
