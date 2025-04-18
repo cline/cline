@@ -100,9 +100,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									type: "openExtensionSettings",
 								})
 								setIsVisible(false)
-							}}>
-							{/* <span className="codicon codicon-gear text-[10px]"></span> */}
-						</VSCodeButton>
+							}}></VSCodeButton>
 					</div>
 
 					{/* Global Rules Section */}
@@ -111,8 +109,8 @@ const ClineRulesToggleModal: React.FC = () => {
 						<RulesToggleList
 							rules={globalRules}
 							toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
-							isGlobal={true}
 							listGap="small"
+							isGlobal={true}
 						/>
 					</div>
 
@@ -122,8 +120,8 @@ const ClineRulesToggleModal: React.FC = () => {
 						<RulesToggleList
 							rules={localRules}
 							toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
-							isGlobal={false}
 							listGap="small"
+							isGlobal={false}
 						/>
 					</div>
 				</div>
