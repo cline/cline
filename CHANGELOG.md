@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.13.0] - 2025-04-17
+
+- UI improvements to task header, chat view, history preview, and welcome view (thanks @sachasayan!)
+- Add append_to_file tool for appending content to files (thanks @samhvw8!)
+- Add Gemini 2.5 Flash Preview to Gemini and Vertex providers (thanks @nbihan-mediware!)
+- Fix image support in Bedrock (thanks @Smartsheet-JB-Brown!)
+- Make diff edits more resilient to models passing in incorrect parameters 
+
 ## [3.12.3] - 2025-04-17
 
 - Fix character escaping issues in Gemini diff edits
