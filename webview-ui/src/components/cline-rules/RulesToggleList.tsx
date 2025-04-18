@@ -4,13 +4,11 @@ import RuleRow from "./RuleRow"
 const RulesToggleList = ({
 	rules,
 	toggleRule,
-	isGlobal,
 	listGap = "medium",
 	isGlobal,
 }: {
 	rules: [string, boolean][]
 	toggleRule: (rulePath: string, enabled: boolean) => void
-	isGlobal: boolean
 	listGap?: "small" | "medium" | "large"
 	isGlobal: boolean
 }) => {
