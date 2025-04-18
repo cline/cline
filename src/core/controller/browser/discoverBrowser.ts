@@ -6,7 +6,7 @@ import { BrowserSession } from "../../../services/browser/BrowserSession"
 import { discoverChromeInstances } from "../../../services/browser/BrowserDiscovery"
 
 /**
- * Discover Chrome instances on the network
+ * Discover Chrome instances
  * @param controller The controller instance
  * @param request The request message
  * @returns The browser connection result
@@ -33,7 +33,7 @@ export async function discoverBrowser(controller: Controller, request: EmptyRequ
 			return {
 				success: false,
 				message:
-					"No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+					"No Chrome instances found. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
 				endpoint: "",
 			}
 		}
