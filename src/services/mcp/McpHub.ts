@@ -35,12 +35,14 @@ import {
 } from "@shared/mcp"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual } from "@utils/path"
+import { getMcpServerCallbackPath } from "@utils/mcpAuth"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { Transport, McpConnection, McpTransportType, McpServerConfig } from "./types"
 import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
+import { McpOAuthClientProvider } from "@services/mcp/McpOAuthClientProvider"
 
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -59,6 +61,7 @@ export class McpHub {
 		getSettingsDirectoryPath: () => Promise<string>,
 		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
 		clientVersion: string,
+		private readonly context: vscode.ExtensionContext,
 	) {
 		this.getMcpServersPath = getMcpServersPath
 		this.getSettingsDirectoryPath = getSettingsDirectoryPath
@@ -82,7 +85,7 @@ export class McpHub {
 				mcpSettingsFilePath,
 				`{
   "mcpServers": {
-    
+
   }
 }`,
 			)
@@ -196,6 +199,18 @@ export class McpHub {
 			)
 
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
+			const authProvider: McpOAuthClientProvider | undefined =
+				config.type === "sse" || config.type === "streamableHttp"
+					? new McpOAuthClientProvider({
+							serverName: name,
+							serverUrl: config.url,
+							clientName: this.context.extension.id,
+							clientUri: "https://cline.bot/",
+							callbackPath: getMcpServerCallbackPath(name, config.url),
+							softwareId: this.context.extension.id,
+							softwareVersion: this.context.extension.packageJSON.version,
+						})
+					: undefined
 
 			switch (config.type) {
 				case "stdio": {
@@ -210,7 +225,6 @@ export class McpHub {
 						},
 						stderr: "pipe",
 					})
-
 					transport.onerror = async (error) => {
 						console.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
@@ -261,14 +275,27 @@ export class McpHub {
 							headers: config.headers,
 						},
 					}
+
+					const tokens = await authProvider?.tokens()
+					const accessToken = tokens?.access_token
+
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
-						withCredentials: config.headers?.["Authorization"] ? true : false,
+						withCredentials: config.headers?.["Authorization"] || accessToken ? true : false,
+						fetch: accessToken
+							? async (url: string | URL, init?: RequestInit) => {
+									// If an access token is available, include it in the request headers
+									const headers = new Headers(init?.headers)
+									headers.set("Authorization", `Bearer ${accessToken}`)
+									return fetch(url.toString(), { ...init, headers })
+								}
+							: undefined,
 					}
 					global.EventSource = ReconnectingEventSource
 					transport = new SSEClientTransport(new URL(config.url), {
 						...sseOptions,
 						eventSourceInit: reconnectingEventSourceOptions,
+						authProvider,
 					})
 
 					transport.onerror = async (error) => {
@@ -285,8 +312,9 @@ export class McpHub {
 				case "streamableHttp": {
 					transport = new StreamableHTTPClientTransport(new URL(config.url), {
 						requestInit: {
-							headers: config.headers,
+							headers: config.headers ?? undefined,
 						},
+						authProvider,
 					})
 					transport.onerror = async (error) => {
 						console.error(`Transport error for "${name}":`, error)
@@ -312,6 +340,7 @@ export class McpHub {
 				},
 				client,
 				transport,
+				authProvider,
 			}
 			this.connections.push(connection)
 
@@ -333,6 +362,16 @@ export class McpHub {
 				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
 			}
 			throw error
+		}
+	}
+
+	async handleAuthStatusChanged(connection: McpConnection): Promise<void> {
+		if (connection.authProvider) {
+			const isAuthenticated = await connection.authProvider.isAuthenticated()
+			if (isAuthenticated) {
+				// Authentication successful - update server status
+				this.restartConnection(connection.server.name)
+			}
 		}
 	}
 
@@ -616,10 +655,6 @@ export class McpHub {
 		await sendMcpServersUpdate({
 			mcpServers: convertMcpServersToProtoMcpServers(sortedServers),
 		})
-	}
-
-	async sendLatestMcpServers() {
-		await this.notifyWebviewOfServerChanges()
 	}
 
 	async getLatestMcpServersRPC(): Promise<McpServer[]> {

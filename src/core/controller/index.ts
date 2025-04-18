@@ -25,6 +25,7 @@ import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
 import { extractCommitMessage } from "@integrations/git/commit-message-generator"
+import { getMcpServerCallbackPath } from "@utils/mcpAuth"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
@@ -43,6 +44,7 @@ import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendRelinquishControlEvent } from "./ui/subscribeToRelinquishControl"
+import { OAuthLogger } from "@services/logging/OAuthLogger"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -75,6 +77,7 @@ export class Controller {
 			() => ensureSettingsDirectoryExists(this.context),
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			this.context,
 		)
 		this.accountService = new ClineAccountService(
 			(msg) => this.postMessageToWebview(msg),
@@ -531,6 +534,53 @@ export class Controller {
 			vscode.window.showErrorMessage("Failed to log in to Cline")
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
+		}
+	}
+
+	async handleMcpOAuthCallback(serverHash: string, code: string, state?: string) {
+		try {
+			OAuthLogger.logInfo(serverHash, "handle_mcp_oauth_callback", { has_code: Boolean(code), has_state: Boolean(state) })
+
+			const connection = this.mcpHub.connections.find((conn) => {
+				const serverUrl = JSON.parse(conn.server.config).url
+				const callbackPath = getMcpServerCallbackPath(conn.server.name, serverUrl)
+				return callbackPath.endsWith(serverHash)
+			})
+
+			if (!connection) {
+				OAuthLogger.logError(serverHash, "server_lookup", "No matching MCP server found for OAuth callback")
+				throw new Error("No matching MCP server found for OAuth callback")
+			}
+
+			OAuthLogger.logInfo(serverHash, "server_found", { server_name: connection.server.name })
+
+			// CSRF protection: validate state parameter
+			if (state && connection.authProvider) {
+				const valid = await connection.authProvider.validateState(state)
+				if (!valid) {
+					throw new Error("Invalid or expired state parameter in OAuth callback (CSRF protection)")
+				}
+			}
+
+			if ("finishAuth" in connection.transport) {
+				await connection.transport.finishAuth(code)
+				this.mcpHub.handleAuthStatusChanged(connection)
+			} else {
+				throw new Error("OAuth authentication not supported for this transport type")
+			}
+
+			OAuthLogger.logInfo(connection.server.name, "authentication_completed")
+			vscode.window.showInformationMessage(`Successfully authenticated with ${connection.server.name} MCP server`)
+		} catch (error) {
+			const serverName =
+				this.mcpHub.connections.find((conn) =>
+					getMcpServerCallbackPath(conn.server.name, JSON.parse(conn.server.config).url).endsWith(serverHash),
+				)?.server.name || serverHash
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			OAuthLogger.logError(serverName, "authentication_failed", errorMessage)
+			vscode.window.showErrorMessage(`MCP OAuth error for ${serverName}: ${errorMessage}`)
+			console.error("Failed to handle MCP OAuth callback:", error)
+			throw error
 		}
 	}
 

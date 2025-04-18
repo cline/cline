@@ -4,6 +4,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as vscode from "vscode"
 import pWaitFor from "p-wait-for"
 import { Logger } from "./services/logging/Logger"
+import { OAuthLogger } from "./services/logging/OAuthLogger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
@@ -268,10 +269,47 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 				break
 			}
+			// Match /mcp-auth/callback/{hash}
+			case uri.path.match(/^\/mcp-auth\/callback\/[^/]+$/)?.input: {
+				const hash = uri.path.split("/").pop()
+				const code = query.get("code")
+				const state = query.get("state")
+
+				if (hash) {
+					OAuthLogger.logInfo(hash, "callback_received", { has_code: Boolean(code), has_state: Boolean(state) })
+				}
+
+				if (!code || !hash) {
+					vscode.window.showErrorMessage("Invalid OAuth callback")
+					return
+				}
+
+				try {
+					await visibleWebview?.controller.handleMcpOAuthCallback(hash, code, state || undefined)
+				} catch (error) {
+					console.error("Unexpected error during MCP OAuth callback handling:", error)
+					vscode.window.showErrorMessage("An unexpected error occurred during MCP authentication.")
+				}
+				break
+			}
 			default:
 				break
 		}
 	}
+
+	// Register commands for MCP OAuth secret storage
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.saveSecret", async (key: string, value: string) => {
+			await context.secrets.store(key, value)
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.getSecret", async (key: string) => {
+			return await context.secrets.get(key)
+		}),
+	)
+
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
 	// Register size testing commands in development mode
