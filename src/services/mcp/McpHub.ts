@@ -27,10 +27,12 @@ import {
 } from "@shared/mcp"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual } from "@utils/path"
+import { getMcpServerCallbackPath } from "@shared/utils.js"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { McpOAuthClientProvider } from "@services/mcp/McpOAuthClientProvider"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000
@@ -39,6 +41,7 @@ export type McpConnection = {
 	server: McpServer
 	client: Client
 	transport: StdioClientTransport | SSEClientTransport
+	authProvider?: McpOAuthClientProvider
 }
 
 export type McpTransportType = "stdio" | "sse"
@@ -92,6 +95,7 @@ export class McpHub {
 		getSettingsDirectoryPath: () => Promise<string>,
 		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
 		clientVersion: string,
+		private readonly context: vscode.ExtensionContext,
 	) {
 		this.getMcpServersPath = getMcpServersPath
 		this.getSettingsDirectoryPath = getSettingsDirectoryPath
@@ -114,7 +118,7 @@ export class McpHub {
 				mcpSettingsFilePath,
 				`{
   "mcpServers": {
-    
+
   }
 }`,
 			)
@@ -200,9 +204,19 @@ export class McpHub {
 			)
 
 			let transport: StdioClientTransport | SSEClientTransport
+			let authProvider: McpOAuthClientProvider | undefined
 
 			if (config.transportType === "sse") {
-				transport = new SSEClientTransport(new URL(config.url), {})
+				authProvider = new McpOAuthClientProvider({
+					serverName: name,
+					serverUrl: config.url,
+					clientName: this.context.extension.id,
+					clientUri: this.context.extension.packageJSON.homepage || `vscode:extension/${this.context.extension.id}`,
+					callbackPath: getMcpServerCallbackPath(name, config.url),
+					softwareId: this.context.extension.id,
+					softwareVersion: this.context.extension.packageJSON.version,
+				})
+				transport = new SSEClientTransport(new URL(config.url), { authProvider })
 			} else {
 				transport = new StdioClientTransport({
 					command: config.command,
@@ -243,6 +257,7 @@ export class McpHub {
 				},
 				client,
 				transport,
+				authProvider, // Store the authProvider instance
 			}
 			this.connections.push(connection)
 

@@ -19,6 +19,7 @@ import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { McpHub } from "@services/mcp/McpHub"
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { searchWorkspaceFiles } from "@services/search/file-search"
 import { telemetryService } from "@services/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
@@ -32,6 +33,7 @@ import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { searchCommits } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
+import { getMcpServerCallbackPath } from "@shared/utils"
 import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
@@ -49,6 +51,7 @@ import {
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { OAuthLogger } from "../../services/logging/OAuthLogger"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -80,6 +83,7 @@ export class Controller {
 			() => ensureSettingsDirectoryExists(this.context),
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			this.context,
 		)
 		this.accountService = new ClineAccountService(
 			(msg) => this.postMessageToWebview(msg),
@@ -1187,6 +1191,48 @@ export class Controller {
 			vscode.window.showErrorMessage("Failed to log in to Cline")
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
+		}
+	}
+
+	async handleMcpOAuthCallback(serverHash: string, code: string, state?: string) {
+		try {
+			OAuthLogger.logInfo(serverHash, "handle_mcp_oauth_callback", { has_code: Boolean(code), has_state: Boolean(state) })
+
+			const connection = this.mcpHub.connections.find((conn) => {
+				const serverUrl = JSON.parse(conn.server.config).url
+				const callbackPath = getMcpServerCallbackPath(conn.server.name, serverUrl)
+				return callbackPath.endsWith(serverHash)
+			})
+
+			if (!connection) {
+				OAuthLogger.logError(serverHash, "server_lookup", "No matching MCP server found for OAuth callback")
+				throw new Error("No matching MCP server found for OAuth callback")
+			}
+
+			OAuthLogger.logInfo(serverHash, "server_found", { server_name: connection.server.name })
+
+			// CSRF protection: validate state parameter
+			if (state && connection.authProvider) {
+				const valid = await connection.authProvider.validateState(state)
+				if (!valid) {
+					throw new Error("Invalid or expired state parameter in OAuth callback (CSRF protection)")
+				}
+			}
+
+			await (connection.transport as SSEClientTransport).finishAuth(code)
+
+			OAuthLogger.logInfo(connection.server.name, "authentication_completed")
+			vscode.window.showInformationMessage(`Successfully authenticated with ${connection.server.name} MCP server`)
+		} catch (error) {
+			const serverName =
+				this.mcpHub.connections.find((conn) =>
+					getMcpServerCallbackPath(conn.server.name, JSON.parse(conn.server.config).url).endsWith(serverHash),
+				)?.server.name || serverHash
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			OAuthLogger.logError(serverName, "authentication_failed", errorMessage)
+			vscode.window.showErrorMessage(`MCP OAuth error for ${serverName}: ${errorMessage}`)
+			console.error("Failed to handle MCP OAuth callback:", error)
+			throw error
 		}
 	}
 
