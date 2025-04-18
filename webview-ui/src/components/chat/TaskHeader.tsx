@@ -577,7 +577,7 @@ const highlightSlashCommands = (text: string, withShadow = true) => {
 
 	return [
 		beforeCommand,
-		<span key="slashCommand" className={withShadow ? "slash-command-highlight-with-shadow" : "slash-command-highlight"}>
+		<span key="slashCommand" className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}>
 			/{commandName}
 		</span>,
 		afterCommand,
