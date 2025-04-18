@@ -58,7 +58,6 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal }) => {
 	}
 
 	const handleBlur = () => {
-		// When focus leaves the input, collapse the component
 		setIsExpanded(false)
 		setError(null)
 		setFilename("")
@@ -86,7 +85,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal }) => {
 						<input
 							ref={inputRef}
 							type="text"
-							placeholder="rule-name.md"
+							placeholder="rule-name (.md, .txt, or no extension)"
 							value={filename}
 							onChange={(e) => setFilename(e.target.value)}
 							onBlur={handleBlur}
