@@ -3,13 +3,10 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
 import { vscode } from "@/utils/vscode"
 import { ApiRequestHistoryEntry, PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
 import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useMemo, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import CountUp from "react-countup"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import ApiRequestHistoryTable from "../api-stats/ApiRequestHistoryTable"
-import ApiTaskSummaryTable, { TaskSummaryEntry } from "../api-stats/ApiTaskSummaryTable"
-import ApiUsageChart from "../api-stats/ApiUsageChart" // Import the new chart component
 import CreditsHistoryTable from "./CreditsHistoryTable"
 
 type AccountViewProps = {
@@ -82,38 +79,6 @@ export const ClineAccountView = () => {
 			window.removeEventListener("message", handleMessage)
 		}
 	}, [user, isLoading]) // Added isLoading dependency to refine loading state logic
-
-	// Calculate task summary data
-	const taskSummaryData = useMemo(() => {
-		if (!apiRequestHistory || apiRequestHistory.length === 0) {
-			return []
-		}
-
-		const summaryMap = new Map<string, TaskSummaryEntry>()
-
-		// Sort history by timestamp ascending to get the first timestamp easily
-		const sortedHistory = [...apiRequestHistory].sort((a, b) => a.timestamp - b.timestamp)
-
-		sortedHistory.forEach((entry) => {
-			if (!summaryMap.has(entry.taskId)) {
-				summaryMap.set(entry.taskId, {
-					taskId: entry.taskId,
-					firstTimestamp: entry.timestamp, // First entry in sorted list has the earliest timestamp
-					taskSnippet: entry.taskSnippet,
-					totalRequests: 0,
-					totalTokens: 0,
-					totalCost: 0,
-				})
-			}
-
-			const taskSummary = summaryMap.get(entry.taskId)!
-			taskSummary.totalRequests += 1
-			taskSummary.totalTokens += entry.inputTokens + entry.outputTokens
-			taskSummary.totalCost += entry.cost || 0
-		})
-
-		return Array.from(summaryMap.values())
-	}, [apiRequestHistory])
 
 	const handleLogin = () => {
 		vscode.postMessage({ type: "accountLoginClicked" })
@@ -196,25 +161,6 @@ export const ClineAccountView = () => {
 
 					{/* Scrollable Content Area */}
 					<div className="flex-grow flex flex-col min-h-0 pb-[0px] overflow-y-auto">
-						{/* Usage Chart */}
-						<div className="mb-6">
-							{isLoading ? (
-								<div className="text-[var(--vscode-descriptionForeground)]">Loading Chart...</div>
-							) : (
-								<ApiUsageChart historyData={apiRequestHistory} />
-							)}
-						</div>
-
-						{/* Task Summary Table */}
-						<div className="mb-6">
-							<ApiTaskSummaryTable isLoading={isLoading} taskSummaryData={taskSummaryData} />
-						</div>
-
-						{/* API Request History Table */}
-						<div className="mb-6">
-							<ApiRequestHistoryTable isLoading={isLoading} historyData={apiRequestHistory} />
-						</div>
-
 						{/* Credits History Table */}
 						<div className="mb-6">
 							<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
