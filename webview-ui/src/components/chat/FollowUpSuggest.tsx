@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import { ArrowRight, Edit } from "lucide-react"
+import { Edit } from "lucide-react"
 
 import { Button } from "@/components/ui"
 
@@ -26,18 +26,15 @@ export const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1 }:
 	}
 
 	return (
-		<div className="flex mb-2 flex-col h-full border rounded-xs">
+		<div className="flex mb-2 flex-col h-full gap-2">
 			{suggestions.map((suggestion) => (
 				<div key={`${suggestion}-${ts}`} className="w-full relative group">
 					<Button
-						variant="ghost"
+						variant="outline"
 						className="text-left whitespace-normal break-words w-full h-auto py-3 justify-start pr-8"
 						onClick={(event) => handleSuggestionClick(suggestion, event)}
 						aria-label={suggestion}>
-						<div className="flex flex-row items-center gap-2">
-							<ArrowRight />
-							<div>{suggestion}</div>
-						</div>
+						<div>{suggestion}</div>
 					</Button>
 					<div
 						className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
