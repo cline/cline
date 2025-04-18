@@ -159,6 +159,25 @@ function helloWorld() {
 				}
 			})
 
+			it("should replace matching content when end_line is passed in", async () => {
+				const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
+				const diffContent = `test.ts
+<<<<<<< SEARCH
+:start_line:1
+:end_line:1
+-------
+function hello() {
+=======
+function helloWorld() {
+>>>>>>> REPLACE`
+
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe('function helloWorld() {\n    console.log("hello")\n}\n')
+				}
+			})
+
 			it("should match content with different surrounding whitespace", async () => {
 				const originalContent = "\nfunction example() {\n    return 42;\n}\n\n"
 				const diffContent = `test.ts
