@@ -5,6 +5,7 @@ import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import { getFileSizeInKB } from "../../utils/fs"
+import { getMimeType } from "./process-images"
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {
@@ -20,6 +21,15 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			return extractTextFromDOCX(filePath)
 		case ".ipynb":
 			return extractTextFromIPYNB(filePath)
+		// Add cases for image file types
+		case ".png":
+		case ".jpg":
+		case ".jpeg":
+		case ".webp":
+			const imageBuffer = await fs.readFile(filePath)
+			const base64 = imageBuffer.toString("base64")
+			const mimeType = getMimeType(filePath)
+			return `data:${mimeType};base64,${base64}`
 		default:
 			const isBinary = await isBinaryFile(filePath).catch(() => false)
 			if (!isBinary) {
