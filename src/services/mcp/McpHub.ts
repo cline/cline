@@ -255,7 +255,7 @@ export class McpHub {
 					stderrStream.on("data", async (data: Buffer) => {
 						const output = data.toString()
 						// Check if output contains INFO level log
-						const isInfoLog = /^\s*INFO\b/.test(output)
+						const isInfoLog = !/\berror\b/i.test(output)
 
 						if (isInfoLog) {
 							// Log normal informational messages
