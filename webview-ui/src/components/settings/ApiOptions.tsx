@@ -1651,6 +1651,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 													})
 												}}>
 												<VSCodeOption value="low">low</VSCodeOption>
+												<VSCodeOption value="medium">medium</VSCodeOption>
 												<VSCodeOption value="high">high</VSCodeOption>
 											</VSCodeDropdown>
 										</DropdownContainer>
