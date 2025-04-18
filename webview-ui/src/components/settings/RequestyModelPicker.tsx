@@ -217,7 +217,12 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 			{hasInfo ? (
 				<>
 					{showBudgetSlider && (
-						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+						<ThinkingBudgetSlider
+							apiConfiguration={apiConfiguration}
+							setApiConfiguration={setApiConfiguration}
+							selectedProvider={apiConfiguration?.apiProvider} // Pass provider
+							selectedModelId={selectedModelId} // Pass model ID
+						/>
 					)}
 					<ModelInfoView
 						selectedModelId={selectedModelId}

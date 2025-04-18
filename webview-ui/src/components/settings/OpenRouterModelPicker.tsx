@@ -307,7 +307,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			{hasInfo ? (
 				<>
 					{showBudgetSlider && (
-						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+						<ThinkingBudgetSlider
+							apiConfiguration={apiConfiguration}
+							setApiConfiguration={setApiConfiguration}
+							selectedProvider={apiConfiguration?.apiProvider} // Pass provider
+							selectedModelId={selectedModelId} // Pass model ID
+						/>
 					)}
 
 					<ModelInfoView
