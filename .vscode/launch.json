@@ -9,9 +9,10 @@
 			"name": "Run Extension",
 			"type": "extensionHost",
 			"request": "launch",
+			"runtimeExecutable": "${execPath}",
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
-			"preLaunchTask": "${defaultBuildTask}",
+			"preLaunchTask": "npm: compile", // Use the specific compile task
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
@@ -20,10 +21,12 @@
 		{
 			"name": "Run Extension (Test Mode)",
 			"type": "extensionHost",
-			"request": "launch",
+			"request": "attach",
+			"processId": "${command:PickProcess}",
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
-			"preLaunchTask": "${defaultBuildTask}",
+			// "preLaunchTask": "${defaultBuildTask}",
+			"preLaunchTask": "npm: compile", // Use the specific compile task
 			"env": {
 				"IS_DEV": "true",
 				"IS_TEST": "true",

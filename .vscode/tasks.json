@@ -97,7 +97,7 @@
 			"type": "npm",
 			"script": "watch:esbuild",
 			"group": "build",
-			"problemMatcher": "$esbuild-watch",
+			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"label": "npm: watch:esbuild",
 			"presentation": {
@@ -115,7 +115,7 @@
 			"type": "npm",
 			"script": "watch:esbuild:test",
 			"group": "build",
-			"problemMatcher": "$esbuild-watch",
+			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"label": "npm: watch:esbuild:test",
 			"presentation": {
