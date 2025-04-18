@@ -1225,8 +1225,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					{telemetrySetting === "unset" && <TelemetryBanner />}
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 
-					<RooHero />
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+					<RooHero />
 				</div>
 			)}
 

@@ -36,7 +36,7 @@ const WelcomeView = () => {
 
 	return (
 		<Tab>
-			<TabContent className="flex flex-col gap-5">
+			<TabContent className="flex flex-col gap-5 h-full">
 				<RooHero />
 
 				<div className="outline rounded p-4">
