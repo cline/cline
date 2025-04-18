@@ -1616,7 +1616,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
-						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
+						{selectedModelInfo.supportsReasoningEffort && (
 							<>
 								<VSCodeCheckbox
 									style={{ marginTop: 0 }}

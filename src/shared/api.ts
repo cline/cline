@@ -71,7 +71,6 @@ export interface ApiHandlerOptions {
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: LanguageModelChatSelector
-	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
@@ -99,6 +98,7 @@ export interface ModelInfo {
 	supportsImages?: boolean
 	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
+	supportsReasoningEffort?: boolean
 	inputPrice?: number // Keep for non-tiered input models
 	inputPriceTiers?: PriceTier[] // Add for tiered input pricing
 	outputPrice?: number // Keep for non-tiered output models
@@ -111,6 +111,7 @@ export interface ModelInfo {
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean
+	supportsReasoningEffort?: boolean
 }
 
 // Anthropic
@@ -612,6 +613,7 @@ export const openAiNativeModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoningEffort: true,
 		inputPrice: 10.0,
 		outputPrice: 40.0,
 		cacheReadsPrice: 2.5,
@@ -621,6 +623,7 @@ export const openAiNativeModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoningEffort: true,
 		inputPrice: 1.1,
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.275,
@@ -657,6 +660,7 @@ export const openAiNativeModels = {
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: true,
+		supportsReasoningEffort: true,
 		inputPrice: 1.1,
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
@@ -1415,6 +1419,7 @@ export const xaiModels = {
 		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
+		supportsReasoningEffort: true,
 		inputPrice: 0.3,
 		outputPrice: 0.5,
 		description: "X AI's Grok-3 mini beta model with 131K context window",
@@ -1424,6 +1429,7 @@ export const xaiModels = {
 		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
+		supportsReasoningEffort: true,
 		inputPrice: 0.6,
 		outputPrice: 4.0,
 		description: "X AI's Grok-3 mini fast beta model with 131K context window",

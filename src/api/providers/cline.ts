@@ -33,7 +33,7 @@ export class ClineHandler implements ApiHandler {
 			systemPrompt,
 			messages,
 			this.getModel(),
-			this.options.o3MiniReasoningEffort,
+			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 		)
