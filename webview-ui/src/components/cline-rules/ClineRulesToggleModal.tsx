@@ -100,9 +100,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									type: "openExtensionSettings",
 								})
 								setIsVisible(false)
-							}}>
-							{/* <span className="codicon codicon-gear text-[10px]"></span> */}
-						</VSCodeButton>
+							}}></VSCodeButton>
 					</div>
 
 					{/* Global Rules Section */}
