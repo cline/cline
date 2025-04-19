@@ -1,6 +1,7 @@
 import { vscode } from "../utils/vscode"
 import { v4 as uuidv4 } from "uuid"
 import { BrowserServiceDefinition } from "@shared/proto/browser"
+import { CheckpointsServiceDefinition } from "@shared/proto/checkpoints"
 import { EmptyRequest } from "@shared/proto/common"
 
 // Generic type for any protobuf service definition
@@ -92,9 +93,8 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 	return client
 }
 
-// Create the Browser Service Client singleton with inferred types
-// No need for manual interface definition - types are inferred from the service definition
 const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
+const CheckpointsServiceClient = createGrpcClient(CheckpointsServiceDefinition)
 
-// Export the Browser Service Client as a static object
 export { BrowserServiceClient }
+export { CheckpointsServiceClient }
