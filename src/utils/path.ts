@@ -1,7 +1,6 @@
 import * as path from "path"
 import os from "os"
 import * as vscode from "vscode"
-import { realpathSync } from "fs"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -120,15 +119,12 @@ export const isLocatedInWorkspace = (pathToCheck: string = ""): boolean => {
 		return pathToCheck.startsWith(workspacePath)
 	}
 
-	const resolvedPath = path.resolve(workspacePath, pathToCheck)
+	// Normalize paths without resolving symlinks
+	const normalizedWorkspace = path.normalize(workspacePath)
+	const normalizedPath = path.normalize(path.resolve(workspacePath, pathToCheck))
 
-	// Using realpathSync to resolve any symbolic links
-	try {
-		const realWorkspacePath = realpathSync(workspacePath)
-		const realPath = realpathSync(resolvedPath)
-		return realPath.startsWith(realWorkspacePath)
-	} catch (error) {
-		console.error("Error resolving paths:", error)
-		return false
-	}
+	// Use path.relative to check if the path is within the workspace
+	const relativePath = path.relative(normalizedWorkspace, normalizedPath)
+
+	return !relativePath.startsWith("..") && !path.isAbsolute(relativePath)
 }

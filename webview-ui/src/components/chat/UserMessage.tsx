@@ -1,6 +1,6 @@
 import React, { useState, useRef, forwardRef, useCallback } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
-import { highlightMentions } from "./TaskHeader"
+import { highlightText } from "./TaskHeader"
 import { vscode } from "@/utils/vscode"
 import DynamicTextArea from "react-textarea-autosize"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -137,7 +137,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 					</div>
 				</>
 			) : (
-				<span style={{ display: "block" }}>{highlightMentions(editedText || text)}</span>
+				<span style={{ display: "block" }}>{highlightText(editedText || text)}</span>
 			)}
 			{images && images.length > 0 && <Thumbnails images={images} style={{ marginTop: "8px" }} />}
 		</div>
