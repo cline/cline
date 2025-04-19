@@ -213,6 +213,7 @@ export class Task {
 		this.api = buildApiHandler({
 			...apiConfiguration,
 			taskId: this.taskId,
+			onModelInfoUpdate: this.handleModelInfoUpdate.bind(this), // Pass the callback
 		})
 
 		// Set taskId on browserSession for telemetry tracking
@@ -243,6 +244,14 @@ export class Task {
 			throw new Error("Unable to access extension context")
 		}
 		return context
+	}
+
+	// Callback function to handle model info updates from the API handler
+	private async handleModelInfoUpdate() {
+		// Log the context window size from the handler's perspective *before* posting state
+		const modelInfo = this.api?.getModel()?.info
+		console.log(`Task: handleModelInfoUpdate called. Context Window from API handler: ${modelInfo?.contextWindow}`)
+		await this.postStateToWebview()
 	}
 
 	// Storing task to disk for history
