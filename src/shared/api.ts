@@ -78,6 +78,7 @@ export interface ApiHandlerOptions {
 	premBaseUrl?: string
 	premProjectId?: number
 	premModelId?: string
+	temperature?: number // Controls randomness in model outputs
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

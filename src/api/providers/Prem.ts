@@ -10,6 +10,7 @@ declare module "../../shared/api" {
 		premBaseUrl?: string
 		premProjectId?: number
 		premModelId?: string
+		temperature?: number
 	}
 }
 
@@ -45,7 +46,7 @@ export class PremHandler implements ApiHandler {
 
 	private async fetchWithAuth(endpoint: string, options: RequestInit) {
 		const headers = new Headers(options.headers)
-		headers.set("Authorization", this.options.premApiKey ? `Bearer ${this.options.premApiKey}` : '')
+		headers.set("Authorization", `Bearer ${this.options.premApiKey}`)
 
 		const response = await fetch(`${this.baseUrl}${endpoint}`, {
 			...options,
@@ -90,7 +91,7 @@ export class PremHandler implements ApiHandler {
 			model: this.modelId,
 			messages: [{ role: "system", content: systemPrompt }, ...formattedMessages],
 			stream: true,
-			temperature: this.options.temperature || 0.7,
+			temperature: this.options.temperature ?? 0.7,
 		}
 
 		const response = await this.fetchWithAuth("/v1/chat/completions", {
