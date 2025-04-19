@@ -1,97 +1,412 @@
-import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
+import * as fs from "fs"
+import * as childProcess from "child_process"
+import * as vscode from "vscode"
 import { arePathsEqual } from "../../utils/path"
+import { getBinPath } from "../../services/ripgrep"
 
+/**
+ * List of directories that are typically large and should be ignored
+ * when showing recursive file listings
+ */
+const DIRS_TO_IGNORE = [
+	"node_modules",
+	"__pycache__",
+	"env",
+	"venv",
+	"target/dependency",
+	"build/dependencies",
+	"dist",
+	"out",
+	"bundle",
+	"vendor",
+	"tmp",
+	"temp",
+	"deps",
+	"pkg",
+	"Pods",
+	".*",
+]
+
+/**
+ * List files in a directory, with optional recursive traversal
+ *
+ * @param dirPath - Directory path to list files from
+ * @param recursive - Whether to recursively list files in subdirectories
+ * @param limit - Maximum number of files to return
+ * @returns Tuple of [file paths array, whether the limit was reached]
+ */
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
+	// Handle special directories
+	const specialResult = await handleSpecialDirectories(dirPath)
+	if (specialResult) {
+		return specialResult
+	}
+
+	// Get ripgrep path
+	const rgPath = await getRipgrepPath()
+
+	// Get files using ripgrep
+	const files = await listFilesWithRipgrep(rgPath, dirPath, recursive, limit)
+
+	// Get directories with proper filtering
+	const gitignorePatterns = await parseGitignoreFile(dirPath, recursive)
+	const directories = await listFilteredDirectories(dirPath, recursive, gitignorePatterns)
+
+	// Combine and format the results
+	return formatAndCombineResults(files, directories, limit)
+}
+
+/**
+ * Handle special directories (root, home) that should not be fully listed
+ */
+async function handleSpecialDirectories(dirPath: string): Promise<[string[], boolean] | null> {
 	const absolutePath = path.resolve(dirPath)
-	// Do not allow listing files in root or home directory, which cline tends to want to do when the user's prompt is vague.
+
+	// Do not allow listing files in root directory
 	const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
 	const isRoot = arePathsEqual(absolutePath, root)
 	if (isRoot) {
 		return [[root], false]
 	}
+
+	// Do not allow listing files in home directory
 	const homeDir = os.homedir()
 	const isHomeDir = arePathsEqual(absolutePath, homeDir)
 	if (isHomeDir) {
 		return [[homeDir], false]
 	}
 
-	const dirsToIgnore = [
-		"node_modules",
-		"__pycache__",
-		"env",
-		"venv",
-		"target/dependency",
-		"build/dependencies",
-		"dist",
-		"out",
-		"bundle",
-		"vendor",
-		"tmp",
-		"temp",
-		"deps",
-		"pkg",
-		"Pods",
-		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
-	].map((dir) => `${dirPath}/**/${dir}/**`)
-
-	const options = {
-		cwd: dirPath,
-		dot: true, // do not ignore hidden files/directories
-		absolute: true,
-		markDirectories: true, // Append a / on any directories matched (/ is used on windows as well, so dont use path.sep)
-		gitignore: recursive, // globby ignores any files that are gitignored
-		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
-		onlyFiles: false, // true by default, false means it will list directories on their own too
-	}
-	// * globs all files in one dir, ** globs files in nested directories
-	const files = recursive ? await globbyLevelByLevel(limit, options) : (await globby("*", options)).slice(0, limit)
-	return [files, files.length >= limit]
+	return null
 }
 
-/*
-Breadth-first traversal of directory structure level by level up to a limit:
-   - Queue-based approach ensures proper breadth-first traversal
-   - Processes directory patterns level by level
-   - Captures a representative sample of the directory structure up to the limit
-   - Minimizes risk of missing deeply nested files
+/**
+ * Get the path to the ripgrep binary
+ */
+async function getRipgrepPath(): Promise<string> {
+	const vscodeAppRoot = vscode.env.appRoot
+	const rgPath = await getBinPath(vscodeAppRoot)
 
-- Notes:
-   - Relies on globby to mark directories with /
-   - Potential for loops if symbolic links reference back to parent (we could use followSymlinks: false but that may not be ideal for some projects and it's pointless if they're not using symlinks wrong)
-   - Timeout mechanism prevents infinite loops
-*/
-async function globbyLevelByLevel(limit: number, options?: Options) {
-	let results: Set<string> = new Set()
-	let queue: string[] = ["*"]
+	if (!rgPath) {
+		throw new Error("Could not find ripgrep binary")
+	}
 
-	const globbingProcess = async () => {
-		while (queue.length > 0 && results.size < limit) {
-			const pattern = queue.shift()!
-			const filesAtLevel = await globby(pattern, options)
+	return rgPath
+}
 
-			for (const file of filesAtLevel) {
-				if (results.size >= limit) {
+/**
+ * List files using ripgrep with appropriate arguments
+ */
+async function listFilesWithRipgrep(
+	rgPath: string,
+	dirPath: string,
+	recursive: boolean,
+	limit: number,
+): Promise<string[]> {
+	const absolutePath = path.resolve(dirPath)
+	const rgArgs = buildRipgrepArgs(absolutePath, recursive)
+	return execRipgrep(rgPath, rgArgs, limit)
+}
+
+/**
+ * Build appropriate ripgrep arguments based on whether we're doing a recursive search
+ */
+function buildRipgrepArgs(dirPath: string, recursive: boolean): string[] {
+	// Base arguments to list files
+	const args = ["--files", "--hidden"]
+
+	if (recursive) {
+		return [...args, ...buildRecursiveArgs(), dirPath]
+	} else {
+		return [...args, ...buildNonRecursiveArgs(), dirPath]
+	}
+}
+
+/**
+ * Build ripgrep arguments for recursive directory traversal
+ */
+function buildRecursiveArgs(): string[] {
+	const args: string[] = []
+
+	// In recursive mode, respect .gitignore by default
+	// (ripgrep does this automatically)
+
+	// Apply directory exclusions for recursive searches
+	for (const dir of DIRS_TO_IGNORE) {
+		args.push("-g", `!**/${dir}/**`)
+	}
+
+	return args
+}
+
+/**
+ * Build ripgrep arguments for non-recursive directory listing
+ */
+function buildNonRecursiveArgs(): string[] {
+	const args: string[] = []
+
+	// For non-recursive, limit to the current directory level
+	args.push("-g", "*")
+	args.push("--maxdepth", "1") // ripgrep uses maxdepth, not max-depth
+
+	// Don't respect .gitignore in non-recursive mode (consistent with original behavior)
+	args.push("--no-ignore-vcs")
+
+	// Apply directory exclusions for non-recursive searches
+	for (const dir of DIRS_TO_IGNORE) {
+		if (dir === ".*") {
+			// For hidden files/dirs in non-recursive mode
+			args.push("-g", "!.*")
+		} else {
+			// Direct children only
+			args.push("-g", `!${dir}`)
+			args.push("-g", `!${dir}/**`)
+		}
+	}
+
+	return args
+}
+
+/**
+ * Parse the .gitignore file if it exists and is relevant
+ */
+async function parseGitignoreFile(dirPath: string, recursive: boolean): Promise<string[]> {
+	if (!recursive) {
+		return [] // Only needed for recursive mode
+	}
+
+	const absolutePath = path.resolve(dirPath)
+	const gitignorePath = path.join(absolutePath, ".gitignore")
+
+	try {
+		// Check if .gitignore exists
+		const exists = await fs.promises
+			.access(gitignorePath)
+			.then(() => true)
+			.catch(() => false)
+
+		if (!exists) {
+			return []
+		}
+
+		// Read and parse .gitignore file
+		const content = await fs.promises.readFile(gitignorePath, "utf8")
+		return content
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line && !line.startsWith("#"))
+	} catch (err) {
+		console.warn(`Error reading .gitignore: ${err}`)
+		return [] // Continue without gitignore patterns on error
+	}
+}
+
+/**
+ * List directories with appropriate filtering
+ */
+async function listFilteredDirectories(
+	dirPath: string,
+	recursive: boolean,
+	gitignorePatterns: string[],
+): Promise<string[]> {
+	const absolutePath = path.resolve(dirPath)
+
+	try {
+		// List all entries in the directory
+		const entries = await fs.promises.readdir(absolutePath, { withFileTypes: true })
+
+		// Filter for directories only
+		const directories = entries
+			.filter((entry) => entry.isDirectory())
+			.filter((entry) => {
+				return shouldIncludeDirectory(entry.name, recursive, gitignorePatterns)
+			})
+			.map((entry) => path.join(absolutePath, entry.name))
+
+		// Format directory paths with trailing slash
+		return directories.map((dir) => (dir.endsWith("/") ? dir : `${dir}/`))
+	} catch (err) {
+		console.error(`Error listing directories: ${err}`)
+		return [] // Return empty array on error
+	}
+}
+
+/**
+ * Determine if a directory should be included in results based on filters
+ */
+function shouldIncludeDirectory(dirName: string, recursive: boolean, gitignorePatterns: string[]): boolean {
+	// Skip hidden directories if configured to ignore them
+	if (dirName.startsWith(".") && DIRS_TO_IGNORE.includes(".*")) {
+		return false
+	}
+
+	// Check against explicit ignore patterns
+	if (isDirectoryExplicitlyIgnored(dirName)) {
+		return false
+	}
+
+	// Check against gitignore patterns in recursive mode
+	if (recursive && gitignorePatterns.length > 0 && isIgnoredByGitignore(dirName, gitignorePatterns)) {
+		return false
+	}
+
+	return true
+}
+
+/**
+ * Check if a directory is in our explicit ignore list
+ */
+function isDirectoryExplicitlyIgnored(dirName: string): boolean {
+	for (const pattern of DIRS_TO_IGNORE) {
+		// Exact name matching
+		if (pattern === dirName) {
+			return true
+		}
+
+		// Path patterns that contain /
+		if (pattern.includes("/")) {
+			const pathParts = pattern.split("/")
+			if (pathParts[0] === dirName) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+/**
+ * Check if a directory matches any gitignore patterns
+ */
+function isIgnoredByGitignore(dirName: string, gitignorePatterns: string[]): boolean {
+	for (const pattern of gitignorePatterns) {
+		// Directory patterns (ending with /)
+		if (pattern.endsWith("/")) {
+			const dirPattern = pattern.slice(0, -1)
+			if (dirName === dirPattern) {
+				return true
+			}
+			if (pattern.startsWith("**/") && dirName === dirPattern.slice(3)) {
+				return true
+			}
+		}
+		// Simple name patterns
+		else if (dirName === pattern) {
+			return true
+		}
+		// Wildcard patterns
+		else if (pattern.includes("*")) {
+			const regexPattern = pattern.replace(/\\/g, "\\\\").replace(/\./g, "\\.").replace(/\*/g, ".*")
+			const regex = new RegExp(`^${regexPattern}$`)
+			if (regex.test(dirName)) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+/**
+ * Combine file and directory results and format them properly
+ */
+function formatAndCombineResults(files: string[], directories: string[], limit: number): [string[], boolean] {
+	// Combine file paths with directory paths
+	const allPaths = [...directories, ...files]
+
+	// Deduplicate paths (a directory might appear in both lists)
+	const uniquePaths = [...new Set(allPaths)]
+
+	// Sort to ensure directories come first, followed by files
+	uniquePaths.sort((a: string, b: string) => {
+		const aIsDir = a.endsWith("/")
+		const bIsDir = b.endsWith("/")
+
+		if (aIsDir && !bIsDir) return -1
+		if (!aIsDir && bIsDir) return 1
+		return a.localeCompare(b)
+	})
+
+	const trimmedPaths = uniquePaths.slice(0, limit)
+	return [trimmedPaths, trimmedPaths.length >= limit]
+}
+
+/**
+ * Execute ripgrep command and return list of files
+ */
+async function execRipgrep(rgPath: string, args: string[], limit: number): Promise<string[]> {
+	return new Promise((resolve, reject) => {
+		const rgProcess = childProcess.spawn(rgPath, args)
+		let output = ""
+		let results: string[] = []
+
+		// Set timeout to avoid hanging
+		const timeoutId = setTimeout(() => {
+			rgProcess.kill()
+			console.warn("ripgrep timed out, returning partial results")
+			resolve(results.slice(0, limit))
+		}, 10_000)
+
+		// Process stdout data as it comes in
+		rgProcess.stdout.on("data", (data) => {
+			output += data.toString()
+			processRipgrepOutput()
+
+			// Kill the process if we've reached the limit
+			if (results.length >= limit) {
+				rgProcess.kill()
+				clearTimeout(timeoutId) // Clear the timeout when we kill the process due to reaching the limit
+			}
+		})
+
+		// Process stderr but don't fail on non-zero exit codes
+		rgProcess.stderr.on("data", (data) => {
+			console.error(`ripgrep stderr: ${data}`)
+		})
+
+		// Handle process completion
+		rgProcess.on("close", (code) => {
+			// Clear the timeout to avoid memory leaks
+			clearTimeout(timeoutId)
+
+			// Process any remaining output
+			processRipgrepOutput(true)
+
+			// Log non-zero exit codes but don't fail
+			if (code !== 0 && code !== null && code !== 143 /* SIGTERM */) {
+				console.warn(`ripgrep process exited with code ${code}, returning partial results`)
+			}
+
+			resolve(results.slice(0, limit))
+		})
+
+		// Handle process errors
+		rgProcess.on("error", (error) => {
+			// Clear the timeout to avoid memory leaks
+			clearTimeout(timeoutId)
+			reject(new Error(`ripgrep process error: ${error.message}`))
+		})
+
+		// Helper function to process output buffer
+		function processRipgrepOutput(isFinal = false) {
+			const lines = output.split("\n")
+
+			// Keep the last incomplete line unless this is the final processing
+			if (!isFinal) {
+				output = lines.pop() || ""
+			} else {
+				output = ""
+			}
+
+			// Process each complete line
+			for (const line of lines) {
+				if (line.trim() && results.length < limit) {
+					results.push(line)
+				} else if (results.length >= limit) {
 					break
-				}
-				results.add(file)
-				if (file.endsWith("/")) {
-					queue.push(`${file}*`)
 				}
 			}
 		}
-		return Array.from(results).slice(0, limit)
-	}
-
-	// Timeout after 10 seconds and return partial results
-	const timeoutPromise = new Promise<string[]>((_, reject) => {
-		setTimeout(() => reject(new Error("Globbing timeout")), 10_000)
 	})
-	try {
-		return await Promise.race([globbingProcess(), timeoutPromise])
-	} catch (error) {
-		console.warn("Globbing timed out, returning partial results")
-		return Array.from(results)
-	}
 }
