@@ -1,9 +1,50 @@
-import { globby, Options } from "globby"
+import { type globby as Globby, type Options } from "globby"
 import os from "os"
 import * as path from "path"
+import ignore from "ignore"
 import { arePathsEqual } from "../../utils/path"
 
+const dirsToIgnore = [
+	"node_modules",
+	"__pycache__",
+	"env",
+	"venv",
+	"target/dependency",
+	"build/dependencies",
+	"dist",
+	"out",
+	"bundle",
+	"vendor",
+	"tmp",
+	"temp",
+	"deps",
+	"pkg",
+	"Pods",
+	".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
+]
+
+const ignoreInstance = ignore().add(dirsToIgnore)
+
+// TODO: Consider .clineignore (ClineIgnoreController) and .gitignore
+export const shouldTrackFile = (filePath: string): boolean => {
+	return !ignoreInstance.ignores(filePath)
+}
+
+/**
+ * Globby only supports ESM, but the tests use CommonJS.
+ * https://github.com/sindresorhus/globby/releases/tag/v12.0.0
+ * @see {@link file://./../../../tsconfig.test.json}
+ */
+let globby: typeof Globby
+// Using a dynamic import() will be transpiled into a CommonJS require
+const forceDynamicImport = new Function("specifier", "return import(specifier)")
+
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
+	if (!globby) {
+		const module = (await forceDynamicImport("globby")) as typeof import("globby")
+		globby = module.globby
+	}
+
 	// First resolve the path normally - path.resolve doesn't care about glob special characters
 	const absolutePath = path.resolve(dirPath)
 	// Do not allow listing files in root or home directory, which cline tends to want to do when the user's prompt is vague.
@@ -18,32 +59,13 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		return [[homeDir], false]
 	}
 
-	const dirsToIgnore = [
-		"node_modules",
-		"__pycache__",
-		"env",
-		"venv",
-		"target/dependency",
-		"build/dependencies",
-		"dist",
-		"out",
-		"bundle",
-		"vendor",
-		"tmp",
-		"temp",
-		"deps",
-		"pkg",
-		"Pods",
-		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
-	].map((dir) => `**/${dir}/**`)
-
 	const options: Options = {
 		cwd: dirPath,
 		dot: true, // do not ignore hidden files/directories
 		absolute: true,
 		markDirectories: true, // Append a / on any directories matched (/ is used on windows as well, so dont use path.sep)
 		gitignore: recursive, // globby ignores any files that are gitignored
-		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
+		ignore: recursive ? dirsToIgnore.map((dir) => `**/${dir}/**`) : undefined, // just in case there is no gitignore, we ignore sensible defaults
 		onlyFiles: false, // true by default, false means it will list directories on their own too
 		suppressErrors: true,
 	}
