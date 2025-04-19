@@ -1,6 +1,6 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { withRetry } from "../retry"
+import { withRetry, RegionProvider } from "../retry"
 import { ApiHandler } from "../"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
@@ -15,14 +15,29 @@ import {
 } from "@aws-sdk/client-bedrock-runtime"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
-export class AwsBedrockHandler implements ApiHandler {
+export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 	private options: ApiHandlerOptions
+	private currentRegionIndex: number = 0
+	private availableRegions: string[] = []
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		// Initialize available regions
+		if (this.options.awsRegions && this.options.awsRegions.length > 0) {
+			this.availableRegions = [...this.options.awsRegions]
+		} else if (this.options.awsRegion) {
+			// Fall back to single region for backward compatibility
+			this.availableRegions = [this.options.awsRegion]
+		} else {
+			this.availableRegions = [AwsBedrockHandler.DEFAULT_REGION]
+		}
+
+		// Reset to the first region to start
+		this.currentRegionIndex = 0
 	}
 
-	@withRetry()
+	@withRetry({ maxRetries: 3, regionCycling: true })
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		const modelId = await this.getModelId()
@@ -206,10 +221,38 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Gets the AWS region to use, with fallback to default
+	 * Gets the current AWS region to use
 	 */
 	private getRegion(): string {
-		return this.options.awsRegion || AwsBedrockHandler.DEFAULT_REGION
+		return this.availableRegions[this.currentRegionIndex] || AwsBedrockHandler.DEFAULT_REGION
+	}
+
+	/**
+	 * Gets the currently used region (for RegionProvider interface)
+	 */
+	public getCurrentRegion(): string {
+		return this.getRegion()
+	}
+
+	/**
+	 * Cycles to the next region if available (for RegionProvider interface)
+	 * @returns true if successfully cycled to a new region, false if no more regions available
+	 */
+	public cycleToNextRegion(): boolean {
+		if (this.availableRegions.length <= 1 || this.currentRegionIndex >= this.availableRegions.length - 1) {
+			return false // No more regions to try
+		}
+
+		this.currentRegionIndex++
+		console.log(`Switching to AWS region: ${this.getCurrentRegion()}`)
+		return true
+	}
+
+	/**
+	 * Resets the region to the default/first region (for RegionProvider interface)
+	 */
+	public resetRegion(): void {
+		this.currentRegionIndex = 0
 	}
 
 	/**
