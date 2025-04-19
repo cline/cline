@@ -181,12 +181,12 @@
 		"copyToInput": "复制到输入框（或按住Shift点击）"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.12 已发布",
-		"description": "Roo Code 3.12 带来基于您反馈的新功能和改进。",
+		"title": "🎉 Roo Code 3.13 已发布",
+		"description": "Roo Code 3.13 带来基于您反馈的新功能和改进。",
 		"whatsNew": "新特性",
-		"feature1": "<bold>Grok 支持</bold>: 添加 xAI 提供商并在 OpenRouter 上提供 Grok 推理强度选项",
-		"feature2": "<bold>差异编辑改进</bold>: 支持按配置文件设置和改进字符串规范化以减少错误",
-		"feature3": "<bold>检查点增强</bold>: 更快速可靠的检查点功能",
+		"feature1": "<bold>Gemini 2.5 Flash Thinking</bold>: 现在可以使用 Gemini 2.5 Flash 的 thinking 变体并指定 thinking Token 预算",
+		"feature2": "<bold>UI 改进</bold>: 任务标题、聊天视图、历史预览和欢迎视图已进行视觉升级",
+		"feature3": "<bold>错误修复</bold>: 更可靠的差异编辑等功能",
 		"hideButton": "隐藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 获取更多详情并参与讨论 🚀"
 	},

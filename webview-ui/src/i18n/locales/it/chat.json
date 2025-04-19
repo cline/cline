@@ -181,12 +181,12 @@
 		"copyToInput": "Copia nell'input (o Shift + clic)"
 	},
 	"announcement": {
-		"title": "🎉 Rilasciato Roo Code 3.12",
-		"description": "Roo Code 3.12 porta nuove funzionalità e miglioramenti basati sui tuoi feedback.",
+		"title": "🎉 Rilasciato Roo Code 3.13",
+		"description": "Roo Code 3.13 porta nuove funzionalità e miglioramenti basati sui tuoi feedback.",
 		"whatsNew": "Novità",
-		"feature1": "<bold>Supporto Grok</bold>: Aggiunto il provider xAI e opzioni di impegno ragionato per Grok su OpenRouter",
-		"feature2": "<bold>Miglioramenti nell'editing delle differenze</bold>: Configurazione per profilo e migliore normalizzazione delle stringhe per meno errori",
-		"feature3": "<bold>Miglioramenti dei checkpoint</bold>: Checkpoint più veloci e affidabili",
+		"feature1": "<bold>Gemini 2.5 Flash Thinking</bold>: Ora puoi utilizzare la variante thinking di Gemini 2.5 Flash e specificare un budget di token per thinking",
+		"feature2": "<bold>Miglioramenti dell'interfaccia</bold>: L'intestazione delle attività, la vista chat, l'anteprima della cronologia e la vista di benvenuto sono stati migliorati visivamente",
+		"feature3": "<bold>Correzioni di bug</bold>: Editing delle differenze più affidabile e altro",
 		"hideButton": "Nascondi annuncio",
 		"detailsDiscussLinks": "Ottieni maggiori dettagli e partecipa alle discussioni su <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},
