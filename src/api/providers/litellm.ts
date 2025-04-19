@@ -71,9 +71,37 @@ export class LiteLlmHandler implements ApiHandler {
 			temperature = undefined // Thinking mode doesn't support temperature
 		}
 
+		// Define cache control object if prompt caching is enabled
+		const cacheControl = this.options.liteLlmUsePromptCache ? { cache_control: { type: "ephemeral" } } : undefined
+
+		// Add cache_control to system message if enabled
+		const enhancedSystemMessage = {
+			...systemMessage,
+			...(cacheControl && cacheControl),
+		}
+
+		// Find the last two user messages to apply caching
+		const userMsgIndices = formattedMessages.reduce(
+			(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
+			[] as number[],
+		)
+		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+		const secondLastUserMsgIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+		// Apply cache_control to the last two user messages if enabled
+		const enhancedMessages = formattedMessages.map((message, index) => {
+			if ((index === lastUserMsgIndex || index === secondLastUserMsgIndex) && cacheControl) {
+				return {
+					...message,
+					...cacheControl,
+				}
+			}
+			return message
+		})
+
 		const stream = await this.client.chat.completions.create({
 			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
-			messages: [systemMessage, ...formattedMessages],
+			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
 			stream: true,
 			stream_options: { include_usage: true },
@@ -111,10 +139,27 @@ export class LiteLlmHandler implements ApiHandler {
 			if (chunk.usage) {
 				const totalCost =
 					(inputCost * chunk.usage.prompt_tokens) / 1e6 + (outputCost * chunk.usage.completion_tokens) / 1e6
+
+				// Extract cache-related information if available
+				// Need to use type assertion since these properties are not in the standard OpenAI types
+				const usage = chunk.usage as {
+					prompt_tokens: number
+					completion_tokens: number
+					cache_creation_input_tokens?: number
+					prompt_cache_miss_tokens?: number
+					cache_read_input_tokens?: number
+					prompt_cache_hit_tokens?: number
+				}
+
+				const cacheWriteTokens = usage.cache_creation_input_tokens || usage.prompt_cache_miss_tokens || 0
+				const cacheReadTokens = usage.cache_read_input_tokens || usage.prompt_cache_hit_tokens || 0
+
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
+					inputTokens: usage.prompt_tokens || 0,
+					outputTokens: usage.completion_tokens || 0,
+					cacheWriteTokens: cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
+					cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : undefined,
 					totalCost,
 				}
 			}

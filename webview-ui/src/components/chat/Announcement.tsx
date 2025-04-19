@@ -29,7 +29,7 @@ const linkContainerStyle: CSSProperties = { margin: "0" }
 const linkStyle: CSSProperties = { display: "inline" }
 
 /*
-You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
+You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with what's in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
@@ -43,23 +43,38 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Add to Cline:</b> Right-click selected text in any file or terminal to quickly add context to your current
-					task! Plus, when you see a lightbulb icon, select 'Fix with Cline' to have Cline fix errors in your code.
+					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
 				</li>
 				<li>
-					<b>Billing Dashboard:</b> Track your remaining credits and transaction history right in the extension with a{" "}
-					<span className="codicon codicon-account" style={accountIconStyle}></span> Cline account!
+					<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files to plug
+					and play specific rules for the task
 				</li>
 				<li>
-					<b>Faster Inference:</b> Cline/OpenRouter users can sort underlying providers used by throughput, price, and
-					latency. Sorting by throughput will output faster generations (at a higher cost).
+					<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a new task
+					(more coming soon!)
 				</li>
 				<li>
-					<b>Enhanced MCP Support:</b> Dynamic image loading with GIF support, and a new delete button to clean up
-					failed servers.
+					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore
+					your project when the message was sent!
 				</li>
 			</ul>
-			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
+			<ul style={ulStyle}>
+				<li>
+					<b>Model Favorites:</b> You can now mark your favorite models when using Cline & OpenRouter providers for
+					quick access!
+				</li>
+				<li>
+					<b>Faster Diff Editing:</b> Improved animation performance for large files, plus a new indicator in chat
+					showing the number of edits Cline makes.
+				</li>
+				<li>
+					<b>New Auto-Approve Options:</b> Turn off Cline's ability to read and edit files outside your workspace.
+				</li>
+			</ul>
+			{/*
+			// Leave this here for an example of how to structure the announcement
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
 					so I recommend trying them out.

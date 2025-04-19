@@ -1,7 +1,7 @@
 import * as path from "path"
 import * as vscode from "vscode"
-import { getTaskMetadata, saveTaskMetadata } from "../storage/disk"
-import type { FileMetadataEntry, ControllerLike } from "./FileContextTrackerTypes"
+import { getTaskMetadata, saveTaskMetadata } from "../../storage/disk"
+import type { FileMetadataEntry } from "./ContextTrackerTypes"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
@@ -16,27 +16,17 @@ import type { FileMetadataEntry, ControllerLike } from "./FileContextTrackerType
 // If the full contents of a file are pass to Cline via a tool, mention, or edit, the file is marked as active.
 // If a file is modified outside of Cline, we detect and track this change to prevent stale context.
 export class FileContextTracker {
+	private context: vscode.ExtensionContext
 	readonly taskId: string
-	private controllerRef: WeakRef<ControllerLike>
 
 	// File tracking and watching
 	private fileWatchers = new Map<string, vscode.FileSystemWatcher>()
 	private recentlyModifiedFiles = new Set<string>()
 	private recentlyEditedByCline = new Set<string>()
 
-	constructor(controller: ControllerLike, taskId: string) {
-		this.controllerRef = new WeakRef(controller)
+	constructor(context: vscode.ExtensionContext, taskId: string) {
+		this.context = context
 		this.taskId = taskId
-	}
-
-	// While a task is ref'd by a controller, it will always have access to the extension context
-	// This error is thrown if the controller derefs the task after e.g., aborting the task
-	private context(): vscode.ExtensionContext {
-		const context = this.controllerRef.deref()?.context
-		if (!context) {
-			throw new Error("Unable to access extension context")
-		}
-		return context
 	}
 
 	// Gets the current working directory or returns undefined if it cannot be determined
@@ -89,9 +79,8 @@ export class FileContextTracker {
 				return
 			}
 
-			const context = this.context()
 			// Add file to metadata
-			await this.addFileToFileContextTracker(context, this.taskId, filePath, operation)
+			await this.addFileToFileContextTracker(this.context, this.taskId, filePath, operation)
 
 			// Set up file watcher for this file
 			await this.setupFileWatcher(filePath)

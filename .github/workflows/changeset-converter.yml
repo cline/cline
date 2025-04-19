@@ -2,6 +2,7 @@ name: Changeset Converter
 run-name: Changeset Conversion
 
 on:
+    workflow_dispatch:
     pull_request:
         types: [closed]
 
@@ -13,16 +14,36 @@ env:
 jobs:
     # Job 1: Create version bump PR when changesets are merged to main
     changeset-pr-version-bump:
-        if: >
-            github.event_name == 'pull_request' &&
-            github.event.pull_request.merged == true &&
-            github.event.pull_request.base.ref == 'main' &&
-            github.actor != 'github-actions'
+        if: |
+            github.event_name == 'workflow_dispatch' ||
+            (
+                github.event_name == 'pull_request' &&
+                github.event.pull_request.merged == true &&
+                github.event.pull_request.base.ref == 'main' &&
+                github.actor != 'github-actions'
+            )
         runs-on: ubuntu-latest
         permissions:
             contents: write
             pull-requests: write
         steps:
+            - name: Check user for team affiliation
+              id: team_check
+              if: github.event_name == 'workflow_dispatch'
+              uses: morfien101/actions-authorized-user@4a3cfbf0bcb3cafe4a71710a278920c5d94bb38b
+              with:
+                  username: ${{ github.actor }}
+                  team: "deployer"
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Check if user is authorized
+              if: github.event_name == 'workflow_dispatch'
+              run: |
+                  if [ "${{ steps.team_check.outputs.authorized }}" != "true" ]; then
+                      echo "User is not authorized to run this workflow."
+                      exit 1
+                  fi
+
             - name: Git Checkout
               uses: actions/checkout@v4
               with:

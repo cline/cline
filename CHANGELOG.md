@@ -1,11 +1,85 @@
 # Changelog
 
+## [3.13.1]
+
+-   Fix bug where task cancellation during thinking stream would result in error state
+
+## [3.13.0]
+
+-   Add Cline rules popover under the chat field, allowing you to easily add, enable & disable workspace level or global rule files
+-   Add new slash command menu letting you type “/“ to do quick actions like creating new tasks
+-   Add ability to edit past messages, with options to restore your workspace back to that point
+-   Allow sending a message when selecting an option provided by the question or plan tool
+-   Add command to jump to Cline's chat input
+-   Add support for OpenAI o3 & 4o-mini (Thanks @PeterDaveHello and @arafatkatze!)
+-   Add baseURL option for Google Gemini provider (Thanks @owengo and @olivierhub!)
+-   Add support for Azure's DeepSeek model. (Thanks @yt3trees!)
+-   Add ability for models that support it to receive image responses from MCP servers (Thanks @rikaaa0928!)
+-   Improve search and replace diff editing by making it more flexible with models that fail to follow structured output instructions. (Thanks @chi-cat!)
+-   Add detection of Ctrl+C termination in terminal, improving output reading issues
+-   Fix issue where some commands with large output would cause UI to freeze
+-   Fix token usage tracking issues with vertex provider (Thanks @mzsima!)
+-   Fix issue with xAI reasoning content not being parsed (Thanks @mrubens!)
+
+## [3.12.3]
+
+-   Add copy button to MermaidBlock component (Thanks @cacosub7!)
+-   Add the ability to fetch from global cline rules files
+-   Add icon to indicate when a file outside of the users workspace is edited
+
+## [3.12.2]
+
+-   Add gpt-4.1
+
+## [3.12.1]
+
+-   Use visual checkpoint indicator to make it clear when checkpoints are created
+-   Big shoutout to @samuel871211 for numerous code quality improvements, refactoring contributions, and webview performance improvements!
+-   Use improved context manager
+
+## [3.12.0]
+
+-   Add favorite toggles for models when using the Cline & OpenRouter providers
+-   Add auto-approve options for edits/reads outside of the workspace
+-   Improve diff editing animation for large files
+-   Add indicator showing number of diff edits when Cline edits a file
+-   Add streaming support and reasoning effort option to xAI's Grok 3 Mini
+-   Add settings button to MCP popover to easily modify installed servers
+-   Fix bug where browser tool actions would show unparsed results in the chat view
+-   Fix issue with new checkpoints popover hiding too quickly
+-   Fix duplicate checkpoints bug
+-   Improve Ollama provider with retry mechanism, timeout handling, and improved error handling (thanks suvarchal!)
+
+## [3.11.0]
+
+-   Redesign checkpoint UI to declutter chat view by using a subtle indicator line that expands to a popover on hover, with a new date indicator for when it was created
+-   Add support for xAI's provider's Grok 3 models
+-   Add more robust error tracking for users opted in to telemetry (thank you for helping us make Cline better!)
+
+## [3.10.1]
+
+-   Add CMD+' keyboard shortcut to add selected text to Cline
+-   Cline now auto focuses the text field when using 'Add to Cline' shortcut
+-   Add new 'Create New Task' tool to let Cline start a new task autonomously!
+-   Fix Mermaid diagram issues
+-   Fix Gemini provider cost calculation to take new tiered pricing structure into account
+
+## [3.10.0]
+
+-   Add setting to let browser tool use local Chrome via remote debugging, enabling session-based browsing. Replaces sessionless Chromium, unlocking debugging and productivity workflows tied to your real browser state.
+-   Add new auto-approve option to approve _ALL_ commands (use at your own risk!)
+-   Add modal in the chat area to more easily enable or disable MCP servers
+-   Add drag and drop of file/folders into cline chat (Thanks eljapi!)
+-   Add prompt caching for LiteLLM + Claude (Thanks sammcj!)
+-   Add Improved context management
+-   Fix MCP auto approve toggle issues being out of sync with settings
+
 ## [3.9.2]
 
 -   Add recommended models for Cline provider
 -   Add ability to detect when user edits files manually so Cline knows to re-read, leading to reduced diff edit errors
 -   Add improvements to file mention searching for faster searching
--   Add scoring logic to file mentions to sort and exlcude results based on relevance
+-   Add scoring logic to file mentions to sort and exclude results based on relevance
 -   Add Support for Bytedance Doubao (Thanks Tunixer!)
 -   Fix to prevent duplicate BOM (Thanks bamps53!)
 
@@ -483,7 +557,7 @@
 -   Adds "Always allow read-only operations" setting to let Claude read files and view directories without needing approval (off by default)
 -   Implement sliding window context management to keep tasks going past 200k tokens
 -   Adds Google Cloud Vertex AI support and updates Claude 3.5 Sonnet max output to 8192 tokens for all providers.
--   Improves system prompt to gaurd against lazy edits (less "//rest of code here")
+-   Improves system prompt to guard against lazy edits (less "//rest of code here")
 
 ## [1.3.0]
 
