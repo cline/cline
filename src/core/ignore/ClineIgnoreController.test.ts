@@ -242,4 +242,16 @@ describe("ClineIgnoreController", () => {
 			result.should.be.true()
 		})
 	})
+
+	describe("Symlink Handling", () => {
+		it("should handle symlink loops gracefully", async () => {
+			const symlinkDir = path.join(tempDir, "symlinkDir")
+			const targetDir = path.join(tempDir, "targetDir")
+			await fs.mkdir(targetDir)
+			await fs.symlink(targetDir, symlinkDir)
+
+			const result = controller.validateAccess(symlinkDir)
+			result.should.be.true()
+		})
+	})
 })

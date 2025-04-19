@@ -388,6 +388,7 @@ class CheckpointTracker {
 			ignore: [".git"], // Ignore root level .git
 			dot: true,
 			markDirectories: false,
+			deep: 10,
 		})
 
 		// For each nested .git directory, rename it based on operation
