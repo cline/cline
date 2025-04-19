@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.13.2] - 2025-04-18
+
+- Allow custom URLs for Gemini provider
+
 ## [3.13.1] - 2025-04-18
 
 - Support Gemini 2.5 Flash thinking mode (thanks @monotykamary)
