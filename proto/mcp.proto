@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package cline;
+
+import "common.proto";
+
+service McpService {
+  rpc ToggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
+}
+
+message McpTool {
+  string name = 1;
+  string description = 2;
+  string input_schema = 3;
+  bool auto_approve = 4;
+}
+
+message McpResource {
+  string uri = 1;
+  string name = 2;
+  string mime_type = 3;
+  string description = 4;
+}
+
+message McpResourceTemplate {
+  string uri_template = 1;
+  string name = 2;
+  string mime_type = 3;
+  string description = 4;
+}
+
+message McpServer {
+  string name = 1;
+  string config = 2;
+  string status = 3;
+  string error = 4;
+  repeated McpTool tools = 5;
+  repeated McpResource resources = 6;
+  repeated McpResourceTemplate resource_templates = 7;
+  bool disabled = 8;
+  int32 timeout = 9;
+}
+
+message ToggleMcpServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  bool disabled = 3;
+}
+
+message McpServers {
+  repeated McpServer mcp_servers = 1;
+}
+
+
