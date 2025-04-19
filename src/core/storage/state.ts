@@ -216,8 +216,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
 
-	const o3MiniReasoningEffort = vscode.workspace.getConfiguration("cline.modelSettings.o3Mini").get("reasoningEffort", "medium")
-
 	const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
 	// Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
@@ -285,7 +283,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			openRouterModelInfo,
 			openRouterProviderSorting,
 			vsCodeLmModelSelector,
-			o3MiniReasoningEffort,
 			thinkingBudgetTokens,
 			reasoningEffort,
 			liteLlmBaseUrl,

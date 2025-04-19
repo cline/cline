@@ -1643,7 +1643,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
-						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
+						{selectedModelInfo.supportsReasoningEffort && (
 							<>
 								<VSCodeCheckbox
 									style={{ marginTop: 0 }}
@@ -1678,6 +1678,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 													})
 												}}>
 												<VSCodeOption value="low">low</VSCodeOption>
+												<VSCodeOption value="medium">medium</VSCodeOption>
 												<VSCodeOption value="high">high</VSCodeOption>
 											</VSCodeDropdown>
 										</DropdownContainer>
