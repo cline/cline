@@ -28,22 +28,20 @@ export class GrpcHandler {
 		request_id: string
 	}> {
 		try {
-			// Handle BrowserService requests
-			if (service === "cline.BrowserService") {
-				return {
-					message: await handleBrowserServiceRequest(this.controller, method, message),
-					request_id: requestId,
-				}
+			switch (service) {
+				case "cline.BrowserService":
+					return {
+						message: await handleBrowserServiceRequest(this.controller, method, message),
+						request_id: requestId,
+					}
+				case "cline.CheckpointsService":
+					return {
+						message: await handleCheckpointsDiffServiceRequest(this.controller, method, message),
+						request_id: requestId,
+					}
+				default:
+					throw new Error(`Unknown service: ${service}`)
 			}
-
-			if (service === "cline.CheckpointsService") {
-				return {
-					message: await handleCheckpointsDiffServiceRequest(this.controller, method, message),
-					request_id: requestId,
-				}
-			}
-
-			throw new Error(`Unknown service: ${service}`)
 		} catch (error) {
 			return {
 				error: error instanceof Error ? error.message : String(error),

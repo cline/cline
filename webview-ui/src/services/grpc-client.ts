@@ -96,5 +96,4 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
 const CheckpointsServiceClient = createGrpcClient(CheckpointsServiceDefinition)
 
-export { BrowserServiceClient }
-export { CheckpointsServiceClient }
+export { BrowserServiceClient, CheckpointsServiceClient }
