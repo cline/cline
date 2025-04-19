@@ -71,7 +71,7 @@ jobs:
 
             # Build the extension before running tests
             - name: Build Extension
-              run: npm run compile
+              run: npm run pretest
 
             # Disabling due to compatability with test framework and ESM modules
             # - name: Unit Tests
