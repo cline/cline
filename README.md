@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logos/Cline_Logo-complete_white.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/logos/Cline_Logo-complete_black.svg">
-    <img alt="Cline Logo" src="assets/logos/Cline_Logo-complete_black.svg" width="60%">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logos/Cline_Logo-complete_white.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logos/Cline_Logo-complete_black.png">
+    <img alt="Cline Logo" src="assets/logos/Cline_Logo-complete_black.png" width="60%">
   </picture>
 </p>
 
