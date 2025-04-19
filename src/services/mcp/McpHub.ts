@@ -64,6 +64,7 @@ const StdioConfigSchema = BaseConfigSchema.extend({
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
+	cwd: z.string().optional(),
 }).transform((config) => ({
 	...config,
 	transportType: "stdio" as const,
@@ -204,14 +205,22 @@ export class McpHub {
 			if (config.transportType === "sse") {
 				transport = new SSEClientTransport(new URL(config.url), {})
 			} else {
+				// resolve ${workspaceFolder}
+				const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd()
+				const expand = (s: string) => s.replace(/\$\{workspaceFolder\}/g, workspaceRoot)
+				const cmd = expand(config.command)
+				const args = (config.args || []).map(expand)
+				const env = Object.fromEntries(Object.entries(config.env || {}).map(([k, v]) => [k, expand(v)]))
+				const cwd = config.cwd ? expand(config.cwd) : workspaceRoot
+
 				transport = new StdioClientTransport({
-					command: config.command,
-					args: config.args,
+					command: cmd,
+					args,
 					env: {
-						...config.env,
+						...env,
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
 					},
+					cwd,
 					stderr: "pipe", // necessary for stderr to be available
 				})
 			}
@@ -255,7 +264,7 @@ export class McpHub {
 					stderrStream.on("data", async (data: Buffer) => {
 						const output = data.toString()
 						// Check if output contains INFO level log
-						const isInfoLog = !/\berror\b/i.test(output)
+						const isInfoLog = /^\s*INFO\b/.test(output)
 
 						if (isInfoLog) {
 							// Log normal informational messages
