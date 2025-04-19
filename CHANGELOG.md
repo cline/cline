@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.13.1]
+
+-   Fix bug where task cancellation during thinking stream would result in error state
+
 ## [3.13.0]
 
 -   Add Cline rules popover under the chat field, allowing you to easily add, enable & disable workspace level or global rule files
@@ -16,7 +20,6 @@
 -   Fix issue where some commands with large output would cause UI to freeze
 -   Fix token usage tracking issues with vertex provider (Thanks @mzsima!)
 -   Fix issue with xAI reasoning content not being parsed (Thanks @mrubens!)
-
 
 ## [3.12.3]
 
