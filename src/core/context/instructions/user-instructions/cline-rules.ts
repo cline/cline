@@ -79,7 +79,17 @@ const getClineRulesFilesTotalContent = async (rulesFilePaths: string[], basePath
 				return null
 			}
 
-			return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
+			const content = await fs.readFile(ruleFilePath, "utf8")
+
+			// Check for RTF files which have weird formatting that outputs a bunch of mumbo jumbo into the context
+			if (content.trimStart().startsWith("{\\rtf")) {
+				console.warn(`Skipping RTF format file: ${ruleFilePath}`)
+				return null
+			}
+
+			const trimmedContent = content.trim()
+
+			return `${ruleFilePathRelative}\n${trimmedContent}`
 		}),
 	).then((contents) => contents.filter(Boolean).join("\n\n"))
 	return ruleFilesTotalContent
