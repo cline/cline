@@ -1,10 +1,10 @@
 import { memo, useCallback, useState } from "react"
-import { anthropicModels, ApiConfiguration } from "@shared/api"
+import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 
 // Constants
-const MIN_VALID_TOKENS = 1024
+const DEFAULT_MIN_VALID_TOKENS = 1024
 const MAX_PERCENTAGE = 0.8
 const THUMB_SIZE = 16
 
@@ -82,11 +82,24 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 interface ThinkingBudgetSliderProps {
 	apiConfiguration: ApiConfiguration | undefined
 	setApiConfiguration: (apiConfiguration: ApiConfiguration) => void
+	maxBudget?: number
 }
 
-const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
-	const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
-	const maxSliderValue = Math.floor(maxTokens * MAX_PERCENTAGE)
+const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget }: ThinkingBudgetSliderProps) => {
+	const defaultMaxTokens =
+		apiConfiguration?.apiProvider === "gemini"
+			? geminiModels[geminiDefaultModelId].maxTokens
+			: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
+
+	// Calculate the maximum value, applying the percentage cap only for Anthropic
+	const computedMax = (() => {
+		const baseMax = maxBudget !== undefined ? maxBudget : defaultMaxTokens
+		if (apiConfiguration?.apiProvider === "anthropic") {
+			return Math.floor(baseMax * MAX_PERCENTAGE)
+		}
+		return baseMax
+	})()
+
 	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
 
 	// Add local state for the slider value
@@ -106,7 +119,8 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 
 	const handleToggleChange = (event: any) => {
 		const isChecked = (event.target as HTMLInputElement).checked
-		const newValue = isChecked ? MIN_VALID_TOKENS : 0
+		// Always use DEFAULT_MIN_VALID_TOKENS when enabling
+		const newValue = isChecked ? DEFAULT_MIN_VALID_TOKENS : 0
 		setLocalValue(newValue)
 		setApiConfiguration({
 			...apiConfiguration,
@@ -130,19 +144,19 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 					<RangeInput
 						id="thinking-budget-slider"
 						type="range"
-						min={MIN_VALID_TOKENS}
-						max={maxSliderValue}
-						step={100}
+						min={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
+						max={computedMax}
+						step={1}
 						value={localValue}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
 						onTouchEnd={handleSliderComplete}
 						$value={localValue}
-						$min={MIN_VALID_TOKENS}
-						$max={maxSliderValue}
+						$min={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
+						$max={computedMax}
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
-						aria-valuemin={MIN_VALID_TOKENS}
-						aria-valuemax={maxSliderValue}
+						aria-valuemin={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
+						aria-valuemax={computedMax}
 						aria-valuenow={localValue}
 						aria-describedby="thinking-budget-description"
 					/>

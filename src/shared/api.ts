@@ -104,6 +104,11 @@ export interface ModelInfo {
 	inputPriceTiers?: PriceTier[] // Add for tiered input pricing
 	outputPrice?: number // Keep for non-tiered output models
 	outputPriceTiers?: PriceTier[] // Add for tiered output pricing
+	thinkingConfig?: {
+		maxBudget?: number // Max allowed thinking budget tokens
+		outputPrice?: number // Output price per million tokens when budget > 0
+		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
+	}
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
@@ -409,6 +414,18 @@ export const vertexModels = {
 			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
 		],
 	},
+	"gemini-2.5-flash-preview-04-17": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15, // $0.15/million input tokens
+		outputPrice: 0.6, // $0.60/million output tokens (standard)
+		thinkingConfig: {
+			maxBudget: 24576, // Max thinking budget
+			outputPrice: 3.5, // $3.50/million output tokens (with thinking budget > 0)
+		},
+	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
 		contextWindow: 1_048_576,
@@ -504,6 +521,18 @@ export const geminiModels = {
 			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
 			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
 		],
+	},
+	"gemini-2.5-flash-preview-04-17": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15, // $0.15/million input tokens
+		outputPrice: 0.6, // $0.60/million output tokens (standard)
+		thinkingConfig: {
+			maxBudget: 24576, // Max thinking budget
+			outputPrice: 3.5, // $3.50/million output tokens (with thinking budget > 0)
+		},
 	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,

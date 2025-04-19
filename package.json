@@ -361,7 +361,7 @@
 		"@aws-sdk/client-bedrock-runtime": "^3.758.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@google-cloud/vertexai": "^1.9.3",
-		"@google/generative-ai": "^0.18.0",
+		"@google/genai": "^0.9.0",
 		"@grpc/grpc-js": "^1.9.15",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.7.0",
