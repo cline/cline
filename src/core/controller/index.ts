@@ -311,41 +311,6 @@ export class Controller {
 					await this.postStateToWebview()
 				}
 				break
-			case "discoverBrowser":
-				try {
-					const discoveredHost = await discoverChromeInstances()
-
-					if (discoveredHost) {
-						// Don't update the remoteBrowserHost state when auto-discovering
-						// This way we don't override the user's preference
-
-						// Test the connection to get the endpoint
-						const { browserSettings } = await getAllExtensionState(this.context)
-						const browserSession = new BrowserSession(this.context, browserSettings)
-						const result = await browserSession.testConnection(discoveredHost)
-
-						// Send the result back to the webview
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: true,
-							text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
-							endpoint: result.endpoint,
-						})
-					} else {
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: false,
-							text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
-						})
-					}
-				} catch (error) {
-					await this.postMessageToWebview({
-						type: "browserConnectionResult",
-						success: false,
-						text: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
-					})
-				}
-				break
 			case "togglePlanActMode":
 				if (message.chatSettings) {
 					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
