@@ -2,17 +2,12 @@
 
 ## 3.13.0
 
-### Minor Changes
-
 -   32c70e5: new slash command menu, slash command to trigger new_task
 -   c8b234a: Add a delete button to the Cline Rules modal to delete rule files
 -   fb3105f: Added chunking to terminal outputs
 -   487081f: Add a row to the Cline Rules modal to create a new rule file
 -   180ebda: Add an edit button to the Cline Rules toggle modal to open rule files
 -   450583c: Add modal UI for toggling Cline Rules
-
-### Patch Changes
-
 -   1022057: Removed symlink handling in isLocatedInWorkspace()
 -   022fdf4: Detect Ctrl+C termination of terminal activity on long running commands
 -   3b0326e: remove comma from xml
