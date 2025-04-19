@@ -30,7 +30,7 @@ graph TB
             CheckpointSystem[Git-based Checkpoints]
         end
 
-        subgraph API Providers
+        subgraph apiProviders[API Providers]
             AnthropicAPI[Anthropic]
             OpenRouterAPI[OpenRouter]
             BedrockAPI[AWS Bedrock]
@@ -51,7 +51,7 @@ graph TB
     Task --> SecretsStorage
     Task --> TaskStorage
     Task --> CheckpointSystem
-    Task --> |API Requests| API Providers
+    Task --> |API Requests| apiProviders
     McpHub --> |Connects to| ExternalMcpServers
     Task --> |Uses| McpHub
 
@@ -67,7 +67,7 @@ graph TB
     style ExtStateContext fill:#bbf,stroke:#333,stroke-width:2px
     style WebviewProvider fill:#bfb,stroke:#333,stroke-width:2px
     style McpHub fill:#bfb,stroke:#333,stroke-width:2px
-    style API Providers fill:#fdb,stroke:#333,stroke-width:2px
+    style apiProviders fill:#fdb,stroke:#333,stroke-width:2px
 ```
 
 ## Definitions 
