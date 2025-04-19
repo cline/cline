@@ -17,6 +17,33 @@ export interface EmptyRequest {
 
 export interface Empty {}
 
+export interface StringRequest {
+	metadata?: Metadata | undefined
+	value: string
+}
+
+export interface String {
+	value: string
+}
+
+export interface Int64Request {
+	metadata?: Metadata | undefined
+	value: number
+}
+
+export interface Int64 {
+	value: number
+}
+
+export interface BytesRequest {
+	metadata?: Metadata | undefined
+	value: Buffer
+}
+
+export interface Bytes {
+	value: Buffer
+}
+
 function createBaseMetadata(): Metadata {
 	return {}
 }
@@ -162,6 +189,419 @@ export const Empty: MessageFns<Empty> = {
 	},
 }
 
+function createBaseStringRequest(): StringRequest {
+	return { metadata: undefined, value: "" }
+}
+
+export const StringRequest: MessageFns<StringRequest> = {
+	encode(message: StringRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.value !== "") {
+			writer.uint32(18).string(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): StringRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseStringRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.value = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): StringRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			value: isSet(object.value) ? globalThis.String(object.value) : "",
+		}
+	},
+
+	toJSON(message: StringRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.value !== "") {
+			obj.value = message.value
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<StringRequest>, I>>(base?: I): StringRequest {
+		return StringRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<StringRequest>, I>>(object: I): StringRequest {
+		const message = createBaseStringRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.value = object.value ?? ""
+		return message
+	},
+}
+
+function createBaseString(): String {
+	return { value: "" }
+}
+
+export const String: MessageFns<String> = {
+	encode(message: String, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.value !== "") {
+			writer.uint32(10).string(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): String {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseString()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.value = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): String {
+		return { value: isSet(object.value) ? globalThis.String(object.value) : "" }
+	},
+
+	toJSON(message: String): unknown {
+		const obj: any = {}
+		if (message.value !== "") {
+			obj.value = message.value
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<String>, I>>(base?: I): String {
+		return String.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<String>, I>>(object: I): String {
+		const message = createBaseString()
+		message.value = object.value ?? ""
+		return message
+	},
+}
+
+function createBaseInt64Request(): Int64Request {
+	return { metadata: undefined, value: 0 }
+}
+
+export const Int64Request: MessageFns<Int64Request> = {
+	encode(message: Int64Request, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.value !== 0) {
+			writer.uint32(16).int64(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): Int64Request {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseInt64Request()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.value = longToNumber(reader.int64())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): Int64Request {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			value: isSet(object.value) ? globalThis.Number(object.value) : 0,
+		}
+	},
+
+	toJSON(message: Int64Request): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.value !== 0) {
+			obj.value = Math.round(message.value)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<Int64Request>, I>>(base?: I): Int64Request {
+		return Int64Request.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<Int64Request>, I>>(object: I): Int64Request {
+		const message = createBaseInt64Request()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.value = object.value ?? 0
+		return message
+	},
+}
+
+function createBaseInt64(): Int64 {
+	return { value: 0 }
+}
+
+export const Int64: MessageFns<Int64> = {
+	encode(message: Int64, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.value !== 0) {
+			writer.uint32(8).int64(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): Int64 {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseInt64()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.value = longToNumber(reader.int64())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): Int64 {
+		return { value: isSet(object.value) ? globalThis.Number(object.value) : 0 }
+	},
+
+	toJSON(message: Int64): unknown {
+		const obj: any = {}
+		if (message.value !== 0) {
+			obj.value = Math.round(message.value)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<Int64>, I>>(base?: I): Int64 {
+		return Int64.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<Int64>, I>>(object: I): Int64 {
+		const message = createBaseInt64()
+		message.value = object.value ?? 0
+		return message
+	},
+}
+
+function createBaseBytesRequest(): BytesRequest {
+	return { metadata: undefined, value: Buffer.alloc(0) }
+}
+
+export const BytesRequest: MessageFns<BytesRequest> = {
+	encode(message: BytesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.value.length !== 0) {
+			writer.uint32(18).bytes(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): BytesRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseBytesRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.value = Buffer.from(reader.bytes())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): BytesRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			value: isSet(object.value) ? Buffer.from(bytesFromBase64(object.value)) : Buffer.alloc(0),
+		}
+	},
+
+	toJSON(message: BytesRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.value.length !== 0) {
+			obj.value = base64FromBytes(message.value)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<BytesRequest>, I>>(base?: I): BytesRequest {
+		return BytesRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<BytesRequest>, I>>(object: I): BytesRequest {
+		const message = createBaseBytesRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.value = object.value ?? Buffer.alloc(0)
+		return message
+	},
+}
+
+function createBaseBytes(): Bytes {
+	return { value: Buffer.alloc(0) }
+}
+
+export const Bytes: MessageFns<Bytes> = {
+	encode(message: Bytes, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.value.length !== 0) {
+			writer.uint32(10).bytes(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): Bytes {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseBytes()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.value = Buffer.from(reader.bytes())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): Bytes {
+		return { value: isSet(object.value) ? Buffer.from(bytesFromBase64(object.value)) : Buffer.alloc(0) }
+	},
+
+	toJSON(message: Bytes): unknown {
+		const obj: any = {}
+		if (message.value.length !== 0) {
+			obj.value = base64FromBytes(message.value)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<Bytes>, I>>(base?: I): Bytes {
+		return Bytes.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<Bytes>, I>>(object: I): Bytes {
+		const message = createBaseBytes()
+		message.value = object.value ?? Buffer.alloc(0)
+		return message
+	},
+}
+
+function bytesFromBase64(b64: string): Uint8Array {
+	return Uint8Array.from(globalThis.Buffer.from(b64, "base64"))
+}
+
+function base64FromBytes(arr: Uint8Array): string {
+	return globalThis.Buffer.from(arr).toString("base64")
+}
+
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
 
 export type DeepPartial<T> = T extends Builtin
@@ -178,6 +618,17 @@ type KeysOfUnion<T> = T extends T ? keyof T : never
 export type Exact<P, I extends P> = P extends Builtin
 	? P
 	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+
+function longToNumber(int64: { toString(): string }): number {
+	const num = globalThis.Number(int64.toString())
+	if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+		throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER")
+	}
+	if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+		throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER")
+	}
+	return num
+}
 
 function isSet(value: any): boolean {
 	return value !== null && value !== undefined

@@ -18,6 +18,7 @@
 
 </div>
 
+
 <p align="center">
   <img src="assets/gifs/cline-building.gif" width="100%" alt="Cline AI agent building a feature" />
 </p>

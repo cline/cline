@@ -27,19 +27,20 @@ export interface WebviewMessage {
 		| "openImage"
 		| "openInBrowser"
 		| "openFile"
+		| "createRuleFile"
 		| "openMention"
 		| "cancelTask"
+		| "showChatView"
 		| "refreshOpenRouterModels"
 		| "refreshRequestyModels"
 		| "refreshOpenAiModels"
+		| "refreshClineRules"
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
 		| "discoverBrowser"
-		| "testBrowserConnection"
-		| "browserConnectionResult"
 		| "browserRelaunchResult"
 		| "togglePlanActMode"
 		| "checkpointDiff"
@@ -81,6 +82,9 @@ export interface WebviewMessage {
 		| "searchFiles"
 		| "toggleFavoriteModel"
 		| "grpc_request"
+		| "toggleClineRule"
+		| "deleteClineRule"
+
 	// | "relaunchChromeDebugMode"
 	text?: string
 	uris?: string[] // Used for getRelativePaths
@@ -123,6 +127,13 @@ export interface WebviewMessage {
 		message: any // JSON serialized protobuf message
 		request_id: string // For correlating requests and responses
 	}
+	// For cline rules
+	isGlobal?: boolean
+	rulePath?: string
+	enabled?: boolean
+	filename?: string
+
+	offset?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

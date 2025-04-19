@@ -74,7 +74,7 @@ const ServersToggleModal: React.FC = () => {
 					/>
 
 					<div className="flex justify-between items-center mb-2.5">
-						<div className="m-0">MCP Servers</div>
+						<div className="m-0 text-base font-semibold">MCP Servers</div>
 						<VSCodeButton
 							appearance="icon"
 							onClick={() => {

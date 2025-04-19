@@ -289,7 +289,7 @@ export class DiffViewProvider {
 				updatedDocument.positionAt(updatedDocument.getText().length),
 			)
 			edit.replace(updatedDocument.uri, fullRange, this.originalContent ?? "")
-			// Apply the edit and save, since contents shouldnt have changed this wont show in local history unless of course the user made changes and saved during the edit
+			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of course the user made changes and saved during the edit
 			await vscode.workspace.applyEdit(edit)
 			await updatedDocument.save()
 			console.log(`File ${absolutePath} has been reverted to its original content.`)
