@@ -93,6 +93,7 @@ async function generateMethodRegistrations() {
 
 	const serviceDirs = [
 		path.join(ROOT_DIR, "src", "core", "controller", "browser"),
+		path.join(ROOT_DIR, "src", "core", "controller", "checkpoints"),
 		// Add more service directories here as needed
 	]
 
