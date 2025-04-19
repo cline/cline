@@ -33,53 +33,44 @@ interface ModelPickerProps {
 	handleInputChange: (field: keyof ApiConfiguration) => (event: any) => void
 }
 
+type ModelList = Record<string, ModelInfo>
+
+type ModelMap = Record<string, ModelList>
+
 const ModelPicker = ({ selectedProvider, selectedModelId, selectedModelInfo, isPopup, handleInputChange }: ModelPickerProps) => {
 	const { apiConfiguration, setApiConfiguration } = useExtensionState()
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
-	const createModelDropdown = () => {
-		let models: Record<string, ModelInfo> = {}
+	const showThinkingBudgetSlider =
+		(selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
+		(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+		(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")
 
-		switch (selectedProvider) {
-			case "anthropic":
-				models = anthropicModels
-				break
-			case "bedrock":
-				models = bedrockModels
-				break
-			case "vertex":
-				models = vertexModels
-				break
-			case "gemini":
-				models = geminiModels
-				break
-			case "openai-native":
-				models = openAiNativeModels
-				break
-			case "deepseek":
-				models = deepSeekModels
-				break
-			case "qwen":
-				models = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
-				break
-			case "doubao":
-				models = doubaoModels
-				break
-			case "mistral":
-				models = mistralModels
-				break
-			case "asksage":
-				models = askSageModels
-				break
-			case "xai":
-				models = xaiModels
-				break
-			case "sambanova":
-				models = sambanovaModels
-				break
-			default:
-				return null
+	const showReasoningEffort = selectedProvider === "xai" && selectedModelId.includes("3-mini")
+
+	const createModelDropdown = () => {
+		let models: ModelList = {}
+
+		const modelMap: ModelMap = {
+			anthropic: anthropicModels,
+			bedrock: bedrockModels,
+			vertex: vertexModels,
+			gemini: geminiModels,
+			"openai-native": openAiNativeModels,
+			deepseek: deepSeekModels,
+			doubao: doubaoModels,
+			mistral: mistralModels,
+			asksage: askSageModels,
+			xai: xaiModels,
+			sambanova: sambanovaModels,
+		}
+
+		// Handle special case for qwen separately
+		if (selectedProvider === "qwen") {
+			models = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
+		} else {
+			models = modelMap[selectedProvider] || {}
 		}
 
 		return (
@@ -104,13 +95,6 @@ const ModelPicker = ({ selectedProvider, selectedModelId, selectedModelInfo, isP
 			</VSCodeDropdown>
 		)
 	}
-
-	const showThinkingBudgetSlider =
-		(selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
-		(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
-		(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")
-
-	const showReasoningEffort = selectedProvider === "xai" && selectedModelId.includes("3-mini")
 
 	return (
 		<>
