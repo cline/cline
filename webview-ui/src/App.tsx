@@ -6,11 +6,11 @@ import HistoryView from "./components/history/HistoryView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import AccountView from "./components/account/AccountView"
-import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
-import { FirebaseAuthProvider } from "./context/FirebaseAuthContext"
+import { useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { McpViewTab } from "@shared/mcp"
+import { Providers } from "./Providers"
 
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, telemetrySetting, vscMachineId } = useExtensionState()
@@ -119,11 +119,9 @@ const AppContent = () => {
 
 const App = () => {
 	return (
-		<ExtensionStateContextProvider>
-			<FirebaseAuthProvider>
-				<AppContent />
-			</FirebaseAuthProvider>
-		</ExtensionStateContextProvider>
+		<Providers>
+			<AppContent />
+		</Providers>
 	)
 }
 
