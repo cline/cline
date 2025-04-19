@@ -933,6 +933,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					})()}
 
 					<VSCodeCheckbox
+						checked={apiConfiguration?.azureIdentity || false}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setApiConfiguration({
+								...apiConfiguration,
+								azureIdentity: isChecked,
+							})
+						}}>
+						Use Azure Identity authentication
+					</VSCodeCheckbox>
+					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
