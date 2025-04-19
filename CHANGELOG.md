@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.13.0]
+
+-   Add Cline rules popover under the chat field, allowing you to easily add, enable & disable workspace level or global rule files
+-   Add new slash command menu letting you type “/“ to do quick actions like creating new tasks
+-   Add ability to edit past messages, with options to restore your workspace back to that point
+-   Allow sending a message when selecting an option provided by the question or plan tool
+-   Add command to jump to Cline's chat input
+-   Add support for OpenAI o3 & 4o-mini (Thanks @PeterDaveHello and @arafatkatze!)
+-   Add baseURL option for Google Gemini provider (Thanks @owengo and @olivierhub!)
+-   Add support for Azure's DeepSeek model. (Thanks @yt3trees!)
+-   Add ability for models that support it to receive image responses from MCP servers (Thanks @rikaaa0928!)
+-   Improve search and replace diff editing by making it more flexible with models that fail to follow structured output instructions. (Thanks @chi-cat!)
+-   Add detection of Ctrl+C termination in terminal, improving output reading issues
+-   Fix issue where some commands with large output would cause UI to freeze
+-   Fix token usage tracking issues with vertex provider (Thanks @mzsima!)
+-   Fix issue with xAI reasoning content not being parsed (Thanks @mrubens!)
+
+
 ## [3.12.3]
 
 -   Add copy button to MermaidBlock component (Thanks @cacosub7!)
