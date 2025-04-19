@@ -1480,22 +1480,42 @@ export const sambanovaModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-// Add Prem model info
+// Prem
+export type PremModelId = keyof typeof premModels
+export const premDefaultModelId: PremModelId = "claude-3-sonnet"
 export const premModels = {
-	"gpt-4o-mini": {
+	"claude-3-sonnet": {
 		maxTokens: 8192,
-		contextWindow: 32768,
+		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: false,
+		supportsComputerUse: true,
 		supportsPromptCache: true,
-		inputPrice: 0.0015,
-		outputPrice: 0.002,
-		description: "Prem AI model",
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"claude-3-opus": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
+	"claude-3-haiku": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.25,
+		outputPrice: 1.25,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.03,
 	},
 } as const satisfies Record<string, ModelInfo>
-
-export type PremModelId = keyof typeof premModels
-export const premDefaultModelId: PremModelId = "gpt-4o-mini"
 
 // Requesty
 // https://requesty.ai/models
