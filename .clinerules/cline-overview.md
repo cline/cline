@@ -51,9 +51,13 @@ graph TB
     Task --> SecretsStorage
     Task --> TaskStorage
     Task --> CheckpointSystem
-    Task --> |API Requests| API Providers
-    McpHub --> |Connects to| ExternalMcpServers
-    Task --> |Uses| McpHub
+    %% Removed the line causing the error: Task --> | API Requests | API Providers
+    Task --> |API Request| AnthropicAPI
+    Task --> |API Request| OpenRouterAPI
+    Task --> |API Request| BedrockAPI
+    Task --> |API Request| OtherAPIs
+    McpHub --> | Connects to| ExternalMcpServers
+    Task --> | Uses| McpHub
 
     %% Webview Data Flow
     WebviewApp --> ExtStateContext
