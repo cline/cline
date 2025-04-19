@@ -220,7 +220,9 @@ export interface ClineSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "readFunction"
 	path?: string
+	functionName?: string
 	diff?: string
 	content?: string
 	regex?: string
