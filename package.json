@@ -1,6 +1,6 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
+	"name": "claude-arun",
+	"displayName": "Cline-Arun",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
 	"version": "3.13.1",
 	"icon": "assets/icons/icon.png",
@@ -333,6 +333,7 @@
 		"@types/proxyquire": "^1.3.31",
 		"@types/should": "^11.2.0",
 		"@types/sinon": "^17.0.4",
+		"@types/testing-library__jest-dom": "^5.14.9",
 		"@types/turndown": "^5.0.5",
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
@@ -352,7 +353,7 @@
 		"sinon": "^19.0.2",
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
-		"typescript": "^5.4.5"
+		"typescript": "^5.8.3"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.12.4",
