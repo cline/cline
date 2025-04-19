@@ -110,3 +110,21 @@ export const getWorkspacePath = (defaultCwdPath = "") => {
 	}
 	return cwdPath
 }
+
+export const isLocatedInWorkspace = (pathToCheck: string = ""): boolean => {
+	const workspacePath = getWorkspacePath()
+
+	// Handle long paths in Windows
+	if (pathToCheck.startsWith("\\\\?\\") || workspacePath.startsWith("\\\\?\\")) {
+		return pathToCheck.startsWith(workspacePath)
+	}
+
+	// Normalize paths without resolving symlinks
+	const normalizedWorkspace = path.normalize(workspacePath)
+	const normalizedPath = path.normalize(path.resolve(workspacePath, pathToCheck))
+
+	// Use path.relative to check if the path is within the workspace
+	const relativePath = path.relative(normalizedWorkspace, normalizedPath)
+
+	return !relativePath.startsWith("..") && !path.isAbsolute(relativePath)
+}
