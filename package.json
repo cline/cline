@@ -427,7 +427,6 @@
 		"fastest-levenshtein": "^1.0.16",
 		"fzf": "^0.5.2",
 		"get-folder-size": "^5.0.0",
-		"globby": "^14.0.2",
 		"i18next": "^24.2.2",
 		"isbinaryfile": "^5.0.2",
 		"js-tiktoken": "^1.0.19",

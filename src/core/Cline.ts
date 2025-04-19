@@ -1642,7 +1642,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			}
 		}
 
-		// Getting verbose details is an expensive operation, it uses globby to
+		// Getting verbose details is an expensive operation, it uses ripgrep to
 		// top-down build file structure of project which for large projects can
 		// take a few seconds. For the best UX we show a placeholder api_req_started
 		// message with a loading spinner as this happens.
