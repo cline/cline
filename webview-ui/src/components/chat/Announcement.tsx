@@ -46,13 +46,16 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
 				</li>
 				<li>
-					<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files to plug and play specific rules for the task
+					<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files to plug
+					and play specific rules for the task
 				</li>
 				<li>
-					<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a new task (more coming soon!)
+					<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a new task
+					(more coming soon!)
 				</li>
 				<li>
-					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore your project when the message was sent!
+					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore
+					your project when the message was sent!
 				</li>
 			</ul>
 			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
