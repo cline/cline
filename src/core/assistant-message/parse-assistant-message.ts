@@ -123,7 +123,7 @@ export function parseAssistantMessage(assistantMessage: string) {
 		contentBlocks.push(currentToolUse)
 	}
 
-	// Note: it doesnt matter if check for currentToolUse or currentTextContent, only one of them will be defined since only one can be partial at a time
+	// Note: it doesn't matter if check for currentToolUse or currentTextContent, only one of them will be defined since only one can be partial at a time
 	if (currentTextContent) {
 		// stream did not complete text content, add it as partial
 		contentBlocks.push(currentTextContent)

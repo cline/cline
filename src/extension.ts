@@ -426,6 +426,24 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register the focusChatInput command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.focusChatInput", () => {
+			let visibleWebview = WebviewProvider.getVisibleInstance()
+			if (!visibleWebview) {
+				vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				visibleWebview = WebviewProvider.getSidebarInstance()
+				// showing the extension will call didBecomeVisible which focuses it already
+				// but it doesn't focus if a tab is selected which focusChatInput accounts for
+			}
+
+			visibleWebview?.controller.postMessageToWebview({
+				type: "action",
+				action: "focusChatInput",
+			})
+		}),
+	)
+
 	// Set up test server if in test mode
 	if (IS_TEST === "true") {
 		createTestServer(sidebarWebview)
