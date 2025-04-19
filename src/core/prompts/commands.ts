@@ -1,5 +1,5 @@
 export const newTaskToolResponse = () =>
-	`<explicit_instructions, type="new_task">
+	`<explicit_instructions type="new_task">
 The user has explicitly asked you to help them create a new task with preloaded context, which you will create. In this message the user has potentially added instructions or context which you should consider, if given, when creating the new task.
 Irrespective of whether additional information or instructions are given, you are only allowed to respond to this message by calling the new_task tool.
 
