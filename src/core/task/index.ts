@@ -1137,25 +1137,62 @@ export class Task {
 	/**
 	 * Executes a command directly in Node.js using execa
 	 * This is used in test mode to capture the full output without using the VS Code terminal
+	 * Commands are automatically terminated after 30 seconds
 	 */
 	private async executeCommandInNode(command: string): Promise<[boolean, ToolResponse]> {
 		try {
-			// Use execa to run the command
-			const result = await execa(command, {
+			// Create a child process
+			const childProcess = execa(command, {
 				shell: true,
 				cwd,
 				reject: false,
 				all: true, // Merge stdout and stderr
 			})
 
-			const { stdout, stderr, exitCode } = result
+			// Set up variables to collect output
+			let output = ""
+			let wasTerminated = false
 
-			// Combine stdout and stderr
-			const output = stdout || stderr || ""
+			// Collect output in real-time
+			if (childProcess.all) {
+				childProcess.all.on("data", (data) => {
+					output += data.toString()
+				})
+			}
+
+			// Set up a timeout to kill the process after 30 seconds
+			const timeoutId = setTimeout(() => {
+				if (childProcess.pid) {
+					wasTerminated = true
+					childProcess.kill("SIGTERM")
+				}
+			}, 30000) // 30 seconds
+
+			// Wait for the process to complete
+			const result = await childProcess
+
+			// Clear the timeout if the process completes before the timeout
+			clearTimeout(timeoutId)
+
+			// If we didn't get output from the stream, use the result output
+			if (!output) {
+				output = result.stdout || result.stderr || ""
+			}
+
 			Logger.info(`Command executed in Node: ${command}\nOutput:\n${output}`)
 
+			// Add termination message if the command was terminated
+			if (wasTerminated) {
+				output += "\nCommand was taking a while to run so it was auto terminated after 30s"
+			}
+
 			// Format the result similar to terminal output
-			return [false, `Command executed with exit code ${exitCode}.${output.length > 0 ? `\nOutput:\n${output}` : ""}`]
+			return [
+				false,
+				`Command executed${wasTerminated ? " (terminated after 30s)" : ""} with exit code ${
+					result.exitCode
+				}.${output.length > 0 ? `\nOutput:\n${output}` : ""}`,
+			]
 		} catch (error) {
 			// Handle any errors that might occur
 			const errorMessage = error instanceof Error ? error.message : String(error)
