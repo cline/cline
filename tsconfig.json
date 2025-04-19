@@ -18,7 +18,17 @@
 		"strict": true,
 		"target": "es2022",
 		"useDefineForClassFields": true,
-		"useUnknownInCatchVariables": false
+		"useUnknownInCatchVariables": false,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["src/*"],
+			"@api/*": ["src/api/*"],
+			"@core/*": ["src/core/*"],
+			"@integrations/*": ["src/integrations/*"],
+			"@services/*": ["src/services/*"],
+			"@shared/*": ["src/shared/*"],
+			"@utils/*": ["src/utils/*"]
+		}
 	},
 	"include": ["src/**/*", "scripts/**/*"],
 	"exclude": ["node_modules", ".vscode-test", "webview-ui"]
