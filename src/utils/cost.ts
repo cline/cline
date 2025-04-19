@@ -7,7 +7,10 @@ function calculateApiCostInternal(
 	cacheCreationInputTokens: number,
 	cacheReadInputTokens: number,
 	totalInputTokensForPricing?: number, // The *total* input tokens, used for tiered pricing lookup
+	thinkingBudgetTokens?: number, // Add thinking budget info
 ): number {
+	const usedThinkingBudget = thinkingBudgetTokens && thinkingBudgetTokens > 0
+
 	// Determine effective input price
 	let effectiveInputPrice = modelInfo.inputPrice || 0
 	if (modelInfo.inputPriceTiers && modelInfo.inputPriceTiers.length > 0 && totalInputTokensForPricing !== undefined) {
@@ -23,10 +26,15 @@ function calculateApiCostInternal(
 		}
 	}
 
-	// Determine effective output price (based on total *input* tokens for pricing)
-	let effectiveOutputPrice = modelInfo.outputPrice || 0
-	if (modelInfo.outputPriceTiers && modelInfo.outputPriceTiers.length > 0 && totalInputTokensForPricing !== undefined) {
-		// Ensure tiers are sorted by tokenLimit ascending before finding
+	// Determine effective output price
+	let effectiveOutputPrice = 0
+	// Check if thinking budget was used and has a specific price
+	if (usedThinkingBudget && modelInfo.thinkingConfig?.outputPrice !== undefined) {
+		effectiveOutputPrice = modelInfo.thinkingConfig.outputPrice
+		// TODO: Add support for tiered thinking budget output pricing if needed in the future
+		// } else if (usedThinkingBudget && modelInfo.thinkingConfig?.outputPriceTiers) { ... }
+	} else if (modelInfo.outputPriceTiers && modelInfo.outputPriceTiers.length > 0 && totalInputTokensForPricing !== undefined) {
+		// Use standard tiered output pricing (based on total *input* tokens for pricing)
 		const sortedOutputTiers = [...modelInfo.outputPriceTiers].sort((a, b) => a.tokenLimit - b.tokenLimit)
 		const tier = sortedOutputTiers.find((t) => totalInputTokensForPricing! <= t.tokenLimit)
 		if (tier) {
@@ -51,31 +59,36 @@ function calculateApiCostInternal(
 // For Anthropic compliant usage, the input tokens count does NOT include the cached tokens
 export function calculateApiCostAnthropic(
 	modelInfo: ModelInfo,
-	inputTokens: number,
+	inputTokens: number, // For Anthropic-style, this is total input tokens
 	outputTokens: number,
 	cacheCreationInputTokens?: number,
 	cacheReadInputTokens?: number,
+	thinkingBudgetTokens?: number, // Pass thinking budget info
 ): number {
 	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
 	const cacheReadInputTokensNum = cacheReadInputTokens || 0
+	// Anthropic style: inputTokens already represents the total, so pass it directly for tiered pricing lookup if needed
+	// (though Anthropic models currently don't use tiered pricing based on input size)
 	// Anthropic style doesn't need totalInputTokensForPricing as its inputTokens already represents the total
 	return calculateApiCostInternal(
 		modelInfo,
-		inputTokens,
+		inputTokens, // Pass total input tokens
 		outputTokens,
 		cacheCreationInputTokensNum,
 		cacheReadInputTokensNum,
-		undefined, // Pass undefined for totalInputTokensForPricing
+		inputTokens, // Pass total input tokens for tiered pricing lookup
+		thinkingBudgetTokens, // Pass thinking budget info
 	)
 }
 
 // For OpenAI compliant usage, the input tokens count INCLUDES the cached tokens
 export function calculateApiCostOpenAI(
 	modelInfo: ModelInfo,
-	inputTokens: number,
+	inputTokens: number, // For OpenAI-style, this includes cached tokens
 	outputTokens: number,
 	cacheCreationInputTokens?: number,
 	cacheReadInputTokens?: number,
+	thinkingBudgetTokens?: number, // Pass thinking budget info
 ): number {
 	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
 	const cacheReadInputTokensNum = cacheReadInputTokens || 0
@@ -89,5 +102,6 @@ export function calculateApiCostOpenAI(
 		cacheCreationInputTokensNum,
 		cacheReadInputTokensNum,
 		inputTokens, // Pass the original total input tokens for pricing tier lookup
+		thinkingBudgetTokens, // Pass thinking budget info
 	)
 }
