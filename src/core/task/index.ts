@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
+import { execa } from "execa"
 import getFolderSize from "get-folder-size"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -8,6 +9,8 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
+import { Logger } from "../../services/logging/Logger"
+const { IS_TEST } = process.env
 import { ApiHandler, buildApiHandler } from "../../api"
 import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
@@ -1131,7 +1134,44 @@ export class Task {
 
 	// Tools
 
+	/**
+	 * Executes a command directly in Node.js using execa
+	 * This is used in test mode to capture the full output without using the VS Code terminal
+	 */
+	private async executeCommandInNode(command: string): Promise<[boolean, ToolResponse]> {
+		try {
+			// Use execa to run the command
+			const result = await execa(command, {
+				shell: true,
+				cwd,
+				reject: false,
+				all: true, // Merge stdout and stderr
+			})
+
+			const { stdout, stderr, exitCode } = result
+
+			// Combine stdout and stderr
+			const output = stdout || stderr || ""
+			Logger.info(`Command executed in Node: ${command}\nOutput:\n${output}`)
+
+			// Format the result similar to terminal output
+			return [false, `Command executed with exit code ${exitCode}.${output.length > 0 ? `\nOutput:\n${output}` : ""}`]
+		} catch (error) {
+			// Handle any errors that might occur
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return [false, `Error executing command: ${errorMessage}`]
+		}
+	}
+
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+		// Check if we're in test mode
+		if (IS_TEST === "true") {
+			// In test mode, execute the command directly in Node
+			Logger.info("Executing command in Node: " + command)
+			return this.executeCommandInNode(command)
+		}
+		Logger.info("Executing command in VS code terminal: " + command)
+
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = this.terminalManager.runCommand(terminalInfo, command)

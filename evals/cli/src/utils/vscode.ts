@@ -42,12 +42,35 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 				stdio: "inherit",
 			})
 
-			// Find the generated VSIX file
+			// Find the generated VSIX file(s)
 			const files = fs.readdirSync(clineRoot)
-			const vsixFile = files.find((file) => file.endsWith(".vsix"))
-			if (vsixFile) {
-				vsixPath = path.join(clineRoot, vsixFile)
-				console.log(`Using built VSIX: ${vsixPath}`)
+			const vsixFiles = files.filter((file) => file.endsWith(".vsix"))
+
+			if (vsixFiles.length > 0) {
+				// Get file stats to find the most recent one
+				const vsixFilesWithStats = vsixFiles.map((file) => {
+					const filePath = path.join(clineRoot, file)
+					return {
+						file,
+						path: filePath,
+						mtime: fs.statSync(filePath).mtime,
+					}
+				})
+
+				// Sort by modification time (most recent first)
+				vsixFilesWithStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
+
+				// Use the most recent VSIX
+				vsixPath = vsixFilesWithStats[0].path
+				console.log(`Using most recent VSIX: ${vsixPath} (modified ${vsixFilesWithStats[0].mtime.toISOString()})`)
+
+				// Log all found VSIX files for debugging
+				if (vsixFiles.length > 1) {
+					console.log(`Found ${vsixFiles.length} VSIX files:`)
+					vsixFilesWithStats.forEach((f) => {
+						console.log(`  - ${f.file} (modified ${f.mtime.toISOString()})`)
+					})
+				}
 			} else {
 				console.warn("Could not find generated VSIX file")
 			}
