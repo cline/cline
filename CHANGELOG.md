@@ -15,7 +15,7 @@ Improve search and replace diff editing by making it more flexible with models t
 Add detection of Ctrl+C termination in terminal, improving output reading issues
 Fix issue where some commands with large output would cause UI to freeze
 Fix token usage tracking issues with vertex provider (Thanks @mzsima!)
-Fix issue wirh xAI reasoning content not being parsed (Thanks @mrubens!)
+Fix issue with xAI reasoning content not being parsed (Thanks @mrubens!)
 
 
 ## [3.12.3]
