@@ -168,7 +168,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				},
 			})
 		},
-		[extensionState],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateAction = useCallback(
@@ -194,7 +194,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				},
 			})
 		},
-		[extensionState],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateMaxRequests = useCallback(
@@ -209,7 +209,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				},
 			})
 		},
-		[extensionState],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateNotifications = useCallback(
@@ -224,7 +224,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				},
 			})
 		},
-		[extensionState],
+		[extensionState.autoApprovalSettings],
 	)
 
 	return (
