@@ -5,8 +5,7 @@ import styled from "styled-components"
 
 // Constants
 const MIN_VALID_TOKENS = 1024
-const MAX_PERCENTAGE = 0.8 // Default max percentage for Claude
-const GEMINI_FLASH_MAX_TOKENS = 24576 // Specific max for Gemini 2.5 Flash
+const MAX_PERCENTAGE = 0.8
 const THUMB_SIZE = 16
 
 // Styled Components
@@ -83,26 +82,11 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 interface ThinkingBudgetSliderProps {
 	apiConfiguration: ApiConfiguration | undefined
 	setApiConfiguration: (apiConfiguration: ApiConfiguration) => void
-	selectedProvider: ApiConfiguration["apiProvider"]
-	selectedModelId: string
 }
 
-const ThinkingBudgetSlider = ({
-	apiConfiguration,
-	setApiConfiguration,
-	selectedProvider,
-	selectedModelId,
-}: ThinkingBudgetSliderProps) => {
-	// Determine max slider value based on provider and model
-	let maxSliderValue: number
-	if (selectedProvider === "gemini" && selectedModelId === "gemini-2.5-flash-preview-04-17") {
-		maxSliderValue = GEMINI_FLASH_MAX_TOKENS
-	} else {
-		// Default to Claude 3.7 Sonnet's maxTokens * percentage for others
-		const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
-		maxSliderValue = Math.floor(maxTokens * MAX_PERCENTAGE)
-	}
-
+const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
+	const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
+	const maxSliderValue = Math.floor(maxTokens * MAX_PERCENTAGE)
 	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
 
 	// Add local state for the slider value

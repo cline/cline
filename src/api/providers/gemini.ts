@@ -33,12 +33,6 @@ export class GeminiHandler implements ApiHandler {
 				// maxOutputTokens: this.getModel().info.maxTokens,
 				temperature: 0,
 			},
-			// Add thinking config if budget is set
-			...(this.options.thinkingBudgetTokens !== undefined && {
-				thinkingConfig: {
-					thinkingBudget: this.options.thinkingBudgetTokens,
-				},
-			}),
 		})
 
 		for await (const chunk of result.stream) {
