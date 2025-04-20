@@ -7,7 +7,6 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
-	VSCodeButton,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
