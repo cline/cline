@@ -192,7 +192,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 				try {
 					const content = await fs.readFile(localClineRulesFilePath, "utf8")
 
-					const tempDirPath = path.resolve(cwd, ".clinerules_temp")
+					const tempDirPath = await fs.mkdtemp(path.join(cwd, ".clinerules_temp_"))
 					await fs.mkdir(tempDirPath, { recursive: true })
 
 					await fs.writeFile(path.join(tempDirPath, "old_clinerules_file.md"), content, "utf8")
