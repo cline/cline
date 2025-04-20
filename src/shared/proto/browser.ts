@@ -22,6 +22,11 @@ export interface BrowserConnection {
 	endpoint?: string | undefined
 }
 
+export interface ChromePath {
+	path: string
+	isBundled: boolean
+}
+
 function createBaseBrowserConnectionInfo(): BrowserConnectionInfo {
 	return { isConnected: false, isRemote: false, host: undefined }
 }
@@ -206,6 +211,82 @@ export const BrowserConnection: MessageFns<BrowserConnection> = {
 	},
 }
 
+function createBaseChromePath(): ChromePath {
+	return { path: "", isBundled: false }
+}
+
+export const ChromePath: MessageFns<ChromePath> = {
+	encode(message: ChromePath, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.path !== "") {
+			writer.uint32(10).string(message.path)
+		}
+		if (message.isBundled !== false) {
+			writer.uint32(16).bool(message.isBundled)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ChromePath {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseChromePath()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.path = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.isBundled = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ChromePath {
+		return {
+			path: isSet(object.path) ? globalThis.String(object.path) : "",
+			isBundled: isSet(object.isBundled) ? globalThis.Boolean(object.isBundled) : false,
+		}
+	},
+
+	toJSON(message: ChromePath): unknown {
+		const obj: any = {}
+		if (message.path !== "") {
+			obj.path = message.path
+		}
+		if (message.isBundled !== false) {
+			obj.isBundled = message.isBundled
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ChromePath>, I>>(base?: I): ChromePath {
+		return ChromePath.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ChromePath>, I>>(object: I): ChromePath {
+		const message = createBaseChromePath()
+		message.path = object.path ?? ""
+		message.isBundled = object.isBundled ?? false
+		return message
+	},
+}
+
 export type BrowserServiceDefinition = typeof BrowserServiceDefinition
 export const BrowserServiceDefinition = {
 	name: "BrowserService",
@@ -232,6 +313,14 @@ export const BrowserServiceDefinition = {
 			requestType: EmptyRequest,
 			requestStream: false,
 			responseType: BrowserConnection,
+			responseStream: false,
+			options: {},
+		},
+		getDetectedChromePath: {
+			name: "getDetectedChromePath",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: ChromePath,
 			responseStream: false,
 			options: {},
 		},

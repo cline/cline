@@ -59,9 +59,6 @@ export const BrowserSettingsSection: React.FC = () => {
 					message: message.text,
 				})
 				setDebugMode(false)
-			} else if (message.type === "detectedChromePath") {
-				setDetectedChromePath(message.text)
-				setIsBundled(message.isBundled)
 			}
 		}
 
@@ -83,9 +80,15 @@ export const BrowserSettingsSection: React.FC = () => {
 
 	// Request detected Chrome path on mount
 	useEffect(() => {
-		vscode.postMessage({
-			type: "getDetectedChromePath",
-		})
+		// Use gRPC for getDetectedChromePath
+		BrowserServiceClient.getDetectedChromePath({})
+			.then((result) => {
+				setDetectedChromePath(result.path)
+				setIsBundled(result.isBundled)
+			})
+			.catch((error) => {
+				console.error("Error getting detected Chrome path:", error)
+			})
 	}, [])
 
 	// Debounced connection check function

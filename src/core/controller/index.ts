@@ -760,21 +760,6 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
-			case "getDetectedChromePath": {
-				try {
-					const { browserSettings } = await getAllExtensionState(this.context)
-					const browserSession = new BrowserSession(this.context, browserSettings)
-					const { path, isBundled } = await browserSession.getDetectedChromePath()
-					await this.postMessageToWebview({
-						type: "detectedChromePath",
-						text: path,
-						isBundled,
-					})
-				} catch (error) {
-					console.error("Error getting detected Chrome path:", error)
-				}
-				break
-			}
 			case "getRelativePaths": {
 				if (message.uris && message.uris.length > 0) {
 					const resolvedPaths = await Promise.all(

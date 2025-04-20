@@ -8,6 +8,7 @@ service BrowserService {
   rpc getBrowserConnectionInfo(EmptyRequest) returns (BrowserConnectionInfo);
   rpc testBrowserConnection(StringRequest) returns (BrowserConnection);
   rpc discoverBrowser(EmptyRequest) returns (BrowserConnection);
+  rpc getDetectedChromePath(EmptyRequest) returns (ChromePath);
 }
 
 message BrowserConnectionInfo {
@@ -20,4 +21,9 @@ message BrowserConnection {
   bool success = 1;
   string message = 2;
   optional string endpoint = 3;
+}
+
+message ChromePath {
+  string path = 1;
+  bool is_bundled = 2;
 }
