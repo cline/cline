@@ -20,7 +20,7 @@ export function convertAnthropicContentToGemini(content: string | Anthropic.Cont
 					},
 				} as InlineDataPart
 			default:
-				throw new Error(`Unsupported content block type: ${(block as any).type}`)
+				throw new Error(`Unsupported content block type: ${block.type}`)
 		}
 	})
 }

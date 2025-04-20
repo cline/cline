@@ -1,4 +1,5 @@
 import {
+	VSCodeButton,
 	VSCodeCheckbox,
 	VSCodeDropdown,
 	VSCodeLink,
@@ -32,6 +33,8 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	requestyDefaultModelId,
+	requestyDefaultModelInfo,
 	mainlandQwenModels,
 	internationalQwenModels,
 	mainlandQwenDefaultModelId,
@@ -56,6 +59,7 @@ import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
+import RequestyModelPicker from "./RequestyModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -94,17 +98,34 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
+	const [geminiBaseUrlSelected, setGeminiBaseUrlSelected] = useState(!!apiConfiguration?.geminiBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
+	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!apiConfiguration?.reasoningEffort)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
+		const newValue = event.target.value
+
+		// Update local state
 		setApiConfiguration({
 			...apiConfiguration,
-			[field]: event.target.value,
+			[field]: newValue,
 		})
+
+		// If the field is the provider, save it immediately
+		// Necessary for favorite model selection to work without undoing provider changes
+		if (field === "apiProvider") {
+			vscode.postMessage({
+				type: "apiConfiguration",
+				apiConfiguration: {
+					...apiConfiguration,
+					apiProvider: newValue,
+				},
+			})
+		}
 	}
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -214,7 +235,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
-					<VSCodeOption value="xai">X AI</VSCodeOption>
+					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
@@ -759,6 +780,32 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
 					</VSCodeTextField>
+
+					<VSCodeCheckbox
+						checked={geminiBaseUrlSelected}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setGeminiBaseUrlSelected(isChecked)
+							if (!isChecked) {
+								setApiConfiguration({
+									...apiConfiguration,
+									geminiBaseUrl: "",
+								})
+							}
+						}}>
+						Use custom base URL
+					</VSCodeCheckbox>
+
+					{geminiBaseUrlSelected && (
+						<VSCodeTextField
+							value={apiConfiguration?.geminiBaseUrl || ""}
+							style={{ width: "100%", marginTop: 3 }}
+							type="url"
+							onInput={handleInputChange("geminiBaseUrl")}
+							placeholder="Default: https://generativelanguage.googleapis.com"
+						/>
+					)}
+
 					<p
 						style={{
 							fontSize: "12px",
@@ -784,7 +831,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<div>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiBaseUrl || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						type="url"
 						onInput={handleInputChange("openAiBaseUrl")}
 						placeholder={"Enter base URL..."}>
@@ -792,7 +839,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiApiKey || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						type="password"
 						onInput={handleInputChange("openAiApiKey")}
 						placeholder="Enter API Key...">
@@ -800,11 +847,91 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiModelId || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						onInput={handleInputChange("openAiModelId")}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+
+					{/* OpenAI Compatible Custom Headers */}
+					{(() => {
+						const headerEntries = Object.entries(apiConfiguration?.openAiHeaders ?? {})
+						return (
+							<div style={{ marginBottom: 10 }}>
+								<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+									<span style={{ fontWeight: 500 }}>Custom Headers</span>
+									<VSCodeButton
+										onClick={() => {
+											const currentHeaders = { ...(apiConfiguration?.openAiHeaders || {}) }
+											const headerCount = Object.keys(currentHeaders).length
+											const newKey = `header${headerCount + 1}`
+											currentHeaders[newKey] = ""
+											handleInputChange("openAiHeaders")({
+												target: {
+													value: currentHeaders,
+												},
+											})
+										}}>
+										Add Header
+									</VSCodeButton>
+								</div>
+								<div>
+									{headerEntries.map(([key, value], index) => (
+										<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+											<VSCodeTextField
+												value={key}
+												style={{ width: "40%" }}
+												placeholder="Header name"
+												onInput={(e: any) => {
+													const currentHeaders = apiConfiguration?.openAiHeaders ?? {}
+													const newValue = e.target.value
+													if (newValue && newValue !== key) {
+														const { [key]: _, ...rest } = currentHeaders
+														handleInputChange("openAiHeaders")({
+															target: {
+																value: {
+																	...rest,
+																	[newValue]: value,
+																},
+															},
+														})
+													}
+												}}
+											/>
+											<VSCodeTextField
+												value={value}
+												style={{ width: "40%" }}
+												placeholder="Header value"
+												onInput={(e: any) => {
+													handleInputChange("openAiHeaders")({
+														target: {
+															value: {
+																...(apiConfiguration?.openAiHeaders ?? {}),
+																[key]: e.target.value,
+															},
+														},
+													})
+												}}
+											/>
+											<VSCodeButton
+												appearance="secondary"
+												onClick={() => {
+													const { [key]: _, ...rest } = apiConfiguration?.openAiHeaders ?? {}
+													handleInputChange("openAiHeaders")({
+														target: {
+															value: rest,
+														},
+													})
+												}}>
+												Remove
+											</VSCodeButton>
+										</div>
+									))}
+								</div>
+							</div>
+						)
+					})()}
+
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
@@ -1035,24 +1162,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.requestyModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("requestyModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
-					</p>
+					{!apiConfiguration?.requestyApiKey && <a href="https://app.requesty.ai/manage-api">Get API Key</a>}
 				</div>
 			)}
 
@@ -1533,6 +1643,58 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
+						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
+							<>
+								<VSCodeCheckbox
+									style={{ marginTop: 0 }}
+									checked={reasoningEffortSelected}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setReasoningEffortSelected(isChecked)
+										if (!isChecked) {
+											setApiConfiguration({
+												...apiConfiguration,
+												reasoningEffort: "",
+											})
+										}
+									}}>
+									Modify reasoning effort
+								</VSCodeCheckbox>
+
+								{reasoningEffortSelected && (
+									<div>
+										<label htmlFor="reasoning-effort-dropdown">
+											<span style={{}}>Reasoning Effort</span>
+										</label>
+										<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
+											<VSCodeDropdown
+												id="reasoning-effort-dropdown"
+												style={{ width: "100%", marginTop: 3 }}
+												value={apiConfiguration?.reasoningEffort || "high"}
+												onChange={(e: any) => {
+													setApiConfiguration({
+														...apiConfiguration,
+														reasoningEffort: e.target.value,
+													})
+												}}>
+												<VSCodeOption value="low">low</VSCodeOption>
+												<VSCodeOption value="high">high</VSCodeOption>
+											</VSCodeDropdown>
+										</DropdownContainer>
+										<p
+											style={{
+												fontSize: "12px",
+												marginTop: 3,
+												marginBottom: 0,
+												color: "var(--vscode-descriptionForeground)",
+											}}>
+											High effort may produce more thorough analysis but takes longer and uses more tokens.
+										</p>
+									</div>
+								)}
+							</>
+						)}
+
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
@@ -1546,6 +1708,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
 				<OpenRouterModelPicker isPopup={isPopup} />
 			)}
+			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
 
 			{modelIdErrorMessage && (
 				<p
@@ -1574,6 +1737,21 @@ export const formatPrice = (price: number) => {
 	}).format(price)
 }
 
+// Returns an array of formatted tier strings
+const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): string[] => {
+	if (!tiers || tiers.length === 0) {
+		return []
+	}
+	return tiers.map((tier, index, arr) => {
+		const prevLimit = index > 0 ? arr[index - 1].tokenLimit : 0
+		const limitText =
+			tier.tokenLimit === Infinity
+				? `> ${prevLimit.toLocaleString()}` // Assumes sorted and Infinity is last
+				: `<= ${tier.tokenLimit.toLocaleString()}`
+		return `${formatPrice(tier.price)}/million tokens (${limitText} tokens)`
+	})
+}
+
 export const ModelInfoView = ({
 	selectedModelId,
 	modelInfo,
@@ -1588,6 +1766,42 @@ export const ModelInfoView = ({
 	isPopup?: boolean
 }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+
+	// Create elements for tiered pricing separately
+	const inputPriceElement = modelInfo.inputPriceTiers ? (
+		<Fragment key="inputPriceTiers">
+			<span style={{ fontWeight: 500 }}>Input price:</span>
+			<br />
+			{formatTiers(modelInfo.inputPriceTiers).map((tierString, i, arr) => (
+				<Fragment key={`inputTierFrag${i}`}>
+					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
+					{i < arr.length - 1 && <br />}
+				</Fragment>
+			))}
+		</Fragment>
+	) : modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 ? (
+		<span key="inputPrice">
+			<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
+		</span>
+	) : null
+
+	const outputPriceElement = modelInfo.outputPriceTiers ? (
+		<Fragment key="outputPriceTiers">
+			<span style={{ fontWeight: 500 }}>Output price:</span>
+			<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
+			<br />
+			{formatTiers(modelInfo.outputPriceTiers).map((tierString, i, arr) => (
+				<Fragment key={`outputTierFrag${i}`}>
+					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
+					{i < arr.length - 1 && <br />}
+				</Fragment>
+			))}
+		</Fragment>
+	) : modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 ? (
+		<span key="outputPrice">
+			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
+		</span>
+	) : null
 
 	const infoItems = [
 		modelInfo.description && (
@@ -1624,11 +1838,7 @@ export const ModelInfoView = ({
 				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
 			</span>
 		),
-		modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 && (
-			<span key="inputPrice">
-				<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
-			</span>
-		),
+		inputPriceElement, // Add the generated input price block
 		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
 			<span key="cacheWritesPrice">
 				<span style={{ fontWeight: 500 }}>Cache writes price:</span> {formatPrice(modelInfo.cacheWritesPrice || 0)}
@@ -1641,11 +1851,7 @@ export const ModelInfoView = ({
 				tokens
 			</span>
 		),
-		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
-			<span key="outputPrice">
-				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
-			</span>
-		),
+		outputPriceElement, // Add the generated output price block
 		isGemini && (
 			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
 				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute. After that,
@@ -1756,6 +1962,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
+		case "requesty":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.requestyModelId || requestyDefaultModelId,
+				selectedModelInfo: apiConfiguration?.requestyModelInfo || requestyDefaultModelInfo,
+			}
 		case "cline":
 			return {
 				selectedProvider: provider,
@@ -1778,12 +1990,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
-			}
-		case "requesty":
-			return {
-				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.requestyModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "vscode-lm":

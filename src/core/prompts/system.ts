@@ -233,17 +233,27 @@ Your final result description here
 <command>Command to demonstrate result (optional)</command>
 </attempt_completion>
 
+## new_task
+Description: Request to create a new task with preloaded context. The user will be presented with a preview of the context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.
+Parameters:
+- context: (required) The context to preload the new task with. This should include:
+  * Comprehensively explain what has been accomplished in the current task - mention specific file names that are relevant
+  * The specific next steps or focus for the new task - mention specific file names that are relevant
+  * Any critical information needed to continue the work
+  * Clear indication of how this new task relates to the overall workflow
+  * This should be akin to a long handoff file, enough for a totally new developer to be able to pick up where you left off and know exactly what to do next and which files to look at.
+Usage:
+<new_task>
+<context>context to preload new task with</context>
+</new_task>
+
 ## plan_mode_respond
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
 Parameters:
 - response: (required) The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.)
-- options: (optional) An array of 2-5 options for the user to choose from. Each option should be a string describing a possible choice or path forward in the planning process. This can help guide the discussion and make it easier for the user to provide input on key decisions. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually. Do NOT present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.
 Usage:
 <plan_mode_respond>
 <response>Your response here</response>
-<options>
-Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
-</options>
 </plan_mode_respond>
 
 ## load_mcp_documentation
@@ -284,7 +294,25 @@ Usage:
 </content>
 </write_to_file>
 
-## Example 3: Requesting to make targeted edits to a file
+## Example 3: Creating a new task
+
+<new_task>
+<context>
+Authentication System Implementation:
+- We've implemented the basic user model with email/password
+- Password hashing is working with bcrypt
+- Login endpoint is functional with proper validation
+- JWT token generation is implemented
+
+Next Steps:
+- Implement refresh token functionality
+- Add token validation middleware
+- Create password reset flow
+- Implement role-based access control
+</context>
+</new_task>
+
+## Example 4: Requesting to make targeted edits to a file
 
 <replace_in_file>
 <path>src/components/App.tsx</path>
@@ -293,7 +321,7 @@ Usage:
 </diff>
 </replace_in_file>
 
-## Example 4: Requesting to use an MCP tool
+## Example 5: Requesting to use an MCP tool
 
 <use_mcp_tool>
 <server_name>weather-server</server_name>
@@ -306,7 +334,7 @@ Usage:
 </arguments>
 </use_mcp_tool>
 
-## Example 5: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
+## Example 6: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
 
 <use_mcp_tool>
 <server_name>github.com/modelcontextprotocol/servers/tree/main/src/github</server_name>
@@ -599,7 +627,8 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 
 export function addUserInstructions(
 	settingsCustomInstructions?: string,
-	clineRulesFileInstructions?: string,
+	globalClineRulesFileInstructions?: string,
+	localClineRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
 	preferredLanguageInstructions?: string,
 ) {
@@ -610,8 +639,11 @@ export function addUserInstructions(
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"
 	}
-	if (clineRulesFileInstructions) {
-		customInstructions += clineRulesFileInstructions + "\n\n"
+	if (globalClineRulesFileInstructions) {
+		customInstructions += globalClineRulesFileInstructions + "\n\n"
+	}
+	if (localClineRulesFileInstructions) {
+		customInstructions += localClineRulesFileInstructions + "\n\n"
 	}
 	if (clineIgnoreInstructions) {
 		customInstructions += clineIgnoreInstructions

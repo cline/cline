@@ -16,7 +16,6 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { Controller } from "../../core/controller"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
@@ -35,6 +34,7 @@ import { arePathsEqual } from "../../utils/path"
 import { secondsToMs } from "../../utils/time"
 import { GlobalFileNames } from "../../core/storage/disk"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { ExtensionMessage } from "../../shared/ExtensionMessage"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000
@@ -80,15 +80,27 @@ const McpSettingsSchema = z.object({
 })
 
 export class McpHub {
-	private controllerRef: WeakRef<Controller>
+	getMcpServersPath: () => Promise<string>
+	private getSettingsDirectoryPath: () => Promise<string>
+	private postMessageToWebview: (message: ExtensionMessage) => Promise<void>
+	private clientVersion: string
+
 	private disposables: vscode.Disposable[] = []
 	private settingsWatcher?: vscode.FileSystemWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
 
-	constructor(controller: Controller) {
-		this.controllerRef = new WeakRef(controller)
+	constructor(
+		getMcpServersPath: () => Promise<string>,
+		getSettingsDirectoryPath: () => Promise<string>,
+		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
+		clientVersion: string,
+	) {
+		this.getMcpServersPath = getMcpServersPath
+		this.getSettingsDirectoryPath = getSettingsDirectoryPath
+		this.postMessageToWebview = postMessageToWebview
+		this.clientVersion = clientVersion
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
 	}
@@ -98,21 +110,8 @@ export class McpHub {
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
-	async getMcpServersPath(): Promise<string> {
-		const provider = this.controllerRef.deref()
-		if (!provider) {
-			throw new Error("Provider not available")
-		}
-		const mcpServersPath = await provider.ensureMcpServersDirectoryExists()
-		return mcpServersPath
-	}
-
 	async getMcpSettingsFilePath(): Promise<string> {
-		const provider = this.controllerRef.deref()
-		if (!provider) {
-			throw new Error("Provider not available")
-		}
-		const mcpSettingsFilePath = path.join(await provider.ensureSettingsDirectoryExists(), GlobalFileNames.mcpSettings)
+		const mcpSettingsFilePath = path.join(await this.getSettingsDirectoryPath(), GlobalFileNames.mcpSettings)
 		const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
 		if (!fileExists) {
 			await fs.writeFile(
@@ -197,7 +196,7 @@ export class McpHub {
 			const client = new Client(
 				{
 					name: "Cline",
-					version: this.controllerRef.deref()?.context.extension?.packageJSON?.version ?? "1.0.0",
+					version: this.clientVersion,
 				},
 				{
 					capabilities: {},
@@ -260,7 +259,7 @@ export class McpHub {
 					stderrStream.on("data", async (data: Buffer) => {
 						const output = data.toString()
 						// Check if output contains INFO level log
-						const isInfoLog = /^\s*INFO\b/.test(output)
+						const isInfoLog = !/\berror\b/i.test(output)
 
 						if (isInfoLog) {
 							// Log normal informational messages
@@ -444,7 +443,7 @@ export class McpHub {
 		this.isConnecting = false
 	}
 
-	private setupFileWatcher(name: string, config: any) {
+	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { transportType: "stdio" }>) {
 		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
 		if (filePath) {
 			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
@@ -470,10 +469,6 @@ export class McpHub {
 
 	async restartConnection(serverName: string): Promise<void> {
 		this.isConnecting = true
-		const provider = this.controllerRef.deref()
-		if (!provider) {
-			return
-		}
 
 		// Get existing connection and update its status
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -505,7 +500,7 @@ export class McpHub {
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
 		const serverOrder = Object.keys(config.mcpServers || {})
-		await this.controllerRef.deref()?.postMessageToWebview({
+		await this.postMessageToWebview({
 			type: "mcpServers",
 			mcpServers: [...this.connections]
 				.sort((a, b) => {
