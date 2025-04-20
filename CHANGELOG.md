@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.13.1]
+
+-   Fix bug where task cancellation during thinking stream would result in error state
+
+## [3.13.0]
+
+-   Add Cline rules popover under the chat field, allowing you to easily add, enable & disable workspace level or global rule files
+-   Add new slash command menu letting you type “/“ to do quick actions like creating new tasks
+-   Add ability to edit past messages, with options to restore your workspace back to that point
+-   Allow sending a message when selecting an option provided by the question or plan tool
+-   Add command to jump to Cline's chat input
+-   Add support for OpenAI o3 & 4o-mini (Thanks @PeterDaveHello and @arafatkatze!)
+-   Add baseURL option for Google Gemini provider (Thanks @owengo and @olivierhub!)
+-   Add support for Azure's DeepSeek model. (Thanks @yt3trees!)
+-   Add ability for models that support it to receive image responses from MCP servers (Thanks @rikaaa0928!)
+-   Improve search and replace diff editing by making it more flexible with models that fail to follow structured output instructions. (Thanks @chi-cat!)
+-   Add detection of Ctrl+C termination in terminal, improving output reading issues
+-   Fix issue where some commands with large output would cause UI to freeze
+-   Fix token usage tracking issues with vertex provider (Thanks @mzsima!)
+-   Fix issue with xAI reasoning content not being parsed (Thanks @mrubens!)
+
 ## [3.12.3]
 
 -   Add copy button to MermaidBlock component (Thanks @cacosub7!)
@@ -58,7 +79,7 @@
 -   Add recommended models for Cline provider
 -   Add ability to detect when user edits files manually so Cline knows to re-read, leading to reduced diff edit errors
 -   Add improvements to file mention searching for faster searching
--   Add scoring logic to file mentions to sort and exlcude results based on relevance
+-   Add scoring logic to file mentions to sort and exclude results based on relevance
 -   Add Support for Bytedance Doubao (Thanks Tunixer!)
 -   Fix to prevent duplicate BOM (Thanks bamps53!)
 
@@ -536,7 +557,7 @@
 -   Adds "Always allow read-only operations" setting to let Claude read files and view directories without needing approval (off by default)
 -   Implement sliding window context management to keep tasks going past 200k tokens
 -   Adds Google Cloud Vertex AI support and updates Claude 3.5 Sonnet max output to 8192 tokens for all providers.
--   Improves system prompt to gaurd against lazy edits (less "//rest of code here")
+-   Improves system prompt to guard against lazy edits (less "//rest of code here")
 
 ## [1.3.0]
 

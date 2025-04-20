@@ -27,11 +27,12 @@ import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
-import { highlightMentions } from "./TaskHeader"
+import { highlightText } from "./TaskHeader"
 import SuccessButton from "@/components/common/SuccessButton"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import NewTaskPreview from "./NewTaskPreview"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
+import UserMessage from "./UserMessage"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -49,6 +50,8 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	inputValue?: string
+	sendMessageFromChatRow?: (text: string, images: string[]) => void
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -84,7 +87,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage } = props
+		const { isLast, onHeightChange, message, lastModifiedMessage, inputValue } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
@@ -117,7 +120,15 @@ const ChatRow = memo(
 
 export default ChatRow
 
-export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+export const ChatRowContent = ({
+	message,
+	isExpanded,
+	onToggleExpand,
+	lastModifiedMessage,
+	isLast,
+	inputValue,
+	sendMessageFromChatRow,
+}: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -350,7 +361,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("edit")}
-							{!tool.operationIsLocatedInWorkspace &&
+							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 						</div>
@@ -368,7 +379,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
-							{!tool.operationIsLocatedInWorkspace &&
+							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 						</div>
@@ -386,7 +397,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
-							{!tool.operationIsLocatedInWorkspace &&
+							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
@@ -446,7 +457,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("folder-opened")}
-							{!tool.operationIsLocatedInWorkspace &&
+							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
@@ -468,7 +479,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("folder-opened")}
-							{!tool.operationIsLocatedInWorkspace &&
+							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
@@ -490,7 +501,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
-							{!tool.operationIsLocatedInWorkspace &&
+							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
@@ -511,7 +522,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("search")}
-							{!tool.operationIsLocatedInWorkspace &&
+							{tool.operationIsLocatedInWorkspace === false &&
 								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								Cline wants to search this directory for <code>{tool.regex}</code>:
@@ -864,20 +875,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					)
 				case "user_feedback":
 					return (
-						<div
-							style={{
-								backgroundColor: "var(--vscode-badge-background)",
-								color: "var(--vscode-badge-foreground)",
-								borderRadius: "3px",
-								padding: "9px",
-								whiteSpace: "pre-line",
-								wordWrap: "break-word",
-							}}>
-							<span style={{ display: "block" }}>{highlightMentions(message.text)}</span>
-							{message.images && message.images.length > 0 && (
-								<Thumbnails images={message.images} style={{ marginTop: "8px" }} />
-							)}
-						</div>
+						<UserMessage
+							text={message.text}
+							images={message.images}
+							messageTs={message.ts}
+							sendMessageFromChatRow={sendMessageFromChatRow}
+						/>
 					)
 				case "user_feedback_diff":
 					const tool = JSON.parse(message.text || "{}") as ClineSayTool
@@ -1248,6 +1251,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									options={options}
 									selected={selected}
 									isActive={isLast && lastModifiedMessage?.ask === "followup"}
+									inputValue={inputValue}
 								/>
 							</div>
 						</>
@@ -1287,6 +1291,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								options={options}
 								selected={selected}
 								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_respond"}
+								inputValue={inputValue}
 							/>
 						</div>
 					)

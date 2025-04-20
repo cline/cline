@@ -29,7 +29,7 @@ const linkContainerStyle: CSSProperties = { margin: "0" }
 const linkStyle: CSSProperties = { display: "inline" }
 
 /*
-You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
+You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with what's in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
@@ -43,6 +43,24 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
+					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
+				</li>
+				<li>
+					<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files to plug
+					and play specific rules for the task
+				</li>
+				<li>
+					<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a new task
+					(more coming soon!)
+				</li>
+				<li>
+					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore
+					your project when the message was sent!
+				</li>
+			</ul>
+			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
+			<ul style={ulStyle}>
+				<li>
 					<b>Model Favorites:</b> You can now mark your favorite models when using Cline & OpenRouter providers for
 					quick access!
 				</li>
@@ -54,21 +72,9 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>New Auto-Approve Options:</b> Turn off Cline's ability to read and edit files outside your workspace.
 				</li>
 			</ul>
-			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
-
-			<ul style={ulStyle}>
-				<li>
-					<b>Browser Tool Upgrades:</b> Use your local Chrome browser for session-based browsing, enabling debugging and
-					productivity workflows tied to your actual browser state.
-				</li>
-				<li>
-					<b>Auto-Approve Commands:</b> New option to automatically approve <b>ALL</b> commands (use at your own risk!)
-				</li>
-				<li>
-					<b>Easily Toggle MCP's:</b> New popover in the chat area to easily enable/disable MCP servers.
-				</li>
-			</ul>
-			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+			{/*
+			// Leave this here for an example of how to structure the announcement
+			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
 					so I recommend trying them out.

@@ -33,7 +33,8 @@
 		"react-use": "^17.6.0",
 		"react-virtuoso": "^4.12.3",
 		"rehype-highlight": "^7.0.1",
-		"styled-components": "^6.1.15"
+		"styled-components": "^6.1.15",
+		"uuid": "^9.0.1"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.17.0",
@@ -46,6 +47,7 @@
 		"@types/node": "^22.13.4",
 		"@types/react": "^18.3.18",
 		"@types/react-dom": "^18.3.5",
+		"@types/uuid": "^9.0.8",
 		"@types/vscode-webview": "^1.57.5",
 		"@vitejs/plugin-react-swc": "^3.5.0",
 		"@vitest/coverage-v8": "^3.0.9",
