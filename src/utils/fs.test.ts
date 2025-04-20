@@ -141,6 +141,49 @@ describe("Filesystem Utilities", () => {
 			files.should.containDeep([path.resolve(path.join(symlinkDir, "target-file.txt"))])
 		})
 
+		it("should detect and avoid circular symlinks", async () => {
+			const testDir = path.join(tmpDir, "circular-symlink-test")
+			await fs.mkdir(testDir, { recursive: true })
+
+			const subDir1 = path.join(testDir, "subdir1")
+			const subDir2 = path.join(testDir, "subdir2")
+			await fs.mkdir(subDir1, { recursive: true })
+			await fs.mkdir(subDir2, { recursive: true })
+
+			const normalFile = path.join(subDir1, "normal-file.txt")
+			await fs.writeFile(normalFile, "normal file content")
+
+			const circularLink = path.join(subDir2, "back-to-subdir1")
+			await fs.symlink(subDir1, circularLink)
+
+			const forwardLink = path.join(subDir1, "to-subdir2")
+			await fs.symlink(subDir2, forwardLink)
+
+			const files = await readDirectory(testDir)
+			files.length.should.be.greaterThan(0)
+			files.should.containDeep([path.resolve(normalFile)])
+		})
+
+		it("should handle broken symlinks gracefully", async () => {
+			const testDir = path.join(tmpDir, "broken-symlink-test")
+			await fs.mkdir(testDir, { recursive: true })
+
+			const targetFile = path.join(testDir, "target-will-be-deleted.txt")
+			await fs.writeFile(targetFile, "soon to be deleted")
+
+			const brokenLink = path.join(testDir, "broken-link.txt")
+			await fs.symlink(targetFile, brokenLink)
+
+			await fs.unlink(targetFile)
+
+			const regularFile = path.join(testDir, "regular-file.txt")
+			await fs.writeFile(regularFile, "regular file content")
+
+			const files = await readDirectory(testDir)
+			files.length.should.equal(1)
+			files.should.containDeep([path.resolve(regularFile)])
+		})
+
 		it("should throw an error for non-existent directories", async () => {
 			const nonExistentDir = path.join(tmpDir, "does-not-exist")
 			try {
