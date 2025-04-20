@@ -1137,7 +1137,7 @@ export class Task {
 	/**
 	 * Executes a command directly in Node.js using execa
 	 * This is used in test mode to capture the full output without using the VS Code terminal
-	 * Commands are automatically terminated after 30 seconds
+	 * Commands are automatically terminated after 30 seconds using Promise.race
 	 */
 	private async executeCommandInNode(command: string): Promise<[boolean, ToolResponse]> {
 		try {
@@ -1151,7 +1151,6 @@ export class Task {
 
 			// Set up variables to collect output
 			let output = ""
-			let wasTerminated = false
 
 			// Collect output in real-time
 			if (childProcess.all) {
@@ -1160,21 +1159,32 @@ export class Task {
 				})
 			}
 
-			// Set up a timeout to kill the process after 30 seconds
-			const timeoutId = setTimeout(() => {
-				if (childProcess.pid) {
-					wasTerminated = true
-					childProcess.kill("SIGTERM")
+			// Create a timeout promise that rejects after 30 seconds
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				setTimeout(() => {
+					if (childProcess.pid) {
+						childProcess.kill("SIGKILL") // Use SIGKILL for more forceful termination
+					}
+					reject(new Error("Command timeout after 30s"))
+				}, 30000)
+			})
+
+			// Race between command completion and timeout
+			const result = await Promise.race([childProcess, timeoutPromise]).catch((error) => {
+				// If we get here due to timeout, return a partial result with timeout flag
+				Logger.info(`Command timed out after 30s: ${command}`)
+				return {
+					stdout: "",
+					stderr: "",
+					exitCode: 124, // Standard timeout exit code
+					timedOut: true,
 				}
-			}, 30000) // 30 seconds
+			})
 
-			// Wait for the process to complete
-			const result = await childProcess
+			// Check if timeout occurred
+			const wasTerminated = result.timedOut === true
 
-			// Clear the timeout if the process completes before the timeout
-			clearTimeout(timeoutId)
-
-			// If we didn't get output from the stream, use the result output
+			// Use collected output or result output
 			if (!output) {
 				output = result.stdout || result.stderr || ""
 			}
