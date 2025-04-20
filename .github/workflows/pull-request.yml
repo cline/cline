@@ -4,7 +4,7 @@ on:
     workflow_dispatch:
     pull_request:
         branches: [main]
-        types: [opened, edited, reopened, synchronize]
+        types: [opened, reopened, synchronize]
 
 permissions:
     pull-requests: write
@@ -65,7 +65,6 @@ jobs:
               with:
                   result-encoding: string
                   script: |
-                      const fetch = globalThis.fetch || require('node-fetch');
                       const API = 'https://api.linear.app/graphql';
                       const apiKey = process.env.LINEAR_API_KEY;
                       // Helper to call Linear
