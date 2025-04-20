@@ -7,6 +7,7 @@ import { discoverBrowser } from "./discoverBrowser"
 import { getBrowserConnectionInfo } from "./getBrowserConnectionInfo"
 import { getDetectedChromePath } from "./getDetectedChromePath"
 import { testBrowserConnection } from "./testBrowserConnection"
+import { updateBrowserSettings } from "./updateBrowserSettings"
 
 // Register all browser service methods
 export function registerAllMethods(): void {
@@ -15,4 +16,5 @@ export function registerAllMethods(): void {
 	registerMethod("getBrowserConnectionInfo", getBrowserConnectionInfo)
 	registerMethod("getDetectedChromePath", getDetectedChromePath)
 	registerMethod("testBrowserConnection", testBrowserConnection)
+	registerMethod("updateBrowserSettings", updateBrowserSettings)
 }
