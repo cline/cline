@@ -91,24 +91,14 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
-const CopyButton = styled.button`
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+
+const CopyButton = styled(VSCodeButton)`
 	position: absolute;
 	top: 5px;
 	right: 5px;
-	background-color: var(--vscode-button-background, #0e639c);
-	color: var(--vscode-button-foreground, #ffffff);
-	border: none;
-	border-radius: 3px;
-	padding: 4px 8px;
-	font-size: 12px;
-	cursor: pointer;
-	opacity: 0;
-	transition: opacity 0.3s;
 	z-index: 1;
-
-	&:hover {
-		background-color: var(--vscode-button-hoverBackground, #1177bb);
-	}
+	opacity: 0;
 `
 
 const CodeBlockContainer = styled.div`
@@ -249,8 +239,8 @@ const PreWithCopyButton = ({
 
 	return (
 		<CodeBlockContainer>
-			<CopyButton type="button" onClick={handleCopy}>
-				{copied ? "Copied!" : "Copy"}
+			<CopyButton appearance="icon" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy"}>
+				<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
 			</CopyButton>
 			<StyledPre {...preProps} theme={theme} ref={preRef}>
 				{children}
