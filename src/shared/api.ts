@@ -477,6 +477,16 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "claude-3-7-sonnet@20250219"
 export const vertexModels = {
+	"gemini-2.5-flash-preview-04-17:thinking": {
+		maxTokens: 65_535,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 3.5,
+		thinking: true,
+		maxThinkingTokens: 24_576,
+	},
 	"gemini-2.5-flash-preview-04-17": {
 		maxTokens: 65_535,
 		contextWindow: 1_048_576,
@@ -484,6 +494,7 @@ export const vertexModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
+		thinking: false,
 	},
 	"gemini-2.5-pro-preview-03-25": {
 		maxTokens: 65_535,
