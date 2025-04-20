@@ -295,8 +295,6 @@ export class Controller {
 					await this.postStateToWebview()
 				}
 				break
-			// browserSettings message has been migrated to gRPC
-			// Use BrowserServiceClient.updateBrowserSettings instead
 			case "togglePlanActMode":
 				if (message.chatSettings) {
 					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
