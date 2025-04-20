@@ -5,6 +5,7 @@ import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import styled from "styled-components"
+import { BrowserServiceClient } from "../../services/grpc-client"
 
 const ConnectionStatusIndicator = ({
 	isChecking,
@@ -93,10 +94,30 @@ export const BrowserSettingsSection: React.FC = () => {
 			if (browserSettings.remoteBrowserEnabled) {
 				setIsCheckingConnection(true)
 				setConnectionStatus(null)
-				vscode.postMessage({
-					type: browserSettings.remoteBrowserHost ? "testBrowserConnection" : "discoverBrowser",
-					text: browserSettings.remoteBrowserHost,
-				})
+				if (browserSettings.remoteBrowserHost) {
+					// Use gRPC for testBrowserConnection
+					BrowserServiceClient.testBrowserConnection({ value: browserSettings.remoteBrowserHost })
+						.then((result) => {
+							setConnectionStatus(result.success)
+							setIsCheckingConnection(false)
+						})
+						.catch((error) => {
+							console.error("Error testing browser connection:", error)
+							setConnectionStatus(false)
+							setIsCheckingConnection(false)
+						})
+				} else {
+					BrowserServiceClient.discoverBrowser({})
+						.then((result) => {
+							setConnectionStatus(result.success)
+							setIsCheckingConnection(false)
+						})
+						.catch((error) => {
+							console.error("Error discovering browser:", error)
+							setConnectionStatus(false)
+							setIsCheckingConnection(false)
+						})
+				}
 			}
 		}, 1000),
 		[browserSettings.remoteBrowserEnabled, browserSettings.remoteBrowserHost],
@@ -153,10 +174,26 @@ export const BrowserSettingsSection: React.FC = () => {
 	const checkConnectionOnce = useCallback(() => {
 		// Don't show the spinner for every check to avoid UI flicker
 		// We'll rely on the response to update the connectionStatus
-		vscode.postMessage({
-			type: browserSettings.remoteBrowserHost ? "testBrowserConnection" : "discoverBrowser",
-			text: browserSettings.remoteBrowserHost,
-		})
+		if (browserSettings.remoteBrowserHost) {
+			// Use gRPC for testBrowserConnection
+			BrowserServiceClient.testBrowserConnection({ value: browserSettings.remoteBrowserHost })
+				.then((result) => {
+					setConnectionStatus(result.success)
+				})
+				.catch((error) => {
+					console.error("Error testing browser connection:", error)
+					setConnectionStatus(false)
+				})
+		} else {
+			BrowserServiceClient.discoverBrowser({})
+				.then((result) => {
+					setConnectionStatus(result.success)
+				})
+				.catch((error) => {
+					console.error("Error discovering browser:", error)
+					setConnectionStatus(false)
+				})
+		}
 	}, [browserSettings.remoteBrowserHost])
 
 	// Setup continuous polling for connection status when remote browser is enabled

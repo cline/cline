@@ -575,6 +575,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				"browser_action",
 				"browser_action_result",
 				"checkpoint_created",
+				"reasoning",
 			].includes(message.say!)
 		}
 		return false
@@ -797,6 +798,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					isLast={index === groupedMessages.length - 1}
 					onHeightChange={handleRowHeightChange}
 					inputValue={inputValue}
+					sendMessageFromChatRow={handleSendMessage}
 				/>
 			)
 		},

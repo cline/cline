@@ -94,6 +94,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = stripAnsi(data)
 				}
 
+				// Ctrl+C detection: if user presses Ctrl+C, treat as command terminated
+				if (data.includes("^C") || data.includes("\u0003")) {
+					if (this.hotTimer) {
+						clearTimeout(this.hotTimer)
+					}
+					this.isHot = false
+					break
+				}
+
 				// first few chunks could be the command being echoed back, so we must ignore
 				// note this means that 'echo' commands won't work
 				if (!didOutputNonCommand) {

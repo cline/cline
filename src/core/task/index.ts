@@ -86,6 +86,7 @@ import {
 	refreshClineRulesToggles,
 } from "../context/instructions/user-instructions/cline-rules"
 import { getGlobalState } from "../storage/state"
+import { parseSlashCommands } from ".././slash-commands"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 
@@ -307,9 +308,13 @@ export class Task {
 		}
 	}
 
-	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore) {
-		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs)
+	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
+		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
+		// Find the last message before messageIndex that has a lastCheckpointHash
+		const lastHashIndex = findLastIndex(this.clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
 		const message = this.clineMessages[messageIndex]
+		const lastMessageWithHash = this.clineMessages[lastHashIndex]
+
 		if (!message) {
 			console.error("Message not found", this.clineMessages)
 			return
@@ -340,6 +345,14 @@ export class Task {
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						didWorkspaceRestoreFail = true
+					}
+				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
+					try {
+						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				}
@@ -1125,34 +1138,85 @@ export class Task {
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
-		const sendCommandOutput = async (line: string): Promise<void> => {
+
+		// Chunked terminal output buffering
+		const CHUNK_LINE_COUNT = 20
+		const CHUNK_BYTE_SIZE = 2048 // 2KB
+		const CHUNK_DEBOUNCE_MS = 100
+
+		let outputBuffer: string[] = []
+		let outputBufferSize: number = 0
+		let chunkTimer: NodeJS.Timeout | null = null
+		let chunkEnroute = false
+
+		const flushBuffer = async (force = false) => {
+			if (chunkEnroute || outputBuffer.length === 0) {
+				if (force && !chunkEnroute && outputBuffer.length > 0) {
+					// If force is true and no chunkEnroute, flush anyway
+				} else {
+					return
+				}
+			}
+			const chunk = outputBuffer.join("\n")
+			outputBuffer = []
+			outputBufferSize = 0
+			chunkEnroute = true
 			try {
-				const { response, text, images } = await this.ask("command_output", line)
+				const { response, text, images } = await this.ask("command_output", chunk)
 				if (response === "yesButtonClicked") {
 					// proceed while running
 				} else {
 					userFeedback = { text, images }
 				}
 				didContinue = true
-				process.continue() // continue past the await
+				process.continue()
 			} catch {
-				// This can only happen if this ask promise was ignored, so ignore this error
+				// ask promise was ignored
+			} finally {
+				chunkEnroute = false
+				// If more output accumulated while chunkEnroute, flush again
+				if (outputBuffer.length > 0) {
+					await flushBuffer()
+				}
 			}
+		}
+
+		const scheduleFlush = () => {
+			if (chunkTimer) {
+				clearTimeout(chunkTimer)
+			}
+			chunkTimer = setTimeout(() => flushBuffer(), CHUNK_DEBOUNCE_MS)
 		}
 
 		let result = ""
 		process.on("line", (line) => {
 			result += line + "\n"
+
 			if (!didContinue) {
-				sendCommandOutput(line)
+				outputBuffer.push(line)
+				outputBufferSize += Buffer.byteLength(line, "utf8")
+				// Flush if buffer is large enough
+				if (outputBuffer.length >= CHUNK_LINE_COUNT || outputBufferSize >= CHUNK_BYTE_SIZE) {
+					flushBuffer()
+				} else {
+					scheduleFlush()
+				}
 			} else {
 				this.say("command_output", line)
 			}
 		})
 
 		let completed = false
-		process.once("completed", () => {
+		process.once("completed", async () => {
 			completed = true
+			// Flush any remaining buffered output
+			if (!didContinue && outputBuffer.length > 0) {
+				if (chunkTimer) {
+					clearTimeout(chunkTimer)
+					chunkTimer = null
+				}
+				await flushBuffer(true)
+			}
 		})
 
 		process.once("no_shell_integration", async () => {
@@ -2627,8 +2691,13 @@ export class Task {
 								await this.say("mcp_server_request_started") // same as browser_action_result
 								const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
 
-								// TODO: add progress indicator and ability to parse images and non-text responses
-								const toolResultPretty =
+								// TODO: add progress indicator
+
+								const toolResultImages =
+									toolResult?.content
+										.filter((item) => item.type === "image")
+										.map((item) => `data:${item.mimeType};base64,${item.data}`) || []
+								let toolResultText =
 									(toolResult?.isError ? "Error:\n" : "") +
 										toolResult?.content
 											.map((item) => {
@@ -2643,8 +2712,21 @@ export class Task {
 											})
 											.filter(Boolean)
 											.join("\n\n") || "(No response)"
-								await this.say("mcp_server_response", toolResultPretty)
-								pushToolResult(formatResponse.toolResult(toolResultPretty))
+								// webview extracts images from the text response to display in the UI
+								const toolResultToDisplay =
+									toolResultText + toolResultImages?.map((image) => `\n\n${image}`).join("")
+								await this.say("mcp_server_response", toolResultToDisplay)
+
+								// MCP's might return images to display to the user, but the model may not support them
+								const supportsImages = this.api.getModel().info.supportsImages ?? false
+								if (toolResultImages.length > 0 && !supportsImages) {
+									toolResultText += `\n\n[${toolResultImages.length} images were provided in the response, and while they are displayed to the user, you do not have the ability to view them.]`
+								}
+
+								// only passes in images if model supports them
+								pushToolResult(
+									formatResponse.toolResult(toolResultText, supportsImages ? toolResultImages : undefined),
+								)
 
 								await this.saveCheckpoint()
 
@@ -3369,7 +3451,10 @@ export class Task {
 						case "reasoning":
 							// reasoning will always come before assistant message
 							reasoningMessage += chunk.reasoning
-							await this.say("reasoning", reasoningMessage, undefined, true)
+							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
+							if (!this.abort) {
+								await this.say("reasoning", reasoningMessage, undefined, true)
+							}
 							break
 						case "text":
 							if (reasoningMessage && assistantMessage.length === 0) {
@@ -3538,12 +3623,10 @@ export class Task {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
-							const parsedText = await parseMentions(
-								block.text,
-								cwd,
-								this.urlContentFetcher,
-								this.fileContextTracker,
-							)
+							let parsedText = await parseMentions(block.text, cwd, this.urlContentFetcher, this.fileContextTracker)
+
+							// when parsing slash commands, we still want to allow the user to provide their desired context
+							parsedText = parseSlashCommands(parsedText)
 
 							return {
 								...block,

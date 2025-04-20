@@ -173,3 +173,75 @@ export async function refreshClineRulesToggles(
 		localToggles: updatedLocalToggles,
 	}
 }
+
+export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: string) => {
+	try {
+		let filePath: string
+		if (isGlobal) {
+			const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+			filePath = path.join(globalClineRulesFilePath, filename)
+		} else {
+			const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
+			await fs.mkdir(localClineRulesFilePath, { recursive: true })
+			filePath = path.join(localClineRulesFilePath, filename)
+		}
+
+		const fileExists = await fileExistsAtPath(filePath)
+
+		if (fileExists) {
+			return { filePath, fileExists }
+		}
+
+		await fs.writeFile(filePath, "", "utf8")
+
+		return { filePath, fileExists: false }
+	} catch (error) {
+		return { filePath: null, fileExists: false }
+	}
+}
+
+export async function deleteRuleFile(
+	context: vscode.ExtensionContext,
+	rulePath: string,
+	isGlobal: boolean,
+): Promise<{ success: boolean; message: string }> {
+	try {
+		// Check if file exists
+		const fileExists = await fileExistsAtPath(rulePath)
+		if (!fileExists) {
+			return {
+				success: false,
+				message: `Rule file does not exist: ${rulePath}`,
+			}
+		}
+
+		// Delete the file from disk
+		await fs.unlink(rulePath)
+
+		// Get the filename for messages
+		const fileName = path.basename(rulePath)
+
+		// Update the appropriate toggles
+		if (isGlobal) {
+			const toggles = ((await getGlobalState(context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
+			delete toggles[rulePath]
+			await updateGlobalState(context, "globalClineRulesToggles", toggles)
+		} else {
+			const toggles = ((await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles) || {}
+			delete toggles[rulePath]
+			await updateWorkspaceState(context, "localClineRulesToggles", toggles)
+		}
+
+		return {
+			success: true,
+			message: `Rule file "${fileName}" deleted successfully`,
+		}
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		console.error(`Error deleting rule file: ${errorMessage}`, error)
+		return {
+			success: false,
+			message: `Failed to delete rule file.`,
+		}
+	}
+}

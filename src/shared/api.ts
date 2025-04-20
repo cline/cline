@@ -32,6 +32,7 @@ export interface ApiHandlerOptions {
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
+	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -58,6 +59,7 @@ export interface ApiHandlerOptions {
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
+	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string

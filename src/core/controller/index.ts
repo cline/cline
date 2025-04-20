@@ -49,7 +49,7 @@ import {
 } from "../storage/state"
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "../../shared/cline-rules"
-import { refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -65,7 +65,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "april-11-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "april-18-2025_21:15::00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -311,93 +311,6 @@ export class Controller {
 					await this.postStateToWebview()
 				}
 				break
-			case "testBrowserConnection":
-				try {
-					const { browserSettings } = await getAllExtensionState(this.context)
-					const browserSession = new BrowserSession(this.context, browserSettings)
-					// If no text is provided, try auto-discovery
-					if (!message.text) {
-						try {
-							const discoveredHost = await discoverChromeInstances()
-							if (discoveredHost) {
-								// Test the connection to the discovered host
-								const result = await browserSession.testConnection(discoveredHost)
-								// Send the result back to the webview
-								await this.postMessageToWebview({
-									type: "browserConnectionResult",
-									success: result.success,
-									text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
-									endpoint: result.endpoint,
-								})
-							} else {
-								await this.postMessageToWebview({
-									type: "browserConnectionResult",
-									success: false,
-									text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
-								})
-							}
-						} catch (error) {
-							await this.postMessageToWebview({
-								type: "browserConnectionResult",
-								success: false,
-								text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
-							})
-						}
-					} else {
-						// Test the provided URL
-						const result = await browserSession.testConnection(message.text)
-
-						// Send the result back to the webview
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: result.success,
-							text: result.message,
-							endpoint: result.endpoint,
-						})
-					}
-				} catch (error) {
-					await this.postMessageToWebview({
-						type: "browserConnectionResult",
-						success: false,
-						text: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
-					})
-				}
-				break
-			case "discoverBrowser":
-				try {
-					const discoveredHost = await discoverChromeInstances()
-
-					if (discoveredHost) {
-						// Don't update the remoteBrowserHost state when auto-discovering
-						// This way we don't override the user's preference
-
-						// Test the connection to get the endpoint
-						const { browserSettings } = await getAllExtensionState(this.context)
-						const browserSession = new BrowserSession(this.context, browserSettings)
-						const result = await browserSession.testConnection(discoveredHost)
-
-						// Send the result back to the webview
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: true,
-							text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
-							endpoint: result.endpoint,
-						})
-					} else {
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: false,
-							text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
-						})
-					}
-				} catch (error) {
-					await this.postMessageToWebview({
-						type: "browserConnectionResult",
-						success: false,
-						text: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
-					})
-				}
-				break
 			case "togglePlanActMode":
 				if (message.chatSettings) {
 					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
@@ -502,15 +415,39 @@ export class Controller {
 			case "openFile":
 				openFile(message.text!)
 				break
+			case "createRuleFile":
+				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
+					console.error("createRuleFile: Missing or invalid parameters", {
+						isGlobal:
+							typeof message.isGlobal === "boolean" ? message.isGlobal : `Invalid: ${typeof message.isGlobal}`,
+						filename: typeof message.filename === "string" ? message.filename : `Invalid: ${typeof message.filename}`,
+					})
+					return
+				}
+				const { filePath, fileExists } = await createRuleFile(message.isGlobal, message.filename, cwd)
+				if (fileExists && filePath) {
+					vscode.window.showWarningMessage(`Rule file "${message.filename}" already exists.`)
+					// Still open it for editing
+					openFile(filePath)
+					return
+				} else if (filePath && !fileExists) {
+					await refreshClineRulesToggles(this.context, cwd)
+					await this.postStateToWebview()
+
+					openFile(filePath)
+
+					vscode.window.showInformationMessage(
+						`Created new ${message.isGlobal ? "global" : "workspace"} rule file: ${message.filename}`,
+					)
+				} else {
+					// null filePath
+					vscode.window.showErrorMessage(`Failed to create rule file.`)
+				}
+
+				break
 			case "openMention":
 				openMention(message.text)
 				break
-			case "checkpointDiff": {
-				if (message.number) {
-					await this.task?.presentMultifileDiff(message.number, false)
-				}
-				break
-			}
 			case "checkpointRestore": {
 				await this.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superseded by a new message eg add deleted_api_reqs
 				// cancel task waits for any open editor to be reverted and starts a new cline instance
@@ -522,7 +459,7 @@ export class Controller {
 						console.error("Failed to init new cline instance")
 					})
 					// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
-					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore)
+					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore, message.offset)
 				}
 				break
 			}
@@ -682,6 +619,24 @@ export class Controller {
 						rulePath,
 						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
+					})
+				}
+				break
+			}
+			case "deleteClineRule": {
+				const { isGlobal, rulePath } = message
+				if (rulePath && typeof isGlobal === "boolean") {
+					const result = await deleteRuleFile(this.context, rulePath, isGlobal)
+					if (result.success) {
+						await refreshClineRulesToggles(this.context, cwd)
+						await this.postStateToWebview()
+					} else {
+						console.error("Failed to delete rule file:", result.message)
+					}
+				} else {
+					console.error("deleteClineRule: Missing or invalid parameters", {
+						rulePath,
+						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 					})
 				}
 				break
