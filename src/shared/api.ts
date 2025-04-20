@@ -505,14 +505,6 @@ export const geminiModels = {
 			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
 		],
 	},
-	"gemini-2.5-flash-preview-04-17": {
-		maxTokens: 8192, // Based on 2.0 Flash
-		contextWindow: 1_048_576, // Based on 2.0 Flash/2.5 Pro
-		supportsImages: true, // Assumed based on recent Gemini models & blog post context
-		supportsPromptCache: false,
-		inputPrice: 0, // Preview model, pricing TBD
-		outputPrice: 0, // Preview model, pricing TBD
-	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
