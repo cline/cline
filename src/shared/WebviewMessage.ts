@@ -43,7 +43,6 @@ export interface WebviewMessage {
 		| "discoverBrowser"
 		| "browserRelaunchResult"
 		| "togglePlanActMode"
-		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
