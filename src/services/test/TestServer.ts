@@ -503,8 +503,6 @@ export function createMessageCatcher(webviewProvider: WebviewProvider): vscode.D
 
 		// Intercept outgoing messages from extension to webview
 		webviewProvider.controller.postMessageToWebview = async (message: ExtensionMessage) => {
-			Logger.log("Cline message received: " + JSON.stringify(message))
-
 			// Check for completion_result message
 			if (message.type === "partialMessage" && message.partialMessage?.say === "completion_result") {
 				// Complete the current task
