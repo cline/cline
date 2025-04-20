@@ -49,7 +49,7 @@ import {
 } from "../storage/state"
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "../../shared/cline-rules"
-import { deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -65,7 +65,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "april-11-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "april-18-2025_21:15::00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -450,15 +450,39 @@ export class Controller {
 			case "openFile":
 				openFile(message.text!)
 				break
+			case "createRuleFile":
+				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
+					console.error("createRuleFile: Missing or invalid parameters", {
+						isGlobal:
+							typeof message.isGlobal === "boolean" ? message.isGlobal : `Invalid: ${typeof message.isGlobal}`,
+						filename: typeof message.filename === "string" ? message.filename : `Invalid: ${typeof message.filename}`,
+					})
+					return
+				}
+				const { filePath, fileExists } = await createRuleFile(message.isGlobal, message.filename, cwd)
+				if (fileExists && filePath) {
+					vscode.window.showWarningMessage(`Rule file "${message.filename}" already exists.`)
+					// Still open it for editing
+					openFile(filePath)
+					return
+				} else if (filePath && !fileExists) {
+					await refreshClineRulesToggles(this.context, cwd)
+					await this.postStateToWebview()
+
+					openFile(filePath)
+
+					vscode.window.showInformationMessage(
+						`Created new ${message.isGlobal ? "global" : "workspace"} rule file: ${message.filename}`,
+					)
+				} else {
+					// null filePath
+					vscode.window.showErrorMessage(`Failed to create rule file.`)
+				}
+
+				break
 			case "openMention":
 				openMention(message.text)
 				break
-			case "checkpointDiff": {
-				if (message.number) {
-					await this.task?.presentMultifileDiff(message.number, false)
-				}
-				break
-			}
 			case "checkpointRestore": {
 				await this.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superseded by a new message eg add deleted_api_reqs
 				// cancel task waits for any open editor to be reverted and starts a new cline instance

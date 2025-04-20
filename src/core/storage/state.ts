@@ -81,6 +81,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		lmStudioBaseUrl,
 		anthropicBaseUrl,
 		geminiApiKey,
+		geminiBaseUrl,
 		openAiNativeApiKey,
 		deepSeekApiKey,
 		requestyApiKey,
@@ -153,6 +154,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "lmStudioBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "anthropicBaseUrl") as Promise<string | undefined>,
 		getSecret(context, "geminiApiKey") as Promise<string | undefined>,
+		getGlobalState(context, "geminiBaseUrl") as Promise<string | undefined>,
 		getSecret(context, "openAiNativeApiKey") as Promise<string | undefined>,
 		getSecret(context, "deepSeekApiKey") as Promise<string | undefined>,
 		getSecret(context, "requestyApiKey") as Promise<string | undefined>,
@@ -266,6 +268,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
 			geminiApiKey,
+			geminiBaseUrl,
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
@@ -345,6 +348,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		lmStudioBaseUrl,
 		anthropicBaseUrl,
 		geminiApiKey,
+		geminiBaseUrl,
 		openAiNativeApiKey,
 		deepSeekApiKey,
 		requestyApiKey,
@@ -401,6 +405,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "lmStudioBaseUrl", lmStudioBaseUrl)
 	await updateGlobalState(context, "anthropicBaseUrl", anthropicBaseUrl)
 	await storeSecret(context, "geminiApiKey", geminiApiKey)
+	await updateGlobalState(context, "geminiBaseUrl", geminiBaseUrl)
 	await storeSecret(context, "openAiNativeApiKey", openAiNativeApiKey)
 	await storeSecret(context, "deepSeekApiKey", deepSeekApiKey)
 	await storeSecret(context, "requestyApiKey", requestyApiKey)
