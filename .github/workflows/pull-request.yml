@@ -65,7 +65,7 @@ jobs:
               with:
                   result-encoding: string
                   script: |
-                      const fetch = require('node-fetch');
+                      const fetch = globalThis.fetch || require('node-fetch');
                       const API = 'https://api.linear.app/graphql';
                       const apiKey = process.env.LINEAR_API_KEY;
                       // Helper to call Linear
