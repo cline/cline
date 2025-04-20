@@ -469,9 +469,6 @@ export class Controller {
 				}
 				break
 			}
-			case "cancelTask":
-				this.cancelTask()
-				break
 			case "getLatestState":
 				await this.postStateToWebview()
 				break
