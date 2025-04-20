@@ -22,7 +22,7 @@ export const formatResponse = {
 
 Please ask the user to switch to ACT MODE using the toggle button or the keyboard shortcut (Meta+Shift+A) if you need to edit files.
 
-In PLAN MODE, you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_response tool to engage in a conversational back and forth with the user.`,
+In PLAN MODE, you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_respond tool to engage in a conversational back and forth with the user.`,
 
 	noToolsUsed: () =>
 		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
