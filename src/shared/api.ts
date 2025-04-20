@@ -361,6 +361,14 @@ export const vertexModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.03,
 	},
+	"gemini-2.5-flash-preview-04-17": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
@@ -481,8 +489,16 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.5-flash-preview-04-17"
 export const geminiModels = {
+	"gemini-2.5-flash-preview-04-17": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
 	"gemini-2.5-pro-exp-03-25": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
