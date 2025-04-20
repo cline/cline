@@ -118,6 +118,11 @@
 				"command": "cline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.showWelcomeTab",
+				"title": "Show Welcome Tab",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
@@ -280,6 +285,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.showWelcomeTabOnInstall": {
+					"type": "boolean",
+					"default": true,
+					"description": "Controls whether the welcome tab is shown when the extension is installed."
 				}
 			}
 		}
