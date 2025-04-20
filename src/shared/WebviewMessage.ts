@@ -29,7 +29,6 @@ export interface WebviewMessage {
 		| "openFile"
 		| "createRuleFile"
 		| "openMention"
-		| "cancelTask"
 		| "showChatView"
 		| "refreshOpenRouterModels"
 		| "refreshRequestyModels"
