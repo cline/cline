@@ -239,7 +239,7 @@
 					"default": false,
 					"description": "Disables extension from spawning browser session."
 				},
-				"cline.modelSettings.o3Mini.reasoningEffort": {
+				"cline.modelSettings.reasoningEffort": {
 					"type": "string",
 					"enum": [
 						"low",
@@ -247,7 +247,7 @@
 						"high"
 					],
 					"default": "medium",
-					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
+					"description": "Controls the reasoning effort for models that support this feature. Higher values may result in more thorough but slower responses."
 				},
 				"cline.chromeExecutablePath": {
 					"type": "string",
