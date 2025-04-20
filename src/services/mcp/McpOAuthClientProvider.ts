@@ -45,9 +45,10 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 	/**
 	 * Stores the state parameter for later validation
 	 */
-	private async _saveState(state: string): Promise<void> {
-		await this.saveToStorage("oauth-state", state)
-		await this.saveToStorage("oauth-state-ts", Date.now().toString())
+	private async _saveState(state: string): Promise<boolean> {
+		const stateSaved = await this.saveToStorage("oauth-state", state)
+		const timestampSaved = await this.saveToStorage("oauth-state-ts", Date.now().toString())
+		return stateSaved && timestampSaved
 	}
 
 	/**
@@ -86,8 +87,12 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 			return false
 		}
 
-		await this.saveToStorage("oauth-state", "")
-		await this.saveToStorage("oauth-state-ts", "")
+		const stateCleared = await this.saveToStorage("oauth-state", "")
+		const timestampCleared = await this.saveToStorage("oauth-state-ts", "")
+		if (!stateCleared || !timestampCleared) {
+			OAuthLogger.logError(this.serverName, "state_cleanup", "Failed to clear state after validation")
+			// Not returning false here as validation itself was successful
+		}
 
 		OAuthLogger.logInfo(this.serverName, "state_validation_success")
 		return true
@@ -111,11 +116,31 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 	}
 	async clientInformation(): Promise<OAuthClientInformation | undefined> {
 		const stored = await this.getFromStorage("client-info")
-		return stored ? JSON.parse(stored) : undefined
+		if (!stored) {
+			return undefined
+		}
+
+		try {
+			return JSON.parse(stored) as OAuthClientInformation
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			OAuthLogger.logError(
+				this.serverName,
+				"client_info_parse_error",
+				`Failed to parse client information: ${errorMessage}`,
+			)
+			return undefined
+		}
 	}
 
 	async saveClientInformation(clientInformation: OAuthClientInformationFull): Promise<void> {
-		await this.saveToStorage("client-info", JSON.stringify(clientInformation))
+		const saved = await this.saveToStorage("client-info", JSON.stringify(clientInformation))
+		if (!saved) {
+			OAuthLogger.logError(this.serverName, "client_info_save_failed", "Failed to save client information")
+			vscode.window.showErrorMessage(
+				`Failed to save client information for ${this.serverName}. The MCP server connection may not work properly.`,
+			)
+		}
 	}
 
 	async tokens(): Promise<OAuthTokens | undefined> {
@@ -128,32 +153,70 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 			return undefined
 		}
 
-		const tokens = JSON.parse(stored) as OAuthTokens
-		const savedAt = parseInt(storedTimestamp, 10)
-		const expiresInMs = (tokens.expires_in || 3_600) * 1_000
+		try {
+			const tokens = JSON.parse(stored) as OAuthTokens
 
-		if (savedAt + expiresInMs < Date.now()) {
-			const tokenAge = Math.floor((Date.now() - savedAt) / 1_000)
-			OAuthLogger.logInfo(this.serverName, "token_expired", { age_seconds: tokenAge })
+			try {
+				const savedAt = parseInt(storedTimestamp, 10)
+				if (isNaN(savedAt)) {
+					OAuthLogger.logError(this.serverName, "token_timestamp_invalid", "Stored timestamp is not a valid number")
+					return undefined
+				}
+
+				const expiresInMs = (tokens.expires_in || 3_600) * 1_000
+
+				if (savedAt + expiresInMs < Date.now()) {
+					const tokenAge = Math.floor((Date.now() - savedAt) / 1_000)
+					OAuthLogger.logInfo(this.serverName, "token_expired", { age_seconds: tokenAge })
+					return undefined
+				}
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				OAuthLogger.logError(this.serverName, "token_timestamp_parse_error", `Failed to parse timestamp: ${errorMessage}`)
+				return undefined
+			}
+
+			return tokens
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			OAuthLogger.logError(this.serverName, "token_parse_error", `Failed to parse tokens: ${errorMessage}`)
 			return undefined
 		}
-
-		return tokens
 	}
 
 	async saveTokens(tokens: OAuthTokens): Promise<void> {
-		await this.saveToStorage("tokens", JSON.stringify(tokens))
-		await this.saveToStorage("tokens-saved-at", Date.now().toString())
+		const tokensSaved = await this.saveToStorage("tokens", JSON.stringify(tokens))
+		const timestampSaved = await this.saveToStorage("tokens-saved-at", Date.now().toString())
 
-		OAuthLogger.logInfo(this.serverName, "token_acquired", {
-			expires_in: tokens.expires_in || 3_600,
-			has_refresh_token: Boolean(tokens.refresh_token),
-		})
+		if (tokensSaved && timestampSaved) {
+			OAuthLogger.logInfo(this.serverName, "token_acquired", {
+				expires_in: tokens.expires_in || 3_600,
+				has_refresh_token: Boolean(tokens.refresh_token),
+			})
+		} else {
+			OAuthLogger.logError(this.serverName, "token_save_failed", "Failed to save complete token information")
+			vscode.window.showErrorMessage(
+				`Failed to save authentication tokens for ${this.serverName}. You may need to re-authenticate.`,
+			)
+		}
 	}
 
 	async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
 		const state = this._generateState()
-		await this._saveState(state)
+		const stateSaved = await this._saveState(state)
+
+		if (!stateSaved) {
+			OAuthLogger.logError(
+				this.serverName,
+				"authorization_state_save_failed",
+				"Failed to save state parameter, authorization may fail",
+			)
+			vscode.window.showWarningMessage(
+				`Failed to properly secure the authorization process for ${this.serverName}. The authorization may fail or be insecure.`,
+				{ modal: true },
+			)
+			// Proceeding anyway to give it a chance to work, but with a warning to the user
+		}
 
 		authorizationUrl.searchParams.set("state", state)
 
@@ -161,11 +224,30 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 			url: maskUrl(authorizationUrl.toString()),
 			callback: this.callbackPath,
 		})
-		await vscode.env.openExternal(vscode.Uri.parse(authorizationUrl.toString()))
+
+		try {
+			await vscode.env.openExternal(vscode.Uri.parse(authorizationUrl.toString()))
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			OAuthLogger.logError(
+				this.serverName,
+				"authorization_browser_error",
+				`Failed to open browser for authorization: ${errorMessage}`,
+			)
+			vscode.window.showErrorMessage(
+				`Failed to open browser for ${this.serverName} authorization. Please try again or check your system configuration.`,
+			)
+		}
 	}
 
 	async saveCodeVerifier(codeVerifier: string): Promise<void> {
-		await this.saveToStorage("code-verifier", codeVerifier)
+		const saved = await this.saveToStorage("code-verifier", codeVerifier)
+		if (!saved) {
+			OAuthLogger.logError(this.serverName, "code_verifier_save_failed", "Failed to save code verifier")
+			vscode.window.showErrorMessage(
+				`Failed to save authentication data for ${this.serverName}. The authorization process may fail.`,
+			)
+		}
 	}
 
 	async codeVerifier(): Promise<string> {
@@ -177,10 +259,31 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 	}
 
 	private async getFromStorage(key: string): Promise<string | undefined> {
-		return await vscode.commands.executeCommand("cline.getSecret", `${this.storagePrefix}-${key}`)
+		try {
+			const result = await vscode.commands.executeCommand("cline.getSecret", `${this.storagePrefix}-${key}`)
+			return result as string | undefined
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			OAuthLogger.logError(this.serverName, "storage_read_error", `Failed to read ${key} from storage: ${errorMessage}`)
+			return undefined
+		}
 	}
 
-	private async saveToStorage(key: string, value: string): Promise<void> {
-		await vscode.commands.executeCommand("cline.saveSecret", `${this.storagePrefix}-${key}`, value)
+	private async saveToStorage(key: string, value: string): Promise<boolean> {
+		try {
+			await vscode.commands.executeCommand("cline.saveSecret", `${this.storagePrefix}-${key}`, value)
+			return true
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			OAuthLogger.logError(this.serverName, "storage_write_error", `Failed to save ${key} to storage: ${errorMessage}`)
+
+			// Notify the user for critical storage operations
+			if (key.includes("tokens") || key.includes("client-info")) {
+				vscode.window.showErrorMessage(
+					`Failed to save authentication data for ${this.serverName}. The MCP server connection may not work properly.`,
+				)
+			}
+			return false
+		}
 	}
 }
