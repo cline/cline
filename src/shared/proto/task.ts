@@ -23,5 +23,14 @@ export const TaskServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Clears the current task */
+		clearTask: {
+			name: "clearTask",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
