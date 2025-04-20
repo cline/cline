@@ -182,6 +182,30 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 			filePath = path.join(globalClineRulesFilePath, filename)
 		} else {
 			const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
+
+			// Check if there is an existing .clinerules file (We're trying to make it a directory)
+			const pathExists = await fileExistsAtPath(localClineRulesFilePath)
+			const isDir = pathExists ? await isDirectory(localClineRulesFilePath) : false
+
+			if (pathExists && !isDir) {
+				// A .clinerules file exists, migrate it to a directory
+				try {
+					const content = await fs.readFile(localClineRulesFilePath, "utf8")
+
+					const tempDirPath = path.resolve(cwd, ".clinerules_temp")
+					await fs.mkdir(tempDirPath, { recursive: true })
+
+					await fs.writeFile(path.join(tempDirPath, "old_clinerules_file.md"), content, "utf8")
+
+					await fs.unlink(localClineRulesFilePath)
+
+					await fs.rename(tempDirPath, localClineRulesFilePath)
+				} catch (error) {
+					console.error("Failed to migrate .clinerules file to directory:", error)
+					throw error
+				}
+			}
+
 			await fs.mkdir(localClineRulesFilePath, { recursive: true })
 			filePath = path.join(localClineRulesFilePath, filename)
 		}
