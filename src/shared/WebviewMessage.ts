@@ -12,7 +12,6 @@ export interface WebviewMessage {
 		| "addRemoteServer"
 		| "apiConfiguration"
 		| "webviewDidLaunch"
-		| "newTask"
 		| "askResponse"
 		| "didShowAnnouncement"
 		| "selectImages"

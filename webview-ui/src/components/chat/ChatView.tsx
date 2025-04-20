@@ -286,11 +286,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
 
 	const handleSendMessage = useCallback(
-		(text: string, images: string[]) => {
+		async (text: string, images: string[]) => {
 			text = text.trim()
 			if (text || images.length > 0) {
 				if (messages.length === 0) {
-					vscode.postMessage({ type: "newTask", text, images })
+					await TaskServiceClient.newTask({ text, images })
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -336,7 +336,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	This logic depends on the useEffect[messages] above to set clineAsk, after which buttons are shown and we then send an askResponse to the extension.
 	*/
 	const handlePrimaryButtonClick = useCallback(
-		(text?: string, images?: string[]) => {
+		async (text?: string, images?: string[]) => {
 			const trimmedInput = text?.trim()
 			switch (clineAsk) {
 				case "api_req_failed":
@@ -372,8 +372,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					break
 				case "new_task":
 					console.info("new task button clicked!", { lastMessage, messages, clineAsk, text })
-					vscode.postMessage({
-						type: "newTask",
+					await TaskServiceClient.newTask({
 						text: lastMessage?.text,
 					})
 					break
