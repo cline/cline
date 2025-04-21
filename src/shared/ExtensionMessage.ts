@@ -225,6 +225,7 @@ export interface ClineSayTool {
 		| "newTask"
 		| "finishTask"
 		| "searchAndReplace"
+		| "insertContent"
 	path?: string
 	diff?: string
 	content?: string
@@ -239,6 +240,7 @@ export interface ClineSayTool {
 	ignoreCase?: boolean
 	startLine?: number
 	endLine?: number
+	lineNumber?: number
 }
 
 // Must keep in sync with system prompt.

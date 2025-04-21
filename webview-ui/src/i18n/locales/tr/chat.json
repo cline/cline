@@ -122,7 +122,10 @@
 		"wantsToEditOutsideWorkspace": "Roo çalışma alanı dışındaki bu dosyayı düzenlemek istiyor:",
 		"wantsToCreate": "Roo yeni bir dosya oluşturmak istiyor:",
 		"wantsToSearchReplace": "Roo bu dosyada arama ve değiştirme yapmak istiyor:",
-		"didSearchReplace": "Roo bu dosyada arama ve değiştirme yaptı:"
+		"didSearchReplace": "Roo bu dosyada arama ve değiştirme yaptı:",
+		"wantsToInsert": "Roo bu dosyaya içerik eklemek istiyor:",
+		"wantsToInsertWithLineNumber": "Roo bu dosyanın {{lineNumber}}. satırına içerik eklemek istiyor:",
+		"wantsToInsertAtEnd": "Roo bu dosyanın sonuna içerik eklemek istiyor:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo bu dizindeki üst düzey dosyaları görüntülemek istiyor:",

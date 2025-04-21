@@ -122,7 +122,10 @@
 		"wantsToEditOutsideWorkspace": "Roo가 워크스페이스 외부의 이 파일을 편집하고 싶어합니다:",
 		"wantsToCreate": "Roo가 새 파일을 만들고 싶어합니다:",
 		"wantsToSearchReplace": "Roo가 이 파일에서 검색 및 바꾸기를 수행하고 싶어합니다:",
-		"didSearchReplace": "Roo가 이 파일에서 검색 및 바꾸기를 수행했습니다:"
+		"didSearchReplace": "Roo가 이 파일에서 검색 및 바꾸기를 수행했습니다:",
+		"wantsToInsert": "Roo가 이 파일에 내용을 삽입하고 싶어합니다:",
+		"wantsToInsertWithLineNumber": "Roo가 이 파일의 {{lineNumber}}번 줄에 내용을 삽입하고 싶어합니다:",
+		"wantsToInsertAtEnd": "Roo가 이 파일의 끝에 내용을 추가하고 싶어합니다:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo가 이 디렉토리의 최상위 파일을 보고 싶어합니다:",

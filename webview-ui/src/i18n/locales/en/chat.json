@@ -117,7 +117,10 @@
 		"wantsToEditOutsideWorkspace": "Roo wants to edit this file outside of the workspace:",
 		"wantsToCreate": "Roo wants to create a new file:",
 		"wantsToSearchReplace": "Roo wants to perform search and replace on this file:",
-		"didSearchReplace": "Roo performed search and replace on this file:"
+		"didSearchReplace": "Roo performed search and replace on this file:",
+		"wantsToInsert": "Roo wants to insert content into this file:",
+		"wantsToInsertWithLineNumber": "Roo wants to insert content into this file at line {{lineNumber}}:",
+		"wantsToInsertAtEnd": "Roo wants to append content to the end of this file:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo wants to view the top level files in this directory:",

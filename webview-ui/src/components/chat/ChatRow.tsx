@@ -295,6 +295,31 @@ export const ChatRowContent = ({
 						/>
 					</>
 				)
+			case "insertContent":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("insert")}
+							<span style={{ fontWeight: "bold" }}>
+								{tool.isOutsideWorkspace
+									? t("chat:fileOperations.wantsToEditOutsideWorkspace")
+									: tool.lineNumber === 0
+										? t("chat:fileOperations.wantsToInsertAtEnd")
+										: t("chat:fileOperations.wantsToInsertWithLineNumber", {
+												lineNumber: tool.lineNumber,
+											})}
+							</span>
+						</div>
+						<CodeAccordian
+							progressStatus={message.progressStatus}
+							isLoading={message.partial}
+							diff={tool.diff!}
+							path={tool.path!}
+							isExpanded={isExpanded}
+							onToggleExpand={onToggleExpand}
+						/>
+					</>
+				)
 			case "searchAndReplace":
 				return (
 					<>

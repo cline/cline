@@ -122,7 +122,10 @@
 		"wantsToEditOutsideWorkspace": "需要编辑外部文件:",
 		"wantsToCreate": "需要新建文件:",
 		"wantsToSearchReplace": "需要执行搜索和替换:",
-		"didSearchReplace": "已完成搜索和替换:"
+		"didSearchReplace": "已完成搜索和替换:",
+		"wantsToInsert": "需要在此文件中插入内容:",
+		"wantsToInsertWithLineNumber": "需要在第 {{lineNumber}} 行插入内容:",
+		"wantsToInsertAtEnd": "需要在文件末尾添加内容:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "需要查看目录文件列表:",

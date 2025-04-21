@@ -4,7 +4,6 @@ import { AssertEqual, Equals, Keys, Values } from "../utils/type-fu"
 export type { ExperimentId }
 
 export const EXPERIMENT_IDS = {
-	INSERT_BLOCK: "insert_content",
 	POWER_STEERING: "powerSteering",
 } as const satisfies Record<string, ExperimentId>
 
@@ -17,7 +16,6 @@ interface ExperimentConfig {
 }
 
 export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
-	INSERT_BLOCK: { enabled: false },
 	POWER_STEERING: { enabled: false },
 }
 

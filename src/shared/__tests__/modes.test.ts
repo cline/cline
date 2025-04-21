@@ -254,48 +254,6 @@ describe("isToolAllowedForMode", () => {
 
 		expect(isToolAllowedForMode("write_to_file", "markdown-editor", customModes, toolRequirements)).toBe(false)
 	})
-
-	describe("experimental tools", () => {
-		it("disables tools when experiment is disabled", () => {
-			const experiments = {
-				insert_content: false,
-			}
-
-			expect(
-				isToolAllowedForMode("insert_content", "test-exp-mode", customModes, undefined, undefined, experiments),
-			).toBe(false)
-		})
-
-		it("allows tools when experiment is enabled", () => {
-			const experiments = {
-				insert_content: true,
-			}
-
-			expect(
-				isToolAllowedForMode("insert_content", "test-exp-mode", customModes, undefined, undefined, experiments),
-			).toBe(true)
-		})
-
-		it("allows non-experimental tools when experiments are disabled", () => {
-			const experiments = {
-				insert_content: false,
-			}
-
-			expect(
-				isToolAllowedForMode("read_file", "markdown-editor", customModes, undefined, undefined, experiments),
-			).toBe(true)
-			expect(
-				isToolAllowedForMode(
-					"write_to_file",
-					"markdown-editor",
-					customModes,
-					undefined,
-					{ path: "test.md" },
-					experiments,
-				),
-			).toBe(true)
-		})
-	})
 })
 
 describe("FileRestrictionError", () => {

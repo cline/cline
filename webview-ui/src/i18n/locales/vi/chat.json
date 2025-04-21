@@ -122,7 +122,10 @@
 		"wantsToEditOutsideWorkspace": "Roo muốn chỉnh sửa tệp này bên ngoài không gian làm việc:",
 		"wantsToCreate": "Roo muốn tạo một tệp mới:",
 		"wantsToSearchReplace": "Roo muốn thực hiện tìm kiếm và thay thế trong tệp này:",
-		"didSearchReplace": "Roo đã thực hiện tìm kiếm và thay thế trong tệp này:"
+		"didSearchReplace": "Roo đã thực hiện tìm kiếm và thay thế trong tệp này:",
+		"wantsToInsert": "Roo muốn chèn nội dung vào tệp này:",
+		"wantsToInsertWithLineNumber": "Roo muốn chèn nội dung vào dòng {{lineNumber}} của tệp này:",
+		"wantsToInsertAtEnd": "Roo muốn thêm nội dung vào cuối tệp này:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo muốn xem các tệp cấp cao nhất trong thư mục này:",

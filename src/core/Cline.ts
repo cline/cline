@@ -78,7 +78,6 @@ import { askFollowupQuestionTool } from "./tools/askFollowupQuestionTool"
 import { switchModeTool } from "./tools/switchModeTool"
 import { attemptCompletionTool } from "./tools/attemptCompletionTool"
 import { newTaskTool } from "./tools/newTaskTool"
-import { appendToFileTool } from "./tools/appendToFileTool"
 
 // prompts
 import { formatResponse } from "./prompts/responses"
@@ -1242,8 +1241,6 @@ export class Cline extends EventEmitter<ClineEvents> {
 							return `[${block.name} for '${block.params.task}']`
 						case "write_to_file":
 							return `[${block.name} for '${block.params.path}']`
-						case "append_to_file":
-							return `[${block.name} for '${block.params.path}']`
 						case "apply_diff":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
@@ -1427,9 +1424,6 @@ export class Cline extends EventEmitter<ClineEvents> {
 				switch (block.name) {
 					case "write_to_file":
 						await writeToFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
-						break
-					case "append_to_file":
-						await appendToFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
 					case "apply_diff":
 						await applyDiffTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)

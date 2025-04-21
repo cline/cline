@@ -119,7 +119,10 @@
 		"wantsToEditOutsideWorkspace": "Roo veut éditer ce fichier en dehors de l'espace de travail :",
 		"wantsToCreate": "Roo veut créer un nouveau fichier :",
 		"wantsToSearchReplace": "Roo veut effectuer une recherche et remplacement sur ce fichier :",
-		"didSearchReplace": "Roo a effectué une recherche et remplacement sur ce fichier :"
+		"didSearchReplace": "Roo a effectué une recherche et remplacement sur ce fichier :",
+		"wantsToInsert": "Roo veut insérer du contenu dans ce fichier :",
+		"wantsToInsertWithLineNumber": "Roo veut insérer du contenu dans ce fichier à la ligne {{lineNumber}} :",
+		"wantsToInsertAtEnd": "Roo veut ajouter du contenu à la fin de ce fichier :"
 	},
 	"instructions": {
 		"wantsToFetch": "Roo veut récupérer des instructions détaillées pour aider à la tâche actuelle"

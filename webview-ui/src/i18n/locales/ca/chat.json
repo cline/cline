@@ -122,7 +122,10 @@
 		"wantsToEditOutsideWorkspace": "Roo vol editar aquest fitxer fora de l'espai de treball:",
 		"wantsToCreate": "Roo vol crear un nou fitxer:",
 		"wantsToSearchReplace": "Roo vol realitzar cerca i substitució en aquest fitxer:",
-		"didSearchReplace": "Roo ha realitzat cerca i substitució en aquest fitxer:"
+		"didSearchReplace": "Roo ha realitzat cerca i substitució en aquest fitxer:",
+		"wantsToInsert": "Roo vol inserir contingut en aquest fitxer:",
+		"wantsToInsertWithLineNumber": "Roo vol inserir contingut a la línia {{lineNumber}} d'aquest fitxer:",
+		"wantsToInsertAtEnd": "Roo vol afegir contingut al final d'aquest fitxer:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo vol veure els fitxers de nivell superior en aquest directori:",
