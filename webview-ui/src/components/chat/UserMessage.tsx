@@ -1,9 +1,9 @@
 import React, { useState, useRef, forwardRef, useCallback } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { highlightText } from "./TaskHeader"
-import { vscode } from "@/utils/vscode"
 import DynamicTextArea from "react-textarea-autosize"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
 
 interface UserMessageProps {
 	text?: string
@@ -35,7 +35,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 		}
 	}, [isEditing])
 
-	const handleRestoreWorkspace = (type: string) => {
+	const handleRestoreWorkspace = async (type: string) => {
 		const delay = type === "task" ? 500 : 1000 // Delay for task and workspace restore
 		setIsEditing(false)
 
@@ -43,16 +43,19 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 			return
 		}
 
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: type,
-			offset: 1,
-		})
+		try {
+			await CheckpointsServiceClient.checkpointRestore({
+				number: messageTs,
+				restoreType: type,
+				offset: 1,
+			})
 
-		setTimeout(() => {
-			sendMessageFromChatRow?.(editedText, images || [])
-		}, delay)
+			setTimeout(() => {
+				sendMessageFromChatRow?.(editedText, images || [])
+			}, delay)
+		} catch (err) {
+			console.error("Checkpoint restore error:", err)
+		}
 	}
 
 	const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
