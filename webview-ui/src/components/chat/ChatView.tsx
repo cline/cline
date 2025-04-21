@@ -374,6 +374,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					console.info("new task button clicked!", { lastMessage, messages, clineAsk, text })
 					await TaskServiceClient.newTask({
 						text: lastMessage?.text,
+						images: [], // Add empty images array to match proto definition
 					})
 					break
 			}
