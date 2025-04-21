@@ -31,14 +31,11 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 	// If no VSIX path is provided, build one with IS_TEST=true
 	if (!vsixPath) {
 		try {
-			// Build the VSIX with IS_TEST=true
-			console.log("Building test VSIX...")
+			// Build the VSIX (no longer need to set IS_TEST=true as we'll use evals.env file)
+			console.log("Building VSIX...")
 			const clineRoot = path.resolve(process.cwd(), "..", "..")
 			await execa("npx", ["vsce", "package"], {
 				cwd: clineRoot,
-				env: {
-					IS_TEST: "true",
-				},
 				stdio: "inherit",
 			})
 
@@ -88,6 +85,21 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 	const tempExtensionsDir = path.join(os.tmpdir(), `vscode-cline-eval-ext-${Date.now()}`)
 	fs.mkdirSync(tempExtensionsDir, { recursive: true })
 	console.log(`Created temporary extensions directory: ${tempExtensionsDir}`)
+
+	// Create evals.env file in the workspace to trigger test mode
+	console.log(`Creating evals.env file in workspace: ${workspacePath}`)
+	const evalsEnvPath = path.join(workspacePath, "evals.env")
+	fs.writeFileSync(
+		evalsEnvPath,
+		`# This file activates Cline test mode
+# Created at: ${new Date().toISOString()}
+# 
+# This file is automatically detected by the Cline extension
+# and enables test mode for automated evaluations.
+#
+# Delete this file to deactivate test mode.
+`,
+	)
 
 	// Create settings.json in the temporary user data directory to disable workspace trust
 	// and configure Cline to auto-open on startup
@@ -571,7 +583,7 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 		console.warn(`Error closing VS Code: ${error}`)
 	}
 
-	// Clean up temporary directories
+	// Clean up temporary directories and evals.env file
 	try {
 		console.log(`Removing temporary user data directory: ${resources.tempUserDataDir}`)
 		fs.rmSync(resources.tempUserDataDir, { recursive: true, force: true })
@@ -584,6 +596,17 @@ export async function cleanupVSCode(workspacePath: string): Promise<void> {
 		fs.rmSync(resources.tempExtensionsDir, { recursive: true, force: true })
 	} catch (error) {
 		console.warn(`Error removing temporary extensions directory: ${error}`)
+	}
+
+	// Remove the evals.env file
+	try {
+		const evalsEnvPath = path.join(workspacePath, "evals.env")
+		if (fs.existsSync(evalsEnvPath)) {
+			console.log(`Removing evals.env file: ${evalsEnvPath}`)
+			fs.unlinkSync(evalsEnvPath)
+		}
+	} catch (error) {
+		console.warn(`Error removing evals.env file: ${error}`)
 	}
 
 	// Remove from the global map
