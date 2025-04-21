@@ -64,7 +64,6 @@ export class GeminiHandler implements ApiHandler {
 		// Generate content using the new SDK structure via client.models
 		const result = await this.client.models.generateContentStream({
 			model: modelId, // Pass model ID directly
-			// Remove systemInstruction from here
 			contents,
 			config: requestConfig, // Pass the combined config (which includes systemInstruction)
 		})
@@ -74,21 +73,17 @@ export class GeminiHandler implements ApiHandler {
 
 		// Iterate directly over the stream
 		for await (const chunk of result) {
-			// Access text directly as a property
 			if (chunk.text) {
-				// Check if text exists
 				yield {
 					type: "text",
-					text: chunk.text, // Access as property
+					text: chunk.text,
 				}
 			}
-			// Capture usage metadata if present in the chunk
 			if (chunk.usageMetadata) {
 				lastUsageMetadata = chunk.usageMetadata
 			}
 		}
 
-		// Yield usage data from the last chunk that contained it
 		if (lastUsageMetadata) {
 			yield {
 				type: "usage",

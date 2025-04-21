@@ -824,7 +824,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							</VSCodeLink>
 						)}
 					</p>
-					{/* Add Thinking Budget Slider specifically for gemini-2.5-flash-preview-04-17 */}
+
 					{/* Add Thinking Budget Slider specifically for gemini-2.5-flash-preview-04-17 */}
 					{selectedProvider === "gemini" && selectedModelId === "gemini-2.5-flash-preview-04-17" && (
 						<ThinkingBudgetSlider

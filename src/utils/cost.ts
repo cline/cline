@@ -59,11 +59,11 @@ function calculateApiCostInternal(
 // For Anthropic compliant usage, the input tokens count does NOT include the cached tokens
 export function calculateApiCostAnthropic(
 	modelInfo: ModelInfo,
-	inputTokens: number, // For Anthropic-style, this is total input tokens
+	inputTokens: number,
 	outputTokens: number,
 	cacheCreationInputTokens?: number,
 	cacheReadInputTokens?: number,
-	thinkingBudgetTokens?: number, // Pass thinking budget info
+	thinkingBudgetTokens?: number,
 ): number {
 	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
 	const cacheReadInputTokensNum = cacheReadInputTokens || 0
@@ -72,12 +72,12 @@ export function calculateApiCostAnthropic(
 	// Anthropic style doesn't need totalInputTokensForPricing as its inputTokens already represents the total
 	return calculateApiCostInternal(
 		modelInfo,
-		inputTokens, // Pass total input tokens
+		inputTokens,
 		outputTokens,
 		cacheCreationInputTokensNum,
 		cacheReadInputTokensNum,
-		inputTokens, // Pass total input tokens for tiered pricing lookup
-		thinkingBudgetTokens, // Pass thinking budget info
+		inputTokens,
+		thinkingBudgetTokens,
 	)
 }
 
@@ -97,11 +97,11 @@ export function calculateApiCostOpenAI(
 	// Pass the original 'inputTokens' as 'totalInputTokensForPricing' for tier lookup
 	return calculateApiCostInternal(
 		modelInfo,
-		nonCachedInputTokens, // Pass the adjusted token count here
+		nonCachedInputTokens,
 		outputTokens,
 		cacheCreationInputTokensNum,
 		cacheReadInputTokensNum,
-		inputTokens, // Pass the original total input tokens for pricing tier lookup
-		thinkingBudgetTokens, // Pass thinking budget info
+		inputTokens,
+		thinkingBudgetTokens,
 	)
 }

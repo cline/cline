@@ -118,7 +118,6 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 
 	const handleToggleChange = (event: any) => {
 		const isChecked = (event.target as HTMLInputElement).checked
-		// Always use DEFAULT_MIN_VALID_TOKENS when enabling
 		const newValue = isChecked ? DEFAULT_MIN_VALID_TOKENS : 0
 		setLocalValue(newValue)
 		setApiConfiguration({
@@ -143,7 +142,7 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 					<RangeInput
 						id="thinking-budget-slider"
 						type="range"
-						min={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
+						min={DEFAULT_MIN_VALID_TOKENS}
 						max={maxSliderValue}
 						step={1}
 						value={localValue}
@@ -151,10 +150,10 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 						onMouseUp={handleSliderComplete}
 						onTouchEnd={handleSliderComplete}
 						$value={localValue}
-						$min={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
+						$min={DEFAULT_MIN_VALID_TOKENS}
 						$max={maxSliderValue}
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
-						aria-valuemin={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
+						aria-valuemin={DEFAULT_MIN_VALID_TOKENS}
 						aria-valuemax={maxSliderValue}
 						aria-valuenow={localValue}
 						aria-describedby="thinking-budget-description"
