@@ -115,7 +115,7 @@ export async function writeToFileTool(
 				cline.consecutiveMistakeCount++
 				cline.recordToolError("write_to_file")
 				pushToolResult(await cline.sayAndCreateMissingParamError("write_to_file", "line_count"))
-				await cline.diffViewProvider.reset()
+				await cline.diffViewProvider.revertChanges()
 				return
 			}
 
