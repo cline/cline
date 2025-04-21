@@ -534,7 +534,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						charBeforeIsWhitespace &&
 						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$"))
 					) {
-						// File mention handling (existing code)
+						// File mention handling
 						const newCursorPosition = cursorPosition - 1
 						if (!charAfterIsWhitespace) {
 							event.preventDefault()
@@ -543,7 +543,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}
 						setCursorPosition(newCursorPosition)
 						setJustDeletedSpaceAfterMention(true)
-						setJustDeletedSpaceAfterSlashCommand(false) // Reset the other flag
+						setJustDeletedSpaceAfterSlashCommand(false)
 					} else if (charBeforeIsWhitespace && inputValue.slice(0, cursorPosition - 1).match(slashCommandDeleteRegex)) {
 						// New slash command handling
 						const newCursorPosition = cursorPosition - 1
@@ -554,11 +554,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}
 						setCursorPosition(newCursorPosition)
 						setJustDeletedSpaceAfterSlashCommand(true)
-						setJustDeletedSpaceAfterMention(false) // Reset the other flag
+						setJustDeletedSpaceAfterMention(false)
 					}
 					// Handle the second backspace press for mentions or slash commands
 					else if (justDeletedSpaceAfterMention) {
-						// Existing mention deletion code
 						const { newText, newPosition } = removeMention(inputValue, cursorPosition)
 						if (newText !== inputValue) {
 							event.preventDefault()
@@ -578,7 +577,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setJustDeletedSpaceAfterSlashCommand(false)
 						setShowSlashCommandsMenu(false)
 					}
-					// STEP 3: Default case - reset flags if none of the above apply
+					// Default case - reset flags if none of the above apply
 					else {
 						setJustDeletedSpaceAfterMention(false)
 						setJustDeletedSpaceAfterSlashCommand(false)
