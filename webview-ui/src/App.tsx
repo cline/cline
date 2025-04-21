@@ -81,8 +81,14 @@ const AppContent = () => {
 
 	useEvent("message", handleMessage)
 
-	// Removed unused telemetry useEffect
-
+	// useEffect(() => {
+	// 	if (telemetrySetting === "enabled") {
+	// 		posthog.identify(vscMachineId)
+	// 		posthog.opt_in_capturing()
+	// 	} else {
+	// 		posthog.opt_out_capturing()
+	// 	}
+	// }, [telemetrySetting, vscMachineId])
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
 			setShowAnnouncement(true)

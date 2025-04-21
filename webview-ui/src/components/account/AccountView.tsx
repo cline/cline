@@ -1,13 +1,13 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
-import { vscode } from "@/utils/vscode"
-import { ApiRequestHistoryEntry, PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
 import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
-import CountUp from "react-countup"
-import ClineLogoWhite from "../../assets/ClineLogoWhite"
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
+import { vscode } from "@/utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import ClineLogoWhite from "../../assets/ClineLogoWhite"
+import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
+import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 type AccountViewProps = {
 	onDone: () => void
@@ -39,29 +39,19 @@ export const ClineAccountView = () => {
 	const [isLoading, setIsLoading] = useState(true)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
 	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
-	const [apiRequestHistory, setApiRequestHistory] = useState<ApiRequestHistoryEntry[]>([])
 
 	// Listen for balance and transaction data updates from the extension
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
-			let stillLoading = false // Assume loading finished unless a fetch is pending
-
 			if (message.type === "userCreditsBalance" && message.userCreditsBalance) {
 				setBalance(message.userCreditsBalance.currentBalance)
 			} else if (message.type === "userCreditsUsage" && message.userCreditsUsage) {
 				setUsageData(message.userCreditsUsage.usageTransactions)
 			} else if (message.type === "userCreditsPayments" && message.userCreditsPayments) {
 				setPaymentsData(message.userCreditsPayments.paymentTransactions)
-			} else if (message.type === "apiRequestHistory") {
-				setApiRequestHistory(message.history || []) // Ensure it's an array
-			} else {
-				// If message is not one of the expected data types, loading might still be true
-				stillLoading = isLoading
 			}
-			// Only set loading to false if all expected data might have arrived
-			// This is a simplification; ideally, track loading state per data type
-			setIsLoading(stillLoading)
+			setIsLoading(false)
 		}
 
 		window.addEventListener("message", handleMessage)
@@ -69,16 +59,13 @@ export const ClineAccountView = () => {
 		// Fetch all account data when component mounts
 		if (user) {
 			setIsLoading(true)
-			vscode.postMessage({ type: "fetchUserCreditsData" }) // Fetches balance, usage, payments
-			vscode.postMessage({ type: "getApiRequestHistory" })
-		} else {
-			setIsLoading(false) // Not logged in, stop loading
+			vscode.postMessage({ type: "fetchUserCreditsData" })
 		}
 
 		return () => {
 			window.removeEventListener("message", handleMessage)
 		}
-	}, [user, isLoading]) // Added isLoading dependency to refine loading state logic
+	}, [user])
 
 	const handleLogin = () => {
 		vscode.postMessage({ type: "accountLoginClicked" })
@@ -94,7 +81,6 @@ export const ClineAccountView = () => {
 		<div className="h-full flex flex-col">
 			{user ? (
 				<div className="flex flex-col pr-3 h-full">
-					{/* User Info and Auth Buttons */}
 					<div className="flex flex-col w-full">
 						<div className="flex items-center mb-6 flex-wrap gap-y-4">
 							{user.photoURL ? (
@@ -118,6 +104,7 @@ export const ClineAccountView = () => {
 							</div>
 						</div>
 					</div>
+
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
 							<VSCodeButtonLink href="https://app.cline.bot/credits" appearance="primary" className="w-full">
@@ -131,9 +118,9 @@ export const ClineAccountView = () => {
 
 					<VSCodeDivider className="w-full my-6" />
 
-					{/* Balance */}
 					<div className="w-full flex flex-col items-center">
 						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
+
 						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
 							{isLoading ? (
 								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
@@ -150,6 +137,7 @@ export const ClineAccountView = () => {
 								</>
 							)}
 						</div>
+
 						<div className="w-full">
 							<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full">
 								Add Credits
@@ -159,25 +147,23 @@ export const ClineAccountView = () => {
 
 					<VSCodeDivider className="mt-6 mb-3 w-full" />
 
-					{/* Scrollable Content Area */}
-					<div className="flex-grow flex flex-col min-h-0 pb-[0px] overflow-y-auto">
-						{/* Credits History Table */}
-						<div className="mb-6">
-							<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
-						</div>
+					<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
+						<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
 					</div>
 				</div>
 			) : (
-				// Login View
 				<div className="flex flex-col items-center pr-3">
 					<ClineLogoWhite className="size-16 mb-4" />
+
 					<p style={{}}>
 						Sign up for an account to get access to the latest models, billing dashboard to view usage and credits,
 						and more upcoming features.
 					</p>
+
 					<VSCodeButton onClick={handleLogin} className="w-full mb-4">
 						Sign up with Cline
 					</VSCodeButton>
+
 					<p className="text-[var(--vscode-descriptionForeground)] text-xs text-center m-0">
 						By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
 						<VSCodeLink href="https://cline.bot/privacy">Privacy Policy.</VSCodeLink>
