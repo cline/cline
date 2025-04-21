@@ -1555,27 +1555,30 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</p>
 			)}
 
-			{/* Common Request Timeout setting for all providers */}
-			<VSCodeTextField
-				value={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
-				style={{ width: "100%" }}
-				onInput={(e: any) => {
-					const value = e.target.value
-					// Convert to number, with validation
-					const numValue = parseInt(value, 10)
-					if (!isNaN(numValue) && numValue > 0) {
-						setApiConfiguration({
-							...apiConfiguration,
-							requestTimeoutMs: numValue,
-						})
-					}
-				}}
-				placeholder="Default: 30000 (30 seconds)">
-				<span style={{ fontWeight: 500 }}>Request Timeout (ms)</span>
-			</VSCodeTextField>
-			<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
-				Maximum time in milliseconds to wait for API responses before timing out.
-			</p>
+			{selectedProvider === "ollama" && showModelOptions && (
+				<>
+					<VSCodeTextField
+						value={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
+						style={{ width: "100%" }}
+						onInput={(e: any) => {
+							const value = e.target.value
+							// Convert to number, with validation
+							const numValue = parseInt(value, 10)
+							if (!isNaN(numValue) && numValue > 0) {
+								setApiConfiguration({
+									...apiConfiguration,
+									requestTimeoutMs: numValue,
+								})
+							}
+						}}
+						placeholder="Default: 30000 (30 seconds)">
+						<span style={{ fontWeight: 500 }}>Request Timeout (ms)</span>
+					</VSCodeTextField>
+					<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+						Maximum time in milliseconds to wait for API responses before timing out.
+					</p>
+				</>
+			)}
 
 			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
 				<>
