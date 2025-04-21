@@ -1530,7 +1530,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
 							// NOTE: this needs to be synced with api.ts/openrouter default model info
-							modelInfo.supportsComputerUse = true
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 3.75
 							modelInfo.cacheReadsPrice = 0.3
@@ -1613,7 +1612,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 						maxTokens: model.max_output_tokens || undefined,
 						contextWindow: model.context_window,
 						supportsImages: model.supports_vision || undefined,
-						supportsComputerUse: model.supports_computer_use || undefined,
 						supportsPromptCache: model.supports_caching || undefined,
 						inputPrice: parsePrice(model.input_price),
 						outputPrice: parsePrice(model.output_price),
