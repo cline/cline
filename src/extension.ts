@@ -2,8 +2,6 @@
 // Import the module and reference it with the alias vscode in your code below
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as vscode from "vscode"
-import * as fs from "fs"
-import * as path from "path"
 import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
@@ -11,9 +9,8 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
-import { createTestServer, shutdownTestServer } from "./services/test/TestServer"
 import { ErrorService } from "./services/error/ErrorService"
-import { setTestMode, isInTestMode } from "./services/test/TestMode"
+import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -26,23 +23,6 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 
 let outputChannel: vscode.OutputChannel
 
-// Check if we're in test mode by looking for evals.env file in workspace folders
-function checkForTestMode(): boolean {
-	// Get all workspace folders
-	const workspaceFolders = vscode.workspace.workspaceFolders || []
-
-	// Check each workspace folder for an evals.env file
-	for (const folder of workspaceFolders) {
-		const evalsEnvPath = path.join(folder.uri.fsPath, "evals.env")
-		if (fs.existsSync(evalsEnvPath)) {
-			Logger.log(`Found evals.env file at ${evalsEnvPath}, activating test mode`)
-			return true
-		}
-	}
-
-	return false
-}
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -53,18 +33,12 @@ export function activate(context: vscode.ExtensionContext) {
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
 
-	// Check if we're in test mode
-	const IS_TEST = checkForTestMode()
-	// Set test mode state for other parts of the code
-	if (IS_TEST) {
-		Logger.log("Test mode detected: Setting test mode state to true")
-		setTestMode(true)
-	}
-
 	const sidebarWebview = new WebviewProvider(context, outputChannel)
 
+	// Initialize test mode and add disposables to context
+	context.subscriptions.push(...initializeTestMode(context, sidebarWebview))
+
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
-	vscode.commands.executeCommand("setContext", "cline.isTestMode", IS_TEST)
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(WebviewProvider.sideBarId, sidebarWebview, {
@@ -443,37 +417,6 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Set up test server if in test mode
-	if (IS_TEST) {
-		createTestServer(sidebarWebview)
-	}
-
-	// Watch for evals.env files being added or removed
-	const evalsEnvWatcher = vscode.workspace.createFileSystemWatcher("**/evals.env")
-
-	// When an evals.env file is created, activate test mode if not already active
-	evalsEnvWatcher.onDidCreate(async (uri) => {
-		Logger.log(`evals.env file created at ${uri.fsPath}`)
-		if (!isInTestMode()) {
-			setTestMode(true)
-			vscode.commands.executeCommand("setContext", "cline.isTestMode", true)
-			createTestServer(sidebarWebview)
-		}
-	})
-
-	// When an evals.env file is deleted, deactivate test mode if no other evals.env files exist
-	evalsEnvWatcher.onDidDelete(async (uri) => {
-		Logger.log(`evals.env file deleted at ${uri.fsPath}`)
-		// Only deactivate if this was the last evals.env file
-		if (!checkForTestMode()) {
-			setTestMode(false)
-			vscode.commands.executeCommand("setContext", "cline.isTestMode", false)
-			shutdownTestServer()
-		}
-	})
-
-	context.subscriptions.push(evalsEnvWatcher)
-
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 
@@ -487,8 +430,8 @@ const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	// Shutdown the test server if it exists
-	shutdownTestServer()
+	// Clean up test mode
+	cleanupTestMode()
 
 	telemetryService.shutdown()
 	Logger.log("Cline extension deactivated")
