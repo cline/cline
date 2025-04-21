@@ -2,9 +2,9 @@ import * as http from "http"
 import * as vscode from "vscode"
 import * as path from "path"
 import { execa } from "execa"
-import { Logger } from "../../services/logging/Logger"
-import { WebviewProvider } from "../../core/webview"
-import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
+import { Logger } from "@services/logging/Logger"
+import { WebviewProvider } from "@core/webview"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import {
 	getWorkspacePath,
 	validateWorkspacePath,
@@ -12,12 +12,12 @@ import {
 	getFileChanges,
 	calculateToolSuccessRate,
 } from "./GitHelper"
-import { updateGlobalState, getAllExtensionState, updateApiConfiguration, storeSecret } from "../../core/storage/state"
-import { ClineAsk, ExtensionMessage } from "../../shared/ExtensionMessage"
-import { ApiProvider } from "../../shared/api"
-import { WebviewMessage } from "../../shared/WebviewMessage"
-import { HistoryItem } from "../../shared/HistoryItem"
-import { getSavedClineMessages, getSavedApiConversationHistory } from "../../core/storage/disk"
+import { updateGlobalState, getAllExtensionState, updateApiConfiguration, storeSecret } from "@core/storage/state"
+import { ClineAsk, ExtensionMessage } from "@shared/ExtensionMessage"
+import { ApiProvider } from "@shared/api"
+import { WebviewMessage } from "@shared/WebviewMessage"
+import { HistoryItem } from "@shared/HistoryItem"
+import { getSavedClineMessages, getSavedApiConversationHistory } from "@core/storage/disk"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
