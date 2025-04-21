@@ -15,7 +15,7 @@ export const ExportButton = ({ itemId }: { itemId: string }) => {
 				e.stopPropagation()
 				vscode.postMessage({ type: "exportTaskWithId", text: itemId })
 			}}>
-			<span className="codicon codicon-cloud-download" />
+			<span className="codicon codicon-desktop-download" />
 		</Button>
 	)
 }

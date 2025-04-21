@@ -212,7 +212,7 @@ const TaskActions = ({ item }: { item: HistoryItem | undefined }) => {
 				size="sm"
 				title={t("chat:task.export")}
 				onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
-				<span className="codicon codicon-cloud-download" />
+				<span className="codicon codicon-desktop-download" />
 			</Button>
 			{!!item?.size && item.size > 0 && (
 				<>
