@@ -136,5 +136,5 @@ export type McpPromptResponse = {
 		}
 	}>
 }
-=======
+
 export type McpViewTab = "marketplace" | "addRemote" | "installed"

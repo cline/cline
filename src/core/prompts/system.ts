@@ -351,7 +351,7 @@ Next Steps:
 </arguments>
 </use_mcp_tool>
 
-## Example 6: Requesting to use an MCP prompt
+## Example 7: Requesting to use an MCP prompt
 
 <use_mcp_tool>
 <server_name>git-helper</server_name>
@@ -364,9 +364,7 @@ Next Steps:
   }
 }
 </arguments>
-</use_mcp_tool>`
-		: ""
-}
+</use_mcp_tool>
 
 # Tool Use Guidelines
 
