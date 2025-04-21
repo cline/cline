@@ -614,7 +614,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				e.preventDefault()
 				setIsDraggingOver(false)
 
-				const text = e.dataTransfer.getData("application/vnd.code.uri-list")
+				const textFieldList = e.dataTransfer.getData("text")
+				const textUriList = e.dataTransfer.getData("application/vnd.code.uri-list")
+				// When textFieldList is empty, it may attempt to use textUriList obtained from drag-and-drop tabs; if not empty, it will use textFieldList.
+				const text = textFieldList || textUriList
 				if (text) {
 					// Split text on newlines to handle multiple files
 					const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "")

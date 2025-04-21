@@ -12,8 +12,20 @@
  * @returns A mention-friendly path
  */
 export function convertToMentionPath(path: string, cwd?: string): string {
-	// Strip file:// protocol if present
-	let pathWithoutProtocol = path.startsWith("file://") ? path.substring(7) : path
+	// Strip file:// or vscode-remote:// protocol if present
+	let pathWithoutProtocol = path
+
+	if (path.startsWith("file://")) {
+		pathWithoutProtocol = path.substring(7)
+	} else if (path.startsWith("vscode-remote://")) {
+		const protocolStripped = path.substring("vscode-remote://".length)
+		const firstSlashIndex = protocolStripped.indexOf("/")
+		if (firstSlashIndex !== -1) {
+			pathWithoutProtocol = protocolStripped.substring(firstSlashIndex + 1)
+		} else {
+			pathWithoutProtocol = ""
+		}
+	}
 
 	try {
 		pathWithoutProtocol = decodeURIComponent(pathWithoutProtocol)
