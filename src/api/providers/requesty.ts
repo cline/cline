@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { withRetry } from "../retry"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { calculateApiCostOpenAI } from "../../utils/cost"
-import { ApiStream } from "../transform/stream"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { calculateApiCostOpenAI } from "@utils/cost"
+import { ApiStream } from "@api/transform/stream"
 
 export class RequestyHandler implements ApiHandler {
 	private options: ApiHandlerOptions

@@ -1,6 +1,6 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
-import { arePathsEqual } from "../../utils/path"
+import { arePathsEqual } from "@utils/path"
 import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
 

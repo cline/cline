@@ -1,7 +1,7 @@
-import { BrowserConnectionInfo } from "../../../shared/proto/browser"
-import { EmptyRequest } from "../../../shared/proto/common"
+import { BrowserConnectionInfo } from "@shared/proto/browser"
+import { EmptyRequest } from "@shared/proto/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "../../storage/state"
+import { getAllExtensionState } from "@core/storage/state"
 
 /**
  * Get information about the current browser connection
