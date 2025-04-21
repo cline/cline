@@ -1,16 +1,17 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+import assert from "node:assert"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as vscode from "vscode"
-import { Logger } from "./services/logging/Logger"
-import { createClineAPI } from "./exports"
-import "./utils/path" // necessary to have access to String.prototype.toPosix
-import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
-import assert from "node:assert"
-import { telemetryService } from "./services/telemetry/TelemetryService"
+import { registerAddFileToChatCommand } from "./commands/addFileToChat"
 import { WebviewProvider } from "./core/webview"
-import { createTestServer, shutdownTestServer } from "./services/test/TestServer"
+import { createClineAPI } from "./exports"
+import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { ErrorService } from "./services/error/ErrorService"
+import { Logger } from "./services/logging/Logger"
+import { telemetryService } from "./services/telemetry/TelemetryService"
+import { createTestServer, shutdownTestServer } from "./services/test/TestServer"
+import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -448,6 +449,9 @@ export function activate(context: vscode.ExtensionContext) {
 	if (IS_TEST === "true") {
 		createTestServer(sidebarWebview)
 	}
+
+	// Register the new command
+	registerAddFileToChatCommand(context, sidebarWebview.controller)
 
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }

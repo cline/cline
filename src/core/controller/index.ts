@@ -1,14 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiRequestHistoryEntry } from "../../shared/ClineAccount"
-import axios from "axios"
 import type { AxiosRequestConfig } from "axios"
+import axios from "axios"
 import crypto from "crypto"
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { handleGrpcRequest } from "./grpc-handler"
 import { buildApiHandler } from "../../api"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "../../integrations/misc/export-markdown"
@@ -26,6 +24,8 @@ import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings } from "../../shared/ChatSettings"
+import { ClineRulesToggles } from "../../shared/cline-rules"
+import { ApiRequestHistoryEntry } from "../../shared/ClineAccount"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
@@ -35,6 +35,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { searchCommits } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
 import { getTotalTasksSize } from "../../utils/storage"
+import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 import { openMention } from "../mentions"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
@@ -48,9 +49,8 @@ import {
 	updateGlobalState,
 	updateWorkspaceState,
 } from "../storage/state"
-import { Task, cwd } from "../task"
-import { ClineRulesToggles } from "../../shared/cline-rules"
-import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { cwd, Task } from "../task"
+import { handleGrpcRequest } from "./grpc-handler"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -1678,6 +1678,21 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		})
 
 		console.log("addSelectedCodeToChat", code, filePath, languageId)
+	}
+
+	// Adds the given text to the chat input field in the webview
+	async addTextToChatInput(textToAdd: string) {
+		// Ensure the sidebar view is visible
+		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await setTimeoutPromise(100)
+
+		// Post message to webview to add the text to the input
+		await this.postMessageToWebview({
+			type: "addToInput",
+			text: textToAdd,
+		})
+
+		console.log("addTextToChatInput", textToAdd)
 	}
 
 	// 'Add to Cline' context menu in Terminal

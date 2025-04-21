@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.13.1",
+	"version": "3.13.1-daly.3",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -126,6 +126,11 @@
 				"command": "cline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.addFileToChat",
+				"title": "Add File to Cline",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
@@ -223,6 +228,18 @@
 			"terminal/context": [
 				{
 					"command": "cline.addTerminalOutputToChat",
+					"group": "navigation"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "cline.addFileToChat",
+					"group": "navigation"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "cline.addFileToChat",
 					"group": "navigation"
 				}
 			]
