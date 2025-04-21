@@ -211,5 +211,6 @@
 			"scrollUp": "Rolar para cima",
 			"close": "Fechar navegador"
 		}
-	}
+	},
+	"systemPromptWarning": "AVISO: Substituição personalizada de instrução do sistema ativa. Isso pode comprometer gravemente a funcionalidade e causar comportamento imprevisível."
 }

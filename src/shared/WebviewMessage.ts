@@ -150,6 +150,7 @@ export interface WebviewMessage {
 	source?: "global" | "project"
 	requestId?: string
 	ids?: string[]
+	hasSystemPromptOverride?: boolean
 }
 
 export const checkoutDiffPayloadSchema = z.object({

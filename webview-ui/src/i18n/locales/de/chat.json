@@ -211,5 +211,6 @@
 			"scrollUp": "Nach oben scrollen",
 			"close": "Browser schließen"
 		}
-	}
+	},
+	"systemPromptWarning": "WARNUNG: Benutzerdefinierte Systemaufforderung aktiv. Dies kann die Funktionalität erheblich beeinträchtigen und zu unvorhersehbarem Verhalten führen."
 }

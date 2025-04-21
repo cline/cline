@@ -211,5 +211,6 @@
 			"scrollUp": "Scorri verso l'alto",
 			"close": "Chiudi browser"
 		}
-	}
+	},
+	"systemPromptWarning": "ATTENZIONE: Sovrascrittura personalizzata delle istruzioni di sistema attiva. Questo può compromettere gravemente le funzionalità e causare comportamenti imprevedibili."
 }

@@ -27,6 +27,7 @@ import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
+import SystemPromptWarning from "./SystemPromptWarning"
 import { AudioType } from "@roo/shared/WebviewMessage"
 import { validateCommand } from "@src/utils/command-validation"
 import { getAllModes } from "@roo/shared/modes"
@@ -77,6 +78,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		alwaysAllowSubtasks,
 		customModes,
 		telemetrySetting,
+		hasSystemPromptOverride,
 	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -1204,6 +1206,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						contextTokens={apiMetrics.contextTokens}
 						onClose={handleTaskCloseButtonClick}
 					/>
+
+					{/* System prompt override warning */}
+					{hasSystemPromptOverride && (
+						<div className="px-3">
+							<SystemPromptWarning />
+						</div>
+					)}
 
 					{/* Checkpoint warning message */}
 					{showCheckpointWarning && (

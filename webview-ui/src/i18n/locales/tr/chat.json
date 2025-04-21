@@ -211,5 +211,6 @@
 			"scrollUp": "Yukarı kaydır",
 			"close": "Tarayıcıyı kapat"
 		}
-	}
+	},
+	"systemPromptWarning": "UYARI: Özel sistem komut geçersiz kılma aktif. Bu işlevselliği ciddi şekilde bozabilir ve öngörülemeyen davranışlara neden olabilir."
 }

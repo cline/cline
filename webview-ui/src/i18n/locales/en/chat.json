@@ -211,5 +211,6 @@
 			"scrollUp": "Scroll up",
 			"close": "Close browser"
 		}
-	}
+	},
+	"systemPromptWarning": "WARNING: Custom system prompt override active. This can severely break functionality and cause unpredictable behavior."
 }
