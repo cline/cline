@@ -113,11 +113,6 @@
 				"category": "Cline"
 			},
 			{
-				"command": "cline.fixWithCline",
-				"title": "Fix with Cline",
-				"category": "Cline"
-			},
-			{
 				"command": "cline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
