@@ -58,11 +58,17 @@ export class RequestyHandler extends OpenAiHandler {
 	}
 }
 
-export async function getRequestyModels() {
+export async function getRequestyModels(apiKey?: string) {
 	const models: Record<string, ModelInfo> = {}
 
 	try {
-		const response = await axios.get("https://router.requesty.ai/v1/models")
+		const headers: Record<string, string> = {}
+		if (apiKey) {
+			headers["Authorization"] = `Bearer ${apiKey}`
+		}
+
+		const url = "https://router.requesty.ai/v1/models"
+		const response = await axios.get(url, { headers })
 		const rawModels = response.data.data
 
 		for (const rawModel of rawModels) {
