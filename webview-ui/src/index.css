@@ -392,3 +392,11 @@ input[cmdk-input]:focus {
 .custom-markdown > pre {
 	background-color: transparent !important;
 }
+
+/*
+ * Use geometric precision for codicons to avoid blurriness 
+ */
+
+.codicon[class*="codicon-"] {
+	text-rendering: geometricPrecision !important;
+}
