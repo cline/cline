@@ -120,7 +120,9 @@
 		"didRead": "已读取文件:",
 		"wantsToEdit": "需要编辑文件:",
 		"wantsToEditOutsideWorkspace": "需要编辑外部文件:",
-		"wantsToCreate": "需要新建文件:"
+		"wantsToCreate": "需要新建文件:",
+		"wantsToSearchReplace": "需要执行搜索和替换:",
+		"didSearchReplace": "已完成搜索和替换:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "需要查看目录文件列表:",

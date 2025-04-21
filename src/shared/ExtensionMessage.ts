@@ -224,6 +224,7 @@ export interface ClineSayTool {
 		| "switchMode"
 		| "newTask"
 		| "finishTask"
+		| "searchAndReplace"
 	path?: string
 	diff?: string
 	content?: string
@@ -232,6 +233,12 @@ export interface ClineSayTool {
 	mode?: string
 	reason?: string
 	isOutsideWorkspace?: boolean
+	search?: string
+	replace?: string
+	useRegex?: boolean
+	ignoreCase?: boolean
+	startLine?: number
+	endLine?: number
 }
 
 // Must keep in sync with system prompt.

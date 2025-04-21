@@ -288,7 +288,6 @@ type GlobalSettings = {
 	fuzzyMatchThreshold?: number | undefined
 	experiments?:
 		| {
-				search_and_replace: boolean
 				insert_content: boolean
 				powerSteering: boolean
 		  }

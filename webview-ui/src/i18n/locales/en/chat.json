@@ -115,7 +115,9 @@
 		"didRead": "Roo read this file:",
 		"wantsToEdit": "Roo wants to edit this file:",
 		"wantsToEditOutsideWorkspace": "Roo wants to edit this file outside of the workspace:",
-		"wantsToCreate": "Roo wants to create a new file:"
+		"wantsToCreate": "Roo wants to create a new file:",
+		"wantsToSearchReplace": "Roo wants to perform search and replace on this file:",
+		"didSearchReplace": "Roo performed search and replace on this file:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo wants to view the top level files in this directory:",

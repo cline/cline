@@ -5,7 +5,6 @@ export type { ExperimentId }
 
 export const EXPERIMENT_IDS = {
 	INSERT_BLOCK: "insert_content",
-	SEARCH_AND_REPLACE: "search_and_replace",
 	POWER_STEERING: "powerSteering",
 } as const satisfies Record<string, ExperimentId>
 
@@ -19,7 +18,6 @@ interface ExperimentConfig {
 
 export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
 	INSERT_BLOCK: { enabled: false },
-	SEARCH_AND_REPLACE: { enabled: false },
 	POWER_STEERING: { enabled: false },
 }
 

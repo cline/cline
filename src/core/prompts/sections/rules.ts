@@ -19,9 +19,8 @@ function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Recor
 	if (experiments?.["insert_content"]) {
 		availableTools.push("insert_content (for adding lines to existing files)")
 	}
-	if (experiments?.["search_and_replace"]) {
-		availableTools.push("search_and_replace (for finding and replacing individual pieces of text)")
-	}
+
+	availableTools.push("search_and_replace (for finding and replacing individual pieces of text)")
 
 	// Base editing instruction mentioning all available tools
 	if (availableTools.length > 1) {
@@ -38,11 +37,9 @@ function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Recor
 		)
 	}
 
-	if (experiments?.["search_and_replace"]) {
-		instructions.push(
-			"- The search_and_replace tool finds and replaces text or regex in files. This tool allows you to search for a specific regex pattern or text and replace it with another value. Be cautious when using this tool to ensure you are replacing the correct text. It can support multiple operations at once.",
-		)
-	}
+	instructions.push(
+		"- The search_and_replace tool finds and replaces text or regex in files. This tool allows you to search for a specific regex pattern or text and replace it with another value. Be cautious when using this tool to ensure you are replacing the correct text. It can support multiple operations at once.",
+	)
 
 	if (availableTools.length > 1) {
 		instructions.push(

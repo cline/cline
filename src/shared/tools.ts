@@ -56,6 +56,12 @@ export const toolParamNames = [
 	"follow_up",
 	"task",
 	"size",
+	"search",
+	"replace",
+	"use_regex",
+	"ignore_case",
+	"start_line",
+	"end_line",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -142,6 +148,12 @@ export interface SwitchModeToolUse extends ToolUse {
 export interface NewTaskToolUse extends ToolUse {
 	name: "new_task"
 	params: Partial<Pick<Record<ToolParamName, string>, "mode" | "message">>
+}
+
+export interface SearchAndReplaceToolUse extends ToolUse {
+	name: "search_and_replace"
+	params: Required<Pick<Record<ToolParamName, string>, "path" | "search" | "replace">> &
+		Partial<Pick<Record<ToolParamName, string>, "use_regex" | "ignore_case" | "start_line" | "end_line">>
 }
 
 // Define tool group configuration

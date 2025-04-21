@@ -120,7 +120,9 @@
 		"didRead": "Roo 已讀取此檔案：",
 		"wantsToEdit": "Roo 想要編輯此檔案：",
 		"wantsToEditOutsideWorkspace": "Roo 想要編輯此工作區外的檔案：",
-		"wantsToCreate": "Roo 想要建立新檔案："
+		"wantsToCreate": "Roo 想要建立新檔案：",
+		"wantsToSearchReplace": "Roo 想要在此檔案執行搜尋和取代：",
+		"didSearchReplace": "Roo 已在此檔案執行搜尋和取代："
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo 想要檢視此目錄中最上層的檔案：",

@@ -629,7 +629,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				return true
 			}
 			const tool = JSON.parse(message.text)
-			return ["editedExistingFile", "appliedDiff", "newFileCreated"].includes(tool.tool)
+			return ["editedExistingFile", "appliedDiff", "newFileCreated", "searchAndReplace"].includes(tool.tool)
 		}
 		return false
 	}, [])

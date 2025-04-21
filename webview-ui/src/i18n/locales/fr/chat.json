@@ -117,7 +117,9 @@
 		"didRead": "Roo a lu ce fichier :",
 		"wantsToEdit": "Roo veut éditer ce fichier :",
 		"wantsToEditOutsideWorkspace": "Roo veut éditer ce fichier en dehors de l'espace de travail :",
-		"wantsToCreate": "Roo veut créer un nouveau fichier :"
+		"wantsToCreate": "Roo veut créer un nouveau fichier :",
+		"wantsToSearchReplace": "Roo veut effectuer une recherche et remplacement sur ce fichier :",
+		"didSearchReplace": "Roo a effectué une recherche et remplacement sur ce fichier :"
 	},
 	"instructions": {
 		"wantsToFetch": "Roo veut récupérer des instructions détaillées pour aider à la tâche actuelle"

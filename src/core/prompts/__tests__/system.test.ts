@@ -171,7 +171,6 @@ describe("SYSTEM_PROMPT", () => {
 	beforeEach(() => {
 		// Reset experiments before each test to ensure they're disabled by default
 		experiments = {
-			[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: false,
 			[EXPERIMENT_IDS.INSERT_BLOCK]: false,
 		}
 	})
@@ -482,7 +481,6 @@ describe("SYSTEM_PROMPT", () => {
 		it("should disable experimental tools by default", async () => {
 			// Set experiments to explicitly disable experimental tools
 			const experimentsConfig = {
-				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: false,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: false,
 			}
 
@@ -508,7 +506,6 @@ describe("SYSTEM_PROMPT", () => {
 			// Check that experimental tool sections are not included
 			const toolSections = prompt.split("\n## ").slice(1)
 			const toolNames = toolSections.map((section) => section.split("\n")[0].trim())
-			expect(toolNames).not.toContain("search_and_replace")
 			expect(toolNames).not.toContain("insert_content")
 			expect(prompt).toMatchSnapshot()
 		})
@@ -516,7 +513,6 @@ describe("SYSTEM_PROMPT", () => {
 		it("should enable experimental tools when explicitly enabled", async () => {
 			// Set experiments for testing experimental features
 			const experimentsEnabled = {
-				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: true,
 			}
 
@@ -544,7 +540,6 @@ describe("SYSTEM_PROMPT", () => {
 			const toolNames = toolSections.map((section) => section.split("\n")[0].trim())
 
 			// Verify experimental tools are included in the prompt when enabled
-			expect(toolNames).toContain("search_and_replace")
 			expect(toolNames).toContain("insert_content")
 			expect(prompt).toMatchSnapshot()
 		})
@@ -552,7 +547,6 @@ describe("SYSTEM_PROMPT", () => {
 		it("should selectively enable experimental tools", async () => {
 			// Set experiments for testing selective enabling
 			const experimentsSelective = {
-				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: false,
 			}
 
@@ -580,14 +574,12 @@ describe("SYSTEM_PROMPT", () => {
 			const toolNames = toolSections.map((section) => section.split("\n")[0].trim())
 
 			// Verify only enabled experimental tools are included
-			expect(toolNames).toContain("search_and_replace")
 			expect(toolNames).not.toContain("insert_content")
 			expect(prompt).toMatchSnapshot()
 		})
 
 		it("should list all available editing tools in base instruction", async () => {
 			const experiments = {
-				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: true,
 			}
 
@@ -615,7 +607,6 @@ describe("SYSTEM_PROMPT", () => {
 		})
 		it("should provide detailed instructions for each enabled tool", async () => {
 			const experiments = {
-				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: true,
 			}
 
@@ -640,7 +631,6 @@ describe("SYSTEM_PROMPT", () => {
 				"You should always prefer using other editing tools over write_to_file when making changes to existing files since write_to_file is much slower and cannot handle large files.",
 			)
 			expect(prompt).toContain("The insert_content tool adds lines of text to files")
-			expect(prompt).toContain("The search_and_replace tool finds and replaces text or regex in files")
 		})
 	})
 

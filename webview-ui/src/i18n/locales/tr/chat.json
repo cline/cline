@@ -120,7 +120,9 @@
 		"didRead": "Roo bu dosyayı okudu:",
 		"wantsToEdit": "Roo bu dosyayı düzenlemek istiyor:",
 		"wantsToEditOutsideWorkspace": "Roo çalışma alanı dışındaki bu dosyayı düzenlemek istiyor:",
-		"wantsToCreate": "Roo yeni bir dosya oluşturmak istiyor:"
+		"wantsToCreate": "Roo yeni bir dosya oluşturmak istiyor:",
+		"wantsToSearchReplace": "Roo bu dosyada arama ve değiştirme yapmak istiyor:",
+		"didSearchReplace": "Roo bu dosyada arama ve değiştirme yaptı:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo bu dizindeki üst düzey dosyaları görüntülemek istiyor:",
