@@ -53,6 +53,7 @@ export type GlobalStateKey =
 	| "globalClineRulesToggles"
 	| "browserSettings"
 	| "chatSettings"
+	| "memoryBankSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"

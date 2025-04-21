@@ -137,7 +137,7 @@ export class Controller {
 
 	async initTask(task?: string, images?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings, memoryBankSettings } =
 			await getAllExtensionState(this.context)
 
 		if (autoApprovalSettings) {
@@ -160,6 +160,7 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			memoryBankSettings,
 			customInstructions,
 			task,
 			images,
@@ -340,6 +341,15 @@ export class Controller {
 				const { browserSettings } = await getAllExtensionState(this.context)
 				const browserSession = new BrowserSession(this.context, browserSettings)
 				await browserSession.relaunchChromeDebugMode(this)
+				break
+			case "memoryBankSettings":
+				if (message.memoryBankSettings) {
+					await updateGlobalState(this.context, "memoryBankSettings", message.memoryBankSettings)
+					if (this.task) {
+						this.task.memoryBankSettings = message.memoryBankSettings
+					}
+					await this.postStateToWebview()
+				}
 				break
 			case "askResponse":
 				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
@@ -1868,6 +1878,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			memoryBankSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
@@ -1895,6 +1906,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			memoryBankSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,

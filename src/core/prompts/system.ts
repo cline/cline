@@ -620,7 +620,8 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 export function addUserInstructions(
 	settingsCustomInstructions?: string,
 	globalClineRulesFileInstructions?: string,
-	localClineRulesFileInstructions?: string,
+	memoryBankInstructions?: string,
+	clineRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
 	preferredLanguageInstructions?: string,
 ) {
@@ -634,8 +635,11 @@ export function addUserInstructions(
 	if (globalClineRulesFileInstructions) {
 		customInstructions += globalClineRulesFileInstructions + "\n\n"
 	}
-	if (localClineRulesFileInstructions) {
-		customInstructions += localClineRulesFileInstructions + "\n\n"
+	if (memoryBankInstructions) {
+		customInstructions += memoryBankInstructions + "\n\n"
+	}
+	if (clineRulesFileInstructions) {
+		customInstructions += clineRulesFileInstructions + "\n\n"
 	}
 	if (clineIgnoreInstructions) {
 		customInstructions += clineIgnoreInstructions
