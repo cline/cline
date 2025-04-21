@@ -17,9 +17,11 @@ import {
 } from "@/utils/context-mentions"
 import {
 	SlashCommand,
+	slashCommandDeleteRegex,
 	shouldShowSlashCommandsMenu,
 	getMatchingSlashCommands,
 	insertSlashCommand,
+	removeSlashCommand,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
@@ -253,6 +255,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [selectedMenuIndex, setSelectedMenuIndex] = useState(-1)
 		const [selectedType, setSelectedType] = useState<ContextMenuOptionType | null>(null)
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
+		const [justDeletedSpaceAfterSlashCommand, setJustDeletedSpaceAfterSlashCommand] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 		const [showModelSelector, setShowModelSelector] = useState(false)
@@ -525,13 +528,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						charBeforeCursor === " " || charBeforeCursor === "\n" || charBeforeCursor === "\r\n"
 					const charAfterIsWhitespace =
 						charAfterCursor === " " || charAfterCursor === "\n" || charAfterCursor === "\r\n"
-					// checks if char before cursor is whitespace after a mention
+
+					// Check if we're right after a space that follows a mention or slash command
 					if (
 						charBeforeIsWhitespace &&
-						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$")) // "$" is added to ensure the match occurs at the end of the string
+						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$"))
 					) {
+						// File mention handling (existing code)
 						const newCursorPosition = cursorPosition - 1
-						// if mention is followed by another word, then instead of deleting the space separating them we just move the cursor to the end of the mention
 						if (!charAfterIsWhitespace) {
 							event.preventDefault()
 							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
@@ -539,17 +543,45 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}
 						setCursorPosition(newCursorPosition)
 						setJustDeletedSpaceAfterMention(true)
-					} else if (justDeletedSpaceAfterMention) {
+						setJustDeletedSpaceAfterSlashCommand(false) // Reset the other flag
+					} else if (charBeforeIsWhitespace && inputValue.slice(0, cursorPosition - 1).match(slashCommandDeleteRegex)) {
+						// New slash command handling
+						const newCursorPosition = cursorPosition - 1
+						if (!charAfterIsWhitespace) {
+							event.preventDefault()
+							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
+							setCursorPosition(newCursorPosition)
+						}
+						setCursorPosition(newCursorPosition)
+						setJustDeletedSpaceAfterSlashCommand(true)
+						setJustDeletedSpaceAfterMention(false) // Reset the other flag
+					}
+					// Handle the second backspace press for mentions or slash commands
+					else if (justDeletedSpaceAfterMention) {
+						// Existing mention deletion code
 						const { newText, newPosition } = removeMention(inputValue, cursorPosition)
 						if (newText !== inputValue) {
 							event.preventDefault()
 							setInputValue(newText)
-							setIntendedCursorPosition(newPosition) // Store the new cursor position in state
+							setIntendedCursorPosition(newPosition)
 						}
 						setJustDeletedSpaceAfterMention(false)
 						setShowContextMenu(false)
-					} else {
+					} else if (justDeletedSpaceAfterSlashCommand) {
+						// New slash command deletion
+						const { newText, newPosition } = removeSlashCommand(inputValue, cursorPosition)
+						if (newText !== inputValue) {
+							event.preventDefault()
+							setInputValue(newText)
+							setIntendedCursorPosition(newPosition)
+						}
+						setJustDeletedSpaceAfterSlashCommand(false)
+						setShowSlashCommandsMenu(false)
+					}
+					// STEP 3: Default case - reset flags if none of the above apply
+					else {
 						setJustDeletedSpaceAfterMention(false)
+						setJustDeletedSpaceAfterSlashCommand(false)
 					}
 				}
 			},
@@ -796,7 +828,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
 
-					const highlighted = `<mark class="slash-command-match-textarea-highlight">${fullCommand}</mark>`
+					const highlighted = `<mark class="mention-context-textarea-highlight">${fullCommand}</mark>`
 					processedText = processedText.substring(0, slashIndex) + highlighted + processedText.substring(endIndex)
 				}
 			}
