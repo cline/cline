@@ -234,14 +234,15 @@ Your final result description here
 </attempt_completion>
 
 ## new_task
-Description: Request to create a new task with preloaded context. The user will be presented with a preview of the context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.
+Description: Request to create a new task with preloaded context covering the conversation with the user up to this point and key information for continuing with the new task. With this tool, you will create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions, with a focus on the most relevant information required for the new task.
+Among other important areas of focus, this summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing with the new task. The user will be presented with a preview of your generated context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.
 Parameters:
-- context: (required) The context to preload the new task with. This should include:
-  * Comprehensively explain what has been accomplished in the current task - mention specific file names that are relevant
-  * The specific next steps or focus for the new task - mention specific file names that are relevant
-  * Any critical information needed to continue the work
-  * Clear indication of how this new task relates to the overall workflow
-  * This should be akin to a long handoff file, enough for a totally new developer to be able to pick up where you left off and know exactly what to do next and which files to look at.
+- context: (required) The context to preload the new task with. If applicable based on the current task, this should include:
+  1. Current Work: Describe in detail what was being worked on prior to this request to create a new task. Pay special attention to the more recent messages / conversation.
+  2. Key Technical Concepts: List all important technical concepts, technologies, coding conventions, and frameworks discussed, which might be relevant for the new task.
+  3. Relevant Files and Code: Enumerate specific files and code sections examined, modified, or created, if applicable for the task continuation. Pay special attention to the most recent messages and changes.
+  4. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.
+  5. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no drift in task interpretation. It's important to be detailed here.
 Usage:
 <new_task>
 <context>context to preload new task with</context>
@@ -298,17 +299,30 @@ Usage:
 
 <new_task>
 <context>
-Authentication System Implementation:
-- We've implemented the basic user model with email/password
-- Password hashing is working with bcrypt
-- Login endpoint is functional with proper validation
-- JWT token generation is implemented
+1. Current Work:
+   [Detailed description]
 
-Next Steps:
-- Implement refresh token functionality
-- Add token validation middleware
-- Create password reset flow
-- Implement role-based access control
+2. Key Technical Concepts:
+   - [Concept 1]
+   - [Concept 2]
+   - [...]
+
+3. Relevant Files and Code:
+   - [File Name 1]
+      - [Summary of why this file is important]
+      - [Summary of the changes made to this file, if any]
+      - [Important Code Snippet]
+   - [File Name 2]
+      - [Important Code Snippet]
+   - [...]
+
+4. Problem Solving:
+   [Detailed description]
+
+5. Pending Tasks and Next Steps:
+   - [Task 1 details & next steps]
+   - [Task 2 details & next steps]
+   - [...]
 </context>
 </new_task>
 
