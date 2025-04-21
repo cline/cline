@@ -193,7 +193,7 @@ export async function applyDiffTool(
 						)}\n</final_file_content>\n\n` +
 						`Please note:\n` +
 						`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-						`2. Proceed with the task using cline updated file content as the new baseline.\n` +
+						`2. Proceed with the task using this updated file content as the new baseline.\n` +
 						`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
 						`${newProblemsMessage}`,
 				)
