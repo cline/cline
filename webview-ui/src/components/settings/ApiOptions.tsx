@@ -1006,7 +1006,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 										openAiModelInfo: modelInfo,
 									})
 								}}>
-								Supports Computer Use
+								Supports browser use
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
 								checked={!!apiConfiguration?.openAiModelInfo?.isR1FormatRequired}
@@ -1820,10 +1820,10 @@ export const ModelInfoView = ({
 			doesNotSupportLabel="Does not support images"
 		/>,
 		<ModelInfoSupportsItem
-			key="supportsComputerUse"
+			key="supportsBrowserUse"
 			isSupported={modelInfo.supportsImages ?? false}
-			supportsLabel="Supports computer use"
-			doesNotSupportLabel="Does not support computer use"
+			supportsLabel="Supports browser use"
+			doesNotSupportLabel="Does not support browser use"
 		/>,
 		!isGemini && (
 			<ModelInfoSupportsItem
