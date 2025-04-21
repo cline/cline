@@ -227,6 +227,14 @@ export const BrowserServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		discoverBrowser: {
+			name: "discoverBrowser",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: BrowserConnection,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
 

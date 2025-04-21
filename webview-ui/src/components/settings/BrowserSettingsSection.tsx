@@ -107,10 +107,16 @@ export const BrowserSettingsSection: React.FC = () => {
 							setIsCheckingConnection(false)
 						})
 				} else {
-					// Use old message passing for discoverBrowser (not yet migrated)
-					vscode.postMessage({
-						type: "discoverBrowser",
-					})
+					BrowserServiceClient.discoverBrowser({})
+						.then((result) => {
+							setConnectionStatus(result.success)
+							setIsCheckingConnection(false)
+						})
+						.catch((error) => {
+							console.error("Error discovering browser:", error)
+							setConnectionStatus(false)
+							setIsCheckingConnection(false)
+						})
 				}
 			}
 		}, 1000),
@@ -179,10 +185,14 @@ export const BrowserSettingsSection: React.FC = () => {
 					setConnectionStatus(false)
 				})
 		} else {
-			// Use old message passing for discoverBrowser (not yet migrated)
-			vscode.postMessage({
-				type: "discoverBrowser",
-			})
+			BrowserServiceClient.discoverBrowser({})
+				.then((result) => {
+					setConnectionStatus(result.success)
+				})
+				.catch((error) => {
+					console.error("Error discovering browser:", error)
+					setConnectionStatus(false)
+				})
 		}
 	}, [browserSettings.remoteBrowserHost])
 
