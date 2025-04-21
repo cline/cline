@@ -419,11 +419,11 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 0.15, // $0.15/million input tokens
-		outputPrice: 0.6, // $0.60/million output tokens (standard)
+		inputPrice: 0.15,
+		outputPrice: 0.6,
 		thinkingConfig: {
-			maxBudget: 24576, // Max thinking budget
-			outputPrice: 3.5, // $3.50/million output tokens (with thinking budget > 0)
+			maxBudget: 24576,
+			outputPrice: 3.5,
 		},
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
@@ -527,11 +527,11 @@ export const geminiModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 0.15, // $0.15/million input tokens
-		outputPrice: 0.6, // $0.60/million output tokens (standard)
+		inputPrice: 0.15,
+		outputPrice: 0.6,
 		thinkingConfig: {
-			maxBudget: 24576, // Max thinking budget
-			outputPrice: 3.5, // $3.50/million output tokens (with thinking budget > 0)
+			maxBudget: 24576,
+			outputPrice: 3.5,
 		},
 	},
 	"gemini-2.0-flash-001": {
