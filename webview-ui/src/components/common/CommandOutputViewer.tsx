@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef } from "react"
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso"
-import { cn } from "../../lib/utils"
+import { cn } from "@src/lib/utils"
 
 interface CommandOutputViewerProps {
 	output: string

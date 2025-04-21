@@ -2,7 +2,7 @@ import { HTMLAttributes } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { FlaskConical } from "lucide-react"
 
-import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "../../../../src/shared/experiments"
+import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "@roo/shared/experiments"
 
 import { cn } from "@/lib/utils"
 

@@ -1,11 +1,11 @@
 import React from "react"
 import { render, waitFor } from "@testing-library/react"
 import ChatView from "../ChatView"
-import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
-import { vscode } from "../../../utils/vscode"
+import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
+import { vscode } from "@src/utils/vscode"
 
 // Mock vscode API
-jest.mock("../../../utils/vscode", () => ({
+jest.mock("@src/utils/vscode", () => ({
 	vscode: {
 		postMessage: jest.fn(),
 	},
@@ -49,18 +49,18 @@ jest.mock("../AutoApproveMenu", () => ({
 	default: () => null,
 }))
 
-jest.mock("../../common/CodeBlock", () => ({
+jest.mock("@src/components/common/CodeBlock", () => ({
 	__esModule: true,
 	default: () => null,
 	CODE_BLOCK_BG_COLOR: "rgb(30, 30, 30)",
 }))
 
-jest.mock("../../common/CodeAccordian", () => ({
+jest.mock("@src/components/common/CodeAccordian", () => ({
 	__esModule: true,
 	default: () => null,
 }))
 
-jest.mock("../ContextMenu", () => ({
+jest.mock("@src/components/chat/ContextMenu", () => ({
 	__esModule: true,
 	default: () => null,
 }))

@@ -1,7 +1,7 @@
 /**
  * Tests for TelemetryClient
  */
-import { telemetryClient } from "../utils/TelemetryClient"
+import { telemetryClient } from "@src/utils/TelemetryClient"
 import posthog from "posthog-js"
 
 describe("TelemetryClient", () => {

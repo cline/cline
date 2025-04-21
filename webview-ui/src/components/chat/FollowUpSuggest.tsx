@@ -3,7 +3,7 @@ import { Edit } from "lucide-react"
 
 import { Button } from "@/components/ui"
 
-import { useAppTranslation } from "../../i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 interface FollowUpSuggestProps {
 	suggestions?: string[]

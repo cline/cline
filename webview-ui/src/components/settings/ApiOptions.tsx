@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { Trans } from "react-i18next"
-import { getRequestyAuthUrl, getOpenRouterAuthUrl, getGlamaAuthUrl } from "../../oauth/urls"
+import { getRequestyAuthUrl, getOpenRouterAuthUrl, getGlamaAuthUrl } from "@src/oauth/urls"
 import { useDebounce, useEvent } from "react-use"
 import { LanguageModelChatSelector } from "vscode"
 import { Checkbox } from "vscrui"
@@ -38,8 +38,8 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 	ApiProvider,
-} from "../../../../src/shared/api"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+} from "@roo/shared/api"
+import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
 
 import { vscode } from "@/utils/vscode"
 import { validateApiConfiguration, validateModelId, validateBedrockArn } from "@/utils/validate"
@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/hooks/useOpenRouterModelProviders"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator, Button } from "@/components/ui"
 import { MODELS_BY_PROVIDER, PROVIDERS, VERTEX_REGIONS, REASONING_MODELS } from "./constants"
-import { AWS_REGIONS } from "../../../../src/shared/aws_regions"
+import { AWS_REGIONS } from "@roo/shared/aws_regions"
 import { VSCodeButtonLink } from "../common/VSCodeButtonLink"
 import { ModelInfoView } from "./ModelInfoView"
 import { ModelPicker } from "./ModelPicker"

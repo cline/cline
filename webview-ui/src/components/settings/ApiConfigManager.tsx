@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { ChevronsUpDown, Check, X } from "lucide-react"
 
-import { ApiConfigMeta } from "../../../../src/shared/ExtensionMessage"
+import { ApiConfigMeta } from "@roo/shared/ExtensionMessage"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"

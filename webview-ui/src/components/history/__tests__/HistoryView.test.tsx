@@ -2,12 +2,12 @@
 
 import { render, screen, fireEvent, within, act } from "@testing-library/react"
 import HistoryView from "../HistoryView"
-import { useExtensionState } from "../../../context/ExtensionStateContext"
-import { vscode } from "../../../utils/vscode"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { vscode } from "@src/utils/vscode"
 
-jest.mock("../../../context/ExtensionStateContext")
-jest.mock("../../../utils/vscode")
-jest.mock("../../../i18n/TranslationContext")
+jest.mock("@src/context/ExtensionStateContext")
+jest.mock("@src/utils/vscode")
+jest.mock("@src/i18n/TranslationContext")
 jest.mock("react-virtuoso", () => ({
 	Virtuoso: ({ data, itemContent }: any) => (
 		<div data-testid="virtuoso-container">

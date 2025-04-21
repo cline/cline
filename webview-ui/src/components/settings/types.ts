@@ -1,4 +1,4 @@
-import { ExperimentId } from "../../../../src/shared/experiments"
+import { ExperimentId } from "@roo/shared/experiments"
 
 import { ExtensionStateContextType } from "@/context/ExtensionStateContext"
 

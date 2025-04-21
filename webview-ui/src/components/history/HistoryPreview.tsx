@@ -4,7 +4,7 @@ import { vscode } from "@/utils/vscode"
 import { formatLargeNumber, formatDate } from "@/utils/format"
 import { Button } from "@/components/ui"
 
-import { useAppTranslation } from "../../i18n/TranslationContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { CopyButton } from "./CopyButton"
 import { useTaskSearch } from "./useTaskSearch"
 

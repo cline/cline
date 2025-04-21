@@ -4,7 +4,7 @@ import { Globe } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui"
-import { Language, LANGUAGES } from "../../../../src/shared/language"
+import { Language, LANGUAGES } from "@roo/shared/language"
 
 import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"

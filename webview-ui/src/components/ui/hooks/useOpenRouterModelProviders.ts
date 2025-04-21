@@ -2,8 +2,8 @@ import axios from "axios"
 import { z } from "zod"
 import { useQuery, UseQueryOptions } from "@tanstack/react-query"
 
-import { ModelInfo } from "../../../../../src/shared/api"
-import { parseApiPrice } from "../../../../../src/utils/cost"
+import { ModelInfo } from "@roo/shared/api"
+import { parseApiPrice } from "@roo/utils/cost"
 
 export const OPENROUTER_DEFAULT_PROVIDER_NAME = "[default]"
 

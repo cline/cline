@@ -1,4 +1,4 @@
-import { ApiConfiguration, ModelInfo } from "../../../src/shared/api"
+import { ApiConfiguration, ModelInfo } from "@roo/shared/api"
 import i18next from "i18next"
 
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {

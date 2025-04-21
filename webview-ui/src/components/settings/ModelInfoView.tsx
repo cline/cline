@@ -5,7 +5,7 @@ import { useAppTranslation } from "@/i18n/TranslationContext"
 import { formatPrice } from "@/utils/formatPrice"
 import { cn } from "@/lib/utils"
 
-import { ModelInfo, geminiModels } from "../../../../src/shared/api"
+import { ModelInfo, geminiModels } from "@roo/shared/api"
 
 import { ModelDescriptionMarkdown } from "./ModelDescriptionMarkdown"
 

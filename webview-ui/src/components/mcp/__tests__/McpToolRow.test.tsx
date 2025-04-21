@@ -1,10 +1,10 @@
 import React from "react"
 import { render, fireEvent, screen } from "@testing-library/react"
 import McpToolRow from "../McpToolRow"
-import { vscode } from "../../../utils/vscode"
+import { vscode } from "@src/utils/vscode"
 
 // Mock the translation hook
-jest.mock("../../../i18n/TranslationContext", () => ({
+jest.mock("@src/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => {
 			const translations: Record<string, string> = {
@@ -17,7 +17,7 @@ jest.mock("../../../i18n/TranslationContext", () => ({
 	}),
 }))
 
-jest.mock("../../../utils/vscode", () => ({
+jest.mock("@src/utils/vscode", () => ({
 	vscode: {
 		postMessage: jest.fn(),
 	},

@@ -1,8 +1,8 @@
 import React from "react"
 import { render, waitFor, act } from "@testing-library/react"
 import ChatView from "../ChatView"
-import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
-import { vscode } from "../../../utils/vscode"
+import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
+import { vscode } from "@src/utils/vscode"
 
 // Define minimal types needed for testing
 interface ClineMessage {
@@ -25,7 +25,7 @@ interface ExtensionState {
 }
 
 // Mock vscode API
-jest.mock("../../../utils/vscode", () => ({
+jest.mock("@src/utils/vscode", () => ({
 	vscode: {
 		postMessage: jest.fn(),
 	},

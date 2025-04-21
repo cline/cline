@@ -1,7 +1,7 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { McpTool } from "../../../../src/shared/mcp"
-import { useAppTranslation } from "../../i18n/TranslationContext"
-import { vscode } from "../../utils/vscode"
+import { McpTool } from "@roo/shared/mcp"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { vscode } from "@src/utils/vscode"
 
 type McpToolRowProps = {
 	tool: McpTool

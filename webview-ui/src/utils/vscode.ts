@@ -1,4 +1,4 @@
-import { WebviewMessage } from "../../../src/shared/WebviewMessage"
+import { WebviewMessage } from "@roo/shared/WebviewMessage"
 import type { WebviewApi } from "vscode-webview"
 
 /**

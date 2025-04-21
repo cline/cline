@@ -2,9 +2,9 @@ import { useCallback, useMemo, useState } from "react"
 import { Trans } from "react-i18next"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
-import { vscode } from "../../utils/vscode"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { useAppTranslation } from "../../i18n/TranslationContext"
+import { vscode } from "@src/utils/vscode"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { AutoApproveToggle, AutoApproveSetting, autoApproveSettingsConfig } from "../settings/AutoApproveToggle"
 
 interface AutoApproveMenuProps {

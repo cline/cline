@@ -1,10 +1,10 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import PromptsView from "../PromptsView"
-import { ExtensionStateContext } from "../../../context/ExtensionStateContext"
-import { vscode } from "../../../utils/vscode"
+import { ExtensionStateContext } from "@src/context/ExtensionStateContext"
+import { vscode } from "@src/utils/vscode"
 
 // Mock vscode API
-jest.mock("../../../utils/vscode", () => ({
+jest.mock("@src/utils/vscode", () => ({
 	vscode: {
 		postMessage: jest.fn(),
 	},

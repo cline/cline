@@ -3,7 +3,7 @@ import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Trans } from "react-i18next"
 import { ChevronsUpDown, Check, X } from "lucide-react"
 
-import { ProviderSettings, ModelInfo } from "../../../../src/schemas"
+import { ProviderSettings, ModelInfo } from "@roo/schemas"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"

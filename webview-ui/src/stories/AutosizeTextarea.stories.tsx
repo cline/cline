@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
-import { AutosizeTextarea } from "../components/ui/autosize-textarea"
+import { AutosizeTextarea } from "@src/components/ui/autosize-textarea"
 
 const meta: Meta<typeof AutosizeTextarea> = {
 	title: "Primitives/AutosizeTextarea",

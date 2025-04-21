@@ -10,7 +10,7 @@ import {
 	vertexModels,
 	xaiModels,
 	REASONING_MODELS,
-} from "../../../../src/shared/api"
+} from "@roo/shared/api"
 
 export { REASONING_MODELS }
 

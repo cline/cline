@@ -1,9 +1,9 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useState } from "react"
 import styled from "styled-components"
-import { vscode } from "../../utils/vscode"
-import { TelemetrySetting } from "../../../../src/shared/TelemetrySetting"
-import { useAppTranslation } from "../../i18n/TranslationContext"
+import { vscode } from "@src/utils/vscode"
+import { TelemetrySetting } from "@roo/shared/TelemetrySetting"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Trans } from "react-i18next"
 
 const BannerContainer = styled.div`

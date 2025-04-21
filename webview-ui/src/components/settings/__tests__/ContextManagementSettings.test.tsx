@@ -2,7 +2,7 @@
 
 import { render, screen, fireEvent } from "@testing-library/react"
 
-import { ContextManagementSettings } from "../ContextManagementSettings"
+import { ContextManagementSettings } from "@src/components/settings/ContextManagementSettings"
 
 class MockResizeObserver {
 	observe() {}

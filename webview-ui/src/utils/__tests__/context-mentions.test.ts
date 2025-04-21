@@ -5,7 +5,7 @@ import {
 	shouldShowContextMenu,
 	ContextMenuOptionType,
 	ContextMenuQueryItem,
-} from "../context-mentions"
+} from "@src/utils/context-mentions"
 
 describe("insertMention", () => {
 	it("should insert mention at cursor position when no @ symbol exists", () => {

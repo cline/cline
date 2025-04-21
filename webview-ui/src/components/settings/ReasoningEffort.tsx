@@ -2,8 +2,8 @@ import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui"
 
-import { ApiConfiguration } from "../../../../src/shared/api"
-import { reasoningEfforts, ReasoningEffort as ReasoningEffortType } from "../../../../src/schemas"
+import { ApiConfiguration } from "@roo/shared/api"
+import { reasoningEfforts, ReasoningEffort as ReasoningEffortType } from "@roo/schemas"
 
 interface ReasoningEffortProps {
 	apiConfiguration: ApiConfiguration

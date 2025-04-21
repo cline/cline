@@ -8,13 +8,13 @@ import {
 	VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react"
 
-import { McpServer } from "../../../../src/shared/mcp"
+import { McpServer } from "@roo/shared/mcp"
 
 import { vscode } from "@/utils/vscode"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui"
 
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { useAppTranslation } from "../../i18n/TranslationContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Trans } from "react-i18next"
 import { Tab, TabContent, TabHeader } from "../common/Tab"
 import McpToolRow from "./McpToolRow"

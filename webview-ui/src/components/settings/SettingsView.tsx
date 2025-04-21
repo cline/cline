@@ -16,9 +16,9 @@ import {
 } from "lucide-react"
 import { CaretSortIcon } from "@radix-ui/react-icons"
 
-import { ExperimentId } from "../../../../src/shared/experiments"
-import { TelemetrySetting } from "../../../../src/shared/TelemetrySetting"
-import { ApiConfiguration } from "../../../../src/shared/api"
+import { ExperimentId } from "@roo/shared/experiments"
+import { TelemetrySetting } from "@roo/shared/TelemetrySetting"
+import { ApiConfiguration } from "@roo/shared/api"
 
 import { vscode } from "@/utils/vscode"
 import { ExtensionStateContextType, useExtensionState } from "@/context/ExtensionStateContext"

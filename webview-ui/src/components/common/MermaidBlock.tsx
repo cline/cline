@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
-import { useDebounceEffect } from "../../utils/useDebounceEffect"
+import { useDebounceEffect } from "@src/utils/useDebounceEffect"
 import styled from "styled-components"
-import { vscode } from "../../utils/vscode"
+import { vscode } from "@src/utils/vscode"
 
 const MERMAID_THEME = {
 	background: "#1e1e1e", // VS Code dark theme background

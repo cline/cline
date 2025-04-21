@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next"
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui"
 import { useRooPortal } from "@/components/ui/hooks"
 
-import { vscode } from "../../../utils/vscode"
+import { vscode } from "@src/utils/vscode"
 import { Checkpoint } from "./schema"
 
 type CheckpointMenuProps = {

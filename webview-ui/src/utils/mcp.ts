@@ -1,4 +1,4 @@
-import { McpResource, McpResourceTemplate } from "../../../src/shared/mcp"
+import { McpResource, McpResourceTemplate } from "@roo/shared/mcp"
 
 /**
  * Matches a URI against an array of URI templates and returns the matching template
