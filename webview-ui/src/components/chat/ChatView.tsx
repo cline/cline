@@ -329,7 +329,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const startNewTask = useCallback(() => {
-		vscode.postMessage({ type: "clearTask" })
+		TaskServiceClient.clearTask({})
 	}, [])
 
 	/*
