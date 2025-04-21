@@ -566,6 +566,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				justDeletedSpaceAfterMention,
 				queryItems,
 				fileSearchResults,
+				showSlashCommandsMenu,
+				selectedSlashCommandsIndex,
+				slashCommandsQuery,
+				handleSlashCommandsSelect,
 			],
 		)
 
