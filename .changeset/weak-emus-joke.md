@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-protobus migration for restoreTask
+protobus migration for checkpointRestore
