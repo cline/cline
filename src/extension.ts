@@ -40,12 +40,6 @@ function checkForTestMode(): boolean {
 		}
 	}
 
-	// Check if IS_TEST environment variable is set (for backward compatibility)
-	if (process.env.IS_TEST === "true") {
-		Logger.log("IS_TEST environment variable is set (legacy), activating test mode")
-		return true
-	}
-
 	return false
 }
 
