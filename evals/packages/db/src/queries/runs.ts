@@ -9,10 +9,8 @@ import { db } from "../db.js"
 import { createTaskMetrics } from "./taskMetrics.js"
 import { getTasks } from "./tasks.js"
 
-const table = schema.runs
-
 export const findRun = async (id: number) => {
-	const run = await db.query.runs.findFirst({ where: eq(table.id, id) })
+	const run = await db.query.runs.findFirst({ where: eq(schema.runs.id, id) })
 
 	if (!run) {
 		throw new RecordNotFoundError()
@@ -23,7 +21,7 @@ export const findRun = async (id: number) => {
 
 export const createRun = async (args: InsertRun) => {
 	const records = await db
-		.insert(table)
+		.insert(schema.runs)
 		.values({
 			...insertRunSchema.parse(args),
 			createdAt: new Date(),
@@ -40,7 +38,7 @@ export const createRun = async (args: InsertRun) => {
 }
 
 export const updateRun = async (id: number, values: UpdateRun) => {
-	const records = await db.update(table).set(values).where(eq(table.id, id)).returning()
+	const records = await db.update(schema.runs).set(values).where(eq(schema.runs.id, id)).returning()
 	const record = records[0]
 
 	if (!record) {
@@ -50,7 +48,8 @@ export const updateRun = async (id: number, values: UpdateRun) => {
 	return record
 }
 
-export const getRuns = async () => db.query.runs.findMany({ orderBy: desc(table.id), with: { taskMetrics: true } })
+export const getRuns = async () =>
+	db.query.runs.findMany({ orderBy: desc(schema.runs.id), with: { taskMetrics: true } })
 
 export const finishRun = async (runId: number) => {
 	const [values] = await db

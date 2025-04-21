@@ -9,7 +9,7 @@ export const rooCodeDefaults: RooCodeSettings = {
 	rateLimitSeconds: 0,
 
 	pinnedApiConfigs: {},
-	lastShownAnnouncementId: "apr-16-2025-3-12",
+	lastShownAnnouncementId: "apr-18-2025-3-13",
 
 	autoApprovalEnabled: true,
 	alwaysAllowReadOnly: true,
@@ -59,7 +59,6 @@ export const rooCodeDefaults: RooCodeSettings = {
 		search_and_replace: false,
 		insert_content: false,
 		powerSteering: false,
-		append_to_file: false,
 	},
 
 	language: "en",

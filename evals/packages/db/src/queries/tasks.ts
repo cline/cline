@@ -7,10 +7,8 @@ import type { InsertTask, UpdateTask } from "../schema.js"
 import { insertTaskSchema, tasks } from "../schema.js"
 import { db } from "../db.js"
 
-const table = tasks
-
 export const findTask = async (id: number) => {
-	const run = await db.query.tasks.findFirst({ where: eq(table.id, id) })
+	const run = await db.query.tasks.findFirst({ where: eq(tasks.id, id) })
 
 	if (!run) {
 		throw new RecordNotFoundError()
@@ -21,7 +19,7 @@ export const findTask = async (id: number) => {
 
 export const createTask = async (args: InsertTask) => {
 	const records = await db
-		.insert(table)
+		.insert(tasks)
 		.values({
 			...insertTaskSchema.parse(args),
 			createdAt: new Date(),
@@ -38,7 +36,7 @@ export const createTask = async (args: InsertTask) => {
 }
 
 export const updateTask = async (id: number, values: UpdateTask) => {
-	const records = await db.update(table).set(values).where(eq(table.id, id)).returning()
+	const records = await db.update(tasks).set(values).where(eq(tasks.id, id)).returning()
 	const record = records[0]
 
 	if (!record) {
@@ -56,8 +54,8 @@ type GetTask = {
 
 export const getTask = async ({ runId, language, exercise }: GetTask) =>
 	db.query.tasks.findFirst({
-		where: and(eq(table.runId, runId), eq(table.language, language), eq(table.exercise, exercise)),
+		where: and(eq(tasks.runId, runId), eq(tasks.language, language), eq(tasks.exercise, exercise)),
 	})
 
 export const getTasks = async (runId: number) =>
-	db.query.tasks.findMany({ where: eq(table.runId, runId), with: { taskMetrics: true } })
+	db.query.tasks.findMany({ where: eq(tasks.runId, runId), with: { taskMetrics: true } })

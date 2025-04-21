@@ -873,6 +873,7 @@ export enum RooCodeEventName {
 	TaskSpawned = "taskSpawned",
 	TaskCompleted = "taskCompleted",
 	TaskTokenUsageUpdated = "taskTokenUsageUpdated",
+	TaskToolFailed = "taskToolFailed",
 }
 
 export const rooCodeEventsSchema = z.object({
@@ -893,6 +894,7 @@ export const rooCodeEventsSchema = z.object({
 	[RooCodeEventName.TaskSpawned]: z.tuple([z.string(), z.string()]),
 	[RooCodeEventName.TaskCompleted]: z.tuple([z.string(), tokenUsageSchema, toolUsageSchema]),
 	[RooCodeEventName.TaskTokenUsageUpdated]: z.tuple([z.string(), tokenUsageSchema]),
+	[RooCodeEventName.TaskToolFailed]: z.tuple([z.string(), toolNamesSchema, z.string()]),
 })
 
 export type RooCodeEvents = z.infer<typeof rooCodeEventsSchema>

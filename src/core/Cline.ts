@@ -107,6 +107,7 @@ export type ClineEvents = {
 	taskSpawned: [taskId: string]
 	taskCompleted: [taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage]
 	taskTokenUsageUpdated: [taskId: string, tokenUsage: TokenUsage]
+	taskToolFailed: [taskId: string, tool: ToolName, error: string]
 }
 
 export type ClineOptions = {
@@ -340,6 +341,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 				return data
 			}
 		}
+
 		return []
 	}
 
@@ -2541,12 +2543,17 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 		this.toolUsage[toolName].attempts++
 	}
-	public recordToolError(toolName: ToolName) {
+
+	public recordToolError(toolName: ToolName, error?: string) {
 		if (!this.toolUsage[toolName]) {
 			this.toolUsage[toolName] = { attempts: 0, failures: 0 }
 		}
 
 		this.toolUsage[toolName].failures++
+
+		if (error) {
+			this.emit("taskToolFailed", this.taskId, toolName, error)
+		}
 	}
 
 	public getToolUsage() {

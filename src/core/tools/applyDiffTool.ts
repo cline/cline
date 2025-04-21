@@ -96,7 +96,6 @@ export async function applyDiffTool(
 
 			if (!diffResult.success) {
 				cline.consecutiveMistakeCount++
-				cline.recordToolError("apply_diff")
 				const currentCount = (cline.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
 				cline.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
 				let formattedError = ""
@@ -127,6 +126,8 @@ export async function applyDiffTool(
 				if (currentCount >= 2) {
 					await cline.say("diff_error", formattedError)
 				}
+
+				cline.recordToolError("apply_diff", formattedError)
 
 				pushToolResult(formattedError)
 				return

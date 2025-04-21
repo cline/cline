@@ -29,6 +29,7 @@ import {
 	updateTask,
 	createTaskMetrics,
 	updateTaskMetrics,
+	createToolError,
 } from "@evals/db"
 import { IpcServer, IpcClient } from "@evals/ipc"
 
@@ -253,6 +254,12 @@ const runExercise = async ({ run, task, server }: { run: Run; task: Task; server
 			taskStartedAt = Date.now()
 			taskMetricsId = taskMetrics.id
 			rooTaskId = payload[0]
+		}
+
+		if (eventName === RooCodeEventName.TaskToolFailed) {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			const [_taskId, toolName, error] = payload
+			await createToolError({ taskId: task.id, toolName, error })
 		}
 
 		if (

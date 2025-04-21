@@ -112,6 +112,11 @@ export const taskEventSchema = z.discriminatedUnion("eventName", [
 		taskId: z.number().optional(),
 	}),
 	z.object({
+		eventName: z.literal(RooCodeEventName.TaskToolFailed),
+		payload: rooCodeEventsSchema.shape[RooCodeEventName.TaskToolFailed],
+		taskId: z.number().optional(),
+	}),
+	z.object({
 		eventName: z.literal(EvalEventName.Pass),
 		payload: z.undefined(),
 		taskId: z.number(),
