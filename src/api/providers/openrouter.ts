@@ -126,7 +126,7 @@ export class OpenRouterHandler implements ApiHandler {
 				headers: {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
-				timeout: 15_000, // this request hangs sometimes
+				timeout: this.options.requestTimeoutMs || 15_000, // this request hangs sometimes
 			})
 			yield response.data?.data
 		} catch (error) {

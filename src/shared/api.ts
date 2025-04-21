@@ -80,6 +80,7 @@ export interface ApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
 	sambanovaApiKey?: string
+	requestTimeoutMs?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
