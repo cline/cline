@@ -1,5 +1,5 @@
 import { memo, useCallback, useState } from "react"
-import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels } from "@shared/api"
+import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 
@@ -86,18 +86,17 @@ interface ThinkingBudgetSliderProps {
 }
 
 const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget }: ThinkingBudgetSliderProps) => {
-	const defaultMaxTokens =
+	const maxTokens =
 		apiConfiguration?.apiProvider === "gemini"
 			? geminiModels[geminiDefaultModelId].maxTokens
 			: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
 
-	// Calculate the maximum value, applying the percentage cap only for Anthropic
-	const computedMax = (() => {
-		const baseMax = maxBudget !== undefined ? maxBudget : defaultMaxTokens
-		if (apiConfiguration?.apiProvider === "anthropic") {
-			return Math.floor(baseMax * MAX_PERCENTAGE)
+	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
+	const maxSliderValue = (() => {
+		if (maxBudget !== undefined) {
+			return maxBudget
 		}
-		return baseMax
+		return Math.floor(maxTokens * MAX_PERCENTAGE)
 	})()
 
 	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
@@ -145,7 +144,7 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 						id="thinking-budget-slider"
 						type="range"
 						min={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
-						max={computedMax}
+						max={maxSliderValue}
 						step={1}
 						value={localValue}
 						onChange={handleSliderChange}
@@ -153,10 +152,10 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 						onTouchEnd={handleSliderComplete}
 						$value={localValue}
 						$min={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
-						$max={computedMax}
+						$max={maxSliderValue}
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
 						aria-valuemin={DEFAULT_MIN_VALID_TOKENS} // Use constant directly
-						aria-valuemax={computedMax}
+						aria-valuemax={maxSliderValue}
 						aria-valuenow={localValue}
 						aria-describedby="thinking-budget-description"
 					/>
