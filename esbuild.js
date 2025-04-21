@@ -9,6 +9,29 @@ const test = process.env.IS_TEST === "true"
 /**
  * @type {import('esbuild').Plugin}
  */
+const aliasResolverPlugin = {
+	name: "alias-resolver",
+	setup(build) {
+		const aliases = {
+			"@": path.resolve(__dirname, "src"),
+			"@api": path.resolve(__dirname, "src/api"),
+			"@core": path.resolve(__dirname, "src/core"),
+			"@integrations": path.resolve(__dirname, "src/integrations"),
+			"@services": path.resolve(__dirname, "src/services"),
+			"@shared": path.resolve(__dirname, "src/shared"),
+			"@utils": path.resolve(__dirname, "src/utils"),
+		}
+
+		// For each alias entry, create a resolver
+		Object.entries(aliases).forEach(([alias, aliasPath]) => {
+			const aliasRegex = new RegExp(`^${alias}($|/.*)`)
+			build.onResolve({ filter: aliasRegex }, (args) => {
+				const importPath = args.path.replace(alias, aliasPath)
+				return { path: importPath }
+			})
+		})
+	},
+}
 const esbuildProblemMatcherPlugin = {
 	name: "esbuild-problem-matcher",
 
@@ -75,6 +98,7 @@ const extensionConfig = {
 	},
 	plugins: [
 		copyWasmFiles,
+		aliasResolverPlugin,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
 		{
