@@ -4,7 +4,6 @@ import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
-import { getFileSizeInKB } from "../../utils/fs"
 import * as chardet from "jschardet"
 import * as iconv from "iconv-lite"
 

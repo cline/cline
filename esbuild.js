@@ -27,11 +27,41 @@ const aliasResolverPlugin = {
 			const aliasRegex = new RegExp(`^${alias}($|/.*)`)
 			build.onResolve({ filter: aliasRegex }, (args) => {
 				const importPath = args.path.replace(alias, aliasPath)
+
+				// First, check if the path exists as is
+				if (fs.existsSync(importPath)) {
+					const stats = fs.statSync(importPath)
+					if (stats.isDirectory()) {
+						// If it's a directory, try to find index files
+						const extensions = [".ts", ".tsx", ".js", ".jsx"]
+						for (const ext of extensions) {
+							const indexFile = path.join(importPath, `index${ext}`)
+							if (fs.existsSync(indexFile)) {
+								return { path: indexFile }
+							}
+						}
+					} else {
+						// It's a file that exists, so return it
+						return { path: importPath }
+					}
+				}
+
+				// If the path doesn't exist, try appending extensions
+				const extensions = [".ts", ".tsx", ".js", ".jsx"]
+				for (const ext of extensions) {
+					const pathWithExtension = `${importPath}${ext}`
+					if (fs.existsSync(pathWithExtension)) {
+						return { path: pathWithExtension }
+					}
+				}
+
+				// If nothing worked, return the original path and let esbuild handle the error
 				return { path: importPath }
 			})
 		})
 	},
 }
+
 const esbuildProblemMatcherPlugin = {
 	name: "esbuild-problem-matcher",
 

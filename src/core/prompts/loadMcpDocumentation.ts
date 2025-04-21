@@ -1,4 +1,4 @@
-import { McpHub } from "../../services/mcp/McpHub"
+import { McpHub } from "@services/mcp/McpHub"
 
 export async function loadMcpDocumentation(mcpHub: McpHub) {
 	return `## Creating an MCP Server
