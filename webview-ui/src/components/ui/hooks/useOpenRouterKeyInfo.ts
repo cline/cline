@@ -92,7 +92,6 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 
 		// Use cached data immediately if available
 		if (hasCache) {
-			console.log("[useOpenRouterKeyInfo] Cache hit: true")
 			// Ensure local state matches module cache if it hasn't updated yet
 			// This handles cases where the hook re-renders before the effect runs
 			if (data !== moduleCachedData) {
@@ -100,7 +99,6 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 			}
 			setIsLoading(false)
 		} else {
-			console.log("[useOpenRouterKeyInfo] Cache hit: false")
 			setIsLoading(true)
 			setError(null)
 		}
