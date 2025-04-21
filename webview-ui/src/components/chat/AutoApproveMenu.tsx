@@ -153,24 +153,30 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		return enabledActionsCount > 0
 	}, [enabledActions, autoApprovalSettings.actions])
 
+	// Get the full extension state to ensure we have the most up-to-date settings
+	const extensionState = useExtensionState()
+
 	const updateEnabled = useCallback(
 		(enabled: boolean) => {
+			const currentSettings = extensionState.autoApprovalSettings
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
 					enabled,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateAction = useCallback(
 		(actionId: keyof AutoApprovalSettings["actions"], value: boolean) => {
+			const currentSettings = extensionState.autoApprovalSettings
 			// Calculate what the new actions state will be
 			const newActions = {
-				...autoApprovalSettings.actions,
+				...currentSettings.actions,
 				[actionId]: value,
 			}
 
@@ -180,40 +186,45 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
 					actions: newActions,
 					// If no actions will be enabled, ensure the main toggle is off
-					enabled: willHaveEnabledActions ? autoApprovalSettings.enabled : false,
+					enabled: willHaveEnabledActions ? currentSettings.enabled : false,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateMaxRequests = useCallback(
 		(maxRequests: number) => {
+			const currentSettings = extensionState.autoApprovalSettings
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
 					maxRequests,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateNotifications = useCallback(
 		(enableNotifications: boolean) => {
+			const currentSettings = extensionState.autoApprovalSettings
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
 					enableNotifications,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[extensionState.autoApprovalSettings],
 	)
 
 	return (
