@@ -10,7 +10,6 @@ import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { Logger } from "../../services/logging/Logger"
-const { IS_TEST } = process.env
 import { ApiHandler, buildApiHandler } from "../../api"
 import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
@@ -92,6 +91,7 @@ import { getGlobalState } from "../storage/state"
 import { parseSlashCommands } from ".././slash-commands"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
+import { isInTestMode } from "../../services/test/TestMode"
 
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1211,8 +1211,10 @@ export class Task {
 	}
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+		Logger.info("IS_TEST: " + isInTestMode())
+
 		// Check if we're in test mode
-		if (IS_TEST === "true") {
+		if (isInTestMode()) {
 			// In test mode, execute the command directly in Node
 			Logger.info("Executing command in Node: " + command)
 			return this.executeCommandInNode(command)
