@@ -1821,7 +1821,7 @@ export const ModelInfoView = ({
 		/>,
 		<ModelInfoSupportsItem
 			key="supportsBrowserUse"
-			isSupported={modelInfo.supportsImages ?? false}
+			isSupported={modelInfo.supportsImages ?? false} // cline browser tool uses image recognition for navigation (requires model image support).
 			supportsLabel="Supports browser use"
 			doesNotSupportLabel="Does not support browser use"
 		/>,
