@@ -48,7 +48,7 @@ async function convertHtmlToMarkdown(html: string) {
 			// Convert Markdown AST to text
 			bullet: "-", // Use - for unordered lists
 			emphasis: "*", // Use * for emphasis
-			strong: "_", // Use ** for strong
+			strong: "_", // Use _ for strong
 			listItemIndent: "one", // Use one space for list indentation
 			rule: "-", // Use - for horizontal rules
 			ruleSpaces: false, // No spaces in horizontal rules
@@ -115,9 +115,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					const selectedHtml = div.innerHTML
 
 					// Convert HTML to Markdown
-					console.log(selectedHtml)
 					const markdown = await convertHtmlToMarkdown(selectedHtml)
-					console.log(markdown)
 
 					vscode.postMessage({ type: "copyToClipboard", text: markdown })
 					e.preventDefault()

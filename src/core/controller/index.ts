@@ -895,7 +895,11 @@ export class Controller {
 			}
 
 			case "copyToClipboard": {
-				await vscode.env.clipboard.writeText(message.text || "")
+				try {
+					await vscode.env.clipboard.writeText(message.text || "")
+				} catch (error) {
+					console.error("Error copying to clipboard:", error)
+				}
 				break
 			}
 			// Add more switch case statements here as more webview message commands
