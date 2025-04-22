@@ -17,7 +17,7 @@ import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { ClineRulesToggles } from "@shared/cline-rules"
+
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
@@ -34,6 +34,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
+	setMcpServers: (value: McpServer[]) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -226,6 +227,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				shouldShowAnnouncement: value,
 			})),
+		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
