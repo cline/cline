@@ -1613,6 +1613,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 					],
 				)
 
+				await this.say("user_feedback", text, images)
+
 				// Track consecutive mistake errors in telemetry
 				telemetryService.captureConsecutiveMistakeError(this.taskId)
 			}
