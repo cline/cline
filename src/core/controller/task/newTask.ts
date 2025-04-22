@@ -9,6 +9,11 @@ import { NewTaskRequest } from "../../../shared/proto/task"
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
-	await controller.initTask(request.text, request.images)
-	return Empty
+	try {
+		await controller.initTask(request.text, request.images)
+		return Empty.create()
+	} catch (error) {
+		console.error("Error in newTask:", error)
+		throw error
+	}
 }
