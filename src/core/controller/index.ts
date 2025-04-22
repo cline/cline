@@ -12,7 +12,6 @@ import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { fetchOpenGraphData, isImageUrl } from "@integrations/misc/link-preview"
-import { openImage } from "@integrations/misc/open-file"
 import { handleFileServiceRequest } from "./file"
 import { selectImages } from "@integrations/misc/process-images"
 import { getTheme } from "@integrations/theme/getTheme"
@@ -394,9 +393,6 @@ export class Controller {
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
 				await this.postStateToWebview()
-				break
-			case "openImage":
-				openImage(message.text!)
 				break
 			case "openInBrowser":
 				if (message.url) {

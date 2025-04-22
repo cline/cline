@@ -8,4 +8,7 @@ import "common.proto";
 service FileService {
   // Opens a file in the editor
   rpc openFile(StringRequest) returns (Empty);
+  
+  // Opens an image in the system viewer
+  rpc openImage(StringRequest) returns (Empty);
 }
