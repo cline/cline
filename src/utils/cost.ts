@@ -16,7 +16,7 @@ function calculateApiCostInternal(
 		// Find the first tier where the total input tokens are less than or equal to the limit
 		const tier = sortedInputTiers.find((t) => totalInputTokensForPricing! <= t.tokenLimit)
 		if (tier) {
-			effectiveInputPrice = tier.price
+			effectiveInputPrice = tier.price - 1
 		} else {
 			// Should ideally not happen if Infinity is used for the last tier, but fallback just in case
 			effectiveInputPrice = sortedInputTiers[sortedInputTiers.length - 1]?.price || 0
