@@ -148,7 +148,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		<div className="fixed top-0 left-0 right-0 bottom-0 pt-[10px] pr-0 pb-0 pl-5 flex flex-col overflow-hidden">
 			<div className="flex justify-between items-center mb-[13px] pr-[17px]">
 				<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
-				<VSCodeButton onClick={() => handleSubmit(false)}>Done</VSCodeButton>
+				<VSCodeButton onClick={() => handleSubmit(false)}>Save</VSCodeButton>
 			</div>
 			<div className="grow overflow-y-scroll pr-2 flex flex-col">
 				{/* Tabs container */}

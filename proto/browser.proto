@@ -7,6 +7,7 @@ import "common.proto";
 service BrowserService {
   rpc getBrowserConnectionInfo(EmptyRequest) returns (BrowserConnectionInfo);
   rpc testBrowserConnection(StringRequest) returns (BrowserConnection);
+  rpc discoverBrowser(EmptyRequest) returns (BrowserConnection);
 }
 
 message BrowserConnectionInfo {

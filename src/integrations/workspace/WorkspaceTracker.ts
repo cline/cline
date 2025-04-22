@@ -1,8 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
-import { listFiles } from "../../services/glob/list-files"
-import { Controller } from "../../core/controller"
-import { ExtensionMessage } from "../../shared/ExtensionMessage"
+import { listFiles } from "@services/glob/list-files"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 

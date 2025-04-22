@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react"
 import { useClickAway, useEvent } from "react-use"
 import styled from "styled-components"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
@@ -110,12 +111,17 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 				appearance="secondary"
 				disabled={compareDisabled}
 				style={{ cursor: compareDisabled ? "wait" : "pointer" }}
-				onClick={() => {
+				onClick={async () => {
 					setCompareDisabled(true)
-					vscode.postMessage({
-						type: "checkpointDiff",
-						number: messageTs,
-					})
+					try {
+						await CheckpointsServiceClient.checkpointDiff({
+							value: messageTs,
+						})
+					} catch (err) {
+						console.error("CheckpointDiff error:", err)
+					} finally {
+						setCompareDisabled(false)
+					}
 				}}>
 				<i className="codicon codicon-diff-multiple" style={{ position: "absolute" }} />
 			</VSCodeButton>
