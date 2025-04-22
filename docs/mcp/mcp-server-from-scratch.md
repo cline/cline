@@ -1,74 +1,685 @@
-# Building Custom MCP Servers From Scratch Using Cline: A Comprehensive Guide
+---
+description: >-
+  This protocol is designed to streamline the development process of building
+  MCP servers with Cline.
+---
 
-This guide provides a comprehensive walkthrough of building a custom MCP (Model Context Protocol) server from scratch, leveraging the powerful AI capabilities of Cline. The example used will be building a "GitHub Assistant Server" to illustrate the process.
+# MCP Server Development Protocol
 
-## Understanding MCP and Cline's Role in Building Servers
+> 🚀 **Build and share your MCP servers with the world.** Once you've created a great MCP server, submit it to the [Cline MCP Marketplace](https://github.com/cline/mcp-marketplace) to make it discoverable and one-click installable by thousands of developers.
 
-### What is MCP?
+### What Are MCP Servers?
 
-The Model Context Protocol (MCP) acts as a bridge between large language models (LLMs) like Claude and external tools and data. MCP consists of two key components:
+Model Context Protocol (MCP) servers extend AI assistants like Cline by giving them the ability to:
 
--   **MCP Hosts:** These are applications that integrate with LLMs, such as Cline, Claude Desktop, and others.
--   **MCP Servers:** These are small programs specifically designed to expose data or specific functionalities to the LLMs through the MCP.
+* Access external APIs and services
+* Retrieve real-time data
+* Control applications and local systems
+* Perform actions beyond what text prompts alone can achieve
 
-This setup is beneficial when you have an MCP-compliant chat interface, like Claude Desktop, which can then leverage these servers to access information and execute actions.
+Without MCP, AI assistants are powerful but isolated. With MCP, they gain the ability to interact with virtually any digital system.
 
-### Why Use Cline to Create MCP Servers?
+### The Development Protocol
 
-Cline streamlines the process of building and integrating MCP servers by utilizing its AI capabilities to:
+The heart of effective MCP server development is following a structured protocol. This protocol is implemented through a `.clinerules` file that lives at the **root** of your MCP working directory (/Users/your-name/Documents/Cline/MCP).
 
--   **Understand Natural Language Instructions:** You can communicate with Cline in a way that feels natural, making the development process intuitive and user-friendly.
--   **Clone Repositories:** Cline can directly clone existing MCP server repositories from GitHub, simplifying the process of using pre-built servers.
--   **Build Servers:** Once the necessary code is in place, Cline can execute commands like `npm run build` to compile and prepare the server for use.
--   **Handle Configuration:** Cline manages the configuration files required for the MCP server, including adding the new server to the `cline_mcp_settings.json` file.
--   **Assist with Troubleshooting:** If errors arise during development or testing, Cline can help identify the cause and suggest solutions, making debugging easier.
+#### Using `.clinerules` Files
 
-## Building a GitHub Assistant Server Using Cline: A Step-by-Step Guide
+A `.clinerules` file is a special configuration that Cline reads automatically when working in the directory where it's placed. These files:
 
-This section demonstrates how to create a GitHub Assistant server using Cline. This server will be able to interact with GitHub data and perform useful actions:
+* Configure Cline's behavior and enforce best practices
+* Switch Cline into a specialized MCP development mode
+* Provide a step-by-step protocol for building servers
+* Implement safety measures like preventing premature completion
+* Guide you through planning, implementation, and testing phases
 
-### 1. Defining the Goal and Initial Requirements
+Here's the complete MCP Server Development Protocol that should be placed in your `.clinerules` file:
 
-First, you need to clearly communicate to Cline the purpose and functionalities of your server:
+````markdown
+# MCP Server Development Protocol
 
--   **Server Goal:** Inform Cline that you want to build a "GitHub Assistant Server". Specify that this server will interact with GitHub data and potentially mention the types of data you are interested in, like issues, pull requests, and user profiles.
--   **Access Requirements:** Let Cline know that you need to access the GitHub API. Explain that this will likely require a personal access token (GITHUB_TOKEN) for authentication.
--   **Data Specificity (Optional):** You can optionally tell Cline about specific fields of data you want to extract from GitHub, but this can also be determined later as you define the server's tools.
+⚠️ CRITICAL: DO NOT USE attempt_completion BEFORE TESTING ⚠️
 
-### 2. Cline Initiates the Project Setup
+## Step 1: Planning (PLAN MODE)
+- What problem does this tool solve?
+- What API/service will it use?
+- What are the authentication requirements?
+  □ Standard API key
+  □ OAuth (requires separate setup script)
+  □ Other credentials
 
-Based on your instructions, Cline starts the project setup process:
+## Step 2: Implementation (ACT MODE)
+1. Bootstrap
+   - For web services, JavaScript integration, or Node.js environments:
+     ```bash
+     npx @modelcontextprotocol/create-server my-server
+     cd my-server
+     npm install
+     ```
+   - For data science, ML workflows, or Python environments:
+     ```bash
+     pip install mcp
+     # Or with uv (recommended)
+     uv add "mcp[cli]"
+     ```
 
--   **Project Structure:** Cline might ask you for a name for your server. Afterward, it uses the MCP `create-server` tool to generate the basic project structure for your GitHub Assistant server. This usually involves creating a new directory with essential files like `package.json`, `tsconfig.json`, and a `src` folder for your TypeScript code. \
--   **Code Generation:** Cline generates starter code for your server, including:
-    -   **File Handling Utilities:** Functions to help with reading and writing files, commonly used for storing data or logs. \
-    -   **GitHub API Client:** Code to interact with the GitHub API, often using libraries like `@octokit/graphql`. Cline will likely ask for your GitHub username or the repositories you want to work with. \
-    -   **Core Server Logic:** The basic framework for handling requests from Cline and routing them to the appropriate functions, as defined by the MCP. \
--   **Dependency Management:** Cline analyzes the code and identifies necessary dependencies, adding them to the `package.json` file. For example, interacting with the GitHub API will likely require packages like `@octokit/graphql`, `graphql`, `axios`, or similar. \
--   **Dependency Installation:** Cline executes `npm install` to download and install the dependencies listed in `package.json`, ensuring your server has all the required libraries to function correctly. \
--   **Path Corrections:** During development, you might move files or directories around. Cline intelligently recognizes these changes and automatically updates file paths in your code to maintain consistency.
--   **Configuration:** Cline will modify the `cline_mcp_settings.json` file to add your new GitHub Assistant server. This will include:
-    -   **Server Start Command:** Cline will add the appropriate command to start your server (e.g., `npm run start` or a similar command).
-    -   **Environment Variables:** Cline will add the required `GITHUB_TOKEN` variable. Cline might ask you for your GitHub personal access token, or it might guide you to safely store it in a separate environment file. \
--   **Progress Documentation:** Throughout the process, Cline keeps the "Memory Bank" files updated. These files document the project's progress, highlighting completed tasks, tasks in progress, and pending tasks.
+2. Core Implementation
+   - Use MCP SDK
+   - Implement comprehensive logging
+     - TypeScript (for web/JS projects):
+       ```typescript
+       console.error('[Setup] Initializing server...');
+       console.error('[API] Request to endpoint:', endpoint);
+       console.error('[Error] Failed with:', error);
+       ```
+     - Python (for data science/ML projects):
+       ```python
+       import logging
+       logging.error('[Setup] Initializing server...')
+       logging.error(f'[API] Request to endpoint: {endpoint}')
+       logging.error(f'[Error] Failed with: {str(error)}')
+       ```
+   - Add type definitions
+   - Handle errors with context
+   - Implement rate limiting if needed
 
-### 3. Testing the GitHub Assistant Server
+3. Configuration
+   - Get credentials from user if needed
+   - Add to MCP settings:
+     - For TypeScript projects:
+       ```json
+       {
+         "mcpServers": {
+           "my-server": {
+             "command": "node",
+             "args": ["path/to/build/index.js"],
+             "env": {
+               "API_KEY": "key"
+             },
+             "disabled": false,
+             "autoApprove": []
+           }
+         }
+       }
+       ```
+     - For Python projects:
+       ```bash
+       # Directly with command line
+       mcp install server.py -v API_KEY=key
+       
+       # Or in settings.json
+       {
+         "mcpServers": {
+           "my-server": {
+             "command": "python",
+             "args": ["server.py"],
+             "env": {
+               "API_KEY": "key"
+             },
+             "disabled": false,
+             "autoApprove": []
+           }
+         }
+       }
+       ```
 
-Once Cline has completed the setup and configuration, you are ready to test the server's functionality:
+## Step 3: Testing (BLOCKER ⛔️)
 
--   **Using Server Tools:** Cline will create various "tools" within your server, representing actions or data retrieval functions. To test, you would instruct Cline to use a specific tool. Here are examples related to GitHub:
-    -   **`get_issues`:** To test retrieving issues, you might say to Cline, "Cline, use the `get_issues` tool from the GitHub Assistant Server to show me the open issues from the 'cline/cline' repository." Cline would then execute this tool and present you with the results.
-    -   **`get_pull_requests`:** To test pull request retrieval, you could ask Cline to "use the `get_pull_requests` tool to show me the merged pull requests from the 'facebook/react' repository from the last month." Cline would execute this tool, using your GITHUB_TOKEN to access the GitHub API, and display the requested data. \
--   **Providing Necessary Information:** Cline might prompt you for additional information required to execute the tool, such as the repository name, specific date ranges, or other filtering criteria.
--   **Cline Executes the Tool:** Cline handles the communication with the GitHub API, retrieves the requested data, and presents it in a clear and understandable format.
+<thinking>
+BEFORE using attempt_completion, I MUST verify:
+□ Have I tested EVERY tool?
+□ Have I confirmed success from the user for each test?
+□ Have I documented the test results?
 
-### 4. Refining the Server and Adding More Features
+If ANY answer is "no", I MUST NOT use attempt_completion.
+</thinking>
 
-Development is often iterative. As you work with your GitHub Assistant Server, you'll discover new functionalities to add, or ways to improve existing ones. Cline can assist in this ongoing process:
+1. Test Each Tool (REQUIRED)
+   □ Test each tool with valid inputs
+   □ Verify output format is correct
+   ⚠️ DO NOT PROCEED UNTIL ALL TOOLS TESTED
 
--   **Discussions with Cline:** Talk to Cline about your ideas for new tools or improvements. For example, you might want a tool to `create_issue` or to `get_user_profile`. Discuss the required inputs and outputs for these tools with Cline.
--   **Code Refinement:** Cline can help you write the necessary code for new features. Cline can generate code snippets, suggest best practices, and help you debug any issues that arise.
--   **Testing New Functionalities:** After adding new tools or functionalities, you would test them again using Cline, ensuring they work as expected and integrate well with the rest of the server.
--   **Integration with Other Tools:** You might want to integrate your GitHub Assistant server with other tools. For instance, in the "github-cline-mcp" source, Cline assists in integrating the server with Notion to create a dynamic dashboard that tracks GitHub activity. \
+## Step 4: Completion
+❗ STOP AND VERIFY:
+□ Every tool has been tested with valid inputs
+□ Output format is correct for each tool
 
-By following these steps, you can create a custom MCP server from scratch using Cline, leveraging its powerful AI capabilities to streamline the entire process. Cline not only assists with the technical aspects of building the server but also helps you think through the design, functionalities, and potential integrations.
+Only after ALL tools have been tested can attempt_completion be used.
+
+## Key Requirements
+- ✓ Must use MCP SDK
+- ✓ Must have comprehensive logging
+- ✓ Must test each tool individually
+- ✓ Must handle errors gracefully
+- ⛔️ NEVER skip testing before completion
+````
+
+When this `.clinerules` file is present in your working directory, Cline will:
+
+1. Start in **PLAN MODE** to design your server before implementation
+2. Enforce proper implementation patterns in **ACT MODE**
+3. Require testing of all tools before allowing completion
+4. Guide you through the entire development lifecycle
+
+### Getting Started
+
+Creating an MCP server requires just a few simple steps to get started:
+
+#### 1. Create a `.clinerules` file (🚨 IMPORTANT)
+
+First, add a `.clinerules` file to the root of your MCP working directory using the protocol above. This file configures Cline to use the MCP development protocol when working in this folder.
+
+#### 2. Start a Chat with a Clear Description
+
+Begin your Cline chat by clearly describing what you want to build. Be specific about:
+
+* The purpose of your MCP server
+* Which API or service you want to integrate with
+* Any specific tools or features you need
+
+For example:
+
+```
+I want to build an MCP server for the AlphaAdvantage financial API.
+It should allow me to get real-time stock data, perform technical 
+analysis, and retrieve company financial information.
+```
+
+#### 3. Work Through the Protocol
+
+Cline will automatically start in PLAN MODE, guiding you through the planning process:
+
+* Discussing the problem scope
+* Reviewing API documentation
+* Planning authentication methods
+* Designing tool interfaces
+
+When ready, switch to ACT MODE using the toggle at the bottom of the chat to begin implementation.
+
+#### 4. Provide API Documentation Early
+
+One of the most effective ways to help Cline build your MCP server is to share official API documentation right at the start:
+
+```
+Here's the API documentation for the service:
+[Paste API documentation here]
+```
+
+Providing comprehensive API details (endpoints, authentication, data structures) significantly improves Cline's ability to implement an effective MCP server.
+
+### Understanding the Two Modes
+
+#### PLAN MODE
+
+In this collaborative phase, you work with Cline to design your MCP server:
+
+* Define the problem scope
+* Choose appropriate APIs
+* Plan authentication methods
+* Design the tool interfaces
+* Determine data formats
+
+#### ACT MODE
+
+Once planning is complete, Cline helps implement the server:
+
+* Set up the project structure
+* Write the implementation code
+* Configure settings
+* Test each component thoroughly
+* Finalize documentation
+
+### Case Study: AlphaAdvantage Stock Analysis Server
+
+Let's walk through the development process of our AlphaAdvantage MCP server, which provides stock data analysis and reporting capabilities.
+
+#### Planning Phase
+
+<figure><img src="../.gitbook/assets/planning-phase.gif" alt=""><figcaption></figcaption></figure>
+
+During the planning phase, we:
+
+1. **Defined the problem**: Users need access to financial data, stock analysis, and market insights directly through their AI assistant
+2. **Selected the API**: AlphaAdvantage API for financial market data
+   * Standard API key authentication
+   * Rate limits of 5 requests per minute (free tier)
+   * Various endpoints for different financial data types
+3. **Designed the tools needed**:
+   * Stock overview information (current price, company details)
+   * Technical analysis with indicators (RSI, MACD, etc.)
+   * Fundamental analysis (financial statements, ratios)
+   * Earnings report data
+   * News and sentiment analysis
+4. **Planned data formatting**:
+   * Clean, well-formatted markdown output
+   * Tables for structured data
+   * Visual indicators (↑/↓) for trends
+   * Proper formatting of financial numbers
+
+#### Implementation
+
+<figure><img src="../.gitbook/assets/building-mcp-plugin.gif" alt=""><figcaption></figcaption></figure>
+
+We began by bootstrapping the project:
+
+```bash
+npx @modelcontextprotocol/create-server alphaadvantage-mcp
+cd alphaadvantage-mcp
+npm install axios node-cache
+```
+
+Next, we structured our project with:
+
+```
+src/
+  ├── api/
+  │   └── alphaAdvantageClient.ts  # API client with rate limiting & caching
+  ├── formatters/
+  │   └── markdownFormatter.ts     # Output formatters for clean markdown
+  └── index.ts                     # Main MCP server implementation
+```
+
+**API Client Implementation**
+
+The API client implementation included:
+
+* **Rate limiting**: Enforcing the 5 requests per minute limit
+* **Caching**: Reducing API calls with strategic caching
+* **Error handling**: Robust error detection and reporting
+* **Typed interfaces**: Clear TypeScript types for all data
+
+Key implementation details:
+
+```typescript
+/**
+ * Manage rate limiting based on free tier (5 calls per minute)
+ */
+private async enforceRateLimit() {
+  if (this.requestsThisMinute >= 5) {
+    console.error("[Rate Limit] Rate limit reached. Waiting for next minute...");
+    return new Promise<void>((resolve) => {
+      const remainingMs = 60 * 1000 - (Date.now() % (60 * 1000));
+      setTimeout(resolve, remainingMs + 100); // Add 100ms buffer
+    });
+  }
+  
+  this.requestsThisMinute++;
+  return Promise.resolve();
+}
+```
+
+**Markdown Formatting**
+
+We implemented formatters to display financial data beautifully:
+
+```typescript
+/**
+ * Format company overview into markdown
+ */
+export function formatStockOverview(overviewData: any, quoteData: any): string {
+  // Extract data
+  const overview = overviewData;
+  const quote = quoteData["Global Quote"];
+  
+  // Calculate price change
+  const currentPrice = parseFloat(quote["05. price"] || "0");
+  const priceChange = parseFloat(quote["09. change"] || "0");
+  const changePercent = parseFloat(quote["10. change percent"]?.replace("%", "") || "0");
+  
+  // Format markdown
+  let markdown = `# ${overview.Symbol} (${overview.Name}) - ${formatCurrency(currentPrice)} ${addTrendIndicator(priceChange)}${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%\n\n`;
+  
+  // Add more details...
+  
+  return markdown;
+}
+```
+
+**Tool Implementation**
+
+We defined five tools with clear interfaces:
+
+```typescript
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  console.error("[Setup] Listing available tools");
+  
+  return {
+    tools: [
+      {
+        name: "get_stock_overview",
+        description: "Get basic company info and current quote for a stock symbol",
+        inputSchema: {
+          type: "object",
+          properties: {
+            symbol: {
+              type: "string",
+              description: "Stock symbol (e.g., 'AAPL')"
+            },
+            market: {
+              type: "string",
+              description: "Optional market (e.g., 'US')",
+              default: "US"
+            }
+          },
+          required: ["symbol"]
+        }
+      },
+      // Additional tools defined here...
+    ]
+  };
+});
+```
+
+Each tool's handler included:
+
+* Input validation
+* API client calls with error handling
+* Markdown formatting of responses
+* Comprehensive logging
+
+#### Testing Phase
+
+
+
+This critical phase involved systematically testing each tool:
+
+1. First, we configured the MCP server in the settings:
+
+```json
+{
+  "mcpServers": {
+    "alphaadvantage-mcp": {
+      "command": "node",
+      "args": [
+        "/path/to/alphaadvantage-mcp/build/index.js"
+      ],
+      "env": {
+        "ALPHAVANTAGE_API_KEY": "YOUR_API_KEY"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+2. Then we tested each tool individually:
+
+*   **get\_stock\_overview**: Retrieved AAPL stock overview information
+
+    ```
+    # AAPL (Apple Inc) - $241.84 ↑+1.91%
+
+    **Sector:** TECHNOLOGY
+    **Industry:** ELECTRONIC COMPUTERS
+    **Market Cap:** 3.63T
+    **P/E Ratio:** 38.26
+    ...
+    ```
+*   **get\_technical\_analysis**: Obtained price action and RSI data
+
+    ```
+    # Technical Analysis: AAPL
+
+    ## Daily Price Action
+
+    Current Price: $241.84 (↑$4.54, +1.91%)
+
+    ### Recent Daily Prices
+
+    | Date | Open | High | Low | Close | Volume |
+    |------|------|------|-----|-------|--------|
+    | 2025-02-28 | $236.95 | $242.09 | $230.20 | $241.84 | 56.83M |
+    ...
+    ```
+*   **get\_earnings\_report**: Retrieved MSFT earnings history and formatted report
+
+    ```
+    # Earnings Report: MSFT (Microsoft Corporation)
+
+    **Sector:** TECHNOLOGY
+    **Industry:** SERVICES-PREPACKAGED SOFTWARE
+    **Current EPS:** $12.43
+
+    ## Recent Quarterly Earnings
+
+    | Quarter | Date | EPS Estimate | EPS Actual | Surprise % |
+    |---------|------|-------------|------------|------------|
+    | 2024-12-31 | 2025-01-29 | $3.11 | $3.23 | ↑4.01% |
+    ...
+    ```
+
+#### Challenges and Solutions
+
+During development, we encountered several challenges:
+
+1. **API Rate Limiting**:
+   * **Challenge**: Free tier limited to 5 calls per minute
+   * **Solution**: Implemented queuing, enforced rate limits, and added comprehensive caching
+2. **Data Formatting**:
+   * **Challenge**: Raw API data not user-friendly
+   * **Solution**: Created formatting utilities for consistent display of financial data
+3. **Timeout Issues**:
+   * **Challenge**: Complex tools making multiple API calls could timeout
+   * **Solution**: Suggested breaking complex tools into smaller pieces, optimizing caching
+
+#### Lessons Learned
+
+Our AlphaAdvantage implementation taught us several key lessons:
+
+1. **Plan for API Limits**: Understand and design around API rate limits from the beginning
+2. **Cache Strategically**: Identify high-value caching opportunities to improve performance
+3. **Format for Readability**: Invest in good data formatting for improved user experience
+4. **Test Every Path**: Test all tools individually before completion
+5. **Handle API Complexity**: For APIs requiring multiple calls, design tools with simpler scopes
+
+### Core Implementation Best Practices
+
+#### Comprehensive Logging
+
+Effective logging is essential for debugging MCP servers:
+
+```typescript
+// Start-up logging
+console.error('[Setup] Initializing AlphaAdvantage MCP server...');
+
+// API request logging 
+console.error(`[API] Getting stock overview for ${symbol}`);
+
+// Error handling with context
+console.error(`[Error] Tool execution failed: ${error.message}`);
+
+// Cache operations
+console.error(`[Cache] Using cached data for: ${cacheKey}`);
+```
+
+#### Strong Typing
+
+Type definitions prevent errors and improve maintainability:
+
+```typescript
+export interface AlphaAdvantageConfig {
+  apiKey: string;
+  cacheTTL?: Partial<typeof DEFAULT_CACHE_TTL>;
+  baseURL?: string;
+}
+
+/**
+ * Validate that a stock symbol is provided and looks valid
+ */
+function validateSymbol(symbol: unknown): asserts symbol is string {
+  if (typeof symbol !== "string" || symbol.trim() === "") {
+    throw new McpError(ErrorCode.InvalidParams, "A valid stock symbol is required");
+  }
+  
+  // Basic symbol validation (letters, numbers, dots)
+  const symbolRegex = /^[A-Za-z0-9.]+$/;
+  if (!symbolRegex.test(symbol)) {
+    throw new McpError(ErrorCode.InvalidParams, `Invalid stock symbol: ${symbol}`);
+  }
+}
+```
+
+#### Intelligent Caching
+
+Reduce API calls and improve performance:
+
+```typescript
+// Default cache TTL in seconds
+const DEFAULT_CACHE_TTL = {
+  STOCK_OVERVIEW: 60 * 60, // 1 hour
+  TECHNICAL_ANALYSIS: 60 * 30, // 30 minutes
+  FUNDAMENTAL_ANALYSIS: 60 * 60 * 24, // 24 hours
+  EARNINGS_REPORT: 60 * 60 * 24, // 24 hours
+  NEWS: 60 * 15, // 15 minutes
+};
+
+// Check cache first
+const cachedData = this.cache.get<T>(cacheKey);
+if (cachedData) {
+  console.error(`[Cache] Using cached data for: ${cacheKey}`);
+  return cachedData;
+}
+
+// Cache successful responses
+this.cache.set(cacheKey, response.data, cacheTTL);
+```
+
+#### Graceful Error Handling
+
+Implement robust error handling that maintains a good user experience:
+
+```typescript
+try {
+  switch (request.params.name) {
+    case "get_stock_overview": {
+      // Implementation...
+    }
+    
+    // Other cases...
+    
+    default:
+      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
+  }
+} catch (error) {
+  console.error(`[Error] Tool execution failed: ${error instanceof Error ? error.message : String(error)}`);
+  
+  if (error instanceof McpError) {
+    throw error;
+  }
+  
+  return {
+    content: [{
+      type: "text",
+      text: `Error: ${error instanceof Error ? error.message : String(error)}`
+    }],
+    isError: true
+  };
+}
+```
+
+### MCP Resources
+
+Resources let your MCP servers expose data to Cline without executing code. They're perfect for providing context like files, API responses, or database records that Cline can reference during conversations.
+
+#### Adding Resources to Your MCP Server
+
+1. **Define the resources** your server will expose:
+
+```typescript
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  return {
+    resources: [
+      {
+        uri: "file:///project/readme.md",
+        name: "Project README",
+        mimeType: "text/markdown"
+      }
+    ]
+  };
+});
+```
+
+2. **Implement read handlers** to deliver the content:
+
+```typescript
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  if (request.params.uri === "file:///project/readme.md") {
+    const content = await fs.promises.readFile("/path/to/readme.md", "utf-8");
+    return {
+      contents: [{
+        uri: request.params.uri,
+        mimeType: "text/markdown",
+        text: content
+      }]
+    };
+  }
+  
+  throw new Error("Resource not found");
+});
+```
+
+Resources make your MCP servers more context-aware, allowing Cline to access specific information without requiring you to copy/paste. For more information, refer to the [official documentation](https://modelcontextprotocol.io/docs/concepts/resources).
+
+### Common Challenges and Solutions
+
+#### API Authentication Complexities
+
+**Challenge**: APIs often have different authentication methods.
+
+**Solution**:
+
+* For API keys, use environment variables in the MCP configuration
+* For OAuth, create a separate script to obtain refresh tokens
+* Store sensitive tokens securely
+
+```typescript
+// Authenticate using API key from environment
+const API_KEY = process.env.ALPHAVANTAGE_API_KEY;
+if (!API_KEY) {
+  console.error("[Error] Missing ALPHAVANTAGE_API_KEY environment variable");
+  process.exit(1);
+}
+
+// Initialize API client
+const apiClient = new AlphaAdvantageClient({
+  apiKey: API_KEY
+});
+```
+
+#### Missing or Limited API Features
+
+**Challenge**: APIs may not provide all the functionality you need.
+
+**Solution**:
+
+* Implement fallbacks using available endpoints
+* Create simulated functionality where necessary
+* Transform API data to match your needs
+
+#### API Rate Limiting
+
+**Challenge**: Most APIs have rate limits that can cause failures.
+
+**Solution**:
+
+* Implement proper rate limiting
+* Add intelligent caching
+* Provide graceful degradation
+* Add transparent errors about rate limits
+
+```typescript
+if (this.requestsThisMinute >= 5) {
+  console.error("[Rate Limit] Rate limit reached. Waiting for next minute...");
+  return new Promise<void>((resolve) => {
+    const remainingMs = 60 * 1000 - (Date.now() % (60 * 1000));
+    setTimeout(resolve, remainingMs + 100); // Add 100ms buffer
+  });
+}
+```
+
+### Additional Resources
+
+* [MCP Protocol Documentation](https://github.com/modelcontextprotocol/mcp)
+* [MCP SDK Documentation](https://github.com/modelcontextprotocol/sdk-js)
+* [MCP Server Examples](https://github.com/modelcontextprotocol/servers)

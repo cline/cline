@@ -1,151 +1,221 @@
-# 🚀 MCP Quickstart Guide
+# MCP Made Easy
 
-## ❓ What's an MCP Server?
+### What's an MCP Server?
 
-Think of MCP servers as special helpers that give Cline extra powers! They let Cline do cool things like fetch web pages or work with your files.
+MCP servers are specialized extensions that enhance Cline's capabilities. They enable Cline to perform additional tasks like fetching web pages, processing images, accessing APIs, and much more.
 
-## ⚠️ IMPORTANT: System Requirements
+### MCP Marketplace Walkthrough
 
-STOP! Before proceeding, you MUST verify these requirements:
+The MCP Marketplace provides a one-click installation experience for hundreds of MCP servers across various categories.
 
-### Required Software
+#### 1. Access the Marketplace
 
--   ✅ Latest Node.js (v18 or newer)
+* In Cline, click the "Extensions" button (square icon) in the top toolbar
+* The MCP marketplace will open, showing available servers by category
 
-    -   Check by running: `node --version`
-    -   Install from: <https://nodejs.org/>
+#### 2. Browse and Select a Server
 
--   ✅ Latest Python (v3.8 or newer)
+* Browse servers by category (Search, File-systems, Browser-automation, Research-data, etc.)
+* Click on a server to see details about its capabilities and requirements
 
-    -   Check by running: `python --version`
-    -   Install from: <https://python.org/>
+#### 3. Install and Configure
 
--   ✅ UV Package Manager
-    -   After installing Python, run: `pip install uv`
-    -   Verify with: `uv --version`
+* Click the install button for your chosen server
+* If the server requires an API key (most do), Cline will guide you through:
+  * Where to get the API key
+  * How to enter it securely
+* The server will be added to your MCP settings automatically
 
-❗ If any of these commands fail or show older versions, please install/update before continuing!
+#### 4. Verify Installation
 
-⚠️ If you run into other errors, see the "Troubleshooting" section below.
+* Cline will show confirmation when installation is complete
+* Check the server status in Cline's MCP settings UI
 
-## 🎯 Quick Steps (Only After Requirements Are Met!)
+#### 5. Using Your New Server
 
-### 1. 🛠️ Install Your First MCP Server
+* After successful installation, Cline will automatically integrate the server's capabilities
+* You'll see new tools and resources available in Cline's system prompt
+* Simply ask Cline to use the capabilities of your new server
+* Example: "Search the web for recent React updates using Perplexity"
 
-1. From the Cline extension, click the `MCP Server` tab
-1. Click the `Edit MCP Settings` button
+**Corporate Users:** If you're using Cline in a corporate environment, ensure you have permission to install third-party MCP servers according to your organization's security policies.
 
- <img src="https://github.com/user-attachments/assets/abf908b1-be98-4894-8dc7-ef3d27943a47" alt="MCP Server Panel" width="400" />
+### What Happens Behind the Scenes
 
-1. The MCP settings files should be display in a tab in VS Code.
-1. Replace the file's contents with this code:
+When you install an MCP server, several things happen automatically:
 
-For Windows:
+#### 1. Installation Process
+
+* The server code is cloned/installed to `/Users/<username>/Documents/Cline/MCP/`
+* Dependencies are installed
+* The server is built (TypeScript/JavaScript compilation or Python package installation)
+
+#### 2. Configuration
+
+* The MCP settings file is updated with your server configuration
+* This file is located at: `/Users/<username>/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+* Environment variables (like API keys) are securely stored
+* The server path is registered
+
+#### 3. Server Launch
+
+* Cline detects the configuration change
+* Cline launches your server as a separate process
+* Communication is established via stdio or HTTP
+
+#### 4. Integration with Cline
+
+* Your server's capabilities are added to Cline's system prompt
+* Tools become available via `use_mcp_tool` commands
+* Resources become available via `access_mcp_resource` commands
+* Cline can now use these capabilities when prompted by the user
+
+### Troubleshooting
+
+#### System Requirements
+
+Make sure your system meets these requirements:
+
+* **Node.js 18.x or newer**
+  * Check by running: `node --version`
+  * Install from: https://nodejs.org/
+  * Required for JavaScript/TypeScript implementations
+* **Python 3.10 or newer**
+  * Check by running: `python --version`
+  * Install from: https://python.org/
+  * Note: Some specialized implementations may require Python 3.11+
+* **UV Package Manager**
+  * Modern Python package manager for dependency isolation
+  *   Install using:
+
+      ```bash
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      ```
+
+      Or: `pip install uv`
+  * Verify with: `uv --version`
+
+If any of these commands fail or show older versions, please install/update before continuing!
+
+#### Common Installation Issues
+
+* Ensure your internet connection is stable
+* Check that you have the necessary permissions to install new software
+* Verify that the API key was entered correctly (if required)
+* Check the server status in the MCP settings UI for any error messages
+
+#### How to Remove an MCP Server
+
+To completely remove a faulty MCP server:
+
+1. Open the MCP settings file: `/Users/<username>/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+2. Delete the entire entry for your server from the `mcpServers` object
+3. Save the file
+4. Restart Cline
+
+#### I'm Still Getting an Error
+
+If you're getting an error when using an MCP server, you can try the following:
+
+* Check the MCP settings file for errors
+* Use a Claude Sonnet model for installation
+* Verify that paths to your server's files are correct
+* Ensure all required environment variables are set
+* Check if another process is using the same port (for HTTP-based servers)
+* Try removing and reinstalling the server (remove from both the `cline_mcp_settings.json` file and the `/Users/<username>/Documents/Cline/MCP/` directory)
+* Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Cline is seeing
+
+### MCP Server Rules&#x20;
+
+Cline is already aware of your active MCP servers and what they are for, but when you have a lot of MCP servers enabled, it can be useful to define when to use each server.
+
+Utilize a  `.clinerules` file or custom instructions to support intelligent MCP server activation through keyword-based triggers, making Cline's tool selection more intuitive and context-aware.
+
+#### How MCP Rules Work
+
+MCP Rules group your connected MCP servers into functional categories and define trigger keywords that activate them automatically when detected in your conversations with Cline.
 
 ```json
 {
-	"mcpServers": {
-		"mcp-installer": {
-			"command": "cmd.exe",
-			"args": ["/c", "npx", "-y", "@anaisbetts/mcp-installer"]
-		}
-	}
+  "mcpRules": {
+    "webInteraction": {
+      "servers": [
+        "firecrawl-mcp-server",
+        "fetch-mcp"
+      ],
+      "triggers": [
+        "web", "scrape", "browse", "website"
+      ],
+      "description": "Tools for web browsing and scraping"
+    }
+  }
 }
 ```
 
-For Mac and Linux:
+#### Configuration Structure
+
+1. **Categories**: Group related servers (e.g., "webInteraction", "mediaAndDesign")
+2. **Servers**: List server names in each category
+3. **Triggers**: Keywords that activate these servers
+4. **Description**: Human-readable category explanation
+
+#### Benefits of MCP Rules
+
+* **Contextual Tool Selection**: Cline selects appropriate tools based on conversation context
+* **Reduced Friction**: No need to manually specify which tool to use
+* **Organized Capabilities**: Logically group related tools and servers
+* **Prioritization**: Handle ambiguous cases with explicit priority ordering
+
+#### Example Usage
+
+When you write "Can you scrape this website?", Cline detects "scrape" and "website" as triggers, automatically selecting web-related MCP servers.
+
+For finance tasks like "What's Apple's stock price?", keywords like "stock" and "price" trigger finance-related servers.
+
+#### Quick Start Template
 
 ```json
 {
-	"mcpServers": {
-		"mcp-installer": {
-			"command": "npx",
-			"args": ["@anaisbetts/mcp-installer"]
-		}
-	}
+  "mcpRules": {
+    "category1": {
+      "servers": [
+        "server-name-1",
+        "server-name-2"
+      ],
+      "triggers": [
+        "keyword1", "keyword2", "phrase1", "phrase2"
+      ],
+      "description": "Description of what these tools do"
+    },
+    "category2": {
+      "servers": [
+        "server-name-3"
+      ],
+      "triggers": [
+        "keyword3", "keyword4", "phrase3"
+      ],
+      "description": "Description of what these tools do"
+    },
+    "category3": {
+      "servers": [
+        "server-name-4",
+        "server-name-5"
+      ],
+      "triggers": [
+        "keyword5", "keyword6", "phrase4"
+      ],
+      "description": "Description of what these tools do"
+    }
+  },
+  "defaultBehavior": {
+    "priorityOrder": [
+      "category1",
+      "category2",
+      "category3"
+    ],
+    "fallbackBehavior": "Ask user which tool would be most appropriate"
+  }
 }
 ```
 
-After saving the file:
-
-1. Cline will detect the change automatically
-2. The MCP installer will be downloaded and installed
-3. Cline will start the MCP installer
-4. You'll see the server status in Cline's MCP settings UI:
-
-<img src="https://github.com/user-attachments/assets/2abbb3de-e902-4ec2-a5e5-9418ed34684e" alt="MCP Server Panel with Installer" width="400" />
-
-## 🤔 What Next?
-
-Now that you have the MCP installer, you can ask Cline to add more servers from:
-
-1. NPM Registry: <https://www.npmjs.com/search?q=%40modelcontextprotocol>
-2. Python Package Index: <https://pypi.org/search/?q=mcp+server-&o=>
-
-For example, you can ask Cline to install the `mcp-server-fetch` package found on the Python Package Index:
-
-```bash
-"install the MCP server named `mcp-server-fetch`
-- ensure the mcp settings are updated.
-- use uvx or python to run the server."
-```
-
-You should witness Cline:
-
-1. Install the `mcp-server-fetch` python package
-1. Update the mcp setting json file
-1. Start the server and start the server
-
-The mcp settings file should now look like this:
-
-_For a Windows machine:_
-
-```json
-{
-	"mcpServers": {
-		"mcp-installer": {
-			"command": "cmd.exe",
-			"args": ["/c", "npx", "-y", "@anaisbetts/mcp-installer"]
-		},
-		"mcp-server-fetch": {
-			"command": "uvx",
-			"args": ["mcp-server-fetch"]
-		}
-	}
-}
-```
-
-You you can always check the status of your server by going to clients MCP server tab. See the image above
-
-That's it! 🎉 You've just given Cline some awesome new abilities!
-
-## 📝 Troubleshooting
-
-### 1. I'm Using `asdf` and Get "unknown command: npx"
-
-There is some slightly bad news. You should still be able to get things to work, but will have to do a bit more manual work unless MCP server packaging evolves a bit. One option is to uninstall `asdf` , but we will assume you do not want to do that.
-
-Instead, you will need to follow the instructions above to "Edit MCP Settings". Then, as [this post](https://dev.to/cojiroooo/mcp-using-node-on-asdf-382n) describes, you need to add and "env" entry to each server's configs.
-
-```json
-"env": {
-        "PATH": "/Users/<user_name>/.asdf/shims:/usr/bin:/bin",
-        "ASDF_DIR": "<path_to_asdf_bin_dir>",
-        "ASDF_DATA_DIR": "/Users/<user_name>/.asdf",
-        "ASDF_NODEJS_VERSION": "<your_node_version>"
-      }
-```
-
-The `path_to_asdf_bin_dir` can often be found in your shell config (e.g. `.zshrc`). If you are using Homebrew, you can use `echo ${HOMEBREW_PREFIX}` to find the start of the directory and then append `/opt/asdf/libexec`.
-
-Now for some good news. While not perfect, you can get Cline to do this for you fairly reliably for subsequent server install. Add the following to your "Custom Instructions" in the Cline settings (top-right toolbar button):
-
-> When installing MCP servers and editing the cline_mcp_settings.json, if the server requires use of `npx` as the command, you must copy the "env" entry from the "mcp-installer" entry and add it to the new entry. This is vital to getting the server to work properly when in use.
-
-### 2. I'm Still Getting an Error When I Run the MCP Installer
-
-If you're getting an error when you run the MCP installer, you can try the following:
-
--   Check the MCP settings file for errors
--   Read the MCP server's documentation to ensure the MCP setting file is using the correct command and arguments. 👈
--   Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Cline is seeing.
+Add this to your `.clinerules` file or to your custom instructions to make Cline's MCP server selection more intuitive and context-aware.

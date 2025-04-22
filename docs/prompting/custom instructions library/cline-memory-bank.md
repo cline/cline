@@ -1,125 +1,359 @@
-# Cline Memory Bank - Custom Instructions
+# Cline Memory Bank
 
-### 1. Purpose and Functionality
+## The Complete Guide to Cline Memory Bank
 
--   **What does this instruction set aim to achieve?**
+### Quick Setup Guide
 
-    -   This instruction set transforms Cline into a self-documenting development system that maintains context across sessions through a structured "Memory Bank". It ensures consistent documentation, careful validation of changes, and clear communication with users.
+To get started with Cline Memory Bank:
 
--   **What types of projects or tasks is this best suited for?**
-    -   Projects requiring extensive context tracking.
-    -   Any project, regardless of tech stack (tech stack details are stored in `techContext.md`).
-    -   Ongoing and new projects.
+1. **Install or Open Cline**
+2. **Copy the Custom Instructions** - Use the code block below
+3. **Paste into Cline** - Add as custom instructions or in a .clinerules file
+4. **Initialize** - Ask Cline to "initialize memory bank"
 
-### 2. Usage Guide
+[See detailed setup instructions](cline-memory-bank.md#getting-started-with-memory-bank)
 
--   **How to Add These Instructions**
-    1. Open VSCode
-    2. Click the Cline extension settings dial ⚙️
-    3. Find the "Custom Instructions" field
-    4. Copy and paste the instructions from the section below
+### Cline Memory Bank Custom Instructions \[COPY THIS]
 
-<img width="345" alt="Screenshot 2024-12-26 at 11 22 20 AM" src="https://github.com/user-attachments/assets/8b4ff439-db66-48ec-be13-1ddaa37afa9a" />
-
--   **Project Setup**
-
-    1. Create an empty `cline_docs` folder in your project root (i.e. YOUR-PROJECT-FOLDER/cline_docs)
-    2. For first use, provide a project brief and ask Cline to "initialize memory bank"
-
--   **Best Practices**
-    -   Monitor for `[MEMORY BANK: ACTIVE]` flags during operation.
-    -   Pay attention to confidence checks on critical operations.
-    -   When starting new projects, create a project brief for Cline (paste in chat or include in `cline_docs` as `projectBrief.md`) to use in creating the initial context files.
-        -   note: productBrief.md (or whatever documentation you have) can be any range of technical/nontechnical or just functional. Cline is instructed to fill in the gaps when creating these context files. For example, if you don't choose a tech stack, Cline will for you.
-    -   Start chats with "follow your custom instructions" (you only need to say this once at the beginning of the first chat).
-    -   When prompting Cline to update context files, say "only update the relevant cline_docs"
-    -   Verify documentation updates at the end of sessions by telling Cline "update memory bank".
-    -   Update memory bank at ~2 million tokens and end the session.
-
-### 3. Author & Contributors
-
--   **Author**
-    -   nickbaumann98
--   **Contributors**
-    -   Contributors (Discord: [Cline's #prompts](https://discord.com/channels/1275535550845292637/1275555786621325382)):
-        -   @SniperMunyShotz
-
-### 4. Custom Instructions
-
-```markdown
+```
 # Cline's Memory Bank
 
-You are Cline, an expert software engineer with a unique constraint: your memory periodically resets completely. This isn't a bug - it's what makes you maintain perfect documentation. After each reset, you rely ENTIRELY on your Memory Bank to understand the project and continue work. Without proper documentation, you cannot function effectively.
+I am Cline, an expert software engineer with a unique characteristic: my memory resets completely between sessions. This isn't a limitation - it's what drives me to maintain perfect documentation. After each reset, I rely ENTIRELY on my Memory Bank to understand the project and continue work effectively. I MUST read ALL memory bank files at the start of EVERY task - this is not optional.
 
-## Memory Bank Files
+## Memory Bank Structure
 
-CRITICAL: If `cline_docs/` or any of these files don't exist, CREATE THEM IMMEDIATELY by:
+The Memory Bank consists of core files and optional context files, all in Markdown format. Files build upon each other in a clear hierarchy:
 
-1. Reading all provided documentation
-2. Asking user for ANY missing information
-3. Creating files with verified information only
-4. Never proceeding without complete context
+flowchart TD
+    PB[projectbrief.md] --> PC[productContext.md]
+    PB --> SP[systemPatterns.md]
+    PB --> TC[techContext.md]
+    
+    PC --> AC[activeContext.md]
+    SP --> AC
+    TC --> AC
+    
+    AC --> P[progress.md]
 
-Required files:
+### Core Files (Required)
+1. `projectbrief.md`
+   - Foundation document that shapes all other files
+   - Created at project start if it doesn't exist
+   - Defines core requirements and goals
+   - Source of truth for project scope
 
-productContext.md
+2. `productContext.md`
+   - Why this project exists
+   - Problems it solves
+   - How it should work
+   - User experience goals
 
--   Why this project exists
--   What problems it solves
--   How it should work
+3. `activeContext.md`
+   - Current work focus
+   - Recent changes
+   - Next steps
+   - Active decisions and considerations
+   - Important patterns and preferences
+   - Learnings and project insights
 
-activeContext.md
+4. `systemPatterns.md`
+   - System architecture
+   - Key technical decisions
+   - Design patterns in use
+   - Component relationships
+   - Critical implementation paths
 
--   What you're working on now
--   Recent changes
--   Next steps
-    (This is your source of truth)
+5. `techContext.md`
+   - Technologies used
+   - Development setup
+   - Technical constraints
+   - Dependencies
+   - Tool usage patterns
 
-systemPatterns.md
+6. `progress.md`
+   - What works
+   - What's left to build
+   - Current status
+   - Known issues
+   - Evolution of project decisions
 
--   How the system is built
--   Key technical decisions
--   Architecture patterns
-
-techContext.md
-
--   Technologies used
--   Development setup
--   Technical constraints
-
-progress.md
-
--   What works
--   What's left to build
--   Progress status
+### Additional Context
+Create additional files/folders within memory-bank/ when they help organize:
+- Complex feature documentation
+- Integration specifications
+- API documentation
+- Testing strategies
+- Deployment procedures
 
 ## Core Workflows
 
-### Starting Tasks
+### Plan Mode
+flowchart TD
+    Start[Start] --> ReadFiles[Read Memory Bank]
+    ReadFiles --> CheckFiles{Files Complete?}
+    
+    CheckFiles -->|No| Plan[Create Plan]
+    Plan --> Document[Document in Chat]
+    
+    CheckFiles -->|Yes| Verify[Verify Context]
+    Verify --> Strategy[Develop Strategy]
+    Strategy --> Present[Present Approach]
 
-1. Check for Memory Bank files
-2. If ANY files missing, stop and create them
-3. Read ALL files before proceeding
-4. Verify you have complete context
-5. Begin development. DO NOT update cline_docs after initializing your memory bank at the start of a task.
+### Act Mode
+flowchart TD
+    Start[Start] --> Context[Check Memory Bank]
+    Context --> Update[Update Documentation]
+    Update --> Execute[Execute Task]
+    Execute --> Document[Document Changes]
 
-### During Development
+## Documentation Updates
 
-1. For normal development:
+Memory Bank updates occur when:
+1. Discovering new project patterns
+2. After implementing significant changes
+3. When user requests with **update memory bank** (MUST review ALL files)
+4. When context needs clarification
 
-    - Follow Memory Bank patterns
-    - Update docs after significant changes
+flowchart TD
+    Start[Update Process]
+    
+    subgraph Process
+        P1[Review ALL Files]
+        P2[Document Current State]
+        P3[Clarify Next Steps]
+        P4[Document Insights & Patterns]
+        
+        P1 --> P2 --> P3 --> P4
+    end
+    
+    Start --> Process
 
-2. Say `[MEMORY BANK: ACTIVE]` at the beginning of every tool use.
+Note: When triggered by **update memory bank**, I MUST review every memory bank file, even if some don't require updates. Focus particularly on activeContext.md and progress.md as they track current state.
 
-### Memory Bank Updates
-
-When user says "update memory bank":
-
-1. This means imminent memory reset
-2. Document EVERYTHING about current state
-3. Make next steps crystal clear
-4. Complete current task
-
-Remember: After every memory reset, you begin completely fresh. Your only link to previous work is the Memory Bank. Maintain it as if your functionality depends on it - because it does.
+REMEMBER: After every memory reset, I begin completely fresh. The Memory Bank is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy.
 ```
+
+### What is the Cline Memory Bank?
+
+The Memory Bank is a structured documentation system that allows Cline to maintain context across sessions. It transforms Cline from a stateless assistant into a persistent development partner that can effectively "remember" your project details over time.
+
+#### Key Benefits
+
+* **Context Preservation**: Maintain project knowledge across sessions
+* **Consistent Development**: Experience predictable interactions with Cline
+* **Self-Documenting Projects**: Create valuable project documentation as a side effect
+* **Scalable to Any Project**: Works with projects of any size or complexity
+* **Technology Agnostic**: Functions with any tech stack or language
+
+### How Memory Bank Works
+
+The Memory Bank isn't a Cline-specific feature - it's a methodology for managing AI context through structured documentation. When you instruct Cline to "follow custom instructions," it reads the Memory Bank files to rebuild its understanding of your project.
+
+<figure><img src="../../.gitbook/assets/image (15).png" alt="flowchart LR     A[Session Starts] --> B[Read Memory Bank Files]     B --> C[Rebuild Context]     C --> D[Continue Work]     D --> E[Update Documentation]     E --> F[Session Ends]     F -.-> A"><figcaption></figcaption></figure>
+
+#### Understanding the Files
+
+Memory Bank files are simply markdown files you create in your project. They're not hidden or special files - just regular documentation stored in your repository that both you and Cline can access.
+
+Files are organized in a hierarchical structure that builds up a complete picture of your project:
+
+<figure><img src="../../.gitbook/assets/image (16).png" alt="flowchart TD     PB[projectbrief.md] --> PC[productContext.md]     PB --> SP[systemPatterns.md]     PB --> TC[techContext.md]          PC --> AC[activeContext.md]     SP --> AC     TC --> AC          AC --> P[progress.md]"><figcaption></figcaption></figure>
+
+### Memory Bank Files Explained
+
+#### Core Files
+
+1. **projectbrief.md**
+   * The foundation of your project
+   * High-level overview of what you're building
+   * Core requirements and goals
+   * Example: "Building a React web app for inventory management with barcode scanning"
+2. **productContext.md**
+   * Explains why the project exists
+   * Describes the problems being solved
+   * Outlines how the product should work
+   * Example: "The inventory system needs to support multiple warehouses and real-time updates"
+3. **activeContext.md**
+   * The most frequently updated file
+   * Contains current work focus and recent changes
+   * Tracks active decisions and considerations
+   * Stores important patterns and learnings
+   * Example: "Currently implementing the barcode scanner component; last session completed the API integration"
+4. **systemPatterns.md**
+   * Documents the system architecture
+   * Records key technical decisions
+   * Lists design patterns in use
+   * Explains component relationships
+   * Example: "Using Redux for state management with a normalized store structure"
+5. **techContext.md**
+   * Lists technologies and frameworks used
+   * Describes development setup
+   * Notes technical constraints
+   * Records dependencies and tool configurations
+   * Example: "React 18, TypeScript, Firebase, Jest for testing"
+6. **progress.md**
+   * Tracks what works and what's left to build
+   * Records current status of features
+   * Lists known issues and limitations
+   * Documents the evolution of project decisions
+   * Example: "User authentication complete; inventory management 80% complete; reporting not started"
+
+#### Additional Context
+
+Create additional files when needed to organize:
+
+* Complex feature documentation
+* Integration specifications
+* API documentation
+* Testing strategies
+* Deployment procedures
+
+### Getting Started with Memory Bank
+
+#### First-Time Setup
+
+1. Create a `memory-bank/` folder in your project root
+2. Have a basic project brief ready (can be technical or non-technical)
+3. Ask Cline to "initialize memory bank"
+
+<figure><img src="../../.gitbook/assets/image (17).png" alt=""><figcaption></figcaption></figure>
+
+#### Project Brief Tips
+
+* Start simple - it can be as detailed or high-level as you like
+* Focus on what matters most to you
+* Cline will help fill in gaps and ask questions
+* You can update it as your project evolves
+
+### Working with Cline
+
+#### Core Workflows
+
+**Plan Mode**
+
+Start in this mode for strategy discussions and high-level planning.
+
+**Act Mode**
+
+Use this for implementation and executing specific tasks.
+
+#### Key Commands
+
+* **"follow your custom instructions"** - This tells Cline to read the Memory Bank files and continue where you left off (use this at the start of tasks)
+* **"initialize memory bank"** - Use when starting a new project
+* **"update memory bank"** - Triggers a full documentation review and update during a task
+* Toggle Plan/Act modes based on your current needs
+
+#### Documentation Updates
+
+Memory Bank updates should automatically occur when:
+
+1. You discover new patterns in your project
+2. After implementing significant changes
+3. When you explicitly request with **"update memory bank"**
+4. When you feel context needs clarification
+
+### Frequently Asked Questions
+
+#### Where are the memory bank files stored?
+
+The Memory Bank files are regular markdown files stored in your project repository, typically in a `memory-bank/` folder. They're not hidden system files - they're designed to be part of your project documentation.
+
+#### Should I use custom instructions or .clinerules?
+
+Either approach works - it's based on your preference:
+
+* **Custom Instructions**: Applied globally to all Cline conversations. Good for consistent behavior across all projects.
+* **.clinerules file**: Project-specific and stored in your repository. Good for per-project customization.
+
+Both methods achieve the same goal - the choice depends on whether you want global or local application of the Memory Bank system.
+
+#### Managing Context Windows
+
+As you work with Cline, your context window will eventually fill up (note the progress bar). When you notice Cline's responses slowing down or references to earlier parts of the conversation becoming less accurate, it's time to:
+
+1. Ask Cline to **"update memory bank"** to document the current state
+2. Start a new conversation/task
+3. Ask Cline to **"follow your custom instructions"** in the new conversation
+
+This workflow ensures that important context is preserved in your Memory Bank files before the context window is cleared, allowing you to continue seamlessly in a fresh conversation.
+
+<figure><img src="../../.gitbook/assets/image (18).png" alt=""><figcaption></figcaption></figure>
+
+#### How often should I update the memory bank?
+
+Update the Memory Bank after significant milestones or changes in direction. For active development, updates every few sessions can be helpful. Use the **"update memory bank"** command when you want to ensure all context is preserved. However, you will notice Cline automatically updating the Memory Bank as well.
+
+#### Does this work with other AI tools beyond Cline?
+
+Yes! The Memory Bank concept is a documentation methodology that can work with any AI assistant that can read documentation files. The specific commands might differ, but the structured approach to maintaining context works across tools.
+
+#### How does the memory bank relate to context window limitations?
+
+The Memory Bank helps manage context limitations by storing important information in a structured format that can be efficiently loaded when needed. This prevents context bloat while ensuring critical information is available.
+
+#### Can the memory bank concept be used for non-coding projects?
+
+Absolutely! The Memory Bank approach works for any project that benefits from structured documentation - from writing books to planning events. The file structure might vary, but the concept remains powerful.
+
+#### Is this different from using README files?
+
+While similar in concept, the Memory Bank provides a more structured and comprehensive approach specifically designed to maintain context across AI sessions. It goes beyond what a single README typically covers.
+
+### Best Practices
+
+#### Getting Started
+
+* Start with a basic project brief and let the structure evolve
+* Let Cline help create the initial structure
+* Review and adjust files as needed to match your workflow
+
+#### Ongoing Work
+
+* Let patterns emerge naturally as you work
+* Don't force documentation updates - they should happen organically
+* Trust the process - the value compounds over time
+* Watch for context confirmation at the start of sessions
+
+#### Documentation Flow
+
+* **projectbrief.md** is your foundation
+* **activeContext.md** changes most frequently
+* **progress.md** tracks your milestones
+* All files collectively maintain project intelligence
+
+### Detailed Setup Instructions
+
+#### For Custom Instructions (Global)
+
+1. Open VSCode
+2. Click the Cline extension settings ⚙️
+3. Find "Custom Instructions"
+4. Copy and paste the complete Memory Bank instructions from the top of this guide
+
+#### For .clinerules (Project-Specific)
+
+1. Create a `.clinerules` file in your project root
+2. Copy and paste the Memory Bank instructions from the top of this guide
+3. Save the file
+4. Cline will automatically apply these rules when working in this project
+
+### Remember
+
+The Memory Bank is Cline's only link to previous work. Its effectiveness depends entirely on maintaining clear, accurate documentation and confirming context preservation in every interaction.
+
+_For more information, reference our_ [_blog_](https://cline.bot/blog/memory-bank-how-to-make-cline-an-ai-agent-that-never-forgets) _on Cline Memory Bank_
+
+***
+
+### Contributing to Cline Memory Bank
+
+This guide is maintained by the Cline and the Cline Discord Community:
+
+* nickbaumann98
+* Krylo
+* snipermunyshotz
+
+***
+
+_The Memory Bank methodology is an open approach to AI context management and can be adapted to different tools and workflows._
