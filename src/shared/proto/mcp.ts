@@ -740,7 +740,7 @@ export const McpServiceDefinition = {
 	fullName: "cline.McpService",
 	methods: {
 		toggleMcpServer: {
-			name: "ToggleMcpServer",
+			name: "toggleMcpServer",
 			requestType: ToggleMcpServerRequest,
 			requestStream: false,
 			responseType: McpServers,

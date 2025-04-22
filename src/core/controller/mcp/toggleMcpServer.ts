@@ -1,5 +1,6 @@
-import type { ToggleMcpServerRequest, ToggleMcpServer } from "../../../shared/proto/mcp"
+import type { ToggleMcpServerRequest, McpServers } from "../../../shared/proto/mcp"
 import type { Controller } from "../index"
+import { convertMcpServersToProtoMcpServers } from "../../../shared/proto-conversions/mcp/mcp-server-conversion"
 
 /**
  * Toggles an MCP server's enabled/disabled status
@@ -7,32 +8,16 @@ import type { Controller } from "../index"
  * @param request The request containing server ID and disabled status
  * @returns A response indicating success or failure
  */
-export async function toggleMcpServer(controller: Controller, request: ToggleMcpServerRequest): Promise<ToggleMcpServer> {
+export async function toggleMcpServer(controller: Controller, request: ToggleMcpServerRequest): Promise<McpServers> {
 	try {
-		if (!controller.mcpHub) {
-			return {
-				success: false,
-				error: "MCP hub not initialized",
-			}
-		}
+		const mcpServers = await controller.mcpHub?.toggleServerDisabledRPC(request.serverName, request.disabled)
 
-		const { serverId, disabled } = {
-			serverId: request.serverId,
-			disabled: request.disabled,
-		}
+		// Convert from McpServer[] to ProtoMcpServer[] ensuring all required fields are set
+		const protoServers = convertMcpServersToProtoMcpServers(mcpServers)
 
-		// Call the existing mcpHub method to toggle the server status
-		await controller.mcpHub.toggleServerDisabled(serverId, disabled)
-
-		return {
-			success: true,
-			error: "",
-		}
+		return { mcpServers: protoServers }
 	} catch (error) {
-		console.error(`Failed to toggle MCP server ${request.serverId}:`, error)
-		return {
-			success: false,
-			error: `Failed to ${request.disabled ? "disable" : "enable"} MCP server ${request.serverId}: ${error instanceof Error ? error.message : String(error)}`,
-		}
+		console.error(`Failed to toggle MCP server ${request.serverName}:`, error)
+		throw error
 	}
 }

@@ -1,6 +1,6 @@
 import { McpServer } from "@shared/mcp"
 import { DEFAULT_MCP_TIMEOUT_SECONDS } from "@shared/mcp"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { vscode } from "@/utils/vscode"
 import {
 	VSCodeButton,
@@ -16,7 +16,8 @@ import DangerButton from "@/components/common/DangerButton"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-
+import { McpServiceClient } from "@/services/grpc-client"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 // constant JSX.Elements
 const TimeoutOptions = [
 	{ value: "30", label: "30 seconds" },
@@ -40,7 +41,7 @@ const ServerRow = ({
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
 }) => {
-	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()
+	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -184,19 +185,23 @@ const ServerRow = ({
 							opacity: server.disabled ? 0.5 : 0.9,
 						}}
 						onClick={() => {
-							vscode.postMessage({
-								type: "toggleMcpServer",
+							McpServiceClient.toggleMcpServer({
 								serverName: server.name,
 								disabled: !server.disabled,
+							}).then((response) => {
+								const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+								setMcpServers(mcpServers)
 							})
 						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" || e.key === " ") {
 								e.preventDefault()
-								vscode.postMessage({
-									type: "toggleMcpServer",
+								McpServiceClient.toggleMcpServer({
 									serverName: server.name,
 									disabled: !server.disabled,
+								}).then((response) => {
+									const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+									setMcpServers(mcpServers)
 								})
 							}
 						}}>
