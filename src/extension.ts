@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as vscode from "vscode"
+import pWaitFor from "p-wait-for"
 import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
@@ -384,7 +385,8 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand("cline.fixWithCline", async (range: vscode.Range, diagnostics: vscode.Diagnostic[]) => {
 			// Add this line to focus the chat input first
 			await vscode.commands.executeCommand("cline.focusChatInput")
-			await setTimeoutPromise(150)
+			// Wait for a webview instance to become visible after focusing
+			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
 			const editor = vscode.window.activeTextEditor
 			if (!editor) {
 				return
