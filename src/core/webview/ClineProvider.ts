@@ -622,6 +622,13 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			"codicon.css",
 		])
 
+		const materialIconsUri = getUri(webview, this.contextProxy.extensionUri, [
+			"node_modules",
+			"vscode-material-icons",
+			"generated",
+			"icons",
+		])
+
 		const imagesUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "images"])
 
 		const file = "src/index.tsx"
@@ -656,7 +663,8 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 					<link rel="stylesheet" type="text/css" href="${stylesUri}">
 					<link href="${codiconsUri}" rel="stylesheet" />
 					<script nonce="${nonce}">
-						window.IMAGES_BASE_URI = "${imagesUri}"					
+						window.IMAGES_BASE_URI = "${imagesUri}"
+						window.MATERIAL_ICONS_BASE_URI = "${materialIconsUri}"
 					</script>
 					<title>Roo Code</title>
 				</head>
@@ -706,6 +714,14 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			"codicon.css",
 		])
 
+		// The material icons from the React build output
+		const materialIconsUri = getUri(webview, this.contextProxy.extensionUri, [
+			"node_modules",
+			"vscode-material-icons",
+			"generated",
+			"icons",
+		])
+
 		const imagesUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "images"])
 
 		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
@@ -742,6 +758,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			<link href="${codiconsUri}" rel="stylesheet" />
 			<script nonce="${nonce}">
 				window.IMAGES_BASE_URI = "${imagesUri}"
+				window.MATERIAL_ICONS_BASE_URI = "${materialIconsUri}"
 			</script>
             <title>Roo Code</title>
           </head>
