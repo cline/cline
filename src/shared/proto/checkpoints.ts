@@ -6,30 +6,34 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, Int64Request } from "./common"
+import { Empty, Int64Request, Metadata } from "./common"
 
 export const protobufPackage = "cline"
 
 export interface CheckpointRestoreRequest {
+	metadata?: Metadata | undefined
 	number: number
 	restoreType: string
 	offset?: number | undefined
 }
 
 function createBaseCheckpointRestoreRequest(): CheckpointRestoreRequest {
-	return { number: 0, restoreType: "", offset: undefined }
+	return { metadata: undefined, number: 0, restoreType: "", offset: undefined }
 }
 
 export const CheckpointRestoreRequest: MessageFns<CheckpointRestoreRequest> = {
 	encode(message: CheckpointRestoreRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
 		if (message.number !== 0) {
-			writer.uint32(8).int64(message.number)
+			writer.uint32(16).int64(message.number)
 		}
 		if (message.restoreType !== "") {
-			writer.uint32(18).string(message.restoreType)
+			writer.uint32(26).string(message.restoreType)
 		}
 		if (message.offset !== undefined) {
-			writer.uint32(24).int64(message.offset)
+			writer.uint32(32).int64(message.offset)
 		}
 		return writer
 	},
@@ -42,23 +46,31 @@ export const CheckpointRestoreRequest: MessageFns<CheckpointRestoreRequest> = {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
 				case 1: {
-					if (tag !== 8) {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
 						break
 					}
 
 					message.number = longToNumber(reader.int64())
 					continue
 				}
-				case 2: {
-					if (tag !== 18) {
+				case 3: {
+					if (tag !== 26) {
 						break
 					}
 
 					message.restoreType = reader.string()
 					continue
 				}
-				case 3: {
-					if (tag !== 24) {
+				case 4: {
+					if (tag !== 32) {
 						break
 					}
 
@@ -76,6 +88,7 @@ export const CheckpointRestoreRequest: MessageFns<CheckpointRestoreRequest> = {
 
 	fromJSON(object: any): CheckpointRestoreRequest {
 		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
 			number: isSet(object.number) ? globalThis.Number(object.number) : 0,
 			restoreType: isSet(object.restoreType) ? globalThis.String(object.restoreType) : "",
 			offset: isSet(object.offset) ? globalThis.Number(object.offset) : undefined,
@@ -84,6 +97,9 @@ export const CheckpointRestoreRequest: MessageFns<CheckpointRestoreRequest> = {
 
 	toJSON(message: CheckpointRestoreRequest): unknown {
 		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
 		if (message.number !== 0) {
 			obj.number = Math.round(message.number)
 		}
@@ -101,6 +117,8 @@ export const CheckpointRestoreRequest: MessageFns<CheckpointRestoreRequest> = {
 	},
 	fromPartial<I extends Exact<DeepPartial<CheckpointRestoreRequest>, I>>(object: I): CheckpointRestoreRequest {
 		const message = createBaseCheckpointRestoreRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
 		message.number = object.number ?? 0
 		message.restoreType = object.restoreType ?? ""
 		message.offset = object.offset ?? undefined

@@ -10,7 +10,8 @@ service CheckpointsService {
 }
 
 message CheckpointRestoreRequest {
-  int64 number = 1;
-  string restore_type = 2;
-  optional int64 offset = 3;
+  Metadata metadata = 1;
+  int64 number = 2;
+  string restore_type = 3;
+  optional int64 offset = 4;
 }
