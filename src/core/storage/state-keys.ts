@@ -75,5 +75,9 @@ export type GlobalStateKey =
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
 	| "favoritedModelIds"
+	| "openAiConfigs"
+	| "openAiSelectedConfigIndex"
+	| "openAiSelectedConfigIndex_act"
+	| "openAiSelectedConfigIndex_plan"
 
 export type LocalStateKey = "localClineRulesToggles"
