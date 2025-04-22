@@ -1,6 +1,7 @@
 import { Controller } from "./index"
 import { handleBrowserServiceRequest } from "./browser/index"
 import { handleCheckpointsDiffServiceRequest } from "./checkpoints"
+import { handleFileServiceRequest } from "./file"
 
 /**
  * Handles gRPC requests from the webview
@@ -36,6 +37,11 @@ export class GrpcHandler {
 				case "cline.CheckpointsService":
 					return {
 						message: await handleCheckpointsDiffServiceRequest(this.controller, method, message),
+						request_id: requestId,
+					}
+				case "cline.FileService":
+					return {
+						message: await handleFileServiceRequest(this.controller, method, message),
 						request_id: requestId,
 					}
 				default:

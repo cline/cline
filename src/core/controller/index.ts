@@ -12,7 +12,8 @@ import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { fetchOpenGraphData, isImageUrl } from "@integrations/misc/link-preview"
-import { openFile, openImage } from "@integrations/misc/open-file"
+import { openImage } from "@integrations/misc/open-file"
+import { handleFileServiceRequest } from "./file"
 import { selectImages } from "@integrations/misc/process-images"
 import { getTheme } from "@integrations/theme/getTheme"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
@@ -424,9 +425,6 @@ export class Controller {
 			case "checkIsImageUrl":
 				this.checkIsImageUrl(message.text!)
 				break
-			case "openFile":
-				openFile(message.text!)
-				break
 			case "createRuleFile":
 				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
 					console.error("createRuleFile: Missing or invalid parameters", {
@@ -440,13 +438,13 @@ export class Controller {
 				if (fileExists && filePath) {
 					vscode.window.showWarningMessage(`Rule file "${message.filename}" already exists.`)
 					// Still open it for editing
-					openFile(filePath)
+					await handleFileServiceRequest(this, "openFile", { value: filePath })
 					return
 				} else if (filePath && !fileExists) {
 					await refreshClineRulesToggles(this.context, cwd)
 					await this.postStateToWebview()
 
-					openFile(filePath)
+					await handleFileServiceRequest(this, "openFile", { value: filePath })
 
 					vscode.window.showInformationMessage(
 						`Created new ${message.isGlobal ? "global" : "workspace"} rule file: ${message.filename}`,
@@ -523,7 +521,7 @@ export class Controller {
 			case "openMcpSettings": {
 				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 				if (mcpSettingsFilePath) {
-					openFile(mcpSettingsFilePath)
+					await handleFileServiceRequest(this, "openFile", { value: mcpSettingsFilePath })
 				}
 				break
 			}
