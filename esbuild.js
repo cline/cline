@@ -4,11 +4,63 @@ const path = require("path")
 
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
-const test = process.env.IS_TEST === "true"
 
 /**
  * @type {import('esbuild').Plugin}
  */
+const aliasResolverPlugin = {
+	name: "alias-resolver",
+	setup(build) {
+		const aliases = {
+			"@": path.resolve(__dirname, "src"),
+			"@api": path.resolve(__dirname, "src/api"),
+			"@core": path.resolve(__dirname, "src/core"),
+			"@integrations": path.resolve(__dirname, "src/integrations"),
+			"@services": path.resolve(__dirname, "src/services"),
+			"@shared": path.resolve(__dirname, "src/shared"),
+			"@utils": path.resolve(__dirname, "src/utils"),
+		}
+
+		// For each alias entry, create a resolver
+		Object.entries(aliases).forEach(([alias, aliasPath]) => {
+			const aliasRegex = new RegExp(`^${alias}($|/.*)`)
+			build.onResolve({ filter: aliasRegex }, (args) => {
+				const importPath = args.path.replace(alias, aliasPath)
+
+				// First, check if the path exists as is
+				if (fs.existsSync(importPath)) {
+					const stats = fs.statSync(importPath)
+					if (stats.isDirectory()) {
+						// If it's a directory, try to find index files
+						const extensions = [".ts", ".tsx", ".js", ".jsx"]
+						for (const ext of extensions) {
+							const indexFile = path.join(importPath, `index${ext}`)
+							if (fs.existsSync(indexFile)) {
+								return { path: indexFile }
+							}
+						}
+					} else {
+						// It's a file that exists, so return it
+						return { path: importPath }
+					}
+				}
+
+				// If the path doesn't exist, try appending extensions
+				const extensions = [".ts", ".tsx", ".js", ".jsx"]
+				for (const ext of extensions) {
+					const pathWithExtension = `${importPath}${ext}`
+					if (fs.existsSync(pathWithExtension)) {
+						return { path: pathWithExtension }
+					}
+				}
+
+				// If nothing worked, return the original path and let esbuild handle the error
+				return { path: importPath }
+			})
+		})
+	},
+}
+
 const esbuildProblemMatcherPlugin = {
 	name: "esbuild-problem-matcher",
 
@@ -71,10 +123,10 @@ const extensionConfig = {
 	logLevel: "silent",
 	define: {
 		"process.env.IS_DEV": JSON.stringify(!production),
-		"process.env.IS_TEST": JSON.stringify(test),
 	},
 	plugins: [
 		copyWasmFiles,
+		aliasResolverPlugin,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
 		{

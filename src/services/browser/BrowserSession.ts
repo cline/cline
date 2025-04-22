@@ -9,13 +9,13 @@ import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import axios from "axios"
-import { fileExistsAtPath } from "../../utils/fs"
-import { BrowserActionResult } from "../../shared/ExtensionMessage"
-import { BrowserSettings } from "../../shared/BrowserSettings"
+import { fileExistsAtPath } from "@utils/fs"
+import { BrowserActionResult } from "@shared/ExtensionMessage"
+import { BrowserSettings } from "@shared/BrowserSettings"
 import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
 import * as chromeLauncher from "chrome-launcher"
-import { Controller } from "../../core/controller"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { Controller } from "@core/controller"
+import { telemetryService } from "@services/telemetry/TelemetryService"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }

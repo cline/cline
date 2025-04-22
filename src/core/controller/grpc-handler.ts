@@ -1,6 +1,5 @@
 import { Controller } from "./index"
 import { handleBrowserServiceRequest } from "./browser/index"
-import { ExtensionMessage } from "../../shared/ExtensionMessage"
 import { handleCheckpointsDiffServiceRequest } from "./checkpoints"
 
 /**
