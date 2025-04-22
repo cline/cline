@@ -56,6 +56,11 @@ export class GrpcHandler {
 						message: await handleMcpServiceRequest(this.controller, method, message),
 						request_id: requestId,
 					}
+				case "cline.FileService":
+					return {
+						message: await handleFileServiceRequest(this.controller, method, message),
+						request_id: requestId,
+					}
 				default:
 					throw new Error(`Unknown service: ${service}`)
 			}
