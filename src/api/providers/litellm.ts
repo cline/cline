@@ -1,25 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { HttpsProxyAgent } from "https-proxy-agent" // Import the proxy agent
 import { ApiHandlerOptions, ModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "../../shared/api"
 import { ApiHandler } from ".."
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-
-/**
- * Creates and returns an HTTPS proxy agent if proxy environment variables are set.
- *
- * @returns An HttpsProxyAgent instance if HTTPS_PROXY or HTTP_PROXY environment
- * variables are set, otherwise undefined.
- */
-const getProxyAgent = () => {
-	const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY
-	if (proxyUrl) {
-		console.log("Using proxy:", proxyUrl) // Log if proxy is being used
-		return new HttpsProxyAgent(proxyUrl)
-	}
-	return undefined
-}
 
 /**
  * Handles communication with a LiteLLM server for AI model interactions.
@@ -28,7 +12,7 @@ const getProxyAgent = () => {
  * - Creating and streaming AI messages
  * - Fetching and caching model information
  * - Calculating usage costs
- * - Supporting proxy configurations
+ * - Supporting proxy configurations via environment variables
  * - Handling caching and "thinking" mode features
  */
 export class LiteLlmHandler implements ApiHandler {
@@ -65,8 +49,8 @@ export class LiteLlmHandler implements ApiHandler {
 	 * Fetches model information from the LiteLLM server.
 	 *
 	 * Makes a GET request to the model/info endpoint to retrieve capabilities and
-	 * pricing information for the configured model. Handles proxy configuration
-	 * and extracts relevant model information from the response.
+	 * pricing information for the configured model. Uses Node.js's built-in proxy support
+	 * via environment variables and extracts relevant model information from the response.
 	 *
 	 * @returns A Promise resolving to a ModelInfo object containing model capabilities
 	 * and pricing information, or undefined if the fetch fails.
@@ -84,10 +68,9 @@ export class LiteLlmHandler implements ApiHandler {
 		console.log("LiteLLM fetchModelInfo request:", { url, options: requestOptions }) // Log the request details
 
 		try {
-			const agent = getProxyAgent() // Get proxy agent
-			// Cast options to 'any' to bypass TypeScript error for 'agent' property
-			const fetchOptions: any = { ...requestOptions, agent }
-			const response = await fetch(url, fetchOptions) // Pass agent to fetch
+			// Node.js fetch automatically uses HTTP_PROXY/HTTPS_PROXY environment variables
+			const response = await fetch(url, requestOptions)
+
 			// Extract relevant properties from the Response object for logging
 			const responseLog = {
 				ok: response.ok,
@@ -154,9 +137,8 @@ export class LiteLlmHandler implements ApiHandler {
 		// Use URL constructor for robust path joining
 		const url = new URL("spend/calculate", this.client.baseURL).toString()
 		try {
-			const agent = getProxyAgent() // Get proxy agent
-			// Cast options to 'any' to bypass TypeScript error for 'agent' property
-			const fetchOptions: any = {
+			// Node.js fetch automatically uses HTTP_PROXY/HTTPS_PROXY environment variables
+			const fetchOptions = {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -171,7 +153,6 @@ export class LiteLlmHandler implements ApiHandler {
 						},
 					},
 				}),
-				agent, // Pass agent to fetch
 			}
 			const response = await fetch(url, fetchOptions)
 
