@@ -11,6 +11,7 @@ import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
 import { ErrorService } from "./services/error/ErrorService"
+import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit

@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { EmptyRequest } from "./common"
+import { EmptyRequest, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
