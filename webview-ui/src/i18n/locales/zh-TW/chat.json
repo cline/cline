@@ -121,7 +121,7 @@
 		"wantsToEdit": "Roo 想要編輯此檔案：",
 		"wantsToEditOutsideWorkspace": "Roo 想要編輯此工作區外的檔案：",
 		"wantsToCreate": "Roo 想要建立新檔案：",
-		"wantsToSearchReplace": "Roo 想要在此檔案執行搜尋和取代：",
+		"wantsToSearchReplace": "Roo 想要在此檔案中搜尋和取代：",
 		"didSearchReplace": "Roo 已在此檔案執行搜尋和取代：",
 		"wantsToInsert": "Roo 想要在此檔案中插入內容：",
 		"wantsToInsertWithLineNumber": "Roo 想要在此檔案第 {{lineNumber}} 行插入內容：",

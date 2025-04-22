@@ -121,7 +121,7 @@
 		"wantsToEdit": "Roo möchte diese Datei bearbeiten:",
 		"wantsToEditOutsideWorkspace": "Roo möchte diese Datei außerhalb des Arbeitsbereichs bearbeiten:",
 		"wantsToCreate": "Roo möchte eine neue Datei erstellen:",
-		"wantsToSearchReplace": "Roo möchte Suchen und Ersetzen in dieser Datei durchführen:",
+		"wantsToSearchReplace": "Roo möchte in dieser Datei suchen und ersetzen:",
 		"didSearchReplace": "Roo hat Suchen und Ersetzen in dieser Datei durchgeführt:",
 		"wantsToInsert": "Roo möchte Inhalte in diese Datei einfügen:",
 		"wantsToInsertWithLineNumber": "Roo möchte Inhalte in diese Datei in Zeile {{lineNumber}} einfügen:",

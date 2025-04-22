@@ -41,7 +41,7 @@ async function validateParams(
 		return false
 	}
 
-	if (!replace) {
+	if (replace === undefined) {
 		cline.consecutiveMistakeCount++
 		cline.recordToolError("search_and_replace")
 		pushToolResult(await cline.sayAndCreateMissingParamError("search_and_replace", "replace"))
