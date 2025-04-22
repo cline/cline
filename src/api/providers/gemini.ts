@@ -1,12 +1,6 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
-import {
-	GoogleGenAI,
-	type GenerationConfig,
-	type Content,
-	type GenerateContentConfig,
-	type GenerateContentResponseUsageMetadata,
-} from "@google/genai"
+import { GoogleGenAI, type Content, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
 import { withRetry } from "../retry"
 import type { ApiHandler } from "../"
 import type { ApiHandlerOptions, GeminiModelId, ModelInfo } from "../../shared/api"
@@ -14,9 +8,17 @@ import { geminiDefaultModelId, geminiModels } from "../../shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format" // Note: This converter might need updates for @google/genai format
 import type { ApiStream } from "../transform/stream"
 
+// Define a default TTL for the cache (e.g., 1 hour in seconds)
+const DEFAULT_CACHE_TTL_SECONDS = 3600
+
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: GoogleGenAI // Updated client type
+
+	// Internal state for caching
+	private cacheName: string | null = null
+	private cacheExpireTime: number | null = null
+	private isFirstApiCall = true
 
 	constructor(options: ApiHandlerOptions) {
 		if (!options.geminiApiKey) {
@@ -31,6 +33,32 @@ export class GeminiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const { id: modelId, info: modelInfo } = this.getModel()
 
+		// --- Cache Handling Logic ---
+		const isCacheValid = this.cacheName && this.cacheExpireTime && Date.now() < this.cacheExpireTime
+		let useCache = !this.isFirstApiCall && isCacheValid
+
+		if (this.isFirstApiCall && !isCacheValid && systemPrompt) {
+			// It's the first call, no valid cache exists, and we have a system prompt. Attempt cache creation.
+			this.isFirstApiCall = false
+
+			// Minimum token check heuristic (simple length check for now, could be improved)
+			// Gemini requires minimum 4096 tokens. A simple length check isn't accurate but avoids complex token counting here.
+			// Let's assume a generous average of 4 chars/token. 4096 tokens * 4 chars/token = 16384 chars.
+			const MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE = 16384
+			if (systemPrompt.length >= MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE) {
+				// Start cache creation asynchronously, don't block the main request
+				this.createCacheInBackground(modelId, systemPrompt)
+			}
+			// Proceed with the first request *without* using the cache, as it's being created.
+			useCache = false
+		} else if (!isCacheValid && this.cacheName) {
+			// Cache exists but has expired
+			this.cacheName = null
+			this.cacheExpireTime = null
+			useCache = false
+		}
+		// --- End Cache Handling Logic ---
+
 		// Re-implement thinking budget logic based on new SDK structure
 		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const maxBudget = modelInfo.thinkingConfig?.maxBudget ?? 0
@@ -38,11 +66,12 @@ export class GeminiHandler implements ApiHandler {
 		// port add baseUrl configuration for gemini api requests (#2843)
 		const httpOptions = this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined
 
-		// Base generation config - Restore type and systemInstruction
+		// Base generation config - Conditionally include systemInstruction based on cache usage
 		const generationConfig: GenerateContentConfig = {
 			httpOptions,
 			temperature: 0, // Default temperature
-			systemInstruction: systemPrompt, // System prompt belongs here
+			// Only include systemInstruction if NOT using the cache
+			...(useCache ? {} : { systemInstruction: systemPrompt }),
 		}
 
 		// Convert messages to the format expected by @google/genai
@@ -66,7 +95,11 @@ export class GeminiHandler implements ApiHandler {
 			model: modelId, // Pass model ID directly
 			// Remove systemInstruction from here
 			contents,
-			config: requestConfig, // Pass the combined config (which includes systemInstruction)
+			// Add cachedContent if using the cache
+			config: {
+				...requestConfig,
+				...(useCache ? { cachedContent: this.cacheName! } : {}),
+			},
 		})
 
 		// Declare variable to hold the last usage metadata found
@@ -79,10 +112,9 @@ export class GeminiHandler implements ApiHandler {
 				// Check if text exists
 				yield {
 					type: "text",
-					text: chunk.text, // Access as property
+					text: chunk.text,
 				}
 			}
-			// Capture usage metadata if present in the chunk
 			if (chunk.usageMetadata) {
 				lastUsageMetadata = chunk.usageMetadata
 			}
@@ -94,7 +126,34 @@ export class GeminiHandler implements ApiHandler {
 				type: "usage",
 				inputTokens: lastUsageMetadata.promptTokenCount ?? 0,
 				outputTokens: lastUsageMetadata.candidatesTokenCount ?? 0,
+				cacheWriteTokens: lastUsageMetadata.cachedContentTokenCount ?? 0,
+				cacheReadTokens: useCache ? (lastUsageMetadata.promptTokenCount ?? 0) : 0, // If cache used, prompt tokens are read from cache
 			}
+		}
+	}
+
+	private async createCacheInBackground(modelId: string, systemInstruction: string): Promise<void> {
+		try {
+			const cache = await this.client.caches.create({
+				model: modelId,
+				config: {
+					systemInstruction: systemInstruction,
+					ttl: `${DEFAULT_CACHE_TTL_SECONDS}s`,
+				},
+			})
+
+			if (cache?.name) {
+				this.cacheName = cache.name
+				// Calculate expiry timestamp using the default TTL, as the response object might not contain it directly.
+				this.cacheExpireTime = Date.now() + DEFAULT_CACHE_TTL_SECONDS * 1000
+			} else {
+				console.warn("Gemini cache creation call succeeded but returned no cache name.")
+			}
+		} catch (error) {
+			console.error("Failed to create Gemini cache in background:", error)
+			// Reset state if creation failed definitively
+			this.cacheName = null
+			this.cacheExpireTime = null
 		}
 	}
 
