@@ -52,6 +52,7 @@ The condense tool is defined below:
 Description:
 Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions. This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing with the conversation and supporting any continuing tasks.
 The user will be presented with a preview of your generated summary and can choose to use it to compact their context window or keep chatting in the current conversation.
+Users may refer to this tool as 'smol' or 'compact' as well. You should consider these to be equivalent to 'condense' when used in a similar context.
 
 Parameters:
 - Context: (required) The context to continue the conversation with. If applicable based on the current task, this should include:

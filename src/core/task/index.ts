@@ -3030,8 +3030,8 @@ export class Task {
 
 								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 									showSystemNotification({
-										subtitle: "Cline wants to condense the context window...",
-										message: `Cline is suggesting to condense your context window with: ${context}`,
+										subtitle: "Cline wants to condense the conversation...",
+										message: `Cline is suggesting to condense your conversation with: ${context}`,
 									})
 								}
 
@@ -3042,7 +3042,7 @@ export class Task {
 									await this.say("user_feedback", text ?? "", images)
 									pushToolResult(
 										formatResponse.toolResult(
-											`The user provided feedback on the condensed conversation:\n<feedback>\n${text}\n</feedback>`,
+											`The user provided feedback on the condensed conversation summary:\n<feedback>\n${text}\n</feedback>`,
 											images,
 										),
 									)

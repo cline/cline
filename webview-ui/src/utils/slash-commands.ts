@@ -9,8 +9,8 @@ export const SUPPORTED_SLASH_COMMANDS: SlashCommand[] = [
 		description: "Create a new task with context from the current task",
 	},
 	{
-		name: "condense",
-		description: "Summarizes your current context window",
+		name: "smol",
+		description: "Condenses your current context window",
 	},
 ]
 
