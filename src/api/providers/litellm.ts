@@ -6,7 +6,12 @@ import { ApiHandler } from ".."
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 
-// Helper function to get proxy agent if environment variables are set
+/**
+ * Creates and returns an HTTPS proxy agent if proxy environment variables are set.
+ *
+ * @returns An HttpsProxyAgent instance if HTTPS_PROXY or HTTP_PROXY environment
+ * variables are set, otherwise undefined.
+ */
 const getProxyAgent = () => {
 	const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY
 	if (proxyUrl) {
@@ -16,6 +21,16 @@ const getProxyAgent = () => {
 	return undefined
 }
 
+/**
+ * Handles communication with a LiteLLM server for AI model interactions.
+ *
+ * This class implements the ApiHandler interface and provides methods for:
+ * - Creating and streaming AI messages
+ * - Fetching and caching model information
+ * - Calculating usage costs
+ * - Supporting proxy configurations
+ * - Handling caching and "thinking" mode features
+ */
 export class LiteLlmHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
@@ -46,6 +61,16 @@ export class LiteLlmHandler implements ApiHandler {
 			})
 	}
 
+	/**
+	 * Fetches model information from the LiteLLM server.
+	 *
+	 * Makes a GET request to the model/info endpoint to retrieve capabilities and
+	 * pricing information for the configured model. Handles proxy configuration
+	 * and extracts relevant model information from the response.
+	 *
+	 * @returns A Promise resolving to a ModelInfo object containing model capabilities
+	 * and pricing information, or undefined if the fetch fails.
+	 */
 	private async fetchModelInfo(): Promise<ModelInfo | undefined> {
 		// Use URL constructor for robust path joining
 		const url = new URL("model/info", this.client.baseURL).toString()
