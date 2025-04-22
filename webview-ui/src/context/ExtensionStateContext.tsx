@@ -153,6 +153,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 				break
 			}
+			case "mcpServers": {
+				setMcpServers(message.mcpServers ?? [])
+				break
+			}
 			case "mcpMarketplaceCatalog": {
 				if (message.mcpMarketplaceCatalog) {
 					setMcpMarketplaceCatalog(message.mcpMarketplaceCatalog)

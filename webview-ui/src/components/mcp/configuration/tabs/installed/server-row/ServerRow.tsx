@@ -110,6 +110,20 @@ const ServerRow = ({
 		})
 	}
 
+	const handleToggleMcpServer = () => {
+		McpServiceClient.toggleMcpServer({
+			serverName: server.name,
+			disabled: !server.disabled,
+		})
+			.then((response) => {
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+			})
+			.catch((error) => {
+				console.error("Error toggling MCP server", error)
+			})
+	}
+
 	return (
 		<div style={{ marginBottom: "10px" }}>
 			<div
@@ -185,24 +199,12 @@ const ServerRow = ({
 							opacity: server.disabled ? 0.5 : 0.9,
 						}}
 						onClick={() => {
-							McpServiceClient.toggleMcpServer({
-								serverName: server.name,
-								disabled: !server.disabled,
-							}).then((response) => {
-								const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
-								setMcpServers(mcpServers)
-							})
+							handleToggleMcpServer()
 						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" || e.key === " ") {
 								e.preventDefault()
-								McpServiceClient.toggleMcpServer({
-									serverName: server.name,
-									disabled: !server.disabled,
-								}).then((response) => {
-									const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
-									setMcpServers(mcpServers)
-								})
+								handleToggleMcpServer()
 							}
 						}}>
 						<div

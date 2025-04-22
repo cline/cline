@@ -10,37 +10,80 @@ import { Metadata } from "./common"
 
 export const protobufPackage = "cline"
 
+export enum McpServerStatus {
+	/**
+	 * MCP_SERVER_STATUS_DISCONNECTED - Protobuf enums (in proto3) must have a zero value defined, which serves as the default if the field isn't explicitly set.
+	 * To align with the required nature of the TypeScript type and avoid an unnecessary UNSPECIFIED state, we map one of the existing statuses to this zero value.
+	 */
+	MCP_SERVER_STATUS_DISCONNECTED = 0,
+	MCP_SERVER_STATUS_CONNECTED = 1,
+	MCP_SERVER_STATUS_CONNECTING = 2,
+	UNRECOGNIZED = -1,
+}
+
+export function mcpServerStatusFromJSON(object: any): McpServerStatus {
+	switch (object) {
+		case 0:
+		case "MCP_SERVER_STATUS_DISCONNECTED":
+			return McpServerStatus.MCP_SERVER_STATUS_DISCONNECTED
+		case 1:
+		case "MCP_SERVER_STATUS_CONNECTED":
+			return McpServerStatus.MCP_SERVER_STATUS_CONNECTED
+		case 2:
+		case "MCP_SERVER_STATUS_CONNECTING":
+			return McpServerStatus.MCP_SERVER_STATUS_CONNECTING
+		case -1:
+		case "UNRECOGNIZED":
+		default:
+			return McpServerStatus.UNRECOGNIZED
+	}
+}
+
+export function mcpServerStatusToJSON(object: McpServerStatus): string {
+	switch (object) {
+		case McpServerStatus.MCP_SERVER_STATUS_DISCONNECTED:
+			return "MCP_SERVER_STATUS_DISCONNECTED"
+		case McpServerStatus.MCP_SERVER_STATUS_CONNECTED:
+			return "MCP_SERVER_STATUS_CONNECTED"
+		case McpServerStatus.MCP_SERVER_STATUS_CONNECTING:
+			return "MCP_SERVER_STATUS_CONNECTING"
+		case McpServerStatus.UNRECOGNIZED:
+		default:
+			return "UNRECOGNIZED"
+	}
+}
+
 export interface McpTool {
 	name: string
-	description: string
-	inputSchema: string
-	autoApprove: boolean
+	description?: string | undefined
+	inputSchema?: string | undefined
+	autoApprove?: boolean | undefined
 }
 
 export interface McpResource {
 	uri: string
 	name: string
-	mimeType: string
-	description: string
+	mimeType?: string | undefined
+	description?: string | undefined
 }
 
 export interface McpResourceTemplate {
 	uriTemplate: string
 	name: string
-	mimeType: string
-	description: string
+	mimeType?: string | undefined
+	description?: string | undefined
 }
 
 export interface McpServer {
 	name: string
 	config: string
-	status: string
-	error: string
+	status: McpServerStatus
+	error?: string | undefined
 	tools: McpTool[]
 	resources: McpResource[]
 	resourceTemplates: McpResourceTemplate[]
-	disabled: boolean
-	timeout: number
+	disabled?: boolean | undefined
+	timeout?: number | undefined
 }
 
 export interface ToggleMcpServerRequest {
@@ -54,7 +97,7 @@ export interface McpServers {
 }
 
 function createBaseMcpTool(): McpTool {
-	return { name: "", description: "", inputSchema: "", autoApprove: false }
+	return { name: "", description: undefined, inputSchema: undefined, autoApprove: undefined }
 }
 
 export const McpTool: MessageFns<McpTool> = {
@@ -62,13 +105,13 @@ export const McpTool: MessageFns<McpTool> = {
 		if (message.name !== "") {
 			writer.uint32(10).string(message.name)
 		}
-		if (message.description !== "") {
+		if (message.description !== undefined) {
 			writer.uint32(18).string(message.description)
 		}
-		if (message.inputSchema !== "") {
+		if (message.inputSchema !== undefined) {
 			writer.uint32(26).string(message.inputSchema)
 		}
-		if (message.autoApprove !== false) {
+		if (message.autoApprove !== undefined) {
 			writer.uint32(32).bool(message.autoApprove)
 		}
 		return writer
@@ -125,9 +168,9 @@ export const McpTool: MessageFns<McpTool> = {
 	fromJSON(object: any): McpTool {
 		return {
 			name: isSet(object.name) ? globalThis.String(object.name) : "",
-			description: isSet(object.description) ? globalThis.String(object.description) : "",
-			inputSchema: isSet(object.inputSchema) ? globalThis.String(object.inputSchema) : "",
-			autoApprove: isSet(object.autoApprove) ? globalThis.Boolean(object.autoApprove) : false,
+			description: isSet(object.description) ? globalThis.String(object.description) : undefined,
+			inputSchema: isSet(object.inputSchema) ? globalThis.String(object.inputSchema) : undefined,
+			autoApprove: isSet(object.autoApprove) ? globalThis.Boolean(object.autoApprove) : undefined,
 		}
 	},
 
@@ -136,13 +179,13 @@ export const McpTool: MessageFns<McpTool> = {
 		if (message.name !== "") {
 			obj.name = message.name
 		}
-		if (message.description !== "") {
+		if (message.description !== undefined) {
 			obj.description = message.description
 		}
-		if (message.inputSchema !== "") {
+		if (message.inputSchema !== undefined) {
 			obj.inputSchema = message.inputSchema
 		}
-		if (message.autoApprove !== false) {
+		if (message.autoApprove !== undefined) {
 			obj.autoApprove = message.autoApprove
 		}
 		return obj
@@ -154,15 +197,15 @@ export const McpTool: MessageFns<McpTool> = {
 	fromPartial<I extends Exact<DeepPartial<McpTool>, I>>(object: I): McpTool {
 		const message = createBaseMcpTool()
 		message.name = object.name ?? ""
-		message.description = object.description ?? ""
-		message.inputSchema = object.inputSchema ?? ""
-		message.autoApprove = object.autoApprove ?? false
+		message.description = object.description ?? undefined
+		message.inputSchema = object.inputSchema ?? undefined
+		message.autoApprove = object.autoApprove ?? undefined
 		return message
 	},
 }
 
 function createBaseMcpResource(): McpResource {
-	return { uri: "", name: "", mimeType: "", description: "" }
+	return { uri: "", name: "", mimeType: undefined, description: undefined }
 }
 
 export const McpResource: MessageFns<McpResource> = {
@@ -173,10 +216,10 @@ export const McpResource: MessageFns<McpResource> = {
 		if (message.name !== "") {
 			writer.uint32(18).string(message.name)
 		}
-		if (message.mimeType !== "") {
+		if (message.mimeType !== undefined) {
 			writer.uint32(26).string(message.mimeType)
 		}
-		if (message.description !== "") {
+		if (message.description !== undefined) {
 			writer.uint32(34).string(message.description)
 		}
 		return writer
@@ -234,8 +277,8 @@ export const McpResource: MessageFns<McpResource> = {
 		return {
 			uri: isSet(object.uri) ? globalThis.String(object.uri) : "",
 			name: isSet(object.name) ? globalThis.String(object.name) : "",
-			mimeType: isSet(object.mimeType) ? globalThis.String(object.mimeType) : "",
-			description: isSet(object.description) ? globalThis.String(object.description) : "",
+			mimeType: isSet(object.mimeType) ? globalThis.String(object.mimeType) : undefined,
+			description: isSet(object.description) ? globalThis.String(object.description) : undefined,
 		}
 	},
 
@@ -247,10 +290,10 @@ export const McpResource: MessageFns<McpResource> = {
 		if (message.name !== "") {
 			obj.name = message.name
 		}
-		if (message.mimeType !== "") {
+		if (message.mimeType !== undefined) {
 			obj.mimeType = message.mimeType
 		}
-		if (message.description !== "") {
+		if (message.description !== undefined) {
 			obj.description = message.description
 		}
 		return obj
@@ -263,14 +306,14 @@ export const McpResource: MessageFns<McpResource> = {
 		const message = createBaseMcpResource()
 		message.uri = object.uri ?? ""
 		message.name = object.name ?? ""
-		message.mimeType = object.mimeType ?? ""
-		message.description = object.description ?? ""
+		message.mimeType = object.mimeType ?? undefined
+		message.description = object.description ?? undefined
 		return message
 	},
 }
 
 function createBaseMcpResourceTemplate(): McpResourceTemplate {
-	return { uriTemplate: "", name: "", mimeType: "", description: "" }
+	return { uriTemplate: "", name: "", mimeType: undefined, description: undefined }
 }
 
 export const McpResourceTemplate: MessageFns<McpResourceTemplate> = {
@@ -281,10 +324,10 @@ export const McpResourceTemplate: MessageFns<McpResourceTemplate> = {
 		if (message.name !== "") {
 			writer.uint32(18).string(message.name)
 		}
-		if (message.mimeType !== "") {
+		if (message.mimeType !== undefined) {
 			writer.uint32(26).string(message.mimeType)
 		}
-		if (message.description !== "") {
+		if (message.description !== undefined) {
 			writer.uint32(34).string(message.description)
 		}
 		return writer
@@ -342,8 +385,8 @@ export const McpResourceTemplate: MessageFns<McpResourceTemplate> = {
 		return {
 			uriTemplate: isSet(object.uriTemplate) ? globalThis.String(object.uriTemplate) : "",
 			name: isSet(object.name) ? globalThis.String(object.name) : "",
-			mimeType: isSet(object.mimeType) ? globalThis.String(object.mimeType) : "",
-			description: isSet(object.description) ? globalThis.String(object.description) : "",
+			mimeType: isSet(object.mimeType) ? globalThis.String(object.mimeType) : undefined,
+			description: isSet(object.description) ? globalThis.String(object.description) : undefined,
 		}
 	},
 
@@ -355,10 +398,10 @@ export const McpResourceTemplate: MessageFns<McpResourceTemplate> = {
 		if (message.name !== "") {
 			obj.name = message.name
 		}
-		if (message.mimeType !== "") {
+		if (message.mimeType !== undefined) {
 			obj.mimeType = message.mimeType
 		}
-		if (message.description !== "") {
+		if (message.description !== undefined) {
 			obj.description = message.description
 		}
 		return obj
@@ -371,8 +414,8 @@ export const McpResourceTemplate: MessageFns<McpResourceTemplate> = {
 		const message = createBaseMcpResourceTemplate()
 		message.uriTemplate = object.uriTemplate ?? ""
 		message.name = object.name ?? ""
-		message.mimeType = object.mimeType ?? ""
-		message.description = object.description ?? ""
+		message.mimeType = object.mimeType ?? undefined
+		message.description = object.description ?? undefined
 		return message
 	},
 }
@@ -381,13 +424,13 @@ function createBaseMcpServer(): McpServer {
 	return {
 		name: "",
 		config: "",
-		status: "",
-		error: "",
+		status: 0,
+		error: undefined,
 		tools: [],
 		resources: [],
 		resourceTemplates: [],
-		disabled: false,
-		timeout: 0,
+		disabled: undefined,
+		timeout: undefined,
 	}
 }
 
@@ -399,10 +442,10 @@ export const McpServer: MessageFns<McpServer> = {
 		if (message.config !== "") {
 			writer.uint32(18).string(message.config)
 		}
-		if (message.status !== "") {
-			writer.uint32(26).string(message.status)
+		if (message.status !== 0) {
+			writer.uint32(24).int32(message.status)
 		}
-		if (message.error !== "") {
+		if (message.error !== undefined) {
 			writer.uint32(34).string(message.error)
 		}
 		for (const v of message.tools) {
@@ -414,10 +457,10 @@ export const McpServer: MessageFns<McpServer> = {
 		for (const v of message.resourceTemplates) {
 			McpResourceTemplate.encode(v!, writer.uint32(58).fork()).join()
 		}
-		if (message.disabled !== false) {
+		if (message.disabled !== undefined) {
 			writer.uint32(64).bool(message.disabled)
 		}
-		if (message.timeout !== 0) {
+		if (message.timeout !== undefined) {
 			writer.uint32(72).int32(message.timeout)
 		}
 		return writer
@@ -447,11 +490,11 @@ export const McpServer: MessageFns<McpServer> = {
 					continue
 				}
 				case 3: {
-					if (tag !== 26) {
+					if (tag !== 24) {
 						break
 					}
 
-					message.status = reader.string()
+					message.status = reader.int32() as any
 					continue
 				}
 				case 4: {
@@ -515,8 +558,8 @@ export const McpServer: MessageFns<McpServer> = {
 		return {
 			name: isSet(object.name) ? globalThis.String(object.name) : "",
 			config: isSet(object.config) ? globalThis.String(object.config) : "",
-			status: isSet(object.status) ? globalThis.String(object.status) : "",
-			error: isSet(object.error) ? globalThis.String(object.error) : "",
+			status: isSet(object.status) ? mcpServerStatusFromJSON(object.status) : 0,
+			error: isSet(object.error) ? globalThis.String(object.error) : undefined,
 			tools: globalThis.Array.isArray(object?.tools) ? object.tools.map((e: any) => McpTool.fromJSON(e)) : [],
 			resources: globalThis.Array.isArray(object?.resources)
 				? object.resources.map((e: any) => McpResource.fromJSON(e))
@@ -524,8 +567,8 @@ export const McpServer: MessageFns<McpServer> = {
 			resourceTemplates: globalThis.Array.isArray(object?.resourceTemplates)
 				? object.resourceTemplates.map((e: any) => McpResourceTemplate.fromJSON(e))
 				: [],
-			disabled: isSet(object.disabled) ? globalThis.Boolean(object.disabled) : false,
-			timeout: isSet(object.timeout) ? globalThis.Number(object.timeout) : 0,
+			disabled: isSet(object.disabled) ? globalThis.Boolean(object.disabled) : undefined,
+			timeout: isSet(object.timeout) ? globalThis.Number(object.timeout) : undefined,
 		}
 	},
 
@@ -537,10 +580,10 @@ export const McpServer: MessageFns<McpServer> = {
 		if (message.config !== "") {
 			obj.config = message.config
 		}
-		if (message.status !== "") {
-			obj.status = message.status
+		if (message.status !== 0) {
+			obj.status = mcpServerStatusToJSON(message.status)
 		}
-		if (message.error !== "") {
+		if (message.error !== undefined) {
 			obj.error = message.error
 		}
 		if (message.tools?.length) {
@@ -552,10 +595,10 @@ export const McpServer: MessageFns<McpServer> = {
 		if (message.resourceTemplates?.length) {
 			obj.resourceTemplates = message.resourceTemplates.map((e) => McpResourceTemplate.toJSON(e))
 		}
-		if (message.disabled !== false) {
+		if (message.disabled !== undefined) {
 			obj.disabled = message.disabled
 		}
-		if (message.timeout !== 0) {
+		if (message.timeout !== undefined) {
 			obj.timeout = Math.round(message.timeout)
 		}
 		return obj
@@ -568,13 +611,13 @@ export const McpServer: MessageFns<McpServer> = {
 		const message = createBaseMcpServer()
 		message.name = object.name ?? ""
 		message.config = object.config ?? ""
-		message.status = object.status ?? ""
-		message.error = object.error ?? ""
+		message.status = object.status ?? 0
+		message.error = object.error ?? undefined
 		message.tools = object.tools?.map((e) => McpTool.fromPartial(e)) || []
 		message.resources = object.resources?.map((e) => McpResource.fromPartial(e)) || []
 		message.resourceTemplates = object.resourceTemplates?.map((e) => McpResourceTemplate.fromPartial(e)) || []
-		message.disabled = object.disabled ?? false
-		message.timeout = object.timeout ?? 0
+		message.disabled = object.disabled ?? undefined
+		message.timeout = object.timeout ?? undefined
 		return message
 	},
 }
