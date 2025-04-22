@@ -34,7 +34,7 @@ export class RequestyHandler implements ApiHandler {
 
 		const reasoningEffort = this.options.o3MiniReasoningEffort || "medium"
 		const reasoning = { reasoning_effort: reasoningEffort }
-		const reasoningArgs = model.id === "openai/o3-mini" ? reasoning : {}
+		const reasoningArgs = model.id.startsWith("openai/o") ? reasoning : {}
 
 		const thinkingBudget = this.options.thinkingBudgetTokens || 0
 		const thinking =

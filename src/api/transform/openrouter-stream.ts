@@ -143,7 +143,7 @@ export async function createOpenRouterStream(
 		stream_options: { include_usage: true },
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
-		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
+		...(model.id.startsWith("openai/o") ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 	})
