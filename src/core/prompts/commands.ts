@@ -41,3 +41,20 @@ Next Steps:
 Below is the the user's input when they indicated that they wanted to create a new task.
 </explicit_instructions>\n
 `
+
+export const condenseToolResponse = () =>
+	`<explicit_instructions type="condense">
+Summarize the previous context.
+
+Definition:
+You want to summarize all the previous conversation in the most compact way possible, without losing any context.
+
+Usage:
+<condense>
+<context>
+[your summary]
+</context>
+</condense>
+
+</explicit_instructions>\n
+`
