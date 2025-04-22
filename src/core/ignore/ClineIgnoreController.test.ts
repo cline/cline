@@ -252,6 +252,8 @@ describe("ClineIgnoreController", () => {
 
 			const result = controller.validateAccess(symlinkDir)
 			result.should.be.true()
+		})
+	})
 
 	describe("Include Directive", () => {
 		it("should load patterns from an included file", async () => {
