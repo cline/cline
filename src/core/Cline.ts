@@ -845,8 +845,15 @@ export class Cline extends EventEmitter<ClineEvents> {
 			return "just now"
 		})()
 
-		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
+		const lastTaskResumptionIndex = newUserContent.findIndex(
+			(x) => x.type === "text" && x.text.startsWith("[TASK RESUMPTION]"),
+		)
+		if (lastTaskResumptionIndex !== -1) {
+			newUserContent.splice(lastTaskResumptionIndex, newUserContent.length - lastTaskResumptionIndex)
+		}
 
+		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
+		
 		newUserContent.push({
 			type: "text",
 			text:
