@@ -14,6 +14,7 @@ interface CodeAccordianProps {
 	onToggleExpand: () => void
 	isLoading?: boolean
 	progressStatus?: ToolProgressStatus
+	forceWrap?: boolean
 }
 
 /*
@@ -38,6 +39,7 @@ const CodeAccordian = ({
 	onToggleExpand,
 	isLoading,
 	progressStatus,
+	forceWrap,
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
@@ -126,6 +128,7 @@ const CodeAccordian = ({
 							diff ??
 							""
 						).trim()}\n${"```"}`}
+						forceWrap={forceWrap}
 					/>
 				</div>
 			)}

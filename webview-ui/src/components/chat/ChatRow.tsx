@@ -1174,6 +1174,7 @@ export const ChatRowContent = ({
 													language="json"
 													isExpanded={true}
 													onToggleExpand={onToggleExpand}
+													forceWrap={true}
 												/>
 											</div>
 										)}
