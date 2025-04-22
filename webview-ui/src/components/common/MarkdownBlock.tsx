@@ -284,7 +284,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 						}
 					}
 					return (
-						<PreWithCopyButton {...preProps} theme={theme}>
+						<PreWithCopyButton {...preProps} theme={theme || {}}>
 							{children}
 						</PreWithCopyButton>
 					)
