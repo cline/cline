@@ -115,7 +115,7 @@ jobs:
                         const pr = context.payload.pull_request;
                         const searchData = await gql(
                           `query($team:ID!,$q:String!){
-                              issues(filter:{team:{id:{eq:$team}},query:$q}){nodes{id,url}}
+                              issues(filter: { team: { id: { eq: $team } } attachments: { some: { url: { eq: $q } } } }){nodes{id,url}}
                             }`,
                           { team: teamId, q: pr.html_url }
                         );
