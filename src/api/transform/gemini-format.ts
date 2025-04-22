@@ -1,5 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Content, EnhancedGenerateContentResponse, InlineDataPart, Part, TextPart } from "@google/generative-ai"
+import type {
+	Content,
+	Part,
+	TextPart,
+	InlineDataPart,
+	GenerateContentResponse,
+} from "@google-cloud/vertexai"
 
 export function convertAnthropicContentToGemini(content: string | Anthropic.ContentBlockParam[]): Part[] {
 	if (typeof content === "string") {
@@ -32,23 +38,20 @@ export function convertAnthropicMessageToGemini(message: Anthropic.Messages.Mess
 	}
 }
 
-/*
-It looks like gemini likes to double escape certain characters when writing file contents: https://discuss.ai.google.dev/t/function-call-string-property-is-double-escaped/37867
-*/
 export function unescapeGeminiContent(content: string) {
 	return content.replace(/\\n/g, "\n").replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\r/g, "\r").replace(/\\t/g, "\t")
 }
 
-export function convertGeminiResponseToAnthropic(response: EnhancedGenerateContentResponse): Anthropic.Messages.Message {
+export function convertGeminiResponseToAnthropic(response: GenerateContentResponse): Anthropic.Messages.Message {
 	const content: Anthropic.Messages.ContentBlock[] = []
 
-	// Add the main text response
-	const text = response.text()
-	if (text) {
-		content.push({ type: "text", text, citations: null })
+	const parts = response.candidates?.[0]?.content?.parts || []
+	for (const part of parts) {
+		if ("text" in part && part.text) {
+			content.push({ type: "text", text: part.text, citations: null })
+		}
 	}
 
-	// Determine stop reason
 	let stop_reason: Anthropic.Messages.Message["stop_reason"] = null
 	const finishReason = response.candidates?.[0]?.finishReason
 	if (finishReason) {
@@ -59,12 +62,8 @@ export function convertGeminiResponseToAnthropic(response: EnhancedGenerateConte
 			case "MAX_TOKENS":
 				stop_reason = "max_tokens"
 				break
-			case "SAFETY":
-			case "RECITATION":
-			case "OTHER":
+			default:
 				stop_reason = "stop_sequence"
-				break
-			// Add more cases if needed
 		}
 	}
 
