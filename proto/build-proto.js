@@ -13,13 +13,35 @@ const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
 
-	// Check if protoc is installed
+	// Check if protoc is installed and has the correct version
 	try {
-		const options = { stdio: "ignore" }
-		execSync("protoc --version", options)
+		const protocOutput = execSync("protoc --version", { encoding: "utf8" }).trim()
+		console.log(chalk.cyan(`Found ${protocOutput}`))
+		const versionMatch = protocOutput.match(/libprotoc\s+(\d+\.\d+)/)
+		if (!versionMatch) {
+			console.warn(chalk.yellow("Warning: Could not determine protoc version. Continuing anyway..."))
+		} else {
+			const version = versionMatch[1]
+			const requiredVersion = "30.1"
+			if (version !== requiredVersion) {
+				console.warn(
+					chalk.yellow(`Warning: protoc version ${version} found, but version ${requiredVersion} is required.`),
+				)
+				console.warn(
+					chalk.yellow(
+						`To install the correct version, visit: https://github.com/protocolbuffers/protobuf/releases/tag/v${requiredVersion}`,
+					),
+				)
+				process.exit(0) // Exit with success as requested
+			}
+		}
 	} catch (error) {
 		console.warn(chalk.yellow("Warning: protoc is not installed. Skipping proto generation."))
-		console.warn(chalk.yellow("To install Protocol Buffers compiler, visit: https://grpc.io/docs/protoc-installation/"))
+		console.warn(
+			chalk.yellow(
+				"To install Protocol Buffers compiler, visit: https://github.com/protocolbuffers/protobuf/releases/tag/v30.1",
+			),
+		)
 		process.exit(0) // Exit with success as requested
 	}
 

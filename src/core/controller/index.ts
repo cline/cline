@@ -8,32 +8,31 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { handleGrpcRequest } from "./grpc-handler"
-import { buildApiHandler } from "../../api"
-import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
-import { downloadTask } from "../../integrations/misc/export-markdown"
-import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
-import { openFile, openImage } from "../../integrations/misc/open-file"
-import { selectImages } from "../../integrations/misc/process-images"
-import { getTheme } from "../../integrations/theme/getTheme"
-import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { ClineAccountService } from "../../services/account/ClineAccountService"
-import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
-import { BrowserSession } from "../../services/browser/BrowserSession"
-import { McpHub } from "../../services/mcp/McpHub"
-import { searchWorkspaceFiles } from "../../services/search/file-search"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
-import { ApiProvider, ModelInfo } from "../../shared/api"
-import { ChatContent } from "../../shared/ChatContent"
-import { ChatSettings } from "../../shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
-import { HistoryItem } from "../../shared/HistoryItem"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
-import { TelemetrySetting } from "../../shared/TelemetrySetting"
-import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
-import { fileExistsAtPath } from "../../utils/fs"
-import { searchCommits } from "../../utils/git"
-import { getWorkspacePath } from "../../utils/path"
-import { getTotalTasksSize } from "../../utils/storage"
+import { buildApiHandler } from "@api/index"
+import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
+import { downloadTask } from "@integrations/misc/export-markdown"
+import { fetchOpenGraphData, isImageUrl } from "@integrations/misc/link-preview"
+import { openFile, openImage } from "@integrations/misc/open-file"
+import { selectImages } from "@integrations/misc/process-images"
+import { getTheme } from "@integrations/theme/getTheme"
+import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { ClineAccountService } from "@services/account/ClineAccountService"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { McpHub } from "@services/mcp/McpHub"
+import { searchWorkspaceFiles } from "@services/search/file-search"
+import { telemetryService } from "@services/telemetry/TelemetryService"
+import { ApiProvider, ModelInfo } from "@shared/api"
+import { ChatContent } from "@shared/ChatContent"
+import { ChatSettings } from "@shared/ChatSettings"
+import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/ExtensionMessage"
+import { HistoryItem } from "@shared/HistoryItem"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import { searchCommits } from "@utils/git"
+import { getWorkspacePath } from "@utils/path"
+import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
@@ -48,7 +47,7 @@ import {
 	updateWorkspaceState,
 } from "../storage/state"
 import { Task, cwd } from "../task"
-import { ClineRulesToggles } from "../../shared/cline-rules"
+import { ClineRulesToggles } from "@shared/cline-rules"
 import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 
 /*
@@ -139,6 +138,14 @@ export class Controller {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await getAllExtensionState(this.context)
+
+		if (autoApprovalSettings) {
+			const updatedAutoApprovalSettings = {
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+			}
+			await updateGlobalState(this.context, "autoApprovalSettings", updatedAutoApprovalSettings)
+		}
 		this.task = new Task(
 			this.context,
 			this.mcpHub,
@@ -288,11 +295,16 @@ export class Controller {
 				break
 			case "autoApprovalSettings":
 				if (message.autoApprovalSettings) {
-					await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
-					if (this.task) {
-						this.task.autoApprovalSettings = message.autoApprovalSettings
+					const currentSettings = (await getAllExtensionState(this.context)).autoApprovalSettings
+					const incomingVersion = message.autoApprovalSettings.version ?? 1
+					const currentVersion = currentSettings?.version ?? 1
+					if (incomingVersion > currentVersion) {
+						await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
+						if (this.task) {
+							this.task.autoApprovalSettings = message.autoApprovalSettings
+						}
+						await this.postStateToWebview()
 					}
-					await this.postStateToWebview()
 				}
 				break
 			case "browserSettings":
