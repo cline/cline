@@ -35,6 +35,39 @@ Otherwise, if you have not completed the task and do not need additional informa
 	missingToolParameterError: (paramName: string) =>
 		`Missing value for required parameter '${paramName}'. Please retry with complete response.\n\n${toolUseInstructionsReminder}`,
 
+	lineCountTruncationError: (actualLineCount: number, isNewFile: boolean, diffStrategyEnabled: boolean = false) => {
+		const truncationMessage = `Note: Your response may have been truncated because it exceeded your output limit. You wrote ${actualLineCount} lines of content, but the line_count parameter was either missing or not included in your response.`
+
+		const newFileGuidance =
+			`This appears to be a new file.\n` +
+			`${truncationMessage}\n\n` +
+			`RECOMMENDED APPROACH:\n` +
+			`1. Try again with the line_count parameter in your response if you forgot to include it\n` +
+			`2. Or break your content into smaller chunks - first use write_to_file with the initial chunk\n` +
+			`3. Then use insert_content to append additional chunks\n`
+
+		let existingFileApproaches = [
+			`1. Try again with the line_count parameter in your response if you forgot to include it`,
+		]
+
+		if (diffStrategyEnabled) {
+			existingFileApproaches.push(`2. Or try using apply_diff instead of write_to_file for targeted changes`)
+		}
+
+		existingFileApproaches.push(
+			`${diffStrategyEnabled ? "3" : "2"}. Or use search_and_replace for specific text replacements`,
+			`${diffStrategyEnabled ? "4" : "3"}. Or use insert_content to add specific content at particular lines`,
+		)
+
+		const existingFileGuidance =
+			`This appears to be content for an existing file.\n` +
+			`${truncationMessage}\n\n` +
+			`RECOMMENDED APPROACH:\n` +
+			`${existingFileApproaches.join("\n")}\n`
+
+		return `${isNewFile ? newFileGuidance : existingFileGuidance}\n${toolUseInstructionsReminder}`
+	},
+
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
 		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,
 

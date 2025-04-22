@@ -114,7 +114,29 @@ export async function writeToFileTool(
 			if (!predictedLineCount) {
 				cline.consecutiveMistakeCount++
 				cline.recordToolError("write_to_file")
-				pushToolResult(await cline.sayAndCreateMissingParamError("write_to_file", "line_count"))
+
+				// Calculate the actual number of lines in the content
+				const actualLineCount = newContent.split("\n").length
+
+				// Check if this is a new file or existing file
+				const isNewFile = !fileExists
+
+				// Check if diffStrategy is enabled
+				const diffStrategyEnabled = !!cline.diffStrategy
+
+				// Use more specific error message for line_count that provides guidance based on the situation
+				await cline.say(
+					"error",
+					`Roo tried to use write_to_file${
+						relPath ? ` for '${relPath.toPosix()}'` : ""
+					} but the required parameter 'line_count' was missing or truncated after ${actualLineCount} lines of content were written. Retrying...`,
+				)
+
+				pushToolResult(
+					formatResponse.toolError(
+						formatResponse.lineCountTruncationError(actualLineCount, isNewFile, diffStrategyEnabled),
+					),
+				)
 				await cline.diffViewProvider.revertChanges()
 				return
 			}
