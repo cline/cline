@@ -8,11 +8,10 @@ import {
 	type GenerateContentResponseUsageMetadata,
 } from "@google/genai"
 import { withRetry } from "../retry"
-import type { ApiHandler } from "../"
-import type { ApiHandlerOptions, GeminiModelId, ModelInfo } from "../../shared/api"
-import { geminiDefaultModelId, geminiModels } from "../../shared/api"
-import { convertAnthropicMessageToGemini } from "../transform/gemini-format" // Note: This converter might need updates for @google/genai format
-import type { ApiStream } from "../transform/stream"
+import { ApiHandler } from "../"
+import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
+import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { ApiStream } from "../transform/stream"
 
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions

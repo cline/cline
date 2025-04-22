@@ -66,6 +66,7 @@ interface ApiOptionsProps {
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 	isPopup?: boolean
+	saveImmediately?: boolean // Add prop to control immediate saving
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -92,8 +93,16 @@ declare module "vscode" {
 	}
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
-	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
+const ApiOptions = ({
+	showModelOptions,
+	apiErrorMessage,
+	modelIdErrorMessage,
+	isPopup,
+	saveImmediately = false, // Default to false
+}: ApiOptionsProps) => {
+	// Use full context state for immediate save payload
+	const extensionState = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, uriScheme } = extensionState
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
@@ -115,14 +124,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			[field]: newValue,
 		})
 
-		// If the field is the provider, save it immediately
-		// Necessary for favorite model selection to work without undoing provider changes
-		if (field === "apiProvider") {
+		// If the field is the provider AND saveImmediately is true, save it immediately using the full context state
+		if (saveImmediately && field === "apiProvider") {
+			// Use apiConfiguration from the full extensionState context to send the most complete data
+			const currentFullApiConfig = extensionState.apiConfiguration
 			vscode.postMessage({
 				type: "apiConfiguration",
 				apiConfiguration: {
-					...apiConfiguration,
-					apiProvider: newValue,
+					...currentFullApiConfig, // Send the most complete config available
+					apiProvider: newValue, // Override with the new provider
 				},
 			})
 		}

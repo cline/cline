@@ -9,8 +9,8 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
-import { createTestServer, shutdownTestServer } from "./services/test/TestServer"
 import { ErrorService } from "./services/error/ErrorService"
+import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -35,8 +35,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const sidebarWebview = new WebviewProvider(context, outputChannel)
 
+	// Initialize test mode and add disposables to context
+	context.subscriptions.push(...initializeTestMode(context, sidebarWebview))
+
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
-	vscode.commands.executeCommand("setContext", "cline.isTestMode", IS_TEST && IS_TEST === "true")
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(WebviewProvider.sideBarId, sidebarWebview, {
@@ -415,11 +417,6 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Set up test server if in test mode
-	if (IS_TEST === "true") {
-		createTestServer(sidebarWebview)
-	}
-
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 
@@ -429,12 +426,12 @@ export function activate(context: vscode.ExtensionContext) {
 //
 // This is a workaround to reload the extension when the source code changes
 // since vscode doesn't support hot reload for extensions
-const { IS_DEV, DEV_WORKSPACE_FOLDER, IS_TEST } = process.env
+const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	// Shutdown the test server if it exists
-	shutdownTestServer()
+	// Clean up test mode
+	cleanupTestMode()
 
 	telemetryService.shutdown()
 	Logger.log("Cline extension deactivated")
