@@ -2,6 +2,7 @@ import { Controller } from "./index"
 import { handleBrowserServiceRequest } from "./browser/index"
 import { handleCheckpointsServiceRequest } from "./checkpoints"
 
+
 /**
  * Handles gRPC requests from the webview
  */
