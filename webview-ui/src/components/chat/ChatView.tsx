@@ -591,8 +591,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				case "api_req_deleted": // aggregated api_req metrics from deleted messages
 					return false
 				case "api_req_retry_delayed":
-					// Only show the retry message if it's the last message
-					return message === modifiedMessages.at(-1)
+					// Only show the retry message if it's the last message or the last messages is api_req_retry_delayed+resume_task
+					const last1 = modifiedMessages.at(-1)
+					const last2 = modifiedMessages.at(-2)
+					if (last1?.ask === "resume_task" && last2 === message) {
+						return true
+					}
+					return message === last1
 				case "text":
 					// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
 					if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {

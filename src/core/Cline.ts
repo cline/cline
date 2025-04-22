@@ -943,6 +943,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 		if (this.isStreaming && this.diffViewProvider.isEditing) {
 			await this.diffViewProvider.revertChanges()
 		}
+		// Save the countdown message in the automatic retry or other content
+		await this.saveClineMessages()
 	}
 
 	// Tools
