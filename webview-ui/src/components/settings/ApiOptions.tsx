@@ -38,6 +38,8 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 	ApiProvider,
+	vscodeLlmModels,
+	vscodeLlmDefaultModelId,
 } from "@roo/shared/api"
 import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
 
@@ -1738,7 +1740,6 @@ const ApiOptions = ({
 export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 	const provider = apiConfiguration?.apiProvider || "anthropic"
 	const modelId = apiConfiguration?.apiModelId
-
 	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {
 		let selectedModelId: string
 		let selectedModelInfo: ModelInfo
@@ -1827,15 +1828,18 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "vscode-lm":
+			const modelFamily = apiConfiguration?.vsCodeLmModelSelector?.family ?? vscodeLlmDefaultModelId
+			const modelInfo = {
+				...openAiModelInfoSaneDefaults,
+				...vscodeLlmModels[modelFamily as keyof typeof vscodeLlmModels],
+				supportsImages: false, // VSCode LM API currently doesn't support images.
+			}
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.vsCodeLmModelSelector
 					? `${apiConfiguration.vsCodeLmModelSelector.vendor}/${apiConfiguration.vsCodeLmModelSelector.family}`
 					: "",
-				selectedModelInfo: {
-					...openAiModelInfoSaneDefaults,
-					supportsImages: false, // VSCode LM API currently doesn't support images.
-				},
+				selectedModelInfo: modelInfo,
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)

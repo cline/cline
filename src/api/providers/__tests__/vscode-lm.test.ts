@@ -134,6 +134,9 @@ describe("VsCodeLmHandler", () => {
 			const mockModel = { ...mockLanguageModelChat }
 			;(vscode.lm.selectChatModels as jest.Mock).mockResolvedValueOnce([mockModel])
 			mockLanguageModelChat.countTokens.mockResolvedValue(10)
+
+			// Override the default client with our test client
+			handler["client"] = mockLanguageModelChat
 		})
 
 		it("should stream text responses", async () => {
@@ -229,12 +232,7 @@ describe("VsCodeLmHandler", () => {
 
 			mockLanguageModelChat.sendRequest.mockRejectedValueOnce(new Error("API Error"))
 
-			await expect(async () => {
-				const stream = handler.createMessage(systemPrompt, messages)
-				for await (const _ of stream) {
-					// consume stream
-				}
-			}).rejects.toThrow("API Error")
+			await expect(handler.createMessage(systemPrompt, messages).next()).rejects.toThrow("API Error")
 		})
 	})
 
@@ -253,6 +251,8 @@ describe("VsCodeLmHandler", () => {
 		})
 
 		it("should return fallback model info when no client exists", () => {
+			// Clear the client first
+			handler["client"] = null
 			const model = handler.getModel()
 			expect(model.id).toBe("test-vendor/test-family")
 			expect(model.info).toBeDefined()
@@ -276,6 +276,10 @@ describe("VsCodeLmHandler", () => {
 				})(),
 			})
 
+			// Override the default client with our test client to ensure it uses
+			// the mock implementation rather than the default fallback
+			handler["client"] = mockLanguageModelChat
+
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe(responseText)
 			expect(mockLanguageModelChat.sendRequest).toHaveBeenCalled()
@@ -287,9 +291,11 @@ describe("VsCodeLmHandler", () => {
 
 			mockLanguageModelChat.sendRequest.mockRejectedValueOnce(new Error("Completion failed"))
 
-			await expect(handler.completePrompt("Test prompt")).rejects.toThrow(
-				"VSCode LM completion error: Completion failed",
-			)
+			// Make sure we're using the mock client
+			handler["client"] = mockLanguageModelChat
+
+			const promise = handler.completePrompt("Test prompt")
+			await expect(promise).rejects.toThrow("VSCode LM completion error: Completion failed")
 		})
 	})
 })
