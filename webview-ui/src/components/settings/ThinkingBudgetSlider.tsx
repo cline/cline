@@ -1,10 +1,10 @@
-import { memo, useState } from "react"
-import { anthropicModels, ApiConfiguration } from "../../../../src/shared/api"
+import { memo, useCallback, useState } from "react"
+import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 
 // Constants
-const MIN_VALID_TOKENS = 1024
+const DEFAULT_MIN_VALID_TOKENS = 1024
 const MAX_PERCENTAGE = 0.8
 const THUMB_SIZE = 16
 
@@ -82,20 +82,32 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 interface ThinkingBudgetSliderProps {
 	apiConfiguration: ApiConfiguration | undefined
 	setApiConfiguration: (apiConfiguration: ApiConfiguration) => void
+	maxBudget?: number
 }
 
-const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
-	const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
-	const maxSliderValue = Math.floor(maxTokens * MAX_PERCENTAGE)
+const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget }: ThinkingBudgetSliderProps) => {
+	const maxTokens =
+		apiConfiguration?.apiProvider === "gemini"
+			? geminiModels[geminiDefaultModelId].maxTokens
+			: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
+
+	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
+	const maxSliderValue = (() => {
+		if (maxBudget !== undefined) {
+			return maxBudget
+		}
+		return Math.floor(maxTokens * MAX_PERCENTAGE)
+	})()
+
 	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
 
 	// Add local state for the slider value
 	const [localValue, setLocalValue] = useState(apiConfiguration?.thinkingBudgetTokens || 0)
 
-	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
 		setLocalValue(value)
-	}
+	}, [])
 
 	const handleSliderComplete = () => {
 		setApiConfiguration({
@@ -106,7 +118,7 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 
 	const handleToggleChange = (event: any) => {
 		const isChecked = (event.target as HTMLInputElement).checked
-		const newValue = isChecked ? MIN_VALID_TOKENS : 0
+		const newValue = isChecked ? DEFAULT_MIN_VALID_TOKENS : 0
 		setLocalValue(newValue)
 		setApiConfiguration({
 			...apiConfiguration,
@@ -123,25 +135,33 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 			{isEnabled && (
 				<>
 					<LabelContainer>
-						<Label>
+						<Label htmlFor="thinking-budget-slider">
 							<strong>Budget:</strong> {localValue.toLocaleString()} tokens
 						</Label>
 					</LabelContainer>
 					<RangeInput
+						id="thinking-budget-slider"
 						type="range"
-						min={MIN_VALID_TOKENS}
+						min={DEFAULT_MIN_VALID_TOKENS}
 						max={maxSliderValue}
-						step={100}
+						step={1}
 						value={localValue}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
 						onTouchEnd={handleSliderComplete}
 						$value={localValue}
-						$min={MIN_VALID_TOKENS}
+						$min={DEFAULT_MIN_VALID_TOKENS}
 						$max={maxSliderValue}
+						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
+						aria-valuemin={DEFAULT_MIN_VALID_TOKENS}
+						aria-valuemax={maxSliderValue}
+						aria-valuenow={localValue}
+						aria-describedby="thinking-budget-description"
 					/>
 
-					<Description>Higher budgets may allow you to achieve more comprehensive and nuanced reasoning</Description>
+					<Description id="thinking-budget-description">
+						Higher budgets may allow you to achieve more comprehensive and nuanced reasoning
+					</Description>
 				</>
 			)}
 		</Container>

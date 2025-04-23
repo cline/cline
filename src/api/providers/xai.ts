@@ -1,9 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "../../shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { ApiStream } from "@api/transform/stream"
+import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
 export class XAIHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -18,13 +19,23 @@ export class XAIHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const modelId = this.getModel().id
+		// ensure reasoning effort is either "low" or "high" for grok-3-mini
+		let reasoningEffort: ChatCompletionReasoningEffort | undefined
+		if (modelId.includes("3-mini")) {
+			let reasoningEffort = this.options.reasoningEffort
+			if (reasoningEffort && !["low", "high"].includes(reasoningEffort)) {
+				reasoningEffort = undefined
+			}
+		}
 		const stream = await this.client.chat.completions.create({
-			model: this.getModel().id,
+			model: modelId,
 			max_completion_tokens: this.getModel().info.maxTokens,
 			temperature: 0,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
+			reasoning_effort: reasoningEffort,
 		})
 
 		for await (const chunk of stream) {
@@ -33,6 +44,14 @@ export class XAIHandler implements ApiHandler {
 				yield {
 					type: "text",
 					text: delta.content,
+				}
+			}
+
+			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+				yield {
+					type: "reasoning",
+					// @ts-ignore-next-line
+					reasoning: delta.reasoning_content,
 				}
 			}
 

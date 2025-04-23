@@ -1,12 +1,14 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
-import { createDirectoriesForFile } from "../../utils/fs"
-import { arePathsEqual } from "../../utils/path"
-import { formatResponse } from "../../core/prompts/responses"
+import { createDirectoriesForFile } from "@utils/fs"
+import { arePathsEqual } from "@utils/path"
+import { formatResponse } from "@core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import { detectEncoding } from "../misc/extract-text"
+import * as iconv from "iconv-lite"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -23,6 +25,7 @@ export class DiffViewProvider {
 	private activeLineController?: DecorationController
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+	private fileEncoding: string = "utf8"
 
 	constructor(private cwd: string) {}
 
@@ -43,9 +46,12 @@ export class DiffViewProvider {
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		if (fileExists) {
-			this.originalContent = await fs.readFile(absolutePath, "utf-8")
+			const fileBuffer = await fs.readFile(absolutePath)
+			this.fileEncoding = await detectEncoding(fileBuffer)
+			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
 		} else {
 			this.originalContent = ""
+			this.fileEncoding = "utf8"
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
 		this.createdDirs = await createDirectoriesForFile(absolutePath)
@@ -79,6 +85,15 @@ export class DiffViewProvider {
 		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
 			throw new Error("Required values not set")
 		}
+
+		// --- Fix to prevent duplicate BOM ---
+		// Strip potential BOM from incoming content. VS Code's `applyEdit` might implicitly handle the BOM
+		// when replacing from the start (0,0), and we want to avoid duplication.
+		// Final BOM is handled in `saveChanges`.
+		if (accumulatedContent.startsWith("\ufeff")) {
+			accumulatedContent = accumulatedContent.slice(1) // Remove the BOM character
+		}
+
 		this.newContent = accumulatedContent
 		const accumulatedLines = accumulatedContent.split("\n")
 		if (!isFinal) {
@@ -96,8 +111,11 @@ export class DiffViewProvider {
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
-		for (let i = 0; i < diffLines.length; i++) {
-			const currentLine = this.streamedLines.length + i
+		// Instead of animating each line, we'll update in larger chunks
+		const currentLine = this.streamedLines.length + diffLines.length - 1
+		if (currentLine >= 0) {
+			// Only proceed if we have new lines
+
 			// Replace all content up to the current line with accumulated lines
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags on previous lines are auto closed for example
 			const edit = new vscode.WorkspaceEdit()
@@ -105,12 +123,33 @@ export class DiffViewProvider {
 			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
 			edit.replace(document.uri, rangeToReplace, contentToReplace)
 			await vscode.workspace.applyEdit(edit)
-			// Update decorations
+
+			// Update decorations for the entire changed section
 			this.activeLineController.setActiveLine(currentLine)
 			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
-			// Scroll to the current line
-			this.scrollEditorToLine(currentLine)
+
+			// Scroll to the last changed line
+			if (diffLines.length <= 5) {
+				// For small changes, just jump directly to the line
+				this.scrollEditorToLine(currentLine)
+			} else {
+				// For larger changes, create a quick scrolling animation
+				const startLine = this.streamedLines.length
+				const endLine = currentLine
+				const totalLines = endLine - startLine
+				const numSteps = 10 // Adjust this number to control animation speed
+				const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
+
+				// Create and await the smooth scrolling animation
+				for (let line = startLine; line <= endLine; line += stepSize) {
+					this.activeDiffEditor?.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.InCenter)
+					await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
+				}
+				// Ensure we end at the final line
+				this.scrollEditorToLine(currentLine)
+			}
 		}
+
 		// Update the streamedLines with the new accumulated content
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
@@ -158,7 +197,6 @@ export class DiffViewProvider {
 			await updatedDocument.save()
 		}
 
-		// await delay(100)
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = updatedDocument.getText()
 
@@ -257,7 +295,7 @@ export class DiffViewProvider {
 				updatedDocument.positionAt(updatedDocument.getText().length),
 			)
 			edit.replace(updatedDocument.uri, fullRange, this.originalContent ?? "")
-			// Apply the edit and save, since contents shouldnt have changed this wont show in local history unless of course the user made changes and saved during the edit
+			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of course the user made changes and saved during the edit
 			await vscode.workspace.applyEdit(edit)
 			await updatedDocument.save()
 			console.log(`File ${absolutePath} has been reverted to its original content.`)

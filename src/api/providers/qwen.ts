@@ -10,7 +10,7 @@ import {
 	internationalQwenDefaultModelId,
 	MainlandQwenModelId,
 	InternationalQwenModelId,
-} from "../../shared/api"
+} from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"

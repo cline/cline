@@ -1,3 +1,5 @@
+import type { LanguageModelChatSelector } from "../api/providers/types"
+
 export type ApiProvider =
 	| "anthropic"
 	| "openrouter"
@@ -12,6 +14,7 @@ export type ApiProvider =
 	| "together"
 	| "deepseek"
 	| "qwen"
+	| "doubao"
 	| "mistral"
 	| "vscode-lm"
 	| "cline"
@@ -25,13 +28,17 @@ export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
 	clineApiKey?: string
+	taskId?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
+	liteLlmUsePromptCache?: boolean
+	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
+	openRouterProviderSorting?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsSessionToken?: string
@@ -53,22 +60,26 @@ export interface ApiHandlerOptions {
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
+	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
+	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
 	qwenApiKey?: string
+	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
-	vsCodeLmModelSelector?: any
+	vsCodeLmModelSelector?: LanguageModelChatSelector
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	reasoningEffort?: string
 	sambanovaApiKey?: string
 	// targon
 	targonApiKey?: string
@@ -78,18 +89,30 @@ export interface ApiHandlerOptions {
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
+	favoritedModelIds?: string[]
 }
 
 // Models
+
+interface PriceTier {
+	tokenLimit: number // Upper limit (inclusive) of *input* tokens for this price. Use Infinity for the highest tier.
+	price: number // Price per million tokens for this tier.
+}
 
 export interface ModelInfo {
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
-	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
-	inputPrice?: number
-	outputPrice?: number
+	inputPrice?: number // Keep for non-tiered input models
+	inputPriceTiers?: PriceTier[] // Add for tiered input pricing
+	outputPrice?: number // Keep for non-tiered output models
+	outputPriceTiers?: PriceTier[] // Add for tiered output pricing
+	thinkingConfig?: {
+		maxBudget?: number // Max allowed thinking budget tokens
+		outputPrice?: number // Output price per million tokens when budget > 0
+		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
+	}
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
@@ -97,6 +120,7 @@ export interface ModelInfo {
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
+	isR1FormatRequired?: boolean
 }
 
 // Anthropic
@@ -108,7 +132,7 @@ export const anthropicModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -119,7 +143,7 @@ export const anthropicModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
 		outputPrice: 15.0, // $15 per million output tokens
@@ -163,11 +187,38 @@ export const anthropicModels = {
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 export const bedrockModels = {
+	"amazon.nova-pro-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 300_000,
+		supportsImages: true,
+
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 3.2,
+	},
+	"amazon.nova-lite-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 300_000,
+		supportsImages: true,
+
+		supportsPromptCache: false,
+		inputPrice: 0.06,
+		outputPrice: 0.24,
+	},
+	"amazon.nova-micro-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 128_000,
+		supportsImages: false,
+
+		supportsPromptCache: false,
+		inputPrice: 0.035,
+		outputPrice: 0.14,
+	},
 	"anthropic.claude-3-7-sonnet-20250219-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -178,7 +229,7 @@ export const bedrockModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -244,7 +295,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
 	supportsImages: true,
-	supportsComputerUse: true,
+
 	supportsPromptCache: true,
 	inputPrice: 3.0,
 	outputPrice: 15.0,
@@ -263,7 +314,7 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -272,7 +323,7 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -343,13 +394,41 @@ export const vertexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-2.0-pro-exp-02-05": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
+	"gemini-2.5-pro-exp-03-25": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+	},
+	"gemini-2.5-pro-preview-03-25": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		// inputPrice: 1.25, // Removed
+		// outputPrice: 10, // Removed
+		inputPriceTiers: [
+			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
+		],
+		outputPriceTiers: [
+			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
+		],
+	},
+	"gemini-2.5-flash-preview-04-17": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
@@ -414,6 +493,7 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: false,
+	isR1FormatRequired: false,
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
@@ -424,6 +504,40 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 export type GeminiModelId = keyof typeof geminiModels
 export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
 export const geminiModels = {
+	"gemini-2.5-pro-exp-03-25": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.5-pro-preview-03-25": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPriceTiers: [
+			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
+		],
+		outputPriceTiers: [
+			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
+		],
+	},
+	"gemini-2.5-flash-preview-04-17": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
+	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
@@ -525,8 +639,53 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4.1"
 export const openAiNativeModels = {
+	o3: {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 10.0,
+		outputPrice: 40.0,
+		cacheReadsPrice: 2.5,
+	},
+	"o4-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.275,
+	},
+	"gpt-4.1": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2,
+		outputPrice: 8,
+		cacheReadsPrice: 0.5,
+	},
+	"gpt-4.1-mini": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.4,
+		outputPrice: 1.6,
+		cacheReadsPrice: 0.1,
+	},
+	"gpt-4.1-nano": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+	},
 	"o3-mini": {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
@@ -582,11 +741,19 @@ export const openAiNativeModels = {
 		outputPrice: 0.6,
 		cacheReadsPrice: 0.075,
 	},
-	"gpt-4.5-preview": {
+	"chatgpt-4o-latest": {
 		maxTokens: 16_384,
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		inputPrice: 5,
+		outputPrice: 15,
+	},
+	"gpt-4.5-preview": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
 		inputPrice: 75,
 		outputPrice: 150,
 	},
@@ -606,8 +773,8 @@ export const deepSeekModels = {
 		maxTokens: 8_000,
 		contextWindow: 64_000,
 		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.27,
+		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this). Input is the sum of cache reads and writes
 		outputPrice: 1.1,
 		cacheWritesPrice: 0.27,
 		cacheReadsPrice: 0.07,
@@ -616,8 +783,8 @@ export const deepSeekModels = {
 		maxTokens: 8_000,
 		contextWindow: 64_000,
 		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.55,
+		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
@@ -1056,6 +1223,54 @@ export const mainlandQwenModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// Doubao
+// https://www.volcengine.com/docs/82379/1298459
+// https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement
+export type DoubaoModelId = keyof typeof doubaoModels
+export const doubaoDefaultModelId: DoubaoModelId = "doubao-1-5-pro-256k-250115"
+export const doubaoModels = {
+	"doubao-1-5-pro-256k-250115": {
+		maxTokens: 12_288,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.7,
+		outputPrice: 1.3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"doubao-1-5-pro-32k-250115": {
+		maxTokens: 12_288,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.11,
+		outputPrice: 0.3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"deepseek-v3-250324": {
+		maxTokens: 12_288,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"deepseek-r1-250120": {
+		maxTokens: 32_768,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.09,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
 // Mistral
 // https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
@@ -1151,9 +1366,11 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
-	supportsPromptCache: false,
+	supportsPromptCache: true,
 	inputPrice: 0,
 	outputPrice: 0,
+	cacheWritesPrice: 0,
+	cacheReadsPrice: 0,
 }
 
 // AskSage Models
@@ -1207,8 +1424,44 @@ export const askSageModels = {
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
-export const xaiDefaultModelId: XAIModelId = "grok-2-latest"
+export const xaiDefaultModelId: XAIModelId = "grok-3-beta"
 export const xaiModels = {
+	"grok-3-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description: "X AI's Grok-3 beta model with 131K context window",
+	},
+	"grok-3-fast-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "X AI's Grok-3 fast beta model with 131K context window",
+	},
+	"grok-3-mini-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.5,
+		description: "X AI's Grok-3 mini beta model with 131K context window",
+	},
+	"grok-3-mini-fast-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 4.0,
+		description: "X AI's Grok-3 mini fast beta model with 131K context window",
+	},
 	"grok-2-latest": {
 		maxTokens: 8192,
 		contextWindow: 131072,
@@ -1368,7 +1621,24 @@ export const sambanovaModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"QwQ-32B": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.0,
+	},
+	"DeepSeek-V3-0324": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 1.5,
+	},
 } as const satisfies Record<string, ModelInfo>
+
 
 // Targon
 export type TargonModelId = keyof typeof targonModels
@@ -1391,3 +1661,4 @@ export const targonModels = {
 		outputPrice: 1.2,
 	},
 } as const satisfies Record<string, ModelInfo>
+

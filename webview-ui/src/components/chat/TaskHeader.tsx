@@ -1,14 +1,15 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { formatLargeNumber } from "../../utils/format"
-import { formatSize } from "../../utils/size"
-import { vscode } from "../../utils/vscode"
-import Thumbnails from "../common/Thumbnails"
-import { normalizeApiConfiguration } from "../settings/ApiOptions"
+import { mentionRegexGlobal } from "@shared/context-mentions"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { formatLargeNumber } from "@/utils/format"
+import { formatSize } from "@/utils/format"
+import { vscode } from "@/utils/vscode"
+import Thumbnails from "@/components/common/Thumbnails"
+import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import { validateSlashCommand } from "@/utils/slash-commands"
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -51,6 +52,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			prevErrorMessageRef.current = checkpointTrackerErrorMessage
 		}
 	}, [checkpointTrackerErrorMessage])
+
+	// Reset isTextExpanded when task is collapsed
+	useEffect(() => {
+		if (!isTaskExpanded) {
+			setIsTextExpanded(false)
+		}
+	}, [isTaskExpanded])
 
 	/*
 	When dealing with event listeners in React components that depend on state variables, we face a challenge. We want our listener to always use the most up-to-date version of a callback function that relies on current state, but we don't want to constantly add and remove event listeners as that function updates. This scenario often arises with resize listeners or other window events. Simply adding the listener in a useEffect with an empty dependency array risks using stale state, while including the callback in the dependencies can lead to unnecessary re-registrations of the listener. There are react hook libraries that provide a elegant solution to this problem by utilizing the useRef hook to maintain a reference to the latest callback function without triggering re-renders or effect re-runs. This approach ensures that our event listener always has access to the most current state while minimizing performance overhead and potential memory leaks from multiple listener registrations. 
@@ -95,17 +103,19 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	useEffect(() => {
 		if (isTaskExpanded && textRef.current && textContainerRef.current) {
-			let textContainerHeight = textContainerRef.current.clientHeight
-			if (!textContainerHeight) {
-				textContainerHeight = textContainerRef.current.getBoundingClientRect().height
-			}
-			const isOverflowing = textRef.current.scrollHeight > textContainerHeight
+			// Use requestAnimationFrame to ensure DOM is fully updated
+			requestAnimationFrame(() => {
+				// Check if refs are still valid
+				if (textRef.current && textContainerRef.current) {
+					let textContainerHeight = textContainerRef.current.clientHeight
+					if (!textContainerHeight) {
+						textContainerHeight = textContainerRef.current.getBoundingClientRect().height
+					}
+					const isOverflowing = textRef.current.scrollHeight > textContainerHeight
 
-			// necessary to show see more button again if user resizes window to expand and then back to collapse
-			if (!isOverflowing) {
-				setIsTextExpanded(false)
-			}
-			setShowSeeMore(isOverflowing)
+					setShowSeeMore(isOverflowing)
+				}
+			})
 		}
 	}, [task.text, windowWidth, isTaskExpanded])
 
@@ -245,7 +255,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								Task
 								{!isTaskExpanded && ":"}
 							</span>
-							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>}
+							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightText(task.text, false)}</span>}
 						</div>
 					</div>
 					{!isTaskExpanded && isCostAvailable && (
@@ -291,7 +301,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
 								}}>
-								{highlightMentions(task.text, false)}
+								{highlightText(task.text, false)}
 							</div>
 							{!isTextExpanded && showSeeMore && (
 								<div
@@ -545,9 +555,41 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	)
 }
 
-export const highlightMentions = (text?: string, withShadow = true) => {
-	if (!text) return text
+/**
+ * Highlights slash-command in this text if it exists
+ */
+const highlightSlashCommands = (text: string, withShadow = true) => {
+	const match = text.match(/^\s*\/([a-zA-Z0-9_-]+)(\s*|$)/)
+	if (!match) {
+		return text
+	}
+
+	const commandName = match[1]
+	const validationResult = validateSlashCommand(commandName)
+
+	if (!validationResult || validationResult !== "full") {
+		return text
+	}
+
+	const commandEndIndex = match[0].length
+	const beforeCommand = text.substring(0, text.indexOf("/"))
+	const afterCommand = match[2] + text.substring(commandEndIndex)
+
+	return [
+		beforeCommand,
+		<span key="slashCommand" className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}>
+			/{commandName}
+		</span>,
+		afterCommand,
+	]
+}
+
+/**
+ * Highlights & formats all mentions inside this text
+ */
+export const highlightMentions = (text: string, withShadow = true) => {
 	const parts = text.split(mentionRegexGlobal)
+
 	return parts.map((part, index) => {
 		if (index % 2 === 0) {
 			// This is regular text
@@ -565,6 +607,30 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 			)
 		}
 	})
+}
+
+/**
+ * Handles parsing both mentions and slash-commands
+ */
+export const highlightText = (text?: string, withShadow = true) => {
+	if (!text) {
+		return text
+	}
+
+	const resultWithSlashHighlighting = highlightSlashCommands(text, withShadow)
+
+	if (resultWithSlashHighlighting === text) {
+		// no highlighting done
+		return highlightMentions(resultWithSlashHighlighting, withShadow)
+	}
+
+	if (Array.isArray(resultWithSlashHighlighting) && resultWithSlashHighlighting.length === 3) {
+		const [beforeCommand, commandElement, afterCommand] = resultWithSlashHighlighting as [string, JSX.Element, string]
+
+		return [beforeCommand, commandElement, ...highlightMentions(afterCommand, withShadow)]
+	}
+
+	return [text]
 }
 
 const DeleteButton: React.FC<{

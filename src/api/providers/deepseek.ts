@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "../../shared/api"
+import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "@shared/api"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -36,14 +36,15 @@ export class DeepSeekHandler implements ApiHandler {
 		}
 		const deepUsage = usage as DeepSeekUsage
 
-		const inputTokens = deepUsage?.prompt_tokens || 0
+		const inputTokens = deepUsage?.prompt_tokens || 0 // sum of cache hits and misses
 		const outputTokens = deepUsage?.completion_tokens || 0
 		const cacheReadTokens = deepUsage?.prompt_cache_hit_tokens || 0
 		const cacheWriteTokens = deepUsage?.prompt_cache_miss_tokens || 0
 		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens) // this will always be 0
 		yield {
 			type: "usage",
-			inputTokens: inputTokens,
+			inputTokens: nonCachedInputTokens,
 			outputTokens: outputTokens,
 			cacheWriteTokens: cacheWriteTokens,
 			cacheReadTokens: cacheReadTokens,

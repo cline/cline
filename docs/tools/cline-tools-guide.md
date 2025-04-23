@@ -20,8 +20,9 @@ Cline is your AI assistant that can:
 
 2. **Provide Context**
 
-    - Use @ mentions to add files, folders, or URLs
-    - Example: "@file:src/components/App.tsx"
+    - Use @ mentions to add files, folders, URLs, diagnostics, terminal output, and more
+    - Example: "@/src/components/App.tsx"
+    - See the [Mentions Feature Guide](./mentions-guide.md) for details
 
 3. **Review Changes**
     - Cline will show diffs before making changes
@@ -54,7 +55,7 @@ Cline is your AI assistant that can:
 
 ## Available Tools
 
-For the most up-to-date implementation details, you can view the full source code in the [Cline repository](https://github.com/cline/cline/blob/main/src/core/Cline.ts).
+For the most up-to-date implementation details, you can view the full source code in the [Cline repository](https://github.com/cline/cline/blob/main/src/core/task/index.ts).
 
 Cline has access to the following tools for various tasks:
 
@@ -81,6 +82,7 @@ Cline has access to the following tools for various tasks:
 4. **Interaction Tools**
     - `ask_followup_question`: Ask user for clarification
     - `attempt_completion`: Present final results
+    - `new_task`: Start a new task with preloaded context
 
 Each tool has specific parameters and usage patterns. Here are some examples:
 
@@ -111,6 +113,21 @@ Each tool has specific parameters and usage patterns. Here are some examples:
     <command>npm install axios</command>
     <requires_approval>false</requires_approval>
     </execute_command>
+    ```
+
+-   Start a new task with context (new_task):
+    ```xml
+    <new_task>
+    <context>
+    We've completed the backend API with these endpoints:
+    - GET /api/tasks
+    - POST /api/tasks
+    - PUT /api/tasks/:id
+    - DELETE /api/tasks/:id
+
+    Now we need to implement the React frontend.
+    </context>
+    </new_task>
     ```
 
 ## Common Tasks

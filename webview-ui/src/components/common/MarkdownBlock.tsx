@@ -1,11 +1,13 @@
 import React, { memo, useEffect } from "react"
+import type { ComponentProps } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
-import MermaidBlock from "./MermaidBlock"
+import type { Node } from "unist"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import MermaidBlock from "@/components/common/MermaidBlock"
 
 interface MarkdownBlockProps {
 	markdown?: string
@@ -20,7 +22,7 @@ interface MarkdownBlockProps {
  * This caused the entire content to disappear because the structure became invalid.
  */
 const remarkUrlToLink = () => {
-	return (tree: any) => {
+	return (tree: Node) => {
 		// Visit all "text" nodes in the markdown AST (Abstract Syntax Tree)
 		visit(tree, "text", (node: any, index, parent) => {
 			const urlRegex = /https?:\/\/[^\s<>)"]+/g
@@ -234,7 +236,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 						</StyledPre>
 					)
 				},
-				code: (props: any) => {
+				code: (props: ComponentProps<"code">) => {
 					const className = props.className || ""
 					if (className.includes("language-mermaid")) {
 						const codeText = String(props.children || "")

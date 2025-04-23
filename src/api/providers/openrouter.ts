@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -37,7 +37,10 @@ export class OpenRouterHandler implements ApiHandler {
 			this.getModel(),
 			this.options.o3MiniReasoningEffort,
 			this.options.thinkingBudgetTokens,
+			this.options.openRouterProviderSorting,
 		)
+
+		let didOutputUsage: boolean = false
 
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
@@ -69,17 +72,31 @@ export class OpenRouterHandler implements ApiHandler {
 					reasoning: delta.reasoning,
 				}
 			}
+
+			if (!didOutputUsage && chunk.usage) {
+				yield {
+					type: "usage",
+					inputTokens: chunk.usage.prompt_tokens || 0,
+					outputTokens: chunk.usage.completion_tokens || 0,
+					// @ts-ignore-next-line
+					totalCost: chunk.usage.cost || 0,
+				}
+				didOutputUsage = true
+			}
 		}
 
-		const apiStreamUsage = await this.getApiStreamUsage()
-		if (apiStreamUsage) {
-			yield apiStreamUsage
+		// Fallback to generation endpoint if usage chunk not returned
+		if (!didOutputUsage) {
+			const apiStreamUsage = await this.getApiStreamUsage()
+			if (apiStreamUsage) {
+				yield apiStreamUsage
+			}
 		}
 	}
 
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
-			await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+			await setTimeoutPromise(500) // FIXME: necessary delay to ensure generation endpoint is ready
 			try {
 				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
 				const generation = (await generationIterator.next()).value

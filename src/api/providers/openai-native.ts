@@ -2,17 +2,11 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	openAiNativeDefaultModelId,
-	OpenAiNativeModelId,
-	openAiNativeModels,
-} from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openAiNativeDefaultModelId, OpenAiNativeModelId, openAiNativeModels } from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
-import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
+import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -26,14 +20,15 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
-		const inputTokens = usage?.prompt_tokens || 0
+		const inputTokens = usage?.prompt_tokens || 0 // sum of cache hits and misses
 		const outputTokens = usage?.completion_tokens || 0
 		const cacheReadTokens = usage?.prompt_tokens_details?.cached_tokens || 0
 		const cacheWriteTokens = 0
 		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
 		yield {
 			type: "usage",
-			inputTokens: inputTokens,
+			inputTokens: nonCachedInputTokens,
 			outputTokens: outputTokens,
 			cacheWriteTokens: cacheWriteTokens,
 			cacheReadTokens: cacheReadTokens,
@@ -49,7 +44,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o1":
 			case "o1-preview":
 			case "o1-mini": {
-				// o1 doesnt support streaming, non-1 temp, or system prompt
+				// o1 doesn't support streaming, non-1 temp, or system prompt
 				const response = await this.client.chat.completions.create({
 					model: model.id,
 					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
@@ -63,6 +58,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 				break
 			}
+			case "o4-mini":
+			case "o3":
 			case "o3-mini": {
 				const stream = await this.client.chat.completions.create({
 					model: model.id,

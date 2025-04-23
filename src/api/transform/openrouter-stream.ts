@@ -1,10 +1,8 @@
-import { ModelInfo } from "../../shared/api"
-import { convertToOpenAiMessages } from "./openai-format"
-import { convertToR1Format } from "./r1-format"
-import { ApiStream, ApiStreamChunk } from "./stream"
+import { ModelInfo } from "@shared/api"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { convertToR1Format } from "@api/transform/r1-format"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { OpenRouterErrorResponse } from "../providers/types"
 
 export async function createOpenRouterStream(
 	client: OpenAI,
@@ -13,6 +11,7 @@ export async function createOpenRouterStream(
 	model: { id: string; info: ModelInfo },
 	o3MiniReasoningEffort?: string,
 	thinkingBudgetTokens?: number,
+	openRouterProviderSorting?: string,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -141,10 +140,12 @@ export async function createOpenRouterStream(
 		top_p: topP,
 		messages: openAiMessages,
 		stream: true,
+		stream_options: { include_usage: true },
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
 		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
+		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 	})
 
 	return stream

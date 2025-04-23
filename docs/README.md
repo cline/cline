@@ -18,6 +18,7 @@ Welcome to the Cline documentation - your comprehensive guide to using and exten
 -   **Understand Cline's capabilities:**
 
     -   [Cline Tools Guide](tools/cline-tools-guide.md)
+    -   [Mentions Feature Guide](tools/mentions-guide.md)
 
 -   **Extend Cline with MCP Servers:**
     -   [MCP Overview](mcp/README.md)
