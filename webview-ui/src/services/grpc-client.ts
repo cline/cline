@@ -4,7 +4,7 @@ import { BrowserServiceDefinition } from "@shared/proto/browser"
 import { CheckpointsServiceDefinition } from "@shared/proto/checkpoints"
 import { FileServiceDefinition } from "@shared/proto/file"
 import { EmptyRequest } from "@shared/proto/common"
-
+import { McpServiceDefinition } from "@shared/proto/mcp"
 // Generic type for any protobuf service definition
 type ProtoService = {
 	name: string
@@ -97,5 +97,6 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
 const CheckpointsServiceClient = createGrpcClient(CheckpointsServiceDefinition)
 const FileServiceClient = createGrpcClient(FileServiceDefinition)
+const McpServiceClient = createGrpcClient(McpServiceDefinition)
 
-export { BrowserServiceClient, CheckpointsServiceClient, FileServiceClient }
+export { BrowserServiceClient, CheckpointsServiceClient, McpServiceClient, FileServiceClient }
