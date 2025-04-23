@@ -98,7 +98,6 @@ export interface ModelInfo {
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
-	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
 	inputPrice?: number // Keep for non-tiered input models
 	inputPriceTiers?: PriceTier[] // Add for tiered input pricing
@@ -128,7 +127,7 @@ export const anthropicModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -139,7 +138,7 @@ export const anthropicModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0, // $3 per million input tokens
 		outputPrice: 15.0, // $15 per million output tokens
@@ -187,7 +186,7 @@ export const bedrockModels = {
 		maxTokens: 5000,
 		contextWindow: 300_000,
 		supportsImages: true,
-		supportsComputerUse: false,
+
 		supportsPromptCache: false,
 		inputPrice: 0.8,
 		outputPrice: 3.2,
@@ -196,7 +195,7 @@ export const bedrockModels = {
 		maxTokens: 5000,
 		contextWindow: 300_000,
 		supportsImages: true,
-		supportsComputerUse: false,
+
 		supportsPromptCache: false,
 		inputPrice: 0.06,
 		outputPrice: 0.24,
@@ -205,7 +204,7 @@ export const bedrockModels = {
 		maxTokens: 5000,
 		contextWindow: 128_000,
 		supportsImages: false,
-		supportsComputerUse: false,
+
 		supportsPromptCache: false,
 		inputPrice: 0.035,
 		outputPrice: 0.14,
@@ -214,7 +213,7 @@ export const bedrockModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -225,7 +224,7 @@ export const bedrockModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -291,7 +290,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
 	supportsImages: true,
-	supportsComputerUse: true,
+
 	supportsPromptCache: true,
 	inputPrice: 3.0,
 	outputPrice: 15.0,
@@ -310,7 +309,7 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -319,7 +318,7 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsComputerUse: true,
+
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -1642,7 +1641,7 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
 	supportsImages: true,
-	supportsComputerUse: false,
+
 	supportsPromptCache: true,
 	inputPrice: 3.0,
 	outputPrice: 15.0,
