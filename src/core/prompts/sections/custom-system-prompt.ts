@@ -5,6 +5,10 @@ import { fileExistsAtPath } from "../../../utils/fs"
 
 export type PromptVariables = {
 	workspace?: string
+	mode?: string
+	language?: string
+	shell?: string
+	operatingSystem?: string
 }
 
 function interpolatePromptContent(content: string, variables: PromptVariables): string {
