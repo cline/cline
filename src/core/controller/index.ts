@@ -953,6 +953,9 @@ export class Controller {
 				case "ollama":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
 					break
+				case "netmind":
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.netmindModelId)
+					break
 				case "lmstudio":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmStudioModelId)
 					break
@@ -987,6 +990,9 @@ export class Controller {
 					case "deepseek":
 					case "xai":
 						await updateGlobalState(this.context, "apiModelId", newModelId)
+						break
+					case "netmind":
+						await updateGlobalState(this.context, "netmindModelId", newModelId)
 						break
 					case "openrouter":
 					case "cline":

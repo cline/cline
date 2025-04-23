@@ -12,6 +12,7 @@ import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { RequestyHandler } from "./providers/requesty"
+import { NetmindHandler } from "./providers/netmind"
 import { TogetherHandler } from "./providers/together"
 import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
@@ -78,6 +79,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new XAIHandler(options)
 		case "sambanova":
 			return new SambanovaHandler(options)
+		case "netmind":
+			return new NetmindHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
