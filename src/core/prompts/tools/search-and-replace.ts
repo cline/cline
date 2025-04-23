@@ -2,7 +2,7 @@ import { ToolArgs } from "./types"
 
 export function getSearchAndReplaceDescription(args: ToolArgs): string {
 	return `## search_and_replace
-Description: Request to perform a search and replace operation on a file. Supports both literal text and regex patterns. Shows a diff preview before applying changes.
+Description: Use this tool to find and replace specific text strings or patterns (using regex) within a file. It's suitable for targeted replacements across multiple locations within the file. Supports literal text and regex patterns, case sensitivity options, and optional line ranges. Shows a diff preview before applying changes.
 
 Required Parameters:
 - path: The path of the file to modify (relative to the current workspace directory ${args.cwd.toPosix()})
