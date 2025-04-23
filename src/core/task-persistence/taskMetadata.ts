@@ -9,7 +9,7 @@ import { findLastIndex } from "../../shared/array"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { getTaskDirectoryPath } from "../../shared/storagePathManager"
 
-const taskSizeCache = new NodeCache({ stdTTL: 5 * 60, checkperiod: 30 })
+const taskSizeCache = new NodeCache({ stdTTL: 30, checkperiod: 5 * 60 })
 
 export type TaskMetadataOptions = {
 	messages: ClineMessage[]
