@@ -1,89 +1,89 @@
 name: "Find or create Linear issue via GraphQL"
 description: "Searches for an existing Linear issue by PR URL or creates one if missing"
 inputs:
-  team-id:
-    description: "Linear team ID"
-    required: true
-  api-key:
-    description: "Linear API key (from secrets)"
-    required: true
-  state-id:
-    description: "Linear state ID for new issues"
-    required: true
-  label-ids:
-    description: 'JSON array of label IDs for new issues, e.g. ["id1","id2"]'
-    required: true
+    team-id:
+        description: "Linear team ID"
+        required: true
+    api-key:
+        description: "Linear API key (from secrets)"
+        required: true
+    state-id:
+        description: "Linear state ID for new issues"
+        required: true
+    label-ids:
+        description: 'JSON array of label IDs for new issues, e.g. ["id1","id2"]'
+        required: true
 outputs:
-  linear-issue-url:
-    description: "URL of the found or created Linear issue"
-    value: ${{ steps.linear.outputs.linear-issue-url }}
+    linear-issue-url:
+        description: "URL of the found or created Linear issue"
+        value: ${{ steps.linear.outputs.linear-issue-url }}
 runs:
-  using: "composite"
-  steps:
-    - id: linear
-      name: Find or create Linear issue
-      uses: actions/github-script@v6
-      env:
-        LINEAR_API_KEY: ${{ inputs.api-key }}
-      with:
-        result-encoding: string
-        script: |
-          const API = 'https://api.linear.app/graphql';
-          const apiKey = process.env.LINEAR_API_KEY;
-          if (!apiKey) {
-            core.setFailed('LINEAR_API_KEY is not set. Provide it via action input.');
-            core.setOutput('error', 'true');
-            core.setOutput('error-message', 'LINEAR_API_KEY missing');
-            return;
-          }
-          async function gql(q, v) {
-            const resp = await fetch(API, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': apiKey
-              },
-              body: JSON.stringify({ query: q, variables: v })
-            });
-            if (!resp.ok) {
-              throw new Error(`Linear API ${resp.status}: ${await resp.text()}`);
-            }
-            const body = await resp.json();
-            if (body.errors && body.errors.length) {
-              throw new Error(`GraphQL errors: ${body.errors.map(e => e.message).join(', ')}`);
-            }
-            return body.data;
-          }
-          try {
-            const pr = context.payload.pull_request;
-            const teamId = inputs['team-id'];
-            // search existing by attachment URL
-            const searchData = await gql(
-              `query($team:ID!,$url:String!){
-                 issues(filter: { team: { id: { eq: $team } } attachments: { some: { url: { eq: $url } } } }){ nodes { id url } }
-               }`,
-              { team: teamId, url: pr.html_url }
-            );
-            let issue = searchData.issues.nodes[0];
-            if (!issue) {
-              const labels = JSON.parse(inputs['label-ids']);
-              const createData = await gql(
-                `mutation($input:IssueCreateInput!){
-                   issueCreate(input:$input){ issue { id url } }
-                 }`,
-                {
-                  input: {
-                    teamId,
-                    title: `[GITHUB] ${pr.title}`,
-                    description: `${pr.body||''}\n\n${pr.html_url}`,
-                    stateId: inputs['state-id'],
-                    labelIds: labels
+    using: "composite"
+    steps:
+        - id: linear
+          name: Find or create Linear issue
+          uses: actions/github-script@v6
+          env:
+              LINEAR_API_KEY: ${{ inputs.api-key }}
+          with:
+              result-encoding: string
+              script: |
+                  const API = 'https://api.linear.app/graphql';
+                  const apiKey = process.env.LINEAR_API_KEY;
+                  if (!apiKey) {
+                    core.setFailed('LINEAR_API_KEY is not set. Provide it via action input.');
+                    core.setOutput('error', 'true');
+                    core.setOutput('error-message', 'LINEAR_API_KEY missing');
+                    return;
                   }
-                }
-              );
-              issue = createData.issueCreate.issue;
-            }
-            core.setOutput('linear-issue-url', issue.url);
-          } catch (err) {
-            core.setFailed(err.message);
-          }
+                  async function gql(q, v) {
+                    const resp = await fetch(API, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': apiKey
+                      },
+                      body: JSON.stringify({ query: q, variables: v })
+                    });
+                    if (!resp.ok) {
+                      throw new Error(`Linear API ${resp.status}: ${await resp.text()}`);
+                    }
+                    const body = await resp.json();
+                    if (body.errors && body.errors.length) {
+                      throw new Error(`GraphQL errors: ${body.errors.map(e => e.message).join(', ')}`);
+                    }
+                    return body.data;
+                  }
+                  try {
+                    const pr = context.payload.pull_request;
+                    const teamId = inputs['team-id'];
+                    // search existing by attachment URL
+                    const searchData = await gql(
+                      `query($team:ID!,$url:String!){
+                         issues(filter: { team: { id: { eq: $team } } attachments: { some: { url: { eq: $url } } } }){ nodes { id url } }
+                       }`,
+                      { team: teamId, url: pr.html_url }
+                    );
+                    let issue = searchData.issues.nodes[0];
+                    if (!issue) {
+                      const labels = JSON.parse(inputs['label-ids']);
+                      const createData = await gql(
+                        `mutation($input:IssueCreateInput!){
+                           issueCreate(input:$input){ issue { id url } }
+                         }`,
+                        {
+                          input: {
+                            teamId,
+                            title: `[GITHUB] ${pr.title}`,
+                            description: `${pr.body||''}\n\n${pr.html_url}`,
+                            stateId: inputs['state-id'],
+                            labelIds: labels
+                          }
+                        }
+                      );
+                      issue = createData.issueCreate.issue;
+                    }
+                    core.setOutput('linear-issue-url', issue.url);
+                  } catch (err) {
+                    core.setFailed(err.message);
+                  }

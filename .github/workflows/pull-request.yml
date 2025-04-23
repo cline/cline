@@ -7,12 +7,16 @@ on:
         types: [opened, synchronize]
 
 permissions:
+    contents: read
     pull-requests: write
 
 jobs:
     create-linear-issue-on-pull-request:
         runs-on: ubuntu-latest
         steps:
+            - name: Checkout
+              uses: actions/checkout@v3
+
             - name: Check for existing Linear link
               id: check-linear
               uses: ./.github/actions/check-linear
