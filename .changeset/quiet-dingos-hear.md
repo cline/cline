@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Protobus migration for cancelTask
+Protobus migration for clearTask
