@@ -105,6 +105,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.deepSeekApiKey,
 							config.requestyApiKey,
 							config.togetherApiKey,
+							config.netmindApiKey,
 							config.qwenApiKey,
 							config.doubaoApiKey,
 							config.mistralApiKey,

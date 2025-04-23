@@ -974,6 +974,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
 				case "together":
 					return `${selectedProvider}:${apiConfiguration.togetherModelId}`
+				case "netmind":
+					return `${selectedProvider}:${apiConfiguration.netmindModelId}`
 				case "lmstudio":
 					return `${selectedProvider}:${apiConfiguration.lmStudioModelId}`
 				case "ollama":

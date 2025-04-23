@@ -12,6 +12,7 @@ export type ApiProvider =
 	| "openai-native"
 	| "requesty"
 	| "together"
+	| "netmind"
 	| "deepseek"
 	| "qwen"
 	| "doubao"
@@ -67,6 +68,8 @@ export interface ApiHandlerOptions {
 	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
+	netmindApiKey?: string
+	netmindModelId?: string
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
