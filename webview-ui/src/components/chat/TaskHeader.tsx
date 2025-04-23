@@ -7,6 +7,7 @@ import { CloudUpload, CloudDownload } from "lucide-react"
 import { ClineMessage } from "@roo/shared/ExtensionMessage"
 
 import { getMaxTokensForModel } from "@/utils/model-utils"
+import { formatLargeNumber } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
@@ -141,13 +142,13 @@ const TaskHeader = ({
 									{typeof tokensIn === "number" && tokensIn > 0 && (
 										<span className="flex items-center gap-0.5">
 											<i className="codicon codicon-arrow-up text-xs font-bold" />
-											{tokensIn}
+											{formatLargeNumber(tokensIn)}
 										</span>
 									)}
 									{typeof tokensOut === "number" && tokensOut > 0 && (
 										<span className="flex items-center gap-0.5">
 											<i className="codicon codicon-arrow-down text-xs font-bold" />
-											{tokensOut}
+											{formatLargeNumber(tokensOut)}
 										</span>
 									)}
 								</div>
@@ -160,13 +161,13 @@ const TaskHeader = ({
 									{typeof cacheWrites === "number" && cacheWrites > 0 && (
 										<span className="flex items-center gap-0.5">
 											<CloudUpload size={16} />
-											{cacheWrites}
+											{formatLargeNumber(cacheWrites)}
 										</span>
 									)}
 									{typeof cacheReads === "number" && cacheReads > 0 && (
 										<span className="flex items-center gap-0.5">
 											<CloudDownload size={16} />
-											{cacheReads}
+											{formatLargeNumber(cacheReads)}
 										</span>
 									)}
 								</div>
