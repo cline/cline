@@ -139,7 +139,7 @@ export function activate(context: vscode.ExtensionContext) {
 					"https://api.targon.com/v1/chat/completions",
 					{
 						model: "deepseek-ai/DeepSeek-R1",
-						messages: [{ role: "user", content: "Say hello from inside Cline!" }],
+						messages: [{ role: "user", content: "Why do babies eat tables?" }],
 						stream: false,
 					},
 					{

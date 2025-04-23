@@ -60,7 +60,8 @@
 				{
 					"type": "webview",
 					"id": "claude-dev.SidebarProvider",
-					"name": ""
+					"name": "",
+					"icon": ""
 				}
 			]
 		},
