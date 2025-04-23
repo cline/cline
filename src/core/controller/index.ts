@@ -266,17 +266,6 @@ export class Controller {
 				})
 				break
 			}
-			case "newTask":
-				// Code that should run in response to the hello message command
-				//vscode.window.showInformationMessage(message.text!)
-
-				// Send a message to our webview.
-				// You can send any JSON serializable data.
-				// Could also do this in extension .ts
-				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images)
-				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
 					await updateApiConfiguration(this.context, message.apiConfiguration)
@@ -330,11 +319,6 @@ export class Controller {
 				break
 			case "askResponse":
 				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
-				break
-			case "clearTask":
-				// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
-				await this.clearTask()
-				await this.postStateToWebview()
 				break
 			case "didShowAnnouncement":
 				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)

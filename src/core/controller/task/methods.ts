@@ -4,9 +4,13 @@
 // Import all method implementations
 import { registerMethod } from "./index"
 import { cancelTask } from "./cancelTask"
+import { clearTask } from "./clearTask"
+import { newTask } from "./newTask"
 
 // Register all task service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("cancelTask", cancelTask)
+	registerMethod("clearTask", clearTask)
+	registerMethod("newTask", newTask)
 }
