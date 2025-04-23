@@ -532,7 +532,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		 * match[4] - The resource ID (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
 		 */
 
-		const arnRegex = /^arn:aws:bedrock:([^:]+):([^:]*):(?:([^\/]+)\/([\w\.\-:]+)|([^\/]+))$/
+		const arnRegex = /^arn:aws:(?:bedrock|sagemaker):([^:]+):([^:]*):(?:([^\/]+)\/([\w\.\-:]+)|([^\/]+))$/
 		let match = arn.match(arnRegex)
 
 		if (match && match[1] && match[3] && match[4]) {

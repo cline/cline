@@ -89,7 +89,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
  */
 export function validateBedrockArn(arn: string, region?: string) {
 	// Validate ARN format
-	const arnRegex = /^arn:aws:bedrock:([^:]+):([^:]*):(?:([^/]+)\/([\w.\-:]+)|([^/]+))$/
+	const arnRegex = /^arn:aws:(?:bedrock|sagemaker):([^:]+):([^:]*):(?:([^/]+)\/([\w.\-:]+)|([^/]+))$/
 	const match = arn.match(arnRegex)
 
 	if (!match) {
