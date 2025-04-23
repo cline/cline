@@ -2,9 +2,9 @@ import axios from "axios"
 import * as vscode from "vscode"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { getTheme } from "../../integrations/theme/getTheme"
-import { Controller } from "../controller"
-import { findLast } from "../../shared/array"
+import { getTheme } from "@integrations/theme/getTheme"
+import { Controller } from "@core/controller/index"
+import { findLast } from "@shared/array"
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts

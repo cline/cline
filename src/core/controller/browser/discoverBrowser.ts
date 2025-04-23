@@ -1,9 +1,9 @@
-import { BrowserConnection } from "../../../shared/proto/browser"
-import { EmptyRequest } from "../../../shared/proto/common"
+import { BrowserConnection } from "@shared/proto/browser"
+import { EmptyRequest } from "@shared/proto/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "../../storage/state"
-import { BrowserSession } from "../../../services/browser/BrowserSession"
-import { discoverChromeInstances } from "../../../services/browser/BrowserDiscovery"
+import { getAllExtensionState } from "@core/storage/state"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 
 /**
  * Discover Chrome instances

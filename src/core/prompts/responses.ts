@@ -2,7 +2,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
-import { McpToolCallResponse } from "../../shared/mcp"
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
