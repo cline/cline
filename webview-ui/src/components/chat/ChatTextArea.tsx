@@ -1351,6 +1351,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							data-testid="context-button"
 							appearance="icon"
 							aria-label="Add Context"
+							title="Add Context (@mention files, problems, terminal, git commits)"
 							disabled={textAreaDisabled}
 							onClick={handleContextButtonClick}
 							style={{ padding: "0px 0px", height: "20px" }}>
@@ -1366,6 +1367,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							data-testid="images-button"
 							appearance="icon"
 							aria-label="Add Images"
+							title="Add Images"
 							disabled={shouldDisableImages}
 							onClick={() => {
 								if (!shouldDisableImages) {
@@ -1391,6 +1393,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									isActive={showModelSelector}
 									disabled={false}
 									onClick={handleModelButtonClick}
+									title="Select Model / API Provider"
 									// onKeyDown={(e) => {
 									// 	if (e.key === "Enter" || e.key === " ") {
 									// 		e.preventDefault()

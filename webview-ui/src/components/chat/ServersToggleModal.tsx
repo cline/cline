@@ -44,6 +44,7 @@ const ServersToggleModal: React.FC = () => {
 				<VSCodeButton
 					appearance="icon"
 					aria-label="MCP Servers"
+					title="Manage MCP Servers"
 					onClick={() => setIsVisible(!isVisible)}
 					style={{ padding: "0px 0px", height: "20px" }}>
 					<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">

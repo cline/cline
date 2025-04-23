@@ -63,7 +63,8 @@ const ClineRulesToggleModal: React.FC = () => {
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
 				<VSCodeButton
 					appearance="icon"
-					aria-label="Cline Rules"
+					aria-label="Prompt Library"
+					title="Manage Prompt Library"
 					onClick={() => setIsVisible(!isVisible)}
 					style={{ padding: "0px 0px", height: "20px" }}>
 					<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
