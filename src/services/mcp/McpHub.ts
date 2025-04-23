@@ -501,7 +501,7 @@ export class McpHub {
 
 	// Public methods for server management
 
-	public async toggleServerDisabled(serverName: string, disabled: boolean): Promise<void> {
+	public async toggleServerDisabledRPC(serverName: string, disabled: boolean): Promise<McpServer[]> {
 		try {
 			const config = await this.readAndValidateMcpSettingsFile()
 			if (!config) {
@@ -519,8 +519,20 @@ export class McpHub {
 					connection.server.disabled = disabled
 				}
 
-				await this.notifyWebviewOfServerChanges()
+				const serverOrder = Object.keys(config.mcpServers || {})
+
+				const mcpServers = [...this.connections]
+					.sort((a, b) => {
+						const indexA = serverOrder.indexOf(a.server.name)
+						const indexB = serverOrder.indexOf(b.server.name)
+						return indexA - indexB
+					})
+					.map((connection) => connection.server)
+
+				return mcpServers
 			}
+			console.error(`Server "${serverName}" not found in MCP configuration`)
+			throw new Error(`Server "${serverName}" not found in MCP configuration`)
 		} catch (error) {
 			console.error("Failed to update server disabled state:", error)
 			if (error instanceof Error) {
