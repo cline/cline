@@ -3,6 +3,24 @@ import path from "path"
 import { Mode } from "../../../shared/modes"
 import { fileExistsAtPath } from "../../../utils/fs"
 
+export type PromptVariables = {
+	workspace?: string
+}
+
+function interpolatePromptContent(content: string, variables: PromptVariables): string {
+	let interpolatedContent = content
+	for (const key in variables) {
+		if (
+			Object.prototype.hasOwnProperty.call(variables, key) &&
+			variables[key as keyof PromptVariables] !== undefined
+		) {
+			const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, "g")
+			interpolatedContent = interpolatedContent.replace(placeholder, variables[key as keyof PromptVariables]!)
+		}
+	}
+	return interpolatedContent
+}
+
 /**
  * Safely reads a file, returning an empty string if the file doesn't exist
  */
@@ -31,9 +49,14 @@ export function getSystemPromptFilePath(cwd: string, mode: Mode): string {
  * Loads custom system prompt from a file at .roo/system-prompt-[mode slug]
  * If the file doesn't exist, returns an empty string
  */
-export async function loadSystemPromptFile(cwd: string, mode: Mode): Promise<string> {
+export async function loadSystemPromptFile(cwd: string, mode: Mode, variables: PromptVariables): Promise<string> {
 	const filePath = getSystemPromptFilePath(cwd, mode)
-	return safeReadFile(filePath)
+	const rawContent = await safeReadFile(filePath)
+	if (!rawContent) {
+		return ""
+	}
+	const interpolatedContent = interpolatePromptContent(rawContent, variables)
+	return interpolatedContent
 }
 
 /**
