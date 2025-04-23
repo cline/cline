@@ -6,10 +6,10 @@ import {
 	OAuthTokens,
 	OAuthClientMetadata,
 } from "@modelcontextprotocol/sdk/shared/auth.js"
-import { OAuthProviderOptions } from "../../shared/mcp.js"
-import { getServerAuthHash } from "../../shared/utils.js"
+import { OAuthProviderOptions } from "@shared/mcp"
+import { getServerAuthHash } from "@utils/mcpAuth"
 import { randomBytes } from "crypto"
-import { OAuthLogger, maskUrl } from "../../services/logging/OAuthLogger"
+import { OAuthLogger, maskUrl } from "@services/logging/OAuthLogger"
 
 export class McpOAuthClientProvider implements OAuthClientProvider {
 	private callbackPath: string
