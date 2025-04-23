@@ -1282,7 +1282,7 @@ export const ChatRowContent = ({
 										marginBottom: "-1.5px",
 									}}></span>
 								<span style={{ color: normalColor, fontWeight: "bold" }}>
-									Cline wants to condense your context window:
+									Cline wants to condense your conversation:
 								</span>
 							</div>
 							<NewTaskPreview context={message.text || ""} />

@@ -206,7 +206,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setTextAreaDisabled(isPartial)
 							setClineAsk("condense")
 							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Condense Context Window")
+							setPrimaryButtonText("Condense Conversation")
 							setSecondaryButtonText(undefined)
 							break
 					}

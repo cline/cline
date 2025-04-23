@@ -193,15 +193,17 @@ export class ContextManager {
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		currentDeletedRange: [number, number] | undefined,
-		keep: "full" | "half" | "quarter",
+		keep: "none" | "lastTwo" | "half" | "quarter",
 	): [number, number] {
 		// We always keep the first user-assistant pairing, and truncate an even number of messages from there
 		const rangeStartIndex = 2 // index 0 and 1 are kept
 		const startOfRest = currentDeletedRange ? currentDeletedRange[1] + 1 : 2 // inclusive starting index
 
 		let messagesToRemove: number
-		if (keep === "full") {
-			messagesToRemove = apiMessages.length - startOfRest
+		if (keep === "none") {
+			messagesToRemove = Math.max(apiMessages.length - startOfRest, 0)
+		} else if (keep === "lastTwo") {
+			messagesToRemove = Math.max(apiMessages.length - startOfRest - 2, 0)
 		} else if (keep === "half") {
 			// Remove half of remaining user-assistant pairs
 			// We first calculate half of the messages then divide by 2 to get the number of pairs.
@@ -382,6 +384,16 @@ export class ContextManager {
 		const contextHistoryUpdated = fileReadUpdatesBool
 
 		return [contextHistoryUpdated, uniqueFileReadIndices]
+	}
+
+	/**
+	 * Public function for triggering potentially setting the truncation message
+	 */
+	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
+		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		if (updated) {
+			await this.saveContextHistory(taskDirectory)
+		}
 	}
 
 	/**

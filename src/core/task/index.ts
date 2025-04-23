@@ -1676,7 +1676,7 @@ export class Task {
 						case "new_task":
 							return `[${block.name} for creating a new task]`
 						case "condense":
-							return `[${block.name} for creating a new task]`
+							return `[${block.name}]`
 					}
 				}
 
@@ -3048,17 +3048,23 @@ export class Task {
 									)
 								} else {
 									// If no response, the user accepted the condensed version
-									pushToolResult(
-										formatResponse.toolResult(`The user has accepted the condensed conversation summary.`),
-									)
+									pushToolResult(formatResponse.toolResult(formatResponse.condense()))
+
+									const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+									const summaryAlreadyAppended = lastMessage && lastMessage.role === "assistant"
+									const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
 
 									// clear the context history at this point in time
 									this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 										this.apiConversationHistory,
 										this.conversationHistoryDeletedRange,
-										"full", // keeps the new summary & user message before it
+										keepStrategy,
 									)
 									await this.saveClineMessagesAndUpdateHistory()
+									await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+										Date.now(),
+										await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+									)
 								}
 								break
 							}
