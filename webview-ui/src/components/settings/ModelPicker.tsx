@@ -5,8 +5,9 @@ import { ChevronsUpDown, Check, X } from "lucide-react"
 
 import { ProviderSettings, ModelInfo } from "@roo/schemas"
 
-import { useAppTranslation } from "@/i18n/TranslationContext"
-import { cn } from "@/lib/utils"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { normalizeApiConfiguration } from "@src/utils/normalizeApiConfiguration"
+import { cn } from "@src/lib/utils"
 import {
 	Command,
 	CommandEmpty,
@@ -18,9 +19,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 	Button,
-} from "@/components/ui"
+} from "@src/components/ui"
 
-import { normalizeApiConfiguration } from "./ApiOptions"
 import { ThinkingBudget } from "./ThinkingBudget"
 import { ModelInfoView } from "./ModelInfoView"
 
@@ -205,10 +205,7 @@ export const ModelPicker = ({
 						serviceLink: <VSCodeLink href={serviceUrl} className="text-sm" />,
 						defaultModelLink: <VSCodeLink onClick={() => onSelect(defaultModelId)} className="text-sm" />,
 					}}
-					values={{
-						serviceName,
-						defaultModelId,
-					}}
+					values={{ serviceName, defaultModelId }}
 				/>
 			</div>
 		</>

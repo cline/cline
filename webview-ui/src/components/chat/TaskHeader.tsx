@@ -6,14 +6,14 @@ import { CloudUpload, CloudDownload } from "lucide-react"
 
 import { ClineMessage } from "@roo/shared/ExtensionMessage"
 
-import { getMaxTokensForModel } from "@/utils/model-utils"
-import { formatLargeNumber } from "@/utils/format"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui"
+import { getMaxTokensForModel } from "@src/utils/model-utils"
+import { formatLargeNumber } from "@src/utils/format"
+import { cn } from "@src/lib/utils"
+import { Button } from "@src/components/ui"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { normalizeApiConfiguration } from "@src/utils/normalizeApiConfiguration"
 
 import Thumbnails from "../common/Thumbnails"
-import { normalizeApiConfiguration } from "../settings/ApiOptions"
 
 import { TaskActions } from "./TaskActions"
 import { ContextWindowProgress } from "./ContextWindowProgress"

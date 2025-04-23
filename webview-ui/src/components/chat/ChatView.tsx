@@ -4,6 +4,9 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import styled from "styled-components"
+import removeMd from "remove-markdown"
+import { Trans } from "react-i18next"
+
 import {
 	ClineAsk,
 	ClineMessage,
@@ -16,11 +19,19 @@ import { findLast } from "@roo/shared/array"
 import { combineApiRequests } from "@roo/shared/combineApiRequests"
 import { combineCommandSequences } from "@roo/shared/combineCommandSequences"
 import { getApiMetrics } from "@roo/shared/getApiMetrics"
+import { AudioType } from "@roo/shared/WebviewMessage"
+import { getAllModes } from "@roo/shared/modes"
+
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
+import { normalizeApiConfiguration } from "@src/utils/normalizeApiConfiguration"
+import { validateCommand } from "@src/utils/command-validation"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
+
+import TelemetryBanner from "../common/TelemetryBanner"
 import HistoryPreview from "../history/HistoryPreview"
 import RooHero from "../welcome/RooHero"
-import { normalizeApiConfiguration } from "../settings/ApiOptions"
+
 import Announcement from "./Announcement"
 import BrowserSessionRow from "./BrowserSessionRow"
 import ChatRow from "./ChatRow"
@@ -28,13 +39,7 @@ import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import SystemPromptWarning from "./SystemPromptWarning"
-import { AudioType } from "@roo/shared/WebviewMessage"
-import { validateCommand } from "@src/utils/command-validation"
-import { getAllModes } from "@roo/shared/modes"
-import TelemetryBanner from "../common/TelemetryBanner"
-import { useAppTranslation } from "@/i18n/TranslationContext"
-import removeMd from "remove-markdown"
-import { Trans } from "react-i18next"
+
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
