@@ -33,7 +33,12 @@ export function insertMention(
 	if (lastAtIndex !== -1) {
 		// If there's an '@' symbol, replace everything after it with the new mention
 		const beforeMention = text.slice(0, lastAtIndex)
-		newValue = beforeMention + "@" + value + " " + afterCursor.replace(/^[^\s]*/, "")
+		// Only replace if afterCursor is all alphanumerical
+		// This is required to handle languages that don't use space as a word separator (chinese, japanese, korean, etc)
+		const afterCursorContent = /^[a-zA-Z0-9\s]*$/.test(afterCursor)
+			? afterCursor.replace(/^[^\s]*/, "")
+			: afterCursor
+		newValue = beforeMention + "@" + value + " " + afterCursorContent
 		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position
