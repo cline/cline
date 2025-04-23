@@ -5,6 +5,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
+import Tooltip from "@/components/common/Tooltip"
 
 const ClineRulesToggleModal: React.FC = () => {
 	const { globalClineRulesToggles = {}, localClineRulesToggles = {} } = useExtensionState()
@@ -61,16 +62,20 @@ const ClineRulesToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<VSCodeButton
-					appearance="icon"
-					aria-label="Prompt Library"
-					title="Manage Prompt Library"
-					onClick={() => setIsVisible(!isVisible)}
-					style={{ padding: "0px 0px", height: "20px" }}>
-					<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-						<span className="codicon codicon-law flex items-center" style={{ fontSize: "12.5px", marginBottom: 1 }} />
-					</div>
-				</VSCodeButton>
+				<Tooltip tipText="Manage Cline Recipes">
+					<VSCodeButton
+						appearance="icon"
+						aria-label="Cline Recipes"
+						onClick={() => setIsVisible(!isVisible)}
+						style={{ padding: "0px 0px", height: "20px" }}>
+						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
+							<span
+								className="codicon codicon-law flex items-center"
+								style={{ fontSize: "12.5px", marginBottom: 1 }}
+							/>
+						</div>
+					</VSCodeButton>
+				</Tooltip>
 			</div>
 
 			{isVisible && (
@@ -92,7 +97,7 @@ const ClineRulesToggleModal: React.FC = () => {
 					/>
 
 					<div className="flex justify-between items-center mb-2.5">
-						<div className="m-0 text-base font-semibold">Cline Rules</div>
+						<div className="m-0 text-base font-semibold">Cline Recipes</div>
 
 						<VSCodeButton
 							appearance="icon"
@@ -106,7 +111,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 					{/* Global Rules Section */}
 					<div className="mb-3">
-						<div className="text-sm font-normal mb-2">Global Rules</div>
+						<div className="text-sm font-normal mb-2">Global Recipes</div>
 						<RulesToggleList
 							rules={globalRules}
 							toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
@@ -117,7 +122,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 					{/* Local Rules Section */}
 					<div style={{ marginBottom: -10 }}>
-						<div className="text-sm font-normal mb-2">Workspace Rules</div>
+						<div className="text-sm font-normal mb-2">Workspace Recipes</div>
 						<RulesToggleList
 							rules={localRules}
 							toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}

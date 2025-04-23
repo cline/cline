@@ -1,8 +1,9 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
 import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 
@@ -80,6 +81,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
+	const menuRef = useRef<HTMLDivElement>(null)
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
@@ -227,8 +229,25 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		[extensionState.autoApprovalSettings],
 	)
 
+	// Handle clicks outside the menu to close it
+	useEffect(() => {
+		if (!isExpanded) return
+
+		const handleClickOutside = (event: MouseEvent) => {
+			if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+				setIsExpanded(false)
+			}
+		}
+
+		document.addEventListener("mousedown", handleClickOutside)
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside)
+		}
+	}, [isExpanded])
+
 	return (
 		<div
+			ref={menuRef}
 			style={{
 				padding: "0 15px",
 				userSelect: "none",
@@ -236,6 +255,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					? `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
 					: "none",
 				overflowY: "auto",
+				backgroundColor: isExpanded ? CODE_BLOCK_BG_COLOR : "transparent",
 				...style,
 			}}>
 			<div

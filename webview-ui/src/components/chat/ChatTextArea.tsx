@@ -1347,53 +1347,54 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				<ControlsContainer>
 					<ButtonGroup>
-						<VSCodeButton
-							data-testid="context-button"
-							appearance="icon"
-							aria-label="Add Context"
-							title="Add Context (@mention files, problems, terminal, git commits)"
-							disabled={textAreaDisabled}
-							onClick={handleContextButtonClick}
-							style={{ padding: "0px 0px", height: "20px" }}>
-							<ButtonContainer>
-								<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
-									@
-								</span>
-								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
-							</ButtonContainer>
-						</VSCodeButton>
+						<Tooltip tipText="Add Context" style={{ left: 0 }}>
+							<VSCodeButton
+								data-testid="context-button"
+								appearance="icon"
+								aria-label="Add Context"
+								disabled={textAreaDisabled}
+								onClick={handleContextButtonClick}
+								style={{ padding: "0px 0px", height: "20px" }}>
+								<ButtonContainer>
+									<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
+										@
+									</span>
+									{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
+								</ButtonContainer>
+							</VSCodeButton>
+						</Tooltip>
 
-						<VSCodeButton
-							data-testid="images-button"
-							appearance="icon"
-							aria-label="Add Images"
-							title="Add Images"
-							disabled={shouldDisableImages}
-							onClick={() => {
-								if (!shouldDisableImages) {
-									onSelectImages()
-								}
-							}}
-							style={{ padding: "0px 0px", height: "20px" }}>
-							<ButtonContainer>
-								<span
-									className="codicon codicon-device-camera flex items-center"
-									style={{ fontSize: "14px", marginBottom: -3 }}
-								/>
-								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
-							</ButtonContainer>
-						</VSCodeButton>
+						<Tooltip tipText="Add Images">
+							<VSCodeButton
+								data-testid="images-button"
+								appearance="icon"
+								aria-label="Add Images"
+								disabled={shouldDisableImages}
+								onClick={() => {
+									if (!shouldDisableImages) {
+										onSelectImages()
+									}
+								}}
+								style={{ padding: "0px 0px", height: "20px" }}>
+								<ButtonContainer>
+									<span
+										className="codicon codicon-device-camera flex items-center"
+										style={{ fontSize: "14px", marginBottom: -3 }}
+									/>
+									{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
+								</ButtonContainer>
+							</VSCodeButton>
+						</Tooltip>
 						<ServersToggleModal />
 						<ClineRulesToggleModal />
-
 						<ModelContainer ref={modelSelectorRef}>
 							<ModelButtonWrapper ref={buttonRef}>
 								<ModelDisplayButton
 									role="button"
 									isActive={showModelSelector}
 									disabled={false}
-									onClick={handleModelButtonClick}
 									title="Select Model / API Provider"
+									onClick={handleModelButtonClick}
 									// onKeyDown={(e) => {
 									// 	if (e.key === "Enter" || e.key === " ") {
 									// 		e.preventDefault()
