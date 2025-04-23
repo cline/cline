@@ -1,23 +1,22 @@
-import React, { memo, useMemo, useRef, useState } from "react"
+import { memo, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import prettyBytes from "pretty-bytes"
 import { useTranslation } from "react-i18next"
-
-import { vscode } from "@/utils/vscode"
-import { formatLargeNumber } from "@/utils/format"
-import { calculateTokenDistribution, getMaxTokensForModel } from "@/utils/model-utils"
-import { Button } from "@/components/ui"
+import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
+import { CloudUpload, CloudDownload } from "lucide-react"
 
 import { ClineMessage } from "@roo/shared/ExtensionMessage"
-import { mentionRegexGlobal } from "@roo/shared/context-mentions"
-import { HistoryItem } from "@roo/shared/HistoryItem"
 
+import { getMaxTokensForModel } from "@/utils/model-utils"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
+
 import Thumbnails from "../common/Thumbnails"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
-import { DeleteTaskDialog } from "../history/DeleteTaskDialog"
-import { cn } from "@/lib/utils"
-import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
+
+import { TaskActions } from "./TaskActions"
+import { ContextWindowProgress } from "./ContextWindowProgress"
+import { Mention } from "./Mention"
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -31,7 +30,7 @@ interface TaskHeaderProps {
 	onClose: () => void
 }
 
-const TaskHeader: React.FC<TaskHeaderProps> = ({
+const TaskHeader = ({
 	task,
 	tokensIn,
 	tokensOut,
@@ -41,7 +40,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	contextTokens,
 	onClose,
-}) => {
+}: TaskHeaderProps) => {
 	const { t } = useTranslation()
 	const { apiConfiguration, currentTaskItem } = useExtensionState()
 	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
@@ -52,8 +51,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const contextWindow = selectedModelInfo?.contextWindow || 1
 
 	const { width: windowWidth } = useWindowSize()
-
-	const shouldShowPromptCacheInfo = doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter"
 
 	return (
 		<div className="py-2 px-3">
@@ -76,7 +73,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								{t("chat:task.title")}
 								{!isTaskExpanded && ":"}
 							</span>
-							{!isTaskExpanded && <span className="ml-1">{highlightMentions(task.text, false)}</span>}
+							{!isTaskExpanded && (
+								<span className="ml-1">
+									<Mention text={task.text} />
+								</span>
+							)}
 						</div>
 					</div>
 					<Button
@@ -113,7 +114,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									WebkitLineClamp: "unset",
 									WebkitBoxOrient: "vertical",
 								}}>
-								{highlightMentions(task.text, false)}
+								<Mention text={task.text} />
 							</div>
 						</div>
 						{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
@@ -137,29 +138,37 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							<div className="flex justify-between items-center h-[20px]">
 								<div className="flex items-center gap-1 flex-wrap">
 									<span className="font-bold">{t("chat:task.tokens")}</span>
-									<span className="flex items-center gap-[3px]">
-										<i className="codicon codicon-arrow-up text-xs font-bold -mb-0.5" />
-										{formatLargeNumber(tokensIn || 0)}
-									</span>
-									<span className="flex items-center gap-[3px]">
-										<i className="codicon codicon-arrow-down text-xs font-bold -mb-0.5" />
-										{formatLargeNumber(tokensOut || 0)}
-									</span>
+									{typeof tokensIn === "number" && tokensIn > 0 && (
+										<span className="flex items-center gap-0.5">
+											<i className="codicon codicon-arrow-up text-xs font-bold" />
+											{tokensIn}
+										</span>
+									)}
+									{typeof tokensOut === "number" && tokensOut > 0 && (
+										<span className="flex items-center gap-0.5">
+											<i className="codicon codicon-arrow-down text-xs font-bold" />
+											{tokensOut}
+										</span>
+									)}
 								</div>
 								{!totalCost && <TaskActions item={currentTaskItem} />}
 							</div>
 
-							{shouldShowPromptCacheInfo && (cacheReads !== undefined || cacheWrites !== undefined) && (
+							{doesModelSupportPromptCache && (cacheReads || cacheWrites) && (
 								<div className="flex items-center gap-1 flex-wrap h-[20px]">
 									<span className="font-bold">{t("chat:task.cache")}</span>
-									<span className="flex items-center gap-1">
-										<i className="codicon codicon-database text-xs font-bold" />+
-										{formatLargeNumber(cacheWrites || 0)}
-									</span>
-									<span className="flex items-center gap-1">
-										<i className="codicon codicon-arrow-right text-xs font-bold" />
-										{formatLargeNumber(cacheReads || 0)}
-									</span>
+									{typeof cacheWrites === "number" && cacheWrites > 0 && (
+										<span className="flex items-center gap-0.5">
+											<CloudUpload size={16} />
+											{cacheWrites}
+										</span>
+									)}
+									{typeof cacheReads === "number" && cacheReads > 0 && (
+										<span className="flex items-center gap-0.5">
+											<CloudDownload size={16} />
+											{cacheReads}
+										</span>
+									)}
 								</div>
 							)}
 
@@ -177,156 +186,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				)}
 			</div>
 		</div>
-	)
-}
-
-export const highlightMentions = (text?: string, withShadow = true) => {
-	if (!text) return text
-	const parts = text.split(mentionRegexGlobal)
-	return parts.map((part, index) => {
-		if (index % 2 === 0) {
-			// This is regular text
-			return part
-		} else {
-			// This is a mention
-			return (
-				<span
-					key={index}
-					className={`${withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"} cursor-pointer`}
-					onClick={() => vscode.postMessage({ type: "openMention", text: part })}>
-					@{part}
-				</span>
-			)
-		}
-	})
-}
-
-const TaskActions = ({ item }: { item: HistoryItem | undefined }) => {
-	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
-	const { t } = useTranslation()
-
-	return (
-		<div className="flex flex-row gap-1">
-			<Button
-				variant="ghost"
-				size="sm"
-				title={t("chat:task.export")}
-				onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
-				<span className="codicon codicon-desktop-download" />
-			</Button>
-			{!!item?.size && item.size > 0 && (
-				<>
-					<Button
-						variant="ghost"
-						size="sm"
-						title={t("chat:task.delete")}
-						onClick={(e) => {
-							e.stopPropagation()
-
-							if (e.shiftKey) {
-								vscode.postMessage({ type: "deleteTaskWithId", text: item.id })
-							} else {
-								setDeleteTaskId(item.id)
-							}
-						}}>
-						<span className="codicon codicon-trash" />
-						{prettyBytes(item.size)}
-					</Button>
-					{deleteTaskId && (
-						<DeleteTaskDialog
-							taskId={deleteTaskId}
-							onOpenChange={(open) => !open && setDeleteTaskId(null)}
-							open
-						/>
-					)}
-				</>
-			)}
-		</div>
-	)
-}
-
-interface ContextWindowProgressProps {
-	contextWindow: number
-	contextTokens: number
-	maxTokens?: number
-}
-
-const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: ContextWindowProgressProps) => {
-	const { t } = useTranslation()
-	// Use the shared utility function to calculate all token distribution values
-	const tokenDistribution = useMemo(
-		() => calculateTokenDistribution(contextWindow, contextTokens, maxTokens),
-		[contextWindow, contextTokens, maxTokens],
-	)
-
-	// Destructure the values we need
-	const { currentPercent, reservedPercent, availableSize, reservedForOutput, availablePercent } = tokenDistribution
-
-	// For display purposes
-	const safeContextWindow = Math.max(0, contextWindow)
-	const safeContextTokens = Math.max(0, contextTokens)
-
-	return (
-		<>
-			<div className="flex items-center gap-2 flex-1 whitespace-nowrap px-2">
-				<div data-testid="context-tokens-count">{formatLargeNumber(safeContextTokens)}</div>
-				<div className="flex-1 relative">
-					{/* Invisible overlay for hover area */}
-					<div
-						className="absolute w-full h-4 -top-[7px] z-5"
-						title={t("chat:tokenProgress.availableSpace", { amount: formatLargeNumber(availableSize) })}
-						data-testid="context-available-space"
-					/>
-
-					{/* Main progress bar container */}
-					<div className="flex items-center h-1 rounded-[2px] overflow-hidden w-full bg-[color-mix(in_srgb,var(--vscode-foreground)_20%,transparent)]">
-						{/* Current tokens container */}
-						<div className="relative h-full" style={{ width: `${currentPercent}%` }}>
-							{/* Invisible overlay for current tokens section */}
-							<div
-								className="absolute h-4 -top-[7px] w-full z-6"
-								title={t("chat:tokenProgress.tokensUsed", {
-									used: formatLargeNumber(safeContextTokens),
-									total: formatLargeNumber(safeContextWindow),
-								})}
-								data-testid="context-tokens-used"
-							/>
-							{/* Current tokens used - darkest */}
-							<div className="h-full w-full bg-[var(--vscode-foreground)] transition-width duration-300 ease-out" />
-						</div>
-
-						{/* Container for reserved tokens */}
-						<div className="relative h-full" style={{ width: `${reservedPercent}%` }}>
-							{/* Invisible overlay for reserved section */}
-							<div
-								className="absolute h-4 -top-[7px] w-full z-6"
-								title={t("chat:tokenProgress.reservedForResponse", {
-									amount: formatLargeNumber(reservedForOutput),
-								})}
-								data-testid="context-reserved-tokens"
-							/>
-							{/* Reserved for output section - medium gray */}
-							<div className="h-full w-full bg-[color-mix(in_srgb,var(--vscode-foreground)_30%,transparent)] transition-width duration-300 ease-out" />
-						</div>
-
-						{/* Empty section (if any) */}
-						{availablePercent > 0 && (
-							<div className="relative h-full" style={{ width: `${availablePercent}%` }}>
-								{/* Invisible overlay for available space */}
-								<div
-									className="absolute h-4 -top-[7px] w-full z-6"
-									title={t("chat:tokenProgress.availableSpace", {
-										amount: formatLargeNumber(availableSize),
-									})}
-									data-testid="context-available-space-section"
-								/>
-							</div>
-						)}
-					</div>
-				</div>
-				<div data-testid="context-window-size">{formatLargeNumber(safeContextWindow)}</div>
-			</div>
-		</>
 	)
 }
 

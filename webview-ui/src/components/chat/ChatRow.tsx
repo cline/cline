@@ -21,7 +21,7 @@ import { ReasoningBlock } from "./ReasoningBlock"
 import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
-import { highlightMentions } from "./TaskHeader"
+import { Mention } from "./Mention"
 import { CheckpointSaved } from "./checkpoints/CheckpointSaved"
 import { FollowUpSuggest } from "./FollowUpSuggest"
 
@@ -867,7 +867,9 @@ export const ChatRowContent = ({
 					return (
 						<div className="bg-vscode-editor-background border rounded-xs p-1 overflow-hidden whitespace-pre-wrap word-break-break-word overflow-wrap-anywhere">
 							<div className="flex justify-between gap-2">
-								<div className="flex-grow px-2 py-1">{highlightMentions(message.text)}</div>
+								<div className="flex-grow px-2 py-1">
+									<Mention text={message.text} withShadow />
+								</div>
 								<Button
 									variant="ghost"
 									size="icon"
