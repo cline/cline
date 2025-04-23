@@ -155,23 +155,25 @@ const TaskHeader = ({
 								{!totalCost && <TaskActions item={currentTaskItem} />}
 							</div>
 
-							{doesModelSupportPromptCache && (cacheReads || cacheWrites) && (
-								<div className="flex items-center gap-1 flex-wrap h-[20px]">
-									<span className="font-bold">{t("chat:task.cache")}</span>
-									{typeof cacheWrites === "number" && cacheWrites > 0 && (
-										<span className="flex items-center gap-0.5">
-											<CloudUpload size={16} />
-											{formatLargeNumber(cacheWrites)}
-										</span>
-									)}
-									{typeof cacheReads === "number" && cacheReads > 0 && (
-										<span className="flex items-center gap-0.5">
-											<CloudDownload size={16} />
-											{formatLargeNumber(cacheReads)}
-										</span>
-									)}
-								</div>
-							)}
+							{doesModelSupportPromptCache &&
+								((typeof cacheReads === "number" && cacheReads > 0) ||
+									(typeof cacheWrites === "number" && cacheWrites > 0)) && (
+									<div className="flex items-center gap-1 flex-wrap h-[20px]">
+										<span className="font-bold">{t("chat:task.cache")}</span>
+										{typeof cacheWrites === "number" && cacheWrites > 0 && (
+											<span className="flex items-center gap-0.5">
+												<CloudUpload size={16} />
+												{formatLargeNumber(cacheWrites)}
+											</span>
+										)}
+										{typeof cacheReads === "number" && cacheReads > 0 && (
+											<span className="flex items-center gap-0.5">
+												<CloudDownload size={16} />
+												{formatLargeNumber(cacheReads)}
+											</span>
+										)}
+									</div>
+								)}
 
 							{!!totalCost && (
 								<div className="flex justify-between items-center h-[20px]">
