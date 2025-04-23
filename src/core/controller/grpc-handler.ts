@@ -43,7 +43,8 @@ export class GrpcHandler {
 				case "cline.TaskService":
 					return {
 						message: await handleTaskServiceRequest(this.controller, method, message),
-          }
+						request_id: requestId,
+					}
 				case "cline.McpService":
 					return {
 						message: await handleMcpServiceRequest(this.controller, method, message),

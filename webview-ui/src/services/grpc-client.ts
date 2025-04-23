@@ -100,4 +100,3 @@ const TaskServiceClient = createGrpcClient(TaskServiceDefinition)
 const McpServiceClient = createGrpcClient(McpServiceDefinition)
 
 export { BrowserServiceClient, CheckpointsServiceClient, McpServiceClient, TaskServiceClient }
-
