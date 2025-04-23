@@ -30,6 +30,7 @@ import {
 } from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
+import { injectEnv } from "../../utils/config"
 
 export type McpConnection = {
 	server: McpServer
@@ -452,7 +453,7 @@ export class McpHub {
 					args: config.args,
 					cwd: config.cwd,
 					env: {
-						...config.env,
+						...(config.env ? await injectEnv(config.env) : {}),
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
 					},
 					stderr: "pipe",
