@@ -1,7 +1,0 @@
-{
-	"type": "module",
-	"dependencies": {
-		"grpc-tools": "^1.13.0",
-		"ts-proto": "^2.7.0"
-	}
-}
