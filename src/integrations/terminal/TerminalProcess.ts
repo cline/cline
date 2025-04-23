@@ -2,6 +2,9 @@ import { EventEmitter } from "events"
 import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
 
+// Use shared compatibility interface for shellIntegration
+import { CompatShellIntegration } from "./CompatShellIntegration"
+
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
@@ -27,8 +30,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// 	super()
 
 	async run(terminal: vscode.Terminal, command: string) {
-		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-			const execution = terminal.shellIntegration.executeCommand(command)
+		// Use compatibility interface for shellIntegration
+		// @ts-ignore
+		const shellIntegration: CompatShellIntegration | undefined = (terminal as any).shellIntegration
+		if (shellIntegration && shellIntegration.executeCommand) {
+			const execution = shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			// todo: need to handle errors
 			let isFirstChunk = true

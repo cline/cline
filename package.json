@@ -5,7 +5,7 @@
 	"version": "3.13.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
-		"vscode": "^1.84.0"
+		"vscode": "^1.96.2"
 	},
 	"author": {
 		"name": "Cline Bot Inc."
@@ -327,7 +327,7 @@
 		"@types/should": "^11.2.0",
 		"@types/sinon": "^17.0.4",
 		"@types/turndown": "^5.0.5",
-		"@types/vscode": "^1.84.0",
+		"@types/vscode": "^1.96.2",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
 		"@vscode/test-cli": "^0.0.9",
