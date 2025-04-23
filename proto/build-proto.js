@@ -13,13 +13,52 @@ const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
 
-	// Check if protoc is installed
+	// Check if protoc is installed and has the correct version
 	try {
-		const options = { stdio: "ignore" }
-		execSync("protoc --version", options)
+		const protocOutput = execSync("protoc --version", { encoding: "utf8" }).trim()
+		console.log(chalk.cyan(`Found ${protocOutput}`))
+		const versionMatch = protocOutput.match(/libprotoc\s+(\d+\.\d+)/)
+		if (!versionMatch) {
+			console.warn(chalk.yellow("Warning: Could not determine protoc version. Continuing anyway..."))
+		} else {
+			const version = versionMatch[1]
+			const requiredVersion = "30.1.0" // Update to include patch version
+
+			// Split versions and convert to numbers, default patch to 0 if not present
+			const vParts = version.split(".").map(Number)
+			const rParts = requiredVersion.split(".").map(Number)
+
+			const vMajor = vParts[0]
+			const vMinor = vParts[1]
+			const vPatch = vParts[2] || 0 // Default to 0 if patch is missing
+
+			const rMajor = rParts[0]
+			const rMinor = rParts[1]
+			const rPatch = rParts[2] || 0
+
+			if (
+				vMajor < rMajor ||
+				(vMajor === rMajor && vMinor < rMinor) ||
+				(vMajor === rMajor && vMinor === rMinor && vPatch < rPatch)
+			) {
+				console.warn(
+					chalk.yellow(`Warning: protoc version ${version} found, but version ${requiredVersion} is required.`),
+				)
+				console.warn(
+					chalk.yellow(
+						`To install the correct version, visit: https://github.com/protocolbuffers/protobuf/releases/tag/v${requiredVersion}`,
+					),
+				)
+				process.exit(0) // Exit with success as requested
+			}
+		}
 	} catch (error) {
 		console.warn(chalk.yellow("Warning: protoc is not installed. Skipping proto generation."))
-		console.warn(chalk.yellow("To install Protocol Buffers compiler, visit: https://grpc.io/docs/protoc-installation/"))
+		console.warn(
+			chalk.yellow(
+				"To install Protocol Buffers compiler, visit: https://github.com/protocolbuffers/protobuf/releases/tag/v30.1",
+			),
+		)
 		process.exit(0) // Exit with success as requested
 	}
 
@@ -92,7 +131,9 @@ async function generateMethodRegistrations() {
 	console.log(chalk.cyan("Generating method registration files..."))
 
 	const serviceDirs = [
+		path.join(ROOT_DIR, "src", "core", "controller", "mcp"),
 		path.join(ROOT_DIR, "src", "core", "controller", "browser"),
+		path.join(ROOT_DIR, "src", "core", "controller", "checkpoints"),
 		// Add more service directories here as needed
 	]
 

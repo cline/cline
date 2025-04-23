@@ -1,10 +1,10 @@
 import path from "path"
-import { ensureRulesDirectoryExists, GlobalFileNames } from "../../../storage/disk"
-import { fileExistsAtPath, isDirectory, readDirectory } from "../../../../utils/fs"
-import { formatResponse } from "../../../prompts/responses"
+import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import { formatResponse } from "@core/prompts/responses"
 import fs from "fs/promises"
-import { ClineRulesToggles } from "../../../../shared/cline-rules"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../../../storage/state"
+import { ClineRulesToggles } from "@shared/cline-rules"
+import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
 import * as vscode from "vscode"
 
 export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
