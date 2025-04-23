@@ -1,0 +1,47 @@
+name: "Check for existing Linear link"
+description: "Checks PR body and linked GitHub issues for an existing Linear link"
+outputs:
+  result:
+    description: "True if a Linear link was found"
+    value: ${{ steps.check.outputs.result }}
+runs:
+  using: "composite"
+  steps:
+    - id: check
+      uses: actions/github-script@v6
+      with:
+        result-encoding: string
+        script: |
+          const pr = context.payload.pull_request;
+          // 1) PR body
+          if (/https?:\/\/linear\.app/.test(pr.body||"")) {
+            return "true";
+          }
+          // 2) Any linked GitHub issues?
+          const res = await github.graphql(
+            `query($owner:String!,$repo:String!,$prNumber:Int!){
+               repository(owner:$owner,name:$repo){
+                 pullRequest(number:$prNumber){
+                   closingIssuesReferences(first:10){
+                     nodes{number}
+                   }
+                 }
+               }
+             }`,
+            {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              prNumber: pr.number
+            }
+          );
+          for (const {number} of res.repository.pullRequest.closingIssuesReferences.nodes) {
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number
+            });
+            if (comments.data.some(c=>/https?:\/\/linear\.app/.test(c.body))) {
+              return "true";
+            }
+          }
+          return "false";
