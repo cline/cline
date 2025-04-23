@@ -1,6 +1,7 @@
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
+import useClickOutside from "@/hooks/useClickOutside"
 import { useRemark } from "react-remark"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -29,18 +30,8 @@ const OpenAiModelPicker: React.FC = () => {
 		vscode.postMessage({ type: "refreshOpenAiModels" })
 	}, [apiConfiguration?.openAiBaseUrl, apiConfiguration?.openAiApiKey])
 
-	useEffect(() => {
-		const handleClickOutside = (event: MouseEvent) => {
-			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-				setIsDropdownVisible(false)
-			}
-		}
-
-		document.addEventListener("mousedown", handleClickOutside)
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside)
-		}
-	}, [])
+	// Handle clicks outside the dropdown to close it
+	useClickOutside(dropdownRef, () => setIsDropdownVisible(false))
 
 	const modelIds = useMemo(() => {
 		return openAiModels.sort((a, b) => a.localeCompare(b))

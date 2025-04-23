@@ -62,10 +62,10 @@ const ClineRulesToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<Tooltip tipText="Manage Cline Recipes">
+				<Tooltip tipText="Manage Cline Prompts">
 					<VSCodeButton
 						appearance="icon"
-						aria-label="Cline Recipes"
+						aria-label="Cline Prompts"
 						onClick={() => setIsVisible(!isVisible)}
 						style={{ padding: "0px 0px", height: "20px" }}>
 						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
@@ -97,7 +97,7 @@ const ClineRulesToggleModal: React.FC = () => {
 					/>
 
 					<div className="flex justify-between items-center mb-2.5">
-						<div className="m-0 text-base font-semibold">Cline Recipes</div>
+						<div className="m-0 text-base font-semibold">Cline Prompts</div>
 
 						<VSCodeButton
 							appearance="icon"
@@ -111,7 +111,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 					{/* Global Rules Section */}
 					<div className="mb-3">
-						<div className="text-sm font-normal mb-2">Global Recipes</div>
+						<div className="text-sm font-normal mb-2">Global Prompts</div>
 						<RulesToggleList
 							rules={globalRules}
 							toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
@@ -122,7 +122,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 					{/* Local Rules Section */}
 					<div style={{ marginBottom: -10 }}>
-						<div className="text-sm font-normal mb-2">Workspace Recipes</div>
+						<div className="text-sm font-normal mb-2">Workspace Prompts</div>
 						<RulesToggleList
 							rules={localRules}
 							toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}

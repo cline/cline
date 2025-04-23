@@ -1,5 +1,6 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
+import useClickOutside from "@/hooks/useClickOutside"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
@@ -230,20 +231,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	)
 
 	// Handle clicks outside the menu to close it
-	useEffect(() => {
-		if (!isExpanded) return
-
-		const handleClickOutside = (event: MouseEvent) => {
-			if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-				setIsExpanded(false)
-			}
-		}
-
-		document.addEventListener("mousedown", handleClickOutside)
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside)
-		}
-	}, [isExpanded])
+	useClickOutside(menuRef, () => setIsExpanded(false), isExpanded)
 
 	return (
 		<div
