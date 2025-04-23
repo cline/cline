@@ -34,7 +34,7 @@ async function main() {
 
 			const rMajor = rParts[0]
 			const rMinor = rParts[1]
-			const rPatch = rParts[2] || 0 // Default to 0 if patch is missing
+			const rPatch = rParts[2] || 0
 
 			if (
 				vMajor < rMajor ||
