@@ -290,11 +290,13 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions) {
 					modelInfo.cacheReadsPrice = 0.03
 					modelInfo.maxTokens = 8192
 					break
+				/* TODO: uncomment once we confirm it's working
 				case rawModel.id.startsWith("google/gemini-2.5-pro-preview-03-25"):
 				case rawModel.id.startsWith("google/gemini-2.0-flash-001"):
 				case rawModel.id.startsWith("google/gemini-flash-1.5"):
 					modelInfo.supportsPromptCache = true
 					break
+				*/
 				default:
 					break
 			}
