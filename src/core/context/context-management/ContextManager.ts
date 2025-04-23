@@ -193,14 +193,16 @@ export class ContextManager {
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		currentDeletedRange: [number, number] | undefined,
-		keep: "half" | "quarter",
+		keep: "full" | "half" | "quarter",
 	): [number, number] {
 		// We always keep the first user-assistant pairing, and truncate an even number of messages from there
 		const rangeStartIndex = 2 // index 0 and 1 are kept
 		const startOfRest = currentDeletedRange ? currentDeletedRange[1] + 1 : 2 // inclusive starting index
 
 		let messagesToRemove: number
-		if (keep === "half") {
+		if (keep === "full") {
+			messagesToRemove = apiMessages.length - startOfRest
+		} else if (keep === "half") {
 			// Remove half of remaining user-assistant pairs
 			// We first calculate half of the messages then divide by 2 to get the number of pairs.
 			// After flooring, we multiply by 2 to get the number of messages.

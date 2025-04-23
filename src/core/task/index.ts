@@ -3052,7 +3052,13 @@ export class Task {
 										formatResponse.toolResult(`The user has accepted the condensed conversation summary.`),
 									)
 
-									// TODO: Interact with contextManager here
+									// clear the context history at this point in time
+									this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+										this.apiConversationHistory,
+										this.conversationHistoryDeletedRange,
+										"full", // keeps the new summary & user message before it
+									)
+									await this.saveClineMessagesAndUpdateHistory()
 								}
 								break
 							}
