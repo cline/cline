@@ -9,5 +9,5 @@ import { Empty, EmptyRequest } from "../../../shared/proto/common"
  */
 export async function cancelTask(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	await controller.cancelTask()
-	return Empty
+	return Empty.create()
 }

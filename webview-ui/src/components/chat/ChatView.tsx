@@ -329,7 +329,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const startNewTask = useCallback(() => {
-		TaskServiceClient.newTask({})
+		TaskServiceClient.clearTask({})
 	}, [])
 
 	/*
