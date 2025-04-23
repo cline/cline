@@ -1,15 +1,15 @@
-import { useMemo } from "react"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { formatPrice } from "@/utils/formatPrice"
 import { cn } from "@/lib/utils"
 
-import { ModelInfo, geminiModels } from "@roo/shared/api"
+import { ModelInfo } from "@roo/shared/api"
 
 import { ModelDescriptionMarkdown } from "./ModelDescriptionMarkdown"
 
 type ModelInfoViewProps = {
+	apiProvider?: string
 	selectedModelId: string
 	modelInfo: ModelInfo
 	isDescriptionExpanded: boolean
@@ -17,13 +17,13 @@ type ModelInfoViewProps = {
 }
 
 export const ModelInfoView = ({
+	apiProvider,
 	selectedModelId,
 	modelInfo,
 	isDescriptionExpanded,
 	setIsDescriptionExpanded,
 }: ModelInfoViewProps) => {
 	const { t } = useAppTranslation()
-	const isGemini = useMemo(() => Object.keys(geminiModels).includes(selectedModelId), [selectedModelId])
 
 	const infoItems = [
 		<ModelInfoSupportsItem
@@ -36,13 +36,11 @@ export const ModelInfoView = ({
 			supportsLabel={t("settings:modelInfo.supportsComputerUse")}
 			doesNotSupportLabel={t("settings:modelInfo.noComputerUse")}
 		/>,
-		!isGemini && (
-			<ModelInfoSupportsItem
-				isSupported={modelInfo.supportsPromptCache}
-				supportsLabel={t("settings:modelInfo.supportsPromptCache")}
-				doesNotSupportLabel={t("settings:modelInfo.noPromptCache")}
-			/>
-		),
+		<ModelInfoSupportsItem
+			isSupported={modelInfo.supportsPromptCache}
+			supportsLabel={t("settings:modelInfo.supportsPromptCache")}
+			doesNotSupportLabel={t("settings:modelInfo.noPromptCache")}
+		/>,
 		typeof modelInfo.maxTokens === "number" && modelInfo.maxTokens > 0 && (
 			<>
 				<span className="font-medium">{t("settings:modelInfo.maxOutput")}:</span>{" "}
@@ -73,7 +71,7 @@ export const ModelInfoView = ({
 				{formatPrice(modelInfo.cacheWritesPrice || 0)} / 1M tokens
 			</>
 		),
-		isGemini && (
+		apiProvider === "gemini" && (
 			<span className="italic">
 				{selectedModelId === "gemini-2.5-pro-preview-03-25"
 					? t("settings:modelInfo.gemini.billingEstimate")

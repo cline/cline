@@ -3,7 +3,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { GeminiHandler } from "../gemini"
-import { geminiDefaultModelId } from "../../../shared/api"
+import { geminiDefaultModelId, type ModelInfo } from "../../../shared/api"
 
 const GEMINI_20_FLASH_THINKING_NAME = "gemini-2.0-flash-thinking-exp-1219"
 
@@ -72,18 +72,15 @@ describe("GeminiHandler", () => {
 
 			// Should have 3 chunks: 'Hello', ' world!', and usage info
 			expect(chunks.length).toBe(3)
-			expect(chunks[0]).toEqual({
-				type: "text",
-				text: "Hello",
-			})
-			expect(chunks[1]).toEqual({
-				type: "text",
-				text: " world!",
-			})
+			expect(chunks[0]).toEqual({ type: "text", text: "Hello" })
+			expect(chunks[1]).toEqual({ type: "text", text: " world!" })
 			expect(chunks[2]).toEqual({
 				type: "usage",
 				inputTokens: 10,
 				outputTokens: 5,
+				cacheReadTokens: undefined,
+				cacheWriteTokens: undefined,
+				thinkingTokens: undefined,
 			})
 
 			// Verify the call to generateContentStream
@@ -169,6 +166,91 @@ describe("GeminiHandler", () => {
 			})
 			const modelInfo = invalidHandler.getModel()
 			expect(modelInfo.id).toBe(geminiDefaultModelId) // Default model
+		})
+	})
+
+	describe("calculateCost", () => {
+		// Mock ModelInfo based on gemini-1.5-flash-latest pricing (per 1M tokens)
+		// Removed 'id' and 'name' as they are not part of ModelInfo type directly
+		const mockInfo: ModelInfo = {
+			inputPrice: 0.125, // $/1M tokens
+			outputPrice: 0.375, // $/1M tokens
+			cacheWritesPrice: 0.125, // Assume same as input for test
+			cacheReadsPrice: 0.125 * 0.25, // Assume 0.25x input for test
+			contextWindow: 1_000_000,
+			maxTokens: 8192,
+			supportsPromptCache: true, // Enable cache calculations for tests
+		}
+
+		it("should calculate cost correctly based on input and output tokens", () => {
+			const inputTokens = 10000 // Use larger numbers for per-million pricing
+			const outputTokens = 20000
+			// Added non-null assertions (!) as mockInfo guarantees these values
+			const expectedCost =
+				(inputTokens / 1_000_000) * mockInfo.inputPrice! + (outputTokens / 1_000_000) * mockInfo.outputPrice!
+
+			const cost = handler.calculateCost({ info: mockInfo, inputTokens, outputTokens })
+			expect(cost).toBeCloseTo(expectedCost)
+		})
+
+		it("should return 0 if token counts are zero", () => {
+			// Note: The method expects numbers, not undefined. Passing undefined would be a type error.
+			// The calculateCost method itself returns undefined if prices are missing, but 0 if tokens are 0 and prices exist.
+			expect(handler.calculateCost({ info: mockInfo, inputTokens: 0, outputTokens: 0 })).toBe(0)
+		})
+
+		it("should handle only input tokens", () => {
+			const inputTokens = 5000
+			// Added non-null assertion (!)
+			const expectedCost = (inputTokens / 1_000_000) * mockInfo.inputPrice!
+			expect(handler.calculateCost({ info: mockInfo, inputTokens, outputTokens: 0 })).toBeCloseTo(expectedCost)
+		})
+
+		it("should handle only output tokens", () => {
+			const outputTokens = 15000
+			// Added non-null assertion (!)
+			const expectedCost = (outputTokens / 1_000_000) * mockInfo.outputPrice!
+			expect(handler.calculateCost({ info: mockInfo, inputTokens: 0, outputTokens })).toBeCloseTo(expectedCost)
+		})
+
+		it("should calculate cost with cache write tokens", () => {
+			const inputTokens = 10000
+			const outputTokens = 20000
+			const cacheWriteTokens = 5000
+			const CACHE_TTL = 5 // Match the constant in gemini.ts
+
+			// Added non-null assertions (!)
+			const expectedInputCost = (inputTokens / 1_000_000) * mockInfo.inputPrice!
+			const expectedOutputCost = (outputTokens / 1_000_000) * mockInfo.outputPrice!
+			const expectedCacheWriteCost =
+				mockInfo.cacheWritesPrice! * (cacheWriteTokens / 1_000_000) * (CACHE_TTL / 60)
+			const expectedCost = expectedInputCost + expectedOutputCost + expectedCacheWriteCost
+
+			const cost = handler.calculateCost({ info: mockInfo, inputTokens, outputTokens, cacheWriteTokens })
+			expect(cost).toBeCloseTo(expectedCost)
+		})
+
+		it("should calculate cost with cache read tokens", () => {
+			const inputTokens = 10000 // Total logical input
+			const outputTokens = 20000
+			const cacheReadTokens = 8000 // Part of inputTokens read from cache
+
+			const uncachedReadTokens = inputTokens - cacheReadTokens
+			// Added non-null assertions (!)
+			const expectedInputCost = (uncachedReadTokens / 1_000_000) * mockInfo.inputPrice!
+			const expectedOutputCost = (outputTokens / 1_000_000) * mockInfo.outputPrice!
+			const expectedCacheReadCost = mockInfo.cacheReadsPrice! * (cacheReadTokens / 1_000_000)
+			const expectedCost = expectedInputCost + expectedOutputCost + expectedCacheReadCost
+
+			const cost = handler.calculateCost({ info: mockInfo, inputTokens, outputTokens, cacheReadTokens })
+			expect(cost).toBeCloseTo(expectedCost)
+		})
+
+		it("should return undefined if pricing info is missing", () => {
+			// Create a copy and explicitly set a price to undefined
+			const incompleteInfo: ModelInfo = { ...mockInfo, outputPrice: undefined }
+			const cost = handler.calculateCost({ info: incompleteInfo, inputTokens: 1000, outputTokens: 1000 })
+			expect(cost).toBeUndefined()
 		})
 	})
 })

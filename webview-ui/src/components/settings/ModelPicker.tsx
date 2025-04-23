@@ -186,6 +186,7 @@ export const ModelPicker = ({
 			</div>
 			{selectedModelId && selectedModelInfo && (
 				<ModelInfoView
+					apiProvider={apiConfiguration.apiProvider}
 					selectedModelId={selectedModelId}
 					modelInfo={selectedModelInfo}
 					isDescriptionExpanded={isDescriptionExpanded}

@@ -42,8 +42,14 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
 				/**
-				 * The latest message will be the new user message, one before will
-				 * be the assistant message from a previous request, and the user message before that will be a previously cached user message. So we need to mark the latest user message as ephemeral to cache it for the next request, and mark the second to last user message as ephemeral to let the server know the last message to retrieve from the cache for the current request..
+				 * The latest message will be the new user message, one before
+				 * will be the assistant message from a previous request, and
+				 * the user message before that will be a previously cached user
+				 * message. So we need to mark the latest user message as
+				 * ephemeral to cache it for the next request, and mark the
+				 * second to last user message as ephemeral to let the server
+				 * know the last message to retrieve from the cache for the
+				 * current request.
 				 */
 				const userMsgIndices = messages.reduce(
 					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
@@ -77,9 +83,6 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 							}
 							return message
 						}),
-						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
-						// tool_choice: { type: "auto" },
-						// tools: tools,
 						stream: true,
 					},
 					(() => {
@@ -102,9 +105,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 							case "claude-3-opus-20240229":
 							case "claude-3-haiku-20240307":
 								betas.push("prompt-caching-2024-07-31")
-								return {
-									headers: { "anthropic-beta": betas.join(",") },
-								}
+								return { headers: { "anthropic-beta": betas.join(",") } }
 							default:
 								return undefined
 						}
@@ -119,8 +120,6 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 					temperature,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
-					// tools,
-					// tool_choice: { type: "auto" },
 					stream: true,
 				})) as any
 				break
