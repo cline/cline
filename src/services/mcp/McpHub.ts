@@ -27,7 +27,7 @@ import {
 } from "@shared/mcp"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual } from "@utils/path"
-import { getMcpServerCallbackPath } from "@shared/utils.js"
+import { getMcpServerCallbackPath } from "@utils/mcpAuth"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"

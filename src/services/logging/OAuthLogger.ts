@@ -1,4 +1,4 @@
-import { Logger } from "./Logger"
+import { Logger } from "@services/logging/Logger"
 
 /**
  * Structured logging for OAuth operations
