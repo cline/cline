@@ -4,9 +4,11 @@
 // Import all method implementations
 import { registerMethod } from "./index"
 import { checkpointDiff } from "./checkpointDiff"
+import { checkpointRestore } from "./checkpointRestore"
 
 // Register all checkpoints service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("checkpointDiff", checkpointDiff)
+	registerMethod("checkpointRestore", checkpointRestore)
 }

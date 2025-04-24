@@ -41,7 +41,6 @@ export interface WebviewMessage {
 		| "browserSettings"
 		| "browserRelaunchResult"
 		| "togglePlanActMode"
-		| "checkpointRestore"
 		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
