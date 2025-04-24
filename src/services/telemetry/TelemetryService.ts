@@ -2,7 +2,8 @@ import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../package.json"
 
-import type { TaskFeedbackType } from "../../shared/WebviewMessage"
+import type { TaskFeedbackType } from "@shared/WebviewMessage"
+import type { BrowserSettings } from "@shared/BrowserSettings"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
@@ -28,6 +29,10 @@ class PostHogClient {
 			TOKEN_USAGE: "task.tokens",
 			// Tracks switches between plan and act modes
 			MODE_SWITCH: "task.mode",
+			// Tracks when users select an option from AI-generated followup questions
+			OPTION_SELECTED: "task.option_selected",
+			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
+			OPTIONS_IGNORED: "task.options_ignored",
 			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
@@ -38,6 +43,12 @@ class PostHogClient {
 			RETRY_CLICKED: "task.retry_clicked",
 			// Tracks when a diff edit (replace_in_file) operation fails
 			DIFF_EDIT_FAILED: "task.diff_edit_failed",
+			// Tracks when the browser tool is started
+			BROWSER_TOOL_START: "task.browser_tool_start",
+			// Tracks when the browser tool is completed
+			BROWSER_TOOL_END: "task.browser_tool_end",
+			// Tracks when browser errors occur
+			BROWSER_ERROR: "task.browser_error",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -61,6 +72,8 @@ class PostHogClient {
 			PLAN_MODE_TOGGLED: "ui.plan_mode_toggled",
 			// Tracks when action mode is toggled on
 			ACT_MODE_TOGGLED: "ui.act_mode_toggled",
+			// Tracks when users use the "favorite" button in the model picker
+			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 		},
 	}
 
@@ -453,6 +466,128 @@ class PostHogClient {
 			event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
 			properties: {
 				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when the browser tool is started
+	 * @param taskId Unique identifier for the task
+	 * @param browserSettings The browser settings being used
+	 */
+	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
+			properties: {
+				taskId,
+				viewport: browserSettings.viewport,
+				isRemote: !!browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when the browser tool is completed
+	 * @param taskId Unique identifier for the task
+	 * @param stats Statistics about the browser session
+	 */
+	public captureBrowserToolEnd(
+		taskId: string,
+		stats: {
+			actionCount: number
+			duration: number
+			actions?: string[]
+		},
+	) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_END,
+			properties: {
+				taskId,
+				actionCount: stats.actionCount,
+				duration: stats.duration,
+				actions: stats.actions,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when browser errors occur during a task
+	 * @param taskId Unique identifier for the task
+	 * @param errorType Type of error that occurred (e.g., "launch_error", "connection_error", "navigation_error")
+	 * @param errorMessage The error message
+	 * @param context Additional context about where the error occurred
+	 */
+	public captureBrowserError(
+		taskId: string,
+		errorType: string,
+		errorMessage: string,
+		context?: {
+			action?: string
+			url?: string
+			isRemote?: boolean
+			[key: string]: any
+		},
+	) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.BROWSER_ERROR,
+			properties: {
+				taskId,
+				errorType,
+				errorMessage,
+				context,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when a user selects an option from AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param qty The quantity of options that were presented
+	 * @param mode The mode in which the option was selected ("plan" or "act")
+	 */
+	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
+			properties: {
+				taskId,
+				qty,
+				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when a user types a custom response instead of selecting one of the AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param qty The quantity of options that were presented
+	 * @param mode The mode in which the custom response was provided ("plan" or "act")
+	 */
+	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTIONS_IGNORED,
+			properties: {
+				taskId,
+				qty,
+				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when the user uses the model favorite button in the model picker
+	 * @param model The name of the model the user has interacted with
+	 * @param isFavorited Whether the model is being favorited (true) or unfavorited (false)
+	 */
+	public captureModelFavoritesUsage(model: string, isFavorited: boolean) {
+		this.capture({
+			event: PostHogClient.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
+			properties: {
+				model,
+				isFavorited,
 			},
 		})
 	}

@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState, useEffect } from "react"
-import { useClickAway, useEvent } from "react-use"
+import { useEvent } from "react-use"
 import styled from "styled-components"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { vscode } from "../../utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
-import { ClineCheckpointRestore } from "../../../../src/shared/WebviewMessage"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
+import { vscode } from "@/utils/vscode"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { createPortal } from "react-dom"
 import { useFloating, offset, flip, shift } from "@floating-ui/react"
@@ -139,12 +139,17 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					$isCheckedOut={isCheckpointCheckedOut}
 					disabled={compareDisabled}
 					style={{ cursor: compareDisabled ? "wait" : "pointer" }}
-					onClick={() => {
+					onClick={async () => {
 						setCompareDisabled(true)
-						vscode.postMessage({
-							type: "checkpointDiff",
-							number: messageTs,
-						})
+						try {
+							await CheckpointsServiceClient.checkpointDiff({
+								value: messageTs,
+							})
+						} catch (err) {
+							console.error("CheckpointDiff error:", err)
+						} finally {
+							setCompareDisabled(false)
+						}
 					}}>
 					Compare
 				</CustomButton>

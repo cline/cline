@@ -1,5 +1,4 @@
 out
-coverage
 dist
 node_modules
 tmp
@@ -11,3 +10,12 @@ tmp
 pnpm-lock.yaml
 
 .clineignore
+.venv
+.actrc
+
+# Ignore coverage directories and files
+coverage
+# But don't ignore the coverage scripts in .github/scripts/
+!.github/scripts/coverage/
+
+*evals.env

@@ -1,10 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { withRetry } from "../retry"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { calculateApiCostOpenAI } from "@utils/cost"
+import { ApiStream } from "@api/transform/stream"
 
 export class RequestyHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -24,21 +25,34 @@ export class RequestyHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const modelId = this.options.requestyModelId ?? ""
+		const model = this.getModel()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
+		const reasoningEffort = this.options.o3MiniReasoningEffort || "medium"
+		const reasoning = { reasoning_effort: reasoningEffort }
+		const reasoningArgs = model.id === "openai/o3-mini" ? reasoning : {}
+
+		const thinkingBudget = this.options.thinkingBudgetTokens || 0
+		const thinking =
+			thinkingBudget > 0
+				? { thinking: { type: "enabled", budget_tokens: thinkingBudget } }
+				: { thinking: { type: "disabled" } }
+		const thinkingArgs = model.id.includes("claude-3-7-sonnet") ? thinking : {}
+
 		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
-			model: modelId,
+			model: model.id,
+			max_tokens: model.info.maxTokens || undefined,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(modelId === "openai/o3-mini" ? { reasoning_effort: this.options.o3MiniReasoningEffort || "medium" } : {}),
+			...reasoningArgs,
+			...thinkingArgs,
 		})
 
 		for await (const chunk of stream) {
@@ -73,7 +87,7 @@ export class RequestyHandler implements ApiHandler {
 				const outputTokens = usage.completion_tokens || 0
 				const cacheWriteTokens = usage.prompt_tokens_details?.caching_tokens || undefined
 				const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens || undefined
-				const totalCost = 0 // TODO: Replace with calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+				const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
 
 				yield {
 					type: "usage",
@@ -88,9 +102,11 @@ export class RequestyHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		return {
-			id: this.options.requestyModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+		const modelId = this.options.requestyModelId
+		const modelInfo = this.options.requestyModelInfo
+		if (modelId && modelInfo) {
+			return { id: modelId, info: modelInfo }
 		}
+		return { id: requestyDefaultModelId, info: requestyDefaultModelInfo }
 	}
 }

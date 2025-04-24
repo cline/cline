@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
-import { useDebounceEffect } from "../../utils/useDebounceEffect"
+import { useDebounceEffect } from "@/utils/useDebounceEffect"
 import styled from "styled-components"
-import { vscode } from "../../utils/vscode"
+import { vscode } from "@/utils/vscode"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 const MERMAID_THEME = {
 	background: "#1e1e1e", // VS Code dark theme background
@@ -139,11 +140,22 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 		}
 	}
 
+	const handleCopyCode = async () => {
+		try {
+			await navigator.clipboard.writeText(code)
+		} catch (err) {
+			console.error("Copy failed", err)
+		}
+	}
+
 	return (
 		<MermaidBlockContainer>
 			{isLoading && <LoadingMessage>Generating mermaid diagram...</LoadingMessage>}
-
-			{/* The container for the final <svg> or raw code. */}
+			<ButtonContainer>
+				<StyledVSCodeButton onClick={handleCopyCode} title="Copy Code" aria-label="Copy Code">
+					<span className="codicon codicon-copy"></span>
+				</StyledVSCodeButton>
+			</ButtonContainer>
 			<SvgContainer onClick={handleClick} ref={containerRef} $isLoading={isLoading} />
 		</MermaidBlockContainer>
 	)
@@ -174,7 +186,10 @@ async function svgToPng(svgEl: SVGElement): Promise<string> {
 
 	const serializer = new XMLSerializer()
 	const svgString = serializer.serializeToString(svgClone)
-	const svgDataUrl = "data:image/svg+xml;base64," + btoa(decodeURIComponent(encodeURIComponent(svgString)))
+	const encoder = new TextEncoder()
+	const bytes = encoder.encode(svgString)
+	const base64 = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""))
+	const svgDataUrl = `data:image/svg+xml;base64,${base64}`
 
 	return new Promise((resolve, reject) => {
 		const img = new Image()
@@ -206,6 +221,19 @@ const MermaidBlockContainer = styled.div`
 	margin: 8px 0;
 `
 
+const ButtonContainer = styled.div`
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	z-index: 1;
+	opacity: 0.6;
+	transition: opacity 0.2s ease;
+
+	&:hover {
+		opacity: 1;
+	}
+`
+
 const LoadingMessage = styled.div`
 	padding: 8px 0;
 	color: var(--vscode-descriptionForeground);
@@ -224,4 +252,35 @@ const SvgContainer = styled.div<SvgContainerProps>`
 	cursor: pointer;
 	display: flex;
 	justify-content: center;
+`
+
+const StyledVSCodeButton = styled(VSCodeButton)`
+	padding: 4px;
+	height: 24px;
+	width: 24px;
+	min-width: unset;
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: 1px solid var(--vscode-button-border);
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s ease;
+
+	.codicon {
+		font-size: 14px;
+	}
+
+	&:hover {
+		background-color: var(--vscode-button-secondaryHoverBackground);
+		border-color: var(--vscode-button-border);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	}
+
+	&:active {
+		transform: translateY(0);
+		box-shadow: none;
+	}
 `

@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { withRetry } from "../retry"
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
@@ -114,7 +114,7 @@ export class AnthropicHandler implements ApiHandler {
 				break
 			}
 			default: {
-				stream = (await this.client.messages.create({
+				stream = await this.client.messages.create({
 					model: modelId,
 					max_tokens: model.info.maxTokens || 8192,
 					temperature: 0,
@@ -123,7 +123,7 @@ export class AnthropicHandler implements ApiHandler {
 					// tools,
 					// tool_choice: { type: "auto" },
 					stream: true,
-				})) as any
+				})
 				break
 			}
 		}

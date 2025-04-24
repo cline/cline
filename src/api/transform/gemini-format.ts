@@ -1,14 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Content, EnhancedGenerateContentResponse, InlineDataPart, Part, TextPart } from "@google/generative-ai"
+import { Content, GenerateContentResponse, Part } from "@google/genai"
 
 export function convertAnthropicContentToGemini(content: string | Anthropic.ContentBlockParam[]): Part[] {
 	if (typeof content === "string") {
-		return [{ text: content } as TextPart]
+		return [{ text: content }]
 	}
-	return content.flatMap((block) => {
+	return content.flatMap((block): Part => {
 		switch (block.type) {
 			case "text":
-				return { text: block.text } as TextPart
+				return { text: block.text }
 			case "image":
 				if (block.source.type !== "base64") {
 					throw new Error("Unsupported image source type")
@@ -18,9 +18,9 @@ export function convertAnthropicContentToGemini(content: string | Anthropic.Cont
 						data: block.source.data,
 						mimeType: block.source.media_type,
 					},
-				} as InlineDataPart
+				}
 			default:
-				throw new Error(`Unsupported content block type: ${(block as any).type}`)
+				throw new Error(`Unsupported content block type: ${block.type}`)
 		}
 	})
 }
@@ -39,16 +39,14 @@ export function unescapeGeminiContent(content: string) {
 	return content.replace(/\\n/g, "\n").replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\r/g, "\r").replace(/\\t/g, "\t")
 }
 
-export function convertGeminiResponseToAnthropic(response: EnhancedGenerateContentResponse): Anthropic.Messages.Message {
+export function convertGeminiResponseToAnthropic(response: GenerateContentResponse): Anthropic.Messages.Message {
 	const content: Anthropic.Messages.ContentBlock[] = []
 
-	// Add the main text response
-	const text = response.text()
+	const text = response.text
 	if (text) {
 		content.push({ type: "text", text, citations: null })
 	}
 
-	// Determine stop reason
 	let stop_reason: Anthropic.Messages.Message["stop_reason"] = null
 	const finishReason = response.candidates?.[0]?.finishReason
 	if (finishReason) {
@@ -64,12 +62,11 @@ export function convertGeminiResponseToAnthropic(response: EnhancedGenerateConte
 			case "OTHER":
 				stop_reason = "stop_sequence"
 				break
-			// Add more cases if needed
 		}
 	}
 
 	return {
-		id: `msg_${Date.now()}`, // Generate a unique ID
+		id: `msg_${Date.now()}`,
 		type: "message",
 		role: "assistant",
 		content,

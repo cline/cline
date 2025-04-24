@@ -1,18 +1,17 @@
 import * as vscode from "vscode"
 import * as path from "path"
-import { listFiles } from "../../services/glob/list-files"
-import { Controller } from "../../core/controller"
+import { listFiles } from "@services/glob/list-files"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
-	private controllerRef: WeakRef<Controller>
 	private disposables: vscode.Disposable[] = []
 	private filePaths: Set<string> = new Set()
 
-	constructor(controller: Controller) {
-		this.controllerRef = new WeakRef(controller)
+	constructor(private readonly postMessageToWebview: (message: ExtensionMessage) => Promise<void>) {
+		this.postMessageToWebview = postMessageToWebview
 		this.registerListeners()
 	}
 
@@ -85,7 +84,7 @@ class WorkspaceTracker {
 		if (!cwd) {
 			return
 		}
-		this.controllerRef.deref()?.postMessageToWebview({
+		this.postMessageToWebview({
 			type: "workspaceUpdated",
 			filePaths: Array.from(this.filePaths).map((file) => {
 				const relativePath = path.relative(cwd, file).toPosix()

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package cline;
+
+import "common.proto";
+
+service CheckpointsService {
+  rpc checkpointDiff(Int64Request) returns (Empty);
+}
+

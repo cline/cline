@@ -1,14 +1,14 @@
 import { describe, it, beforeEach, afterEach } from "mocha"
 import { expect } from "chai"
-import { getShell } from "../utils/shell"
+import { getShell } from "@utils/shell"
 import * as vscode from "vscode"
 import { userInfo } from "os"
 
 describe("Shell Detection Tests", () => {
 	let originalPlatform: string
 	let originalEnv: NodeJS.ProcessEnv
-	let originalGetConfig: any
-	let originalUserInfo: any
+	let originalGetConfig: typeof vscode.workspace.getConfiguration
+	let originalUserInfo: typeof userInfo
 
 	// Helper to mock VS Code configuration
 	function mockVsCodeConfig(platformKey: string, defaultProfileName: string | null, profiles: Record<string, any>) {

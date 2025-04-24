@@ -2,9 +2,10 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
-import { ApiStream } from "../transform/stream"
+import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
+import { ApiStream } from "@api/transform/stream"
 import { VertexAI } from "@google-cloud/vertexai"
+import { calculateApiCostOpenAI } from "@utils/cost"
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
 export class VertexHandler implements ApiHandler {
@@ -264,6 +265,17 @@ export class VertexHandler implements ApiHandler {
 							}
 						}
 					}
+				}
+			}
+			// Handle token usage metadata
+			const { usageMetadata } = await streamingResult.response
+			if (usageMetadata) {
+				const { promptTokenCount = 0, candidatesTokenCount = 0 } = usageMetadata
+				yield {
+					type: "usage",
+					inputTokens: promptTokenCount,
+					outputTokens: candidatesTokenCount,
+					totalCost: calculateApiCostOpenAI(model.info, promptTokenCount, candidatesTokenCount, 0, 0),
 				}
 			}
 		}

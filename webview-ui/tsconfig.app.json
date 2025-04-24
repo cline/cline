@@ -4,6 +4,7 @@
 		"target": "ES2020",
 		"useDefineForClassFields": true,
 		"lib": ["ES2020", "DOM", "DOM.Iterable"],
+		"types": ["vitest/globals", "@testing-library/jest-dom"],
 		"module": "ESNext",
 		"skipLibCheck": true,
 
@@ -18,8 +19,17 @@
 		/* Linting */
 		"strict": true,
 		"noFallthroughCasesInSwitch": true,
-		"noUncheckedSideEffectImports": true
+		"noUncheckedSideEffectImports": true,
+
+		/* Aliasing */
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["src/*"],
+			"@components/*": ["src/components/*"],
+			"@context/*": ["src/context/*"],
+			"@shared/*": ["../src/shared/*"],
+			"@utils/*": ["src/utils/*"]
+		}
 	},
-	"include": ["src"],
-	"exclude": ["src/**/__tests__/**"]
+	"include": ["src"]
 }

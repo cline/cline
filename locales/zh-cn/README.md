@@ -1,4 +1,4 @@
-# Cline – OpenRouter 排名第一
+# Cline
 
 <p align="center">
     <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
@@ -20,25 +20,25 @@
 <a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>功能请求</strong></a>
 </td>
 <td align="center">
-<a href="https://cline.bot/join-us" target="_blank"><strong>我们正在招聘！</strong></a>
+<a href="https://docs.cline.bot/getting-started/for-new-coders" target="_blank"><strong>新手上路</strong></a>
 </td>
 </tbody>
 </table>
 </div>
 
-认识 Cline，一个可以使用你的 **CLI** 和 **编辑器** 的 AI 助手。
+认识 Cline —— 一个可以使用你的 **终端** 和 **编辑器** 的 AI 助手。
 
-感谢 [Claude 3.7 Sonnet 的代理编码能力](https://www.anthropic.com/claude/sonnet)，Cline 可以一步步处理复杂的软件开发任务。通过允许他创建和编辑文件、探索大型项目、使用浏览器和执行终端命令（在你授予权限后），他可以提供超越代码完成或技术支持的帮助。Cline 甚至可以使用 Model Context Protocol (MCP) 创建新工具并扩展自己的能力。虽然自主 AI 脚本传统上在沙盒环境中运行，但此扩展提供了一个人机交互的 GUI 来批准每个文件更改和终端命令，提供了一种安全且可访问的方式来探索代理 AI 的潜力。
+得益于 [Claude 3.7 Sonnet 的代理式编码能力](https://www.anthropic.com/claude/sonnet)，Cline 能够逐步处理复杂的软件开发任务。借助于一系列工具，他可以创建和编辑文件、浏览大型项目、使用浏览器，并在你授权后执行终端命令，从而在代码补全或技术支持之外提供更深入的帮助。Cline 甚至还能使用 Model Context Protocol（MCP）来创建新工具，并扩展自身的能力。虽然传统的自动化 AI 脚本通常运行在沙盒环境中，但这个扩展提供了一个人类参与审核的图形界面（GUI），用于审批每一次文件变更和终端命令，从而为探索代理式 AI 的潜力提供了一种安全且易于使用的方式。
 
-1. 输入你的任务并添加图像，将模型转换为功能应用程序或通过截图修复错误。
-2. Cline 首先分析你的文件结构和源代码 AST，运行正则表达式搜索，并阅读相关文件以了解现有项目。通过仔细管理添加到上下文中的信息，Cline 即使在大型复杂项目中也能提供有价值的帮助，而不会使上下文窗口过载。
-3. 一旦 Cline 获得所需信息，他可以：
-        - 创建和编辑文件 + 监控 linter/编译器错误，从而主动修复诸如缺少导入和语法错误等问题。
-        - 直接在你的终端中执行命令并监控其输出，从而在编辑文件后对开发服务器问题做出反应。
-        - 对于 Web 开发任务，Cline 可以在无头浏览器中启动网站，点击、输入、滚动并捕获截图和控制台日志，从而修复运行时错误和视觉错误。
-4. 当任务完成时，Cline 将通过终端命令如 `open -a "Google Chrome" index.html` 向你展示结果，你可以通过点击按钮运行该命令。
+1. 输入你的任务，并添加图片，以将界面原型（mockup）转换为功能应用，或通过截图修复 bug。
+2. Cline 会从分析你的文件结构和源代码的抽象语法树（AST）开始，同时执行正则搜索并读取相关文件，以便尽快熟悉项目上下文。通过精细地管理上下文中引入的信息，即使面对大型复杂项目，Cline 也能在不超出上下文窗口限制的前提下提供有效协助。
+3. 一旦获取了所需信息，Cline 能够：
+   - 创建和编辑文件，并在过程中监控 linter 或编译器错误，主动修复诸如缺少导入、语法错误等问题。
+   - 直接在你的终端中执行命令，并在运行过程中监控输出，例如在修改文件后自动响应开发服务器问题。
+   - 针对 Web 开发任务，Cline 可以在无头浏览器中打开网站，进行点击、输入、滚动操作，并采集截图与控制台日志，从而修复运行时错误和界面问题。
+4. 当任务完成后，Cline 会通过类似 `open -a "Google Chrome" index.html` 的终端命令将结果展示给你，你只需点击按钮即可执行。
 
-> [!提示]
+> [!TIP]
 > 使用 `CMD/CTRL + Shift + P` 快捷键打开命令面板并输入 "Cline: Open In New Tab" 将扩展作为标签在编辑器中打开。这让你可以与文件资源管理器并排使用 Cline，更清楚地看到他如何改变你的工作空间。
 
 ---
@@ -49,7 +49,7 @@
 
 Cline 支持 OpenRouter、Anthropic、OpenAI、Google Gemini、AWS Bedrock、Azure 和 GCP Vertex 等 API 提供商。你还可以配置任何兼容 OpenAI 的 API，或通过 LM Studio/Ollama 使用本地模型。如果你使用 OpenRouter，扩展会获取他们的最新模型列表，让你在新模型可用时立即使用。
 
-扩展还会跟踪整个任务循环和单个请求的总令牌和 API 使用成本，让你在每一步都了解支出情况。
+此外，该扩展还会记录整个任务流程中以及每次请求的总 token 数和 API 使用费用，确保你在每一步都能清楚了解花费情况。
 
 <!-- 透明像素以在浮动图像后创建换行 -->
 

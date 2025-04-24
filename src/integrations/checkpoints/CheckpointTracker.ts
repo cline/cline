@@ -2,7 +2,7 @@ import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
 import * as vscode from "vscode"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { telemetryService } from "@services/telemetry/TelemetryService"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 
@@ -165,7 +165,10 @@ class CheckpointTracker {
 
 			console.info(`Using shadow git at: ${gitPath}`)
 
-			await this.gitOperations.addCheckpointFiles(git)
+			const addFilesResult = await this.gitOperations.addCheckpointFiles(git)
+			if (!addFilesResult.success) {
+				console.error("Failed to add at least one file(s) to checkpoints shadow git")
+			}
 
 			const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
 

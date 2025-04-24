@@ -2,7 +2,7 @@
 <a href="https://github.com/cline/cline/blob/main/README.md" target="_blank">English</a> | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">Español</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">Deutsch</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">日本語</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">简体中文</a> | 繁體中文 | <a href="https://github.com/cline/cline/blob/main/locales/ko/README.md" target="_blank">한국어</a>
 </sub></div>
 
-# Cline – OpenRouter 第一名的 AI 工具
+# Cline
 
 <p align="center">
     <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
@@ -32,7 +32,7 @@
 
 認識 Cline，一個可以使用您的**命令列介面** (CLI) 和**程式編輯器** (Editor) 的 AI 助理。
 
-感謝 [Claude 3.7 Sonnet 的代理式程式設計能力](https://www.anthropic.com/claude/sonnet)，Cline 能夠逐步處理複雜的軟體開發任務。透過能讓他建立和編輯檔案、探索大型專案、使用瀏覽器，以及執行終端機指令（在您授權後）的工具，他能以超越程式碼自動完成或技術支援的方式協助您。Cline 甚至能使用模型上下文協定（Model Context Protocol，MCP）來建立新工具並擴展自己的功能。雖然自主 AI 腳本傳統上會在沙箱環境中執行，但這個擴充套件提供了人機互動的圖形介面，讓您可以核准每個檔案變更和終端機指令，提供一個安全且容易使用的方式來探索代理式 AI 的潛力。
+感謝 [Claude 3.7 Sonnet 的代理式程式設計能力](https://www.anthropic.com/claude/sonnet)，Cline 能夠逐步處理複雜的軟體開發任務。透過能讓他建立和編輯檔案、探索大型專案、使用瀏覽器，以及執行終端機指令（在您授權後）的工具，從而在程式碼補全或技術支援之外提供更深入的協助。Cline 甚至能使用模型上下文協定（Model Context Protocol，MCP）來建立新工具並擴展自己的功能。雖然自主 AI 腳本傳統上會在沙箱環境中執行，但這個擴充套件提供了人機互動的圖形介面，讓您可以核准每個檔案變更和終端機指令，提供一個安全且容易使用的方式來探索代理式 AI 的潛力。
 
 1. 輸入您的任務，並可以加入圖片來將設計稿轉換成功能性應用程式，或使用截圖來修正錯誤。
 2. Cline 會先分析您的檔案結構和程式碼 AST、執行正規表達式搜尋，並讀取相關檔案，以便在現有專案中快速掌握狀況。透過仔細管理加入上下文的資訊，Cline 可以在不超過上下文視窗的情況下，為大型且複雜的專案提供有價值的協助。

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react"
 import styled from "styled-components"
-import { vscode } from "../../utils/vscode"
-import { TaskFeedbackType } from "../../../../src/shared/WebviewMessage"
+import { vscode } from "@/utils/vscode"
+import { TaskFeedbackType } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
 
 interface TaskFeedbackButtonsProps {
 	messageTs: number

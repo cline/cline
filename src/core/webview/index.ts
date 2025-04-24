@@ -2,9 +2,9 @@ import axios from "axios"
 import * as vscode from "vscode"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { getTheme } from "../../integrations/theme/getTheme"
-import { Controller } from "../controller"
-import { findLast } from "../../shared/array"
+import { getTheme } from "@integrations/theme/getTheme"
+import { Controller } from "@core/controller/index"
+import { findLast } from "@shared/array"
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
@@ -23,7 +23,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		WebviewProvider.activeInstances.add(this)
-		this.controller = new Controller(context, outputChannel, this)
+		this.controller = new Controller(context, outputChannel, (message) => this.view?.webview.postMessage(message))
 	}
 
 	async dispose() {
@@ -42,6 +42,18 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 	public static getVisibleInstance(): WebviewProvider | undefined {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
+	}
+
+	public static getAllInstances(): WebviewProvider[] {
+		return Array.from(this.activeInstances)
+	}
+
+	public static getSidebarInstance() {
+		return Array.from(this.activeInstances).find((instance) => instance.view && "onDidChangeVisibility" in instance.view)
+	}
+
+	public static getTabInstances(): WebviewProvider[] {
+		return Array.from(this.activeInstances).filter((instance) => instance.view && "onDidChangeViewState" in instance.view)
 	}
 
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
@@ -181,7 +193,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		/*
 				content security policy of your webview to only allow scripts that have a specific nonce
 				create a content security policy meta tag so that only loading scripts with a nonce is allowed
-				As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
+				As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicitly allow for these resources. E.g.
 								<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
 		- 'unsafe-inline' is required for styles due to vscode-webview-toolkit's dynamic style injection
 		- since we pass base64 images to the webview, we need to specify img-src ${webview.cspSource} data:;
