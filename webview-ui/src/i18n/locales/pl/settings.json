@@ -311,6 +311,10 @@
 			"label": "Limit czasu integracji powłoki terminala",
 			"description": "Maksymalny czas oczekiwania na inicjalizację integracji powłoki przed wykonaniem poleceń. Dla użytkowników z długim czasem uruchamiania powłoki, ta wartość może wymagać zwiększenia, jeśli widzisz błędy \"Shell Integration Unavailable\" w terminalu."
 		},
+		"compressProgressBar": {
+			"label": "Kompresuj wyjście pasków postępu",
+			"description": "Po włączeniu, przetwarza wyjście terminala z powrotami karetki (\\r), aby symulować sposób wyświetlania treści przez prawdziwy terminal. Usuwa to pośrednie stany pasków postępu, zachowując tylko stan końcowy, co oszczędza przestrzeń kontekstową dla bardziej istotnych informacji."
+		},
 		"zdotdir": {
 			"label": "Włącz obsługę ZDOTDIR",
 			"description": "Po włączeniu tworzy tymczasowy katalog dla ZDOTDIR, aby poprawnie obsłużyć integrację powłoki zsh. Zapewnia to prawidłowe działanie integracji powłoki VSCode z zsh, zachowując twoją konfigurację zsh. (eksperymentalne)"

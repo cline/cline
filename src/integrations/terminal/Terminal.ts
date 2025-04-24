@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import pWaitFor from "p-wait-for"
 import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
-import { truncateOutput, applyRunLengthEncoding } from "../misc/extract-text"
+import { truncateOutput, applyRunLengthEncoding, processCarriageReturns } from "../misc/extract-text"
 // Import TerminalRegistry here to avoid circular dependencies
 const { TerminalRegistry } = require("./TerminalRegistry")
 
@@ -22,6 +22,7 @@ export class Terminal {
 	private static terminalZshOhMy: boolean = false
 	private static terminalZshP10k: boolean = false
 	private static terminalZdotdir: boolean = false
+	private static compressProgressBar: boolean = true
 
 	public terminal: vscode.Terminal
 	public busy: boolean
@@ -292,12 +293,13 @@ export class Terminal {
 	 * @param input The terminal output to compress
 	 * @returns The compressed terminal output
 	 */
-	public static setShellIntegrationTimeout(timeoutMs: number): void {
-		Terminal.shellIntegrationTimeout = timeoutMs
-	}
-
-	public static getShellIntegrationTimeout(): number {
-		return Terminal.shellIntegrationTimeout
+	public static compressTerminalOutput(input: string, lineLimit: number): string {
+		// Apply carriage return processing if the feature is enabled
+		let processedInput = input
+		if (Terminal.compressProgressBar && input.includes("\r")) {
+			processedInput = processCarriageReturns(input)
+		}
+		return truncateOutput(applyRunLengthEncoding(processedInput), lineLimit)
 	}
 
 	/**
@@ -380,10 +382,6 @@ export class Terminal {
 		return Terminal.terminalZshP10k
 	}
 
-	public static compressTerminalOutput(input: string, lineLimit: number): string {
-		return truncateOutput(applyRunLengthEncoding(input), lineLimit)
-	}
-
 	/**
 	 * Sets whether to enable ZDOTDIR handling for zsh
 	 * @param enabled Whether to enable ZDOTDIR handling
@@ -398,5 +396,37 @@ export class Terminal {
 	 */
 	public static getTerminalZdotdir(): boolean {
 		return Terminal.terminalZdotdir
+	}
+
+	/**
+	 * Sets whether to compress progress bar output by processing carriage returns
+	 * @param enabled Whether to enable progress bar compression
+	 */
+	public static setCompressProgressBar(enabled: boolean): void {
+		Terminal.compressProgressBar = enabled
+	}
+
+	/**
+	 * Gets whether progress bar compression is enabled
+	 * @returns Whether progress bar compression is enabled
+	 */
+	public static getCompressProgressBar(): boolean {
+		return Terminal.compressProgressBar
+	}
+
+	/**
+	 * Sets the shell integration timeout in milliseconds
+	 * @param timeoutMs The timeout in milliseconds (1000-60000)
+	 */
+	public static setShellIntegrationTimeout(timeoutMs: number): void {
+		Terminal.shellIntegrationTimeout = timeoutMs
+	}
+
+	/**
+	 * Gets the shell integration timeout in milliseconds
+	 * @returns The timeout in milliseconds
+	 */
+	public static getShellIntegrationTimeout(): number {
+		return Terminal.shellIntegrationTimeout
 	}
 }

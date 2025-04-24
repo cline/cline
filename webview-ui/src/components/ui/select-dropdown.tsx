@@ -210,7 +210,8 @@ export const SelectDropdown = React.memo(
 						<div className="flex flex-col w-full">
 							{/* Search input */}
 							<div className="relative p-2 border-b border-vscode-dropdown-border">
-								<input aria-label="Search"
+								<input
+									aria-label="Search"
 									ref={searchInputRef}
 									value={searchValue}
 									onChange={(e) => setSearchValue(e.target.value)}

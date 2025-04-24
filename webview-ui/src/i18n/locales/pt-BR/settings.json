@@ -311,6 +311,10 @@
 			"label": "Tempo limite de integração do shell do terminal",
 			"description": "Tempo máximo de espera para a inicialização da integração do shell antes de executar comandos. Para usuários com tempos de inicialização de shell longos, este valor pode precisar ser aumentado se você vir erros \"Shell Integration Unavailable\" no terminal."
 		},
+		"compressProgressBar": {
+			"label": "Comprimir saída de barras de progresso",
+			"description": "Quando ativado, processa a saída do terminal com retornos de carro (\\r) para simular como um terminal real exibiria o conteúdo. Isso remove os estados intermediários das barras de progresso, mantendo apenas o estado final, o que conserva espaço de contexto para informações mais relevantes."
+		},
 		"zdotdir": {
 			"label": "Ativar gerenciamento do ZDOTDIR",
 			"description": "Quando ativado, cria um diretório temporário para o ZDOTDIR para lidar corretamente com a integração do shell zsh. Isso garante que a integração do shell do VSCode funcione corretamente com o zsh enquanto preserva sua configuração do zsh. (experimental)"

@@ -311,6 +311,10 @@
 			"label": "Thời gian chờ tích hợp shell terminal",
 			"description": "Thời gian tối đa để chờ tích hợp shell khởi tạo trước khi thực hiện lệnh. Đối với người dùng có thời gian khởi động shell dài, giá trị này có thể cần được tăng lên nếu bạn thấy lỗi \"Shell Integration Unavailable\" trong terminal."
 		},
+		"compressProgressBar": {
+			"label": "Nén đầu ra thanh tiến trình",
+			"description": "Khi được bật, xử lý đầu ra terminal với các ký tự carriage return (\\r) để mô phỏng cách terminal thật hiển thị nội dung. Điều này loại bỏ các trạng thái trung gian của thanh tiến trình, chỉ giữ lại trạng thái cuối cùng, giúp tiết kiệm không gian ngữ cảnh cho thông tin quan trọng hơn."
+		},
 		"zdotdir": {
 			"label": "Bật xử lý ZDOTDIR",
 			"description": "Khi được bật, tạo thư mục tạm thời cho ZDOTDIR để xử lý tích hợp shell zsh một cách chính xác. Điều này đảm bảo tích hợp shell VSCode hoạt động chính xác với zsh trong khi vẫn giữ nguyên cấu hình zsh của bạn. (thử nghiệm)"

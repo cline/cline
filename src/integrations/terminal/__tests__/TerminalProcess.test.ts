@@ -108,6 +108,9 @@ describe("TerminalProcess", () => {
 		})
 
 		it("handles terminals without shell integration", async () => {
+			// Temporarily suppress the expected console.warn for this test
+			const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {})
+
 			// Create a terminal without shell integration
 			const noShellTerminal = {
 				sendText: jest.fn(),
@@ -143,6 +146,9 @@ describe("TerminalProcess", () => {
 
 			// Verify sendText was called with the command
 			expect(noShellTerminal.sendText).toHaveBeenCalledWith("test command", true)
+
+			// Restore the original console.warn
+			consoleWarnSpy.mockRestore()
 		})
 
 		it("sets hot state for compiling commands", async () => {

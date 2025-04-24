@@ -311,6 +311,10 @@
 			"label": "终端初始化等待时间",
 			"description": "执行命令前等待 Shell 集成初始化的最长时间。对于 Shell 启动时间较长的用户，如果在终端中看到\"Shell Integration Unavailable\"错误，可能需要增加此值。"
 		},
+		"compressProgressBar": {
+			"label": "压缩进度条输出",
+			"description": "启用后，将处理包含回车符 (\\r) 的终端输出，模拟真实终端显示内容的方式。这会移除进度条的中间状态，只保留最终状态，为更重要的信息节省上下文空间。"
+		},
 		"zdotdir": {
 			"label": "启用 ZDOTDIR 处理",
 			"description": "启用后将创建临时目录用于 ZDOTDIR，以正确处理 zsh shell 集成。这确保 VSCode shell 集成能与 zsh 正常工作，同时保留您的 zsh 配置。（实验性）"
