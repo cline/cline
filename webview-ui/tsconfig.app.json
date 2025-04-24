@@ -19,7 +19,7 @@
 		/* Linting */
 		"strict": true,
 		"noFallthroughCasesInSwitch": true,
-		"noUncheckedSideEffectImports": true,
+		"incremental": true,
 
 		/* Aliasing */
 		"baseUrl": ".",
