@@ -201,8 +201,10 @@ export class ContextManager {
 
 		let messagesToRemove: number
 		if (keep === "none") {
+			// Removes all messages beyond the first core user/assistant message pair
 			messagesToRemove = Math.max(apiMessages.length - startOfRest, 0)
 		} else if (keep === "lastTwo") {
+			// Keep the last user-assistant pair in addition to the first core user/assistant message pair
 			messagesToRemove = Math.max(apiMessages.length - startOfRest - 2, 0)
 		} else if (keep === "half") {
 			// Remove half of remaining user-assistant pairs
@@ -388,6 +390,7 @@ export class ContextManager {
 
 	/**
 	 * Public function for triggering potentially setting the truncation message
+	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
 	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
 		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
