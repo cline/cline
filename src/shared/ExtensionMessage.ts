@@ -58,7 +58,6 @@ export interface ExtensionMessage {
 		| "settingsButtonClicked"
 		| "historyButtonClicked"
 		| "didBecomeVisible"
-		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
 		| "focusChatInput"

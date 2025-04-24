@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package cline;
+
+import "common.proto";
+
+// Service for account-related operations
+service AccountService {
+    // The user clicked on the login link in the UI.
+    // Returns the login URL.
+    rpc accountLoginClicked(EmptyRequest) returns (String);
+}
