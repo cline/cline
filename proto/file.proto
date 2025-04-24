@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package cline;
+
+import "common.proto";
+
+// Service for file-related operations
+service FileService {
+  // Opens a file in the editor
+  rpc openFile(StringRequest) returns (Empty);
+}

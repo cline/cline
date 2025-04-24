@@ -834,6 +834,15 @@ const ApiOptions = ({
 							</VSCodeLink>
 						)}
 					</p>
+
+					{/* Add Thinking Budget Slider specifically for gemini-2.5-flash-preview-04-17 */}
+					{selectedProvider === "gemini" && selectedModelId === "gemini-2.5-flash-preview-04-17" && (
+						<ThinkingBudgetSlider
+							apiConfiguration={apiConfiguration}
+							setApiConfiguration={setApiConfiguration}
+							maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
+						/>
+					)}
 				</div>
 			)}
 
@@ -1004,19 +1013,19 @@ const ApiOptions = ({
 								Supports Images
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
-								checked={!!apiConfiguration?.openAiModelInfo?.supportsComputerUse}
+								checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
 								onChange={(e: any) => {
 									const isChecked = e.target.checked === true
 									let modelInfo = apiConfiguration?.openAiModelInfo
 										? apiConfiguration.openAiModelInfo
 										: { ...openAiModelInfoSaneDefaults }
-									modelInfo = { ...modelInfo, supportsComputerUse: isChecked }
+									modelInfo.supportsImages = isChecked
 									setApiConfiguration({
 										...apiConfiguration,
 										openAiModelInfo: modelInfo,
 									})
 								}}>
-								Supports Computer Use
+								Supports browser use
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
 								checked={!!apiConfiguration?.openAiModelInfo?.isR1FormatRequired}
@@ -1748,17 +1757,30 @@ export const formatPrice = (price: number) => {
 }
 
 // Returns an array of formatted tier strings
-const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): string[] => {
+const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): JSX.Element[] => {
 	if (!tiers || tiers.length === 0) {
 		return []
 	}
 	return tiers.map((tier, index, arr) => {
 		const prevLimit = index > 0 ? arr[index - 1].tokenLimit : 0
-		const limitText =
-			tier.tokenLimit === Infinity
-				? `> ${prevLimit.toLocaleString()}` // Assumes sorted and Infinity is last
-				: `<= ${tier.tokenLimit.toLocaleString()}`
-		return `${formatPrice(tier.price)}/million tokens (${limitText} tokens)`
+		return (
+			<span style={{ paddingLeft: "15px" }} key={index}>
+				{formatPrice(tier.price)}/million tokens (
+				{tier.tokenLimit === Number.POSITIVE_INFINITY ? (
+					<span>
+						{"> "}
+						{prevLimit.toLocaleString()}
+					</span>
+				) : (
+					<span>
+						{"<= "}
+						{tier.tokenLimit.toLocaleString()}
+					</span>
+				)}
+				{" tokens)"}
+				{index < arr.length - 1 && <br />}
+			</span>
+		)
 	})
 }
 
@@ -1776,18 +1798,14 @@ export const ModelInfoView = ({
 	isPopup?: boolean
 }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+	const hasThinkingConfig = !!modelInfo.thinkingConfig
 
 	// Create elements for tiered pricing separately
 	const inputPriceElement = modelInfo.inputPriceTiers ? (
 		<Fragment key="inputPriceTiers">
 			<span style={{ fontWeight: 500 }}>Input price:</span>
 			<br />
-			{formatTiers(modelInfo.inputPriceTiers).map((tierString, i, arr) => (
-				<Fragment key={`inputTierFrag${i}`}>
-					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
-					{i < arr.length - 1 && <br />}
-				</Fragment>
-			))}
+			{formatTiers(modelInfo.inputPriceTiers)}
 		</Fragment>
 	) : modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 ? (
 		<span key="inputPrice">
@@ -1795,23 +1813,38 @@ export const ModelInfoView = ({
 		</span>
 	) : null
 
-	const outputPriceElement = modelInfo.outputPriceTiers ? (
-		<Fragment key="outputPriceTiers">
-			<span style={{ fontWeight: 500 }}>Output price:</span>
-			<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
-			<br />
-			{formatTiers(modelInfo.outputPriceTiers).map((tierString, i, arr) => (
-				<Fragment key={`outputTierFrag${i}`}>
-					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
-					{i < arr.length - 1 && <br />}
-				</Fragment>
-			))}
-		</Fragment>
-	) : modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 ? (
-		<span key="outputPrice">
-			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
-		</span>
-	) : null
+	// --- Output Price Logic ---
+	let outputPriceElement = null
+	if (hasThinkingConfig && modelInfo.outputPrice !== undefined && modelInfo.thinkingConfig?.outputPrice !== undefined) {
+		// Display both standard and thinking budget prices
+		outputPriceElement = (
+			<Fragment key="outputPriceConditional">
+				<span style={{ fontWeight: 500 }}>Output price (Standard):</span> {formatPrice(modelInfo.outputPrice)}/million
+				tokens
+				<br />
+				<span style={{ fontWeight: 500 }}>Output price (Thinking Budget &gt; 0):</span>{" "}
+				{formatPrice(modelInfo.thinkingConfig.outputPrice)}/million tokens
+			</Fragment>
+		)
+	} else if (modelInfo.outputPriceTiers) {
+		// Display tiered output pricing
+		outputPriceElement = (
+			<Fragment key="outputPriceTiers">
+				<span style={{ fontWeight: 500 }}>Output price:</span>
+				<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
+				<br />
+				{formatTiers(modelInfo.outputPriceTiers)}
+			</Fragment>
+		)
+	} else if (modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0) {
+		// Display single standard output price
+		outputPriceElement = (
+			<span key="outputPrice">
+				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
+			</span>
+		)
+	}
+	// --- End Output Price Logic ---
 
 	const infoItems = [
 		modelInfo.description && (
@@ -1830,10 +1863,10 @@ export const ModelInfoView = ({
 			doesNotSupportLabel="Does not support images"
 		/>,
 		<ModelInfoSupportsItem
-			key="supportsComputerUse"
-			isSupported={modelInfo.supportsComputerUse ?? false}
-			supportsLabel="Supports computer use"
-			doesNotSupportLabel="Does not support computer use"
+			key="supportsBrowserUse"
+			isSupported={modelInfo.supportsImages ?? false} // cline browser tool uses image recognition for navigation (requires model image support).
+			supportsLabel="Supports browser use"
+			doesNotSupportLabel="Does not support browser use"
 		/>,
 		!isGemini && (
 			<ModelInfoSupportsItem

@@ -6,5 +6,12 @@ import "common.proto";
 
 service CheckpointsService {
   rpc checkpointDiff(Int64Request) returns (Empty);
+  rpc checkpointRestore(CheckpointRestoreRequest) returns (Empty);
 }
 
+message CheckpointRestoreRequest {
+  Metadata metadata = 1;
+  int64 number = 2;
+  string restore_type = 3;
+  optional int64 offset = 4;
+}
