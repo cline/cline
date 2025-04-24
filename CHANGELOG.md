@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## [3.14.2] - 2025-04-24
+
+- Enable prompt caching for Gemini (with some improvements)
+- Allow users to turn prompt caching on / off for Gemini 2.5 on OpenRouter
+- Compress terminal output with backspace characters (thanks @KJ7LNW)
+- Add Russian language (Спасибо @asychin)
+
 ## [3.14.1] - 2025-04-24
 
 - Disable Gemini caching while we investigate issues reported by the community.
