@@ -45,7 +45,7 @@ export class GrpcHandler {
 					return {
 						message: await handleFileServiceRequest(this.controller, method, message),
 						request_id: requestId,
-          }
+          			}
 				case "cline.TaskService":
 					return {
 						message: await handleTaskServiceRequest(this.controller, method, message),
