@@ -2,7 +2,8 @@
 
 ## [3.13.2]
 
--   Add Caching to gemini provider
+-   Add Gemini 2.5 Flash model to Vertex and Gemini Providers (Thanks monotykamary!)
+-   Add Caching to gemini provider (Thanks arafatkatze!)
 -   Add thinking budget support to Gemini Models (Thanks monotykamary!)
 -   Add !include .file directive support for .clineignore (Thanks watany-dev!)
 -   Improve slash command functionality
