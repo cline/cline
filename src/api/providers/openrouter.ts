@@ -7,6 +7,7 @@ import {
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 	PROMPT_CACHING_MODELS,
+	OPTIONAL_PROMPT_CACHING_MODELS,
 } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk } from "../transform/stream"
@@ -65,7 +66,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 	): AsyncGenerator<ApiStreamChunk> {
-		let { id: modelId, maxTokens, thinking, temperature, topP, reasoningEffort, info } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature, topP, reasoningEffort, promptCache } = this.getModel()
 
 		// Convert Anthropic messages to OpenAI format.
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -78,11 +79,13 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
+		const isCacheAvailable = promptCache.supported && (!promptCache.optional || this.options.promptCachingEnabled)
+
 		// Prompt caching: https://openrouter.ai/docs/prompt-caching
 		// Now with Gemini support: https://openrouter.ai/docs/features/prompt-caching
 		// Note that we don't check the `ModelInfo` object because it is cached
 		// in the settings for OpenRouter and the value could be stale.
-		if (PROMPT_CACHING_MODELS.has(modelId)) {
+		if (isCacheAvailable) {
 			openAiMessages[0] = {
 				role: "system",
 				// @ts-ignore-next-line
@@ -193,8 +196,13 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		return {
 			id,
 			info,
+			// maxTokens, thinking, temperature, reasoningEffort
 			...getModelParams({ options: this.options, model: info, defaultTemperature }),
 			topP,
+			promptCache: {
+				supported: PROMPT_CACHING_MODELS.has(id),
+				optional: OPTIONAL_PROMPT_CACHING_MODELS.has(id),
+			},
 		}
 	}
 

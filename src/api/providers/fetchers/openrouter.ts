@@ -1,7 +1,13 @@
 import axios from "axios"
 import { z } from "zod"
 
-import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	anthropicModels,
+	COMPUTER_USE_MODELS,
+	OPTIONAL_PROMPT_CACHING_MODELS,
+} from "../../../shared/api"
 import { parseApiPrice } from "../../../utils/cost"
 
 // https://openrouter.ai/api/v1/models
@@ -62,8 +68,8 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions) {
 				? parseApiPrice(rawModel.pricing?.input_cache_read)
 				: undefined
 
-			// Disable prompt caching for Gemini models for now.
-			const supportsPromptCache = !!cacheWritesPrice && !!cacheReadsPrice && !rawModel.id.startsWith("google")
+			const supportsPromptCache =
+				typeof cacheWritesPrice !== "undefined" && typeof cacheReadsPrice !== "undefined"
 
 			const modelInfo: ModelInfo = {
 				maxTokens: rawModel.top_provider?.max_completion_tokens,
@@ -78,29 +84,25 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions) {
 				thinking: rawModel.id === "anthropic/claude-3.7-sonnet:thinking",
 			}
 
-			// Then OpenRouter model definition doesn't give us any hints about computer use,
-			// so we need to set that manually.
-			// The ideal `maxTokens` values are model dependent, but we should probably DRY
-			// this up and use the values defined for the Anthropic providers.
-			switch (true) {
-				case rawModel.id.startsWith("anthropic/claude-3.7-sonnet"):
-					modelInfo.supportsComputerUse = true
-					modelInfo.maxTokens = rawModel.id === "anthropic/claude-3.7-sonnet:thinking" ? 128_000 : 8192
-					break
-				case rawModel.id.startsWith("anthropic/claude-3.5-sonnet-20240620"):
-					modelInfo.maxTokens = 8192
-					break
-				case rawModel.id.startsWith("anthropic/claude-3.5-sonnet"):
-					modelInfo.supportsComputerUse = true
-					modelInfo.maxTokens = 8192
-					break
-				case rawModel.id.startsWith("anthropic/claude-3-5-haiku"):
-				case rawModel.id.startsWith("anthropic/claude-3-opus"):
-				case rawModel.id.startsWith("anthropic/claude-3-haiku"):
-					modelInfo.maxTokens = 8192
-					break
-				default:
-					break
+			// The OpenRouter model definition doesn't give us any hints about
+			// computer use, so we need to set that manually.
+			if (COMPUTER_USE_MODELS.has(rawModel.id)) {
+				modelInfo.supportsComputerUse = true
+			}
+
+			// We want to treat prompt caching as "experimental" for these models.
+			if (OPTIONAL_PROMPT_CACHING_MODELS.has(rawModel.id)) {
+				modelInfo.isPromptCacheOptional = true
+			}
+
+			// Claude 3.7 Sonnet is a "hybrid" thinking model, and the `maxTokens`
+			// values can be configured. For the non-thinking variant we want to
+			// use 8k. The `thinking` variant can be run in 64k and 128k modes,
+			// and we want to use 128k.
+			if (rawModel.id.startsWith("anthropic/claude-3.7-sonnet")) {
+				modelInfo.maxTokens = rawModel.id.includes("thinking")
+					? anthropicModels["claude-3-7-sonnet-20250219:thinking"].maxTokens
+					: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
 			}
 
 			models[rawModel.id] = modelInfo

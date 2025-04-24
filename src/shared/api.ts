@@ -1401,8 +1401,10 @@ export const vscodeLlmModels = {
  * Constants
  */
 
+// These models support reasoning efforts.
 export const REASONING_MODELS = new Set(["x-ai/grok-3-mini-beta", "grok-3-mini-beta", "grok-3-mini-fast-beta"])
 
+// These models support prompt caching.
 export const PROMPT_CACHING_MODELS = new Set([
 	"anthropic/claude-3-haiku",
 	"anthropic/claude-3-haiku:beta",
@@ -1421,7 +1423,26 @@ export const PROMPT_CACHING_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet",
 	"anthropic/claude-3.7-sonnet:beta",
 	"anthropic/claude-3.7-sonnet:thinking",
-	// "google/gemini-2.0-flash-001",
-	// "google/gemini-flash-1.5",
-	// "google/gemini-flash-1.5-8b",
+	"google/gemini-2.5-pro-preview-03-25",
+	"google/gemini-2.0-flash-001",
+	"google/gemini-flash-1.5",
+	"google/gemini-flash-1.5-8b",
+])
+
+// These models don't have prompt caching enabled by default (you can turn it on
+// in settings).
+export const OPTIONAL_PROMPT_CACHING_MODELS = new Set([
+	"google/gemini-2.5-pro-preview-03-25",
+	"google/gemini-2.0-flash-001",
+	"google/gemini-flash-1.5",
+	"google/gemini-flash-1.5-8b",
+])
+
+// https://www.anthropic.com/news/3-5-models-and-computer-use
+export const COMPUTER_USE_MODELS = new Set([
+	"anthropic/claude-3.5-sonnet",
+	"anthropic/claude-3.5-sonnet:beta",
+	"anthropic/claude-3.7-sonnet",
+	"anthropic/claude-3.7-sonnet:beta",
+	"anthropic/claude-3.7-sonnet:thinking",
 ])

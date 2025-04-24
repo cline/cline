@@ -54,7 +54,6 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 
 		let uncachedContent: Content[] | undefined = undefined
 		let cachedContent: string | undefined = undefined
-		let cacheWriteTokens: number | undefined = undefined
 
 		// The minimum input token count for context caching is 4,096.
 		// For a basic approximation we assume 4 characters per token.
@@ -66,6 +65,8 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			this.options.promptCachingEnabled &&
 			cacheKey &&
 			contentsLength > 4 * CONTEXT_CACHE_TOKEN_MINIMUM
+
+		let cacheWrite = false
 
 		if (isCacheAvailable) {
 			const cacheEntry = this.contentCaches.get<CacheEntry>(cacheKey)
@@ -97,9 +98,8 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 
 						if (name) {
 							this.contentCaches.set<CacheEntry>(cacheKey, { key: name, count: contents.length })
-							cacheWriteTokens = usageMetadata?.totalTokenCount ?? 0
 							console.log(
-								`[GeminiHandler] cached ${contents.length} messages (${cacheWriteTokens} tokens) in ${Date.now() - timestamp}ms`,
+								`[GeminiHandler] cached ${contents.length} messages (${usageMetadata?.totalTokenCount ?? "-"} tokens) in ${Date.now() - timestamp}ms`,
 							)
 						}
 					})
@@ -109,6 +109,8 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 					.finally(() => {
 						this.isCacheBusy = false
 					})
+
+				cacheWrite = true
 			}
 		}
 
@@ -146,18 +148,9 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		if (lastUsageMetadata) {
 			const inputTokens = lastUsageMetadata.promptTokenCount ?? 0
 			const outputTokens = lastUsageMetadata.candidatesTokenCount ?? 0
+			const cacheWriteTokens = cacheWrite ? inputTokens : undefined
 			const cacheReadTokens = lastUsageMetadata.cachedContentTokenCount
 			const reasoningTokens = lastUsageMetadata.thoughtsTokenCount
-
-			const totalCost = isCacheUsed
-				? this.calculateCost({
-						info,
-						inputTokens,
-						outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-					})
-				: undefined
 
 			yield {
 				type: "usage",
@@ -166,7 +159,13 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 				cacheWriteTokens,
 				cacheReadTokens,
 				reasoningTokens,
-				totalCost,
+				totalCost: this.calculateCost({
+					info,
+					inputTokens,
+					outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+				}),
 			}
 		}
 	}
@@ -250,8 +249,8 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		info,
 		inputTokens,
 		outputTokens,
-		cacheWriteTokens,
-		cacheReadTokens,
+		cacheWriteTokens = 0,
+		cacheReadTokens = 0,
 	}: {
 		info: ModelInfo
 		inputTokens: number
@@ -281,21 +280,32 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			}
 		}
 
-		let inputTokensCost = inputPrice * (inputTokens / 1_000_000)
-		let outputTokensCost = outputPrice * (outputTokens / 1_000_000)
-		let cacheWriteCost = 0
-		let cacheReadCost = 0
+		// Subtract the cached input tokens from the total input tokens.
+		const uncachedInputTokens = inputTokens - cacheReadTokens
 
-		if (cacheWriteTokens) {
-			cacheWriteCost = cacheWritesPrice * (cacheWriteTokens / 1_000_000) * (CACHE_TTL / 60)
+		let cacheWriteCost =
+			cacheWriteTokens > 0 ? cacheWritesPrice * (cacheWriteTokens / 1_000_000) * (CACHE_TTL / 60) : 0
+		let cacheReadCost = cacheReadTokens > 0 ? cacheReadsPrice * (cacheReadTokens / 1_000_000) : 0
+
+		const inputTokensCost = inputPrice * (uncachedInputTokens / 1_000_000)
+		const outputTokensCost = outputPrice * (outputTokens / 1_000_000)
+		const totalCost = inputTokensCost + outputTokensCost + cacheWriteCost + cacheReadCost
+
+		const trace: Record<string, { price: number; tokens: number; cost: number }> = {
+			input: { price: inputPrice, tokens: uncachedInputTokens, cost: inputTokensCost },
+			output: { price: outputPrice, tokens: outputTokens, cost: outputTokensCost },
 		}
 
-		if (cacheReadTokens) {
-			const uncachedReadTokens = inputTokens - cacheReadTokens
-			cacheReadCost = cacheReadsPrice * (cacheReadTokens / 1_000_000)
-			inputTokensCost = inputPrice * (uncachedReadTokens / 1_000_000)
+		if (cacheWriteTokens > 0) {
+			trace.cacheWrite = { price: cacheWritesPrice, tokens: cacheWriteTokens, cost: cacheWriteCost }
 		}
 
-		return inputTokensCost + outputTokensCost + cacheWriteCost + cacheReadCost
+		if (cacheReadTokens > 0) {
+			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens, cost: cacheReadCost }
+		}
+
+		// console.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
+
+		return totalCost
 	}
 }
