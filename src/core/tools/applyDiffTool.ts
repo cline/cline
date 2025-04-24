@@ -42,6 +42,10 @@ export async function applyDiffTool(
 				toolProgressStatus = cline.diffStrategy.getProgressStatus(block)
 			}
 
+			if (toolProgressStatus && Object.keys(toolProgressStatus).length === 0) {
+				return
+			}
+
 			const partialMessage = JSON.stringify(sharedMessageProps)
 			await cline.ask("tool", partialMessage, block.partial, toolProgressStatus).catch(() => {})
 			return
