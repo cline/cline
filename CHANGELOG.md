@@ -1,28 +1,23 @@
 # Changelog
 
-## 3.14.0
+## [3.13.2]
 
--   b3b7b9d: menu fix for slash commands
--   4aa3764: Update protoc script version check to check for versions LOWER than that specified
--   06196cf: Add aliasing to imports in the extension
--   fbb13f1: Fix add new rule file button not working
--   99bbe17: Update the extension import paths to use aliasing
--   04d1f1d: update prompt for new task
--   dfcb3d5: Migrate the toggleMcpServer message to protobus
--   d2080c1: Protobus migration for cancelTask
--   d2080c1: Protobus migration for newTask
--   4850df7: Add the o1 to the isReasoningModelFamily to avoid temperature be passed to the azure api
--   6e71b3f: Add !include .file directive support for .clineignore
--   9bbc0da: protobus migration for openFile
--   d2080c1: Protobus migration for clearTask
--   a405df5: Fix Ollama provider timeout by increasing it from 30 sec to 120 seconds to accommodate model loading time
--   552054a: Fix Non-UTF-8 File Handling: Improve Encoding Detection to Prevent Garbled Text and Binary Misclassification
--   cff8a23: Fixed bug causing saved settings to get reset by changing providers
--   044dd68: Fix for terminal outputs missing commas and start of non-alphanumeric outputs
--   552146d: Fixes auto approve settings becoming unset
--   ea4f571: protobus migration for checkpointRestore
--   5439426: Remove supportsComputerUse restriction and support browser use through any model that supports images
--   59dd323: Github workflow for creating a linear ticket from PRs
+-   Add Caching to gemini provider
+-   Add thinking budget support to Gemini Models (Thanks monotykamary!)
+-   Add !include .file directive support for .clineignore (Thanks watany-dev!)
+-   Improve slash command functionality
+-   Improve prompting for new task tool
+-   Fix o1 temperature being passed to the azure api (Thanks treeleaves30760!)
+-   Fix to make "add new rule file" button functional
+-   Fix Ollama provider timeout, allowing for a larger loading time (Thanks suvarchal!)
+-   Fix Non-UTF-8 File Handling: Improve Encoding Detection to Prevent Garbled Text and Binary Misclassification (Thanks yt3trees!)
+-   Fix settings to not reset by changing providers
+-   Fix terminal outputs missing commas
+-   Fix terminal errors caused by starting non-alphanumeric outputs
+-   Fix auto approve settings becoming unset
+-   Fix Mermaid syntax error in documentation (Thanks tuki0918!)
+-   Remove supportsComputerUse restriction and support browser use through any model that supports images (Thanks arafatkatze!)
+
 
 ## [3.13.1]
 
