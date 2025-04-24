@@ -12,7 +12,7 @@
 - Make the list_files tool more efficient and smarter about excluding directories like .git/
 - Fix file drag and drop on Windows and when using SSH tunnels (thanks @NyxJae!)
 - Correctly revert changes and suggest alternative tools when write_to_file fails on a missing line count
-- Allow interpolation of `workspace`, `mode`,  `language`, `shell`, and `operatingSystem` into custom system prompt overrides (thanks @daniel-lxs!)
+- Allow interpolation of `workspace`, `mode`, `language`, `shell`, and `operatingSystem` into custom system prompt overrides (thanks @daniel-lxs!)
 - Fix interpolation bug in the “add to context” code action (thanks @elianiva!)
 - Preserve editor state and prevent tab unpinning during diffs (thanks @seedlord!)
 - Improvements to icon rendering on Linux (thanks @elianiva!)
