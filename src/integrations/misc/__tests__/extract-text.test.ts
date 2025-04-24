@@ -5,6 +5,7 @@ import {
 	truncateOutput,
 	applyRunLengthEncoding,
 	processCarriageReturns,
+	processBackspaces,
 } from "../extract-text"
 
 describe("addLineNumbers", () => {
@@ -227,6 +228,69 @@ describe("truncateOutput", () => {
 
 	it("handles single line content", () => {
 		expect(truncateOutput("single line", 10)).toBe("single line")
+	})
+
+	describe("processBackspaces", () => {
+		it("should handle basic backspace deletion", () => {
+			const input = "abc\b\bxy"
+			const expected = "axy"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle backspaces at start of input", () => {
+			const input = "\b\babc"
+			const expected = "abc"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle backspaces with newlines", () => {
+			const input = "abc\b\n123\b\b"
+			const expected = "ab\n1"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle consecutive backspaces", () => {
+			const input = "abcdef\b\b\b\bxy"
+			const expected = "abxy"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle backspaces at end of input", () => {
+			const input = "abc\b\b"
+			const expected = "a"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle mixed backspaces and content", () => {
+			const input = "abc\bx\byz\b\b123"
+			const expected = "ab123"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle multiple groups of consecutive backspaces", () => {
+			const input = "abc\b\bdef\b\b\bghi\b\b\b\bjkl"
+			const expected = "jkl"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle backspaces with empty content between them", () => {
+			const input = "abc\b\b\b\b\b\bdef"
+			const expected = "def"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle complex mixed content with backspaces", () => {
+			const input = "Loading[\b\b\b\b\b\b\b\bProgress[\b\b\b\b\b\b\b\b\bStatus: \b\b\b\b\b\b\b\bDone!"
+			// Technically terminal displays "Done!s: [" but we assume \b is destructive as an optimization
+			const expected = "Done!"
+			expect(processBackspaces(input)).toBe(expected)
+		})
+
+		it("should handle backspaces with special characters", () => {
+			const input = "abc😀\b\bdef🎉\b\b\bghi"
+			const expected = "abcdeghi"
+			expect(processBackspaces(input)).toBe(expected)
+		})
 	})
 
 	it("handles windows-style line endings", () => {

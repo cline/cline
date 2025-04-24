@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import pWaitFor from "p-wait-for"
 import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
-import { truncateOutput, applyRunLengthEncoding, processCarriageReturns } from "../misc/extract-text"
+import { truncateOutput, applyRunLengthEncoding, processCarriageReturns, processBackspaces } from "../misc/extract-text"
 // Import TerminalRegistry here to avoid circular dependencies
 const { TerminalRegistry } = require("./TerminalRegistry")
 
@@ -296,9 +296,11 @@ export class Terminal {
 	public static compressTerminalOutput(input: string, lineLimit: number): string {
 		// Apply carriage return processing if the feature is enabled
 		let processedInput = input
-		if (Terminal.compressProgressBar && input.includes("\r")) {
-			processedInput = processCarriageReturns(input)
+		if (Terminal.compressProgressBar) {
+			processedInput = processCarriageReturns(processedInput)
+			processedInput = processBackspaces(processedInput)
 		}
+
 		return truncateOutput(applyRunLengthEncoding(processedInput), lineLimit)
 	}
 

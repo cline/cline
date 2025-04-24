@@ -289,6 +289,53 @@ export function processCarriageReturns(input: string): string {
 }
 
 /**
+ * Processes backspace characters (\b) in terminal output using index operations.
+ * Uses indexOf to efficiently locate and handle backspaces.
+ *
+ * Technically terminal only moves the cursor and overwrites in-place,
+ * but we assume \b is destructive as an optimization which is acceptable
+ * for all progress spinner cases and most terminal output cases.
+ *
+ * @param input The terminal output to process
+ * @returns The processed output with backspaces handled
+ */
+export function processBackspaces(input: string): string {
+	let output = ""
+	let pos = 0
+	let bsPos = input.indexOf("\b")
+
+	while (bsPos !== -1) {
+		// Fast path: exclude char before backspace
+		output += input.substring(pos, bsPos - 1)
+
+		// Move past backspace
+		pos = bsPos + 1
+
+		// Count consecutive backspaces
+		let count = 0
+		while (input[pos] === "\b") {
+			count++
+			pos++
+		}
+
+		// Trim output mathematically for consecutive backspaces
+		if (count > 0 && output.length > 0) {
+			output = output.substring(0, Math.max(0, output.length - count))
+		}
+
+		// Find next backspace
+		bsPos = input.indexOf("\b", pos)
+	}
+
+	// Add remaining content
+	if (pos < input.length) {
+		output += input.substring(pos)
+	}
+
+	return output
+}
+
+/**
  * Helper function to process a single line with carriage returns.
  * Handles the overwrite logic for a line that contains one or more carriage returns (\r).
  *
