@@ -32,6 +32,7 @@ import { CheckpointControls } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import NewTaskPreview from "./NewTaskPreview"
 import UserMessage from "./UserMessage"
+import { FileServiceClient } from "@/services/grpc-client"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -446,10 +447,9 @@ export const ChatRowContent = ({
 									msUserSelect: "none",
 								}}
 								onClick={() => {
-									vscode.postMessage({
-										type: "openFile",
-										text: tool.content,
-									})
+									FileServiceClient.openFile({ value: tool.content }).catch((err) =>
+										console.error("Failed to open file:", err),
+									)
 								}}>
 								{tool.path?.startsWith(".") && <span>.</span>}
 								<span

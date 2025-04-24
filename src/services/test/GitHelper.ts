@@ -1,8 +1,8 @@
 import * as path from "path"
 import * as vscode from "vscode"
 import { execa } from "execa"
-import { Logger } from "../../services/logging/Logger"
-import { WebviewProvider } from "../../core/webview"
+import { Logger } from "@services/logging/Logger"
+import { WebviewProvider } from "@core/webview"
 
 /**
  * Gets a valid workspace path for Git operations

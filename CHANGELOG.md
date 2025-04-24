@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.13.2]
+
+-   Add Gemini 2.5 Flash model to Vertex and Gemini Providers (Thanks monotykamary!)
+-   Add Caching to gemini provider (Thanks arafatkatze!)
+-   Add thinking budget support to Gemini Models (Thanks monotykamary!)
+-   Add !include .file directive support for .clineignore (Thanks watany-dev!)
+-   Improve slash command functionality
+-   Improve prompting for new task tool
+-   Fix o1 temperature being passed to the azure api (Thanks treeleaves30760!)
+-   Fix to make "add new rule file" button functional
+-   Fix Ollama provider timeout, allowing for a larger loading time (Thanks suvarchal!)
+-   Fix Non-UTF-8 File Handling: Improve Encoding Detection to Prevent Garbled Text and Binary Misclassification (Thanks yt3trees!)
+-   Fix settings to not reset by changing providers
+-   Fix terminal outputs missing commas
+-   Fix terminal errors caused by starting non-alphanumeric outputs
+-   Fix auto approve settings becoming unset
+-   Fix Mermaid syntax error in documentation (Thanks tuki0918!)
+-   Remove supportsComputerUse restriction and support browser use through any model that supports images (Thanks arafatkatze!)
+
+
 ## [3.13.1]
 
 -   Fix bug where task cancellation during thinking stream would result in error state

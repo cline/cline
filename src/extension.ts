@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import assert from "node:assert"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { registerAddFileToChatCommand } from "./commands/addFileToChat"
 import { WebviewProvider } from "./core/webview"
@@ -10,7 +11,8 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { ErrorService } from "./services/error/ErrorService"
 import { Logger } from "./services/logging/Logger"
 import { telemetryService } from "./services/telemetry/TelemetryService"
-import { createTestServer, shutdownTestServer } from "./services/test/TestServer"
+import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
+import { createTestServer } from "./services/test/TestServer"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 /*
@@ -36,8 +38,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const sidebarWebview = new WebviewProvider(context, outputChannel)
 
+	// Initialize test mode and add disposables to context
+	context.subscriptions.push(...initializeTestMode(context, sidebarWebview))
+
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
-	vscode.commands.executeCommand("setContext", "cline.isTestMode", IS_TEST && IS_TEST === "true")
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(WebviewProvider.sideBarId, sidebarWebview, {
@@ -412,6 +416,10 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register the command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.fixWithCline", async (range: vscode.Range, diagnostics: vscode.Diagnostic[]) => {
+			// Add this line to focus the chat input first
+			await vscode.commands.executeCommand("cline.focusChatInput")
+			// Wait for a webview instance to become visible after focusing
+			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
 			const editor = vscode.window.activeTextEditor
 			if (!editor) {
 				return
@@ -445,11 +453,6 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Set up test server if in test mode
-	if (IS_TEST === "true") {
-		createTestServer(sidebarWebview)
-	}
-
 	// Register the new command
 	registerAddFileToChatCommand(context, sidebarWebview.controller)
 
@@ -462,12 +465,12 @@ export function activate(context: vscode.ExtensionContext) {
 //
 // This is a workaround to reload the extension when the source code changes
 // since vscode doesn't support hot reload for extensions
-const { IS_DEV, DEV_WORKSPACE_FOLDER, IS_TEST } = process.env
+const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	// Shutdown the test server if it exists
-	shutdownTestServer()
+	// Clean up test mode
+	cleanupTestMode()
 
 	telemetryService.shutdown()
 	Logger.log("Cline extension deactivated")
