@@ -1,0 +1,10 @@
+{
+	"number_format": {
+		"thousand_suffix": "тыс",
+		"million_suffix": "млн",
+		"billion_suffix": "млрд"
+	},
+	"ui": {
+		"search_placeholder": "Поиск..."
+	}
+}
