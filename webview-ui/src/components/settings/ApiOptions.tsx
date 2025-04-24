@@ -1265,7 +1265,7 @@ const ApiOptions = ({
 									display: "inline",
 									fontSize: "inherit",
 								}}>
-								You can get Netmind model id by here.
+								You can get a Netmind model ID here.
 							</VSCodeLink>
 						)}
 					</p>
