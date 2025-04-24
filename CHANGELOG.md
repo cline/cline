@@ -1,5 +1,41 @@
 # Roo Code Changelog
 
+## [3.14.0] - 2025-04-23
+
+- Add prompt caching for `gemini-2.5-pro-preview-03-25` in the Gemini provider (Vertex and OpenRouter coming soon!)
+- Improve the search_and_replace and insert_content tools and bring them out of experimental, and deprecate append_to_file (thanks @samhvw8!)
+- Use material icons for files and folders in mentions (thanks @elianiva!)
+- Make the list_files tool more efficient and smarter about excluding directories like .git/
+- Fix file drag and drop on Windows and when using SSH tunnels (thanks @NyxJae!)
+- Correctly revert changes and suggest alternative tools when write_to_file fails on a missing line count
+- Allow interpolation of `workspace`, `mode`,  `language`, `shell`, and `operatingSystem` into custom system prompt overrides (thanks @daniel-lxs!)
+- Fix interpolation bug in the “add to context” code action (thanks @elianiva!)
+- Preserve editor state and prevent tab unpinning during diffs (thanks @seedlord!)
+- Improvements to icon rendering on Linux (thanks @elianiva!)
+- Improvements to Requesty model list fetching (thanks @dtrugman!)
+- Fix user feedback not being added to conversation history in API error state, redundant ‘TASK RESUMPTION’ prompts, and error messages not showing after cancelling API requests (thanks @System233!)
+- Track tool use errors in evals
+- Fix MCP hub error when dragging extension to another sidebar
+- Improve display of long MCP tool arguments
+- Fix redundant ‘TASK RESUMPTION’ prompts (thanks @System233!)
+- Fix bug opening files when editor has no workspace root
+- Make the VS Code LM provider show the correct model information (thanks @QuinsZouls!)
+- Fixes to make the focusInput command more reliable (thanks @hongzio!)
+- Better handling of aftercursor content in context mentions (thanks @elianiva!)
+- Support injecting environment variables in MCP config (thanks @NamesMT!)
+- Better handling of FakeAI “controller” object (thanks @wkordalski)
+- Remove unnecessary calculation from VS Code LM provider (thanks @d-oit!)
+- Allow Amazon Bedrock Marketplace ARNs (thanks @mlopezr!)
+- Give better loading feedback on chat rows (thanks @elianiva!)
+- Performance improvements to task size calculations
+- Don’t immediately show a model ID error when changing API providers
+- Fix apply_diff edge cases
+- Use a more sensible task export icon
+- Use path aliases in webview source files
+- Display a warning when the system prompt is overridden
+- Better progress indicator for apply_diff tools (thanks @qdaxb!)
+- Fix terminal carriage return handling for correct progress bar display (thanks @Yikai-Liao!)
+
 ## [3.13.2] - 2025-04-18
 
 - Allow custom URLs for Gemini provider
