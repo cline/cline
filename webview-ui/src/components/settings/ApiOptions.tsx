@@ -1227,6 +1227,24 @@ const ApiOptions = ({
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.netmindApiKey && (
+							<VSCodeLink
+								href="https://www.netmind.ai/user/apiToken"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Netmind API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
 					<VSCodeTextField
 						value={apiConfiguration?.netmindModelId || ""}
 						style={{ width: "100%" }}
@@ -1234,6 +1252,23 @@ const ApiOptions = ({
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						{!apiConfiguration?.netmindModelId && (
+							<VSCodeLink
+								href="https://www.netmind.ai/user/modelsLibrary"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get Netmind model id by here.
+							</VSCodeLink>
+						)}
+					</p>
 					<p
 						style={{
 							fontSize: "12px",
