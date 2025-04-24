@@ -1676,6 +1676,8 @@ export class Task {
 							return `[${block.name}]`
 						case "new_task":
 							return `[${block.name} for creating a new task]`
+						case "condense":
+							return `[${block.name}]`
 					}
 				}
 
@@ -3010,6 +3012,65 @@ export class Task {
 							}
 						} catch (error) {
 							await handleError("creating new task", error)
+							break
+						}
+					}
+					case "condense": {
+						const context: string | undefined = block.params.context
+						try {
+							if (block.partial) {
+								await this.ask("condense", removeClosingTag("context", context), block.partial).catch(() => {})
+								break
+							} else {
+								if (!context) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("condense", "context"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle: "Cline wants to condense the conversation...",
+										message: `Cline is suggesting to condense your conversation with: ${context}`,
+									})
+								}
+
+								const { text, images } = await this.ask("condense", context, false)
+
+								// If the user provided a response, treat it as feedback
+								if (text || images?.length) {
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										formatResponse.toolResult(
+											`The user provided feedback on the condensed conversation summary:\n<feedback>\n${text}\n</feedback>`,
+											images,
+										),
+									)
+								} else {
+									// If no response, the user accepted the condensed version
+									pushToolResult(formatResponse.toolResult(formatResponse.condense()))
+
+									const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+									const summaryAlreadyAppended = lastMessage && lastMessage.role === "assistant"
+									const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
+
+									// clear the context history at this point in time
+									this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+										this.apiConversationHistory,
+										this.conversationHistoryDeletedRange,
+										keepStrategy,
+									)
+									await this.saveClineMessagesAndUpdateHistory()
+									await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+										Date.now(),
+										await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+									)
+								}
+								break
+							}
+						} catch (error) {
+							await handleError("condensing context window", error)
 							break
 						}
 					}

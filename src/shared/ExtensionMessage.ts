@@ -183,6 +183,7 @@ export type ClineAsk =
 	| "browser_action_launch"
 	| "use_mcp_server"
 	| "new_task"
+	| "condense"
 
 export type ClineSay =
 	| "task"

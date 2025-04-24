@@ -1,14 +1,15 @@
-import { newTaskToolResponse } from "../prompts/commands"
+import { newTaskToolResponse, condenseToolResponse } from "../prompts/commands"
 
 /**
  * Processes text for slash commands and transforms them with appropriate instructions
  * This is called after parseMentions() to process any slash commands in the user's message
  */
 export function parseSlashCommands(text: string): string {
-	const SUPPORTED_COMMANDS = ["newtask"]
+	const SUPPORTED_COMMANDS = ["newtask", "smol"]
 
 	const commandReplacements: Record<string, string> = {
 		newtask: newTaskToolResponse(),
+		smol: condenseToolResponse(),
 	}
 
 	// this currently allows matching prepended whitespace prior to /slash-command

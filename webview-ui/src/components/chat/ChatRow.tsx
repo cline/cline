@@ -1271,6 +1271,23 @@ export const ChatRowContent = ({
 							<NewTaskPreview context={message.text || ""} />
 						</>
 					)
+				case "condense":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-new-file"
+									style={{
+										color: normalColor,
+										marginBottom: "-1.5px",
+									}}></span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>
+									Cline wants to condense your conversation:
+								</span>
+							</div>
+							<NewTaskPreview context={message.text || ""} />
+						</>
+					)
 				case "plan_mode_respond": {
 					let response: string | undefined
 					let options: string[] | undefined
