@@ -6,54 +6,17 @@ import { execSync } from "child_process"
 import { globby } from "globby"
 import chalk from "chalk"
 
+import { createRequire } from "module"
+const require = createRequire(import.meta.url)
+const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const tsProtoPlugin = require.resolve("ts-proto/protoc-gen-ts_proto")
+
 // Get script directory and root directory
 const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
-
-	// Check if protoc is installed and has the correct version
-	try {
-		const protocOutput = execSync("protoc --version", { encoding: "utf8" }).trim()
-		console.log(chalk.cyan(`Found ${protocOutput}`))
-		const versionMatch = protocOutput.match(/libprotoc\s+(\d+\.\d+)/)
-		if (!versionMatch) {
-			console.warn(chalk.yellow("Warning: Could not determine protoc version. Continuing anyway..."))
-		} else {
-			const version = versionMatch[1]
-			const requiredVersion = "30.1"
-			if (version !== requiredVersion) {
-				console.warn(
-					chalk.yellow(`Warning: protoc version ${version} found, but version ${requiredVersion} is required.`),
-				)
-				console.warn(
-					chalk.yellow(
-						`To install the correct version, visit: https://github.com/protocolbuffers/protobuf/releases/tag/v${requiredVersion}`,
-					),
-				)
-				process.exit(0) // Exit with success as requested
-			}
-		}
-	} catch (error) {
-		console.warn(chalk.yellow("Warning: protoc is not installed. Skipping proto generation."))
-		console.warn(
-			chalk.yellow(
-				"To install Protocol Buffers compiler, visit: https://github.com/protocolbuffers/protobuf/releases/tag/v30.1",
-			),
-		)
-		process.exit(0) // Exit with success as requested
-	}
-
-	// Check if ts-proto plugin is available
-	const TS_PROTO_PLUGIN = path.join(ROOT_DIR, "node_modules", ".bin", "protoc-gen-ts_proto")
-	try {
-		await fs.access(TS_PROTO_PLUGIN)
-	} catch (error) {
-		console.error(chalk.red("Error: ts-proto plugin not found at"), TS_PROTO_PLUGIN)
-		console.error(chalk.red('Please run "npm install" to install the required dependencies.'))
-		process.exit(1)
-	}
 
 	// Define output directories
 	const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
@@ -70,15 +33,15 @@ async function main() {
 
 	// Process all proto files
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
-	const protoFiles = await globby("**/*.proto", { cwd: SCRIPT_DIR })
+	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
 
 	for (const protoFile of protoFiles) {
 		console.log(chalk.cyan(`Generating TypeScript code for ${protoFile}...`))
 
 		// Build the protoc command with proper path handling for cross-platform
 		const protocCommand = [
-			"protoc",
-			`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
+			protoc,
+			`--plugin=protoc-gen-ts_proto="${tsProtoPlugin}"`,
 			`--ts_proto_out="${TS_OUT_DIR}"`,
 			"--ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages",
 			`--proto_path="${SCRIPT_DIR}"`,
