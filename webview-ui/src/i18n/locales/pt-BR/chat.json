@@ -186,12 +186,12 @@
 		"copyToInput": "Copiar para entrada (ou Shift + clique)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.13 Lançado",
-		"description": "Roo Code 3.13 traz novos recursos e melhorias baseados no seu feedback.",
+		"title": "🎉 Roo Code 3.14 Lançado",
+		"description": "Roo Code 3.14 traz novos recursos e melhorias baseados no seu feedback.",
 		"whatsNew": "O que há de novo",
-		"feature1": "<bold>Gemini 2.5 Flash Thinking</bold>: Agora você pode usar a variante thinking do Gemini 2.5 Flash e especificar um orçamento de tokens para thinking",
-		"feature2": "<bold>Melhorias na UI</bold>: O cabeçalho de tarefas, visualização de chat, pré-visualização do histórico e tela de boas-vindas foram visualmente aprimorados",
-		"feature3": "<bold>Correções de bugs</bold>: Edições de diferenças mais confiáveis e mais",
+		"feature1": "<bold>Cache para Gemini 2.5 Pro</bold>: <code>gemini-2.5-pro-preview-03-25</code> agora suporta cache de prompts no provedor Gemini (Vertex e OpenRouter em breve)",
+		"feature2": "<bold>Ferramentas de edição aprimoradas</bold>: As ferramentas <code>search_and_replace</code> e <code>insert_content</code> foram aprimoradas e não são mais experimentais",
+		"feature3": "<bold>Toneladas de outras melhorias</bold>: Inúmeras correções e aprimoramentos em toda a extensão",
 		"hideButton": "Ocultar anúncio",
 		"detailsDiscussLinks": "Obtenha mais detalhes e participe da discussão no <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},

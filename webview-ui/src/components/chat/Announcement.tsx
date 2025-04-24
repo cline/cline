@@ -70,6 +70,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						i18nKey="chat:announcement.feature1"
 						components={{
 							bold: <b />,
+							code: <code />,
 						}}
 					/>
 				</li>
@@ -79,6 +80,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						i18nKey="chat:announcement.feature2"
 						components={{
 							bold: <b />,
+							code: <code />,
 						}}
 					/>
 				</li>
@@ -88,6 +90,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						i18nKey="chat:announcement.feature3"
 						components={{
 							bold: <b />,
+							code: <code />,
 						}}
 					/>
 				</li>

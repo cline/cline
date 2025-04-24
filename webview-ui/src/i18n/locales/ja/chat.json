@@ -186,12 +186,12 @@
 		"copyToInput": "入力欄にコピー（またはShift + クリック）"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.13 リリース",
-		"description": "Roo Code 3.13は新機能とあなたのフィードバックに基づく改善をもたらします。",
+		"title": "🎉 Roo Code 3.14 リリース",
+		"description": "Roo Code 3.14は新機能とあなたのフィードバックに基づく改善をもたらします。",
 		"whatsNew": "新機能",
-		"feature1": "<bold>Gemini 2.5 Flash Thinking</bold>: Gemini 2.5 Flashのthinkingバリアントを使用し、thinking用のトークン予算を指定できるようになりました",
-		"feature2": "<bold>UI改善</bold>: タスクヘッダー、チャットビュー、履歴プレビュー、ウェルカムビューが視覚的に強化されました",
-		"feature3": "<bold>バグ修正</bold>: より信頼性の高い差分編集など",
+		"feature1": "<bold>Gemini 2.5 Proのプロンプトキャッシング</bold>: <code>gemini-2.5-pro-preview-03-25</code>がGeminiプロバイダーでプロンプトキャッシングをサポートするようになりました（VertexとOpenRouterも近日対応予定）",
+		"feature2": "<bold>編集ツールの改善</bold>: <code>search_and_replace</code>と<code>insert_content</code>ツールが改善され、実験的ステータスから正式機能になりました",
+		"feature3": "<bold>その他多数の改善点</bold>: 拡張機能全体にわたる多くの修正と機能強化",
 		"hideButton": "通知を非表示",
 		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
 	},

@@ -29,6 +29,7 @@ jest.*
 .roomodes
 .rooignore
 .roo/**
+benchmark/**
 cline_docs/**
 e2e/**
 evals/**

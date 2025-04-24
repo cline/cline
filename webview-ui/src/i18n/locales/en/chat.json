@@ -179,12 +179,12 @@
 		"description": "Auto-approve allows Roo Code to perform actions without asking for permission. Only enable for actions you fully trust. More detailed configuration available in <settingsLink>Settings</settingsLink>."
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.13 Released",
-		"description": "Roo Code 3.13 brings new features and improvements based on your feedback.",
+		"title": "🎉 Roo Code 3.14 Released",
+		"description": "Roo Code 3.14 brings new features and improvements based on your feedback.",
 		"whatsNew": "What's New",
-		"feature1": "<bold>Gemini 2.5 Flash Thinking</bold>: You can now use the thinking variant of Gemini 2.5 Flash and specify a thinking token budget",
-		"feature2": "<bold>UI Improvements</bold>: The task header, chat view, history preview, and welcome view have been visually upgraded",
-		"feature3": "<bold>Bug Fixes</bold>: More reliable diff edits & more",
+		"feature1": "<bold>Gemini 2.5 Pro Caching</bold>: <code>gemini-2.5-pro-preview-03-25</code> now supports prompt caching in the Gemini provider (Vertex and OpenRouter coming soon)",
+		"feature2": "<bold>Improved Editing Tools</bold>: The <code>search_and_replace</code> and <code>insert_content</code> tools have been improved and graduated from experimental status",
+		"feature3": "<bold>Tons of Other Improvements</bold>: Numerous fixes and enhancements throughout the extension",
 		"hideButton": "Hide announcement",
 		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
 	},
