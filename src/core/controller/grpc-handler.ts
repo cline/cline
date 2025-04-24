@@ -1,5 +1,6 @@
 import { Controller } from "./index"
 import { handleBrowserServiceRequest } from "./browser/index"
+import { handleTaskServiceRequest } from "./task"
 import { handleCheckpointsServiceRequest } from "./checkpoints"
 import { handleMcpServiceRequest } from "./mcp"
 
@@ -37,6 +38,11 @@ export class GrpcHandler {
 				case "cline.CheckpointsService":
 					return {
 						message: await handleCheckpointsServiceRequest(this.controller, method, message),
+						request_id: requestId,
+					}
+				case "cline.TaskService":
+					return {
+						message: await handleTaskServiceRequest(this.controller, method, message),
 						request_id: requestId,
 					}
 				case "cline.McpService":
