@@ -24,7 +24,6 @@ export interface WebviewMessage {
 		| "requestLmStudioModels"
 		| "openImage"
 		| "openInBrowser"
-		| "openFile"
 		| "createRuleFile"
 		| "openMention"
 		| "showChatView"
