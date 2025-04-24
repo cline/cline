@@ -39,7 +39,6 @@ export interface WebviewMessage {
 		| "restartMcpServer"
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
-		| "browserSettings"
 		| "browserRelaunchResult"
 		| "togglePlanActMode"
 		| "checkpointRestore"
