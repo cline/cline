@@ -55,7 +55,6 @@ describe("OpenRouterHandler", () => {
 				info: mockOptions.openRouterModelInfo,
 				maxTokens: 1000,
 				reasoning: undefined,
-				supportsPromptCache: false,
 				temperature: 0,
 				thinking: undefined,
 				topP: undefined,

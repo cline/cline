@@ -1,11 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "../../shared/api"
+
+import { ApiHandlerOptions, XAIModelId, xaiDefaultModelId, xaiModels, REASONING_MODELS } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { DEFAULT_HEADERS, REASONING_MODELS } from "./constants"
+
+import { SingleCompletionHandler } from "../index"
+import { DEFAULT_HEADERS } from "./constants"
 import { BaseProvider } from "./base-provider"
-import { SingleCompletionHandler } from ".."
 
 const XAI_DEFAULT_TEMPERATURE = 0
 

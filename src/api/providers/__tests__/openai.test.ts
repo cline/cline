@@ -1,7 +1,6 @@
 import { OpenAiHandler } from "../openai"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "../constants"
 
 // Mock OpenAI client
 const mockCreate = jest.fn()
