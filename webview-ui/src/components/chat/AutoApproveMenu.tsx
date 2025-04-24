@@ -1,12 +1,12 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useMemo, useRef, useState } from "react"
-import useClickOutside from "@/hooks/useClickOutside"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
 import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import { useClickAway } from "react-use"
 
 interface AutoApproveMenuProps {
 	style?: React.CSSProperties
@@ -231,7 +231,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	)
 
 	// Handle clicks outside the menu to close it
-	useClickOutside(menuRef, () => setIsExpanded(false), isExpanded)
+	useClickAway(menuRef, () => {
+		if (isExpanded) {
+			setIsExpanded(false)
+		}
+	})
 
 	return (
 		<div
