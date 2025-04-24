@@ -8,8 +8,8 @@ Cline is a VSCode extension that provides AI assistance through a combination of
 
 ```mermaid
 graph TB
-    subgraph VSCode Extension Host
-        subgraph Core Extension
+    subgraph VSCodeExtensionHost[VSCode Extension Host]
+        subgraph CoreExtension[Core Extension]
             ExtensionEntry[Extension Entry<br/>src/extension.ts]
             WebviewProvider[WebviewProvider<br/>src/core/webview/index.ts]
             Controller[Controller<br/>src/core/controller/index.ts]
@@ -19,7 +19,7 @@ graph TB
             McpHub[McpHub<br/>src/services/mcp/McpHub.ts]
         end
 
-        subgraph Webview UI
+        subgraph WebviewUI[Webview UI]
             WebviewApp[React App<br/>webview-ui/src/App.tsx]
             ExtStateContext[ExtensionStateContext<br/>webview-ui/src/context/ExtensionStateContext.tsx]
             ReactComponents[React Components]
@@ -30,14 +30,14 @@ graph TB
             CheckpointSystem[Git-based Checkpoints]
         end
 
-        subgraph API Providers
+        subgraph apiProviders[API Providers]
             AnthropicAPI[Anthropic]
             OpenRouterAPI[OpenRouter]
             BedrockAPI[AWS Bedrock]
             OtherAPIs[Other Providers]
         end
 
-        subgraph MCP Servers
+        subgraph MCPServers[MCP Servers]
             ExternalMcpServers[External MCP Servers]
         end
     end
@@ -51,7 +51,7 @@ graph TB
     Task --> SecretsStorage
     Task --> TaskStorage
     Task --> CheckpointSystem
-    Task --> |API Requests| API Providers
+    Task --> |API Requests| apiProviders
     McpHub --> |Connects to| ExternalMcpServers
     Task --> |Uses| McpHub
 
@@ -67,7 +67,7 @@ graph TB
     style ExtStateContext fill:#bbf,stroke:#333,stroke-width:2px
     style WebviewProvider fill:#bfb,stroke:#333,stroke-width:2px
     style McpHub fill:#bfb,stroke:#333,stroke-width:2px
-    style API Providers fill:#fdb,stroke:#333,stroke-width:2px
+    style apiProviders fill:#fdb,stroke:#333,stroke-width:2px
 ```
 
 ## Definitions 

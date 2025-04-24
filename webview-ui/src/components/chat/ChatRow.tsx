@@ -17,6 +17,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
+import { FileServiceClient } from "@/services/grpc-client"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
@@ -424,10 +425,9 @@ export const ChatRowContent = ({
 									msUserSelect: "none",
 								}}
 								onClick={() => {
-									vscode.postMessage({
-										type: "openFile",
-										text: tool.content,
-									})
+									FileServiceClient.openFile({ value: tool.content }).catch((err) =>
+										console.error("Failed to open file:", err),
+									)
 								}}>
 								{tool.path?.startsWith(".") && <span>.</span>}
 								<span

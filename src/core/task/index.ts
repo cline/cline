@@ -1432,11 +1432,12 @@ export class Task {
 		})
 
 		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
-		const modelSupportsComputerUse = this.api.getModel().info.supportsComputerUse ?? false
+		// cline browser tool uses image recognition for navigation (requires model image support).
+		const modelSupportsBrowserUse = this.api.getModel().info.supportsImages ?? false
 
-		const supportsComputerUse = modelSupportsComputerUse && !disableBrowserTool // only enable computer use if the model supports it and the user hasn't disabled it
+		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, this.mcpHub, this.browserSettings)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const preferredLanguage = getLanguageKey(

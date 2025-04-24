@@ -12,7 +12,8 @@ import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { fetchOpenGraphData, isImageUrl } from "@integrations/misc/link-preview"
-import { openFile, openImage } from "@integrations/misc/open-file"
+import { openImage } from "@integrations/misc/open-file"
+import { handleFileServiceRequest } from "./file"
 import { selectImages } from "@integrations/misc/process-images"
 import { getTheme } from "@integrations/theme/getTheme"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
@@ -273,17 +274,6 @@ export class Controller {
 				})
 				break
 			}
-			case "newTask":
-				// Code that should run in response to the hello message command
-				//vscode.window.showInformationMessage(message.text!)
-
-				// Send a message to our webview.
-				// You can send any JSON serializable data.
-				// Could also do this in extension .ts
-				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images)
-				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
 					await updateApiConfiguration(this.context, message.apiConfiguration)
@@ -342,11 +332,6 @@ export class Controller {
 				break
 			case "askResponse":
 				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
-				break
-			case "clearTask":
-				// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
-				await this.clearTask()
-				await this.postStateToWebview()
 				break
 			case "didShowAnnouncement":
 				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
@@ -424,9 +409,6 @@ export class Controller {
 			case "checkIsImageUrl":
 				this.checkIsImageUrl(message.text!)
 				break
-			case "openFile":
-				openFile(message.text!)
-				break
 			case "createRuleFile":
 				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
 					console.error("createRuleFile: Missing or invalid parameters", {
@@ -440,13 +422,13 @@ export class Controller {
 				if (fileExists && filePath) {
 					vscode.window.showWarningMessage(`Rule file "${message.filename}" already exists.`)
 					// Still open it for editing
-					openFile(filePath)
+					await handleFileServiceRequest(this, "openFile", { value: filePath })
 					return
 				} else if (filePath && !fileExists) {
 					await refreshClineRulesToggles(this.context, cwd)
 					await this.postStateToWebview()
 
-					openFile(filePath)
+					await handleFileServiceRequest(this, "openFile", { value: filePath })
 
 					vscode.window.showInformationMessage(
 						`Created new ${message.isGlobal ? "global" : "workspace"} rule file: ${message.filename}`,
@@ -460,30 +442,12 @@ export class Controller {
 			case "openMention":
 				openMention(message.text)
 				break
-			case "checkpointRestore": {
-				await this.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superseded by a new message eg add deleted_api_reqs
-				// cancel task waits for any open editor to be reverted and starts a new cline instance
-				if (message.number) {
-					// wait for messages to be loaded
-					await pWaitFor(() => this.task?.isInitialized === true, {
-						timeout: 3_000,
-					}).catch(() => {
-						console.error("Failed to init new cline instance")
-					})
-					// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
-					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore, message.offset)
-				}
-				break
-			}
 			case "taskCompletionViewChanges": {
 				if (message.number) {
 					await this.task?.presentMultifileDiff(message.number, true)
 				}
 				break
 			}
-			case "cancelTask":
-				this.cancelTask()
-				break
 			case "getLatestState":
 				await this.postStateToWebview()
 				break
@@ -523,7 +487,7 @@ export class Controller {
 			case "openMcpSettings": {
 				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 				if (mcpSettingsFilePath) {
-					openFile(mcpSettingsFilePath)
+					await handleFileServiceRequest(this, "openFile", { value: mcpSettingsFilePath })
 				}
 				break
 			}
@@ -588,14 +552,6 @@ export class Controller {
 
 			// 	break
 			// }
-			case "toggleMcpServer": {
-				try {
-					await this.mcpHub?.toggleServerDisabled(message.serverName!, message.disabled!)
-				} catch (error) {
-					console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
-				}
-				break
-			}
 			case "toggleToolAutoApprove": {
 				try {
 					await this.mcpHub?.toggleToolAutoApprove(message.serverName!, message.toolNames!, message.autoApprove!)
@@ -1501,7 +1457,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
 							// NOTE: this needs to be synced with api.ts/openrouter default model info
-							modelInfo.supportsComputerUse = true
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 3.75
 							modelInfo.cacheReadsPrice = 0.3
@@ -1584,7 +1539,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 						maxTokens: model.max_output_tokens || undefined,
 						contextWindow: model.context_window,
 						supportsImages: model.supports_vision || undefined,
-						supportsComputerUse: model.supports_computer_use || undefined,
 						supportsPromptCache: model.supports_caching || undefined,
 						inputPrice: parsePrice(model.input_price),
 						outputPrice: parsePrice(model.output_price),
