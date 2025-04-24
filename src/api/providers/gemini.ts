@@ -40,24 +40,24 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		let cacheWriteTokens: number | undefined = undefined
 
 		// https://ai.google.dev/gemini-api/docs/caching?lang=node
-		if (info.supportsPromptCache && cacheKey) {
-			const cacheEntry = this.contentCaches.get(cacheKey)
+		// if (info.supportsPromptCache && cacheKey) {
+		// 	const cacheEntry = this.contentCaches.get(cacheKey)
 
-			if (cacheEntry) {
-				uncachedContent = contents.slice(cacheEntry.count, contents.length)
-				cachedContent = cacheEntry.key
-			}
+		// 	if (cacheEntry) {
+		// 		uncachedContent = contents.slice(cacheEntry.count, contents.length)
+		// 		cachedContent = cacheEntry.key
+		// 	}
 
-			const newCacheEntry = await this.client.caches.create({
-				model,
-				config: { contents, systemInstruction, ttl: `${CACHE_TTL * 60}s` },
-			})
+		// 	const newCacheEntry = await this.client.caches.create({
+		// 		model,
+		// 		config: { contents, systemInstruction, ttl: `${CACHE_TTL * 60}s` },
+		// 	})
 
-			if (newCacheEntry.name) {
-				this.contentCaches.set(cacheKey, { key: newCacheEntry.name, count: contents.length })
-				cacheWriteTokens = newCacheEntry.usageMetadata?.totalTokenCount ?? 0
-			}
-		}
+		// 	if (newCacheEntry.name) {
+		// 		this.contentCaches.set(cacheKey, { key: newCacheEntry.name, count: contents.length })
+		// 		cacheWriteTokens = newCacheEntry.usageMetadata?.totalTokenCount ?? 0
+		// 	}
+		// }
 
 		const params: GenerateContentParameters = {
 			model,
@@ -94,13 +94,13 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			const cacheReadTokens = lastUsageMetadata.cachedContentTokenCount
 			const reasoningTokens = lastUsageMetadata.thoughtsTokenCount
 
-			const totalCost = this.calculateCost({
-				info,
-				inputTokens,
-				outputTokens,
-				cacheWriteTokens,
-				cacheReadTokens,
-			})
+			// const totalCost = this.calculateCost({
+			// 	info,
+			// 	inputTokens,
+			// 	outputTokens,
+			// 	cacheWriteTokens,
+			// 	cacheReadTokens,
+			// })
 
 			yield {
 				type: "usage",
@@ -109,7 +109,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 				cacheWriteTokens,
 				cacheReadTokens,
 				reasoningTokens,
-				totalCost,
+				// totalCost,
 			}
 		}
 	}

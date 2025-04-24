@@ -85,17 +85,13 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 		// Prompt caching: https://openrouter.ai/docs/prompt-caching
 		// Now with Gemini support: https://openrouter.ai/docs/features/prompt-caching
-		if (supportsPromptCache) {
+		// Note that we don't check the `ModelInfo` object because it is cached
+		// in the settings for OpenRouter.
+		if (this.isPromptCacheSupported(modelId)) {
 			openAiMessages[0] = {
 				role: "system",
-				content: [
-					{
-						type: "text",
-						text: systemPrompt,
-						// @ts-ignore-next-line
-						cache_control: { type: "ephemeral" },
-					},
-				],
+				// @ts-ignore-next-line
+				content: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
 			}
 
 			// Add cache_control to the last two user messages
@@ -108,13 +104,17 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				}
 
 				if (Array.isArray(msg.content)) {
-					// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
+					// NOTE: This is fine since env details will always be added
+					// at the end. But if it wasn't there, and the user added a
+					// image_url type message, it would pop a text part before
+					// it and then move it after to the end.
 					let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
 
 					if (!lastTextPart) {
 						lastTextPart = { type: "text", text: "..." }
 						msg.content.push(lastTextPart)
 					}
+
 					// @ts-ignore-next-line
 					lastTextPart["cache_control"] = { type: "ephemeral" }
 				}
@@ -227,6 +227,15 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		const completion = response as OpenAI.Chat.ChatCompletion
 		return completion.choices[0]?.message?.content || ""
 	}
+
+	private isPromptCacheSupported(modelId: string) {
+		return (
+			modelId.startsWith("anthropic/claude-3.7-sonnet") ||
+			modelId.startsWith("anthropic/claude-3.5-sonnet") ||
+			modelId.startsWith("anthropic/claude-3-opus") ||
+			modelId.startsWith("anthropic/claude-3-haiku")
+		)
+	}
 }
 
 export async function getOpenRouterModels(options?: ApiHandlerOptions) {
@@ -250,7 +259,7 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions) {
 				thinking: rawModel.id === "anthropic/claude-3.7-sonnet:thinking",
 			}
 
-			// NOTE: this needs to be synced with api.ts/openrouter default model info.
+			// NOTE: This needs to be synced with api.ts/openrouter default model info.
 			switch (true) {
 				case rawModel.id.startsWith("anthropic/claude-3.7-sonnet"):
 					modelInfo.supportsComputerUse = true

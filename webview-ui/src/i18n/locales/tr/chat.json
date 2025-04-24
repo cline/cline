@@ -189,8 +189,8 @@
 		"title": "🎉 Roo Code 3.14 Yayınlandı",
 		"description": "Roo Code 3.14 geri bildirimlerinize dayalı yeni özellikler ve iyileştirmeler getiriyor.",
 		"whatsNew": "Yenilikler",
-		"feature1": "<bold>Gemini 2.5 Pro Önbelleği</bold>: <code>gemini-2.5-pro-preview-03-25</code> artık Gemini sağlayıcısında prompt önbelleklemeyi destekliyor (Vertex ve OpenRouter yakında geliyor)",
-		"feature2": "<bold>Geliştirilmiş Düzenleme Araçları</bold>: <code>search_and_replace</code> ve <code>insert_content</code> araçları iyileştirildi ve deneysel statüsünden çıkarıldı",
+		"feature1": "<bold>Geliştirilmiş Düzenleme Araçları</bold>: <code>search_and_replace</code> ve <code>insert_content</code> araçları iyileştirildi ve deneysel statüsünden çıkarıldı",
+		"feature2": "<bold>Apply_diff İyileştirmeleri</bold>: <code>apply_diff</code> aracını geliştirmeye devam ediyoruz",
 		"feature3": "<bold>Çok Sayıda Diğer İyileştirme</bold>: Eklenti genelinde sayısız düzeltme ve geliştirme",
 		"hideButton": "Duyuruyu gizle",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"

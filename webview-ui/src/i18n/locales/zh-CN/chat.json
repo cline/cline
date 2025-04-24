@@ -189,8 +189,8 @@
 		"title": "🎉 Roo Code 3.14 已发布",
 		"description": "Roo Code 3.14 带来基于您反馈的新功能和改进。",
 		"whatsNew": "新特性",
-		"feature1": "<bold>Gemini 2.5 Pro 提示词缓存</bold>: <code>gemini-2.5-pro-preview-03-25</code> 现已在 Gemini 服务中支持提示词缓存（Vertex 和 OpenRouter 即将推出）",
-		"feature2": "<bold>编辑工具增强</bold>: <code>search_and_replace</code> 和 <code>insert_content</code> 工具已得到改进，并从实验性状态毕业",
+		"feature1": "<bold>编辑工具增强</bold>: <code>search_and_replace</code> 和 <code>insert_content</code> 工具已得到改进，并从实验性状态毕业",
+		"feature2": "<bold>差异更新修复</bold>: 我们持续改进 <code>apply_diff</code> 工具",
 		"feature3": "<bold>海量其他改进</bold>: 扩展中众多的修复和增强功能",
 		"hideButton": "隐藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 获取更多详情并参与讨论 🚀"

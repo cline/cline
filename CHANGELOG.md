@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.14.1] - 2025-04-24
+
+- Disable Gemini caching while we investigate issues reported by the community.
+
 ## [3.14.0] - 2025-04-23
 
 - Add prompt caching for `gemini-2.5-pro-preview-03-25` in the Gemini provider (Vertex and OpenRouter coming soon!)

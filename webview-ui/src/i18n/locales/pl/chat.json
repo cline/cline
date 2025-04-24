@@ -189,8 +189,8 @@
 		"title": "🎉 Roo Code 3.14 wydany",
 		"description": "Roo Code 3.14 przynosi nowe funkcje i ulepszenia na podstawie Twoich opinii.",
 		"whatsNew": "Co nowego",
-		"feature1": "<bold>Pamięć podręczna dla Gemini 2.5 Pro</bold>: <code>gemini-2.5-pro-preview-03-25</code> teraz obsługuje pamięć podręczną promptów w dostawcy Gemini (Vertex i OpenRouter wkrótce)",
-		"feature2": "<bold>Ulepszone narzędzia edycji</bold>: Narzędzia <code>search_and_replace</code> i <code>insert_content</code> zostały ulepszone i nie są już eksperymentalne",
+		"feature1": "<bold>Ulepszone narzędzia edycji</bold>: Narzędzia <code>search_and_replace</code> i <code>insert_content</code> zostały ulepszone i nie są już eksperymentalne",
+		"feature2": "<bold>Poprawki apply_diff</bold>: Kontynuujemy pracę nad ulepszaniem narzędzia <code>apply_diff</code>",
 		"feature3": "<bold>Mnóstwo innych ulepszeń</bold>: Liczne poprawki i usprawnienia w całym rozszerzeniu",
 		"hideButton": "Ukryj ogłoszenie",
 		"detailsDiscussLinks": "Uzyskaj więcej szczegółów i dołącz do dyskusji na <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"

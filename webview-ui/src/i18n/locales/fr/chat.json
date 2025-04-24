@@ -189,8 +189,8 @@
 		"title": "🎉 Roo Code 3.14 est sortie",
 		"description": "Roo Code 3.14 apporte de nouvelles fonctionnalités et améliorations basées sur vos retours.",
 		"whatsNew": "Quoi de neuf",
-		"feature1": "<bold>Cache pour Gemini 2.5 Pro</bold> : <code>gemini-2.5-pro-preview-03-25</code> prend maintenant en charge le cache des prompts dans le fournisseur Gemini (Vertex et OpenRouter bientôt disponibles)",
-		"feature2": "<bold>Outils d'édition améliorés</bold> : Les outils <code>search_and_replace</code> et <code>insert_content</code> ont été améliorés et ne sont plus expérimentaux",
+		"feature1": "<bold>Outils d'édition améliorés</bold> : Les outils <code>search_and_replace</code> et <code>insert_content</code> ont été améliorés et ne sont plus expérimentaux",
+		"feature2": "<bold>Corrections pour apply_diff</bold> : Nous continuons à travailler sur l'amélioration de l'outil <code>apply_diff</code>",
 		"feature3": "<bold>Quantité d'autres améliorations</bold> : Nombreuses corrections et optimisations dans toute l'extension",
 		"hideButton": "Masquer l'annonce",
 		"detailsDiscussLinks": "Obtenez plus de détails et participez aux discussions sur <discordLink>Discord</discordLink> et <redditLink>Reddit</redditLink> 🚀"

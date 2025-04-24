@@ -189,8 +189,8 @@
 		"title": "🎉 Roo Code 3.14 출시",
 		"description": "Roo Code 3.14는 사용자 피드백을 기반으로 새로운 기능과 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
-		"feature1": "<bold>Gemini 2.5 Pro 캐싱</bold>: <code>gemini-2.5-pro-preview-03-25</code>에서 이제 Gemini 제공자에서 프롬프트 캐싱을 지원합니다 (Vertex 및 OpenRouter 지원 예정)",
-		"feature2": "<bold>개선된 편집 도구</bold>: <code>search_and_replace</code>와 <code>insert_content</code> 도구가 개선되어 실험 상태에서 정식 기능으로 전환되었습니다",
+		"feature1": "<bold>개선된 편집 도구</bold>: <code>search_and_replace</code>와 <code>insert_content</code> 도구가 개선되어 실험 상태에서 정식 기능으로 전환되었습니다",
+		"feature2": "<bold>apply_diff 수정</bold>: <code>apply_diff</code> 도구를 지속적으로 개선하고 있습니다",
 		"feature3": "<bold>수많은 기타 개선사항</bold>: 확장 프로그램 전체에 걸친 다양한 수정 및 향상된 기능",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
