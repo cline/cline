@@ -36,6 +36,7 @@ type ProviderSettings = {
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
 				supportsPromptCache: boolean
+				isPromptCacheOptional?: boolean | undefined
 				inputPrice?: number | undefined
 				outputPrice?: number | undefined
 				cacheWritesPrice?: number | undefined
@@ -68,6 +69,7 @@ type ProviderSettings = {
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
 				supportsPromptCache: boolean
+				isPromptCacheOptional?: boolean | undefined
 				inputPrice?: number | undefined
 				outputPrice?: number | undefined
 				cacheWritesPrice?: number | undefined
@@ -120,6 +122,7 @@ type ProviderSettings = {
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
 				supportsPromptCache: boolean
+				isPromptCacheOptional?: boolean | undefined
 				inputPrice?: number | undefined
 				outputPrice?: number | undefined
 				cacheWritesPrice?: number | undefined
@@ -175,6 +178,7 @@ type ProviderSettings = {
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
 				supportsPromptCache: boolean
+				isPromptCacheOptional?: boolean | undefined
 				inputPrice?: number | undefined
 				outputPrice?: number | undefined
 				cacheWritesPrice?: number | undefined
@@ -206,6 +210,7 @@ type ProviderSettings = {
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
 				supportsPromptCache: boolean
+				isPromptCacheOptional?: boolean | undefined
 				inputPrice?: number | undefined
 				outputPrice?: number | undefined
 				cacheWritesPrice?: number | undefined
@@ -231,11 +236,12 @@ type ProviderSettings = {
 	modelMaxTokens?: number | undefined
 	modelMaxThinkingTokens?: number | undefined
 	includeMaxTokens?: boolean | undefined
-	modelTemperature?: (number | null) | undefined
 	reasoningEffort?: ("low" | "medium" | "high") | undefined
-	rateLimitSeconds?: number | undefined
+	promptCachingEnabled?: boolean | undefined
 	diffEnabled?: boolean | undefined
 	fuzzyMatchThreshold?: number | undefined
+	modelTemperature?: (number | null) | undefined
+	rateLimitSeconds?: number | undefined
 	fakeAi?: unknown | undefined
 }
 

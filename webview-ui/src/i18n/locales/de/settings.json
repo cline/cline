@@ -386,6 +386,10 @@
 			"description": "Wenn aktiviert, verwendet Roo das Multi-Block-Diff-Werkzeug. Dies versucht, mehrere Codeblöcke in der Datei in einer Anfrage zu aktualisieren."
 		}
 	},
+	"promptCaching": {
+		"label": "Prompt-Caching aktivieren",
+		"description": "Wenn aktiviert, wird Roo dieses Modell mit aktiviertem Prompt-Caching verwenden, um Kosten zu reduzieren."
+	},
 	"temperature": {
 		"useCustom": "Benutzerdefinierte Temperatur verwenden",
 		"description": "Steuert die Zufälligkeit in den Antworten des Modells.",

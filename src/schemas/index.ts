@@ -104,6 +104,7 @@ export const modelInfoSchema = z.object({
 	supportsImages: z.boolean().optional(),
 	supportsComputerUse: z.boolean().optional(),
 	supportsPromptCache: z.boolean(),
+	isPromptCacheOptional: z.boolean().optional(),
 	inputPrice: z.number().optional(),
 	outputPrice: z.number().optional(),
 	cacheWritesPrice: z.number().optional(),
@@ -398,11 +399,12 @@ export const providerSettingsSchema = z.object({
 	modelMaxThinkingTokens: z.number().optional(),
 	// Generic
 	includeMaxTokens: z.boolean().optional(),
-	modelTemperature: z.number().nullish(),
 	reasoningEffort: reasoningEffortsSchema.optional(),
-	rateLimitSeconds: z.number().optional(),
+	promptCachingEnabled: z.boolean().optional(),
 	diffEnabled: z.boolean().optional(),
 	fuzzyMatchThreshold: z.number().optional(),
+	modelTemperature: z.number().nullish(),
+	rateLimitSeconds: z.number().optional(),
 	// Fake AI
 	fakeAi: z.unknown().optional(),
 })
@@ -489,11 +491,12 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	modelMaxThinkingTokens: undefined,
 	// Generic
 	includeMaxTokens: undefined,
-	modelTemperature: undefined,
 	reasoningEffort: undefined,
-	rateLimitSeconds: undefined,
+	promptCachingEnabled: undefined,
 	diffEnabled: undefined,
 	fuzzyMatchThreshold: undefined,
+	modelTemperature: undefined,
+	rateLimitSeconds: undefined,
 	// Fake AI
 	fakeAi: undefined,
 	// X.AI (Grok)

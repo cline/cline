@@ -386,6 +386,10 @@
 			"description": "啟用後，Roo 將使用多區塊差異比對工具，嘗試在單一請求中更新檔案內的多個程式碼區塊。"
 		}
 	},
+	"promptCaching": {
+		"label": "啟用提示快取",
+		"description": "啟用後，Roo 將使用提示快取功能以降低成本。"
+	},
 	"temperature": {
 		"useCustom": "使用自訂溫度",
 		"description": "控制模型回應的隨機性",

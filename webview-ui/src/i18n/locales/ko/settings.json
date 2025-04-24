@@ -386,6 +386,10 @@
 			"description": "활성화하면 Roo가 다중 블록 diff 도구를 사용합니다. 이것은 하나의 요청에서 파일의 여러 코드 블록을 업데이트하려고 시도합니다."
 		}
 	},
+	"promptCaching": {
+		"label": "프롬프트 캐싱 활성화",
+		"description": "활성화하면 Roo는 비용 절감을 위해 프롬프트 캐싱을 켠 상태로 이 모델을 사용합니다."
+	},
 	"temperature": {
 		"useCustom": "사용자 정의 온도 사용",
 		"description": "모델 응답의 무작위성을 제어합니다.",

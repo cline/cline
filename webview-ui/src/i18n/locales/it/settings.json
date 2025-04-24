@@ -386,6 +386,10 @@
 			"description": "Quando abilitato, Roo utilizzerà lo strumento diff multi-blocco. Questo tenterà di aggiornare più blocchi di codice nel file in una singola richiesta."
 		}
 	},
+	"promptCaching": {
+		"label": "Abilita cache dei prompt",
+		"description": "Quando abilitato, Roo utilizzerà questo modello con la cache dei prompt attivata per ridurre i costi."
+	},
 	"temperature": {
 		"useCustom": "Usa temperatura personalizzata",
 		"description": "Controlla la casualità nelle risposte del modello.",

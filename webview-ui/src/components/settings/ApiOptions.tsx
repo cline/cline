@@ -41,15 +41,16 @@ import { VSCodeButtonLink } from "../common/VSCodeButtonLink"
 import { MODELS_BY_PROVIDER, PROVIDERS, VERTEX_REGIONS, REASONING_MODELS } from "./constants"
 import { ModelInfoView } from "./ModelInfoView"
 import { ModelPicker } from "./ModelPicker"
-import { TemperatureControl } from "./TemperatureControl"
-import { RateLimitSecondsControl } from "./RateLimitSecondsControl"
-import { DiffSettingsControl } from "./DiffSettingsControl"
 import { ApiErrorMessage } from "./ApiErrorMessage"
 import { ThinkingBudget } from "./ThinkingBudget"
 import { R1FormatSetting } from "./R1FormatSetting"
 import { OpenRouterBalanceDisplay } from "./OpenRouterBalanceDisplay"
 import { RequestyBalanceDisplay } from "./RequestyBalanceDisplay"
 import { ReasoningEffort } from "./ReasoningEffort"
+import { PromptCachingControl } from "./PromptCachingControl"
+import { DiffSettingsControl } from "./DiffSettingsControl"
+import { TemperatureControl } from "./TemperatureControl"
+import { RateLimitSecondsControl } from "./RateLimitSecondsControl"
 
 interface ApiOptionsProps {
 	uriScheme: string | undefined
@@ -1742,6 +1743,13 @@ const ApiOptions = ({
 				/>
 			)}
 
+			{selectedModelInfo.supportsPromptCache && selectedModelInfo.isPromptCacheOptional && (
+				<PromptCachingControl
+					apiConfiguration={apiConfiguration}
+					setApiConfigurationField={setApiConfigurationField}
+				/>
+			)}
+
 			{!fromWelcomeView && (
 				<>
 					<DiffSettingsControl
@@ -1750,7 +1758,7 @@ const ApiOptions = ({
 						onChange={(field, value) => setApiConfigurationField(field, value)}
 					/>
 					<TemperatureControl
-						value={apiConfiguration?.modelTemperature}
+						value={apiConfiguration.modelTemperature}
 						onChange={handleInputChange("modelTemperature", noTransform)}
 						maxValue={2}
 					/>

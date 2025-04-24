@@ -386,6 +386,10 @@
 			"description": "Quando ativado, o Roo usará a ferramenta diff de múltiplos blocos. Isso tentará atualizar vários blocos de código no arquivo em uma única solicitação."
 		}
 	},
+	"promptCaching": {
+		"label": "Ativar cache de prompts",
+		"description": "Quando ativado, o Roo usará este modelo com o cache de prompts ativado para reduzir custos."
+	},
 	"temperature": {
 		"useCustom": "Usar temperatura personalizada",
 		"description": "Controla a aleatoriedade nas respostas do modelo.",

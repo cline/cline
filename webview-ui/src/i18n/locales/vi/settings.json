@@ -386,6 +386,10 @@
 			"description": "Khi được bật, Roo sẽ sử dụng công cụ diff đa khối. Điều này sẽ cố gắng cập nhật nhiều khối mã trong tệp trong một yêu cầu."
 		}
 	},
+	"promptCaching": {
+		"label": "Bật bộ nhớ đệm prompt",
+		"description": "Khi được bật, Roo sẽ sử dụng mô hình này với bộ nhớ đệm prompt được bật để giảm chi phí."
+	},
 	"temperature": {
 		"useCustom": "Sử dụng nhiệt độ tùy chỉnh",
 		"description": "Kiểm soát tính ngẫu nhiên trong phản hồi của mô hình.",

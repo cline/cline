@@ -386,6 +386,10 @@
 			"description": "启用后，Roo 将尝试在一个请求中进行批量搜索和替换。"
 		}
 	},
+	"promptCaching": {
+		"label": "启用提示词缓存",
+		"description": "启用后 Roo 将使用提示词缓存功能以降低成本。"
+	},
 	"temperature": {
 		"useCustom": "使用自定义温度",
 		"description": "控制模型响应的随机性",

@@ -386,6 +386,10 @@
 			"description": "Quan està activat, Roo utilitzarà l'eina diff de blocs múltiples. Això intentarà actualitzar múltiples blocs de codi a l'arxiu en una sola petició."
 		}
 	},
+	"promptCaching": {
+		"label": "Habilitar emmagatzematge en caché de prompts",
+		"description": "Quan està habilitat, Roo utilitzarà aquest model amb la memòria cau de prompts activada per reduir costos."
+	},
 	"temperature": {
 		"useCustom": "Utilitzar temperatura personalitzada",
 		"description": "Controla l'aleatorietat en les respostes del model.",

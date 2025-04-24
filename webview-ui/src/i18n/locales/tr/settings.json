@@ -386,6 +386,10 @@
 			"description": "Etkinleştirildiğinde, Roo çoklu blok diff aracını kullanacaktır. Bu, tek bir istekte dosyadaki birden fazla kod bloğunu güncellemeye çalışacaktır."
 		}
 	},
+	"promptCaching": {
+		"label": "Prompt önbelleğini etkinleştir",
+		"description": "Etkinleştirildiğinde, Roo maliyetleri azaltmak için prompt önbelleği açık olan bu modeli kullanacaktır."
+	},
 	"temperature": {
 		"useCustom": "Özel sıcaklık kullan",
 		"description": "Model yanıtlarındaki rastgeleliği kontrol eder.",

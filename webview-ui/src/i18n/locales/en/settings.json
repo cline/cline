@@ -386,6 +386,10 @@
 			"description": "When enabled, Roo will use multi block diff tool. This will try to update multiple code blocks in the file in one request."
 		}
 	},
+	"promptCaching": {
+		"label": "Enable prompt caching",
+		"description": "When enabled, Roo will use this model with prompt caching turned on in order to reduce costs."
+	},
 	"temperature": {
 		"useCustom": "Use custom temperature",
 		"description": "Controls randomness in the model's responses.",
