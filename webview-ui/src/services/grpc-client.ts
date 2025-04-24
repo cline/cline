@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid"
 import { BrowserServiceDefinition } from "@shared/proto/browser"
 import { CheckpointsServiceDefinition } from "@shared/proto/checkpoints"
 import { FileServiceDefinition } from "@shared/proto/file"
+import { TaskServiceDefinition } from "@shared/proto/task"
 import { EmptyRequest } from "@shared/proto/common"
 import { McpServiceDefinition } from "@shared/proto/mcp"
 // Generic type for any protobuf service definition
@@ -97,6 +98,7 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
 const CheckpointsServiceClient = createGrpcClient(CheckpointsServiceDefinition)
 const FileServiceClient = createGrpcClient(FileServiceDefinition)
+const TaskServiceClient = createGrpcClient(TaskServiceDefinition)
 const McpServiceClient = createGrpcClient(McpServiceDefinition)
 
-export { BrowserServiceClient, CheckpointsServiceClient, McpServiceClient, FileServiceClient }
+export { BrowserServiceClient, CheckpointsServiceClient, FileServiceClient, TaskServiceClient, McpServiceClient }
