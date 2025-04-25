@@ -20,7 +20,7 @@ export async function createOpenRouterStream(
 	]
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
-	// this was initally specifically for claude models (some models may 'support prompt caching' automatically without this)
+	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
 	// gemini models only use the last breakpoint for caching, so the others will be ignored
 	switch (model.id) {
 		case "anthropic/claude-3.7-sonnet":
