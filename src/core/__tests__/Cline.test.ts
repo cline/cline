@@ -11,6 +11,7 @@ import { Cline } from "../Cline"
 import { ClineProvider } from "../webview/ClineProvider"
 import { ApiConfiguration, ModelInfo } from "../../shared/api"
 import { ApiStreamChunk } from "../../api/transform/stream"
+import { ContextProxy } from "../config/ContextProxy"
 
 // Mock RooIgnoreController
 jest.mock("../ignore/RooIgnoreController")
@@ -225,7 +226,12 @@ describe("Cline", () => {
 		}
 
 		// Setup mock provider with output channel
-		mockProvider = new ClineProvider(mockExtensionContext, mockOutputChannel) as jest.Mocked<ClineProvider>
+		mockProvider = new ClineProvider(
+			mockExtensionContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockExtensionContext),
+		) as jest.Mocked<ClineProvider>
 
 		// Setup mock API configuration
 		mockApiConfig = {

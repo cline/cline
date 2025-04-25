@@ -2,6 +2,9 @@
 
 import { screen, fireEvent, render } from "@testing-library/react"
 import { act } from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+
+import { ModelInfo } from "@roo/schemas"
 
 import { ModelPicker } from "../ModelPicker"
 
@@ -21,7 +24,8 @@ Element.prototype.scrollIntoView = jest.fn()
 
 describe("ModelPicker", () => {
 	const mockSetApiConfigurationField = jest.fn()
-	const modelInfo = {
+
+	const modelInfo: ModelInfo = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -32,16 +36,16 @@ describe("ModelPicker", () => {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 	}
+
 	const mockModels = {
 		model1: { name: "Model 1", description: "Test model 1", ...modelInfo },
 		model2: { name: "Model 2", description: "Test model 2", ...modelInfo },
 	}
+
 	const defaultProps = {
 		apiConfiguration: {},
 		defaultModelId: "model1",
-		defaultModelInfo: modelInfo,
 		modelIdKey: "glamaModelId" as const,
-		modelInfoKey: "glamaModelInfo" as const,
 		serviceName: "Test Service",
 		serviceUrl: "https://test.service",
 		recommendedModel: "recommended-model",
@@ -49,14 +53,22 @@ describe("ModelPicker", () => {
 		setApiConfigurationField: mockSetApiConfigurationField,
 	}
 
+	const queryClient = new QueryClient()
+
+	const renderModelPicker = () => {
+		return render(
+			<QueryClientProvider client={queryClient}>
+				<ModelPicker {...defaultProps} />
+			</QueryClientProvider>,
+		)
+	}
+
 	beforeEach(() => {
 		jest.clearAllMocks()
 	})
 
 	it("calls setApiConfigurationField when a model is selected", async () => {
-		await act(async () => {
-			render(<ModelPicker {...defaultProps} />)
-		})
+		await act(async () => renderModelPicker())
 
 		await act(async () => {
 			// Open the popover by clicking the button.
@@ -84,13 +96,10 @@ describe("ModelPicker", () => {
 
 		// Verify the API config was updated.
 		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(defaultProps.modelIdKey, "model2")
-		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(defaultProps.modelInfoKey, mockModels.model2)
 	})
 
 	it("allows setting a custom model ID that's not in the predefined list", async () => {
-		await act(async () => {
-			render(<ModelPicker {...defaultProps} />)
-		})
+		await act(async () => renderModelPicker())
 
 		await act(async () => {
 			// Open the popover by clicking the button.
@@ -125,10 +134,5 @@ describe("ModelPicker", () => {
 
 		// Verify the API config was updated with the custom model ID
 		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(defaultProps.modelIdKey, customModelId)
-		// The model info should be set to the default since this is a custom model
-		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(
-			defaultProps.modelInfoKey,
-			defaultProps.defaultModelInfo,
-		)
 	})
 })

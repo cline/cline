@@ -37,7 +37,7 @@ const useStorybookChat = (): ChatHandler => {
 	const [input, setInput] = useState("")
 	const [messages, setMessages] = useState<Message[]>([])
 
-	const append = async (message: Message, options?: { data?: any }) => {
+	const append = async (message: Message, _options?: { data?: any }) => {
 		const echo: Message = {
 			...message,
 			role: "assistant",

@@ -1,6 +1,10 @@
-import { UnboundHandler } from "../unbound"
-import { ApiHandlerOptions } from "../../../shared/api"
+// npx jest src/api/providers/__tests__/unbound.test.ts
+
 import { Anthropic } from "@anthropic-ai/sdk"
+
+import { ApiHandlerOptions } from "../../../shared/api"
+
+import { UnboundHandler } from "../unbound"
 
 // Mock OpenAI client
 const mockCreate = jest.fn()
@@ -17,12 +21,7 @@ jest.mock("openai", () => {
 							[Symbol.asyncIterator]: async function* () {
 								// First chunk with content
 								yield {
-									choices: [
-										{
-											delta: { content: "Test response" },
-											index: 0,
-										},
-									],
+									choices: [{ delta: { content: "Test response" }, index: 0 }],
 								}
 								// Second chunk with usage data
 								yield {
@@ -48,15 +47,14 @@ jest.mock("openai", () => {
 						}
 
 						const result = mockCreate(...args)
+
 						if (args[0].stream) {
 							mockWithResponse.mockReturnValue(
-								Promise.resolve({
-									data: stream,
-									response: { headers: new Map() },
-								}),
+								Promise.resolve({ data: stream, response: { headers: new Map() } }),
 							)
 							result.withResponse = mockWithResponse
 						}
+
 						return result
 					},
 				},
@@ -71,18 +69,10 @@ describe("UnboundHandler", () => {
 
 	beforeEach(() => {
 		mockOptions = {
-			apiModelId: "anthropic/claude-3-5-sonnet-20241022",
 			unboundApiKey: "test-api-key",
 			unboundModelId: "anthropic/claude-3-5-sonnet-20241022",
-			unboundModelInfo: {
-				description: "Anthropic's Claude 3 Sonnet model",
-				maxTokens: 8192,
-				contextWindow: 200000,
-				supportsPromptCache: true,
-				inputPrice: 0.01,
-				outputPrice: 0.02,
-			},
 		}
+
 		handler = new UnboundHandler(mockOptions)
 		mockCreate.mockClear()
 		mockWithResponse.mockClear()
@@ -101,9 +91,9 @@ describe("UnboundHandler", () => {
 	})
 
 	describe("constructor", () => {
-		it("should initialize with provided options", () => {
+		it("should initialize with provided options", async () => {
 			expect(handler).toBeInstanceOf(UnboundHandler)
-			expect(handler.getModel().id).toBe(mockOptions.apiModelId)
+			expect((await handler.fetchModel()).id).toBe(mockOptions.unboundModelId)
 		})
 	})
 
@@ -119,6 +109,7 @@ describe("UnboundHandler", () => {
 		it("should handle streaming responses with text and usage data", async () => {
 			const stream = handler.createMessage(systemPrompt, messages)
 			const chunks: Array<{ type: string } & Record<string, any>> = []
+
 			for await (const chunk of stream) {
 				chunks.push(chunk)
 			}
@@ -126,17 +117,10 @@ describe("UnboundHandler", () => {
 			expect(chunks.length).toBe(3)
 
 			// Verify text chunk
-			expect(chunks[0]).toEqual({
-				type: "text",
-				text: "Test response",
-			})
+			expect(chunks[0]).toEqual({ type: "text", text: "Test response" })
 
 			// Verify regular usage data
-			expect(chunks[1]).toEqual({
-				type: "usage",
-				inputTokens: 10,
-				outputTokens: 5,
-			})
+			expect(chunks[1]).toEqual({ type: "usage", inputTokens: 10, outputTokens: 5 })
 
 			// Verify usage data with cache information
 			expect(chunks[2]).toEqual({
@@ -153,6 +137,7 @@ describe("UnboundHandler", () => {
 					messages: expect.any(Array),
 					stream: true,
 				}),
+
 				expect.objectContaining({
 					headers: {
 						"X-Unbound-Metadata": expect.stringContaining("roo-code"),
@@ -173,6 +158,7 @@ describe("UnboundHandler", () => {
 				for await (const chunk of stream) {
 					chunks.push(chunk)
 				}
+
 				fail("Expected error to be thrown")
 			} catch (error) {
 				expect(error).toBeInstanceOf(Error)
@@ -185,6 +171,7 @@ describe("UnboundHandler", () => {
 		it("should complete prompt successfully", async () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("Test response")
+
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: "claude-3-5-sonnet-20241022",
@@ -206,9 +193,7 @@ describe("UnboundHandler", () => {
 		})
 
 		it("should handle empty response", async () => {
-			mockCreate.mockResolvedValueOnce({
-				choices: [{ message: { content: "" } }],
-			})
+			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "" } }] })
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
 		})
@@ -216,22 +201,14 @@ describe("UnboundHandler", () => {
 		it("should not set max_tokens for non-Anthropic models", async () => {
 			mockCreate.mockClear()
 
-			const nonAnthropicOptions = {
+			const nonAnthropicHandler = new UnboundHandler({
 				apiModelId: "openai/gpt-4o",
 				unboundApiKey: "test-key",
 				unboundModelId: "openai/gpt-4o",
-				unboundModelInfo: {
-					description: "OpenAI's GPT-4",
-					maxTokens: undefined,
-					contextWindow: 128000,
-					supportsPromptCache: true,
-					inputPrice: 0.01,
-					outputPrice: 0.03,
-				},
-			}
-			const nonAnthropicHandler = new UnboundHandler(nonAnthropicOptions)
+			})
 
 			await nonAnthropicHandler.completePrompt("Test prompt")
+
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: "gpt-4o",
@@ -244,27 +221,21 @@ describe("UnboundHandler", () => {
 					}),
 				}),
 			)
+
 			expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("max_tokens")
 		})
 
 		it("should not set temperature for openai/o3-mini", async () => {
 			mockCreate.mockClear()
 
-			const openaiOptions = {
+			const openaiHandler = new UnboundHandler({
 				apiModelId: "openai/o3-mini",
 				unboundApiKey: "test-key",
 				unboundModelId: "openai/o3-mini",
-				unboundModelInfo: {
-					maxTokens: undefined,
-					contextWindow: 128000,
-					supportsPromptCache: true,
-					inputPrice: 0.01,
-					outputPrice: 0.03,
-				},
-			}
-			const openaiHandler = new UnboundHandler(openaiOptions)
+			})
 
 			await openaiHandler.completePrompt("Test prompt")
+
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: "o3-mini",
@@ -276,25 +247,22 @@ describe("UnboundHandler", () => {
 					}),
 				}),
 			)
+
 			expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("temperature")
 		})
 	})
 
-	describe("getModel", () => {
-		it("should return model info", () => {
-			const modelInfo = handler.getModel()
-			expect(modelInfo.id).toBe(mockOptions.apiModelId)
+	describe("fetchModel", () => {
+		it("should return model info", async () => {
+			const modelInfo = await handler.fetchModel()
+			expect(modelInfo.id).toBe(mockOptions.unboundModelId)
 			expect(modelInfo.info).toBeDefined()
 		})
 
-		it("should return default model when invalid model provided", () => {
-			const handlerWithInvalidModel = new UnboundHandler({
-				...mockOptions,
-				unboundModelId: "invalid/model",
-				unboundModelInfo: undefined,
-			})
-			const modelInfo = handlerWithInvalidModel.getModel()
-			expect(modelInfo.id).toBe("anthropic/claude-3-7-sonnet-20250219") // Default model
+		it("should return default model when invalid model provided", async () => {
+			const handlerWithInvalidModel = new UnboundHandler({ ...mockOptions, unboundModelId: "invalid/model" })
+			const modelInfo = await handlerWithInvalidModel.fetchModel()
+			expect(modelInfo.id).toBe("anthropic/claude-3-7-sonnet-20250219")
 			expect(modelInfo.info).toBeDefined()
 		})
 	})

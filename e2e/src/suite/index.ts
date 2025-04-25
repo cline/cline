@@ -24,15 +24,6 @@ export async function run() {
 		apiProvider: "openrouter" as const,
 		openRouterApiKey: process.env.OPENROUTER_API_KEY!,
 		openRouterModelId: "google/gemini-2.0-flash-001",
-		openRouterModelInfo: {
-			maxTokens: 8192,
-			contextWindow: 1000000,
-			supportsImages: true,
-			supportsPromptCache: false,
-			inputPrice: 0.1,
-			outputPrice: 0.4,
-			thinking: false,
-		},
 	})
 
 	await vscode.commands.executeCommand("roo-cline.SidebarProvider.focus")

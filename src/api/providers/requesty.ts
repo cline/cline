@@ -1,10 +1,11 @@
-import axios from "axios"
-
-import { ModelInfo, requestyDefaultModelInfo, requestyDefaultModelId } from "../../shared/api"
-import { calculateApiCostOpenAI, parseApiPrice } from "../../utils/cost"
-import { ApiStreamUsageChunk } from "../transform/stream"
-import { OpenAiHandler, OpenAiHandlerOptions } from "./openai"
+import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+
+import { ModelInfo, ModelRecord, requestyDefaultModelId, requestyDefaultModelInfo } from "../../shared/api"
+import { calculateApiCostOpenAI } from "../../utils/cost"
+import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { OpenAiHandler, OpenAiHandlerOptions } from "./openai"
+import { getModels } from "./fetchers/cache"
 
 // Requesty usage includes an extra field for Anthropic use cases.
 // Safely cast the prompt token details section to the appropriate structure.
@@ -17,25 +18,30 @@ interface RequestyUsage extends OpenAI.CompletionUsage {
 }
 
 export class RequestyHandler extends OpenAiHandler {
+	protected models: ModelRecord = {}
+
 	constructor(options: OpenAiHandlerOptions) {
 		if (!options.requestyApiKey) {
 			throw new Error("Requesty API key is required. Please provide it in the settings.")
 		}
+
 		super({
 			...options,
 			openAiApiKey: options.requestyApiKey,
 			openAiModelId: options.requestyModelId ?? requestyDefaultModelId,
 			openAiBaseUrl: "https://router.requesty.ai/v1",
-			openAiCustomModelInfo: options.requestyModelInfo ?? requestyDefaultModelInfo,
 		})
 	}
 
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		this.models = await getModels("requesty")
+		yield* super.createMessage(systemPrompt, messages)
+	}
+
 	override getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.requestyModelId ?? requestyDefaultModelId
-		return {
-			id: modelId,
-			info: this.options.requestyModelInfo ?? requestyDefaultModelInfo,
-		}
+		const id = this.options.requestyModelId ?? requestyDefaultModelId
+		const info = this.models[id] ?? requestyDefaultModelInfo
+		return { id, info }
 	}
 
 	protected override processUsageMetrics(usage: any, modelInfo?: ModelInfo): ApiStreamUsageChunk {
@@ -47,6 +53,7 @@ export class RequestyHandler extends OpenAiHandler {
 		const totalCost = modelInfo
 			? calculateApiCostOpenAI(modelInfo, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
 			: 0
+
 		return {
 			type: "usage",
 			inputTokens: inputTokens,
@@ -56,56 +63,9 @@ export class RequestyHandler extends OpenAiHandler {
 			totalCost: totalCost,
 		}
 	}
-}
 
-export async function getRequestyModels(apiKey?: string) {
-	const models: Record<string, ModelInfo> = {}
-
-	try {
-		const headers: Record<string, string> = {}
-		if (apiKey) {
-			headers["Authorization"] = `Bearer ${apiKey}`
-		}
-
-		const url = "https://router.requesty.ai/v1/models"
-		const response = await axios.get(url, { headers })
-		const rawModels = response.data.data
-
-		for (const rawModel of rawModels) {
-			// {
-			// 	id: "anthropic/claude-3-5-sonnet-20240620",
-			// 	object: "model",
-			// 	created: 1740552655,
-			// 	owned_by: "system",
-			// 	input_price: 0.0000028,
-			// 	caching_price: 0.00000375,
-			// 	cached_price: 3e-7,
-			// 	output_price: 0.000015,
-			// 	max_output_tokens: 8192,
-			// 	context_window: 200000,
-			// 	supports_caching: true,
-			// 	description:
-			// 		"Anthropic's previous most intelligent model. High level of intelligence and capability. Excells in coding.",
-			// }
-
-			const modelInfo: ModelInfo = {
-				maxTokens: rawModel.max_output_tokens,
-				contextWindow: rawModel.context_window,
-				supportsPromptCache: rawModel.supports_caching,
-				supportsImages: rawModel.supports_vision,
-				supportsComputerUse: rawModel.supports_computer_use,
-				inputPrice: parseApiPrice(rawModel.input_price),
-				outputPrice: parseApiPrice(rawModel.output_price),
-				description: rawModel.description,
-				cacheWritesPrice: parseApiPrice(rawModel.caching_price),
-				cacheReadsPrice: parseApiPrice(rawModel.cached_price),
-			}
-
-			models[rawModel.id] = modelInfo
-		}
-	} catch (error) {
-		console.error(`Error fetching Requesty models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+	override async completePrompt(prompt: string): Promise<string> {
+		this.models = await getModels("requesty")
+		return super.completePrompt(prompt)
 	}
-
-	return models
 }

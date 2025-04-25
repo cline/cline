@@ -10,7 +10,6 @@ jest.mock("vscode")
 jest.mock("fs/promises")
 jest.mock("fs")
 jest.mock("../utils/fs")
-// We're testing the real migrateSettings function
 
 describe("Settings Migration", () => {
 	let mockContext: vscode.ExtensionContext
@@ -52,8 +51,6 @@ describe("Settings Migration", () => {
 	})
 
 	it("should migrate custom modes file if old file exists and new file doesn't", async () => {
-		const mockCustomModesContent = '{"customModes":[{"slug":"test-mode"}]}' as string
-
 		// Mock file existence checks
 		;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
 			if (path === mockSettingsDir) return true
@@ -69,8 +66,6 @@ describe("Settings Migration", () => {
 	})
 
 	it("should migrate MCP settings file if old file exists and new file doesn't", async () => {
-		const mockMcpSettingsContent = '{"mcpServers":{"test-server":{}}}' as string
-
 		// Mock file existence checks
 		;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
 			if (path === mockSettingsDir) return true

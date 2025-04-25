@@ -1446,3 +1446,13 @@ export const COMPUTER_USE_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet:beta",
 	"anthropic/claude-3.7-sonnet:thinking",
 ])
+
+const routerNames = ["openrouter", "requesty", "glama", "unbound"] as const
+
+export type RouterName = (typeof routerNames)[number]
+
+export const isRouterName = (value: string): value is RouterName => routerNames.includes(value as RouterName)
+
+export type ModelRecord = Record<string, ModelInfo>
+
+export type RouterModels = Record<RouterName, ModelRecord>

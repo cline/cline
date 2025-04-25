@@ -94,8 +94,7 @@ export function NewRun() {
 					}
 
 					const openRouterModelId = openRouterModel.id
-					const openRouterModelInfo = openRouterModel.modelInfo
-					values.settings = { ...(values.settings || {}), openRouterModelId, openRouterModelInfo }
+					values.settings = { ...(values.settings || {}), openRouterModelId }
 				}
 
 				const { id } = await createRun(values)

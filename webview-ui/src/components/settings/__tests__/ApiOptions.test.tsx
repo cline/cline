@@ -3,9 +3,11 @@
 import { render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
+import { ApiConfiguration } from "@roo/shared/api"
+
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 
-import ApiOptions from "../ApiOptions"
+import ApiOptions, { ApiOptionsProps } from "../ApiOptions"
 
 // Mock VSCode components
 jest.mock("@vscode/webview-ui-toolkit/react", () => ({
@@ -16,7 +18,7 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 		</div>
 	),
 	VSCodeLink: ({ children, href }: any) => <a href={href}>{children}</a>,
-	VSCodeRadio: ({ children, value, checked }: any) => <input type="radio" value={value} checked={checked} />,
+	VSCodeRadio: ({ value, checked }: any) => <input type="radio" value={value} checked={checked} />,
 	VSCodeRadioGroup: ({ children }: any) => <div>{children}</div>,
 	VSCodeButton: ({ children }: any) => <div>{children}</div>,
 }))
@@ -54,6 +56,11 @@ jest.mock("@/components/ui", () => ({
 			{children}
 		</button>
 	),
+	Slider: ({ value, onChange }: any) => (
+		<div data-testid="slider">
+			<input type="range" value={value || 0} onChange={(e) => onChange(parseFloat(e.target.value))} />
+		</div>
+	),
 }))
 
 jest.mock("../TemperatureControl", () => ({
@@ -86,16 +93,6 @@ jest.mock("../RateLimitSecondsControl", () => ({
 	),
 }))
 
-// Mock ThinkingBudget component
-jest.mock("../ThinkingBudget", () => ({
-	ThinkingBudget: ({ apiConfiguration, setApiConfigurationField, modelInfo, provider }: any) =>
-		modelInfo?.thinking ? (
-			<div data-testid="thinking-budget" data-provider={provider}>
-				<input data-testid="thinking-tokens" value={apiConfiguration?.modelMaxThinkingTokens} />
-			</div>
-		) : null,
-}))
-
 // Mock DiffSettingsControl for tests
 jest.mock("../DiffSettingsControl", () => ({
 	DiffSettingsControl: ({ diffEnabled, fuzzyMatchThreshold, onChange }: any) => (
@@ -123,7 +120,23 @@ jest.mock("../DiffSettingsControl", () => ({
 	),
 }))
 
-const renderApiOptions = (props = {}) => {
+jest.mock("@src/components/ui/hooks/useSelectedModel", () => ({
+	useSelectedModel: jest.fn((apiConfiguration: ApiConfiguration) => {
+		if (apiConfiguration.apiModelId?.includes("thinking")) {
+			return {
+				provider: apiConfiguration.apiProvider,
+				info: { thinking: true, contextWindow: 4000, maxTokens: 128000 },
+			}
+		} else {
+			return {
+				provider: apiConfiguration.apiProvider,
+				info: { contextWindow: 4000 },
+			}
+		}
+	}),
+}))
+
+const renderApiOptions = (props: Partial<ApiOptionsProps> = {}) => {
 	const queryClient = new QueryClient()
 
 	render(
@@ -192,7 +205,6 @@ describe("ApiOptions", () => {
 				apiConfiguration: {
 					apiProvider: "anthropic",
 					apiModelId: "claude-3-opus-20240229",
-					modelInfo: { thinking: false }, // Non-thinking model
 				},
 			})
 

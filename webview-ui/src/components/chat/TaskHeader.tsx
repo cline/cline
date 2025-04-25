@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react"
+import { memo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { useTranslation } from "react-i18next"
 import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
@@ -11,7 +11,7 @@ import { formatLargeNumber } from "@src/utils/format"
 import { cn } from "@src/lib/utils"
 import { Button } from "@src/components/ui"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
-import { normalizeApiConfiguration } from "@src/utils/normalizeApiConfiguration"
+import { useSelectedModel } from "@/components/ui/hooks/useSelectedModel"
 
 import Thumbnails from "../common/Thumbnails"
 
@@ -19,7 +19,7 @@ import { TaskActions } from "./TaskActions"
 import { ContextWindowProgress } from "./ContextWindowProgress"
 import { Mention } from "./Mention"
 
-interface TaskHeaderProps {
+export interface TaskHeaderProps {
 	task: ClineMessage
 	tokensIn: number
 	tokensOut: number
@@ -44,12 +44,12 @@ const TaskHeader = ({
 }: TaskHeaderProps) => {
 	const { t } = useTranslation()
 	const { apiConfiguration, currentTaskItem } = useExtensionState()
-	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
+	const { info: model } = useSelectedModel(apiConfiguration)
 	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
 
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
-	const contextWindow = selectedModelInfo?.contextWindow || 1
+	const contextWindow = model?.contextWindow || 1
 
 	const { width: windowWidth } = useWindowSize()
 
@@ -96,7 +96,7 @@ const TaskHeader = ({
 						<ContextWindowProgress
 							contextWindow={contextWindow}
 							contextTokens={contextTokens || 0}
-							maxTokens={getMaxTokensForModel(selectedModelInfo, apiConfiguration)}
+							maxTokens={getMaxTokensForModel(model, apiConfiguration)}
 						/>
 						{!!totalCost && <VSCodeBadge>${totalCost.toFixed(2)}</VSCodeBadge>}
 					</div>
@@ -132,7 +132,7 @@ const TaskHeader = ({
 									<ContextWindowProgress
 										contextWindow={contextWindow}
 										contextTokens={contextTokens || 0}
-										maxTokens={getMaxTokensForModel(selectedModelInfo, apiConfiguration)}
+										maxTokens={getMaxTokensForModel(model, apiConfiguration)}
 									/>
 								</div>
 							)}

@@ -9,11 +9,7 @@ import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 import SettingsView from "../SettingsView"
 
 // Mock vscode API
-jest.mock("@src/utils/vscode", () => ({
-	vscode: {
-		postMessage: jest.fn(),
-	},
-}))
+jest.mock("@src/utils/vscode", () => ({ vscode: { postMessage: jest.fn() } }))
 
 // Mock all lucide-react icons with a proxy to handle any icon requested
 jest.mock("lucide-react", () => {
@@ -79,10 +75,10 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 		/>
 	),
 	VSCodeLink: ({ children, href }: any) => <a href={href || "#"}>{children}</a>,
-	VSCodeRadio: ({ children, value, checked, onChange }: any) => (
+	VSCodeRadio: ({ value, checked, onChange }: any) => (
 		<input type="radio" value={value} checked={checked} onChange={onChange} />
 	),
-	VSCodeRadioGroup: ({ children, value, onChange }: any) => <div onChange={onChange}>{children}</div>,
+	VSCodeRadioGroup: ({ children, onChange }: any) => <div onChange={onChange}>{children}</div>,
 }))
 
 // Mock Slider component

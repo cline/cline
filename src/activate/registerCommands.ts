@@ -2,6 +2,10 @@ import * as vscode from "vscode"
 import delay from "delay"
 
 import { ClineProvider } from "../core/webview/ClineProvider"
+import { ContextProxy } from "../core/config/ContextProxy"
+
+import { registerHumanRelayCallback, unregisterHumanRelayCallback, handleHumanRelayResponse } from "./humanRelay"
+import { handleNewTask } from "./handleTask"
 
 /**
  * Helper to get the visible ClineProvider instance or log if not found.
@@ -14,9 +18,6 @@ export function getVisibleProviderOrLog(outputChannel: vscode.OutputChannel): Cl
 	}
 	return visibleProvider
 }
-
-import { registerHumanRelayCallback, unregisterHumanRelayCallback, handleHumanRelayResponse } from "./humanRelay"
-import { handleNewTask } from "./handleTask"
 
 // Store panel references in both modes
 let sidebarPanel: vscode.WebviewView | undefined = undefined
@@ -53,7 +54,7 @@ export type RegisterCommandOptions = {
 }
 
 export const registerCommands = (options: RegisterCommandOptions) => {
-	const { context, outputChannel } = options
+	const { context } = options
 
 	for (const [command, callback] of Object.entries(getCommandsMap(options))) {
 		context.subscriptions.push(vscode.commands.registerCommand(command, callback))
@@ -142,7 +143,8 @@ export const openClineInNewTab = async ({ context, outputChannel }: Omit<Registe
 	// deserialize cached webview, but since we use retainContextWhenHidden, we
 	// don't need to use that event).
 	// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-	const tabProvider = new ClineProvider(context, outputChannel, "editor")
+	const contextProxy = await ContextProxy.getInstance(context)
+	const tabProvider = new ClineProvider(context, outputChannel, "editor", contextProxy)
 	const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
 	// Check if there are any visible text editors, otherwise open a new group

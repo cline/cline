@@ -6,7 +6,7 @@ import * as path from "path"
 import { getWorkspacePath } from "../utils/path"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { openClineInNewTab } from "../activate/registerCommands"
-import { RooCodeSettings, RooCodeEvents, RooCodeEventName, ClineMessage } from "../schemas"
+import { RooCodeSettings, RooCodeEvents, RooCodeEventName } from "../schemas"
 import { IpcOrigin, IpcMessageType, TaskCommandName, TaskEvent } from "../schemas/ipc"
 
 import { RooCodeAPI } from "./interface"

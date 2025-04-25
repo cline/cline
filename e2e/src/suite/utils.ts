@@ -1,5 +1,3 @@
-import * as vscode from "vscode"
-
 import type { RooCodeAPI } from "../../../src/exports/roo-code"
 
 type WaitForOptions = {

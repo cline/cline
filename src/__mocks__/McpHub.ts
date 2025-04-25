@@ -7,11 +7,11 @@ export class McpHub {
 		this.callTool = jest.fn()
 	}
 
-	async toggleToolAlwaysAllow(serverName: string, toolName: string, shouldAllow: boolean): Promise<void> {
+	async toggleToolAlwaysAllow(_serverName: string, _toolName: string, _shouldAllow: boolean): Promise<void> {
 		return Promise.resolve()
 	}
 
-	async callTool(serverName: string, toolName: string, toolArguments?: Record<string, unknown>): Promise<any> {
+	async callTool(_serverName: string, _toolName: string, _toolArguments?: Record<string, unknown>): Promise<any> {
 		return Promise.resolve({ result: "success" })
 	}
 }

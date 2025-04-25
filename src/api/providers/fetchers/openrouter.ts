@@ -46,7 +46,7 @@ const openRouterModelsResponseSchema = z.object({
 
 type OpenRouterModelsResponse = z.infer<typeof openRouterModelsResponseSchema>
 
-export async function getOpenRouterModels(options?: ApiHandlerOptions) {
+export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<Record<string, ModelInfo>> {
 	const models: Record<string, ModelInfo> = {}
 	const baseURL = options?.openRouterBaseUrl || "https://openrouter.ai/api/v1"
 

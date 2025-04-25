@@ -256,4 +256,25 @@ export class ContextProxy {
 
 		await this.initialize()
 	}
+
+	private static _instance: ContextProxy | null = null
+
+	static get instance() {
+		if (!this._instance) {
+			throw new Error("ContextProxy not initialized")
+		}
+
+		return this._instance
+	}
+
+	static async getInstance(context: vscode.ExtensionContext) {
+		if (this._instance) {
+			return this._instance
+		}
+
+		this._instance = new ContextProxy(context)
+		await this._instance.initialize()
+
+		return this._instance
+	}
 }

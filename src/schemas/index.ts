@@ -321,12 +321,10 @@ export const providerSettingsSchema = z.object({
 	anthropicUseAuthToken: z.boolean().optional(),
 	// Glama
 	glamaModelId: z.string().optional(),
-	glamaModelInfo: modelInfoSchema.nullish(),
 	glamaApiKey: z.string().optional(),
 	// OpenRouter
 	openRouterApiKey: z.string().optional(),
 	openRouterModelId: z.string().optional(),
-	openRouterModelInfo: modelInfoSchema.nullish(),
 	openRouterBaseUrl: z.string().optional(),
 	openRouterSpecificProvider: z.string().optional(),
 	openRouterUseMiddleOutTransform: z.boolean().optional(),
@@ -388,11 +386,9 @@ export const providerSettingsSchema = z.object({
 	// Unbound
 	unboundApiKey: z.string().optional(),
 	unboundModelId: z.string().optional(),
-	unboundModelInfo: modelInfoSchema.nullish(),
 	// Requesty
 	requestyApiKey: z.string().optional(),
 	requestyModelId: z.string().optional(),
-	requestyModelInfo: modelInfoSchema.nullish(),
 	// X.AI (Grok)
 	xaiApiKey: z.string().optional(),
 	// Claude 3.7 Sonnet Thinking
@@ -423,12 +419,10 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	anthropicUseAuthToken: undefined,
 	// Glama
 	glamaModelId: undefined,
-	glamaModelInfo: undefined,
 	glamaApiKey: undefined,
 	// OpenRouter
 	openRouterApiKey: undefined,
 	openRouterModelId: undefined,
-	openRouterModelInfo: undefined,
 	openRouterBaseUrl: undefined,
 	openRouterSpecificProvider: undefined,
 	openRouterUseMiddleOutTransform: undefined,
@@ -482,11 +476,9 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	// Unbound
 	unboundApiKey: undefined,
 	unboundModelId: undefined,
-	unboundModelInfo: undefined,
 	// Requesty
 	requestyApiKey: undefined,
 	requestyModelId: undefined,
-	requestyModelInfo: undefined,
 	// Claude 3.7 Sonnet Thinking
 	modelMaxTokens: undefined,
 	modelMaxThinkingTokens: undefined,

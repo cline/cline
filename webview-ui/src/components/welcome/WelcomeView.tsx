@@ -17,7 +17,7 @@ const WelcomeView = () => {
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
 
 	const handleSubmit = useCallback(() => {
-		const error = validateApiConfiguration(apiConfiguration)
+		const error = apiConfiguration ? validateApiConfiguration(apiConfiguration) : undefined
 
 		if (error) {
 			setErrorMessage(error)

@@ -1,35 +1,22 @@
 // npx jest src/api/providers/__tests__/openrouter.test.ts
 
-import axios from "axios"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
 import { OpenRouterHandler } from "../openrouter"
-import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
+import { ApiHandlerOptions } from "../../../shared/api"
 
 // Mock dependencies
 jest.mock("openai")
-jest.mock("axios")
 jest.mock("delay", () => jest.fn(() => Promise.resolve()))
-
-const mockOpenRouterModelInfo: ModelInfo = {
-	maxTokens: 1000,
-	contextWindow: 2000,
-	supportsPromptCache: false,
-	inputPrice: 0.01,
-	outputPrice: 0.02,
-}
 
 describe("OpenRouterHandler", () => {
 	const mockOptions: ApiHandlerOptions = {
 		openRouterApiKey: "test-key",
-		openRouterModelId: "test-model",
-		openRouterModelInfo: mockOpenRouterModelInfo,
+		openRouterModelId: "anthropic/claude-3.7-sonnet",
 	}
 
-	beforeEach(() => {
-		jest.clearAllMocks()
-	})
+	beforeEach(() => jest.clearAllMocks())
 
 	it("initializes with correct options", () => {
 		const handler = new OpenRouterHandler(mockOptions)
@@ -45,62 +32,55 @@ describe("OpenRouterHandler", () => {
 		})
 	})
 
-	describe("getModel", () => {
-		it("returns correct model info when options are provided", () => {
+	describe("fetchModel", () => {
+		it("returns correct model info when options are provided", async () => {
 			const handler = new OpenRouterHandler(mockOptions)
-			const result = handler.getModel()
+			const result = await handler.fetchModel()
 
-			expect(result).toEqual({
+			expect(result).toMatchObject({
 				id: mockOptions.openRouterModelId,
-				info: mockOptions.openRouterModelInfo,
-				maxTokens: 1000,
+				maxTokens: 8192,
 				thinking: undefined,
 				temperature: 0,
 				reasoningEffort: undefined,
 				topP: undefined,
 				promptCache: {
-					supported: false,
+					supported: true,
 					optional: false,
 				},
 			})
 		})
 
-		it("returns default model info when options are not provided", () => {
+		it("returns default model info when options are not provided", async () => {
 			const handler = new OpenRouterHandler({})
-			const result = handler.getModel()
-
+			const result = await handler.fetchModel()
 			expect(result.id).toBe("anthropic/claude-3.7-sonnet")
 			expect(result.info.supportsPromptCache).toBe(true)
 		})
 
-		it("honors custom maxTokens for thinking models", () => {
+		it("honors custom maxTokens for thinking models", async () => {
 			const handler = new OpenRouterHandler({
 				openRouterApiKey: "test-key",
-				openRouterModelId: "test-model",
-				openRouterModelInfo: {
-					...mockOpenRouterModelInfo,
-					maxTokens: 128_000,
-					thinking: true,
-				},
+				openRouterModelId: "anthropic/claude-3.7-sonnet:thinking",
 				modelMaxTokens: 32_768,
 				modelMaxThinkingTokens: 16_384,
 			})
 
-			const result = handler.getModel()
+			const result = await handler.fetchModel()
 			expect(result.maxTokens).toBe(32_768)
 			expect(result.thinking).toEqual({ type: "enabled", budget_tokens: 16_384 })
 			expect(result.temperature).toBe(1.0)
 		})
 
-		it("does not honor custom maxTokens for non-thinking models", () => {
+		it("does not honor custom maxTokens for non-thinking models", async () => {
 			const handler = new OpenRouterHandler({
 				...mockOptions,
 				modelMaxTokens: 32_768,
 				modelMaxThinkingTokens: 16_384,
 			})
 
-			const result = handler.getModel()
-			expect(result.maxTokens).toBe(1000)
+			const result = await handler.fetchModel()
+			expect(result.maxTokens).toBe(8192)
 			expect(result.thinking).toBeUndefined()
 			expect(result.temperature).toBe(0)
 		})
@@ -113,7 +93,7 @@ describe("OpenRouterHandler", () => {
 			const mockStream = {
 				async *[Symbol.asyncIterator]() {
 					yield {
-						id: "test-id",
+						id: mockOptions.openRouterModelId,
 						choices: [{ delta: { content: "test response" } }],
 					}
 					yield {
@@ -146,16 +126,29 @@ describe("OpenRouterHandler", () => {
 			expect(chunks[0]).toEqual({ type: "text", text: "test response" })
 			expect(chunks[1]).toEqual({ type: "usage", inputTokens: 10, outputTokens: 20, totalCost: 0.001 })
 
-			// Verify OpenAI client was called with correct parameters
+			// Verify OpenAI client was called with correct parameters.
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
-					model: mockOptions.openRouterModelId,
-					temperature: 0,
-					messages: expect.arrayContaining([
-						{ role: "system", content: systemPrompt },
-						{ role: "user", content: "test message" },
-					]),
+					max_tokens: 8192,
+					messages: [
+						{
+							content: [
+								{ cache_control: { type: "ephemeral" }, text: "test system prompt", type: "text" },
+							],
+							role: "system",
+						},
+						{
+							content: [{ cache_control: { type: "ephemeral" }, text: "test message", type: "text" }],
+							role: "user",
+						},
+					],
+					model: "anthropic/claude-3.7-sonnet",
 					stream: true,
+					stream_options: { include_usage: true },
+					temperature: 0,
+					thinking: undefined,
+					top_p: undefined,
+					transforms: ["middle-out"],
 				}),
 			)
 		})
@@ -178,7 +171,6 @@ describe("OpenRouterHandler", () => {
 			;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
 				completions: { create: mockCreate },
 			} as any
-			;(axios.get as jest.Mock).mockResolvedValue({ data: { data: {} } })
 
 			await handler.createMessage("test", []).next()
 
@@ -188,10 +180,6 @@ describe("OpenRouterHandler", () => {
 		it("adds cache control for supported models", async () => {
 			const handler = new OpenRouterHandler({
 				...mockOptions,
-				openRouterModelInfo: {
-					...mockOpenRouterModelInfo,
-					supportsPromptCache: true,
-				},
 				openRouterModelId: "anthropic/claude-3.5-sonnet",
 			})
 
@@ -208,7 +196,6 @@ describe("OpenRouterHandler", () => {
 			;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
 				completions: { create: mockCreate },
 			} as any
-			;(axios.get as jest.Mock).mockResolvedValue({ data: { data: {} } })
 
 			const messages: Anthropic.Messages.MessageParam[] = [
 				{ role: "user", content: "message 1" },
@@ -266,7 +253,7 @@ describe("OpenRouterHandler", () => {
 
 			expect(mockCreate).toHaveBeenCalledWith({
 				model: mockOptions.openRouterModelId,
-				max_tokens: 1000,
+				max_tokens: 8192,
 				thinking: undefined,
 				temperature: 0,
 				messages: [{ role: "user", content: "test prompt" }],

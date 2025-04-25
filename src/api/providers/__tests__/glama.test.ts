@@ -1,7 +1,6 @@
 // npx jest src/api/providers/__tests__/glama.test.ts
 
 import { Anthropic } from "@anthropic-ai/sdk"
-import axios from "axios"
 
 import { GlamaHandler } from "../glama"
 import { ApiHandlerOptions } from "../../../shared/api"
@@ -20,31 +19,18 @@ jest.mock("openai", () => {
 						const stream = {
 							[Symbol.asyncIterator]: async function* () {
 								yield {
-									choices: [
-										{
-											delta: { content: "Test response" },
-											index: 0,
-										},
-									],
+									choices: [{ delta: { content: "Test response" }, index: 0 }],
 									usage: null,
 								}
 								yield {
-									choices: [
-										{
-											delta: {},
-											index: 0,
-										},
-									],
-									usage: {
-										prompt_tokens: 10,
-										completion_tokens: 5,
-										total_tokens: 15,
-									},
+									choices: [{ delta: {}, index: 0 }],
+									usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
 								}
 							},
 						}
 
 						const result = mockCreate(...args)
+
 						if (args[0].stream) {
 							mockWithResponse.mockReturnValue(
 								Promise.resolve({
@@ -59,6 +45,7 @@ jest.mock("openai", () => {
 							)
 							result.withResponse = mockWithResponse
 						}
+
 						return result
 					},
 				},
@@ -73,10 +60,10 @@ describe("GlamaHandler", () => {
 
 	beforeEach(() => {
 		mockOptions = {
-			apiModelId: "anthropic/claude-3-7-sonnet",
-			glamaModelId: "anthropic/claude-3-7-sonnet",
 			glamaApiKey: "test-api-key",
+			glamaModelId: "anthropic/claude-3-7-sonnet",
 		}
+
 		handler = new GlamaHandler(mockOptions)
 		mockCreate.mockClear()
 		mockWithResponse.mockClear()
@@ -102,7 +89,7 @@ describe("GlamaHandler", () => {
 	describe("constructor", () => {
 		it("should initialize with provided options", () => {
 			expect(handler).toBeInstanceOf(GlamaHandler)
-			expect(handler.getModel().id).toBe(mockOptions.apiModelId)
+			expect(handler.getModel().id).toBe(mockOptions.glamaModelId)
 		})
 	})
 
@@ -116,40 +103,15 @@ describe("GlamaHandler", () => {
 		]
 
 		it("should handle streaming responses", async () => {
-			// Mock axios for token usage request
-			const mockAxios = jest.spyOn(axios, "get").mockResolvedValueOnce({
-				data: {
-					tokenUsage: {
-						promptTokens: 10,
-						completionTokens: 5,
-						cacheCreationInputTokens: 0,
-						cacheReadInputTokens: 0,
-					},
-					totalCostUsd: "0.00",
-				},
-			})
-
 			const stream = handler.createMessage(systemPrompt, messages)
 			const chunks: any[] = []
+
 			for await (const chunk of stream) {
 				chunks.push(chunk)
 			}
 
-			expect(chunks.length).toBe(2) // Text chunk and usage chunk
-			expect(chunks[0]).toEqual({
-				type: "text",
-				text: "Test response",
-			})
-			expect(chunks[1]).toEqual({
-				type: "usage",
-				inputTokens: 10,
-				outputTokens: 5,
-				cacheWriteTokens: 0,
-				cacheReadTokens: 0,
-				totalCost: 0,
-			})
-
-			mockAxios.mockRestore()
+			expect(chunks.length).toBe(1)
+			expect(chunks[0]).toEqual({ type: "text", text: "Test response" })
 		})
 
 		it("should handle API errors", async () => {
@@ -178,7 +140,7 @@ describe("GlamaHandler", () => {
 			expect(result).toBe("Test response")
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
-					model: mockOptions.apiModelId,
+					model: mockOptions.glamaModelId,
 					messages: [{ role: "user", content: "Test prompt" }],
 					temperature: 0,
 					max_tokens: 8192,
@@ -204,22 +166,16 @@ describe("GlamaHandler", () => {
 			mockCreate.mockClear()
 
 			const nonAnthropicOptions = {
-				apiModelId: "openai/gpt-4",
-				glamaModelId: "openai/gpt-4",
 				glamaApiKey: "test-key",
-				glamaModelInfo: {
-					maxTokens: 4096,
-					contextWindow: 8192,
-					supportsImages: true,
-					supportsPromptCache: false,
-				},
+				glamaModelId: "openai/gpt-4o",
 			}
+
 			const nonAnthropicHandler = new GlamaHandler(nonAnthropicOptions)
 
 			await nonAnthropicHandler.completePrompt("Test prompt")
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
-					model: "openai/gpt-4",
+					model: "openai/gpt-4o",
 					messages: [{ role: "user", content: "Test prompt" }],
 					temperature: 0,
 				}),
@@ -228,13 +184,20 @@ describe("GlamaHandler", () => {
 		})
 	})
 
-	describe("getModel", () => {
-		it("should return model info", () => {
-			const modelInfo = handler.getModel()
-			expect(modelInfo.id).toBe(mockOptions.apiModelId)
+	describe("fetchModel", () => {
+		it("should return model info", async () => {
+			const modelInfo = await handler.fetchModel()
+			expect(modelInfo.id).toBe(mockOptions.glamaModelId)
 			expect(modelInfo.info).toBeDefined()
 			expect(modelInfo.info.maxTokens).toBe(8192)
 			expect(modelInfo.info.contextWindow).toBe(200_000)
+		})
+
+		it("should return default model when invalid model provided", async () => {
+			const handlerWithInvalidModel = new GlamaHandler({ ...mockOptions, glamaModelId: "invalid/model" })
+			const modelInfo = await handlerWithInvalidModel.fetchModel()
+			expect(modelInfo.id).toBe("anthropic/claude-3-7-sonnet")
+			expect(modelInfo.info).toBeDefined()
 		})
 	})
 })

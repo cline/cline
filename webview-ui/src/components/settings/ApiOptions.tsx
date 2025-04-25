@@ -13,15 +13,11 @@ import {
 	ModelInfo,
 	azureOpenAiDefaultApiVersion,
 	glamaDefaultModelId,
-	glamaDefaultModelInfo,
 	mistralDefaultModelId,
 	openAiModelInfoSaneDefaults,
 	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
 	unboundDefaultModelId,
-	unboundDefaultModelInfo,
 	requestyDefaultModelId,
-	requestyDefaultModelInfo,
 	ApiProvider,
 } from "@roo/shared/api"
 import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
@@ -29,7 +25,8 @@ import { AWS_REGIONS } from "@roo/shared/aws_regions"
 
 import { vscode } from "@src/utils/vscode"
 import { validateApiConfiguration, validateModelId, validateBedrockArn } from "@src/utils/validate"
-import { normalizeApiConfiguration } from "@src/utils/normalizeApiConfiguration"
+import { useRouterModels } from "@/components/ui/hooks/useRouterModels"
+import { useSelectedModel } from "@/components/ui/hooks/useSelectedModel"
 import {
 	useOpenRouterModelProviders,
 	OPENROUTER_DEFAULT_PROVIDER_NAME,
@@ -52,7 +49,7 @@ import { DiffSettingsControl } from "./DiffSettingsControl"
 import { TemperatureControl } from "./TemperatureControl"
 import { RateLimitSecondsControl } from "./RateLimitSecondsControl"
 
-interface ApiOptionsProps {
+export interface ApiOptionsProps {
 	uriScheme: string | undefined
 	apiConfiguration: ApiConfiguration
 	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
@@ -74,22 +71,6 @@ const ApiOptions = ({
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<LanguageModelChatSelector[]>([])
-
-	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
-		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-	})
-
-	const [glamaModels, setGlamaModels] = useState<Record<string, ModelInfo>>({
-		[glamaDefaultModelId]: glamaDefaultModelInfo,
-	})
-
-	const [unboundModels, setUnboundModels] = useState<Record<string, ModelInfo>>({
-		[unboundDefaultModelId]: unboundDefaultModelInfo,
-	})
-
-	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
-		[requestyDefaultModelId]: requestyDefaultModelInfo,
-	})
 
 	const [openAiModels, setOpenAiModels] = useState<Record<string, ModelInfo> | null>(null)
 
@@ -117,10 +98,13 @@ const ApiOptions = ({
 		[setApiConfigurationField],
 	)
 
-	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(
-		() => normalizeApiConfiguration(apiConfiguration),
-		[apiConfiguration],
-	)
+	const {
+		provider: selectedProvider,
+		id: selectedModelId,
+		info: selectedModelInfo,
+	} = useSelectedModel(apiConfiguration)
+
+	const { data: routerModels } = useRouterModels()
 
 	// Update apiConfiguration.aiModelId whenever selectedModelId changes.
 	useEffect(() => {
@@ -133,20 +117,9 @@ const ApiOptions = ({
 	// stops typing.
 	useDebounce(
 		() => {
-			if (selectedProvider === "openrouter") {
-				vscode.postMessage({ type: "refreshOpenRouterModels" })
-			} else if (selectedProvider === "glama") {
-				vscode.postMessage({ type: "refreshGlamaModels" })
-			} else if (selectedProvider === "unbound") {
-				vscode.postMessage({ type: "refreshUnboundModels" })
-			} else if (selectedProvider === "requesty") {
+			if (selectedProvider === "openai") {
 				vscode.postMessage({
-					type: "refreshRequestyModels",
-					values: { apiKey: apiConfiguration?.requestyApiKey },
-				})
-			} else if (selectedProvider === "openai") {
-				vscode.postMessage({
-					type: "refreshOpenAiModels",
+					type: "requestOpenAiModels",
 					values: {
 						baseUrl: apiConfiguration?.openAiBaseUrl,
 						apiKey: apiConfiguration?.openAiApiKey,
@@ -174,43 +147,23 @@ const ApiOptions = ({
 
 	useEffect(() => {
 		const apiValidationResult =
-			validateApiConfiguration(apiConfiguration) ||
-			validateModelId(apiConfiguration, glamaModels, openRouterModels, unboundModels, requestyModels)
-
+			validateApiConfiguration(apiConfiguration) || validateModelId(apiConfiguration, routerModels)
 		setErrorMessage(apiValidationResult)
-	}, [apiConfiguration, glamaModels, openRouterModels, setErrorMessage, unboundModels, requestyModels])
+	}, [apiConfiguration, routerModels, setErrorMessage])
 
 	const { data: openRouterModelProviders } = useOpenRouterModelProviders(apiConfiguration?.openRouterModelId, {
 		enabled:
 			selectedProvider === "openrouter" &&
 			!!apiConfiguration?.openRouterModelId &&
-			apiConfiguration.openRouterModelId in openRouterModels,
+			routerModels?.openrouter &&
+			Object.keys(routerModels.openrouter).length > 1 &&
+			apiConfiguration.openRouterModelId in routerModels.openrouter,
 	})
 
 	const onMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 
 		switch (message.type) {
-			case "openRouterModels": {
-				const updatedModels = message.openRouterModels ?? {}
-				setOpenRouterModels({ [openRouterDefaultModelId]: openRouterDefaultModelInfo, ...updatedModels })
-				break
-			}
-			case "glamaModels": {
-				const updatedModels = message.glamaModels ?? {}
-				setGlamaModels({ [glamaDefaultModelId]: glamaDefaultModelInfo, ...updatedModels })
-				break
-			}
-			case "unboundModels": {
-				const updatedModels = message.unboundModels ?? {}
-				setUnboundModels({ [unboundDefaultModelId]: unboundDefaultModelInfo, ...updatedModels })
-				break
-			}
-			case "requestyModels": {
-				const updatedModels = message.requestyModels ?? {}
-				setRequestyModels({ [requestyDefaultModelId]: requestyDefaultModelInfo, ...updatedModels })
-				break
-			}
 			case "openAiModels": {
 				const updatedModels = message.openAiModels ?? []
 				setOpenAiModels(Object.fromEntries(updatedModels.map((item) => [item, openAiModelInfoSaneDefaults])))
@@ -825,10 +778,8 @@ const ApiOptions = ({
 						apiConfiguration={apiConfiguration}
 						setApiConfigurationField={setApiConfigurationField}
 						defaultModelId="gpt-4o"
-						defaultModelInfo={openAiModelInfoSaneDefaults}
 						models={openAiModels}
 						modelIdKey="openAiModelId"
-						modelInfoKey="openAiCustomModelInfo"
 						serviceName="OpenAI"
 						serviceUrl="https://platform.openai.com"
 					/>
@@ -1535,10 +1486,8 @@ const ApiOptions = ({
 					apiConfiguration={apiConfiguration}
 					setApiConfigurationField={setApiConfigurationField}
 					defaultModelId={openRouterDefaultModelId}
-					defaultModelInfo={openRouterDefaultModelInfo}
-					models={openRouterModels}
+					models={routerModels?.openrouter ?? {}}
 					modelIdKey="openRouterModelId"
-					modelInfoKey="openRouterModelInfo"
 					serviceName="OpenRouter"
 					serviceUrl="https://openrouter.ai/models"
 				/>
@@ -1558,16 +1507,7 @@ const ApiOptions = ({
 						</div>
 						<Select
 							value={apiConfiguration?.openRouterSpecificProvider || OPENROUTER_DEFAULT_PROVIDER_NAME}
-							onValueChange={(value) => {
-								if (openRouterModelProviders[value]) {
-									setApiConfigurationField("openRouterModelInfo", {
-										...apiConfiguration.openRouterModelInfo,
-										...openRouterModelProviders[value],
-									})
-								}
-
-								setApiConfigurationField("openRouterSpecificProvider", value)
-							}}>
+							onValueChange={(value) => setApiConfigurationField("openRouterSpecificProvider", value)}>
 							<SelectTrigger className="w-full">
 								<SelectValue placeholder={t("settings:common.select")} />
 							</SelectTrigger>
@@ -1596,9 +1536,7 @@ const ApiOptions = ({
 					apiConfiguration={apiConfiguration}
 					setApiConfigurationField={setApiConfigurationField}
 					defaultModelId={glamaDefaultModelId}
-					defaultModelInfo={glamaDefaultModelInfo}
-					models={glamaModels}
-					modelInfoKey="glamaModelInfo"
+					models={routerModels?.glama ?? {}}
 					modelIdKey="glamaModelId"
 					serviceName="Glama"
 					serviceUrl="https://glama.ai/models"
@@ -1609,9 +1547,7 @@ const ApiOptions = ({
 				<ModelPicker
 					apiConfiguration={apiConfiguration}
 					defaultModelId={unboundDefaultModelId}
-					defaultModelInfo={unboundDefaultModelInfo}
-					models={unboundModels}
-					modelInfoKey="unboundModelInfo"
+					models={routerModels?.unbound ?? {}}
 					modelIdKey="unboundModelId"
 					serviceName="Unbound"
 					serviceUrl="https://api.getunbound.ai/models"
@@ -1624,10 +1560,8 @@ const ApiOptions = ({
 					apiConfiguration={apiConfiguration}
 					setApiConfigurationField={setApiConfigurationField}
 					defaultModelId={requestyDefaultModelId}
-					defaultModelInfo={requestyDefaultModelInfo}
-					models={requestyModels}
+					models={routerModels?.requesty ?? {}}
 					modelIdKey="requestyModelId"
-					modelInfoKey="requestyModelInfo"
 					serviceName="Requesty"
 					serviceUrl="https://requesty.ai"
 				/>
@@ -1743,7 +1677,7 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{selectedModelInfo.supportsPromptCache && selectedModelInfo.isPromptCacheOptional && (
+			{selectedModelInfo && selectedModelInfo.supportsPromptCache && selectedModelInfo.isPromptCacheOptional && (
 				<PromptCachingControl
 					apiConfiguration={apiConfiguration}
 					setApiConfigurationField={setApiConfigurationField}

@@ -1,8 +1,12 @@
-import React from "react"
+// npx jest src/components/chat/__tests__/ChatView.auto-approve.test.tsx
+
 import { render, waitFor } from "@testing-library/react"
-import ChatView from "../ChatView"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+
 import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
+
+import ChatView, { ChatViewProps } from "../ChatView"
 
 // Mock vscode API
 jest.mock("@src/utils/vscode", () => ({
@@ -85,22 +89,32 @@ const mockPostMessage = (state: any) => {
 	)
 }
 
+const queryClient = new QueryClient()
+
+const defaultProps: ChatViewProps = {
+	isHidden: false,
+	showAnnouncement: false,
+	hideAnnouncement: () => {},
+	showHistoryView: () => {},
+}
+
+const renderChatView = (props: Partial<ChatViewProps> = {}) => {
+	return render(
+		<ExtensionStateContextProvider>
+			<QueryClientProvider client={queryClient}>
+				<ChatView {...defaultProps} {...props} />
+			</QueryClientProvider>
+		</ExtensionStateContextProvider>,
+	)
+}
+
 describe("ChatView - Auto Approval Tests", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
 	})
 
 	it("auto-approves read operations when enabled", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -147,16 +161,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("auto-approves outside workspace read operations when enabled", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -235,16 +240,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("does not auto-approve outside workspace read operations without permission", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -297,16 +293,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("does not auto-approve when autoApprovalEnabled is false", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -351,16 +338,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("auto-approves write operations when enabled", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -409,16 +387,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("auto-approves outside workspace write operations when enabled", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -474,16 +443,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("does not auto-approve outside workspace write operations without permission", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -539,16 +499,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("auto-approves browser actions when enabled", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -595,16 +546,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("auto-approves mode switch when enabled", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -651,16 +593,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("does not auto-approve mode switch when disabled", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
@@ -705,16 +638,7 @@ describe("ChatView - Auto Approval Tests", () => {
 	})
 
 	it("does not auto-approve mode switch when auto-approval is disabled", async () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ChatView
-					isHidden={false}
-					showAnnouncement={false}
-					hideAnnouncement={() => {}}
-					showHistoryView={() => {}}
-				/>
-			</ExtensionStateContextProvider>,
-		)
+		renderChatView()
 
 		// First hydrate state with initial task
 		mockPostMessage({
