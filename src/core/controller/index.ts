@@ -409,6 +409,7 @@ export class Controller {
 					// null filePath
 					vscode.window.showErrorMessage(`Failed to create rule file.`)
 				}
+				
 				break
 			case "openMention":
 				openMention(message.text)
