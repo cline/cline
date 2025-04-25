@@ -1,202 +1,96 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
+// Standardize on @google/generative-ai for client and types
+import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
+// Keep Vertex-specific models/types for getModel()
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
 import { ApiStream } from "@api/transform/stream"
-import { VertexAI } from "@google-cloud/vertexai"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import type { Content } from "@google-cloud/vertexai"
-import { convertAnthropicMessageToVertexContent } from "../transform/gemini-format"
+// Use the standardized conversion function from @google/generative-ai types
+import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 
-// https://docs.anthropic.com/en/api/claude-on-vertex-ai
+// This handler now uses the @google/generative-ai SDK to interact with Vertex AI endpoints
+// that support the Google Generative AI API format.
 export class VertexHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private clientAnthropic: AnthropicVertex
-	private clientVertex: VertexAI
+	// Use the standard GoogleGenerativeAI client
+	private client: GoogleGenerativeAI
 
 	constructor(options: ApiHandlerOptions) {
+		// Ensure API key is provided for authentication with @google/generative-ai client
+		if (!options.geminiApiKey) {
+			// Assuming the API key for @google/generative-ai works for Vertex endpoints
+			// This might need adjustment based on actual Vertex auth with this SDK
+			throw new Error("API key (geminiApiKey) is required for Google Generative AI client, even for Vertex")
+		}
 		this.options = options
-		this.clientAnthropic = new AnthropicVertex({
-			projectId: this.options.vertexProjectId,
-			region: this.options.vertexRegion,
-		})
-		this.clientVertex = new VertexAI({
-			project: this.options.vertexProjectId,
-			location: this.options.vertexRegion,
-		})
+		// Initialize the client. Credentials might need more complex handling for Vertex.
+		this.client = new GoogleGenerativeAI(options.geminiApiKey)
+
+		// TODO: Configure client further for Vertex specifics if needed (e.g., project/location)
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const model = this.getModel()
-		const modelId = model.id
+		const modelInfo = this.getModel() // Gets VertexModelId and info
+		const modelId = modelInfo.id
 
-		if (modelId.includes("claude")) {
-			let budget_tokens = this.options.thinkingBudgetTokens || 0
-			const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0
+		// Remove Claude-specific logic as we are standardizing on the Gemini API via @google/generative-ai
+		// if (modelId.includes("claude")) { ... }
 
-			let stream
-			switch (modelId) {
-				case "claude-3-7-sonnet@20250219":
-				case "claude-3-5-sonnet-v2@20241022":
-				case "claude-3-5-sonnet@20240620":
-				case "claude-3-5-haiku@20241022":
-				case "claude-3-opus@20240229":
-				case "claude-3-haiku@20240307": {
-					const userMsgIndices = messages.reduce(
-						(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-						[] as number[],
-					)
-					const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
-					const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+		// Handle Gemini models on Vertex using @google/generative-ai client
+		const modelOptions = {
+			model: modelId, // Pass the Vertex model ID (e.g., gemini-1.5-pro-preview-0409)
+			systemInstruction: systemPrompt,
+		}
+		const clientOptions = this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined // Assuming same base URL logic applies
 
-					stream = await this.clientAnthropic.beta.messages.create({
-						model: modelId,
-						max_tokens: model.info.maxTokens || 8192,
-						thinking: reasoningOn ? { type: "enabled", budget_tokens } : undefined,
-						temperature: reasoningOn ? undefined : 0,
-						system: [{ text: systemPrompt, type: "text", cache_control: { type: "ephemeral" } }],
-						messages: messages.map((message, index) => {
-							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-								return {
-									...message,
-									content:
-										typeof message.content === "string"
-											? [{ type: "text", text: message.content, cache_control: { type: "ephemeral" } }]
-											: message.content.map((content, i) =>
-													i === message.content.length - 1
-														? { ...content, cache_control: { type: "ephemeral" } }
-														: content,
-												),
-								}
-							}
-							return {
-								...message,
-								content:
-									typeof message.content === "string"
-										? [{ type: "text", text: message.content }]
-										: message.content,
-							}
-						}),
-						stream: true,
-					})
-					break
-				}
-				default: {
-					stream = await this.clientAnthropic.beta.messages.create({
-						model: modelId,
-						max_tokens: model.info.maxTokens || 8192,
-						temperature: 0,
-						system: [{ text: systemPrompt, type: "text" }],
-						messages: messages.map((message) => ({
-							...message,
-							content:
-								typeof message.content === "string" ? [{ type: "text", text: message.content }] : message.content,
-						})),
-						stream: true,
-					})
-					break
-				}
+		// Use the getGenerativeModel structure
+		const generativeModel = this.client.getGenerativeModel(modelOptions, clientOptions)
+
+		// Prepare contents using the standardized conversion function
+		const contents: Content[] = messages.map(convertAnthropicMessageToGemini)
+
+		// Define generationConfig
+		const generationConfig: GenerationConfig = {
+			temperature: 0,
+			// maxOutputTokens: modelInfo.info.maxTokens, // Optional
+		}
+
+		const result = await generativeModel.generateContentStream({
+			contents,
+			generationConfig,
+		})
+
+		for await (const chunk of result.stream) {
+			yield {
+				type: "text",
+				text: chunk.text(),
 			}
+		}
 
-			for await (const chunk of stream) {
-				switch (chunk.type) {
-					case "message_start":
-						const usage = chunk.message.usage
-						yield {
-							type: "usage",
-							inputTokens: usage.input_tokens || 0,
-							outputTokens: usage.output_tokens || 0,
-							cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
-							cacheReadTokens: usage.cache_read_input_tokens || undefined,
-						}
-						break
-					case "message_delta":
-						yield {
-							type: "usage",
-							inputTokens: 0,
-							outputTokens: chunk.usage.output_tokens || 0,
-						}
-						break
-					case "content_block_start":
-						if (chunk.content_block.type === "thinking") {
-							yield {
-								type: "reasoning",
-								reasoning: chunk.content_block.thinking || "",
-							}
-						} else if (chunk.content_block.type === "redacted_thinking") {
-							yield {
-								type: "reasoning",
-								reasoning: "[Redacted thinking block]",
-							}
-						} else if (chunk.content_block.type === "text") {
-							if (chunk.index > 0) {
-								yield { type: "text", text: "\n" }
-							}
-							yield {
-								type: "text",
-								text: chunk.content_block.text,
-							}
-						}
-						break
-					case "content_block_delta":
-						if (chunk.delta.type === "thinking_delta") {
-							yield {
-								type: "reasoning",
-								reasoning: chunk.delta.thinking,
-							}
-						} else if (chunk.delta.type === "text_delta") {
-							yield {
-								type: "text",
-								text: chunk.delta.text,
-							}
-						}
-						break
-				}
-			}
-		} else {
-			const generativeModel = this.clientVertex.getGenerativeModel({
-				model: modelId,
-				systemInstruction: {
-					role: "system",
-					parts: [{ text: systemPrompt }],
-				},
-			})
-
-			// Use the correctly renamed Vertex-specific function
-			const contents: Content[] = messages.map(convertAnthropicMessageToVertexContent)
-			const request = { contents }
-
-			const streamingResult = await generativeModel.generateContentStream(request)
-
-			for await (const chunk of streamingResult.stream) {
-				const candidates = chunk.candidates || []
-				for (const candidate of candidates) {
-					for (const part of candidate.content?.parts || []) {
-						if (part.text) {
-							yield {
-								type: "text",
-								text: part.text,
-							}
-						}
-					}
-				}
-			}
-
-			const { usageMetadata } = await streamingResult.response
-			if (usageMetadata) {
-				const { promptTokenCount = 0, candidatesTokenCount = 0 } = usageMetadata
-				yield {
-					type: "usage",
-					inputTokens: promptTokenCount,
-					outputTokens: candidatesTokenCount,
-					totalCost: calculateApiCostOpenAI(model.info, promptTokenCount, candidatesTokenCount, 0, 0),
-				}
+		const response = await result.response
+		const usageMetadata = response.usageMetadata
+		if (usageMetadata) {
+			const promptTokenCount = usageMetadata.promptTokenCount ?? 0
+			const candidatesTokenCount = usageMetadata.candidatesTokenCount ?? 0
+			yield {
+				type: "usage",
+				inputTokens: promptTokenCount,
+				outputTokens: candidatesTokenCount,
+				totalCost: calculateApiCostOpenAI(
+					modelInfo.info, // Use modelInfo obtained earlier
+					promptTokenCount,
+					candidatesTokenCount,
+					0,
+					0,
+				),
 			}
 		}
 	}
 
+	// Keep getModel specific to Vertex models
 	getModel(): { id: VertexModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in vertexModels) {

@@ -1,10 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+// Correct package for the client class and types
+import { GoogleGenerativeAI, Content, GenerationConfig } from "@google/generative-ai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
-// Import the correct function for @google/generative-ai
-import { convertAnthropicMessageToGenerativeAiContent } from "../transform/gemini-format"
+import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 export class GeminiHandler implements ApiHandler {
@@ -21,20 +21,29 @@ export class GeminiHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		// Define model options first
 		const modelOptions = {
 			model: this.getModel().id,
-			systemInstruction: systemPrompt,
+			systemInstruction: systemPrompt, // Pass system prompt here
+		}
+		const clientOptions = this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined
+
+		// Use the getGenerativeModel structure - This passed type checks before
+		const model = this.client.getGenerativeModel(modelOptions, clientOptions)
+
+		// Prepare contents using the standardized conversion function
+		const contents: Content[] = messages.map(convertAnthropicMessageToGemini)
+
+		// Define generationConfig
+		const generationConfig: GenerationConfig = {
+			temperature: 0,
+			// maxOutputTokens: this.getModel().info.maxTokens, // Optional
 		}
 
-		const clientOptions = this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined
-		const model = this.client.getGenerativeModel(modelOptions, clientOptions)
+		// Use model.generateContentStream
 		const result = await model.generateContentStream({
-			// Use the correct function for @google/generative-ai
-			contents: messages.map(convertAnthropicMessageToGenerativeAiContent),
-			generationConfig: {
-				// maxOutputTokens: this.getModel().info.maxTokens,
-				temperature: 0,
-			},
+			contents,
+			generationConfig,
 		})
 
 		for await (const chunk of result.stream) {

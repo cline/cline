@@ -1,55 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import type {
-	Content,
-	Part,
-	TextPart,
-	InlineDataPart,
-	GenerateContentResponse as VertexGenerateContentResponse,
-} from "@google-cloud/vertexai"
-import type {
-	Content as GenAIContent,
-	Part as GenAIPart,
-	GenerateContentResponse as GenAIGenerateContentResponse,
-} from "@google/generative-ai"
+// Import types from @google/generative-ai
+import { Content, GenerateContentResponse, Part } from "@google/generative-ai"
 
-export function convertAnthropicContentToVertexContent(content: string | Anthropic.ContentBlockParam[]): Part[] {
-	if (typeof content === "string") {
-		return [{ text: content } as TextPart]
-	}
-	return content.flatMap((block): Part => {
-		switch (block.type) {
-			case "text":
-				return { text: block.text } as TextPart
-			case "image":
-				if (block.source.type !== "base64") {
-					throw new Error("Unsupported image source type")
-				}
-				return {
-					inlineData: {
-						data: block.source.data,
-						mimeType: block.source.media_type,
-					},
-				} as InlineDataPart
-			default:
-				throw new Error(`Unsupported content block type: ${block.type}`)
-		}
-	})
-}
+// Conversion functions using @google/generative-ai types
 
-export function convertAnthropicMessageToVertexContent(message: Anthropic.Messages.MessageParam): Content {
-	return {
-		role: message.role === "assistant" ? "model" : "user",
-		parts: convertAnthropicContentToVertexContent(message.content),
-	}
-}
-
-// --- Duplicate functions for @google/generative-ai ---
-
-export function convertAnthropicContentToGenerativeAiContent(content: string | Anthropic.ContentBlockParam[]): GenAIPart[] {
+export function convertAnthropicContentToGemini(content: string | Anthropic.ContentBlockParam[]): Part[] {
 	if (typeof content === "string") {
 		return [{ text: content }]
 	}
-	return content.flatMap((block): GenAIPart => {
+	return content.flatMap((block): Part => {
 		switch (block.type) {
 			case "text":
 				return { text: block.text }
@@ -69,31 +28,38 @@ export function convertAnthropicContentToGenerativeAiContent(content: string | A
 	})
 }
 
-export function convertAnthropicMessageToGenerativeAiContent(message: Anthropic.Messages.MessageParam): GenAIContent {
+export function convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam): Content {
 	const role = message.role === "assistant" ? "model" : "user"
 	if (role !== "user" && role !== "model") {
 		throw new Error(`Unsupported role conversion: ${message.role}`)
 	}
 	return {
 		role: role,
-		parts: convertAnthropicContentToGenerativeAiContent(message.content),
+		parts: convertAnthropicContentToGemini(message.content),
 	}
 }
-
-// --- End of duplicate functions ---
 
 export function unescapeGeminiContent(content: string) {
 	return content.replace(/\\n/g, "\n").replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\r/g, "\r").replace(/\\t/g, "\t")
 }
 
-export function convertVertexResponseToAnthropic(response: VertexGenerateContentResponse): Anthropic.Messages.Message {
+// Function for converting @google/generative-ai response
+export function convertGeminiResponseToAnthropic(response: GenerateContentResponse): Anthropic.Messages.Message {
 	const content: Anthropic.Messages.ContentBlock[] = []
 
+	// Correctly iterate through parts to extract text, instead of using response.text
 	const parts = response.candidates?.[0]?.content?.parts || []
 	for (const part of parts) {
 		if ("text" in part && part.text) {
-			content.push({ type: "text", text: part.text, citations: null })
+			// Accumulate text from potentially multiple parts
+			const lastBlock = content[content.length - 1]
+			if (lastBlock?.type === "text") {
+				lastBlock.text += part.text // Append to existing text block if possible
+			} else {
+				content.push({ type: "text", text: part.text, citations: null })
+			}
 		}
+		// TODO: Handle other part types if necessary (e.g., function calls)
 	}
 
 	let stop_reason: Anthropic.Messages.Message["stop_reason"] = null
@@ -108,9 +74,11 @@ export function convertVertexResponseToAnthropic(response: VertexGenerateContent
 				break
 			default:
 				stop_reason = "stop_sequence"
+				break // Corrected break based on main branch conflict
 		}
 	}
 
+	// Ensure usage keys match the target Anthropic type (snake_case based on error)
 	return {
 		id: `msg_${Date.now()}`,
 		type: "message",
@@ -118,10 +86,10 @@ export function convertVertexResponseToAnthropic(response: VertexGenerateContent
 		content,
 		model: "",
 		stop_reason,
-		stop_sequence: null, // Gemini doesn't provide this information
+		stop_sequence: null,
 		usage: {
-			input_tokens: response.usageMetadata?.promptTokenCount ?? 0,
-			output_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+			input_tokens: response.usageMetadata?.promptTokenCount ?? 0, // Use snake_case
+			output_tokens: response.usageMetadata?.candidatesTokenCount ?? 0, // Use snake_case
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
 		},
