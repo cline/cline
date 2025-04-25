@@ -2,6 +2,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import { listFiles } from "@services/glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
+export * from "./rangeHelpers" // Export the new range helpers
 import { fileExistsAtPath } from "@utils/fs"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 

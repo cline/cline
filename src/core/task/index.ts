@@ -1862,11 +1862,16 @@ export class Task {
 									await this.diffViewProvider.open(relPath)
 								}
 
+								// Construct the absolute path needed for AST fallback
+								const absolutePath = path.resolve(cwd, relPath)
+
 								try {
+									// Pass the absolute path to the constructor
 									newContent = await constructNewFileContent(
 										diff,
 										this.diffViewProvider.originalContent || "",
 										!block.partial,
+										absolutePath, // Pass absPath here
 									)
 								} catch (error) {
 									await this.say("diff_error", relPath)

@@ -142,6 +142,9 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	return false
 }
 
+// Import necessary AST helper functions
+import { commentRangeAtLine, enclosingFunctionRange, byteIndexToPoint } from "@services/tree-sitter"
+
 /**
  * This function reconstructs the file content by applying a streamed diff (in a
  * specialized SEARCH/REPLACE block format) to the original file content. It is designed
@@ -199,25 +202,36 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
  * Errors:
  * - If the search block cannot be matched using any of the available matching strategies,
  *   an error is thrown.
+ *
+ * @param diffContent The streamed diff content containing SEARCH/REPLACE blocks.
+ * @param originalContent The original content of the file.
+ * @param isFinal True if this is the last chunk of the diff content.
+ * @param absPath The absolute path to the file (required for AST fallback).
+ * @param version The version of the constructor logic to use (defaults to v2).
+ * @returns The reconstructed file content.
  */
 export async function constructNewFileContent(
 	diffContent: string,
 	originalContent: string,
 	isFinal: boolean,
+	absPath: string, // Added absPath parameter
 	version: "v1" | "v2" = "v2",
 ): Promise<string> {
 	const constructor = constructNewFileContentVersionMapping[version]
 	if (!constructor) {
 		throw new Error(`Invalid version '${version}' for file content constructor`)
 	}
-	return constructor(diffContent, originalContent, isFinal)
+	// Pass absPath down to the specific version constructor
+	return constructor(diffContent, originalContent, isFinal, absPath)
 }
 
+// Update the type definition for the mapping to include absPath
 const constructNewFileContentVersionMapping: Record<
 	string,
-	(diffContent: string, originalContent: string, isFinal: boolean) => Promise<string>
+	(diffContent: string, originalContent: string, isFinal: boolean, absPath: string) => Promise<string>
 > = {
-	v1: constructNewFileContentV1,
+	// V1 doesn't use absPath, so we can ignore it here or adapt if needed
+	v1: (diff, orig, final, _absPath) => constructNewFileContentV1(diff, orig, final),
 	v2: constructNewFileContentV2,
 } as const
 
@@ -383,10 +397,13 @@ class NewFileContentConstructor {
 	private currentReplaceContent: string
 	private searchMatchIndex: number
 	private searchEndIndex: number
+	private absPath: string // Added to store the absolute path
 
-	constructor(originalContent: string, isFinal: boolean) {
+	constructor(originalContent: string, isFinal: boolean, absPath: string) {
+		// Added absPath parameter
 		this.originalContent = originalContent
 		this.isFinal = isFinal
+		this.absPath = absPath // Store the path
 		this.pendingNonStandardLines = []
 		this.result = ""
 		this.lastProcessedIndex = 0
@@ -530,7 +547,8 @@ class NewFileContentConstructor {
 		return removeLineCount
 	}
 
-	private beforeReplace() {
+	// Marked as async because it now calls the async astSalvage function
+	private async beforeReplace() {
 		// Remove trailing linebreak for adding the === marker
 		// if (currentSearchContent.endsWith("\r\n")) {
 		// 	currentSearchContent = currentSearchContent.slice(0, -2)
@@ -582,16 +600,35 @@ class NewFileContentConstructor {
 					if (blockMatch) {
 						;[this.searchMatchIndex, this.searchEndIndex] = blockMatch
 					} else {
-						throw new Error(
-							`The SEARCH block:\n${this.currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
+						// If blockMatch failed
+						// NEW --- AST anchor salvage ---
+						// Note: We need the absolute path for AST parsing. Assuming it's available
+						// Use the stored absolute path
+						const maybe = await astSalvage(
+							this.absPath, // Use the stored path
+							this.currentSearchContent,
+							this.originalContent,
+							this.lastProcessedIndex,
 						)
-					}
+						if (maybe) {
+							// If AST salvage succeeded
+							;[this.searchMatchIndex, this.searchEndIndex] = maybe
+						} else {
+							// If AST salvage also failed
+							// Original error throw if all fallbacks fail
+							throw new Error(
+								`The SEARCH block:\n${this.currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
+							)
+						}
+						// --- END AST anchor salvage ---
+					} // Closing brace for the 'else' where blockMatch failed
 				}
 			}
 		}
+		// Validate that the found match index is not before the last processed index
 		if (this.searchMatchIndex < this.lastProcessedIndex) {
 			throw new Error(
-				`The SEARCH block:\n${this.currentSearchContent.trimEnd()}\n...matched an incorrect content in the file.`,
+				`The SEARCH block:\n${this.currentSearchContent.trimEnd()}\n...matched incorrect content in the file (match found before the previous block).`,
 			)
 		}
 		// Output everything up to the match location
@@ -696,8 +733,15 @@ class NewFileContentConstructor {
 	}
 }
 
-export async function constructNewFileContentV2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
-	let newFileContentConstructor = new NewFileContentConstructor(originalContent, isFinal)
+// Updated signature to accept absPath
+export async function constructNewFileContentV2(
+	diffContent: string,
+	originalContent: string,
+	isFinal: boolean,
+	absPath: string, // Added absPath parameter
+): Promise<string> {
+	// Pass absPath to the constructor
+	let newFileContentConstructor = new NewFileContentConstructor(originalContent, isFinal, absPath)
 
 	let lines = diffContent.split("\n")
 
@@ -720,4 +764,81 @@ export async function constructNewFileContentV2(diffContent: string, originalCon
 
 	let result = newFileContentConstructor.getResult()
 	return result
+}
+
+// --- AST Salvage Helper Function ---
+
+/**
+ * Attempts to find a match for the search block using AST-based anchors
+ * as a final fallback when text-based matching fails.
+ *
+ * @param absPath Absolute path to the file (required for AST parsing).
+ * @param search The content of the SEARCH block.
+ * @param original The original content of the file.
+ * @param fromIndex The byte index from which to start considering matches.
+ * @returns A tuple [startIndex, endIndex] if a match is found, otherwise undefined.
+ */
+async function astSalvage(
+	absPath: string,
+	search: string,
+	original: string,
+	fromIndex: number,
+): Promise<[number, number] | undefined> {
+	// Check if an absolute path was provided (required for reading the file for AST)
+	if (absPath === "PLACEHOLDER_ABS_PATH" || !absPath) {
+		console.warn("AST Salvage requires an absolute file path, but none was provided.")
+		return undefined // Cannot proceed without the file path
+	}
+
+	try {
+		// Fallback 1: Comment Anchor
+		// If the search block starts like a comment...
+		if (/^\s*(\/\/|#|\/\*|--|%)/.test(search)) {
+			// Match common comment starts
+			const searchTrimmed = search.trim()
+			// Find the first line in the original content (after fromIndex) that matches the trimmed search line
+			const originalLines = original.slice(fromIndex).split("\n")
+			const lineIndexInSlice = originalLines.findIndex((l) => l.trim() === searchTrimmed)
+
+			if (lineIndexInSlice !== -1) {
+				// Calculate the actual line number in the original file
+				const linesBeforeFromIndex = original.slice(0, fromIndex).split("\n").length - 1
+				const actualLineNum = linesBeforeFromIndex + lineIndexInSlice
+
+				// Try to get the byte range of the comment node at that line
+				const rng = await commentRangeAtLine(absPath, actualLineNum)
+				if (rng && rng[0] >= fromIndex) {
+					console.log(`AST Salvage: Found match using Comment Anchor at line ${actualLineNum}`)
+					return rng // Return the byte range of the comment
+				}
+			}
+		}
+
+		// Fallback 2: Identifier Anchor (Function/Method Name)
+		// Try to find a likely identifier (e.g., function name) in the search block
+		// Simple regex: looks for typical identifier patterns (letters, numbers, _, starting with letter or _)
+		const idMatch = search.match(/[a-zA-Z_][a-zA-Z0-9_]{2,}/)
+		if (idMatch && idMatch[0]) {
+			const identifier = idMatch[0]
+			// Find the first occurrence of this identifier in the original content after fromIndex
+			const identifierIndex = original.indexOf(identifier, fromIndex)
+
+			if (identifierIndex !== -1) {
+				// Convert the byte index to a {row, column} point
+				const point = byteIndexToPoint(original, identifierIndex)
+				// Try to get the byte range of the enclosing function at that point
+				const rng = await enclosingFunctionRange(absPath, point)
+				if (rng && rng[0] >= fromIndex) {
+					console.log(`AST Salvage: Found match using Identifier Anchor '${identifier}'`)
+					return rng // Return the byte range of the function
+				}
+			}
+		}
+	} catch (error) {
+		// Log errors during AST parsing/matching but don't crash the diff process
+		console.error("Error during AST Salvage fallback:", error)
+	}
+
+	// If neither AST fallback succeeded
+	return undefined
 }
