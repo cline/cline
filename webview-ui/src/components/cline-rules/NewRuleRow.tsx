@@ -59,16 +59,11 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal }) => {
 				finalFilename = `${trimmedFilename}.md`
 			}
 
-			try {
-				FileServiceClient.createRuleFile(
-					CreateRuleFileRequest.create({
-						isGlobal,
-						filename: finalFilename,
-					}),
-				)
-			} catch (err) {
-				console.error("Error creating rule file:", err)
-			}
+			vscode.postMessage({
+				type: "createRuleFile",
+				isGlobal,
+				filename: finalFilename,
+			})
 
 			setFilename("")
 			setError(null)

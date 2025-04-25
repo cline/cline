@@ -10,22 +10,15 @@ import { Empty, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
-/** Request for deleteRuleFile */
-export interface DeleteRuleFileRequest {
+/** Unified request for all rule file operations */
+export interface RuleFileRequest {
 	metadata?: Metadata | undefined
-	/** Path of the rule file to delete */
-	rulePath: string
-	/** Whether to delete in global or workspace rules directory */
+	/** Common field for all operations */
 	isGlobal: boolean
-}
-
-/** Request for creating a rule file */
-export interface CreateRuleFileRequest {
-	metadata?: Metadata | undefined
-	/** Name of the rule file to create */
-	filename: string
-	/** Whether to create in global or workspace rules directory */
-	isGlobal: boolean
+	/** Path field for deleteRuleFile (optional) */
+	rulePath?: string | undefined
+	/** Filename field for createRuleFile (optional) */
+	filename?: string | undefined
 }
 
 /** Result for rule file operations with meaningful data only */
@@ -34,30 +27,35 @@ export interface RuleFile {
 	filePath: string
 	/** Filename for display purposes */
 	displayName: string
+	/** For createRuleFile, indicates if file already existed */
+	alreadyExists: boolean
 }
 
-function createBaseDeleteRuleFileRequest(): DeleteRuleFileRequest {
-	return { metadata: undefined, rulePath: "", isGlobal: false }
+function createBaseRuleFileRequest(): RuleFileRequest {
+	return { metadata: undefined, isGlobal: false, rulePath: undefined, filename: undefined }
 }
 
-export const DeleteRuleFileRequest: MessageFns<DeleteRuleFileRequest> = {
-	encode(message: DeleteRuleFileRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const RuleFileRequest: MessageFns<RuleFileRequest> = {
+	encode(message: RuleFileRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		if (message.metadata !== undefined) {
 			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
 		}
-		if (message.rulePath !== "") {
-			writer.uint32(18).string(message.rulePath)
-		}
 		if (message.isGlobal !== false) {
-			writer.uint32(24).bool(message.isGlobal)
+			writer.uint32(16).bool(message.isGlobal)
+		}
+		if (message.rulePath !== undefined) {
+			writer.uint32(26).string(message.rulePath)
+		}
+		if (message.filename !== undefined) {
+			writer.uint32(34).string(message.filename)
 		}
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): DeleteRuleFileRequest {
+	decode(input: BinaryReader | Uint8Array, length?: number): RuleFileRequest {
 		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseDeleteRuleFileRequest()
+		const message = createBaseRuleFileRequest()
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
@@ -70,114 +68,29 @@ export const DeleteRuleFileRequest: MessageFns<DeleteRuleFileRequest> = {
 					continue
 				}
 				case 2: {
-					if (tag !== 18) {
+					if (tag !== 16) {
+						break
+					}
+
+					message.isGlobal = reader.bool()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
 						break
 					}
 
 					message.rulePath = reader.string()
 					continue
 				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
-
-					message.isGlobal = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
-
-	fromJSON(object: any): DeleteRuleFileRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
-			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
-		}
-	},
-
-	toJSON(message: DeleteRuleFileRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.rulePath !== "") {
-			obj.rulePath = message.rulePath
-		}
-		if (message.isGlobal !== false) {
-			obj.isGlobal = message.isGlobal
-		}
-		return obj
-	},
-
-	create<I extends Exact<DeepPartial<DeleteRuleFileRequest>, I>>(base?: I): DeleteRuleFileRequest {
-		return DeleteRuleFileRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<DeleteRuleFileRequest>, I>>(object: I): DeleteRuleFileRequest {
-		const message = createBaseDeleteRuleFileRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.rulePath = object.rulePath ?? ""
-		message.isGlobal = object.isGlobal ?? false
-		return message
-	},
-}
-
-function createBaseCreateRuleFileRequest(): CreateRuleFileRequest {
-	return { metadata: undefined, filename: "", isGlobal: false }
-}
-
-export const CreateRuleFileRequest: MessageFns<CreateRuleFileRequest> = {
-	encode(message: CreateRuleFileRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.filename !== "") {
-			writer.uint32(18).string(message.filename)
-		}
-		if (message.isGlobal !== false) {
-			writer.uint32(24).bool(message.isGlobal)
-		}
-		return writer
-	},
-
-	decode(input: BinaryReader | Uint8Array, length?: number): CreateRuleFileRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseCreateRuleFileRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
-
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
+				case 4: {
+					if (tag !== 34) {
 						break
 					}
 
 					message.filename = reader.string()
 					continue
 				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
-
-					message.isGlobal = reader.bool()
-					continue
-				}
 			}
 			if ((tag & 7) === 4 || tag === 0) {
 				break
@@ -187,43 +100,48 @@ export const CreateRuleFileRequest: MessageFns<CreateRuleFileRequest> = {
 		return message
 	},
 
-	fromJSON(object: any): CreateRuleFileRequest {
+	fromJSON(object: any): RuleFileRequest {
 		return {
 			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			filename: isSet(object.filename) ? globalThis.String(object.filename) : "",
 			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
+			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : undefined,
+			filename: isSet(object.filename) ? globalThis.String(object.filename) : undefined,
 		}
 	},
 
-	toJSON(message: CreateRuleFileRequest): unknown {
+	toJSON(message: RuleFileRequest): unknown {
 		const obj: any = {}
 		if (message.metadata !== undefined) {
 			obj.metadata = Metadata.toJSON(message.metadata)
 		}
-		if (message.filename !== "") {
-			obj.filename = message.filename
-		}
 		if (message.isGlobal !== false) {
 			obj.isGlobal = message.isGlobal
+		}
+		if (message.rulePath !== undefined) {
+			obj.rulePath = message.rulePath
+		}
+		if (message.filename !== undefined) {
+			obj.filename = message.filename
 		}
 		return obj
 	},
 
-	create<I extends Exact<DeepPartial<CreateRuleFileRequest>, I>>(base?: I): CreateRuleFileRequest {
-		return CreateRuleFileRequest.fromPartial(base ?? ({} as any))
+	create<I extends Exact<DeepPartial<RuleFileRequest>, I>>(base?: I): RuleFileRequest {
+		return RuleFileRequest.fromPartial(base ?? ({} as any))
 	},
-	fromPartial<I extends Exact<DeepPartial<CreateRuleFileRequest>, I>>(object: I): CreateRuleFileRequest {
-		const message = createBaseCreateRuleFileRequest()
+	fromPartial<I extends Exact<DeepPartial<RuleFileRequest>, I>>(object: I): RuleFileRequest {
+		const message = createBaseRuleFileRequest()
 		message.metadata =
 			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.filename = object.filename ?? ""
 		message.isGlobal = object.isGlobal ?? false
+		message.rulePath = object.rulePath ?? undefined
+		message.filename = object.filename ?? undefined
 		return message
 	},
 }
 
 function createBaseRuleFile(): RuleFile {
-	return { filePath: "", displayName: "" }
+	return { filePath: "", displayName: "", alreadyExists: false }
 }
 
 export const RuleFile: MessageFns<RuleFile> = {
@@ -233,6 +151,9 @@ export const RuleFile: MessageFns<RuleFile> = {
 		}
 		if (message.displayName !== "") {
 			writer.uint32(18).string(message.displayName)
+		}
+		if (message.alreadyExists !== false) {
+			writer.uint32(24).bool(message.alreadyExists)
 		}
 		return writer
 	},
@@ -260,6 +181,14 @@ export const RuleFile: MessageFns<RuleFile> = {
 					message.displayName = reader.string()
 					continue
 				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.alreadyExists = reader.bool()
+					continue
+				}
 			}
 			if ((tag & 7) === 4 || tag === 0) {
 				break
@@ -273,6 +202,7 @@ export const RuleFile: MessageFns<RuleFile> = {
 		return {
 			filePath: isSet(object.filePath) ? globalThis.String(object.filePath) : "",
 			displayName: isSet(object.displayName) ? globalThis.String(object.displayName) : "",
+			alreadyExists: isSet(object.alreadyExists) ? globalThis.Boolean(object.alreadyExists) : false,
 		}
 	},
 
@@ -284,6 +214,9 @@ export const RuleFile: MessageFns<RuleFile> = {
 		if (message.displayName !== "") {
 			obj.displayName = message.displayName
 		}
+		if (message.alreadyExists !== false) {
+			obj.alreadyExists = message.alreadyExists
+		}
 		return obj
 	},
 
@@ -294,6 +227,7 @@ export const RuleFile: MessageFns<RuleFile> = {
 		const message = createBaseRuleFile()
 		message.filePath = object.filePath ?? ""
 		message.displayName = object.displayName ?? ""
+		message.alreadyExists = object.alreadyExists ?? false
 		return message
 	},
 }
@@ -325,7 +259,7 @@ export const FileServiceDefinition = {
 		/** Creates a rule file from either global or workspace rules directory */
 		createRuleFile: {
 			name: "createRuleFile",
-			requestType: CreateRuleFileRequest,
+			requestType: RuleFileRequest,
 			requestStream: false,
 			responseType: RuleFile,
 			responseStream: false,
@@ -334,7 +268,7 @@ export const FileServiceDefinition = {
 		/** Deletes a rule file from either global or workspace rules directory */
 		deleteRuleFile: {
 			name: "deleteRuleFile",
-			requestType: DeleteRuleFileRequest,
+			requestType: RuleFileRequest,
 			requestStream: false,
 			responseType: RuleFile,
 			responseStream: false,
