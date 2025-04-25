@@ -311,22 +311,6 @@ export class Controller {
 					}
 				}
 				break
-			case "browserSettings":
-				if (message.browserSettings) {
-					// remoteBrowserEnabled now means "enable remote browser connection"
-					// commenting out since this is being done in BrowserSettingsSection updateRemoteBrowserEnabled
-					// if (!message.browserSettings.remoteBrowserEnabled) {
-					// 	// If disabling remote browser connection, clear the remoteBrowserHost
-					// 	message.browserSettings.remoteBrowserHost = undefined
-					// }
-					await updateGlobalState(this.context, "browserSettings", message.browserSettings)
-					if (this.task) {
-						this.task.browserSettings = message.browserSettings
-						this.task.browserSession.browserSettings = message.browserSettings
-					}
-					await this.postStateToWebview()
-				}
-				break
 			case "togglePlanActMode":
 				if (message.chatSettings) {
 					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
@@ -730,21 +714,6 @@ export class Controller {
 				await this.postStateToWebview()
 				this.refreshTotalTasksSize()
 				this.postMessageToWebview({ type: "relinquishControl" })
-				break
-			}
-			case "getDetectedChromePath": {
-				try {
-					const { browserSettings } = await getAllExtensionState(this.context)
-					const browserSession = new BrowserSession(this.context, browserSettings)
-					const { path, isBundled } = await browserSession.getDetectedChromePath()
-					await this.postMessageToWebview({
-						type: "detectedChromePath",
-						text: path,
-						isBundled,
-					})
-				} catch (error) {
-					console.error("Error getting detected Chrome path:", error)
-				}
 				break
 			}
 			case "getRelativePaths": {
