@@ -9,6 +9,7 @@ import {
 	openRouterDefaultModelInfo,
 	PROMPT_CACHING_MODELS,
 	OPTIONAL_PROMPT_CACHING_MODELS,
+	REASONING_MODELS,
 } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk } from "../transform/stream"
@@ -147,7 +148,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				}),
 			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
 			...((this.options.openRouterUseMiddleOutTransform ?? true) && { transforms: ["middle-out"] }),
-			...(reasoningEffort && { reasoning: { effort: reasoningEffort } }),
+			...(REASONING_MODELS.has(modelId) && reasoningEffort && { reasoning: { effort: reasoningEffort } }),
 		}
 
 		const stream = await this.client.chat.completions.create(completionParams)
