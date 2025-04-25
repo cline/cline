@@ -37,7 +37,6 @@ export interface WebviewMessage {
 		| "restartMcpServer"
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
-		| "browserSettings"
 		| "browserRelaunchResult"
 		| "togglePlanActMode"
 		| "taskCompletionViewChanges"
@@ -67,8 +66,6 @@ export interface WebviewMessage {
 		| "requestTotalTasksSize"
 		| "relaunchChromeDebugMode"
 		| "taskFeedback"
-		| "getDetectedChromePath"
-		| "detectedChromePath"
 		| "scrollToSettings"
 		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"

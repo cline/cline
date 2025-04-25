@@ -44,6 +44,15 @@ export interface Bytes {
 	value: Buffer
 }
 
+export interface BooleanRequest {
+	metadata?: Metadata | undefined
+	value: boolean
+}
+
+export interface Boolean {
+	value: boolean
+}
+
 function createBaseMetadata(): Metadata {
 	return {}
 }
@@ -590,6 +599,141 @@ export const Bytes: MessageFns<Bytes> = {
 	fromPartial<I extends Exact<DeepPartial<Bytes>, I>>(object: I): Bytes {
 		const message = createBaseBytes()
 		message.value = object.value ?? Buffer.alloc(0)
+		return message
+	},
+}
+
+function createBaseBooleanRequest(): BooleanRequest {
+	return { metadata: undefined, value: false }
+}
+
+export const BooleanRequest: MessageFns<BooleanRequest> = {
+	encode(message: BooleanRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.value !== false) {
+			writer.uint32(16).bool(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): BooleanRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseBooleanRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.value = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): BooleanRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			value: isSet(object.value) ? globalThis.Boolean(object.value) : false,
+		}
+	},
+
+	toJSON(message: BooleanRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.value !== false) {
+			obj.value = message.value
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<BooleanRequest>, I>>(base?: I): BooleanRequest {
+		return BooleanRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<BooleanRequest>, I>>(object: I): BooleanRequest {
+		const message = createBaseBooleanRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.value = object.value ?? false
+		return message
+	},
+}
+
+function createBaseBoolean(): Boolean {
+	return { value: false }
+}
+
+export const Boolean: MessageFns<Boolean> = {
+	encode(message: Boolean, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.value !== false) {
+			writer.uint32(8).bool(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): Boolean {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseBoolean()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.value = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): Boolean {
+		return { value: isSet(object.value) ? globalThis.Boolean(object.value) : false }
+	},
+
+	toJSON(message: Boolean): unknown {
+		const obj: any = {}
+		if (message.value !== false) {
+			obj.value = message.value
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<Boolean>, I>>(base?: I): Boolean {
+		return Boolean.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<Boolean>, I>>(object: I): Boolean {
+		const message = createBaseBoolean()
+		message.value = object.value ?? false
 		return message
 	},
 }

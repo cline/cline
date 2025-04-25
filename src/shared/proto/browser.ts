@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { EmptyRequest, StringRequest } from "./common"
+import { Boolean, EmptyRequest, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -20,6 +20,29 @@ export interface BrowserConnection {
 	success: boolean
 	message: string
 	endpoint?: string | undefined
+}
+
+export interface ChromePath {
+	path: string
+	isBundled: boolean
+}
+
+export interface Viewport {
+	width: number
+	height: number
+}
+
+export interface BrowserSettings {
+	viewport?: Viewport | undefined
+	remoteBrowserHost?: string | undefined
+	remoteBrowserEnabled?: boolean | undefined
+}
+
+export interface UpdateBrowserSettingsRequest {
+	metadata?: Metadata | undefined
+	viewport?: Viewport | undefined
+	remoteBrowserHost?: string | undefined
+	remoteBrowserEnabled?: boolean | undefined
 }
 
 function createBaseBrowserConnectionInfo(): BrowserConnectionInfo {
@@ -206,6 +229,365 @@ export const BrowserConnection: MessageFns<BrowserConnection> = {
 	},
 }
 
+function createBaseChromePath(): ChromePath {
+	return { path: "", isBundled: false }
+}
+
+export const ChromePath: MessageFns<ChromePath> = {
+	encode(message: ChromePath, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.path !== "") {
+			writer.uint32(10).string(message.path)
+		}
+		if (message.isBundled !== false) {
+			writer.uint32(16).bool(message.isBundled)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ChromePath {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseChromePath()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.path = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.isBundled = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ChromePath {
+		return {
+			path: isSet(object.path) ? globalThis.String(object.path) : "",
+			isBundled: isSet(object.isBundled) ? globalThis.Boolean(object.isBundled) : false,
+		}
+	},
+
+	toJSON(message: ChromePath): unknown {
+		const obj: any = {}
+		if (message.path !== "") {
+			obj.path = message.path
+		}
+		if (message.isBundled !== false) {
+			obj.isBundled = message.isBundled
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ChromePath>, I>>(base?: I): ChromePath {
+		return ChromePath.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ChromePath>, I>>(object: I): ChromePath {
+		const message = createBaseChromePath()
+		message.path = object.path ?? ""
+		message.isBundled = object.isBundled ?? false
+		return message
+	},
+}
+
+function createBaseViewport(): Viewport {
+	return { width: 0, height: 0 }
+}
+
+export const Viewport: MessageFns<Viewport> = {
+	encode(message: Viewport, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.width !== 0) {
+			writer.uint32(8).int32(message.width)
+		}
+		if (message.height !== 0) {
+			writer.uint32(16).int32(message.height)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): Viewport {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseViewport()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.width = reader.int32()
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.height = reader.int32()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): Viewport {
+		return {
+			width: isSet(object.width) ? globalThis.Number(object.width) : 0,
+			height: isSet(object.height) ? globalThis.Number(object.height) : 0,
+		}
+	},
+
+	toJSON(message: Viewport): unknown {
+		const obj: any = {}
+		if (message.width !== 0) {
+			obj.width = Math.round(message.width)
+		}
+		if (message.height !== 0) {
+			obj.height = Math.round(message.height)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<Viewport>, I>>(base?: I): Viewport {
+		return Viewport.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<Viewport>, I>>(object: I): Viewport {
+		const message = createBaseViewport()
+		message.width = object.width ?? 0
+		message.height = object.height ?? 0
+		return message
+	},
+}
+
+function createBaseBrowserSettings(): BrowserSettings {
+	return { viewport: undefined, remoteBrowserHost: undefined, remoteBrowserEnabled: undefined }
+}
+
+export const BrowserSettings: MessageFns<BrowserSettings> = {
+	encode(message: BrowserSettings, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.viewport !== undefined) {
+			Viewport.encode(message.viewport, writer.uint32(10).fork()).join()
+		}
+		if (message.remoteBrowserHost !== undefined) {
+			writer.uint32(18).string(message.remoteBrowserHost)
+		}
+		if (message.remoteBrowserEnabled !== undefined) {
+			writer.uint32(24).bool(message.remoteBrowserEnabled)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): BrowserSettings {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseBrowserSettings()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.viewport = Viewport.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.remoteBrowserHost = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.remoteBrowserEnabled = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): BrowserSettings {
+		return {
+			viewport: isSet(object.viewport) ? Viewport.fromJSON(object.viewport) : undefined,
+			remoteBrowserHost: isSet(object.remoteBrowserHost) ? globalThis.String(object.remoteBrowserHost) : undefined,
+			remoteBrowserEnabled: isSet(object.remoteBrowserEnabled)
+				? globalThis.Boolean(object.remoteBrowserEnabled)
+				: undefined,
+		}
+	},
+
+	toJSON(message: BrowserSettings): unknown {
+		const obj: any = {}
+		if (message.viewport !== undefined) {
+			obj.viewport = Viewport.toJSON(message.viewport)
+		}
+		if (message.remoteBrowserHost !== undefined) {
+			obj.remoteBrowserHost = message.remoteBrowserHost
+		}
+		if (message.remoteBrowserEnabled !== undefined) {
+			obj.remoteBrowserEnabled = message.remoteBrowserEnabled
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<BrowserSettings>, I>>(base?: I): BrowserSettings {
+		return BrowserSettings.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<BrowserSettings>, I>>(object: I): BrowserSettings {
+		const message = createBaseBrowserSettings()
+		message.viewport =
+			object.viewport !== undefined && object.viewport !== null ? Viewport.fromPartial(object.viewport) : undefined
+		message.remoteBrowserHost = object.remoteBrowserHost ?? undefined
+		message.remoteBrowserEnabled = object.remoteBrowserEnabled ?? undefined
+		return message
+	},
+}
+
+function createBaseUpdateBrowserSettingsRequest(): UpdateBrowserSettingsRequest {
+	return { metadata: undefined, viewport: undefined, remoteBrowserHost: undefined, remoteBrowserEnabled: undefined }
+}
+
+export const UpdateBrowserSettingsRequest: MessageFns<UpdateBrowserSettingsRequest> = {
+	encode(message: UpdateBrowserSettingsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.viewport !== undefined) {
+			Viewport.encode(message.viewport, writer.uint32(18).fork()).join()
+		}
+		if (message.remoteBrowserHost !== undefined) {
+			writer.uint32(26).string(message.remoteBrowserHost)
+		}
+		if (message.remoteBrowserEnabled !== undefined) {
+			writer.uint32(32).bool(message.remoteBrowserEnabled)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): UpdateBrowserSettingsRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseUpdateBrowserSettingsRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.viewport = Viewport.decode(reader, reader.uint32())
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.remoteBrowserHost = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 32) {
+						break
+					}
+
+					message.remoteBrowserEnabled = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): UpdateBrowserSettingsRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			viewport: isSet(object.viewport) ? Viewport.fromJSON(object.viewport) : undefined,
+			remoteBrowserHost: isSet(object.remoteBrowserHost) ? globalThis.String(object.remoteBrowserHost) : undefined,
+			remoteBrowserEnabled: isSet(object.remoteBrowserEnabled)
+				? globalThis.Boolean(object.remoteBrowserEnabled)
+				: undefined,
+		}
+	},
+
+	toJSON(message: UpdateBrowserSettingsRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.viewport !== undefined) {
+			obj.viewport = Viewport.toJSON(message.viewport)
+		}
+		if (message.remoteBrowserHost !== undefined) {
+			obj.remoteBrowserHost = message.remoteBrowserHost
+		}
+		if (message.remoteBrowserEnabled !== undefined) {
+			obj.remoteBrowserEnabled = message.remoteBrowserEnabled
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<UpdateBrowserSettingsRequest>, I>>(base?: I): UpdateBrowserSettingsRequest {
+		return UpdateBrowserSettingsRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<UpdateBrowserSettingsRequest>, I>>(object: I): UpdateBrowserSettingsRequest {
+		const message = createBaseUpdateBrowserSettingsRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.viewport =
+			object.viewport !== undefined && object.viewport !== null ? Viewport.fromPartial(object.viewport) : undefined
+		message.remoteBrowserHost = object.remoteBrowserHost ?? undefined
+		message.remoteBrowserEnabled = object.remoteBrowserEnabled ?? undefined
+		return message
+	},
+}
+
 export type BrowserServiceDefinition = typeof BrowserServiceDefinition
 export const BrowserServiceDefinition = {
 	name: "BrowserService",
@@ -232,6 +614,22 @@ export const BrowserServiceDefinition = {
 			requestType: EmptyRequest,
 			requestStream: false,
 			responseType: BrowserConnection,
+			responseStream: false,
+			options: {},
+		},
+		getDetectedChromePath: {
+			name: "getDetectedChromePath",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: ChromePath,
+			responseStream: false,
+			options: {},
+		},
+		updateBrowserSettings: {
+			name: "updateBrowserSettings",
+			requestType: UpdateBrowserSettingsRequest,
+			requestStream: false,
+			responseType: Boolean,
 			responseStream: false,
 			options: {},
 		},

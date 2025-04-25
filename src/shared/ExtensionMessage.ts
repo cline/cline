@@ -44,7 +44,6 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
-		| "detectedChromePath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses
