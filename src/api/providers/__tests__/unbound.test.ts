@@ -294,7 +294,7 @@ describe("UnboundHandler", () => {
 				unboundModelInfo: undefined,
 			})
 			const modelInfo = handlerWithInvalidModel.getModel()
-			expect(modelInfo.id).toBe("anthropic/claude-3-5-sonnet-20241022") // Default model
+			expect(modelInfo.id).toBe("anthropic/claude-3-7-sonnet-20250219") // Default model
 			expect(modelInfo.info).toBeDefined()
 		})
 	})

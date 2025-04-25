@@ -1087,7 +1087,7 @@ export const mistralModels = {
 
 // Unbound Security
 // https://www.unboundsecurity.ai/ai-gateway
-export const unboundDefaultModelId = "anthropic/claude-3-5-sonnet-20241022"
+export const unboundDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
 export const unboundDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
