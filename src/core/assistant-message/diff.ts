@@ -214,7 +214,7 @@ export async function constructNewFileContent(
 	diffContent: string,
 	originalContent: string,
 	isFinal: boolean,
-	absPath: string, // Added absPath parameter
+	absPath: string = "", // Added absPath parameter
 	version: "v1" | "v2" = "v2",
 ): Promise<string> {
 	const constructor = constructNewFileContentVersionMapping[version]
