@@ -271,7 +271,7 @@ describe("FileRestrictionError", () => {
 			expect(debugMode).toBeDefined()
 			expect(debugMode).toMatchObject({
 				slug: "debug",
-				name: "Debug",
+				name: "🪲 Debug",
 				roleDefinition:
 					"You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.",
 				groups: ["read", "edit", "browser", "command", "mcp"],
@@ -292,7 +292,7 @@ describe("FileRestrictionError", () => {
 			const result = await getFullModeDetails("debug")
 			expect(result).toMatchObject({
 				slug: "debug",
-				name: "Debug",
+				name: "🪲 Debug",
 				roleDefinition:
 					"You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.",
 			})
