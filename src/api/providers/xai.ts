@@ -1,10 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "../../shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
-import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
+import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { ApiStream } from "@api/transform/stream"
+import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
 export class XAIHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -34,6 +34,7 @@ export class XAIHandler implements ApiHandler {
 			temperature: 0,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
+			stream_options: { include_usage: true },
 			reasoning_effort: reasoningEffort,
 		})
 
@@ -46,7 +47,7 @@ export class XAIHandler implements ApiHandler {
 				}
 			}
 
-			if ("reasoning_content" in delta && delta.reasoning_content) {
+			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
 				yield {
 					type: "reasoning",
 					// @ts-ignore-next-line

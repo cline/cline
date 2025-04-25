@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
+import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
@@ -20,10 +20,13 @@ export class GeminiHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const model = this.client.getGenerativeModel({
+		const modelOptions = {
 			model: this.getModel().id,
 			systemInstruction: systemPrompt,
-		})
+		}
+
+		const clientOptions = this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined
+		const model = this.client.getGenerativeModel(modelOptions, clientOptions)
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {

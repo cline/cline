@@ -1,8 +1,8 @@
-import { getShell } from "../../utils/shell"
+import { getShell } from "@utils/shell"
 import os from "os"
 import osName from "os-name"
-import { McpHub } from "../../services/mcp/McpHub"
-import { BrowserSettings } from "../../shared/BrowserSettings"
+import { McpHub } from "@services/mcp/McpHub"
+import { BrowserSettings } from "@shared/BrowserSettings"
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,
@@ -619,7 +619,8 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 
 export function addUserInstructions(
 	settingsCustomInstructions?: string,
-	clineRulesFileInstructions?: string,
+	globalClineRulesFileInstructions?: string,
+	localClineRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
 	preferredLanguageInstructions?: string,
 ) {
@@ -630,8 +631,11 @@ export function addUserInstructions(
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"
 	}
-	if (clineRulesFileInstructions) {
-		customInstructions += clineRulesFileInstructions + "\n\n"
+	if (globalClineRulesFileInstructions) {
+		customInstructions += globalClineRulesFileInstructions + "\n\n"
+	}
+	if (localClineRulesFileInstructions) {
+		customInstructions += localClineRulesFileInstructions + "\n\n"
 	}
 	if (clineIgnoreInstructions) {
 		customInstructions += clineIgnoreInstructions

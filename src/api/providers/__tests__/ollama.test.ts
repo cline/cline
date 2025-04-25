@@ -3,7 +3,7 @@ import "should"
 import sinon from "sinon"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { OllamaHandler } from "../ollama"
-import { ApiHandlerOptions } from "../../../shared/api"
+import { ApiHandlerOptions } from "@shared/api"
 import axios from "axios"
 
 describe("OllamaHandler", () => {

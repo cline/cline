@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
+import { execa } from "execa"
 import getFolderSize from "get-folder-size"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -8,30 +9,31 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ApiHandler, buildApiHandler } from "../../api"
-import { AnthropicHandler } from "../../api/providers/anthropic"
-import { ClineHandler } from "../../api/providers/cline"
-import { OpenRouterHandler } from "../../api/providers/openrouter"
-import { ApiStream } from "../../api/transform/stream"
-import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "../../integrations/misc/export-markdown"
-import { extractTextFromFile } from "../../integrations/misc/extract-text"
-import { showSystemNotification } from "../../integrations/notifications"
-import { TerminalManager } from "../../integrations/terminal/TerminalManager"
-import { BrowserSession } from "../../services/browser/BrowserSession"
-import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
-import { listFiles } from "../../services/glob/list-files"
-import { regexSearchFiles } from "../../services/ripgrep"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
-import { parseSourceCodeForDefinitionsTopLevel } from "../../services/tree-sitter"
-import { ApiConfiguration } from "../../shared/api"
-import { findLast, findLastIndex, parsePartialArrayString } from "../../shared/array"
-import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
-import { BrowserSettings } from "../../shared/BrowserSettings"
-import { ChatSettings } from "../../shared/ChatSettings"
-import { combineApiRequests } from "../../shared/combineApiRequests"
-import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../../shared/combineCommandSequences"
+import { Logger } from "@services/logging/Logger"
+import { ApiHandler, buildApiHandler } from "@api/index"
+import { AnthropicHandler } from "@api/providers/anthropic"
+import { ClineHandler } from "@api/providers/cline"
+import { OpenRouterHandler } from "@api/providers/openrouter"
+import { ApiStream } from "@api/transform/stream"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
+import { extractTextFromFile } from "@integrations/misc/extract-text"
+import { showSystemNotification } from "@integrations/notifications"
+import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { listFiles } from "@services/glob/list-files"
+import { regexSearchFiles } from "@services/ripgrep"
+import { telemetryService } from "@services/telemetry/TelemetryService"
+import { parseSourceCodeForDefinitionsTopLevel } from "@services/tree-sitter"
+import { ApiConfiguration } from "@shared/api"
+import { findLast, findLastIndex, parsePartialArrayString } from "@shared/array"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { ChatSettings } from "@shared/ChatSettings"
+import { combineApiRequests } from "@shared/combineApiRequests"
+import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -48,43 +50,51 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 	ExtensionMessage,
-} from "../../shared/ExtensionMessage"
-import { getApiMetrics } from "../../shared/getApiMetrics"
-import { HistoryItem } from "../../shared/HistoryItem"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "../../shared/Languages"
-import { ClineAskResponse, ClineCheckpointRestore } from "../../shared/WebviewMessage"
-import { calculateApiCostAnthropic } from "../../utils/cost"
-import { fileExistsAtPath } from "../../utils/fs"
-import { arePathsEqual, getReadablePath } from "../../utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
-import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
-import { constructNewFileContent } from ".././assistant-message/diff"
-import { ClineIgnoreController } from ".././ignore/ClineIgnoreController"
-import { parseMentions } from ".././mentions"
-import { formatResponse } from ".././prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
-import { getContextWindowInfo } from "../context/context-management/context-window-utils"
-import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
-import { ModelContextTracker } from "../context/context-tracking/ModelContextTracker"
+} from "@shared/ExtensionMessage"
+import { getApiMetrics } from "@shared/getApiMetrics"
+import { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
+import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { calculateApiCostAnthropic } from "@utils/cost"
+import { fileExistsAtPath } from "@utils/fs"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
+import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "@core/assistant-message"
+import { constructNewFileContent } from "@core/assistant-message/diff"
+import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { parseMentions } from "@core/mentions"
+import { formatResponse } from "@core/prompts/responses"
+import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
+import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
+import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
-} from "../context/context-management/context-error-handling"
-import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { McpHub } from "../../services/mcp/McpHub"
-import { ContextManager } from "../context/context-management/ContextManager"
-import { getClineRules } from "../context/instructions/user-instructions/cline-rules"
-import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
+} from "@core/context/context-management/context-error-handling"
+import { ContextManager } from "@core/context/context-management/ContextManager"
+import { loadMcpDocumentation } from "@core/prompts/loadMcpDocumentation"
 import {
+	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 	saveApiConversationHistory,
 	saveClineMessages,
-} from "../storage/disk"
-import { getGlobalState } from "../storage/state"
+} from "@core/storage/disk"
+import {
+	getGlobalClineRules,
+	getLocalClineRules,
+	refreshClineRulesToggles,
+} from "@core/context/instructions/user-instructions/cline-rules"
+import { getGlobalState } from "@core/storage/state"
+import { parseSlashCommands } from "@core/slash-commands"
+import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { McpHub } from "@services/mcp/McpHub"
+import { isInTestMode } from "../../services/test/TestMode"
 
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
+export const cwd =
+	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -301,9 +311,13 @@ export class Task {
 		}
 	}
 
-	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore) {
-		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs)
+	async restoreCheckpoint(messageTs: number, restoreType: ClineCheckpointRestore, offset?: number) {
+		const messageIndex = this.clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
+		// Find the last message before messageIndex that has a lastCheckpointHash
+		const lastHashIndex = findLastIndex(this.clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
 		const message = this.clineMessages[messageIndex]
+		const lastMessageWithHash = this.clineMessages[lastHashIndex]
+
 		if (!message) {
 			console.error("Message not found", this.clineMessages)
 			return
@@ -334,6 +348,14 @@ export class Task {
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						vscode.window.showErrorMessage("Failed to restore checkpoint: " + errorMessage)
+						didWorkspaceRestoreFail = true
+					}
+				} else if (offset && lastMessageWithHash.lastCheckpointHash && this.checkpointTracker) {
+					try {
+						await this.checkpointTracker.resetHead(lastMessageWithHash.lastCheckpointHash)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : "Unknown error"
+						vscode.window.showErrorMessage("Failed to restore offsetcheckpoint: " + errorMessage)
 						didWorkspaceRestoreFail = true
 					}
 				}
@@ -433,7 +455,7 @@ export class Task {
 			return
 		}
 
-		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we cant show diff outside of workspace?
+		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we can't show diff outside of workspace?
 		if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.context.globalStorageUri.fsPath)
@@ -878,7 +900,7 @@ export class Task {
 		await this.overwriteClineMessages(modifiedClineMessages)
 		this.clineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
 
-		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldnt be initialized when opening a old task, and it was because we were waiting for resume)
+		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldn't be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
 		this.apiConversationHistory = await getSavedApiConversationHistory(this.getContext(), this.taskId)
 
@@ -1112,41 +1134,178 @@ export class Task {
 
 	// Tools
 
+	/**
+	 * Executes a command directly in Node.js using execa
+	 * This is used in test mode to capture the full output without using the VS Code terminal
+	 * Commands are automatically terminated after 30 seconds using Promise.race
+	 */
+	private async executeCommandInNode(command: string): Promise<[boolean, ToolResponse]> {
+		try {
+			// Create a child process
+			const childProcess = execa(command, {
+				shell: true,
+				cwd,
+				reject: false,
+				all: true, // Merge stdout and stderr
+			})
+
+			// Set up variables to collect output
+			let output = ""
+
+			// Collect output in real-time
+			if (childProcess.all) {
+				childProcess.all.on("data", (data) => {
+					output += data.toString()
+				})
+			}
+
+			// Create a timeout promise that rejects after 30 seconds
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				setTimeout(() => {
+					if (childProcess.pid) {
+						childProcess.kill("SIGKILL") // Use SIGKILL for more forceful termination
+					}
+					reject(new Error("Command timeout after 30s"))
+				}, 30000)
+			})
+
+			// Race between command completion and timeout
+			const result = await Promise.race([childProcess, timeoutPromise]).catch((error) => {
+				// If we get here due to timeout, return a partial result with timeout flag
+				Logger.info(`Command timed out after 30s: ${command}`)
+				return {
+					stdout: "",
+					stderr: "",
+					exitCode: 124, // Standard timeout exit code
+					timedOut: true,
+				}
+			})
+
+			// Check if timeout occurred
+			const wasTerminated = result.timedOut === true
+
+			// Use collected output or result output
+			if (!output) {
+				output = result.stdout || result.stderr || ""
+			}
+
+			Logger.info(`Command executed in Node: ${command}\nOutput:\n${output}`)
+
+			// Add termination message if the command was terminated
+			if (wasTerminated) {
+				output += "\nCommand was taking a while to run so it was auto terminated after 30s"
+			}
+
+			// Format the result similar to terminal output
+			return [
+				false,
+				`Command executed${wasTerminated ? " (terminated after 30s)" : ""} with exit code ${
+					result.exitCode
+				}.${output.length > 0 ? `\nOutput:\n${output}` : ""}`,
+			]
+		} catch (error) {
+			// Handle any errors that might occur
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return [false, `Error executing command: ${errorMessage}`]
+		}
+	}
+
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+		Logger.info("IS_TEST: " + isInTestMode())
+
+		// Check if we're in test mode
+		if (isInTestMode()) {
+			// In test mode, execute the command directly in Node
+			Logger.info("Executing command in Node: " + command)
+			return this.executeCommandInNode(command)
+		}
+		Logger.info("Executing command in VS code terminal: " + command)
+
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = this.terminalManager.runCommand(terminalInfo, command)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
-		const sendCommandOutput = async (line: string): Promise<void> => {
+
+		// Chunked terminal output buffering
+		const CHUNK_LINE_COUNT = 20
+		const CHUNK_BYTE_SIZE = 2048 // 2KB
+		const CHUNK_DEBOUNCE_MS = 100
+
+		let outputBuffer: string[] = []
+		let outputBufferSize: number = 0
+		let chunkTimer: NodeJS.Timeout | null = null
+		let chunkEnroute = false
+
+		const flushBuffer = async (force = false) => {
+			if (chunkEnroute || outputBuffer.length === 0) {
+				if (force && !chunkEnroute && outputBuffer.length > 0) {
+					// If force is true and no chunkEnroute, flush anyway
+				} else {
+					return
+				}
+			}
+			const chunk = outputBuffer.join("\n")
+			outputBuffer = []
+			outputBufferSize = 0
+			chunkEnroute = true
 			try {
-				const { response, text, images } = await this.ask("command_output", line)
+				const { response, text, images } = await this.ask("command_output", chunk)
 				if (response === "yesButtonClicked") {
 					// proceed while running
 				} else {
 					userFeedback = { text, images }
 				}
 				didContinue = true
-				process.continue() // continue past the await
+				process.continue()
 			} catch {
-				// This can only happen if this ask promise was ignored, so ignore this error
+				// ask promise was ignored
+			} finally {
+				chunkEnroute = false
+				// If more output accumulated while chunkEnroute, flush again
+				if (outputBuffer.length > 0) {
+					await flushBuffer()
+				}
 			}
+		}
+
+		const scheduleFlush = () => {
+			if (chunkTimer) {
+				clearTimeout(chunkTimer)
+			}
+			chunkTimer = setTimeout(() => flushBuffer(), CHUNK_DEBOUNCE_MS)
 		}
 
 		let result = ""
 		process.on("line", (line) => {
 			result += line + "\n"
+
 			if (!didContinue) {
-				sendCommandOutput(line)
+				outputBuffer.push(line)
+				outputBufferSize += Buffer.byteLength(line, "utf8")
+				// Flush if buffer is large enough
+				if (outputBuffer.length >= CHUNK_LINE_COUNT || outputBufferSize >= CHUNK_BYTE_SIZE) {
+					flushBuffer()
+				} else {
+					scheduleFlush()
+				}
 			} else {
 				this.say("command_output", line)
 			}
 		})
 
 		let completed = false
-		process.once("completed", () => {
+		process.once("completed", async () => {
 			completed = true
+			// Flush any remaining buffered output
+			if (!didContinue && outputBuffer.length > 0) {
+				if (chunkTimer) {
+					clearTimeout(chunkTimer)
+					chunkTimer = null
+				}
+				await flushBuffer(true)
+			}
 		})
 
 		process.once("no_shell_integration", async () => {
@@ -1279,7 +1438,12 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
-		const clineRulesFileInstructions = await getClineRules(cwd)
+		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), cwd)
+
+		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
+
+		const localClineRulesFileInstructions = await getLocalClineRules(cwd, localToggles)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -1289,14 +1453,16 @@ export class Task {
 
 		if (
 			settingsCustomInstructions ||
-			clineRulesFileInstructions ||
+			globalClineRulesFileInstructions ||
+			localClineRulesFileInstructions ||
 			clineIgnoreInstructions ||
 			preferredLanguageInstructions
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addUserInstructions(
 				settingsCustomInstructions,
-				clineRulesFileInstructions,
+				globalClineRulesFileInstructions,
+				localClineRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
@@ -1749,6 +1915,7 @@ export class Task {
 								tool: fileExists ? "editedExistingFile" : "newFileCreated",
 								path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 								content: diff || content,
+								operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
 							}
 
 							if (block.partial) {
@@ -1812,6 +1979,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: diff || content,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
 									// ? formatResponse.createPrettyPatch(
 									// 		relPath,
 									// 		this.diffViewProvider.originalContent,
@@ -1937,6 +2105,7 @@ export class Task {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: undefined,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -1967,6 +2136,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: absolutePath,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(relPath),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2014,6 +2184,7 @@ export class Task {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2045,6 +2216,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2084,6 +2256,7 @@ export class Task {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2112,6 +2285,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2155,6 +2329,7 @@ export class Task {
 								const partialMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: "",
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2191,6 +2366,7 @@ export class Task {
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: results,
+									operationIsLocatedInWorkspace: isLocatedInWorkspace(block.params.path),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveToolWithPath(block.name, block.params.path)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2402,7 +2578,7 @@ export class Task {
 						try {
 							if (block.partial) {
 								if (this.shouldAutoApproveTool(block.name)) {
-									// since depending on an upcoming parameter, requiresApproval this may become an ask - we cant partially stream a say prematurely. So in this particular case we have to wait for the requiresApproval parameter to be completed before presenting it.
+									// since depending on an upcoming parameter, requiresApproval this may become an ask - we can't partially stream a say prematurely. So in this particular case we have to wait for the requiresApproval parameter to be completed before presenting it.
 									// await this.say(
 									// 	"command",
 									// 	removeClosingTag("command", command),
@@ -2448,7 +2624,7 @@ export class Task {
 
 								let didAutoApprove = false
 
-								// If the model says this command is safe and auto aproval for safe commands is true, execute the command
+								// If the model says this command is safe and auto approval for safe commands is true, execute the command
 								// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
 								const autoApproveResult = this.shouldAutoApproveTool(block.name)
 								const [autoApproveSafe, autoApproveAll] = Array.isArray(autoApproveResult)
@@ -2604,8 +2780,13 @@ export class Task {
 								await this.say("mcp_server_request_started") // same as browser_action_result
 								const toolResult = await this.mcpHub.callTool(server_name, tool_name, parsedArguments)
 
-								// TODO: add progress indicator and ability to parse images and non-text responses
-								const toolResultPretty =
+								// TODO: add progress indicator
+
+								const toolResultImages =
+									toolResult?.content
+										.filter((item) => item.type === "image")
+										.map((item) => `data:${item.mimeType};base64,${item.data}`) || []
+								let toolResultText =
 									(toolResult?.isError ? "Error:\n" : "") +
 										toolResult?.content
 											.map((item) => {
@@ -2620,8 +2801,21 @@ export class Task {
 											})
 											.filter(Boolean)
 											.join("\n\n") || "(No response)"
-								await this.say("mcp_server_response", toolResultPretty)
-								pushToolResult(formatResponse.toolResult(toolResultPretty))
+								// webview extracts images from the text response to display in the UI
+								const toolResultToDisplay =
+									toolResultText + toolResultImages?.map((image) => `\n\n${image}`).join("")
+								await this.say("mcp_server_response", toolResultToDisplay)
+
+								// MCP's might return images to display to the user, but the model may not support them
+								const supportsImages = this.api.getModel().info.supportsImages ?? false
+								if (toolResultImages.length > 0 && !supportsImages) {
+									toolResultText += `\n\n[${toolResultImages.length} images were provided in the response, and while they are displayed to the user, you do not have the ability to view them.]`
+								}
+
+								// only passes in images if model supports them
+								pushToolResult(
+									formatResponse.toolResult(toolResultText, supportsImages ? toolResultImages : undefined),
+								)
 
 								await this.saveCheckpoint()
 
@@ -2972,7 +3166,7 @@ export class Task {
 										)
 									} else {
 										// last message is completion_result
-										// we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
+										// we have command string, which means we have the result as well, so finish it (doesn't have to exist yet)
 										await this.say("completion_result", removeClosingTag("result", result), undefined, false)
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
@@ -3008,7 +3202,7 @@ export class Task {
 								let commandResult: ToolResponse | undefined
 								if (command) {
 									if (lastMessage && lastMessage.ask !== "command") {
-										// havent sent a command message yet so first send completion_result then command
+										// haven't sent a command message yet so first send completion_result then command
 										await this.say("completion_result", result, undefined, false)
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
@@ -3346,7 +3540,10 @@ export class Task {
 						case "reasoning":
 							// reasoning will always come before assistant message
 							reasoningMessage += chunk.reasoning
-							await this.say("reasoning", reasoningMessage, undefined, true)
+							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
+							if (!this.abort) {
+								await this.say("reasoning", reasoningMessage, undefined, true)
+							}
 							break
 						case "text":
 							if (reasoningMessage && assistantMessage.length === 0) {
@@ -3377,7 +3574,7 @@ export class Task {
 					if (this.didRejectTool) {
 						// userContent has a tool rejection, so interrupt the assistant's response to present the user's feedback
 						assistantMessage += "\n\n[Response interrupted by user feedback]"
-						// this.userMessageContentReady = true // instead of setting this premptively, we allow the present iterator to finish and set userMessageContentReady when its ready
+						// this.userMessageContentReady = true // instead of setting this preemptively, we allow the present iterator to finish and set userMessageContentReady when its ready
 						break
 					}
 
@@ -3432,7 +3629,7 @@ export class Task {
 			partialBlocks.forEach((block) => {
 				block.partial = false
 			})
-			// this.assistantMessageContent.forEach((e) => (e.partial = false)) // cant just do this bc a tool could be in the middle of executing ()
+			// this.assistantMessageContent.forEach((e) => (e.partial = false)) // can't just do this bc a tool could be in the middle of executing ()
 			if (partialBlocks.length > 0) {
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
@@ -3515,12 +3712,10 @@ export class Task {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
-							const parsedText = await parseMentions(
-								block.text,
-								cwd,
-								this.urlContentFetcher,
-								this.fileContextTracker,
-							)
+							let parsedText = await parseMentions(block.text, cwd, this.urlContentFetcher, this.fileContextTracker)
+
+							// when parsing slash commands, we still want to allow the user to provide their desired context
+							parsedText = parseSlashCommands(parsedText)
 
 							return {
 								...block,

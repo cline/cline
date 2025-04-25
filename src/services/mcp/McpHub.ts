@@ -24,13 +24,13 @@ import {
 	McpTool,
 	McpToolCallResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
-} from "../../shared/mcp"
-import { fileExistsAtPath } from "../../utils/fs"
-import { arePathsEqual } from "../../utils/path"
-import { secondsToMs } from "../../utils/time"
-import { GlobalFileNames } from "../../core/storage/disk"
+} from "@shared/mcp"
+import { fileExistsAtPath } from "@utils/fs"
+import { arePathsEqual } from "@utils/path"
+import { secondsToMs } from "@utils/time"
+import { GlobalFileNames } from "@core/storage/disk"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
-import { ExtensionMessage } from "../../shared/ExtensionMessage"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000
@@ -255,7 +255,7 @@ export class McpHub {
 					stderrStream.on("data", async (data: Buffer) => {
 						const output = data.toString()
 						// Check if output contains INFO level log
-						const isInfoLog = /^\s*INFO\b/.test(output)
+						const isInfoLog = !/\berror\b/i.test(output)
 
 						if (isInfoLog) {
 							// Log normal informational messages

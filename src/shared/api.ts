@@ -1,3 +1,5 @@
+import type { LanguageModelChatSelector } from "../api/providers/types"
+
 export type ApiProvider =
 	| "anthropic"
 	| "openrouter"
@@ -30,6 +32,7 @@ export interface ApiHandlerOptions {
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
+	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -58,6 +61,7 @@ export interface ApiHandlerOptions {
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
+	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
@@ -69,7 +73,7 @@ export interface ApiHandlerOptions {
 	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
-	vsCodeLmModelSelector?: any
+	vsCodeLmModelSelector?: LanguageModelChatSelector
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	asksageApiUrl?: string
@@ -604,8 +608,53 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4.1"
 export const openAiNativeModels = {
+	o3: {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 10.0,
+		outputPrice: 40.0,
+		cacheReadsPrice: 2.5,
+	},
+	"o4-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.275,
+	},
+	"gpt-4.1": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2,
+		outputPrice: 8,
+		cacheReadsPrice: 0.5,
+	},
+	"gpt-4.1-mini": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.4,
+		outputPrice: 1.6,
+		cacheReadsPrice: 0.1,
+	},
+	"gpt-4.1-nano": {
+		maxTokens: 32_768,
+		contextWindow: 1_047_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+	},
 	"o3-mini": {
 		maxTokens: 100_000,
 		contextWindow: 200_000,

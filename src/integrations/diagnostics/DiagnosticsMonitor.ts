@@ -61,7 +61,7 @@ class DiagnosticsMonitor {
 			return currentDiagnostics
 		}
 
-		let timeout = 300 // only way this happens is if theres no errors
+		let timeout = 300 // only way this happens is if there's no errors
 
 		// if diagnostics contain existing errors (since the check above didn't trigger) then it's likely cline just did something that should have fixed the error, so we'll give a longer grace period for diagnostics to catch up
 		const hasErrors = currentDiagnostics.some(([_, diagnostics]) =>

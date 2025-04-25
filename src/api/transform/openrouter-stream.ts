@@ -1,10 +1,8 @@
-import { ModelInfo } from "../../shared/api"
-import { convertToOpenAiMessages } from "./openai-format"
-import { convertToR1Format } from "./r1-format"
-import { ApiStream, ApiStreamChunk } from "./stream"
+import { ModelInfo } from "@shared/api"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { convertToR1Format } from "@api/transform/r1-format"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { OpenRouterErrorResponse } from "../providers/types"
 
 export async function createOpenRouterStream(
 	client: OpenAI,

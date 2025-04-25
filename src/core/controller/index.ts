@@ -2,51 +2,53 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import type { AxiosRequestConfig } from "axios"
 import crypto from "crypto"
-import { execa } from "execa"
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { buildApiHandler } from "../../api"
-import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
-import { downloadTask } from "../../integrations/misc/export-markdown"
-import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
-import { openFile, openImage } from "../../integrations/misc/open-file"
-import { selectImages } from "../../integrations/misc/process-images"
-import { getTheme } from "../../integrations/theme/getTheme"
-import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { ClineAccountService } from "../../services/account/ClineAccountService"
-import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
-import { BrowserSession } from "../../services/browser/BrowserSession"
-import { McpHub } from "../../services/mcp/McpHub"
-import { searchWorkspaceFiles } from "../../services/search/file-search"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
-import { ApiProvider, ModelInfo } from "../../shared/api"
-import { ChatContent } from "../../shared/ChatContent"
-import { ChatSettings } from "../../shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
-import { HistoryItem } from "../../shared/HistoryItem"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
-import { TelemetrySetting } from "../../shared/TelemetrySetting"
-import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
-import { fileExistsAtPath } from "../../utils/fs"
-import { searchCommits } from "../../utils/git"
-import { getWorkspacePath } from "../../utils/path"
-import { getTotalTasksSize } from "../../utils/storage"
+import { handleGrpcRequest } from "./grpc-handler"
+import { buildApiHandler } from "@api/index"
+import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
+import { downloadTask } from "@integrations/misc/export-markdown"
+import { fetchOpenGraphData, isImageUrl } from "@integrations/misc/link-preview"
+import { openFile, openImage } from "@integrations/misc/open-file"
+import { selectImages } from "@integrations/misc/process-images"
+import { getTheme } from "@integrations/theme/getTheme"
+import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { ClineAccountService } from "@services/account/ClineAccountService"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { McpHub } from "@services/mcp/McpHub"
+import { searchWorkspaceFiles } from "@services/search/file-search"
+import { telemetryService } from "@services/telemetry/TelemetryService"
+import { ApiProvider, ModelInfo } from "@shared/api"
+import { ChatContent } from "@shared/ChatContent"
+import { ChatSettings } from "@shared/ChatSettings"
+import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/ExtensionMessage"
+import { HistoryItem } from "@shared/HistoryItem"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import { searchCommits } from "@utils/git"
+import { getWorkspacePath } from "@utils/path"
+import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
-import { GlobalFileNames } from "../storage/disk"
+import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
 	getSecret,
+	getWorkspaceState,
 	resetExtensionState,
 	storeSecret,
 	updateApiConfiguration,
 	updateGlobalState,
+	updateWorkspaceState,
 } from "../storage/state"
-import { Task } from "../task"
+import { Task, cwd } from "../task"
+import { ClineRulesToggles } from "@shared/cline-rules"
+import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -58,11 +60,11 @@ export class Controller {
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
-	private task?: Task
+	task?: Task
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "april-11-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "april-18-2025_21:15::00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -74,8 +76,8 @@ export class Controller {
 
 		this.workspaceTracker = new WorkspaceTracker((msg) => this.postMessageToWebview(msg))
 		this.mcpHub = new McpHub(
-			() => this.ensureMcpServersDirectoryExists(),
-			() => this.ensureSettingsDirectoryExists(),
+			() => ensureMcpServersDirectoryExists(),
+			() => ensureSettingsDirectoryExists(this.context),
 			(msg) => this.postMessageToWebview(msg),
 			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
@@ -136,6 +138,14 @@ export class Controller {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await getAllExtensionState(this.context)
+
+		if (autoApprovalSettings) {
+			const updatedAutoApprovalSettings = {
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+			}
+			await updateGlobalState(this.context, "autoApprovalSettings", updatedAutoApprovalSettings)
+		}
 		this.task = new Task(
 			this.context,
 			this.mcpHub,
@@ -256,6 +266,13 @@ export class Controller {
 					telemetryService.updateTelemetryState(isOptedIn)
 				})
 				break
+			case "showChatView": {
+				this.postMessageToWebview({
+					type: "action",
+					action: "chatButtonClicked",
+				})
+				break
+			}
 			case "newTask":
 				// Code that should run in response to the hello message command
 				//vscode.window.showInformationMessage(message.text!)
@@ -278,11 +295,16 @@ export class Controller {
 				break
 			case "autoApprovalSettings":
 				if (message.autoApprovalSettings) {
-					await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
-					if (this.task) {
-						this.task.autoApprovalSettings = message.autoApprovalSettings
+					const currentSettings = (await getAllExtensionState(this.context)).autoApprovalSettings
+					const incomingVersion = message.autoApprovalSettings.version ?? 1
+					const currentVersion = currentSettings?.version ?? 1
+					if (incomingVersion > currentVersion) {
+						await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
+						if (this.task) {
+							this.task.autoApprovalSettings = message.autoApprovalSettings
+						}
+						await this.postStateToWebview()
 					}
-					await this.postStateToWebview()
 				}
 				break
 			case "browserSettings":
@@ -299,123 +321,6 @@ export class Controller {
 						this.task.browserSession.browserSettings = message.browserSettings
 					}
 					await this.postStateToWebview()
-				}
-				break
-			case "getBrowserConnectionInfo":
-				try {
-					// Get the current browser session from Cline if it exists
-					if (this.task?.browserSession) {
-						const connectionInfo = this.task.browserSession.getConnectionInfo()
-						await this.postMessageToWebview({
-							type: "browserConnectionInfo",
-							isConnected: connectionInfo.isConnected,
-							isRemote: connectionInfo.isRemote,
-							host: connectionInfo.host,
-						})
-					} else {
-						// If no active browser session, just return the settings
-						const { browserSettings } = await getAllExtensionState(this.context)
-						await this.postMessageToWebview({
-							type: "browserConnectionInfo",
-							isConnected: false,
-							isRemote: !!browserSettings.remoteBrowserEnabled,
-							host: browserSettings.remoteBrowserHost,
-						})
-					}
-				} catch (error) {
-					console.error("Error getting browser connection info:", error)
-					await this.postMessageToWebview({
-						type: "browserConnectionInfo",
-						isConnected: false,
-						isRemote: false,
-					})
-				}
-				break
-			case "testBrowserConnection":
-				try {
-					const { browserSettings } = await getAllExtensionState(this.context)
-					const browserSession = new BrowserSession(this.context, browserSettings)
-					// If no text is provided, try auto-discovery
-					if (!message.text) {
-						try {
-							const discoveredHost = await discoverChromeInstances()
-							if (discoveredHost) {
-								// Test the connection to the discovered host
-								const result = await browserSession.testConnection(discoveredHost)
-								// Send the result back to the webview
-								await this.postMessageToWebview({
-									type: "browserConnectionResult",
-									success: result.success,
-									text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
-									endpoint: result.endpoint,
-								})
-							} else {
-								await this.postMessageToWebview({
-									type: "browserConnectionResult",
-									success: false,
-									text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
-								})
-							}
-						} catch (error) {
-							await this.postMessageToWebview({
-								type: "browserConnectionResult",
-								success: false,
-								text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
-							})
-						}
-					} else {
-						// Test the provided URL
-						const result = await browserSession.testConnection(message.text)
-
-						// Send the result back to the webview
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: result.success,
-							text: result.message,
-							endpoint: result.endpoint,
-						})
-					}
-				} catch (error) {
-					await this.postMessageToWebview({
-						type: "browserConnectionResult",
-						success: false,
-						text: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
-					})
-				}
-				break
-			case "discoverBrowser":
-				try {
-					const discoveredHost = await discoverChromeInstances()
-
-					if (discoveredHost) {
-						// Don't update the remoteBrowserHost state when auto-discovering
-						// This way we don't override the user's preference
-
-						// Test the connection to get the endpoint
-						const { browserSettings } = await getAllExtensionState(this.context)
-						const browserSession = new BrowserSession(this.context, browserSettings)
-						const result = await browserSession.testConnection(discoveredHost)
-
-						// Send the result back to the webview
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: true,
-							text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
-							endpoint: result.endpoint,
-						})
-					} else {
-						await this.postMessageToWebview({
-							type: "browserConnectionResult",
-							success: false,
-							text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
-						})
-					}
-				} catch (error) {
-					await this.postMessageToWebview({
-						type: "browserConnectionResult",
-						success: false,
-						text: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
-					})
 				}
 				break
 			case "togglePlanActMode":
@@ -501,6 +406,10 @@ export class Controller {
 				const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
 				this.postMessageToWebview({ type: "openAiModels", openAiModels })
 				break
+			case "refreshClineRules":
+				await refreshClineRulesToggles(this.context, cwd)
+				await this.postStateToWebview()
+				break
 			case "openImage":
 				openImage(message.text!)
 				break
@@ -518,17 +427,41 @@ export class Controller {
 			case "openFile":
 				openFile(message.text!)
 				break
+			case "createRuleFile":
+				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
+					console.error("createRuleFile: Missing or invalid parameters", {
+						isGlobal:
+							typeof message.isGlobal === "boolean" ? message.isGlobal : `Invalid: ${typeof message.isGlobal}`,
+						filename: typeof message.filename === "string" ? message.filename : `Invalid: ${typeof message.filename}`,
+					})
+					return
+				}
+				const { filePath, fileExists } = await createRuleFile(message.isGlobal, message.filename, cwd)
+				if (fileExists && filePath) {
+					vscode.window.showWarningMessage(`Rule file "${message.filename}" already exists.`)
+					// Still open it for editing
+					openFile(filePath)
+					return
+				} else if (filePath && !fileExists) {
+					await refreshClineRulesToggles(this.context, cwd)
+					await this.postStateToWebview()
+
+					openFile(filePath)
+
+					vscode.window.showInformationMessage(
+						`Created new ${message.isGlobal ? "global" : "workspace"} rule file: ${message.filename}`,
+					)
+				} else {
+					// null filePath
+					vscode.window.showErrorMessage(`Failed to create rule file.`)
+				}
+
+				break
 			case "openMention":
 				openMention(message.text)
 				break
-			case "checkpointDiff": {
-				if (message.number) {
-					await this.task?.presentMultifileDiff(message.number, false)
-				}
-				break
-			}
 			case "checkpointRestore": {
-				await this.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superceded by a new message eg add deleted_api_reqs
+				await this.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superseded by a new message eg add deleted_api_reqs
 				// cancel task waits for any open editor to be reverted and starts a new cline instance
 				if (message.number) {
 					// wait for messages to be loaded
@@ -538,7 +471,7 @@ export class Controller {
 						console.error("Failed to init new cline instance")
 					})
 					// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
-					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore)
+					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore, message.offset)
 				}
 				break
 			}
@@ -675,6 +608,48 @@ export class Controller {
 					} else {
 						console.error(`Failed to toggle auto-approve tools for server ${message.serverName}:`, error)
 					}
+				}
+				break
+			}
+			case "toggleClineRule": {
+				const { isGlobal, rulePath, enabled } = message
+				if (rulePath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
+					if (isGlobal) {
+						const toggles =
+							((await getGlobalState(this.context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
+						toggles[rulePath] = enabled
+						await updateGlobalState(this.context, "globalClineRulesToggles", toggles)
+					} else {
+						const toggles =
+							((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
+						toggles[rulePath] = enabled
+						await updateWorkspaceState(this.context, "localClineRulesToggles", toggles)
+					}
+					await this.postStateToWebview()
+				} else {
+					console.error("toggleClineRule: Missing or invalid parameters", {
+						rulePath,
+						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
+						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
+					})
+				}
+				break
+			}
+			case "deleteClineRule": {
+				const { isGlobal, rulePath } = message
+				if (rulePath && typeof isGlobal === "boolean") {
+					const result = await deleteRuleFile(this.context, rulePath, isGlobal)
+					if (result.success) {
+						await refreshClineRulesToggles(this.context, cwd)
+						await this.postStateToWebview()
+					} else {
+						console.error("Failed to delete rule file:", result.message)
+					}
+				} else {
+					console.error("deleteClineRule: Missing or invalid parameters", {
+						rulePath,
+						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
+					})
 				}
 				break
 			}
@@ -912,6 +887,12 @@ export class Controller {
 				}
 				break
 			}
+			case "grpc_request": {
+				if (message.grpc_request) {
+					await handleGrpcRequest(this, message.grpc_request)
+				}
+				break
+			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -1122,61 +1103,6 @@ export class Controller {
 		if (this.task) {
 			this.task.customInstructions = instructions || undefined
 		}
-	}
-
-	// MCP
-
-	async getDocumentsPath(): Promise<string> {
-		if (process.platform === "win32") {
-			try {
-				const { stdout: docsPath } = await execa("powershell", [
-					"-NoProfile", // Ignore user's PowerShell profile(s)
-					"-Command",
-					"[System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)",
-				])
-				const trimmedPath = docsPath.trim()
-				if (trimmedPath) {
-					return trimmedPath
-				}
-			} catch (err) {
-				console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
-			}
-		} else if (process.platform === "linux") {
-			try {
-				// First check if xdg-user-dir exists
-				await execa("which", ["xdg-user-dir"])
-
-				// If it exists, try to get XDG documents path
-				const { stdout } = await execa("xdg-user-dir", ["DOCUMENTS"])
-				const trimmedPath = stdout.trim()
-				if (trimmedPath) {
-					return trimmedPath
-				}
-			} catch {
-				// Log error but continue to fallback
-				console.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
-			}
-		}
-
-		// Default fallback for all platforms
-		return path.join(os.homedir(), "Documents")
-	}
-
-	async ensureMcpServersDirectoryExists(): Promise<string> {
-		const userDocumentsPath = await this.getDocumentsPath()
-		const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
-		try {
-			await fs.mkdir(mcpServersDir, { recursive: true })
-		} catch (error) {
-			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
-		}
-		return mcpServersDir
-	}
-
-	async ensureSettingsDirectoryExists(): Promise<string> {
-		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
-		await fs.mkdir(settingsDir, { recursive: true })
-		return settingsDir
 	}
 
 	// VSCode LM API
@@ -1831,7 +1757,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			}
 		}
 		// if we tried to get a task that doesn't exist, remove it from state
-		// FIXME: this seems to happen sometimes when the json file doesnt save to disk for some reason
+		// FIXME: this seems to happen sometimes when the json file doesn't save to disk for some reason
 		await this.deleteTaskFromState(id)
 		throw new Error("Task not found")
 	}
@@ -1963,7 +1889,11 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			globalClineRulesToggles,
 		} = await getAllExtensionState(this.context)
+
+		const localClineRulesToggles =
+			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1987,6 +1917,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			vscMachineId: vscode.env.machineId,
+			globalClineRulesToggles: globalClineRulesToggles || {},
+			localClineRulesToggles: localClineRulesToggles || {},
 		}
 	}
 
@@ -2008,7 +1940,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	// conversation history to send in API requests
 
 	/*
-	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
+	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way that's creating cyclic references, or the API returns a function or a Symbol as part of the message content.
 	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
 	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
 	*/

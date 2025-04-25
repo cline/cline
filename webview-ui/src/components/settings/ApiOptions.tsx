@@ -1,4 +1,5 @@
 import {
+	VSCodeButton,
 	VSCodeCheckbox,
 	VSCodeDropdown,
 	VSCodeLink,
@@ -65,6 +66,7 @@ interface ApiOptionsProps {
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 	isPopup?: boolean
+	saveImmediately?: boolean // Add prop to control immediate saving
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -91,12 +93,21 @@ declare module "vscode" {
 	}
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
-	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
+const ApiOptions = ({
+	showModelOptions,
+	apiErrorMessage,
+	modelIdErrorMessage,
+	isPopup,
+	saveImmediately = false, // Default to false
+}: ApiOptionsProps) => {
+	// Use full context state for immediate save payload
+	const extensionState = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, uriScheme } = extensionState
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
+	const [geminiBaseUrlSelected, setGeminiBaseUrlSelected] = useState(!!apiConfiguration?.geminiBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
@@ -113,14 +124,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			[field]: newValue,
 		})
 
-		// If the field is the provider, save it immediately
-		// Neccesary for favorite model selection to work without undoing provider changes
-		if (field === "apiProvider") {
+		// If the field is the provider AND saveImmediately is true, save it immediately using the full context state
+		if (saveImmediately && field === "apiProvider") {
+			// Use apiConfiguration from the full extensionState context to send the most complete data
+			const currentFullApiConfig = extensionState.apiConfiguration
 			vscode.postMessage({
 				type: "apiConfiguration",
 				apiConfiguration: {
-					...apiConfiguration,
-					apiProvider: newValue,
+					...currentFullApiConfig, // Send the most complete config available
+					apiProvider: newValue, // Override with the new provider
 				},
 			})
 		}
@@ -873,6 +885,32 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
 					</VSCodeTextField>
+
+					<VSCodeCheckbox
+						checked={geminiBaseUrlSelected}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setGeminiBaseUrlSelected(isChecked)
+							if (!isChecked) {
+								setApiConfiguration({
+									...apiConfiguration,
+									geminiBaseUrl: "",
+								})
+							}
+						}}>
+						Use custom base URL
+					</VSCodeCheckbox>
+
+					{geminiBaseUrlSelected && (
+						<VSCodeTextField
+							value={apiConfiguration?.geminiBaseUrl || ""}
+							style={{ width: "100%", marginTop: 3 }}
+							type="url"
+							onInput={handleInputChange("geminiBaseUrl")}
+							placeholder="Default: https://generativelanguage.googleapis.com"
+						/>
+					)}
+
 					<p
 						style={{
 							fontSize: "12px",
@@ -898,7 +936,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<div>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiBaseUrl || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						type="url"
 						onInput={handleInputChange("openAiBaseUrl")}
 						placeholder={"Enter base URL..."}>
@@ -906,7 +944,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiApiKey || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						type="password"
 						onInput={handleInputChange("openAiApiKey")}
 						placeholder="Enter API Key...">
@@ -914,11 +952,91 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.openAiModelId || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 10 }}
 						onInput={handleInputChange("openAiModelId")}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+
+					{/* OpenAI Compatible Custom Headers */}
+					{(() => {
+						const headerEntries = Object.entries(apiConfiguration?.openAiHeaders ?? {})
+						return (
+							<div style={{ marginBottom: 10 }}>
+								<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+									<span style={{ fontWeight: 500 }}>Custom Headers</span>
+									<VSCodeButton
+										onClick={() => {
+											const currentHeaders = { ...(apiConfiguration?.openAiHeaders || {}) }
+											const headerCount = Object.keys(currentHeaders).length
+											const newKey = `header${headerCount + 1}`
+											currentHeaders[newKey] = ""
+											handleInputChange("openAiHeaders")({
+												target: {
+													value: currentHeaders,
+												},
+											})
+										}}>
+										Add Header
+									</VSCodeButton>
+								</div>
+								<div>
+									{headerEntries.map(([key, value], index) => (
+										<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+											<VSCodeTextField
+												value={key}
+												style={{ width: "40%" }}
+												placeholder="Header name"
+												onInput={(e: any) => {
+													const currentHeaders = apiConfiguration?.openAiHeaders ?? {}
+													const newValue = e.target.value
+													if (newValue && newValue !== key) {
+														const { [key]: _, ...rest } = currentHeaders
+														handleInputChange("openAiHeaders")({
+															target: {
+																value: {
+																	...rest,
+																	[newValue]: value,
+																},
+															},
+														})
+													}
+												}}
+											/>
+											<VSCodeTextField
+												value={value}
+												style={{ width: "40%" }}
+												placeholder="Header value"
+												onInput={(e: any) => {
+													handleInputChange("openAiHeaders")({
+														target: {
+															value: {
+																...(apiConfiguration?.openAiHeaders ?? {}),
+																[key]: e.target.value,
+															},
+														},
+													})
+												}}
+											/>
+											<VSCodeButton
+												appearance="secondary"
+												onClick={() => {
+													const { [key]: _, ...rest } = apiConfiguration?.openAiHeaders ?? {}
+													handleInputChange("openAiHeaders")({
+														target: {
+															value: rest,
+														},
+													})
+												}}>
+												Remove
+											</VSCodeButton>
+										</div>
+									))}
+								</div>
+							</div>
+						)
+					})()}
+
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
