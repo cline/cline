@@ -7,7 +7,7 @@ import { ApiStream } from "@api/transform/stream"
 import { VertexAI } from "@google-cloud/vertexai"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import type { Content } from "@google-cloud/vertexai"
-import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { convertAnthropicMessageToVertexContent } from "../transform/gemini-format"
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
 export class VertexHandler implements ApiHandler {
@@ -61,18 +61,22 @@ export class VertexHandler implements ApiHandler {
 							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
 								return {
 									...message,
-									content: typeof message.content === "string"
-										? [{ type: "text", text: message.content, cache_control: { type: "ephemeral" } }]
-										: message.content.map((content, i) => i === message.content.length - 1
-											? { ...content, cache_control: { type: "ephemeral" } }
-											: content),
+									content:
+										typeof message.content === "string"
+											? [{ type: "text", text: message.content, cache_control: { type: "ephemeral" } }]
+											: message.content.map((content, i) =>
+													i === message.content.length - 1
+														? { ...content, cache_control: { type: "ephemeral" } }
+														: content,
+												),
 								}
 							}
 							return {
 								...message,
-								content: typeof message.content === "string"
-									? [{ type: "text", text: message.content }]
-									: message.content,
+								content:
+									typeof message.content === "string"
+										? [{ type: "text", text: message.content }]
+										: message.content,
 							}
 						}),
 						stream: true,
@@ -87,9 +91,8 @@ export class VertexHandler implements ApiHandler {
 						system: [{ text: systemPrompt, type: "text" }],
 						messages: messages.map((message) => ({
 							...message,
-							content: typeof message.content === "string"
-								? [{ type: "text", text: message.content }]
-								: message.content,
+							content:
+								typeof message.content === "string" ? [{ type: "text", text: message.content }] : message.content,
 						})),
 						stream: true,
 					})
@@ -161,7 +164,8 @@ export class VertexHandler implements ApiHandler {
 				},
 			})
 
-			const contents: Content[] = messages.map(convertAnthropicMessageToGemini)
+			// Use the correctly renamed Vertex-specific function
+			const contents: Content[] = messages.map(convertAnthropicMessageToVertexContent)
 			const request = { contents }
 
 			const streamingResult = await generativeModel.generateContentStream(request)

@@ -3,7 +3,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
-import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+// Import the correct function for @google/generative-ai
+import { convertAnthropicMessageToGenerativeAiContent } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 export class GeminiHandler implements ApiHandler {
@@ -28,7 +29,8 @@ export class GeminiHandler implements ApiHandler {
 		const clientOptions = this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined
 		const model = this.client.getGenerativeModel(modelOptions, clientOptions)
 		const result = await model.generateContentStream({
-			contents: messages.map(convertAnthropicMessageToGemini),
+			// Use the correct function for @google/generative-ai
+			contents: messages.map(convertAnthropicMessageToGenerativeAiContent),
 			generationConfig: {
 				// maxOutputTokens: this.getModel().info.maxTokens,
 				temperature: 0,
