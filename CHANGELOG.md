@@ -2,16 +2,11 @@
 
 ## 3.14.0
 
-### Minor Changes
-
 -   0836e4d: Make sure protos run before dev build scripts
 -   a2263de: Move updateMcpTimeout message to protobus
 -   3828c0d: add smol command
 -   547051b: enabling mcp marketplace download counts
 -   0e07b92: add prompt caching to gemini models in cline / openrouter providers
-
-### Patch Changes
-
 -   aabdeba: Update Reset Button color to Red
 -   93595af: Add tooltips and improve contrast
 
