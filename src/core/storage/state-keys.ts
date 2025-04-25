@@ -52,7 +52,6 @@ export type GlobalStateKey =
 	| "autoApprovalSettings"
 	| "globalClineRulesToggles"
 	| "browserSettings"
-	| "chatSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"
@@ -76,4 +75,4 @@ export type GlobalStateKey =
 	| "planActSeparateModelsSetting"
 	| "favoritedModelIds"
 
-export type LocalStateKey = "localClineRulesToggles"
+export type LocalStateKey = "localClineRulesToggles" | "chatSettings"

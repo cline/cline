@@ -101,7 +101,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		taskHistory,
 		autoApprovalSettings,
 		browserSettings,
-		chatSettings,
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
@@ -174,7 +173,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "taskHistory") as Promise<HistoryItem[] | undefined>,
 		getGlobalState(context, "autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 		getGlobalState(context, "browserSettings") as Promise<BrowserSettings | undefined>,
-		getGlobalState(context, "chatSettings") as Promise<ChatSettings | undefined>,
 		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		getGlobalState(context, "liteLlmBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
@@ -214,7 +212,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		}
 	}
 
-	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles
+	const localClineRulesToggles = (await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles | undefined
+	const chatSettings = (await getWorkspaceState(context, "chatSettings")) as ChatSettings | undefined
 
 	const o3MiniReasoningEffort = vscode.workspace.getConfiguration("cline.modelSettings.o3Mini").get("reasoningEffort", "medium")
 

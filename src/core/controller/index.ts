@@ -990,7 +990,7 @@ export class Controller {
 			}
 		}
 
-		await updateGlobalState(this.context, "chatSettings", chatSettings)
+		await updateWorkspaceState(this.context, "chatSettings", chatSettings)
 		await this.postStateToWebview()
 
 		if (this.task) {
