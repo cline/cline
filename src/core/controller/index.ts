@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import type { AxiosRequestConfig } from "axios"
-import crypto from "crypto"
+
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
@@ -449,23 +449,6 @@ export class Controller {
 			case "getLatestState":
 				await this.postStateToWebview()
 				break
-			case "accountLoginClicked": {
-				// Generate nonce for state validation
-				const nonce = crypto.randomBytes(32).toString("hex")
-				await storeSecret(this.context, "authNonce", nonce)
-
-				// Open browser for authentication with state param
-				console.log("Login button clicked in account page")
-				console.log("Opening auth page with state param")
-
-				const uriScheme = vscode.env.uriScheme
-
-				const authUrl = vscode.Uri.parse(
-					`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
-				)
-				vscode.env.openExternal(authUrl)
-				break
-			}
 			case "accountLogoutClicked": {
 				await this.handleSignOut()
 				break
