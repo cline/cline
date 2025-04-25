@@ -512,24 +512,6 @@ export class Controller {
 				}
 				break
 			}
-			case "deleteClineRule": {
-				const { isGlobal, rulePath } = message
-				if (rulePath && typeof isGlobal === "boolean") {
-					const result = await deleteRuleFile(this.context, rulePath, isGlobal)
-					if (result.success) {
-						await refreshClineRulesToggles(this.context, cwd)
-						await this.postStateToWebview()
-					} else {
-						console.error("Failed to delete rule file:", result.message)
-					}
-				} else {
-					console.error("deleteClineRule: Missing or invalid parameters", {
-						rulePath,
-						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
-					})
-				}
-				break
-			}
 			case "requestTotalTasksSize": {
 				this.refreshTotalTasksSize()
 				break

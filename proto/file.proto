@@ -15,17 +15,19 @@ service FileService {
   rpc openImage(StringRequest) returns (Empty);
   // Creates a rule file in either global or workspace rules directory
   rpc createRuleFile(CreateRuleFileRequest) returns (CreateRuleFileResponse);
+  // Deletes a rule file from either global or workspace rules directory
+  rpc deleteRuleFile(DeleteRuleFileRequest) returns (DeleteRuleFileResponse);
 }
 
-// Request for creating a rule file
-message CreateRuleFileRequest {
+// Request for deleting a rule file
+message DeleteRuleFileRequest {
   Metadata metadata = 1;
-  string filename = 2;  // Name of the rule file to create
-  bool is_global = 3;   // Whether to create in global or workspace rules directory
+  string rule_path = 2;  // Path of the rule file to delete
+  bool is_global = 3;    // Whether the file is in global or workspace rules directory
 }
 
-// Response for creating a rule file
-message CreateRuleFileResponse {
-  string file_path = 1;   // Path to the created file (or null if creation failed)
-  bool file_exists = 2;   // Whether the file already exists
+// Response for deleting a rule file
+message DeleteRuleFileResponse {
+  bool success = 1;     // Whether the deletion was successful
+  string message = 2;   // Success or error message
 }

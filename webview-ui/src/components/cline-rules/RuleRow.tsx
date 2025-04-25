@@ -1,6 +1,6 @@
-import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { FileServiceClient } from "@/services/grpc-client"
+import { DeleteRuleFileRequest } from "@shared/proto/file"
 
 const RuleRow: React.FC<{
 	rulePath: string
@@ -16,11 +16,16 @@ const RuleRow: React.FC<{
 	}
 
 	const handleDeleteClick = () => {
-		vscode.postMessage({
-			type: "deleteClineRule",
-			rulePath: rulePath,
-			isGlobal: isGlobal,
-		})
+		try {
+			FileServiceClient.deleteRuleFile(
+				DeleteRuleFileRequest.create({
+					rulePath: rulePath,
+					isGlobal: isGlobal,
+				}),
+			).catch((err) => console.error("Failed to delete rule file:", err))
+		} catch (err) {
+			console.error("Error deleting rule file:", err)
+		}
 	}
 
 	return (

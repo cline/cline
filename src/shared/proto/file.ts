@@ -27,6 +27,23 @@ export interface CreateRuleFileResponse {
 	fileExists: boolean
 }
 
+/** Request for deleting a rule file */
+export interface DeleteRuleFileRequest {
+	metadata?: Metadata | undefined
+	/** Path of the rule file to delete */
+	rulePath: string
+	/** Whether the file is in global or workspace rules directory */
+	isGlobal: boolean
+}
+
+/** Response for deleting a rule file */
+export interface DeleteRuleFileResponse {
+	/** Whether the deletion was successful */
+	success: boolean
+	/** Success or error message */
+	message: string
+}
+
 function createBaseCreateRuleFileRequest(): CreateRuleFileRequest {
 	return { metadata: undefined, filename: "", isGlobal: false }
 }
@@ -196,6 +213,175 @@ export const CreateRuleFileResponse: MessageFns<CreateRuleFileResponse> = {
 	},
 }
 
+function createBaseDeleteRuleFileRequest(): DeleteRuleFileRequest {
+	return { metadata: undefined, rulePath: "", isGlobal: false }
+}
+
+export const DeleteRuleFileRequest: MessageFns<DeleteRuleFileRequest> = {
+	encode(message: DeleteRuleFileRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.rulePath !== "") {
+			writer.uint32(18).string(message.rulePath)
+		}
+		if (message.isGlobal !== false) {
+			writer.uint32(24).bool(message.isGlobal)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): DeleteRuleFileRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseDeleteRuleFileRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.rulePath = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.isGlobal = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): DeleteRuleFileRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
+			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
+		}
+	},
+
+	toJSON(message: DeleteRuleFileRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.rulePath !== "") {
+			obj.rulePath = message.rulePath
+		}
+		if (message.isGlobal !== false) {
+			obj.isGlobal = message.isGlobal
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<DeleteRuleFileRequest>, I>>(base?: I): DeleteRuleFileRequest {
+		return DeleteRuleFileRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<DeleteRuleFileRequest>, I>>(object: I): DeleteRuleFileRequest {
+		const message = createBaseDeleteRuleFileRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.rulePath = object.rulePath ?? ""
+		message.isGlobal = object.isGlobal ?? false
+		return message
+	},
+}
+
+function createBaseDeleteRuleFileResponse(): DeleteRuleFileResponse {
+	return { success: false, message: "" }
+}
+
+export const DeleteRuleFileResponse: MessageFns<DeleteRuleFileResponse> = {
+	encode(message: DeleteRuleFileResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.success !== false) {
+			writer.uint32(8).bool(message.success)
+		}
+		if (message.message !== "") {
+			writer.uint32(18).string(message.message)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): DeleteRuleFileResponse {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseDeleteRuleFileResponse()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.success = reader.bool()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.message = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): DeleteRuleFileResponse {
+		return {
+			success: isSet(object.success) ? globalThis.Boolean(object.success) : false,
+			message: isSet(object.message) ? globalThis.String(object.message) : "",
+		}
+	},
+
+	toJSON(message: DeleteRuleFileResponse): unknown {
+		const obj: any = {}
+		if (message.success !== false) {
+			obj.success = message.success
+		}
+		if (message.message !== "") {
+			obj.message = message.message
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<DeleteRuleFileResponse>, I>>(base?: I): DeleteRuleFileResponse {
+		return DeleteRuleFileResponse.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<DeleteRuleFileResponse>, I>>(object: I): DeleteRuleFileResponse {
+		const message = createBaseDeleteRuleFileResponse()
+		message.success = object.success ?? false
+		message.message = object.message ?? ""
+		return message
+	},
+}
+
 /** Service for file-related operations */
 export type FileServiceDefinition = typeof FileServiceDefinition
 export const FileServiceDefinition = {
@@ -226,6 +412,15 @@ export const FileServiceDefinition = {
 			requestType: CreateRuleFileRequest,
 			requestStream: false,
 			responseType: CreateRuleFileResponse,
+			responseStream: false,
+			options: {},
+		},
+		/** Deletes a rule file from either global or workspace rules directory */
+		deleteRuleFile: {
+			name: "deleteRuleFile",
+			requestType: DeleteRuleFileRequest,
+			requestStream: false,
+			responseType: DeleteRuleFileResponse,
 			responseStream: false,
 			options: {},
 		},
