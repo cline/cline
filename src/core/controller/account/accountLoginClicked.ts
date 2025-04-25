@@ -1,6 +1,5 @@
 import * as vscode from "vscode"
 import crypto from "crypto"
-import { EmptyRequest } from "../../../shared/proto/common"
 import { Controller } from "../index"
 import { storeSecret } from "../../storage/state"
 
