@@ -24,7 +24,6 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openInBrowser"
-		| "createRuleFile"
 		| "openMention"
 		| "showChatView"
 		| "refreshOpenRouterModels"
