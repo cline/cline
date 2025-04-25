@@ -1361,6 +1361,7 @@ export class Task {
 						this.autoApprovalSettings.actions.readFiles,
 						this.autoApprovalSettings.actions.readFilesExternally ?? false,
 					]
+				case "new_rule":
 				case "write_to_file":
 				case "replace_in_file":
 					return [
@@ -1678,6 +1679,8 @@ export class Task {
 							return `[${block.name} for creating a new task]`
 						case "condense":
 							return `[${block.name}]`
+						case "new_rule":
+							return `[${block.name} for '${block.params.path}']`
 					}
 				}
 
@@ -1817,6 +1820,7 @@ export class Task {
 				}
 
 				switch (block.name) {
+					case "new_rule":
 					case "write_to_file":
 					case "replace_in_file": {
 						const relPath: string | undefined = block.params.path
@@ -1958,6 +1962,13 @@ export class Task {
 								if (block.name === "write_to_file" && !content) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
+									await this.diffViewProvider.reset()
+
+									break
+								}
+								if (block.name === "new_rule" && !content) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("new_rule", "content"))
 									await this.diffViewProvider.reset()
 
 									break
