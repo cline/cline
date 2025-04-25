@@ -38,9 +38,18 @@ import UserMessage from "./UserMessage"
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
+	margin: 3px 9px;
 
 	&:hover ${CheckpointControls} {
 		opacity: 1;
+	}
+
+	& > div {
+		position: relative;
+		background-color: transparent;
+		border-radius: 12px;
+		padding: 12px 16px;
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 	}
 `
 
@@ -813,7 +822,13 @@ export const ChatRowContent = ({
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
-						<div>
+						<div
+							style={{
+								backgroundColor: "rgba(180, 180, 180, 0.1)",
+								borderRadius: "12px",
+								padding: "12px 16px",
+								boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
+							}}>
 							<Markdown markdown={message.text} />
 						</div>
 					)
@@ -875,12 +890,29 @@ export const ChatRowContent = ({
 					)
 				case "user_feedback":
 					return (
-						<UserMessage
-							text={message.text}
-							images={message.images}
-							messageTs={message.ts}
-							sendMessageFromChatRow={sendMessageFromChatRow}
-						/>
+						<>
+							<div
+								style={{
+									...headerStyle,
+									marginBottom: 0,
+								}}>
+								<span
+									className="codicon codicon-comment"
+									style={{
+										color: normalColor,
+										marginBottom: "-1.5px",
+									}}></span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>Your Request</span>
+							</div>
+							<div style={{ padding: "12px 16px", boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)" }}>
+								<UserMessage
+									text={message.text}
+									images={message.images}
+									messageTs={message.ts}
+									sendMessageFromChatRow={sendMessageFromChatRow}
+								/>
+							</div>
+						</>
 					)
 				case "user_feedback_diff":
 					const tool = JSON.parse(message.text || "{}") as ClineSayTool
@@ -1037,8 +1069,11 @@ export const ChatRowContent = ({
 							</div>
 							<div
 								style={{
+									backgroundColor: "rgba(180, 180, 180, 0.1)",
+									borderRadius: "12px",
+									padding: "12px 16px",
+									boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
 									color: "var(--vscode-charts-green)",
-									paddingTop: 10,
 								}}>
 								<Markdown markdown={text} />
 							</div>
@@ -1190,8 +1225,11 @@ export const ChatRowContent = ({
 								</div>
 								<div
 									style={{
+										backgroundColor: "rgba(180, 180, 180, 0.1)",
+										borderRadius: "12px",
+										padding: "12px 16px",
+										boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
 										color: "var(--vscode-charts-green)",
-										paddingTop: 10,
 									}}>
 									<Markdown markdown={text} />
 									{message.partial !== true && hasChanges && (

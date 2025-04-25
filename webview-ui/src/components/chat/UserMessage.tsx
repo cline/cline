@@ -86,8 +86,8 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 			style={{
 				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",
 				color: "var(--vscode-badge-foreground)",
-				borderRadius: "3px",
-				padding: "9px",
+				borderRadius: "12px",
+				padding: "15px",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
 			}}
