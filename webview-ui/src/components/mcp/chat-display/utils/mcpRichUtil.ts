@@ -1,4 +1,4 @@
-import { vscode } from "@/utils/vscode"
+import { FileServiceClient } from "@/services/grpc-client"
 
 // Safely create a URL object with error handling and ensure HTTPS
 export const safeCreateUrl = (url: string): URL | null => {
@@ -133,44 +133,30 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 		return false
 	}
 
-	// For https URLs, we need to send a message to the extension
+	// For https URLs, we need to use the gRPC FileService
 	if (url.startsWith("https")) {
 		try {
-			// Create a promise that will resolve when we get a response
-			return new Promise((resolve) => {
-				let timeoutId: ReturnType<typeof setTimeout> | undefined = undefined
-
-				// Set up a one-time listener for the response
-				const messageListener = (event: MessageEvent) => {
-					const message = event.data
-					if (message.type === "isImageUrlResult" && message.url === url) {
-						window.removeEventListener("message", messageListener)
-						resolve(message.isImage)
-						if (timeoutId) {
-							clearTimeout(timeoutId)
-						}
-					}
-				}
-
-				window.addEventListener("message", messageListener)
-
-				// Send the request to the extension
-				vscode.postMessage({
-					type: "checkIsImageUrl",
-					text: url,
-				})
-
-				// Set a timeout to avoid hanging indefinitely
-				timeoutId = setTimeout(() => {
-					window.removeEventListener("message", messageListener)
+			// Use the gRPC client with timeout
+			const timeoutPromise = new Promise<boolean>((resolve) => {
+				setTimeout(() => {
 					console.log("Hit timeout waiting for checkIsImageUrl")
 					resolve(false)
 				}, 3000)
 			})
+
+			// Create the actual service call
+			const servicePromise = FileServiceClient.checkIsImageUrl({ value: url })
+				.then((result) => result.isImage)
+				.catch((error) => {
+					console.error("Error checking if URL is an image via gRPC:", error)
+					return false
+				})
+
+			// Race between the service call and the timeout
+			return Promise.race([servicePromise, timeoutPromise])
 		} catch (error) {
 			console.log("Error checking if URL is an image:", url)
-			// Don't fall back to extension check on error
-			// Instead, return false to indicate it's not an image
+			// Return false to indicate it's not an image
 			return false
 		}
 	}

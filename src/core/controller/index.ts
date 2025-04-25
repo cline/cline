@@ -378,9 +378,6 @@ export class Controller {
 			case "fetchOpenGraphData":
 				this.fetchOpenGraphData(message.text!)
 				break
-			case "checkIsImageUrl":
-				this.checkIsImageUrl(message.text!)
-				break
 			case "createRuleFile":
 				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
 					console.error("createRuleFile: Missing or invalid parameters", {

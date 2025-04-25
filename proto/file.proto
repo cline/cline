@@ -13,4 +13,13 @@ service FileService {
   
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
+  
+  // Checks if a URL is an image
+  rpc checkIsImageUrl(StringRequest) returns (IsImageUrlResult);
+}
+
+// Response for checkIsImageUrl method
+message IsImageUrlResult {
+  bool is_image = 1;
+  string url = 2;
 }

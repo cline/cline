@@ -5,9 +5,92 @@
 // source: file.proto
 
 /* eslint-disable */
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
 import { Empty, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
+
+/** Response for checkIsImageUrl method */
+export interface IsImageUrlResult {
+	isImage: boolean
+	url: string
+}
+
+function createBaseIsImageUrlResult(): IsImageUrlResult {
+	return { isImage: false, url: "" }
+}
+
+export const IsImageUrlResult: MessageFns<IsImageUrlResult> = {
+	encode(message: IsImageUrlResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.isImage !== false) {
+			writer.uint32(8).bool(message.isImage)
+		}
+		if (message.url !== "") {
+			writer.uint32(18).string(message.url)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): IsImageUrlResult {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseIsImageUrlResult()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.isImage = reader.bool()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.url = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): IsImageUrlResult {
+		return {
+			isImage: isSet(object.isImage) ? globalThis.Boolean(object.isImage) : false,
+			url: isSet(object.url) ? globalThis.String(object.url) : "",
+		}
+	},
+
+	toJSON(message: IsImageUrlResult): unknown {
+		const obj: any = {}
+		if (message.isImage !== false) {
+			obj.isImage = message.isImage
+		}
+		if (message.url !== "") {
+			obj.url = message.url
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<IsImageUrlResult>, I>>(base?: I): IsImageUrlResult {
+		return IsImageUrlResult.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<IsImageUrlResult>, I>>(object: I): IsImageUrlResult {
+		const message = createBaseIsImageUrlResult()
+		message.isImage = object.isImage ?? false
+		message.url = object.url ?? ""
+		return message
+	},
+}
 
 /** Service for file-related operations */
 export type FileServiceDefinition = typeof FileServiceDefinition
@@ -33,5 +116,44 @@ export const FileServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Checks if a URL is an image */
+		checkIsImageUrl: {
+			name: "checkIsImageUrl",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: IsImageUrlResult,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
+
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
+
+export type DeepPartial<T> = T extends Builtin
+	? T
+	: T extends globalThis.Array<infer U>
+		? globalThis.Array<DeepPartial<U>>
+		: T extends ReadonlyArray<infer U>
+			? ReadonlyArray<DeepPartial<U>>
+			: T extends {}
+				? { [K in keyof T]?: DeepPartial<T[K]> }
+				: Partial<T>
+
+type KeysOfUnion<T> = T extends T ? keyof T : never
+export type Exact<P, I extends P> = P extends Builtin
+	? P
+	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+
+function isSet(value: any): boolean {
+	return value !== null && value !== undefined
+}
+
+export interface MessageFns<T> {
+	encode(message: T, writer?: BinaryWriter): BinaryWriter
+	decode(input: BinaryReader | Uint8Array, length?: number): T
+	fromJSON(object: any): T
+	toJSON(message: T): unknown
+	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T
+	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T
+}
