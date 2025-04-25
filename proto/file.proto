@@ -13,4 +13,19 @@ service FileService {
   
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
+  // Creates a rule file in either global or workspace rules directory
+  rpc createRuleFile(CreateRuleFileRequest) returns (CreateRuleFileResponse);
+}
+
+// Request for creating a rule file
+message CreateRuleFileRequest {
+  Metadata metadata = 1;
+  string filename = 2;  // Name of the rule file to create
+  bool is_global = 3;   // Whether to create in global or workspace rules directory
+}
+
+// Response for creating a rule file
+message CreateRuleFileResponse {
+  string file_path = 1;   // Path to the created file (or null if creation failed)
+  bool file_exists = 2;   // Whether the file already exists
 }
