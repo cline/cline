@@ -1,6 +1,7 @@
 import * as path from "path"
 import * as os from "os"
 import * as vscode from "vscode"
+import * as fs from "fs/promises"
 import { arePathsEqual } from "@utils/path"
 
 export async function openImage(dataUri: string) {
@@ -22,6 +23,23 @@ export async function openImage(dataUri: string) {
 
 export async function openFile(absolutePath: string) {
 	try {
+		// Check if the path is a symlink and resolve it if needed
+		try {
+			const stats = await fs.lstat(absolutePath)
+			if (stats.isSymbolicLink()) {
+				const targetPath = await fs.readlink(absolutePath)
+				// If the target path is relative, resolve it relative to the symlink's directory
+				if (!path.isAbsolute(targetPath)) {
+					absolutePath = path.resolve(path.dirname(absolutePath), targetPath)
+				} else {
+					absolutePath = targetPath
+				}
+			}
+		} catch (error) {
+			// If there's an error checking for symlink, continue with the original path
+			console.error(`Error checking symlink: ${error}`)
+		}
+
 		const uri = vscode.Uri.file(absolutePath)
 
 		// Check if the document is already open in a tab group that's not in the active editor's column. If it is, then close it (if not dirty) so that we don't duplicate tabs
