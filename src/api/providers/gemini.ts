@@ -7,8 +7,8 @@ import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, M
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
-// Define a default TTL for the cache (e.g., 1 hour in seconds)
-const DEFAULT_CACHE_TTL_SECONDS = 3600
+// Define a default TTL for the cache (e.g., 15 minutes in seconds)
+const DEFAULT_CACHE_TTL_SECONDS = 900
 
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
