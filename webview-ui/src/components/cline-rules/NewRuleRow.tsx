@@ -42,7 +42,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal }) => {
 		return ext === "" || ext === ".md" || ext === ".txt"
 	}
 
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
 
 		if (filename.trim()) {
@@ -60,7 +60,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal }) => {
 			}
 
 			try {
-				FileServiceClient.createRuleFile(
+				await FileServiceClient.createRuleFile(
 					CreateRuleFileRequest.create({
 						isGlobal,
 						filename: finalFilename,
