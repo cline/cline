@@ -4,10 +4,12 @@ import { Controller } from "../index"
 import { storeSecret } from "../../storage/state"
 
 /**
- * Returns the account login URL.
+ * Handles the user clicking the login link in the UI.
+ * Generates a secure nonce for state validation, stores it in secrets,
+ * and opens the authentication URL in the external browser.
+ *
  * @param controller The controller instance.
- * @param request The empty request message.
- * @returns The login URL.
+ * @returns The login URL as a string.
  */
 export async function accountLoginClicked(controller: Controller): Promise<String> {
 	// Generate nonce for state validation
