@@ -1,11 +1,12 @@
 import { vscode } from "../utils/vscode"
 import { v4 as uuidv4 } from "uuid"
+import { AccountServiceDefinition } from "@shared/proto/account"
 import { BrowserServiceDefinition } from "@shared/proto/browser"
 import { CheckpointsServiceDefinition } from "@shared/proto/checkpoints"
-import { FileServiceDefinition } from "@shared/proto/file"
-import { TaskServiceDefinition } from "@shared/proto/task"
 import { EmptyRequest } from "@shared/proto/common"
+import { FileServiceDefinition } from "@shared/proto/file"
 import { McpServiceDefinition } from "@shared/proto/mcp"
+import { TaskServiceDefinition } from "@shared/proto/task"
 // Generic type for any protobuf service definition
 type ProtoService = {
 	name: string
@@ -95,10 +96,18 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 	return client
 }
 
+const AccountServiceClient = createGrpcClient(AccountServiceDefinition)
 const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
 const CheckpointsServiceClient = createGrpcClient(CheckpointsServiceDefinition)
 const FileServiceClient = createGrpcClient(FileServiceDefinition)
-const TaskServiceClient = createGrpcClient(TaskServiceDefinition)
 const McpServiceClient = createGrpcClient(McpServiceDefinition)
+const TaskServiceClient = createGrpcClient(TaskServiceDefinition)
 
-export { BrowserServiceClient, CheckpointsServiceClient, FileServiceClient, TaskServiceClient, McpServiceClient }
+export {
+	AccountServiceClient,
+	BrowserServiceClient,
+	CheckpointsServiceClient,
+	FileServiceClient,
+	TaskServiceClient,
+	McpServiceClient,
+}
