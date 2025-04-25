@@ -1,4 +1,5 @@
 import { Controller } from "./index"
+import { handleAccountServiceRequest } from "./account"
 import { handleBrowserServiceRequest } from "./browser/index"
 import { handleFileServiceRequest } from "./file"
 import { handleTaskServiceRequest } from "./task"
@@ -31,6 +32,11 @@ export class GrpcHandler {
 	}> {
 		try {
 			switch (service) {
+				case "cline.AccountService":
+					return {
+						message: await handleAccountServiceRequest(this.controller, method, message),
+						request_id: requestId,
+					}
 				case "cline.BrowserService":
 					return {
 						message: await handleBrowserServiceRequest(this.controller, method, message),
