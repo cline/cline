@@ -16,16 +16,12 @@ const RuleRow: React.FC<{
 	}
 
 	const handleDeleteClick = () => {
-		try {
-			FileServiceClient.deleteRuleFile(
-				DeleteRuleFileRequest.create({
-					rulePath: rulePath,
-					isGlobal: isGlobal,
-				}),
-			).catch((err) => console.error("Failed to delete rule file:", err))
-		} catch (err) {
-			console.error("Error deleting rule file:", err)
-		}
+		FileServiceClient.deleteRuleFile(
+			DeleteRuleFileRequest.create({
+				rulePath: rulePath,
+				isGlobal: isGlobal,
+			}),
+		).catch((err) => console.error("Failed to delete rule file:", err))
 	}
 
 	return (
