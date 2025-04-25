@@ -52,6 +52,10 @@ export class AwsBedrockHandler implements ApiHandler {
 		// initialization, and allowing for session renewal if necessary as well
 		const client = await this.getAnthropicClient()
 
+		// AWS SDK prioritizes AWS_PROFILE over AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair
+		// If this is set as an env variable already (ie. from ~/.zshrc) it will override credentials configured by Cline
+		const previousEnv = process.env
+		delete process.env["AWS_PROFILE"]
 		const stream = await client.messages.create({
 			model: modelId,
 			max_tokens: model.info.maxTokens || 8192,
@@ -97,6 +101,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			}),
 			stream: true,
 		})
+		process.env = previousEnv
 
 		for await (const chunk of stream) {
 			switch (chunk.type) {
@@ -196,10 +201,14 @@ export class AwsBedrockHandler implements ApiHandler {
 		return await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
-				AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
-				AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
-				AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
-				AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
+				if (this.options.awsUseProfile) {
+					AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
+				} else {
+					delete process.env["AWS_PROFILE"]
+					AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
+					AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
+					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
+				}
 			},
 			() => providerChain(),
 		)
