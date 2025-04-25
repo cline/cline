@@ -2,8 +2,8 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from ".."
 import { ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
-import { Tiktoken } from "js-tiktoken/lite"
-import o200kBase from "js-tiktoken/ranks/o200k_base"
+import { Tiktoken } from "tiktoken/lite"
+import o200kBase from "tiktoken/encoders/o200k_base"
 
 // Reuse the fudge factor used in the original code
 const TOKEN_FUDGE_FACTOR = 1.5
@@ -34,7 +34,7 @@ export abstract class BaseProvider implements ApiHandler {
 
 		// Lazily create and cache the encoder if it doesn't exist
 		if (!this.encoder) {
-			this.encoder = new Tiktoken(o200kBase)
+			this.encoder = new Tiktoken(o200kBase.bpe_ranks, o200kBase.special_tokens, o200kBase.pat_str)
 		}
 
 		// Process each content block using the cached encoder
@@ -42,6 +42,7 @@ export abstract class BaseProvider implements ApiHandler {
 			if (block.type === "text") {
 				// Use tiktoken for text token counting
 				const text = block.text || ""
+
 				if (text.length > 0) {
 					const tokens = this.encoder.encode(text)
 					totalTokens += tokens.length
@@ -49,6 +50,7 @@ export abstract class BaseProvider implements ApiHandler {
 			} else if (block.type === "image") {
 				// For images, calculate based on data size
 				const imageSource = block.source
+
 				if (imageSource && typeof imageSource === "object" && "data" in imageSource) {
 					const base64Data = imageSource.data as string
 					totalTokens += Math.ceil(Math.sqrt(base64Data.length))
