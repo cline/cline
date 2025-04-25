@@ -2,31 +2,31 @@
 
 1. Add the setting to schema definitions:
 
-    - Add the item to `globalSettingsSchema` in `schemas/index.ts`
-    - Add the item to `globalSettingsRecord` in `schemas/index.ts`
+    - Add the item to `globalSettingsSchema` in `src/schemas/index.ts`
+    - Add the item to `globalSettingsRecord` in `src/schemas/index.ts`
     - Example: `terminalCommandDelay: z.number().optional(),`
 
 2. Add the setting to type definitions:
 
-    - Add the item to `exports/types.ts`
-    - Add the item to `exports/roo-code.d.ts`
-    - Add the setting to `shared/ExtensionMessage.ts`
-    - Add the setting to the WebviewMessage type in `shared/WebviewMessage.ts`
+    - Add the item to `src/exports/types.ts`
+    - Add the item to `src/exports/roo-code.d.ts`
+    - Add the setting to `src/shared/ExtensionMessage.ts`
+    - Add the setting to the WebviewMessage type in `src/shared/WebviewMessage.ts`
     - Example: `terminalCommandDelay?: number | undefined`
 
 3. Add test coverage:
-    - Add the setting to mockState in ClineProvider.test.ts
+    - Add the setting to mockState in src/core/webview/**tests**/ClineProvider.test.ts
     - Add test cases for setting persistence and state updates
     - Ensure all tests pass before submitting changes
 
 ## For Checkbox Settings
 
-1. Add the message type to WebviewMessage.ts:
+1. Add the message type to src/shared/WebviewMessage.ts:
 
     - Add the setting name to the WebviewMessage type's type union
     - Example: `| "multisearchDiffEnabled"`
 
-2. Add the setting to ExtensionStateContext.tsx:
+2. Add the setting to webview-ui/src/context/ExtensionStateContext.tsx:
 
     - Add the setting to the ExtensionStateContextType interface
     - Add the setter function to the interface
@@ -40,7 +40,7 @@
         }
         ```
 
-3. Add the setting to ClineProvider.ts:
+3. Add the setting to src/core/webview/ClineProvider.ts:
 
     - Add the setting name to the GlobalStateKey type union
     - Add the setting to the Promise.all array in getState
@@ -56,7 +56,7 @@
           break
         ```
 
-4. Add the checkbox UI to SettingsView.tsx:
+4. Add the checkbox UI to webview-ui/src/components/settings/SettingsView.tsx:
 
     - Import the setting and its setter from ExtensionStateContext
     - Add the VSCodeCheckbox component with the setting's state and onChange handler
@@ -71,7 +71,7 @@
         </VSCodeCheckbox>
         ```
 
-5. Add the setting to handleSubmit in SettingsView.tsx:
+5. Add the setting to handleSubmit in webview-ui/src/components/settings/SettingsView.tsx:
 
     - Add a vscode.postMessage call to send the setting's value when clicking Save
     - This step is critical for persistence - without it, the setting will not be saved when the user clicks Save
@@ -103,12 +103,12 @@
 
 ## For Select/Dropdown Settings
 
-1. Add the message type to WebviewMessage.ts:
+1. Add the message type to src/shared/WebviewMessage.ts:
 
     - Add the setting name to the WebviewMessage type's type union
     - Example: `| "preferredLanguage"`
 
-2. Add the setting to ExtensionStateContext.tsx:
+2. Add the setting to webview-ui/src/context/ExtensionStateContext.tsx:
 
     - Add the setting to the ExtensionStateContextType interface
     - Add the setter function to the interface
@@ -122,7 +122,7 @@
         }
         ```
 
-3. Add the setting to ClineProvider.ts:
+3. Add the setting to src/core/webview/ClineProvider.ts:
 
     - Add the setting name to the GlobalStateKey type union
     - Add the setting to the Promise.all array in getState
@@ -139,7 +139,7 @@
           break
         ```
 
-4. Add the select UI to SettingsView.tsx:
+4. Add the select UI to webview-ui/src/components/settings/SettingsView.tsx:
 
     - Import the setting and its setter from ExtensionStateContext
     - Add the select element with appropriate styling to match VSCode's theme
@@ -164,7 +164,7 @@
         </select>
         ```
 
-5. Add the setting to handleSubmit in SettingsView.tsx:
+5. Add the setting to handleSubmit in webview-ui/src/components/settings/SettingsView.tsx:
     - Add a vscode.postMessage call to send the setting's value when clicking Done
     - Example:
         ```typescript
@@ -191,21 +191,21 @@ To add a new configuration item to the system, the following changes are necessa
 
 2.  **Schema Definition**
 
-    - Add the item to globalSettingsSchema in schemas/index.ts
-    - Add the item to globalSettingsRecord in schemas/index.ts
+    - Add the item to globalSettingsSchema in src/schemas/index.ts
+    - Add the item to globalSettingsRecord in src/schemas/index.ts
 
 3.  **Type Definitions**
 
-    - Add the item to exports/types.ts
-    - Add the item to exports/roo-code.d.ts
-    - Add the item to shared/ExtensionMessage.ts
-    - Add the item to shared/WebviewMessage.ts
+    - Add the item to src/exports/types.ts
+    - Add the item to src/exports/roo-code.d.ts
+    - Add the item to src/shared/ExtensionMessage.ts
+    - Add the item to src/shared/WebviewMessage.ts
 
 4.  **UI Component**
 
     - Create or update a component in webview-ui/src/components/settings/
     - Add appropriate slider/input controls with min/max/step values
-    - Ensure the props are passed correctly to the component in SettingsView.tsx
+    - Ensure the props are passed correctly to the component in webview-ui/src/components/settings/SettingsView.tsx
     - Update the component's props interface to include the new settings
 
 5.  **Translations**
@@ -218,14 +218,14 @@ To add a new configuration item to the system, the following changes are necessa
 6.  **State Management**
 
     - Add the item to the destructuring in SettingsView.tsx
-    - Add the item to the handleSubmit function in SettingsView.tsx
-    - Add the item to getStateToPostToWebview in ClineProvider.ts
-    - Add the item to getState in ClineProvider.ts with appropriate default values
-    - Add the item to the initialization in resolveWebviewView in ClineProvider.ts
+    - Add the item to the handleSubmit function in webview-ui/src/components/settings/SettingsView.tsx
+    - Add the item to getStateToPostToWebview in src/core/webview/ClineProvider.ts
+    - Add the item to getState in src/core/webview/ClineProvider.ts with appropriate default values
+    - Add the item to the initialization in resolveWebviewView in src/core/webview/ClineProvider.ts
 
 7.  **Message Handling**
 
-    - Add a case for the item in webviewMessageHandler.ts
+    - Add a case for the item in src/core/webview/webviewMessageHandler.ts
 
 8.  **Implementation-Specific Logic**
 
@@ -310,11 +310,11 @@ To add a new configuration item to the system, the following changes are necessa
         1. **Complete Chain of Persistence**:
 
             - Verify that the setting is added to all required locations:
-                - globalSettingsSchema and globalSettingsRecord in schemas/index.ts
-                - Initial state in ExtensionStateContextProvider
-                - getState method in ClineProvider.ts
-                - getStateToPostToWebview method in ClineProvider.ts
-                - resolveWebviewView method in ClineProvider.ts (if feature-specific)
+                - globalSettingsSchema and globalSettingsRecord in src/schemas/index.ts
+            - Initial state in ExtensionStateContextProvider
+            - getState method in src/core/webview/ClineProvider.ts
+            - getStateToPostToWebview method in src/core/webview/ClineProvider.ts
+            - resolveWebviewView method in src/core/webview/ClineProvider.ts (if feature-specific)
             - A break in any part of this chain can prevent persistence
 
         2. **Default Values Consistency**:
@@ -324,12 +324,12 @@ To add a new configuration item to the system, the following changes are necessa
 
         3. **Message Handling**:
 
-            - Confirm the webviewMessageHandler.ts has a case for the setting
+            - Confirm the src/core/webview/webviewMessageHandler.ts has a case for the setting
             - Verify the message type matches what's sent from the UI
 
         4. **UI Integration**:
 
-            - Check that the setting is included in the handleSubmit function in SettingsView.tsx
+            - Check that the setting is included in the handleSubmit function in webview-ui/src/components/settings/SettingsView.tsx
             - Ensure the UI component correctly updates the state
 
         5. **Type Definitions**:
@@ -354,7 +354,7 @@ Settings persistence requires a complete chain of state management across multip
     - Example:
 
         ```typescript
-        // In schemas/index.ts
+        // In src/schemas/index.ts
         export const globalSettingsSchema = z.object({
         	// Existing settings...
         	commandRiskLevel: z.enum(["readOnly", "reversibleChanges", "complexChanges"]).optional(),
@@ -389,12 +389,12 @@ Settings persistence requires a complete chain of state management across multip
 
 3. **Message Handler (State Saving)**:
 
-    - Must use correct message type in `webviewMessageHandler.ts`
+    - Must use correct message type in `src/core/webview/webviewMessageHandler.ts`
     - Must use `updateGlobalState` with properly typed values
     - Must call `postStateToWebview` after updates
     - Example:
         ```typescript
-        // In webviewMessageHandler.ts
+        // In src/core/webview/webviewMessageHandler.ts
         case "commandRiskLevel":
           await updateGlobalState(
             "commandRiskLevel",
@@ -413,7 +413,7 @@ Settings persistence requires a complete chain of state management across multip
     - Example:
 
         ```typescript
-        // In ClineProvider.ts getStateToPostToWebview
+        // In src/core/webview/ClineProvider.ts getStateToPostToWebview
         const {
         	// Other state properties...
         	commandRiskLevel,
