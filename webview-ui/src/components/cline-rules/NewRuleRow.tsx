@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from "react"
 import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useClickAway } from "react-use"
-import { FileServiceClient } from "@/services/grpc-client"
-import { CreateRuleFileRequest } from "@shared/proto/file"
 
 interface NewRuleRowProps {
 	isGlobal: boolean
