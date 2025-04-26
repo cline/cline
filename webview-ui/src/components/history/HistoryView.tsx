@@ -289,9 +289,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									cursor: "pointer",
 									borderBottom:
 										index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
-									display: "flex",
-									alignItems: "center",
-								}}>
+								}}
+								onClick={() => handleShowTaskWithId(item.id)}>
 								<div
 									style={{
 										display: "flex",
@@ -299,9 +298,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										gap: "8px",
 										padding: "12px 20px",
 										position: "relative",
-										flexGrow: 1,
-									}}
-									onClick={() => handleShowTaskWithId(item.id)}>
+									}}>
 									<div
 										style={{
 											display: "flex",
