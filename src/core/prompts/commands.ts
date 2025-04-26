@@ -106,6 +106,8 @@ Parameters:
   1. Format the Cline rule file to have distinct guideline sections, each with their own markdown heading (e.g., "## Development workflow"). Under each of these headings, include bullet points fully fleshing out the details, with examples and/or trigger cases when applicable.
   2. These guidelines can be specific to the task(s) or project worked on thus far, or cover more high-level concepts. Guidelines can include coding conventions, general design patterns, preferred tech stack including favorite libraries and language, communication style with Cline (verbose vs concise), prompting strategies, time spent on architecting prior to development, and other preferences.
   3. Guidelines can come not only from conversation with the user, but also from general patterns you've seen while engaging with the user on tasks, including: coding comment verbosity and formatting, error handling conventions, naming conventions, testing strategies, code structure, and other implicit preferences. Only reference your existing knowledge to deduce these preferences.
+  4. When referencing the guidelines you create in this file, do not mention phrases like "this file contains ...", but rather use working like "rules for ...".
+  5. When creating guidelines, you should not invent preferences or make assumptions based on what you think a typical user might want. These should be specific to the conversation you had with the user.
 
 Usage:
 <new_rule>
@@ -117,7 +119,7 @@ Example (While this is a good reference, if other headers / sections make more s
 <new_rule>
 <content>
 ## Brief overview
-  [Brief description of the rules in this file, specify if this set of guidelines is project-specific or global]
+  [Brief description of the rules in this file, including if this set of guidelines is project-specific or global]
 
 ## Communication style
   - [Description, rule, preference, instruction]
