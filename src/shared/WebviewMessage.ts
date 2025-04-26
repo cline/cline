@@ -24,7 +24,6 @@ export interface WebviewMessage {
 		| "resetState"
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
-		| "openImage"
 		| "openInBrowser"
 		| "createRuleFile"
 		| "openMention"
