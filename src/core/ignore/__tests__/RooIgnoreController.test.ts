@@ -433,9 +433,6 @@ describe("RooIgnoreController", () => {
 			mockFileExists.mockResolvedValue(true)
 			mockReadFile.mockResolvedValue("node_modules")
 
-			// Find and trigger the onCreate handler
-			const onCreateHandler = mockWatcher.onDidCreate.mock.calls[0][0]
-
 			// Force reload of .rooignore content manually
 			await controller.initialize()
 

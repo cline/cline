@@ -20,7 +20,7 @@ interface ChatMessageProps {
 	append?: ChatHandler["append"]
 }
 
-export function ChatMessage({ message, isLast, isHeaderVisible, isLoading, append }: ChatMessageProps) {
+export function ChatMessage({ message, isLast, isHeaderVisible }: ChatMessageProps) {
 	const badges = useMemo(
 		() =>
 			message.annotations

@@ -1,11 +1,10 @@
-import { describe, expect, it, jest, beforeEach } from "@jest/globals"
-import { parseSourceCodeDefinitionsForFile } from ".."
 import * as fs from "fs/promises"
 import * as path from "path"
-import { fileExistsAtPath } from "../../../utils/fs"
-import { loadRequiredLanguageParsers } from "../languageParser"
+
+import { describe, expect, it, jest, beforeEach } from "@jest/globals"
+
 import { javascriptQuery } from "../queries"
-import { initializeTreeSitter, testParseSourceCodeDefinitions, inspectTreeStructure, debugLog } from "./helpers"
+import { initializeTreeSitter, testParseSourceCodeDefinitions, debugLog } from "./helpers"
 
 // Sample JSON content for tests
 const sampleJsonContent = `{
@@ -67,9 +66,6 @@ describe("jsonParserDebug", () => {
 		const jsLang = await TreeSitter.Language.load(wasmPath)
 		parser.setLanguage(jsLang)
 		const tree = parser.parse(sampleJsonContent)
-
-		// Extract definitions using JavaScript query
-		const query = jsLang.query(javascriptQuery)
 
 		expect(tree).toBeDefined()
 	})

@@ -187,7 +187,6 @@ export function applyRunLengthEncoding(content: string): string {
 	let pos = 0
 	let repeatCount = 0
 	let prevLine = null
-	let firstOccurrence = true
 
 	while (pos < content.length) {
 		const nextNewlineIdx = content.indexOf("\n", pos) // Find next line feed (\n) index

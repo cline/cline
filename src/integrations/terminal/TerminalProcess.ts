@@ -412,7 +412,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			}
 
 			// Wait for shell execution to complete and handle exit details
-			const exitDetails = await shellExecutionComplete
+			await shellExecutionComplete
+
 			this.isHot = false
 
 			if (commandOutputStarted) {

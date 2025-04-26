@@ -1,12 +1,7 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
-import { parseSourceCodeDefinitionsForFile } from ".."
-import * as fs from "fs/promises"
-import * as path from "path"
-import Parser from "web-tree-sitter"
-import { fileExistsAtPath } from "../../../utils/fs"
-import { loadRequiredLanguageParsers } from "../languageParser"
+
 import { javaQuery } from "../queries"
-import { initializeTreeSitter, testParseSourceCodeDefinitions, inspectTreeStructure, debugLog } from "./helpers"
+import { testParseSourceCodeDefinitions } from "./helpers"
 
 // Sample Java content for tests covering all supported structures:
 // - class declarations (including inner and anonymous classes)
@@ -309,7 +304,6 @@ const javaOptions = {
 
 // Mock file system operations
 jest.mock("fs/promises")
-const mockedFs = jest.mocked(fs)
 
 // Mock loadRequiredLanguageParsers
 jest.mock("../languageParser", () => ({

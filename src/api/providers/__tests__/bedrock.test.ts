@@ -22,11 +22,8 @@ jest.mock("@aws-sdk/client-bedrock-runtime", () => ({
 }))
 
 import { AwsBedrockHandler } from "../bedrock"
-import { MessageContent } from "../../../shared/api"
-import { BedrockRuntimeClient, ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+
 import { Anthropic } from "@anthropic-ai/sdk"
-const { fromIni } = require("@aws-sdk/credential-providers")
-import { logger } from "../../../utils/logging"
 
 describe("AwsBedrockHandler", () => {
 	let handler: AwsBedrockHandler

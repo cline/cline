@@ -64,7 +64,7 @@ describe("countFileLines", () => {
 		}
 
 		const mockReadStream = {
-			on: jest.fn().mockImplementation(function (this: any, event, callback) {
+			on: jest.fn().mockImplementation(function (this: any, _event, _callback) {
 				return this
 			}),
 		}
@@ -96,7 +96,7 @@ describe("countFileLines", () => {
 		}
 
 		const mockReadStream = {
-			on: jest.fn().mockImplementation(function (this: any, event, callback) {
+			on: jest.fn().mockImplementation(function (this: any, _event, _callback) {
 				return this
 			}),
 		}
@@ -126,7 +126,7 @@ describe("countFileLines", () => {
 		}
 
 		const mockReadStream = {
-			on: jest.fn().mockImplementation(function (this: any, event, callback) {
+			on: jest.fn().mockImplementation(function (this: any, _event, _callback) {
 				return this
 			}),
 		}

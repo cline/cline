@@ -94,11 +94,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		// Close dropdown when clicking outside.
 		useEffect(() => {
-			const handleClickOutside = (event: MouseEvent) => {
+			const handleClickOutside = () => {
 				if (showDropdown) {
 					setShowDropdown(false)
 				}
 			}
+
 			document.addEventListener("mousedown", handleClickOutside)
 			return () => document.removeEventListener("mousedown", handleClickOutside)
 		}, [showDropdown])

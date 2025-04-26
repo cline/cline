@@ -22,18 +22,6 @@ const mockResolve = (dirPath: string): string => {
 }
 
 /**
- * Mock function to check if paths are equal without importing path module
- * Provides simple equality comparison for testing
- *
- * @param path1 - First path to compare
- * @param path2 - Second path to compare
- * @returns Whether paths are equal
- */
-const mockArePathsEqual = (path1: string, path2: string): boolean => {
-	return path1 === path2
-}
-
-/**
  * Mock implementation of listFiles function
  * Returns different results based on input path for testing different scenarios
  *
@@ -42,7 +30,7 @@ const mockArePathsEqual = (path1: string, path2: string): boolean => {
  * @param limit - Maximum number of files to return
  * @returns Promise resolving to [file paths, limit reached flag]
  */
-export const listFiles = jest.fn((dirPath: string, recursive: boolean, limit: number) => {
+export const listFiles = jest.fn((dirPath: string, _recursive: boolean, _limit: number) => {
 	// Special case: Root or home directories
 	// Prevents tests from trying to list all files in these directories
 	if (dirPath === "/" || dirPath === "/root" || dirPath === "/home/user") {

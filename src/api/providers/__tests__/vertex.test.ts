@@ -2,7 +2,6 @@
 
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
-import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 
 import { VertexHandler } from "../vertex"
 import { ApiStreamChunk } from "../../transform/stream"
@@ -388,7 +387,7 @@ describe("VertexHandler", () => {
 			const stream = handler.createMessage(systemPrompt, mockMessages)
 
 			await expect(async () => {
-				for await (const chunk of stream) {
+				for await (const _chunk of stream) {
 					// Should throw before yielding any chunks
 				}
 			}).rejects.toThrow("Vertex API error")

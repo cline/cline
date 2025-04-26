@@ -1,4 +1,4 @@
-import { CommitResult, SimpleGit } from "simple-git"
+import { CommitResult } from "simple-git"
 
 export type CheckpointResult = Partial<CommitResult> & Pick<CommitResult, "commit">
 

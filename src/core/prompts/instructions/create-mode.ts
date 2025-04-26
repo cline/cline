@@ -1,6 +1,6 @@
 import * as path from "path"
 import * as vscode from "vscode"
-import { promises as fs } from "fs"
+
 import { GlobalFileNames } from "../../../shared/globalFileNames"
 
 export async function createModeInstructions(context: vscode.ExtensionContext | undefined): Promise<string> {

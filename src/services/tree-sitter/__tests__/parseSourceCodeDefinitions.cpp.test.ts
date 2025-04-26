@@ -1,12 +1,7 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
-import { parseSourceCodeDefinitionsForFile } from ".."
-import * as fs from "fs/promises"
-import * as path from "path"
-import Parser from "web-tree-sitter"
-import { fileExistsAtPath } from "../../../utils/fs"
-import { loadRequiredLanguageParsers } from "../languageParser"
+
 import { cppQuery } from "../queries"
-import { initializeTreeSitter, testParseSourceCodeDefinitions, inspectTreeStructure, debugLog } from "./helpers"
+import { testParseSourceCodeDefinitions } from "./helpers"
 
 // Sample C++ content for tests covering all supported structures:
 // - struct declarations
@@ -516,7 +511,6 @@ const cppOptions = {
 
 // Mock file system operations
 jest.mock("fs/promises")
-const mockedFs = jest.mocked(fs)
 
 // Mock loadRequiredLanguageParsers
 jest.mock("../languageParser", () => ({
@@ -654,12 +648,10 @@ describe("parseSourceCodeDefinitionsForFile with C++", () => {
 	})
 
 	it("should parse C++ using declarations and aliases", async () => {
-		const result = await testParseSourceCodeDefinitions("/test/file.cpp", sampleCppContent, cppOptions)
-		const resultLines = result?.split("\n") || []
-
+		// const result = await testParseSourceCodeDefinitions("/test/file.cpp", sampleCppContent, cppOptions)
+		// const resultLines = result?.split("\n") || []
 		// Test using declarations - not supported by current parser
 		// expect(resultLines.some((line) => line.includes("using std::string"))).toBe(true)
-
 		// Test using directives - not supported by current parser
 		// expect(resultLines.some((line) => line.includes("using namespace std"))).toBe(true)
 		// Test alias declarations - not supported by current parser
@@ -683,12 +675,10 @@ describe("parseSourceCodeDefinitionsForFile with C++", () => {
 	})
 
 	it("should parse C++ attributes and macros", async () => {
-		const result = await testParseSourceCodeDefinitions("/test/file.cpp", sampleCppContent, cppOptions)
-		const resultLines = result?.split("\n") || []
-
+		// const result = await testParseSourceCodeDefinitions("/test/file.cpp", sampleCppContent, cppOptions)
+		// const resultLines = result?.split("\n") || []
 		// Test attributes - not supported by current parser
 		// expect(resultLines.some((line) => line.includes("[[nodiscard]]") || line.includes("attribute_declaration"))).toBe(true)
-
 		// Test macro definitions - not supported by current parser
 		// expect(resultLines.some((line) => line.includes("#define SQUARE"))).toBe(true)
 	})
@@ -721,12 +711,10 @@ describe("parseSourceCodeDefinitionsForFile with C++", () => {
 	})
 
 	it("should parse C++ inline functions and variables", async () => {
-		const result = await testParseSourceCodeDefinitions("/test/file.cpp", sampleCppContent, cppOptions)
-		const resultLines = result?.split("\n") || []
-
+		// const result = await testParseSourceCodeDefinitions("/test/file.cpp", sampleCppContent, cppOptions)
+		// const resultLines = result?.split("\n") || []
 		// Test inline functions - not supported by current parser
 		// expect(resultLines.some((line) => line.includes("inline double square"))).toBe(true)
-
 		// Test inline variables - not supported by current parser
 		// expect(resultLines.some((line) => line.includes("inline constexpr double PI"))).toBe(true)
 	})

@@ -122,7 +122,7 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 				family: "lm",
 				version: "1.0",
 				maxInputTokens: 8192,
-				sendRequest: async (messages, options, token) => {
+				sendRequest: async (_messages, _options, _token) => {
 					// Provide a minimal implementation
 					return {
 						stream: (async function* () {

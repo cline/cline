@@ -2,11 +2,9 @@ import * as vscode from "vscode"
 
 import { SYSTEM_PROMPT } from "../system"
 import { McpHub } from "../../../services/mcp/McpHub"
-import { ClineProvider } from "../../../core/webview/ClineProvider"
 import { defaultModeSlug, modes, Mode, ModeConfig } from "../../../shared/modes"
 import "../../../utils/path" // Import path utils to get access to toPosix string extension.
 import { addCustomInstructions } from "../sections/custom-instructions"
-import { EXPERIMENT_IDS } from "../../../shared/experiments"
 import { MultiSearchReplaceDiffStrategy } from "../../diff/strategies/multi-search-replace"
 
 // Mock the sections
@@ -118,14 +116,6 @@ const mockContext = {
 		},
 	},
 } as unknown as vscode.ExtensionContext
-
-// Create a minimal mock of ClineProvider
-const mockProvider = {
-	ensureMcpServersDirectoryExists: async () => "/mock/mcp/path",
-	ensureSettingsDirectoryExists: async () => "/mock/settings/path",
-	postMessageToWebview: async () => {},
-	context: mockContext,
-} as unknown as ClineProvider
 
 // Instead of extending McpHub, create a mock that implements just what we need
 const createMockMcpHub = (): McpHub =>
@@ -481,7 +471,6 @@ describe("SYSTEM_PROMPT", () => {
 })
 
 describe("addCustomInstructions", () => {
-	let experiments: Record<string, boolean> | undefined
 	beforeAll(() => {
 		// Ensure fs mock is properly initialized
 		const mockFs = jest.requireMock("fs/promises")
@@ -493,9 +482,6 @@ describe("addCustomInstructions", () => {
 			}
 			throw new Error(`ENOENT: no such file or directory, mkdir '${path}'`)
 		})
-
-		// Initialize experiments as undefined by default
-		experiments = undefined
 	})
 
 	beforeEach(() => {

@@ -1,4 +1,4 @@
-import { stringifyVsCodeLmModelSelector, SELECTOR_SEPARATOR } from "../vsCodeSelectorUtils"
+import { stringifyVsCodeLmModelSelector } from "../vsCodeSelectorUtils"
 import { LanguageModelChatSelector } from "vscode"
 
 describe("vsCodeSelectorUtils", () => {

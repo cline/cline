@@ -82,7 +82,7 @@ const mockAddCustomInstructions = jest.fn().mockResolvedValue("Combined instruct
 
 // Mock delay module
 jest.mock("delay", () => {
-	const delayFn = (ms: number) => Promise.resolve()
+	const delayFn = (_ms: number) => Promise.resolve()
 	delayFn.createDelay = () => delayFn
 	delayFn.reject = () => Promise.reject(new Error("Delay rejected"))
 	delayFn.range = () => Promise.resolve()
@@ -137,7 +137,7 @@ jest.mock("vscode", () => ({
 			get: jest.fn().mockReturnValue([]),
 			update: jest.fn(),
 		}),
-		onDidChangeConfiguration: jest.fn().mockImplementation((callback) => ({
+		onDidChangeConfiguration: jest.fn().mockImplementation(() => ({
 			dispose: jest.fn(),
 		})),
 		onDidSaveTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
@@ -212,7 +212,7 @@ jest.mock("../../Cline", () => ({
 	Cline: jest
 		.fn()
 		.mockImplementation(
-			(provider, apiConfiguration, customInstructions, diffEnabled, fuzzyMatchThreshold, task, taskId) => ({
+			(_provider, _apiConfiguration, _customInstructions, _diffEnabled, _fuzzyMatchThreshold, _task, taskId) => ({
 				api: undefined,
 				abortTask: jest.fn(),
 				handleWebviewAskResponse: jest.fn(),
@@ -231,7 +231,7 @@ jest.mock("../../Cline", () => ({
 
 // Mock extract-text
 jest.mock("../../../integrations/misc/extract-text", () => ({
-	extractTextFromFile: jest.fn().mockImplementation(async (filePath: string) => {
+	extractTextFromFile: jest.fn().mockImplementation(async (_filePath: string) => {
 		const content = "const x = 1;\nconst y = 2;\nconst z = 3;"
 		const lines = content.split("\n")
 		return lines.map((line, index) => `${index + 1} | ${line}`).join("\n")
@@ -322,9 +322,7 @@ describe("ClineProvider", () => {
 				callback()
 				return { dispose: jest.fn() }
 			}),
-			onDidChangeVisibility: jest.fn().mockImplementation((callback) => {
-				return { dispose: jest.fn() }
-			}),
+			onDidChangeVisibility: jest.fn().mockImplementation(() => ({ dispose: jest.fn() })),
 		} as unknown as vscode.WebviewView
 
 		provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
@@ -1055,7 +1053,7 @@ describe("ClineProvider", () => {
 			// Reset and setup mock
 			mockAddCustomInstructions.mockClear()
 			mockAddCustomInstructions.mockImplementation(
-				(modeInstructions: string, globalInstructions: string, cwd: string) => {
+				(modeInstructions: string, globalInstructions: string, _cwd: string) => {
 					return Promise.resolve(modeInstructions || globalInstructions || "")
 				},
 			)
@@ -2028,7 +2026,6 @@ describe.skip("ContextProxy integration", () => {
 	let mockContext: vscode.ExtensionContext
 	let mockOutputChannel: vscode.OutputChannel
 	let mockContextProxy: any
-	let mockGlobalStateUpdate: jest.Mock
 
 	beforeEach(() => {
 		// Reset mocks
@@ -2050,8 +2047,6 @@ describe.skip("ContextProxy integration", () => {
 		mockOutputChannel = { appendLine: jest.fn() } as unknown as vscode.OutputChannel
 		mockContextProxy = new ContextProxy(mockContext)
 		provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", mockContextProxy)
-
-		mockGlobalStateUpdate = mockContext.globalState.update as jest.Mock
 	})
 
 	test("updateGlobalState uses contextProxy", async () => {

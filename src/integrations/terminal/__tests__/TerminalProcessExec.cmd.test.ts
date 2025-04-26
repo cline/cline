@@ -69,7 +69,6 @@ async function testCmdCommand(
 	let startTime: bigint = BigInt(0)
 	let endTime: bigint = BigInt(0)
 	let timeRecorded = false
-	let timeoutId: NodeJS.Timeout | undefined
 
 	// Create a mock terminal with shell integration
 	const mockTerminal = {

@@ -33,7 +33,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	selectedType,
 	queryItems,
 	modes,
-	loading = false,
 	dynamicSearchResults = [],
 }) => {
 	const [materialIconsBaseUri, setMaterialIconsBaseUri] = useState("")

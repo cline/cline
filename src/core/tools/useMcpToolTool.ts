@@ -90,7 +90,7 @@ export async function useMcpToolTool(
 								return item.text
 							}
 							if (item.type === "resource") {
-								const { blob, ...rest } = item.resource
+								const { blob: _, ...rest } = item.resource
 								return JSON.stringify(rest, null, 2)
 							}
 							return ""

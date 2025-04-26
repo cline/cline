@@ -170,7 +170,7 @@ describe("CustomModesManager", () => {
 				throw new Error("File not found")
 			})
 			;(fs.writeFile as jest.Mock).mockImplementation(
-				async (path: string, content: string, encoding?: string) => {
+				async (path: string, content: string, _encoding?: string) => {
 					if (path === mockSettingsPath) {
 						settingsContent = JSON.parse(content)
 					}
@@ -297,7 +297,7 @@ describe("CustomModesManager", () => {
 				throw new Error("File not found")
 			})
 			;(fs.writeFile as jest.Mock).mockImplementation(
-				async (path: string, content: string, encoding?: string) => {
+				async (path: string, content: string, _encoding?: string) => {
 					if (path === mockSettingsPath) {
 						settingsContent = JSON.parse(content)
 					}

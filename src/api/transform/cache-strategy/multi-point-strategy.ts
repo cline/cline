@@ -95,9 +95,6 @@ export class MultiPointStrategy extends CacheStrategy {
 			return placements
 		}
 
-		// Calculate total tokens in the conversation
-		const totalTokens = this.config.messages.reduce((acc, curr) => acc + this.estimateTokenCount(curr), 0)
-
 		// Calculate tokens in new messages (added since last cache point placement)
 		const lastPreviousIndex = previousPlacements[previousPlacements.length - 1].index
 		const newMessagesTokens = this.config.messages
@@ -181,7 +178,6 @@ export class MultiPointStrategy extends CacheStrategy {
 						} else if (i === smallestGapIndex) {
 							// Replace with a combined placement
 							const combinedEndIndex = previousPlacements[i + 1].index
-							const combinedTokens = tokensBetweenPlacements[i] + tokensBetweenPlacements[i + 1]
 
 							// Find the optimal placement within this combined range
 							const startOfRange = i === 0 ? 0 : previousPlacements[i - 1].index + 1

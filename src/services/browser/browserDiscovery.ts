@@ -45,8 +45,7 @@ export async function isPortOpen(host: string, port: number, timeout = 1000): Pr
 export async function tryChromeHostUrl(chromeHostUrl: string): Promise<boolean> {
 	try {
 		console.log(`Trying to connect to Chrome at: ${chromeHostUrl}/json/version`)
-		const response = await axios.get(`${chromeHostUrl}/json/version`, { timeout: 1000 })
-		const data = response.data
+		await axios.get(`${chromeHostUrl}/json/version`, { timeout: 1000 })
 		return true
 	} catch (error) {
 		return false

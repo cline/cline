@@ -354,25 +354,13 @@ function runBenchmark() {
 		const lineLimit = 500 // Standard line limit for truncation
 
 		console.log("\n--- Function 1: processCarriageReturns ---")
-		const processCarriageReturnsResult = runPerformanceTest(
-			"processCarriageReturns",
-			processCarriageReturns,
-			testData,
-			iterations,
-		)
+		runPerformanceTest("processCarriageReturns", processCarriageReturns, testData, iterations)
 
 		console.log("\n--- Function 2: applyRunLengthEncoding ---")
-		const applyRunLengthEncodingResult = runPerformanceTest(
-			"applyRunLengthEncoding",
-			applyRunLengthEncoding,
-			testData,
-			iterations,
-		)
+		runPerformanceTest("applyRunLengthEncoding", applyRunLengthEncoding, testData, iterations)
 
 		console.log("\n--- Function 3: truncateOutput ---")
-		const truncateOutputResult = runPerformanceTest("truncateOutput", truncateOutput, testData, iterations, [
-			lineLimit,
-		])
+		runPerformanceTest("truncateOutput", truncateOutput, testData, iterations, [lineLimit])
 
 		// Run baseline test to measure variance between identical runs
 		runBaselineTest(testData, Math.max(5, Math.floor(iterations / 4)))

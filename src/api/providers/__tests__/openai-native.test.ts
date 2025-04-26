@@ -1,7 +1,7 @@
+import { Anthropic } from "@anthropic-ai/sdk"
+
 import { OpenAiNativeHandler } from "../openai-native"
 import { ApiHandlerOptions } from "../../../shared/api"
-import OpenAI from "openai"
-import { Anthropic } from "@anthropic-ai/sdk"
 
 // Mock OpenAI client
 const mockCreate = jest.fn()
@@ -116,7 +116,7 @@ describe("OpenAiNativeHandler", () => {
 			mockCreate.mockRejectedValueOnce(new Error("API Error"))
 			const stream = handler.createMessage(systemPrompt, messages)
 			await expect(async () => {
-				for await (const chunk of stream) {
+				for await (const _chunk of stream) {
 					// Should not reach here
 				}
 			}).rejects.toThrow("API Error")

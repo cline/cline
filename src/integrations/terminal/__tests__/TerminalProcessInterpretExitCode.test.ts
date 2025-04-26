@@ -1,20 +1,5 @@
 import { TerminalProcess } from "../TerminalProcess"
 import { execSync } from "child_process"
-import { Terminal } from "../Terminal"
-import * as vscode from "vscode"
-
-// Mock vscode.Terminal for testing
-const mockTerminal = {
-	name: "Test Terminal",
-	processId: Promise.resolve(123),
-	creationOptions: {},
-	exitStatus: undefined,
-	state: { isInteractedWith: true },
-	dispose: jest.fn(),
-	hide: jest.fn(),
-	show: jest.fn(),
-	sendText: jest.fn(),
-} as unknown as vscode.Terminal
 
 describe("TerminalProcess.interpretExitCode", () => {
 	it("should handle undefined exit code", () => {

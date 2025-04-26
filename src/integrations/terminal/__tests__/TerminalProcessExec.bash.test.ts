@@ -221,7 +221,6 @@ async function testTerminalCommand(
 		const exitDetails = TerminalProcess.interpretExitCode(exitCode)
 
 		// Set a timeout to avoid hanging tests
-		let timeoutId: NodeJS.Timeout
 		const timeoutPromise = new Promise<void>((_, reject) => {
 			timeoutId = setTimeout(() => {
 				reject(new Error("Test timed out after 1000ms"))

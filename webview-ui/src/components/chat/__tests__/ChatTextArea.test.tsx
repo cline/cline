@@ -360,7 +360,7 @@ describe("ChatTextArea", () => {
 			const outsidePath = "/Users/other/project/file.js"
 
 			// Mock the convertToMentionPath function to return the original path for paths outside cwd
-			mockConvertToMentionPath.mockImplementationOnce((path, cwd) => {
+			mockConvertToMentionPath.mockImplementationOnce((path, _cwd) => {
 				return path // Return original path for this test
 			})
 

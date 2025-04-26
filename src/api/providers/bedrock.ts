@@ -603,8 +603,8 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			// Look for a pattern where the first segment before a dot doesn't contain dots or colons
 			// and the remaining parts still contain at least one dot
 			const genericPrefixMatch = modelId.match(/^([^.:]+)\.(.+\..+)$/)
+
 			if (genericPrefixMatch) {
-				const genericPrefix = genericPrefixMatch[1] + "."
 				return genericPrefixMatch[2]
 			}
 		}
@@ -708,10 +708,11 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		if (Array.isArray(content)) {
 			return content.map((block) => {
 				// Use destructuring to remove cachePoint property
-				const { cachePoint, ...rest } = block
+				const { cachePoint: _, ...rest } = block
 				return rest
 			})
 		}
+
 		return content
 	}
 
@@ -864,7 +865,7 @@ Suggestions:
 	/**
 	 * Formats an error message based on the error type and context
 	 */
-	private formatErrorMessage(error: unknown, errorType: string, isStreamContext: boolean): string {
+	private formatErrorMessage(error: unknown, errorType: string, _isStreamContext: boolean): string {
 		const definition = AwsBedrockHandler.ERROR_TYPES[errorType] || AwsBedrockHandler.ERROR_TYPES.GENERIC
 		let template = definition.messageTemplate
 

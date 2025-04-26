@@ -1,10 +1,10 @@
 import * as vscode from "vscode"
 import * as path from "path"
+
 import { listFiles } from "../../services/glob/list-files"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 import { toRelativePath } from "../../utils/path"
 import { getWorkspacePath } from "../../utils/path"
-import { logger } from "../../utils/logging"
 
 const MAX_INITIAL_FILES = 1_000
 

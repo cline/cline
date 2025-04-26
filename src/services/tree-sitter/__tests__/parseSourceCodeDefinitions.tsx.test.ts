@@ -1,11 +1,11 @@
-import { describe, expect, it, jest, beforeEach, beforeAll } from "@jest/globals"
-import { parseSourceCodeDefinitionsForFile } from ".."
+// npx jest src/services/tree-sitter/__tests__/parseSourceCodeDefinitions.tsx.test.ts
+
 import * as fs from "fs/promises"
 import * as path from "path"
-import { fileExistsAtPath } from "../../../utils/fs"
-import { loadRequiredLanguageParsers } from "../languageParser"
-import tsxQuery from "../queries/tsx"
-import { initializeTreeSitter, testParseSourceCodeDefinitions, inspectTreeStructure, debugLog } from "./helpers"
+
+import { describe, expect, it, jest, beforeEach } from "@jest/globals"
+
+import { initializeTreeSitter, testParseSourceCodeDefinitions, debugLog } from "./helpers"
 
 // Sample component content with enhanced TypeScript language constructs
 const sampleTsxContent = `
@@ -338,9 +338,6 @@ describe("treeParserDebug", () => {
 		const tree = parser.parse(sampleCode)
 		// console.log("Parsed tree:", tree.rootNode.toString())
 
-		// Extract definitions using TSX query
-		const query = tsxLang.query(tsxQuery)
-
 		expect(tree).toBeDefined()
 	})
 
@@ -571,7 +568,6 @@ it("should parse conditional types", async function () {
 
 	// Save the initial line count to compare later
 	const initialLineCount = initialResult ? initialResult.split("\n").length : 0
-	const initialCaptures = initialResult ? initialResult : ""
 
 	// Now check if the new query pattern improves the output
 	const updatedResult = await testParseSourceCodeDefinitions("/test/conditional-type.tsx", conditionalTypeContent)

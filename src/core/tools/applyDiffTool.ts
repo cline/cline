@@ -96,8 +96,6 @@ export async function applyDiffTool(
 				error: "No diff strategy available",
 			}
 
-			let partResults = ""
-
 			if (!diffResult.success) {
 				cline.consecutiveMistakeCount++
 				const currentCount = (cline.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
@@ -116,8 +114,6 @@ export async function applyDiffTool(
 						formattedError = `<error_details>\n${
 							failPart.error
 						}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
-
-						partResults += formattedError
 					}
 				} else {
 					const errorDetails = diffResult.details ? JSON.stringify(diffResult.details, null, 2) : ""

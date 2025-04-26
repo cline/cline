@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import {
@@ -205,11 +205,7 @@ export class McpHub {
 	 * @param error The error object
 	 */
 	private showErrorMessage(message: string, error: unknown): void {
-		const errorMessage = error instanceof Error ? error.message : `${error}`
 		console.error(`${message}:`, error)
-		// if (vscode.window && typeof vscode.window.showErrorMessage === 'function') {
-		// 	vscode.window.showErrorMessage(`${message}: ${errorMessage}`)
-		// }
 	}
 
 	public setupWorkspaceFoldersWatcher(): void {

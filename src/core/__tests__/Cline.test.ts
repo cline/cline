@@ -191,19 +191,19 @@ describe("Cline", () => {
 
 					return undefined
 				}),
-				update: jest.fn().mockImplementation((key, value) => Promise.resolve()),
+				update: jest.fn().mockImplementation((_key, _value) => Promise.resolve()),
 				keys: jest.fn().mockReturnValue([]),
 			},
 			globalStorageUri: storageUri,
 			workspaceState: {
-				get: jest.fn().mockImplementation((key) => undefined),
-				update: jest.fn().mockImplementation((key, value) => Promise.resolve()),
+				get: jest.fn().mockImplementation((_key) => undefined),
+				update: jest.fn().mockImplementation((_key, _value) => Promise.resolve()),
 				keys: jest.fn().mockReturnValue([]),
 			},
 			secrets: {
-				get: jest.fn().mockImplementation((key) => Promise.resolve(undefined)),
-				store: jest.fn().mockImplementation((key, value) => Promise.resolve()),
-				delete: jest.fn().mockImplementation((key) => Promise.resolve()),
+				get: jest.fn().mockImplementation((_key) => Promise.resolve(undefined)),
+				store: jest.fn().mockImplementation((_key, _value) => Promise.resolve()),
+				delete: jest.fn().mockImplementation((_key) => Promise.resolve()),
 			},
 			extensionUri: {
 				fsPath: "/mock/extension/path",
@@ -385,7 +385,7 @@ describe("Cline", () => {
 				// Mock the method with a stable implementation
 				jest.spyOn(Cline.prototype, "getEnvironmentDetails").mockImplementation(
 					// Use 'any' type to allow for dynamic test properties
-					async function (this: any, verbose: boolean = false): Promise<string> {
+					async function (this: any, _verbose: boolean = false): Promise<string> {
 						// Use test-specific mock if available
 						if (this._mockGetEnvironmentDetails) {
 							return this._mockGetEnvironmentDetails()

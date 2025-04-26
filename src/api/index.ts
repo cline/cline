@@ -77,7 +77,7 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 		case "requesty":
 			return new RequestyHandler(options)
 		case "human-relay":
-			return new HumanRelayHandler(options)
+			return new HumanRelayHandler()
 		case "fake-ai":
 			return new FakeAIHandler(options)
 		case "xai":

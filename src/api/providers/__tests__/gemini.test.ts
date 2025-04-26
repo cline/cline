@@ -95,7 +95,7 @@ describe("GeminiHandler", () => {
 			const stream = handler.createMessage(systemPrompt, mockMessages)
 
 			await expect(async () => {
-				for await (const chunk of stream) {
+				for await (const _chunk of stream) {
 					// Should throw before yielding any chunks
 				}
 			}).rejects.toThrow()

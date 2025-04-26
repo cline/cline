@@ -1,6 +1,5 @@
 // npx jest src/components/settings/__tests__/ApiConfigManager.test.tsx
 
-import React from "react"
 import { render, screen, fireEvent, within } from "@testing-library/react"
 
 import ApiConfigManager from "../ApiConfigManager"
@@ -21,14 +20,14 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 
 jest.mock("@/components/ui", () => ({
 	...jest.requireActual("@/components/ui"),
-	Dialog: ({ children, open, onOpenChange }: any) => (
+	Dialog: ({ children, open }: any) => (
 		<div role="dialog" aria-modal="true" style={{ display: open ? "block" : "none" }} data-testid="dialog">
 			{children}
 		</div>
 	),
 	DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
 	DialogTitle: ({ children }: any) => <div data-testid="dialog-title">{children}</div>,
-	Button: ({ children, onClick, disabled, variant, "data-testid": dataTestId }: any) => (
+	Button: ({ children, onClick, disabled, "data-testid": dataTestId }: any) => (
 		<button onClick={onClick} disabled={disabled} data-testid={dataTestId}>
 			{children}
 		</button>
@@ -43,16 +42,16 @@ jest.mock("@/components/ui", () => ({
 		/>
 	),
 	// New components for searchable dropdown
-	Popover: ({ children, open, onOpenChange }: any) => (
+	Popover: ({ children, open }: any) => (
 		<div className="popover" style={{ position: "relative" }}>
 			{children}
 			{open && <div className="popover-content" style={{ position: "absolute", top: "100%", left: 0 }}></div>}
 		</div>
 	),
-	PopoverTrigger: ({ children, asChild }: any) => <div className="popover-trigger">{children}</div>,
-	PopoverContent: ({ children, className }: any) => <div className="popover-content">{children}</div>,
+	PopoverTrigger: ({ children }: any) => <div className="popover-trigger">{children}</div>,
+	PopoverContent: ({ children }: any) => <div className="popover-content">{children}</div>,
 	Command: ({ children }: any) => <div className="command">{children}</div>,
-	CommandInput: ({ value, onValueChange, placeholder, className, "data-testid": dataTestId, ref }: any) => (
+	CommandInput: ({ value, onValueChange, placeholder, className, "data-testid": dataTestId }: any) => (
 		<input
 			value={value}
 			onChange={(e) => onValueChange(e.target.value)}
@@ -70,7 +69,7 @@ jest.mock("@/components/ui", () => ({
 		</div>
 	),
 	// Keep old components for backward compatibility
-	Select: ({ children, value, onValueChange }: any) => (
+	Select: ({ value, onValueChange }: any) => (
 		<select
 			value={value}
 			onChange={(e) => {

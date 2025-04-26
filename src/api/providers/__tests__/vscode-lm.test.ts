@@ -21,7 +21,7 @@ jest.mock("vscode", () => {
 
 	return {
 		workspace: {
-			onDidChangeConfiguration: jest.fn((callback) => ({
+			onDidChangeConfiguration: jest.fn((_callback) => ({
 				dispose: jest.fn(),
 			})),
 		},

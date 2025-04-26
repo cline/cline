@@ -1,7 +1,7 @@
 import { ExtensionContext } from "vscode"
 import { z, ZodError } from "zod"
 
-import { providerSettingsSchema, ApiConfigMeta, ProviderSettings } from "../../schemas"
+import { providerSettingsSchema, ApiConfigMeta } from "../../schemas"
 import { Mode, modes } from "../../shared/modes"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 
@@ -78,7 +78,7 @@ export class ProviderSettingsManager {
 				let isDirty = false
 
 				// Ensure all configs have IDs.
-				for (const [name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
+				for (const [_name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
 					if (!apiConfig.id) {
 						apiConfig.id = this.generateId()
 						isDirty = true
@@ -130,7 +130,7 @@ export class ProviderSettingsManager {
 				rateLimitSeconds = 0
 			}
 
-			for (const [name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
+			for (const [_name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
 				if (apiConfig.rateLimitSeconds === undefined) {
 					apiConfig.rateLimitSeconds = rateLimitSeconds
 				}
@@ -162,7 +162,7 @@ export class ProviderSettingsManager {
 				fuzzyMatchThreshold = 1.0
 			}
 
-			for (const [name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
+			for (const [_name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
 				if (apiConfig.diffEnabled === undefined) {
 					apiConfig.diffEnabled = diffEnabled
 				}

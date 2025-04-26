@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, ModelInfo, requestyDefaultModelInfo } from "../../../shared/api"
+import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
 import { RequestyHandler } from "../requesty"
 import { convertToOpenAiMessages } from "../../transform/openai-format"
 import { convertToR1Format } from "../../transform/r1-format"
@@ -40,9 +40,7 @@ describe("RequestyHandler", () => {
 		jest.clearAllMocks()
 
 		// Setup mock create function that preserves params
-		let lastParams: any
-		mockCreate = jest.fn().mockImplementation((params) => {
-			lastParams = params
+		mockCreate = jest.fn().mockImplementation((_params) => {
 			return {
 				[Symbol.asyncIterator]: async function* () {
 					yield {

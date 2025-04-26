@@ -1,3 +1,5 @@
+// npx jest src/api/providers/__tests__/bedrock-custom-arn.test.ts
+
 import { AwsBedrockHandler } from "../bedrock"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { logger } from "../../../utils/logging"
@@ -51,9 +53,6 @@ jest.mock("@aws-sdk/client-bedrock-runtime", () => {
 		__mock: mockModule, // Expose mock internals for testing
 	}
 })
-
-// Get mock module for testing
-const bedrockMock = jest.requireMock("@aws-sdk/client-bedrock-runtime").__mock
 
 describe("Bedrock ARN Handling", () => {
 	// Helper function to create a handler with specific options
@@ -236,7 +235,8 @@ describe("Bedrock ARN Handling", () => {
 			// Create handler with ARN region different from provided region
 			const arn =
 				"arn:aws:bedrock:eu-west-1:123456789012:inference-profile/anthropic.claude-3-sonnet-20240229-v1:0"
-			const handler = createHandler({
+
+			createHandler({
 				awsCustomArn: arn,
 				awsRegion: "us-east-1", // Different from ARN region
 			})

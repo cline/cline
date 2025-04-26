@@ -1,6 +1,7 @@
 import { jest } from "@jest/globals"
-import { searchCommits, getCommitInfo, getWorkingState, GitCommit } from "../git"
 import { ExecException } from "child_process"
+
+import { searchCommits, getCommitInfo, getWorkingState } from "../git"
 
 type ExecFunction = (
 	command: string,

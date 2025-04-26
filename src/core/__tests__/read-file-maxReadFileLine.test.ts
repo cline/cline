@@ -8,7 +8,6 @@ import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { isBinaryFile } from "isbinaryfile"
 import { ReadFileToolUse } from "../../shared/tools"
-import { ToolUsage } from "../../schemas"
 
 // Mock dependencies
 jest.mock("../../integrations/misc/line-counter")
@@ -100,7 +99,7 @@ describe("read_file tool with maxReadFileLine setting", () => {
 		mockInputContent = fileContent
 
 		// Setup the extractTextFromFile mock implementation with the current mockInputContent
-		mockedExtractTextFromFile.mockImplementation((filePath) => {
+		mockedExtractTextFromFile.mockImplementation((_filePath) => {
 			const actual = jest.requireActual("../../integrations/misc/extract-text")
 			return Promise.resolve(actual.addLineNumbers(mockInputContent))
 		})

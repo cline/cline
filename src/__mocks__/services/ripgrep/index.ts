@@ -13,7 +13,7 @@
  * @param vscodeAppRoot - Optional VSCode app root path (can be undefined)
  * @returns Promise resolving to a mock path to the ripgrep binary
  */
-export const getBinPath = jest.fn().mockImplementation(async (vscodeAppRoot?: string): Promise<string> => {
+export const getBinPath = jest.fn().mockImplementation(async (_vscodeAppRoot?: string): Promise<string> => {
 	return "/mock/path/to/rg"
 })
 
@@ -30,7 +30,7 @@ export const getBinPath = jest.fn().mockImplementation(async (vscodeAppRoot?: st
 export const regexSearchFiles = jest
 	.fn()
 	.mockImplementation(
-		async (cwd?: string, directoryPath?: string, regex?: string, filePattern?: string): Promise<string> => {
+		async (_cwd?: string, _directoryPath?: string, _regex?: string, _filePattern?: string): Promise<string> => {
 			return "Mock search results"
 		},
 	)
@@ -43,6 +43,6 @@ export const regexSearchFiles = jest
  * @param maxLength - Optional maximum length (can be undefined)
  * @returns The original line or empty string if undefined
  */
-export const truncateLine = jest.fn().mockImplementation((line?: string, maxLength?: number): string => {
+export const truncateLine = jest.fn().mockImplementation((line?: string, _maxLength?: number): string => {
 	return line || ""
 })

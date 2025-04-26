@@ -57,7 +57,6 @@ export const AutoApproveSettings = ({
 	alwaysAllowExecute,
 	allowedCommands,
 	setCachedStateField,
-	className,
 	...props
 }: AutoApproveSettingsProps) => {
 	const { t } = useAppTranslation()

@@ -3,7 +3,7 @@ import * as path from "path"
 import { listFiles } from "../glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 import { fileExistsAtPath } from "../../utils/fs"
-import { parseMarkdown, formatMarkdownCaptures } from "./markdownParser"
+import { parseMarkdown } from "./markdownParser"
 import { RooIgnoreController } from "../../core/ignore/RooIgnoreController"
 
 const extensions = [
@@ -109,7 +109,7 @@ export async function parseSourceCodeForDefinitionsTopLevel(
 	let result = ""
 
 	// Separate files to parse and remaining files
-	const { filesToParse, remainingFiles } = separateFiles(allFiles)
+	const { filesToParse } = separateFiles(allFiles)
 
 	// Filter filepaths for access if controller is provided
 	const allowedFilesToParse = rooIgnoreController ? rooIgnoreController.filterPaths(filesToParse) : filesToParse
@@ -227,9 +227,6 @@ function processCaptures(captures: any[], lines: string[], minComponentLines: nu
 	// Sort captures by their start position
 	captures.sort((a, b) => a.node.startPosition.row - b.node.startPosition.row)
 
-	// Keep track of the last line we've processed
-	let lastLine = -1
-
 	// Track already processed lines to avoid duplicates
 	const processedLines = new Set<string>()
 
@@ -300,13 +297,12 @@ function processCaptures(captures: any[], lines: string[], minComponentLines: nu
 				}
 			}
 		}
-
-		lastLine = endLine
 	})
 
 	if (formattedOutput.length > 0) {
 		return formattedOutput
 	}
+
 	return null
 }
 

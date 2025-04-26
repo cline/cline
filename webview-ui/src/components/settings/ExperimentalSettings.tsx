@@ -18,7 +18,6 @@ type ExperimentalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 }
 
 export const ExperimentalSettings = ({
-	setCachedStateField,
 	experiments,
 	setExperimentEnabled,
 	className,

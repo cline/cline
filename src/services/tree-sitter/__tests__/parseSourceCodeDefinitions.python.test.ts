@@ -1,12 +1,7 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
-import { parseSourceCodeDefinitionsForFile } from ".."
-import * as fs from "fs/promises"
-import * as path from "path"
-import Parser from "web-tree-sitter"
-import { fileExistsAtPath } from "../../../utils/fs"
-import { loadRequiredLanguageParsers } from "../languageParser"
+
 import { pythonQuery } from "../queries"
-import { initializeTreeSitter, testParseSourceCodeDefinitions, inspectTreeStructure, debugLog } from "./helpers"
+import { testParseSourceCodeDefinitions } from "./helpers"
 
 // Sample Python content for tests covering all supported structures:
 // - class definitions
@@ -355,7 +350,6 @@ const pythonOptions = {
 
 // Mock file system operations
 jest.mock("fs/promises")
-const mockedFs = jest.mocked(fs)
 
 // Mock loadRequiredLanguageParsers
 jest.mock("../languageParser", () => ({
@@ -374,7 +368,6 @@ describe("parseSourceCodeDefinitionsForFile with Python", () => {
 
 	it("should parse Python class definitions", async () => {
 		const result = await testParseSourceCodeDefinitions("/test/file.py", samplePythonContent, pythonOptions)
-		const resultLines = result?.split("\n") || []
 
 		// Check for class definitions
 		expect(result).toContain("class Point")
@@ -386,7 +379,6 @@ describe("parseSourceCodeDefinitionsForFile with Python", () => {
 
 	it("should parse Python function definitions", async () => {
 		const result = await testParseSourceCodeDefinitions("/test/file.py", samplePythonContent, pythonOptions)
-		const resultLines = result?.split("\n") || []
 
 		// Check for function definitions
 		expect(result).toContain("def calculate_average")

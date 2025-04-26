@@ -160,7 +160,7 @@ const StyledPre = styled.pre<{ theme: any }>`
 
 	${(props) =>
 		Object.keys(props.theme)
-			.map((key, index) => {
+			.map((key) => {
 				return `
       & ${key} {
         color: ${props.theme[key]};
@@ -195,7 +195,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 		],
 		rehypeReactOptions: {
 			components: {
-				pre: ({ node, children, ...preProps }: any) => {
+				pre: ({ node: _, children, ...preProps }: any) => {
 					if (Array.isArray(children) && children.length === 1 && React.isValidElement(children[0])) {
 						const child = children[0] as React.ReactElement<{ className?: string }>
 						if (child.props?.className?.includes("language-mermaid")) {

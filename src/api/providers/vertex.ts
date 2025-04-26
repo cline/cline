@@ -57,15 +57,6 @@ interface VertexMessage extends Omit<Anthropic.Messages.MessageParam, "content">
 	content: string | VertexContentBlock[]
 }
 
-interface VertexMessageCreateParams {
-	model: string
-	max_tokens: number
-	temperature: number
-	system: string | VertexTextBlock[]
-	messages: VertexMessage[]
-	stream: boolean
-}
-
 interface VertexMessageResponse {
 	content: Array<{ type: "text"; text: string }>
 }
@@ -259,7 +250,7 @@ export class VertexHandler extends BaseProvider implements SingleCompletionHandl
 
 	private async *createClaudeMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
-		let { id, info, temperature, maxTokens, thinking } = model
+		let { id, temperature, maxTokens, thinking } = model
 		const useCache = model.info.supportsPromptCache
 
 		// Find indices of user messages that we want to cache

@@ -6,7 +6,6 @@ import { Browser, Page, ScreenshotOptions, TimeoutError, launch, connect } from 
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import delay from "delay"
-import axios from "axios"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { discoverChromeHostUrl, tryChromeHostUrl } from "./browserDiscovery"

@@ -1,4 +1,4 @@
-// npx jest webview-ui/src/components/ui/__tests__/select-dropdown.test.tsx
+// npx jest src/components/ui/__tests__/select-dropdown.test.tsx
 
 import { ReactNode } from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
@@ -16,7 +16,6 @@ jest.mock("@/components/ui", () => {
 	return {
 		Popover: ({
 			children,
-			open,
 			onOpenChange,
 		}: {
 			children: ReactNode
@@ -44,10 +43,6 @@ jest.mock("@/components/ui", () => {
 
 		PopoverContent: ({
 			children,
-			align,
-			sideOffset,
-			container,
-			className,
 		}: {
 			children: ReactNode
 			align?: string

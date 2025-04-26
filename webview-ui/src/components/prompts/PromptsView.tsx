@@ -316,7 +316,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 	// Handle clicks outside the config menu
 	useEffect(() => {
-		const handleClickOutside = (event: MouseEvent) => {
+		const handleClickOutside = () => {
 			if (showConfigMenu) {
 				setShowConfigMenu(false)
 			}

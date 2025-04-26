@@ -1,7 +1,7 @@
-import { loadRuleFiles, addCustomInstructions } from "../custom-instructions"
 import fs from "fs/promises"
-import path from "path"
 import { PathLike } from "fs"
+
+import { loadRuleFiles, addCustomInstructions } from "../custom-instructions"
 
 // Mock fs/promises
 jest.mock("fs/promises")
@@ -134,7 +134,7 @@ describe("loadRuleFiles", () => {
 		] as any)
 
 		statMock.mockImplementation(
-			(path) =>
+			(_path) =>
 				({
 					isFile: jest.fn().mockReturnValue(true),
 				}) as any,
@@ -428,7 +428,7 @@ describe("addCustomInstructions", () => {
 		] as any)
 
 		statMock.mockImplementation(
-			(path) =>
+			(_path) =>
 				({
 					isFile: jest.fn().mockReturnValue(true),
 				}) as any,

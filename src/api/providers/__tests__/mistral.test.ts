@@ -1,6 +1,7 @@
-import { MistralHandler } from "../mistral"
-import { ApiHandlerOptions, mistralDefaultModelId } from "../../../shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
+
+import { MistralHandler } from "../mistral"
+import { ApiHandlerOptions } from "../../../shared/api"
 import { ApiStreamTextChunk } from "../../transform/stream"
 
 // Mock Mistral client
@@ -9,7 +10,7 @@ jest.mock("@mistralai/mistralai", () => {
 	return {
 		Mistral: jest.fn().mockImplementation(() => ({
 			chat: {
-				stream: mockCreate.mockImplementation(async (options) => {
+				stream: mockCreate.mockImplementation(async (_options) => {
 					const stream = {
 						[Symbol.asyncIterator]: async function* () {
 							yield {

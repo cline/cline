@@ -37,7 +37,6 @@ describe("McpHub", () => {
 
 	// Store original console methods
 	const originalConsoleError = console.error
-	const mockSettingsPath = "/mock/settings/path/mcp_settings.json"
 
 	beforeEach(() => {
 		jest.clearAllMocks()

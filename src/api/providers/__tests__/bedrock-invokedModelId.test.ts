@@ -1,3 +1,9 @@
+// npx jest src/api/providers/__tests__/bedrock-invokedModelId.test.ts
+
+import { ApiHandlerOptions } from "../../../shared/api"
+
+import { AwsBedrockHandler, StreamEvent } from "../bedrock"
+
 // Mock AWS SDK credential providers and Bedrock client
 jest.mock("@aws-sdk/credential-providers", () => ({
 	fromIni: jest.fn().mockReturnValue({
@@ -61,11 +67,6 @@ jest.mock("@aws-sdk/client-bedrock-runtime", () => {
 		})),
 	}
 })
-
-import { AwsBedrockHandler, StreamEvent } from "../bedrock"
-import { ApiHandlerOptions } from "../../../shared/api"
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
-const { fromIni } = require("@aws-sdk/credential-providers")
 
 describe("AwsBedrockHandler with invokedModelId", () => {
 	let mockSend: jest.Mock
@@ -277,17 +278,6 @@ describe("AwsBedrockHandler with invokedModelId", () => {
 					},
 				]),
 			}
-		})
-
-		// Mock getModel to return expected values
-		const getModelSpy = jest.spyOn(handler, "getModel").mockReturnValue({
-			id: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-			info: {
-				maxTokens: 4096,
-				contextWindow: 128_000,
-				supportsPromptCache: false,
-				supportsImages: true,
-			},
 		})
 
 		// Create a message generator

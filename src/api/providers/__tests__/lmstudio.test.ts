@@ -1,7 +1,7 @@
+import { Anthropic } from "@anthropic-ai/sdk"
+
 import { LmStudioHandler } from "../lmstudio"
 import { ApiHandlerOptions } from "../../../shared/api"
-import OpenAI from "openai"
-import { Anthropic } from "@anthropic-ai/sdk"
 
 // Mock OpenAI client
 const mockCreate = jest.fn()
@@ -120,7 +120,7 @@ describe("LmStudioHandler", () => {
 			const stream = handler.createMessage(systemPrompt, messages)
 
 			await expect(async () => {
-				for await (const chunk of stream) {
+				for await (const _chunk of stream) {
 					// Should not reach here
 				}
 			}).rejects.toThrow("Please check the LM Studio developer logs to debug what went wrong")

@@ -1,12 +1,7 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
-import { parseSourceCodeDefinitionsForFile } from ".."
-import * as fs from "fs/promises"
-import * as path from "path"
-import Parser from "web-tree-sitter"
-import { fileExistsAtPath } from "../../../utils/fs"
-import { loadRequiredLanguageParsers } from "../languageParser"
+
 import { goQuery } from "../queries"
-import { initializeTreeSitter, testParseSourceCodeDefinitions, inspectTreeStructure, debugLog } from "./helpers"
+import { testParseSourceCodeDefinitions } from "./helpers"
 
 // Sample Go content for tests covering all supported structures:
 // - function declarations (with associated comments)
@@ -260,7 +255,6 @@ const goOptions = {
 
 // Mock file system operations
 jest.mock("fs/promises")
-const mockedFs = jest.mocked(fs)
 
 // Mock loadRequiredLanguageParsers
 jest.mock("../languageParser", () => ({
@@ -279,7 +273,6 @@ describe("parseSourceCodeDefinitionsForFile with Go", () => {
 
 	it("should parse Go struct definitions", async () => {
 		const result = await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
-		const resultLines = result?.split("\n") || []
 
 		// Check for struct definitions - we only check for the ones that are actually captured
 		expect(result).toContain("type Point struct")
@@ -289,7 +282,6 @@ describe("parseSourceCodeDefinitionsForFile with Go", () => {
 
 	it("should parse Go method declarations", async () => {
 		const result = await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
-		const resultLines = result?.split("\n") || []
 
 		// Check for method declarations - we only check for the ones that are actually captured
 		expect(result).toContain("func (p *Point) Move")
@@ -298,7 +290,6 @@ describe("parseSourceCodeDefinitionsForFile with Go", () => {
 
 	it("should parse Go function declarations", async () => {
 		const result = await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
-		const resultLines = result?.split("\n") || []
 
 		// Check for function declarations - we only check for the ones that are actually captured
 		expect(result).toContain("func CalculateDistance")
@@ -308,7 +299,6 @@ describe("parseSourceCodeDefinitionsForFile with Go", () => {
 
 	it("should parse Go interface definitions", async () => {
 		const result = await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
-		const resultLines = result?.split("\n") || []
 
 		// Check for interface definitions - we only check for the ones that are actually captured
 		expect(result).toContain("type Shape interface")
@@ -327,8 +317,7 @@ describe("parseSourceCodeDefinitionsForFile with Go", () => {
 	})
 
 	it("should parse Go type aliases", async () => {
-		const result = await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
-		const resultLines = result?.split("\n") || []
+		await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
 
 		// Note: Type aliases might not be captured due to Tree-Sitter parser limitations
 		// This test is kept for completeness
@@ -336,9 +325,7 @@ describe("parseSourceCodeDefinitionsForFile with Go", () => {
 	})
 
 	it("should parse Go embedded structs and interfaces", async () => {
-		const result = await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
-		const resultLines = result?.split("\n") || []
-
+		await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
 		// Note: Embedded structs and interfaces might not be captured due to Tree-Sitter parser limitations
 		// This test is kept for completeness
 		expect(true).toBe(true)
@@ -346,7 +333,6 @@ describe("parseSourceCodeDefinitionsForFile with Go", () => {
 
 	it("should parse Go init functions", async () => {
 		const result = await testParseSourceCodeDefinitions("/test/file.go", sampleGoContent, goOptions)
-		const resultLines = result?.split("\n") || []
 
 		// Check for init functions
 		expect(result).toContain("func init")

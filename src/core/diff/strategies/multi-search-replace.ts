@@ -203,7 +203,7 @@ Only use a single line of '=======' between search and replacement content, beca
 		const SEARCH_PREFIX = "<<<<<<<"
 		const REPLACE_PREFIX = ">>>>>>>"
 
-		const reportMergeConflictError = (found: string, expected: string) => ({
+		const reportMergeConflictError = (found: string, _expected: string) => ({
 			success: false,
 			error:
 				`ERROR: Special marker '${found}' found in your diff content at line ${state.line}:\n` +
@@ -525,7 +525,7 @@ Only use a single line of '=======' between search and replacement content, beca
 			})
 
 			// Apply the replacement while preserving exact indentation
-			const indentedReplaceLines = replaceLines.map((line, i) => {
+			const indentedReplaceLines = replaceLines.map((line) => {
 				// Get the matched line's exact indentation
 				const matchedIndent = originalIndents[0] || ""
 

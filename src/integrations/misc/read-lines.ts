@@ -7,7 +7,6 @@
  * Now you can read a range of lines from a file
  */
 import { createReadStream } from "fs"
-import { createInterface } from "readline"
 
 const outOfRangeError = (filepath: string, n: number) => {
 	return new RangeError(`Line with index ${n} does not exist in '${filepath}'. Note that line indexing is zero-based`)

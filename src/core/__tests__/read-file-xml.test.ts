@@ -8,7 +8,6 @@ import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { isBinaryFile } from "isbinaryfile"
 import { ReadFileToolUse } from "../../shared/tools"
-import { ToolUsage } from "../../schemas"
 
 // Mock dependencies
 jest.mock("../../integrations/misc/line-counter")
@@ -22,7 +21,7 @@ jest.mock("../../integrations/misc/extract-text", () => {
 		...actual,
 		// Expose the spy so tests can access it
 		__addLineNumbersSpy: addLineNumbersSpy,
-		extractTextFromFile: jest.fn().mockImplementation((filePath) => {
+		extractTextFromFile: jest.fn().mockImplementation((_filePath) => {
 			// Use the actual addLineNumbers function
 			const content = mockInputContent
 			return Promise.resolve(actual.addLineNumbers(content))

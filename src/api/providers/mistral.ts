@@ -1,16 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Mistral } from "@mistralai/mistralai"
 import { SingleCompletionHandler } from "../"
-import {
-	ApiHandlerOptions,
-	mistralDefaultModelId,
-	MistralModelId,
-	mistralModels,
-	ModelInfo,
-	openAiNativeDefaultModelId,
-	OpenAiNativeModelId,
-	openAiNativeModels,
-} from "../../shared/api"
+import { ApiHandlerOptions, mistralDefaultModelId, MistralModelId, mistralModels, ModelInfo } from "../../shared/api"
 import { convertToMistralMessages } from "../transform/mistral-format"
 import { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"

@@ -176,7 +176,7 @@ describe("OpenAiHandler", () => {
 			const stream = handler.createMessage("system prompt", testMessages)
 
 			await expect(async () => {
-				for await (const chunk of stream) {
+				for await (const _chunk of stream) {
 					// Should not reach here
 				}
 			}).rejects.toThrow("API Error")
@@ -191,7 +191,7 @@ describe("OpenAiHandler", () => {
 			const stream = handler.createMessage("system prompt", testMessages)
 
 			await expect(async () => {
-				for await (const chunk of stream) {
+				for await (const _chunk of stream) {
 					// Should not reach here
 				}
 			}).rejects.toThrow("Rate limit exceeded")

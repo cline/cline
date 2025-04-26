@@ -1,23 +1,16 @@
-// filepath: e:\Project\Roo-Code\src\api\providers\human-relay.ts
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandlerOptions, ModelInfo } from "../../shared/api"
+import * as vscode from "vscode"
+
+import { ModelInfo } from "../../shared/api"
 import { ApiHandler, SingleCompletionHandler } from "../index"
 import { ApiStream } from "../transform/stream"
-import * as vscode from "vscode"
-import { ExtensionMessage } from "../../shared/ExtensionMessage"
-import { getPanel } from "../../activate/registerCommands" // Import the getPanel function
 
 /**
  * Human Relay API processor
  * This processor does not directly call the API, but interacts with the model through human operations copy and paste.
  */
 export class HumanRelayHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
-
-	constructor(options: ApiHandlerOptions) {
-		this.options = options
-	}
-	countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
+	countTokens(_content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
 		return Promise.resolve(0)
 	}
 
@@ -125,15 +118,10 @@ async function showHumanRelayDialog(promptText: string): Promise<string | undefi
 		vscode.commands.executeCommand(
 			"roo-cline.registerHumanRelayCallback",
 			requestId,
-			(response: string | undefined) => {
-				resolve(response)
-			},
+			(response: string | undefined) => resolve(response),
 		)
 
 		// Open the dialog box directly using the current panel
-		vscode.commands.executeCommand("roo-cline.showHumanRelayDialog", {
-			requestId,
-			promptText,
-		})
+		vscode.commands.executeCommand("roo-cline.showHumanRelayDialog", { requestId, promptText })
 	})
 }

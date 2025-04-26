@@ -4,7 +4,6 @@ import {
 	type GenerateContentResponseUsageMetadata,
 	type GenerateContentParameters,
 	type Content,
-	CreateCachedContentConfig,
 } from "@google/genai"
 import NodeCache from "node-cache"
 

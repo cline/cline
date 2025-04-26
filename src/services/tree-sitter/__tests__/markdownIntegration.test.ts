@@ -1,6 +1,7 @@
-import { describe, expect, it, jest, beforeEach } from "@jest/globals"
 import * as fs from "fs/promises"
-import * as path from "path"
+
+import { describe, expect, it, jest, beforeEach } from "@jest/globals"
+
 import { parseSourceCodeDefinitionsForFile } from "../index"
 
 // Mock fs.readFile

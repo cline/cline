@@ -28,8 +28,6 @@ export async function initializeTreeSitter() {
 	}
 
 	const TreeSitter = await initializeWorkingParser()
-	const wasmPath = path.join(process.cwd(), "dist/tree-sitter-tsx.wasm")
-	const tsxLang = await TreeSitter.Language.load(wasmPath)
 
 	initializedTreeSitter = TreeSitter
 	return TreeSitter
@@ -68,7 +66,6 @@ export async function testParseSourceCodeDefinitions(
 	} = {},
 ): Promise<string | undefined> {
 	// Set default options
-	const language = options.language || "tsx"
 	const wasmFile = options.wasmFile || "tree-sitter-tsx.wasm"
 	const queryString = options.queryString || tsxQuery
 	const extKey = options.extKey || "tsx"
