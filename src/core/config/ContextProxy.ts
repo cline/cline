@@ -53,6 +53,7 @@ export class ContextProxy {
 	public async initialize() {
 		for (const key of GLOBAL_STATE_KEYS) {
 			try {
+				// Revert to original assignment
 				this.stateCache[key] = this.originalContext.globalState.get(key)
 			} catch (error) {
 				logger.error(`Error loading global ${key}: ${error instanceof Error ? error.message : String(error)}`)

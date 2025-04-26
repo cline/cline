@@ -1,5 +1,5 @@
 {
-	"recentTasks": "Jüngste Aufgaben",
+	"recentTasks": "Aufgaben",
 	"viewAll": "Alle anzeigen",
 	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
 	"cache": "Cache: +{{writes}} → {{reads}}",

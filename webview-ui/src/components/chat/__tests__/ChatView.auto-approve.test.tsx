@@ -95,7 +95,6 @@ const defaultProps: ChatViewProps = {
 	isHidden: false,
 	showAnnouncement: false,
 	hideAnnouncement: () => {},
-	showHistoryView: () => {},
 }
 
 const renderChatView = (props: Partial<ChatViewProps> = {}) => {

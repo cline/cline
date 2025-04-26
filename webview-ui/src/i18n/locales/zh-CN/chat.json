@@ -65,9 +65,23 @@
 		"tooltip": "取消当前操作"
 	},
 	"scrollToBottom": "滚动到聊天底部",
+	"about": "通过 AI 辅助生成、重构和调试代码。<br />查看我们的 <DocsLink>文档</DocsLink> 了解更多信息。",
 	"onboarding": "<strong>此工作区中的任务列表为空。</strong> 请在下方输入任务开始。 不确定如何开始？ 在 <DocsLink>文档</DocsLink> 中阅读更多关于 Roo 可以为您做什么的信息。",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "任务拆分",
+			"description": "将任务拆分为更小、更易于管理的部分。"
+		},
+		"stickyModels": {
+			"title": "粘性模式",
+			"description": "每个模式 都会记住 您上次使用的模型"
+		},
+		"tools": {
+			"title": "工具",
+			"description": "允许 AI 通过浏览网络、运行命令等方式解决问题。"
+		}
+	},
 	"selectMode": "选择交互模式",
-	"selectApiConfig": "选择API配置",
 	"enhancePrompt": "增强提示词",
 	"addImages": "添加图片到消息",
 	"sendMessage": "发送消息",
@@ -217,5 +231,6 @@
 			"close": "关闭浏览器"
 		}
 	},
-	"systemPromptWarning": "警告：自定义系统提示词覆盖已激活。这可能严重破坏功能并导致不可预测的行为。"
+	"systemPromptWarning": "警告：自定义系统提示词覆盖已激活。这可能严重破坏功能并导致不可预测的行为。",
+	"selectApiConfig": "选择 API 配置"
 }

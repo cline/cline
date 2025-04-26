@@ -65,9 +65,23 @@
 		"tooltip": "현재 작업 취소"
 	},
 	"scrollToBottom": "채팅 하단으로 스크롤",
+	"about": "AI 지원으로 코드를 생성, 리팩터링 및 디버깅합니다. 자세한 내용은 <DocsLink>문서</DocsLink>를 확인하세요.",
 	"onboarding": "<strong>이 작업 공간의 작업 목록이 비어 있습니다.</strong> 아래에 작업을 입력하여 시작하세요. 어떻게 시작해야 할지 모르겠나요? Roo가 무엇을 할 수 있는지 <DocsLink>문서</DocsLink>에서 자세히 알아보세요.",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "부메랑 작업",
+			"description": "작업을 더 작고 관리하기 쉬운 부분으로 나눕니다."
+		},
+		"stickyModels": {
+			"title": "스티키 모드",
+			"description": "각 모드는 마지막으로 사용한 모델을 기억합니다."
+		},
+		"tools": {
+			"title": "도구",
+			"description": "AI가 웹 탐색, 명령 실행 등으로 문제를 해결하도록 허용합니다."
+		}
+	},
 	"selectMode": "상호작용 모드 선택",
-	"selectApiConfig": "API 구성 선택",
 	"enhancePrompt": "추가 컨텍스트로 프롬프트 향상",
 	"addImages": "메시지에 이미지 추가",
 	"sendMessage": "메시지 보내기",
@@ -217,5 +231,6 @@
 			"close": "브라우저 닫기"
 		}
 	},
-	"systemPromptWarning": "경고: 사용자 정의 시스템 프롬프트 재정의가 활성화되었습니다. 이로 인해 기능이 심각하게 손상되고 예측할 수 없는 동작이 발생할 수 있습니다."
+	"systemPromptWarning": "경고: 사용자 정의 시스템 프롬프트 재정의가 활성화되었습니다. 이로 인해 기능이 심각하게 손상되고 예측할 수 없는 동작이 발생할 수 있습니다.",
+	"selectApiConfig": "API 구성 선택"
 }

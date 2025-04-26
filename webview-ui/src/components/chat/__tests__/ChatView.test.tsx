@@ -153,7 +153,6 @@ const defaultProps: ChatViewProps = {
 	isHidden: false,
 	showAnnouncement: false,
 	hideAnnouncement: () => {},
-	showHistoryView: () => {},
 }
 
 const queryClient = new QueryClient()

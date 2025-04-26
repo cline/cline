@@ -65,9 +65,23 @@
 		"tooltip": "Annulla l'operazione corrente"
 	},
 	"scrollToBottom": "Scorri fino alla fine della chat",
+	"about": "Genera, refactor e debug del codice con l'assistenza dell'IA.<br />Consulta la nostra <DocsLink>documentazione</DocsLink> per saperne di più.",
 	"onboarding": "Grazie alle più recenti innovazioni nelle capacità di codifica agentica, posso gestire complesse attività di sviluppo software passo dopo passo. Con strumenti che mi permettono di creare e modificare file, esplorare progetti complessi, utilizzare il browser ed eseguire comandi da terminale (dopo la tua autorizzazione), posso aiutarti in modi che vanno oltre il completamento del codice o il supporto tecnico. Posso persino usare MCP per creare nuovi strumenti ed estendere le mie capacità.",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "Attività Boomerang",
+			"description": "Dividi le attività in parti più piccole e gestibili."
+		},
+		"stickyModels": {
+			"title": "Modalità persistenti",
+			"description": "Ogni modalità ricorda il tuo ultimo modello utilizzato"
+		},
+		"tools": {
+			"title": "Strumenti",
+			"description": "Consenti all'IA di risolvere i problemi navigando sul Web, eseguendo comandi e altro ancora."
+		}
+	},
 	"selectMode": "Seleziona modalità di interazione",
-	"selectApiConfig": "Seleziona configurazione API",
 	"enhancePrompt": "Migliora prompt con contesto aggiuntivo",
 	"addImages": "Aggiungi immagini al messaggio",
 	"sendMessage": "Invia messaggio",
@@ -217,5 +231,6 @@
 			"close": "Chiudi browser"
 		}
 	},
-	"systemPromptWarning": "ATTENZIONE: Sovrascrittura personalizzata delle istruzioni di sistema attiva. Questo può compromettere gravemente le funzionalità e causare comportamenti imprevedibili."
+	"systemPromptWarning": "ATTENZIONE: Sovrascrittura personalizzata delle istruzioni di sistema attiva. Questo può compromettere gravemente le funzionalità e causare comportamenti imprevedibili.",
+	"selectApiConfig": "Seleziona la configurazione API"
 }

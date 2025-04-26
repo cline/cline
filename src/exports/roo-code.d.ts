@@ -287,6 +287,7 @@ type GlobalSettings = {
 		  }
 		| undefined
 	enhancementApiConfigId?: string | undefined
+	historyPreviewCollapsed?: boolean | undefined
 }
 
 type ClineMessage = {

@@ -1,5 +1,5 @@
 {
-	"recentTasks": "最近的工作",
+	"recentTasks": "工作",
 	"viewAll": "檢視全部",
 	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
 	"cache": "快取：+{{writes}} → {{reads}}",

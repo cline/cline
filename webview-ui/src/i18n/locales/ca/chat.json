@@ -65,9 +65,23 @@
 		"tooltip": "Cancel·la l'operació actual"
 	},
 	"scrollToBottom": "Desplaça't al final del xat",
+	"about": "Genera, refactoritza i depura codi amb l'ajuda de la IA.<br />Consulta la nostra <DocsLink>documentació</DocsLink> per obtenir més informació.",
 	"onboarding": "<strong> La vostra llista de tasques en aquest espai de treball està buida. </strong> Comença escrivint una tasca a continuació. \nNo esteu segur per on començar? \nMés informació sobre què pot fer Roo als documents.",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "Tasques Boomerang",
+			"description": "Divideix les tasques en parts més petites i manejables."
+		},
+		"stickyModels": {
+			"title": "Modes persistents",
+			"description": "Cada mode recorda el vostre darrer model utilitzat"
+		},
+		"tools": {
+			"title": "Eines",
+			"description": "Permet que la IA resolgui problemes navegant per la web, executant ordres i molt més."
+		}
+	},
 	"selectMode": "Selecciona el mode d'interacció",
-	"selectApiConfig": "Selecciona la configuració de l'API",
 	"enhancePrompt": "Millora la sol·licitud amb context addicional",
 	"addImages": "Afegeix imatges al missatge",
 	"sendMessage": "Envia el missatge",
@@ -217,5 +231,6 @@
 			"close": "Tancar navegador"
 		}
 	},
-	"systemPromptWarning": "ADVERTÈNCIA: S'ha activat una substitució personalitzada d'instruccions del sistema. Això pot trencar greument la funcionalitat i causar un comportament impredictible."
+	"systemPromptWarning": "ADVERTÈNCIA: S'ha activat una substitució personalitzada d'instruccions del sistema. Això pot trencar greument la funcionalitat i causar un comportament impredictible.",
+	"selectApiConfig": "Seleccioneu la configuració de l'API"
 }

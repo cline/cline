@@ -65,6 +65,21 @@
 		"tooltip": "Отменить текущую операцию"
 	},
 	"scrollToBottom": "Прокрутить чат вниз",
+	"about": "Создавайте, рефакторите и отлаживайте код с помощью ИИ.<br />Подробнее см. в нашей <DocsLink>документации</DocsLink>.",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "Boomerang Tasks",
+			"description": "Orchestrate complex workflows with subtasks"
+		},
+		"stickyModels": {
+			"title": "Липкие режимы",
+			"description": "Каждый режим запоминает вашу последнюю использованную модель"
+		},
+		"tools": {
+			"title": "Инструменты",
+			"description": "Разрешите ИИ решать проблемы, просматривая веб-страницы, выполняя команды и т. д."
+		}
+	},
 	"onboarding": "<strong>Ваш список задач в этом рабочем пространстве пуст.</strong> Начните с ввода задачи ниже. Не знаете, с чего начать? Подробнее о возможностях Roo читайте в <DocsLink>документации</DocsLink>.",
 	"selectMode": "Выберите режим взаимодействия",
 	"selectApiConfig": "Выберите конфигурацию API",

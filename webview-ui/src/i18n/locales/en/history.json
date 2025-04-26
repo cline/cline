@@ -1,5 +1,5 @@
 {
-	"recentTasks": "Recent Tasks",
+	"recentTasks": "Tasks",
 	"viewAll": "View All Tasks",
 	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
 	"cache": "Cache: +{{writes}} → {{reads}}",

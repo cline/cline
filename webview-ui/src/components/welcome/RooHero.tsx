@@ -1,16 +1,13 @@
 import { useState } from "react"
-import { useAppTranslation } from "@src/i18n/TranslationContext"
 
-const WelcomeView = () => {
-	const { t } = useAppTranslation()
-
+const RooHero = () => {
 	const [imagesBaseUri] = useState(() => {
 		const w = window as any
 		return w.IMAGES_BASE_URI || ""
 	})
 
 	return (
-		<div style={{ padding: "10px 20px", flexShrink: 0 }} className="flex flex-col items-center mt-8 gap-2">
+		<div className="flex flex-col items-center justify-center pb-4">
 			<div
 				style={{
 					backgroundColor: "var(--vscode-foreground)",
@@ -24,9 +21,8 @@ const WelcomeView = () => {
 				className="mx-auto">
 				<img src={imagesBaseUri + "/roo-logo.svg"} alt="Roo logo" className="h-8 opacity-0" />
 			</div>
-			<h2 className="">{t("chat:greeting")}</h2>
 		</div>
 	)
 }
 
-export default WelcomeView
+export default RooHero

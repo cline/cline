@@ -65,9 +65,23 @@
 		"tooltip": "Cancelar a operação atual"
 	},
 	"scrollToBottom": "Rolar para o final do chat",
+	"about": "Gere, refatore e depure código com assistência de IA.<br />Confira nossa <DocsLink>documentação</DocsLink> para saber mais.",
 	"onboarding": "<strong>Sua lista de tarefas neste espaço de trabalho está vazia.</strong> Comece digitando uma tarefa abaixo. Não sabe como começar? Leia mais sobre o que o Roo pode fazer por você nos <DocsLink>documentos</DocsLink>.",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "Tarefas Bumerangue",
+			"description": "Divida as tarefas em partes menores e gerenciáveis."
+		},
+		"stickyModels": {
+			"title": "Modos Fixos",
+			"description": "Cada modo lembra o seu último modelo usado"
+		},
+		"tools": {
+			"title": "Ferramentas",
+			"description": "Permita que a IA resolva problemas navegando na web, executando comandos e muito mais."
+		}
+	},
 	"selectMode": "Selecionar modo de interação",
-	"selectApiConfig": "Selecionar configuração de API",
 	"enhancePrompt": "Aprimorar prompt com contexto adicional",
 	"addImages": "Adicionar imagens à mensagem",
 	"sendMessage": "Enviar mensagem",
@@ -217,5 +231,6 @@
 			"close": "Fechar navegador"
 		}
 	},
-	"systemPromptWarning": "AVISO: Substituição personalizada de instrução do sistema ativa. Isso pode comprometer gravemente a funcionalidade e causar comportamento imprevisível."
+	"systemPromptWarning": "AVISO: Substituição personalizada de instrução do sistema ativa. Isso pode comprometer gravemente a funcionalidade e causar comportamento imprevisível.",
+	"selectApiConfig": "Selecionar configuração da API"
 }

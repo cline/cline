@@ -65,9 +65,23 @@
 		"tooltip": "取消目前操作"
 	},
 	"scrollToBottom": "捲動至對話框底部",
+	"about": "透過 AI 輔助產生、重構和偵錯程式碼。<br />查看我們的 <DocsLink>說明文件</DocsLink> 以瞭解更多資訊。",
 	"onboarding": "<strong>您在此工作區中的工作清單是空的。</strong> 請在下方輸入工作以開始。 不確定如何開始？ 在 <DocsLink>說明文件</DocsLink> 中閱讀更多關於 Roo 能為您做什麼的資訊。",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "任務拆分",
+			"description": "將任務拆分為更小、更易於管理的部分。"
+		},
+		"stickyModels": {
+			"title": "黏性模式",
+			"description": "每個模式都會記住您上次使用的模型"
+		},
+		"tools": {
+			"title": "工具",
+			"description": "允許 AI 透過瀏覽網路、執行命令等方式解決問題。"
+		}
+	},
 	"selectMode": "選擇互動模式",
-	"selectApiConfig": "選擇 API 設定",
 	"enhancePrompt": "使用額外內容增強提示",
 	"addImages": "新增圖片到訊息中",
 	"sendMessage": "傳送訊息",
@@ -217,5 +231,6 @@
 			"close": "關閉瀏覽器"
 		}
 	},
-	"systemPromptWarning": "警告：自訂系統提示詞覆蓋已啟用。這可能嚴重破壞功能並導致不可預測的行為。"
+	"systemPromptWarning": "警告：自訂系統提示詞覆蓋已啟用。這可能嚴重破壞功能並導致不可預測的行為。",
+	"selectApiConfig": "選取 API 設定"
 }

@@ -65,9 +65,23 @@
 		"tooltip": "Cancelar la operación actual"
 	},
 	"scrollToBottom": "Desplazarse al final del chat",
+	"about": "Genera, refactoriza y depura código con asistencia de IA.<br />Consulta nuestra <DocsLink>documentación</DocsLink> para obtener más información.",
 	"onboarding": "<strong>Tu lista de tareas en este espacio de trabajo está vacía.</strong> Comienza escribiendo una tarea abajo. ¿No estás seguro cómo empezar? Lee más sobre lo que Roo puede hacer por ti en <DocsLink>la documentación</DocsLink>.",
+	"rooTips": {
+		"boomerangTasks": {
+			"title": "Tareas Boomerang",
+			"description": "Divide las tareas en partes más pequeñas y manejables."
+		},
+		"stickyModels": {
+			"title": "Modos persistentes",
+			"description": "Cada modo recuerda tu último modelo utilizado"
+		},
+		"tools": {
+			"title": "Herramientas",
+			"description": "Permite que la IA resuelva problemas navegando por la web, ejecutando comandos y mucho más."
+		}
+	},
 	"selectMode": "Seleccionar modo de interacción",
-	"selectApiConfig": "Seleccionar configuración de API",
 	"enhancePrompt": "Mejorar el mensaje con contexto adicional",
 	"addImages": "Agregar imágenes al mensaje",
 	"sendMessage": "Enviar mensaje",
@@ -217,5 +231,6 @@
 			"close": "Cerrar navegador"
 		}
 	},
-	"systemPromptWarning": "ADVERTENCIA: Anulación de instrucciones del sistema personalizada activa. Esto puede romper gravemente la funcionalidad y causar un comportamiento impredecible."
+	"systemPromptWarning": "ADVERTENCIA: Anulación de instrucciones del sistema personalizada activa. Esto puede romper gravemente la funcionalidad y causar un comportamiento impredecible.",
+	"selectApiConfig": "Seleccionar configuración de API"
 }
