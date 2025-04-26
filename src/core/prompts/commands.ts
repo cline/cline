@@ -116,6 +116,7 @@ Usage:
 
 Example (While this is a good reference, if other headers / sections make more sense, use those instead):
 <new_rule>
+<path>.clinerules/testing-preferences.md</path>
 <content>
 ## Brief overview
   [Brief description of the rules in this file, including if this set of guidelines is project-specific or global]
