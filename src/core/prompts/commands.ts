@@ -107,7 +107,7 @@ Parameters:
   2. These guidelines can be specific to the task(s) or project worked on thus far, or cover more high-level concepts. Guidelines can include coding conventions, general design patterns, preferred tech stack including favorite libraries and language, communication style with Cline (verbose vs concise), prompting strategies, time spent on architecting prior to development, and other preferences.
   3. Guidelines can come not only from conversation with the user, but also from general patterns you've seen while engaging with the user on tasks, including: coding comment verbosity and formatting, error handling conventions, naming conventions, testing strategies, code structure, and other implicit preferences. Only reference your existing knowledge to deduce these preferences.
   4. When referencing the guidelines you create in this file, do not mention phrases like "this file contains ...", but rather use wording like "rules for ...".
-  5. When creating guidelines, you should not invent preferences or make assumptions based on what you think a typical user might want. These should be specific to the conversation you had with the user.
+  5. When creating guidelines, you should not invent preferences or make assumptions based on what you think a typical user might want. These should be specific to the conversation you had with the user. Your guidelines / rules should not be overly verbose.
 
 Usage:
 <new_rule>
