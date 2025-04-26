@@ -1,4 +1,6 @@
+import { GlobalFileNames } from "@core/storage/disk"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
 	CallToolResultSchema,
@@ -7,16 +9,9 @@ import {
 	ListToolsResultSchema,
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
-import chokidar, { FSWatcher } from "chokidar"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import deepEqual from "fast-deep-equal"
-import * as fs from "fs/promises"
-import * as path from "path"
-import * as vscode from "vscode"
-import { z } from "zod"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
-	McpMode,
 	McpResource,
 	McpResourceResponse,
 	McpResourceTemplate,
@@ -28,9 +23,14 @@ import {
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual } from "@utils/path"
 import { secondsToMs } from "@utils/time"
-import { GlobalFileNames } from "@core/storage/disk"
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import chokidar, { FSWatcher } from "chokidar"
+import deepEqual from "fast-deep-equal"
+import * as fs from "fs/promises"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import * as os from "os"
+import * as path from "path"
+import * as vscode from "vscode"
+import { z } from "zod"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000
@@ -204,9 +204,10 @@ export class McpHub {
 			if (config.transportType === "sse") {
 				transport = new SSEClientTransport(new URL(config.url), {})
 			} else {
+				const { command, args } = transformNpxCommand(config.command, config.args)
 				transport = new StdioClientTransport({
-					command: config.command,
-					args: config.args,
+					command,
+					args,
 					env: {
 						...config.env,
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
@@ -827,4 +828,22 @@ export class McpHub {
 		}
 		this.disposables.forEach((d) => d.dispose())
 	}
+}
+
+interface TransformedCommand {
+	command: string
+	args: string[]
+}
+
+function transformNpxCommand(command: string, args: string[] = []): TransformedCommand {
+	const isWindows = os.platform() === "win32"
+
+	if (isWindows && command === "npx") {
+		return {
+			command: "cmd",
+			args: ["/c", "npx", ...args],
+		}
+	}
+
+	return { command, args }
 }
