@@ -144,6 +144,7 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 
 // Import necessary AST helper functions
 import { commentRangeAtLine, enclosingFunctionRange, byteIndexToPoint } from "@services/tree-sitter"
+import { astSalvage as newAstSalvage } from "@services/tree-sitter/astSalvage" // Import the new function
 
 /**
  * This function reconstructs the file content by applying a streamed diff (in a
@@ -600,28 +601,23 @@ class NewFileContentConstructor {
 					if (blockMatch) {
 						;[this.searchMatchIndex, this.searchEndIndex] = blockMatch
 					} else {
-						// If blockMatch failed
-						// NEW --- AST anchor salvage ---
-						// Note: We need the absolute path for AST parsing. Assuming it's available
-						// Use the stored absolute path
-						const maybe = await astSalvage(
-							this.absPath, // Use the stored path
+						// existing blockMatch failed
+						const astRange = await newAstSalvage(
+							this.absPath,
 							this.currentSearchContent,
 							this.originalContent,
 							this.lastProcessedIndex,
 						)
-						if (maybe) {
-							// If AST salvage succeeded
-							;[this.searchMatchIndex, this.searchEndIndex] = maybe
+						if (astRange) {
+							;[this.searchMatchIndex, this.searchEndIndex] = astRange
+							// Append content before the AST match - crucial!
+							this.result += this.originalContent.slice(this.lastProcessedIndex, this.searchMatchIndex)
 						} else {
-							// If AST salvage also failed
-							// Original error throw if all fallbacks fail
 							throw new Error(
 								`The SEARCH block:\n${this.currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
 							)
 						}
-						// --- END AST anchor salvage ---
-					} // Closing brace for the 'else' where blockMatch failed
+					}
 				}
 			}
 		}
@@ -764,121 +760,4 @@ export async function constructNewFileContentV2(
 
 	let result = newFileContentConstructor.getResult()
 	return result
-}
-
-// --- AST Salvage Helper Function ---
-
-/**
- * Attempts to find a match for the search block using AST-based anchors
- * as a final fallback when text-based matching fails.
- *
- * @param absPath Absolute path to the file (required for AST parsing).
- * @param search The content of the SEARCH block.
- * @param original The original content of the file.
- * @param fromIndex The byte index from which to start considering matches.
- * @returns A tuple [startIndex, endIndex] if a match is found, otherwise undefined.
- */
-async function astSalvage(
-	absPath: string,
-	search: string,
-	original: string,
-	fromIndex: number,
-): Promise<[number, number] | undefined> {
-	console.log("AST Salvage: Attempting salvage for search block starting near index", fromIndex)
-	console.log("AST Salvage: absPath:", absPath)
-	console.log("AST Salvage: search block:\n", search) // Log search block if needed (can be large)
-	// console.log("AST Salvage: original content length:", original.length) // Log original content length if needed
-
-	// Check if an absolute path was provided (required for reading the file for AST)
-	if (absPath === "PLACEHOLDER_ABS_PATH" || !absPath) {
-		console.warn("AST Salvage: Cannot proceed. Requires an absolute file path, but none was provided or it's a placeholder.")
-		return undefined // Cannot proceed without the file path
-	}
-	console.log("AST Salvage: Absolute path is valid.")
-
-	try {
-		// Fallback 1: Comment Anchor
-		console.log("AST Salvage: Trying Comment Anchor fallback...")
-		const isCommentLike = /^\s*(\/\/|#|\/\*|--|%)/.test(search)
-		console.log("AST Salvage: Search block starts like a comment?", isCommentLike)
-		if (isCommentLike) {
-			// Match common comment starts
-			const searchTrimmed = search.trim()
-			console.log("AST Salvage: Trimmed search line for comment match:", searchTrimmed)
-			// Find the first line in the original content (after fromIndex) that matches the trimmed search line
-			const originalSlice = original.slice(fromIndex)
-			const originalLines = originalSlice.split("\n")
-			const lineIndexInSlice = originalLines.findIndex((l) => l.trim() === searchTrimmed)
-			console.log("AST Salvage: Found matching trimmed line in original content slice at index:", lineIndexInSlice)
-
-			if (lineIndexInSlice !== -1) {
-				// Calculate the actual line number in the original file
-				const linesBeforeFromIndex = original.slice(0, fromIndex).split("\n").length - 1
-				const actualLineNum = linesBeforeFromIndex + lineIndexInSlice
-				console.log("AST Salvage: Calculated actual line number in original file:", actualLineNum)
-
-				// Try to get the byte range of the comment node at that line
-				console.log("AST Salvage: Attempting to get comment range at line", actualLineNum)
-				const rng = await commentRangeAtLine(absPath, actualLineNum)
-				console.log("AST Salvage: Result from commentRangeAtLine:", rng)
-				if (rng && rng[0] >= fromIndex) {
-					console.log(
-						`AST Salvage: SUCCESS! Found match using Comment Anchor at line ${actualLineNum}. Range: [${rng[0]}, ${rng[1]}]`,
-					)
-					return rng // Return the byte range of the comment
-				} else {
-					console.log("AST Salvage: Comment range not found or starts before fromIndex.")
-				}
-			} else {
-				console.log("AST Salvage: No matching trimmed line found for comment anchor.")
-			}
-		} else {
-			console.log("AST Salvage: Search block does not start like a comment.")
-		}
-
-		// Fallback 2: Identifier Anchor (Function/Method Name)
-		console.log("AST Salvage: Trying Identifier Anchor fallback...")
-		// Try to find a likely identifier (e.g., function name) in the search block
-		// Simple regex: looks for typical identifier patterns (letters, numbers, _, starting with letter or _)
-		const idMatch = search.match(/[a-zA-Z_][a-zA-Z0-9_]{2,}/)
-		console.log("AST Salvage: Identifier regex match result:", idMatch)
-		if (idMatch && idMatch[0]) {
-			const identifier = idMatch[0]
-			console.log("AST Salvage: Extracted identifier:", identifier)
-			// Find the first occurrence of this identifier in the original content after fromIndex
-			console.log("AST Salvage: Searching for identifier in original content starting from index:", fromIndex)
-			const identifierIndex = original.indexOf(identifier, fromIndex)
-			console.log("AST Salvage: Found identifier at index:", identifierIndex)
-
-			if (identifierIndex !== -1) {
-				// Convert the byte index to a {row, column} point
-				console.log("AST Salvage: Converting byte index to point...")
-				const point = byteIndexToPoint(original, identifierIndex)
-				console.log("AST Salvage: Calculated point:", point)
-				// Try to get the byte range of the enclosing function at that point
-				console.log("AST Salvage: Attempting to get enclosing function range at point:", point)
-				const rng = await enclosingFunctionRange(absPath, point)
-				console.log("AST Salvage: Result from enclosingFunctionRange:", rng)
-				if (rng && rng[0] >= fromIndex) {
-					console.log(
-						`AST Salvage: SUCCESS! Found match using Identifier Anchor '${identifier}'. Range: [${rng[0]}, ${rng[1]}]`,
-					)
-					return rng // Return the byte range of the function
-				} else {
-					console.log("AST Salvage: Enclosing function range not found or starts before fromIndex.")
-				}
-			} else {
-				console.log("AST Salvage: Identifier not found in original content after fromIndex.")
-			}
-		} else {
-			console.log("AST Salvage: No suitable identifier found in search block.")
-		}
-	} catch (error) {
-		// Log errors during AST parsing/matching but don't crash the diff process
-		console.error("AST Salvage: Error during fallback attempt:", error)
-	}
-
-	// If neither AST fallback succeeded
-	console.log("AST Salvage: FAILED. Both Comment and Identifier anchor fallbacks did not yield a valid match.")
-	return undefined
 }

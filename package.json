@@ -400,6 +400,7 @@
 		"serialize-error": "^11.0.3",
 		"simple-git": "^3.27.0",
 		"strip-ansi": "^7.1.0",
+		"tree-sitter": "^0.22.4",
 		"tree-sitter-wasms": "^0.1.11",
 		"turndown": "^7.2.0",
 		"web-tree-sitter": "^0.22.6",
