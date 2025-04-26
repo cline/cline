@@ -1,5 +1,17 @@
 # Roo Code Changelog
 
+## [3.14.3] - 2025-04-25
+
+- Add Boomerang Orchestrator as a built-in mode
+- Improve home screen UI
+- Make token count estimation more efficient to reduce gray screens
+- Revert change to automatically close files after edit until we figure out how to make it work well with diagnostics
+- Clean up settings data model
+- Omit reasoning params for non-reasoning models
+- Clearer documentation for adding settings (thanks @shariqriazz!)
+- Fix word wrapping in Roo message title (thanks @zhangtony239!)
+- Update default model id for Unbound from claude 3.5 to 3.7 (thanks @pugazhendhi-m!)
+
 ## [3.14.2] - 2025-04-24
 
 - Enable prompt caching for Gemini (with some improvements)
