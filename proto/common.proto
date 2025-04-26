@@ -38,3 +38,12 @@ message BytesRequest {
 message Bytes {
   bytes value = 1;
 }
+
+message BooleanRequest {
+  Metadata metadata = 1;
+  bool value = 2;
+}
+
+message Boolean {
+  bool value = 1;
+}

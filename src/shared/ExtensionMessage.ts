@@ -44,7 +44,6 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
-		| "detectedChromePath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
 		| "relativePathsResponse" // Handles single and multiple path responses
@@ -186,6 +185,7 @@ export type ClineAsk =
 	| "browser_action_launch"
 	| "use_mcp_server"
 	| "new_task"
+	| "condense"
 
 export type ClineSay =
 	| "task"

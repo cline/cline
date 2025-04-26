@@ -203,6 +203,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setPrimaryButtonText("Start New Task with Context")
 							setSecondaryButtonText(undefined)
 							break
+						case "condense":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("condense")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Condense Conversation")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -312,6 +319,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								images,
 							})
 							break
+						case "condense":
+							vscode.postMessage({
+								type: "askResponse",
+								askResponse: "messageResponse",
+								text,
+								images,
+							})
+							break
 						// there is no other case that a textfield should be enabled
 					}
 				}
@@ -375,6 +390,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					await TaskServiceClient.newTask({
 						text: lastMessage?.text,
 						images: [],
+					})
+					break
+				case "condense":
+					vscode.postMessage({
+						type: "condense",
+						text: lastMessage?.text,
 					})
 					break
 			}
