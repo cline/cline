@@ -242,6 +242,7 @@ export const ChatRowContent = ({
 		alignItems: "center",
 		gap: "10px",
 		marginBottom: "10px",
+		wordBreak: "break-word",
 	}
 
 	const pStyle: React.CSSProperties = {
