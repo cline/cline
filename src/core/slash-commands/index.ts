@@ -4,7 +4,7 @@ import { newTaskToolResponse, condenseToolResponse, newRuleToolResponse } from "
  * Processes text for slash commands and transforms them with appropriate instructions
  * This is called after parseMentions() to process any slash commands in the user's message
  */
-export function parseSlashCommands(text: string): string {
+export function parseSlashCommands(text: string): { processedText: string; needsClinerulesFileCheck: boolean } {
 	const SUPPORTED_COMMANDS = ["newtask", "smol", "compact", "newrule"]
 
 	const commandReplacements: Record<string, string> = {
@@ -48,13 +48,11 @@ export function parseSlashCommands(text: string): string {
 				const textWithoutSlashCommand = text.substring(0, slashCommandStartIndex) + text.substring(slashCommandEndIndex)
 				const processedText = commandReplacements[commandName] + textWithoutSlashCommand
 
-				// TODO additional processing here
-
-				return processedText
+				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" ? true : false }
 			}
 		}
 	}
 
 	// if no supported commands are found, return the original text
-	return text
+	return { processedText: text, needsClinerulesFileCheck: false }
 }
