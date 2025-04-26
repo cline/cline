@@ -9,6 +9,7 @@ import { ProviderName } from "../../../schemas"
 import { importSettings, exportSettings } from "../importExport"
 import { ProviderSettingsManager } from "../ProviderSettingsManager"
 import { ContextProxy } from "../ContextProxy"
+import { CustomModesManager } from "../CustomModesManager"
 
 // Mock VSCode modules
 jest.mock("vscode", () => ({
@@ -37,6 +38,7 @@ describe("importExport", () => {
 	let mockProviderSettingsManager: jest.Mocked<ProviderSettingsManager>
 	let mockContextProxy: jest.Mocked<ContextProxy>
 	let mockExtensionContext: jest.Mocked<vscode.ExtensionContext>
+	let mockCustomModesManager: jest.Mocked<CustomModesManager>
 
 	beforeEach(() => {
 		// Reset all mocks
@@ -56,6 +58,11 @@ describe("importExport", () => {
 			export: jest.fn().mockImplementation(() => Promise.resolve({})),
 		} as unknown as jest.Mocked<ContextProxy>
 
+		// Setup customModesManager mock
+		mockCustomModesManager = {
+			updateCustomMode: jest.fn(),
+		} as unknown as jest.Mocked<CustomModesManager>
+
 		const map = new Map<string, string>()
 
 		mockExtensionContext = {
@@ -74,6 +81,7 @@ describe("importExport", () => {
 			const result = await importSettings({
 				providerSettingsManager: mockProviderSettingsManager,
 				contextProxy: mockContextProxy,
+				customModesManager: mockCustomModesManager,
 			})
 
 			expect(result).toEqual({ success: false })
@@ -138,6 +146,7 @@ describe("importExport", () => {
 			const result = await importSettings({
 				providerSettingsManager: mockProviderSettingsManager,
 				contextProxy: mockContextProxy,
+				customModesManager: mockCustomModesManager,
 			})
 
 			expect(result.success).toBe(true)
@@ -181,6 +190,7 @@ describe("importExport", () => {
 			const result = await importSettings({
 				providerSettingsManager: mockProviderSettingsManager,
 				contextProxy: mockContextProxy,
+				customModesManager: mockCustomModesManager,
 			})
 
 			expect(result).toEqual({ success: false })
@@ -202,6 +212,7 @@ describe("importExport", () => {
 			const result = await importSettings({
 				providerSettingsManager: mockProviderSettingsManager,
 				contextProxy: mockContextProxy,
+				customModesManager: mockCustomModesManager,
 			})
 
 			expect(result).toEqual({ success: false })
@@ -220,6 +231,7 @@ describe("importExport", () => {
 			const result = await importSettings({
 				providerSettingsManager: mockProviderSettingsManager,
 				contextProxy: mockContextProxy,
+				customModesManager: mockCustomModesManager,
 			})
 
 			expect(result).toEqual({ success: false })
@@ -252,12 +264,57 @@ describe("importExport", () => {
 			const result = await importSettings({
 				providerSettingsManager,
 				contextProxy: mockContextProxy,
+				customModesManager: mockCustomModesManager,
 			})
 
 			expect(result.success).toBe(true)
 			expect(result.providerProfiles?.apiConfigs["openai"]).toBeDefined()
 			expect(result.providerProfiles?.apiConfigs["default"]).toBeDefined()
 			expect(result.providerProfiles?.apiConfigs["default"].apiProvider).toBe("anthropic")
+		})
+	})
+
+	it("should call updateCustomMode for each custom mode in config", async () => {
+		;(vscode.window.showOpenDialog as jest.Mock).mockResolvedValue([{ fsPath: "/mock/path/settings.json" }])
+		const customModes = [
+			{
+				slug: "mode1",
+				name: "Mode One",
+				roleDefinition: "Custom role one",
+				groups: [],
+			},
+			{
+				slug: "mode2",
+				name: "Mode Two",
+				roleDefinition: "Custom role two",
+				groups: [],
+			},
+		]
+		const mockFileContent = JSON.stringify({
+			providerProfiles: {
+				currentApiConfigName: "test",
+				apiConfigs: {},
+			},
+			globalSettings: {
+				mode: "code",
+				customModes,
+			},
+		})
+		;(fs.readFile as jest.Mock).mockResolvedValue(mockFileContent)
+		mockProviderSettingsManager.export.mockResolvedValue({
+			currentApiConfigName: "test",
+			apiConfigs: {},
+		})
+		mockProviderSettingsManager.listConfig.mockResolvedValue([])
+		const result = await importSettings({
+			providerSettingsManager: mockProviderSettingsManager,
+			contextProxy: mockContextProxy,
+			customModesManager: mockCustomModesManager,
+		})
+		expect(result.success).toBe(true)
+		expect(mockCustomModesManager.updateCustomMode).toHaveBeenCalledTimes(customModes.length)
+		customModes.forEach((mode) => {
+			expect(mockCustomModesManager.updateCustomMode).toHaveBeenCalledWith(mode.slug, mode)
 		})
 	})
 

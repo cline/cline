@@ -262,6 +262,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			const { success } = await importSettings({
 				providerSettingsManager: provider.providerSettingsManager,
 				contextProxy: provider.contextProxy,
+				customModesManager: provider.customModesManager,
 			})
 
 			if (success) {

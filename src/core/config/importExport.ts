@@ -8,13 +8,20 @@ import { z } from "zod"
 import { globalSettingsSchema } from "../../schemas"
 import { ProviderSettingsManager, providerProfilesSchema } from "./ProviderSettingsManager"
 import { ContextProxy } from "./ContextProxy"
+import { CustomModesManager } from "./CustomModesManager"
 
-type ImportExportOptions = {
+type ImportOptions = {
+	providerSettingsManager: ProviderSettingsManager
+	contextProxy: ContextProxy
+	customModesManager: CustomModesManager
+}
+
+type ExportOptions = {
 	providerSettingsManager: ProviderSettingsManager
 	contextProxy: ContextProxy
 }
 
-export const importSettings = async ({ providerSettingsManager, contextProxy }: ImportExportOptions) => {
+export const importSettings = async ({ providerSettingsManager, contextProxy, customModesManager }: ImportOptions) => {
 	const uris = await vscode.window.showOpenDialog({
 		filters: { JSON: ["json"] },
 		canSelectMany: false,
@@ -31,7 +38,6 @@ export const importSettings = async ({ providerSettingsManager, contextProxy }: 
 
 	try {
 		const previousProviderProfiles = await providerSettingsManager.export()
-
 		const { providerProfiles: newProviderProfiles, globalSettings } = schema.parse(
 			JSON.parse(await fs.readFile(uris[0].fsPath, "utf-8")),
 		)
@@ -48,6 +54,10 @@ export const importSettings = async ({ providerSettingsManager, contextProxy }: 
 			},
 		}
 
+		await Promise.all(
+			(globalSettings.customModes ?? []).map((mode) => customModesManager.updateCustomMode(mode.slug, mode)),
+		)
+
 		await providerSettingsManager.import(newProviderProfiles)
 
 		await contextProxy.setValues(globalSettings)
@@ -60,7 +70,7 @@ export const importSettings = async ({ providerSettingsManager, contextProxy }: 
 	}
 }
 
-export const exportSettings = async ({ providerSettingsManager, contextProxy }: ImportExportOptions) => {
+export const exportSettings = async ({ providerSettingsManager, contextProxy }: ExportOptions) => {
 	const uri = await vscode.window.showSaveDialog({
 		filters: { JSON: ["json"] },
 		defaultUri: vscode.Uri.file(path.join(os.homedir(), "Documents", "roo-code-settings.json")),
