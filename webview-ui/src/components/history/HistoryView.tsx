@@ -60,6 +60,14 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 	}, [])
 
+	const handleBatchHistorySelect = useCallback((selectAll: boolean) => {
+		if (selectAll) {
+			setSelectedItems(taskHistorySearchResults.map((item) => item.id))
+		} else {
+			setSelectedItems([])
+		}
+	}, [])
+
 	const handleDeleteHistoryItem = useCallback((id: string) => {
 		vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify([id]) })
 	}, [])
@@ -178,7 +186,21 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						}}>
 						History
 					</h3>
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+						<VSCodeButton
+							onClick={() => {
+								handleBatchHistorySelect(true)
+							}}>
+							Select All
+						</VSCodeButton>
+						<VSCodeButton
+							onClick={() => {
+								handleBatchHistorySelect(false)
+							}}>
+							Select None
+						</VSCodeButton>
+						<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					</div>
 				</div>
 				<div style={{ padding: "5px 17px 6px 17px" }}>
 					<div
@@ -234,20 +256,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								Most Relevant
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
-						<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-							<VSCodeButton
-								onClick={() => {
-									setSelectedItems(taskHistorySearchResults.map((item) => item.id))
-								}}>
-								Select All
-							</VSCodeButton>
-							<VSCodeButton
-								onClick={() => {
-									setSelectedItems([])
-								}}>
-								Deselect All
-							</VSCodeButton>
-						</div>
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
@@ -284,14 +292,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									display: "flex",
 									alignItems: "center",
 								}}>
-								<VSCodeCheckbox
-									style={{ marginRight: "10px" }}
-									checked={selectedItems.includes(item.id)}
-									onChange={(e) => {
-										const checked = (e.target as HTMLInputElement).checked
-										handleHistorySelect(item.id, checked)
-									}}
-								/>
 								<div
 									style={{
 										display: "flex",
@@ -373,6 +373,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													gap: "4px",
 													flexWrap: "wrap",
 												}}>
+												<VSCodeCheckbox
+													style={{ marginRight: "5px" }}
+													checked={selectedItems.includes(item.id)}
+													onClick={(e) => {
+														const checked = (e.target as HTMLInputElement).checked
+														handleHistorySelect(item.id, checked)
+														e.stopPropagation()
+													}}
+												/>
 												<span
 													style={{
 														fontWeight: 500,
@@ -511,24 +520,25 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						padding: "10px 10px",
 						borderTop: "1px solid var(--vscode-panel-border)",
 					}}>
-					{selectedItems.length > 0 && (
+					{selectedItems.length > 0 ? (
 						<DangerButton
-							style={{ width: "100%", marginBottom: "10px" }}
+							style={{ width: "100%" }}
 							onClick={() => {
 								handleDeleteSelectedHistoryItems(selectedItems)
 							}}>
 							Delete Selected
 						</DangerButton>
+					) : (
+						<DangerButton
+							style={{ width: "100%" }}
+							disabled={deleteAllDisabled || taskHistory.length === 0}
+							onClick={() => {
+								setDeleteAllDisabled(true)
+								vscode.postMessage({ type: "clearAllTaskHistory" })
+							}}>
+							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
+						</DangerButton>
 					)}
-					<DangerButton
-						style={{ width: "100%" }}
-						disabled={deleteAllDisabled || taskHistory.length === 0}
-						onClick={() => {
-							setDeleteAllDisabled(true)
-							vscode.postMessage({ type: "clearAllTaskHistory" })
-						}}>
-						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
-					</DangerButton>
 				</div>
 			</div>
 		</>
