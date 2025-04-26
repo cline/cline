@@ -1266,10 +1266,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 								i18nKey="chat:about"
 								components={{
 									DocsLink: (
-										<a
-											href="https://docs.roocode.com/getting-started/your-first-task"
-											target="_blank"
-											rel="noopener noreferrer">
+										<a href="https://docs.roocode.com/" target="_blank" rel="noopener noreferrer">
 											the docs
 										</a>
 									),

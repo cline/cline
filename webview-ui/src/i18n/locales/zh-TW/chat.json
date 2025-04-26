@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "工具",
 			"description": "允許 AI 透過瀏覽網路、執行命令等方式解決問題。"
+		},
+		"customizableModes": {
+			"title": "自訂模式",
+			"description": "具有專屬行為和指定模型的特定角色"
 		}
 	},
 	"selectMode": "選擇互動模式",

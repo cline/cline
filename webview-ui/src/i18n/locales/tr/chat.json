@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "Araçlar",
 			"description": "AI'nın web'e göz atarak, komutlar çalıştırarak ve daha fazlasını yaparak sorunları çözmesine izin verin."
+		},
+		"customizableModes": {
+			"title": "Özelleştirilebilir Modlar",
+			"description": "Kendi davranışları ve atanmış modelleri ile özelleştirilmiş kişilikler"
 		}
 	},
 	"selectMode": "Etkileşim modunu seçin",

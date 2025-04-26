@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "도구",
 			"description": "AI가 웹 탐색, 명령 실행 등으로 문제를 해결하도록 허용합니다."
+		},
+		"customizableModes": {
+			"title": "사용자 정의 모드",
+			"description": "고유한 동작과 할당된 모델을 가진 전문 페르소나"
 		}
 	},
 	"selectMode": "상호작용 모드 선택",

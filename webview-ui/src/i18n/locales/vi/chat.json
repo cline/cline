@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "Công cụ",
 			"description": "Cho phép AI giải quyết vấn đề bằng cách duyệt web, chạy lệnh, v.v."
+		},
+		"customizableModes": {
+			"title": "Chế độ tùy chỉnh",
+			"description": "Các nhân vật chuyên biệt với hành vi riêng và mô hình được chỉ định"
 		}
 	},
 	"selectMode": "Chọn chế độ tương tác",

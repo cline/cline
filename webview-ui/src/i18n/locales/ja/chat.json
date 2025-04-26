@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "ツール",
 			"description": "AIがWebの閲覧、コマンドの実行などによって問題を解決できるようにします。"
+		},
+		"customizableModes": {
+			"title": "カスタマイズ可能なモード",
+			"description": "独自の動作と割り当てられたモデルを持つ専門的なペルソナ"
 		}
 	},
 	"selectMode": "対話モードを選択",

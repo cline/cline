@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "Narzędzia",
 			"description": "Pozwól sztucznej inteligencji rozwiązywać problemy, przeglądając sieć, uruchamiając polecenia i nie tylko."
+		},
+		"customizableModes": {
+			"title": "Konfigurowalne tryby",
+			"description": "Wyspecjalizowane persona z własnymi zachowaniami i przypisanymi modelami"
 		}
 	},
 	"selectMode": "Wybierz tryb interakcji",

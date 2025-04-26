@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "Herramientas",
 			"description": "Permite que la IA resuelva problemas navegando por la web, ejecutando comandos y mucho más."
+		},
+		"customizableModes": {
+			"title": "Modos personalizables",
+			"description": "Personalidades especializadas con sus propios comportamientos y modelos asignados"
 		}
 	},
 	"selectMode": "Seleccionar modo de interacción",

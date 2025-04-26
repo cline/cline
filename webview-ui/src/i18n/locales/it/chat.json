@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "Strumenti",
 			"description": "Consenti all'IA di risolvere i problemi navigando sul Web, eseguendo comandi e altro ancora."
+		},
+		"customizableModes": {
+			"title": "Modalità personalizzabili",
+			"description": "Personalità specializzate con comportamenti propri e modelli assegnati"
 		}
 	},
 	"selectMode": "Seleziona modalità di interazione",

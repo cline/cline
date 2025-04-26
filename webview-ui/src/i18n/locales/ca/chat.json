@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "Eines",
 			"description": "Permet que la IA resolgui problemes navegant per la web, executant ordres i molt més."
+		},
+		"customizableModes": {
+			"title": "Modes personalitzables",
+			"description": "Personalitats especialitzades amb comportaments propis i models assignats"
 		}
 	},
 	"selectMode": "Selecciona el mode d'interacció",

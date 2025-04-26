@@ -5,22 +5,16 @@ import clsx from "clsx"
 
 const tips = [
 	{
+		icon: "codicon-account",
+		href: "https://docs.roocode.com/basic-usage/using-modes",
+		titleKey: "rooTips.customizableModes.title",
+		descriptionKey: "rooTips.customizableModes.description",
+	},
+	{
 		icon: "codicon-list-tree",
 		href: "https://docs.roocode.com/features/boomerang-tasks",
 		titleKey: "rooTips.boomerangTasks.title",
 		descriptionKey: "rooTips.boomerangTasks.description",
-	},
-	{
-		icon: "codicon-pinned",
-		href: "https://docs.roocode.com/basic-usage/using-modes",
-		titleKey: "rooTips.stickyModels.title",
-		descriptionKey: "rooTips.stickyModels.description",
-	},
-	{
-		icon: "codicon-tools",
-		href: "https://docs.roocode.com/basic-usage/how-tools-work",
-		titleKey: "rooTips.tools.title",
-		descriptionKey: "rooTips.tools.description",
 	},
 ]
 

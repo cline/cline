@@ -79,6 +79,10 @@
 		"tools": {
 			"title": "Tools",
 			"description": "Erlaube der KI, Probleme durch Surfen im Web, Ausführen von Befehlen und mehr zu lösen."
+		},
+		"customizableModes": {
+			"title": "Anpassbare Modi",
+			"description": "Spezialisierte Personas mit eigenem Verhalten und zugewiesenen Modellen"
 		}
 	},
 	"selectMode": "Interaktionsmodus auswählen",

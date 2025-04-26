@@ -70,15 +70,19 @@
 	"rooTips": {
 		"boomerangTasks": {
 			"title": "Boomerang Tasks",
-			"description": "Split tasks into smaller, manageable parts."
+			"description": "Split tasks into smaller, manageable parts"
 		},
 		"stickyModels": {
-			"title": "Sticky Modes",
+			"title": "Sticky Models",
 			"description": "Each mode remembers your last used model"
 		},
 		"tools": {
 			"title": "Tools",
-			"description": "Allow the AI to solve problems by browsing the web, running commands, and more."
+			"description": "Allow the AI to solve problems by browsing the web, running commands, and more"
+		},
+		"customizableModes": {
+			"title": "Customizable Modes",
+			"description": "Specialized personas with their own behaviors and assigned models"
 		}
 	},
 	"selectMode": "Select mode for interaction",
