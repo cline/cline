@@ -35,29 +35,26 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 		}
 
 		setError("")
-
 		submittedValues.current = { name: serverName.trim() }
-
 		setIsSubmitting(true)
 		setShowConnectingMessage(true)
 
-		await McpServiceClient.addRemoteMcpServer({
-			serverName: serverName.trim(),
-			serverUrl: serverUrl.trim(),
-		})
-			.then((_response) => {
-				setIsSubmitting(false)
-				setServerName("")
-				setServerUrl("")
-				submittedValues.current = null
-				onServerAdded()
-				setShowConnectingMessage(false)
+		try {
+			await McpServiceClient.addRemoteMcpServer({
+				serverName: serverName.trim(),
+				serverUrl: serverUrl.trim(),
 			})
-			.catch((error) => {
-				setIsSubmitting(false)
-				setError(error || "Failed to add server")
-				setShowConnectingMessage(false)
-			})
+			setIsSubmitting(false)
+			setServerName("")
+			setServerUrl("")
+			submittedValues.current = null
+			onServerAdded()
+			setShowConnectingMessage(false)
+		} catch (error) {
+			setIsSubmitting(false)
+			setError(error instanceof Error ? error.message : "Failed to add server")
+			setShowConnectingMessage(false)
+		}
 	}
 
 	return (
