@@ -22,6 +22,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "prem"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -80,6 +81,11 @@ export interface ApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
 	sambanovaApiKey?: string
+	premApiKey?: string
+	premBaseUrl?: string
+	premProjectId?: number
+	premModelId?: string
+	temperature?: number // Controls randomness in model outputs
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
