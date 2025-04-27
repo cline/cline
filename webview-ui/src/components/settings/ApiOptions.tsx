@@ -1593,7 +1593,7 @@ const ApiOptions = ({
 			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
 				<>
 					<VSCodeCheckbox
-						style={{ marginTop: 5 }}
+						style={{ marginTop: -10 }}
 						checked={providerSortingSelected}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
