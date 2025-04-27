@@ -75,5 +75,6 @@ export type GlobalStateKey =
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
 	| "favoritedModelIds"
+	| "requestTimeoutMs"
 
 export type LocalStateKey = "localClineRulesToggles"
