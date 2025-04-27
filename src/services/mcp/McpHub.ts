@@ -691,7 +691,7 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(serverName: string, serverUrl: string) {
+	public async addRemoteServer(serverName: string, serverUrl: string): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -718,6 +718,9 @@ export class McpHub {
 			settings.mcpServers[serverName] = parsedConfig
 			const settingsPath = await this.getMcpSettingsFilePath()
 
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
 			// We don't write the zod-transformed version to the file.
 			// The above parse() call adds the transportType field to the server config
 			// It would be fine if this was written, but we don't want to clutter up the file with internal details
@@ -728,12 +731,13 @@ export class McpHub {
 				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
 			)
 
-			await this.updateServerConnections(settings.mcpServers)
+			await this.updateServerConnectionsRPC(config.mcpServers)
 
 			vscode.window.showInformationMessage(`Added ${serverName} MCP server`)
+
+			return this.getServers()
 		} catch (error) {
 			console.error("Failed to add remote MCP server:", error)
-
 			throw error
 		}
 	}

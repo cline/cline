@@ -9,7 +9,6 @@ import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
-		| "addRemoteServer"
 		| "apiConfiguration"
 		| "webviewDidLaunch"
 		| "newTask"

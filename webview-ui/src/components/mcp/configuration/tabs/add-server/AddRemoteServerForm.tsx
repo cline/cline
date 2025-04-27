@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { vscode } from "@/utils/vscode"
 import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useEvent } from "react-use"
 import { LINKS } from "@/constants"
+import { McpServiceClient } from "@/services/grpc-client"
+
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
 	const [serverUrl, setServerUrl] = useState("")
@@ -13,38 +14,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 	// Store submitted values to check if the server was added
 	const submittedValues = useRef<{ name: string } | null>(null)
 
-	const handleMessage = useCallback(
-		(event: MessageEvent) => {
-			const message = event.data
-
-			if (
-				message.type === "addRemoteServerResult" &&
-				isSubmitting &&
-				submittedValues.current &&
-				message.addRemoteServerResult?.serverName === submittedValues.current.name
-			) {
-				if (message.addRemoteServerResult.success) {
-					// Handle success
-					setIsSubmitting(false)
-					setServerName("")
-					setServerUrl("")
-					submittedValues.current = null
-					onServerAdded()
-					setShowConnectingMessage(false)
-				} else {
-					// Handle error
-					setIsSubmitting(false)
-					setError(message.addRemoteServerResult.error || "Failed to add server")
-					setShowConnectingMessage(false)
-				}
-			}
-		},
-		[isSubmitting, onServerAdded],
-	)
-
-	useEvent("message", handleMessage)
-
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
 
 		if (!serverName.trim()) {
@@ -70,11 +40,24 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 
 		setIsSubmitting(true)
 		setShowConnectingMessage(true)
-		vscode.postMessage({
-			type: "addRemoteServer",
+
+		await McpServiceClient.addRemoteMcpServer({
 			serverName: serverName.trim(),
 			serverUrl: serverUrl.trim(),
 		})
+			.then((_response) => {
+				setIsSubmitting(false)
+				setServerName("")
+				setServerUrl("")
+				submittedValues.current = null
+				onServerAdded()
+				setShowConnectingMessage(false)
+			})
+			.catch((error) => {
+				setIsSubmitting(false)
+				setError(error || "Failed to add server")
+				setShowConnectingMessage(false)
+			})
 	}
 
 	return (
