@@ -16,8 +16,9 @@ export const AccountServiceDefinition = {
 	fullName: "cline.AccountService",
 	methods: {
 		/**
-		 * The user clicked on the login link in the UI.
-		 * Returns the login URL.
+		 * Handles the user clicking the login link in the UI.
+		 * Generates a secure nonce for state validation, stores it in secrets,
+		 * and opens the authentication URL in the external browser.
 		 */
 		accountLoginClicked: {
 			name: "accountLoginClicked",

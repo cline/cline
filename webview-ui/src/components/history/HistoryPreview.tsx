@@ -1,18 +1,28 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { memo } from "react"
 import { formatLargeNumber } from "@/utils/format"
+// Remove the incorrect import: import { getWorkspacePath } from "@utils/path"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { taskHistory } = useExtensionState()
+	const { taskHistory, showWorkspaceTasksOnly, setShowWorkspaceTasksOnly, workspaceRoot } = useExtensionState() // Add workspaceRoot
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}
+
+	// Use workspaceRoot from state
+	const currentWorkspaceRoot = workspaceRoot
+
+	// Filter tasks by workspace if the toggle is on
+	const filteredTaskHistory =
+		showWorkspaceTasksOnly && currentWorkspaceRoot
+			? taskHistory.filter((item) => item.workspaceRoot === currentWorkspaceRoot)
+			: taskHistory
 
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
@@ -56,25 +66,39 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					margin: "10px 20px 10px 20px",
 					display: "flex",
 					alignItems: "center",
+					justifyContent: "space-between",
 				}}>
-				<span
-					className="codicon codicon-comment-discussion"
-					style={{
-						marginRight: "4px",
-						transform: "scale(0.9)",
-					}}></span>
-				<span
-					style={{
-						fontWeight: 500,
-						fontSize: "0.85em",
-						textTransform: "uppercase",
-					}}>
-					Recent Tasks
-				</span>
+				<div style={{ display: "flex", alignItems: "center" }}>
+					<span
+						className="codicon codicon-comment-discussion"
+						style={{
+							marginRight: "4px",
+							transform: "scale(0.9)",
+						}}></span>
+					<span
+						style={{
+							fontWeight: 500,
+							fontSize: "0.85em",
+							textTransform: "uppercase",
+						}}>
+						Recent Tasks
+					</span>
+				</div>
+
+				{/* Add workspace filter toggle */}
+				<div style={{ display: "flex", alignItems: "center", fontSize: "0.85em" }}>
+					<label style={{ marginRight: "8px", color: "var(--vscode-descriptionForeground)" }}>
+						Current workspace only
+					</label>
+					<VSCodeCheckbox
+						checked={showWorkspaceTasksOnly}
+						onChange={() => setShowWorkspaceTasksOnly(!showWorkspaceTasksOnly)}
+					/>
+				</div>
 			</div>
 
 			<div style={{ padding: "0px 20px 0 20px" }}>
-				{taskHistory
+				{filteredTaskHistory
 					.filter((item) => item.ts && item.task)
 					.slice(0, 3)
 					.map((item) => (

@@ -11,4 +11,5 @@ export type HistoryItem = {
 	size?: number
 	shadowGitConfigWorkTree?: string
 	conversationHistoryDeletedRange?: [number, number]
+	workspaceRoot?: string // Add this field to identify the workspace
 }

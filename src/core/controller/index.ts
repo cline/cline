@@ -1815,6 +1815,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
+			workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, // Add this line
 		}
 	}
 
@@ -1865,11 +1866,19 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		const history = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[]) || []
+
+		// Add workspace root to the history item
+		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+		const itemWithWorkspace = {
+			...item,
+			workspaceRoot,
+		}
+
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
-			history[existingItemIndex] = item
+			history[existingItemIndex] = itemWithWorkspace
 		} else {
-			history.push(item)
+			history.push(itemWithWorkspace)
 		}
 		await updateGlobalState(this.context, "taskHistory", history)
 		return history

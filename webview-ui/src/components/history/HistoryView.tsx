@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react" // Add VSCodeCheckbox
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { Virtuoso } from "react-virtuoso"
@@ -17,7 +17,7 @@ type HistoryViewProps = {
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { taskHistory, totalTasksSize } = useExtensionState()
+	const { taskHistory, totalTasksSize, showWorkspaceTasksOnly, setShowWorkspaceTasksOnly, workspaceRoot } = useExtensionState() // Add showWorkspaceTasksOnly, setShowWorkspaceTasksOnly, workspaceRoot
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -84,8 +84,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 	}, [presentableTasks])
 
+	// Filter tasks by workspace if the toggle is on
+	const workspaceFilteredTasks = useMemo(() => {
+		return showWorkspaceTasksOnly && workspaceRoot
+			? presentableTasks.filter((item) => item.workspaceRoot === workspaceRoot)
+			: presentableTasks
+	}, [presentableTasks, showWorkspaceTasksOnly, workspaceRoot])
+
 	const taskHistorySearchResults = useMemo(() => {
-		const results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
+		const results = searchQuery ? highlight(fuse.search(searchQuery)) : workspaceFilteredTasks // Use workspaceFilteredTasks
 
 		results.sort((a, b) => {
 			switch (sortOption) {
@@ -111,7 +118,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 
 		return results
-	}, [presentableTasks, searchQuery, fuse, sortOption])
+	}, [workspaceFilteredTasks, searchQuery, fuse, sortOption]) // Update dependencies
 
 	return (
 		<>
@@ -216,10 +223,20 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								Most Relevant
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
+						{/* Add workspace filter toggle */}
+						<div style={{ display: "flex", alignItems: "center", fontSize: "0.85em", marginLeft: "2px" }}>
+							<label style={{ marginRight: "8px", color: "var(--vscode-descriptionForeground)" }}>
+								Current workspace only
+							</label>
+							<VSCodeCheckbox
+								checked={showWorkspaceTasksOnly}
+								onChange={() => setShowWorkspaceTasksOnly(!showWorkspaceTasksOnly)}
+							/>
+						</div>
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
-					{/* {presentableTasks.length === 0 && (
+					{/* {workspaceFilteredTasks.length === 0 && ( // Use workspaceFilteredTasks
 						<div
 							style={{
 								
