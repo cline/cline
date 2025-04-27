@@ -27,7 +27,7 @@ function calculateApiCostInternal(
 	}
 
 	// Determine effective output price
-	let effectiveOutputPrice = 0
+	let effectiveOutputPrice = modelInfo.outputPrice || 0
 	// Check if thinking budget was used and has a specific price
 	if (usedThinkingBudget && modelInfo.thinkingConfig?.outputPrice !== undefined) {
 		effectiveOutputPrice = modelInfo.thinkingConfig.outputPrice
