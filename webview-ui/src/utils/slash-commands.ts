@@ -8,11 +8,37 @@ export const SUPPORTED_SLASH_COMMANDS: SlashCommand[] = [
 		name: "newtask",
 		description: "Create a new task with context from the current task",
 	},
+	{
+		name: "smol",
+		description: "Condenses your current context window",
+	},
 ]
 
 // Regex for detecting slash commands in text
 export const slashCommandRegex = /\/([a-zA-Z0-9_-]+)(\s|$)/
 export const slashCommandRegexGlobal = new RegExp(slashCommandRegex.source, "g")
+export const slashCommandDeleteRegex = /^\s*\/([a-zA-Z0-9_-]+)$/
+
+/**
+ * Removes a slash command at the cursor position
+ */
+export function removeSlashCommand(text: string, position: number): { newText: string; newPosition: number } {
+	const beforeCursor = text.slice(0, position)
+	const afterCursor = text.slice(position)
+
+	// Check if we're at the end of a slash command
+	const matchEnd = beforeCursor.match(slashCommandDeleteRegex)
+
+	if (matchEnd) {
+		// If we're at the end of a slash command, remove it
+		const newText = text.slice(0, position - matchEnd[0].length) + afterCursor.replace(" ", "") // removes the first space after the command
+		const newPosition = position - matchEnd[0].length
+		return { newText, newPosition }
+	}
+
+	// If we're not at the end of a slash command, just return the original text and position
+	return { newText: text, newPosition: position }
+}
 
 /**
  * Determines whether the slash command menu should be displayed based on text input

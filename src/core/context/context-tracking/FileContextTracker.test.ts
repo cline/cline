@@ -4,7 +4,7 @@ import * as sinon from "sinon"
 import * as vscode from "vscode"
 import * as path from "path"
 import { FileContextTracker } from "./FileContextTracker"
-import * as diskModule from "../../storage/disk"
+import * as diskModule from "@core/storage/disk"
 import type { TaskMetadata, FileMetadataEntry } from "./ContextTrackerTypes"
 
 describe("FileContextTracker", () => {

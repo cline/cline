@@ -18,6 +18,7 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
+import { TaskServiceClient } from "@/services/grpc-client"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import Announcement from "@/components/chat/Announcement"
@@ -202,6 +203,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setPrimaryButtonText("Start New Task with Context")
 							setSecondaryButtonText(undefined)
 							break
+						case "condense":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("condense")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Condense Conversation")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -285,11 +293,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
 
 	const handleSendMessage = useCallback(
-		(text: string, images: string[]) => {
+		async (text: string, images: string[]) => {
 			text = text.trim()
 			if (text || images.length > 0) {
 				if (messages.length === 0) {
-					vscode.postMessage({ type: "newTask", text, images })
+					await TaskServiceClient.newTask({ text, images })
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -304,6 +312,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_completed_task":
 						case "mistake_limit_reached":
 						case "new_task": // user can provide feedback or reject the new task suggestion
+							vscode.postMessage({
+								type: "askResponse",
+								askResponse: "messageResponse",
+								text,
+								images,
+							})
+							break
+						case "condense":
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
@@ -327,15 +343,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[messages.length, clineAsk],
 	)
 
-	const startNewTask = useCallback(() => {
-		vscode.postMessage({ type: "clearTask" })
+	const startNewTask = useCallback(async () => {
+		await TaskServiceClient.clearTask({})
 	}, [])
 
 	/*
 	This logic depends on the useEffect[messages] above to set clineAsk, after which buttons are shown and we then send an askResponse to the extension.
 	*/
 	const handlePrimaryButtonClick = useCallback(
-		(text?: string, images?: string[]) => {
+		async (text?: string, images?: string[]) => {
 			const trimmedInput = text?.trim()
 			switch (clineAsk) {
 				case "api_req_failed":
@@ -371,8 +387,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					break
 				case "new_task":
 					console.info("new task button clicked!", { lastMessage, messages, clineAsk, text })
+					await TaskServiceClient.newTask({
+						text: lastMessage?.text,
+						images: [],
+					})
+					break
+				case "condense":
 					vscode.postMessage({
-						type: "newTask",
+						type: "condense",
 						text: lastMessage?.text,
 					})
 					break
@@ -388,10 +410,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const handleSecondaryButtonClick = useCallback(
-		(text?: string, images?: string[]) => {
+		async (text?: string, images?: string[]) => {
 			const trimmedInput = text?.trim()
 			if (isStreaming) {
-				vscode.postMessage({ type: "cancelTask" })
+				await TaskServiceClient.cancelTask({})
 				setDidClickCancel(true)
 				return
 			}
