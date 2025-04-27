@@ -1198,7 +1198,12 @@ const ApiOptions = ({
 								Supports Images
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
-								checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
+								checked={
+									(apiConfiguration?.openAiConfigs &&
+										apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]
+											?.openAiModelInfo?.supportsImages) ||
+									false
+								}
 								onChange={(e: any) => {
 									const isChecked = e.target.checked === true
 									let modelInfo = apiConfiguration?.openAiModelInfo
