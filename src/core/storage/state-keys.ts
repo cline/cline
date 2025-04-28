@@ -76,5 +76,6 @@ export type GlobalStateKey =
 	| "planActSeparateModelsSetting"
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
+	| "showWorkspaceTasksOnly"
 
 export type LocalStateKey = "localClineRulesToggles"

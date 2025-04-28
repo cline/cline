@@ -810,6 +810,12 @@ export class Controller {
 				}
 				break
 			}
+			case "toggleWorkspaceTasksOnly": {
+				// Handle the toggle workspace tasks only message
+				await updateGlobalState(this.context, "showWorkspaceTasksOnly", message.bool)
+				await this.postStateToWebview()
+				break
+			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -1824,7 +1830,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
-			workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, // Add this line
+			workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+			showWorkspaceTasksOnly: Boolean(await getGlobalState(this.context, "showWorkspaceTasksOnly")) || false,
 		}
 	}
 

@@ -92,7 +92,13 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					</label>
 					<VSCodeCheckbox
 						checked={showWorkspaceTasksOnly}
-						onChange={() => setShowWorkspaceTasksOnly(!showWorkspaceTasksOnly)}
+						onChange={() => {
+							setShowWorkspaceTasksOnly(!showWorkspaceTasksOnly)
+							vscode.postMessage({
+								type: "toggleWorkspaceTasksOnly",
+								bool: !showWorkspaceTasksOnly,
+							})
+						}}
 					/>
 				</div>
 			</div>

@@ -148,7 +148,8 @@ export interface ExtensionState {
 	vscMachineId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
-	workspaceRoot?: string // Add this line
+	workspaceRoot?: string
+	showWorkspaceTasksOnly?: boolean // Add this line
 }
 
 export interface ClineMessage {

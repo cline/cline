@@ -72,8 +72,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		return taskHistory.filter((item) => item.ts && item.task)
 	}, [taskHistory])
 
+	// Filter tasks by workspace if the toggle is on
+	const workspaceFilteredTasks = useMemo(() => {
+		return showWorkspaceTasksOnly && workspaceRoot
+			? presentableTasks.filter((item) => item.workspaceRoot === workspaceRoot)
+			: presentableTasks
+	}, [presentableTasks, showWorkspaceTasksOnly, workspaceRoot])
+
 	const fuse = useMemo(() => {
-		return new Fuse(presentableTasks, {
+		return new Fuse(workspaceFilteredTasks, {
 			keys: ["task"],
 			threshold: 0.6,
 			shouldSort: true,
@@ -82,14 +89,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			includeMatches: true,
 			minMatchCharLength: 1,
 		})
-	}, [presentableTasks])
-
-	// Filter tasks by workspace if the toggle is on
-	const workspaceFilteredTasks = useMemo(() => {
-		return showWorkspaceTasksOnly && workspaceRoot
-			? presentableTasks.filter((item) => item.workspaceRoot === workspaceRoot)
-			: presentableTasks
-	}, [presentableTasks, showWorkspaceTasksOnly, workspaceRoot])
+	}, [workspaceFilteredTasks])
 
 	const taskHistorySearchResults = useMemo(() => {
 		const results = searchQuery ? highlight(fuse.search(searchQuery)) : workspaceFilteredTasks // Use workspaceFilteredTasks
@@ -230,7 +230,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							</label>
 							<VSCodeCheckbox
 								checked={showWorkspaceTasksOnly}
-								onChange={() => setShowWorkspaceTasksOnly(!showWorkspaceTasksOnly)}
+								onChange={() => {
+									setShowWorkspaceTasksOnly(!showWorkspaceTasksOnly)
+									vscode.postMessage({
+										type: "toggleWorkspaceTasksOnly",
+										bool: !showWorkspaceTasksOnly,
+									})
+								}}
 							/>
 						</div>
 					</div>

@@ -73,6 +73,7 @@ export interface WebviewMessage {
 		| "toggleClineRule"
 		| "deleteClineRule"
 		| "copyToClipboard"
+		| "toggleWorkspaceTasksOnly" // Add this line
 
 	// | "relaunchChromeDebugMode"
 	text?: string

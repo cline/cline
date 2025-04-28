@@ -319,6 +319,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		mcpMarketplaceEnabled,
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
+		showWorkspaceTasksOnly: Boolean(await getGlobalState(context, "showWorkspaceTasksOnly")) || false,
 	}
 }
 
