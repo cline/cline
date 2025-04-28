@@ -23,7 +23,7 @@ jobs:
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
-                  node-version: 20.15.1
+                  node-version: 22
 
             # Setup Python for coverage script
             - name: Setup Python
@@ -131,7 +131,7 @@ jobs:
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
-                  node-version: 20.15.1
+                  node-version: 22
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
