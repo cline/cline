@@ -22,6 +22,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "shengsuanyun"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -81,6 +82,9 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	requestTimeoutMs?: number
+	shengsuanyunApiKey?: string
+	ssyModelId?: string
+	ssyModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1649,4 +1653,18 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+}
+
+// ShengSuanYun
+// https://router.shengsuanyun.com/model
+export const ssyDefaultModelId: string = "anthropic/claude-3.7-sonnet"
+export const ssyDefaultModelInfo: ModelInfo = {
+	maxTokens: 128_000,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 3,
+	outputPrice: 15,
+	cacheWritesPrice: 0,
+	cacheReadsPrice: 0,
 }

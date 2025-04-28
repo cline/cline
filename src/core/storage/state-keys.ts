@@ -19,6 +19,7 @@ export type SecretKey =
 	| "asksageApiKey"
 	| "xaiApiKey"
 	| "sambanovaApiKey"
+	| "shengsuanyunApiKey"
 
 export type GlobalStateKey =
 	| "apiProvider"
@@ -76,5 +77,6 @@ export type GlobalStateKey =
 	| "planActSeparateModelsSetting"
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
-
+	| "ssyModelId"
+	| "ssyModelInfo"
 export type LocalStateKey = "localClineRulesToggles"

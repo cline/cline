@@ -73,6 +73,8 @@ export interface WebviewMessage {
 		| "toggleClineRule"
 		| "deleteClineRule"
 		| "copyToClipboard"
+		| "ssyModels"
+		| "refreshSSYModels"
 
 	// | "relaunchChromeDebugMode"
 	text?: string

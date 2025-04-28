@@ -230,6 +230,14 @@ export class Controller {
 						})
 					}
 				})
+				this.readSSYModels().then((ssyModels) => {
+					if (ssyModels) {
+						this.postMessageToWebview({
+							type: "ssyModels",
+							ssyModels,
+						})
+					}
+				})
 				// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 				// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 				// (see normalizeApiConfiguration > openrouter)
@@ -387,6 +395,9 @@ export class Controller {
 				const { apiConfiguration } = await getAllExtensionState(this.context)
 				const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
 				this.postMessageToWebview({ type: "openAiModels", openAiModels })
+				break
+			case "refreshSSYModels":
+				await this.refreshSSYModels()
 				break
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
@@ -888,6 +899,10 @@ export class Controller {
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
 					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
+				case "shengsuanyun":
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ssyModelId)
+					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.ssyModelInfo)
+					break
 			}
 
 			// Restore the model used in previous mode
@@ -937,6 +952,10 @@ export class Controller {
 					case "requesty":
 						await updateGlobalState(this.context, "requestyModelId", newModelId)
 						await updateGlobalState(this.context, "requestyModelInfo", newModelInfo)
+						break
+					case "shengsuanyun":
+						await updateGlobalState(this.context, "ssyModelId", newModelId)
+						await updateGlobalState(this.context, "ssyModelInfo", newModelInfo)
 						break
 				}
 
@@ -1532,6 +1551,58 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		return models
 	}
 
+	async readSSYModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const ssyrModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.ssyrModels)
+		const fileExists = await fileExistsAtPath(ssyrModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(ssyrModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
+	async refreshSSYModels() {
+		const ssyrModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.ssyrModels)
+		const parsePrice = (price: any) => {
+			if (price) {
+				return parseInt(price) / 10_000
+			}
+			return undefined
+		}
+
+		let models: Record<string, ModelInfo> = {}
+		try {
+			const res = await axios.get("https://router.shengsuanyun.com/api/v1/models/")
+			if (res.data?.data && Array.isArray(res.data?.data)) {
+				for (const model of res.data?.data) {
+					const modelInfo: ModelInfo = {
+						maxTokens: model.max_tokens || undefined,
+						contextWindow: model.context_window,
+						supportsImages: model.architecture?.input.includes("image") || undefined,
+						supportsPromptCache: model.supports_prompt_cache || undefined,
+						inputPrice: parsePrice(model.pricing.prompt),
+						outputPrice: parsePrice(model.pricing.completion),
+						cacheWritesPrice: parsePrice(model.pricing.cache),
+						cacheReadsPrice: parsePrice(model.pricing.cache),
+						description: model.description,
+					}
+					models[model.api_name] = modelInfo
+				}
+			} else {
+				console.error("Invalid response from ShengSuanYun API")
+			}
+			await fs.writeFile(ssyrModelsFilePath, JSON.stringify(models))
+			// console.log("ShengSuanYun models fetched", models)
+		} catch (error) {
+			console.error("Error fetching ShengSuanYun models:", error)
+		}
+
+		await this.postMessageToWebview({
+			type: "ssyModels",
+			ssyModels: models,
+		})
+		return models
+	}
 	// Context menus and code actions
 
 	getFileMentionFromPath(filePath: string) {

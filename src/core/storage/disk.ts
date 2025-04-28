@@ -16,6 +16,7 @@ export const GlobalFileNames = {
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
 	taskMetadata: "task_metadata.json",
+	ssyrModels: "ssy_models.json",
 }
 
 export async function getDocumentsPath(): Promise<string> {

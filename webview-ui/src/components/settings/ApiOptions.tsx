@@ -51,6 +51,8 @@ import {
 	doubaoModels,
 	doubaoDefaultModelId,
 	liteLlmModelInfoSaneDefaults,
+	ssyDefaultModelId,
+	ssyDefaultModelInfo,
 } from "@shared/api"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -61,6 +63,7 @@ import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKE
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 import RequestyModelPicker from "./RequestyModelPicker"
 import { useOpenRouterKeyInfo } from "../ui/hooks/useOpenRouterKeyInfo"
+import SSYModelPicker from "./SSYModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -286,6 +289,7 @@ const ApiOptions = ({
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
+					<VSCodeOption value="shengsuanyun">ShengSuanYun</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -1607,6 +1611,20 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "shengsuanyun" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.shengsuanyunApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("shengsuanyunApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					{!apiConfiguration?.shengsuanyunApiKey && <a href="https://router.shengsuanyun.com/">Get API Key</a>}
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1702,6 +1720,7 @@ const ApiOptions = ({
 				selectedProvider !== "vscode-lm" &&
 				selectedProvider !== "litellm" &&
 				selectedProvider !== "requesty" &&
+				selectedProvider !== "shengsuanyun" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1797,7 +1816,7 @@ const ApiOptions = ({
 				<OpenRouterModelPicker isPopup={isPopup} />
 			)}
 			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
-
+			{selectedProvider === "shengsuanyun" && showModelOptions && <SSYModelPicker isPopup={isPopup} />}
 			{modelIdErrorMessage && (
 				<p
 					style={{
@@ -2125,6 +2144,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(xaiModels, xaiDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
+		case "shengsuanyun":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.ssyModelId || ssyDefaultModelId,
+				selectedModelInfo: apiConfiguration?.ssyModelInfo || ssyDefaultModelInfo,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

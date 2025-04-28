@@ -126,6 +126,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		favoritedModelIds,
 		globalClineRulesToggles,
 		requestTimeoutMs,
+		shengsuanyunApiKey,
+		ssyModelId,
+		ssyModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
@@ -200,6 +203,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "requestTimeoutMs") as Promise<number | undefined>,
+		getSecret(context, "shengsuanyunApiKey") as Promise<string | undefined>,
+		getGlobalState(context, "ssyModelId") as Promise<string | undefined>,
+		getGlobalState(context, "ssyModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -300,6 +306,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			sambanovaApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
+			shengsuanyunApiKey,
+			ssyModelId,
+			ssyModelInfo,
 		},
 		lastShownAnnouncementId,
 		customInstructions,
@@ -380,6 +389,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		clineApiKey,
 		sambanovaApiKey,
 		favoritedModelIds,
+		shengsuanyunApiKey,
+		ssyModelId,
+		ssyModelInfo,
 	} = apiConfiguration
 	await updateGlobalState(context, "apiProvider", apiProvider)
 	await updateGlobalState(context, "apiModelId", apiModelId)
@@ -438,6 +450,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
+	await storeSecret(context, "shengsuanyunApiKey", shengsuanyunApiKey)
+	await updateGlobalState(context, "ssyModelId", ssyModelId)
+	await updateGlobalState(context, "ssyModelInfo", ssyModelInfo)
 }
 
 export async function resetExtensionState(context: vscode.ExtensionContext) {
@@ -464,6 +479,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"asksageApiKey",
 		"xaiApiKey",
 		"sambanovaApiKey",
+		"shengsuanyunApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
