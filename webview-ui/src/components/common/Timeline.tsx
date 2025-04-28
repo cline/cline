@@ -412,8 +412,7 @@ const Timeline: React.FC<TimelineProps> = ({ messages }) => {
 											isActiveCheckpoint={itemType === "checkpoint" && activeCheckpoint === item.ts}
 											onMouseEnter={(e) => handleMouseEnter(e, item)}
 											onMouseLeave={handleMouseLeave}
-											onClick={() => {
-											}}
+											onClick={() => {}}
 											onDoubleClick={() => {
 												if (itemType === "checkpoint") {
 													setActiveCheckpoint(item.ts)

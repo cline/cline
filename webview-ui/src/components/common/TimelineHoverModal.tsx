@@ -232,8 +232,7 @@ const TimelineHoverModal: React.FC<TimelineHoverModalProps> = ({ message, positi
 				const offset = newX - 16
 				newX = 16
 				adjustedArrowOffset = newArrowOffset + offset // Adjust arrow position
-			}
-			else if (newX + actualWidth > window.innerWidth - 16) {
+			} else if (newX + actualWidth > window.innerWidth - 16) {
 				const maxX = window.innerWidth - 16 - actualWidth
 				const offset = newX - maxX
 				newX = maxX
@@ -248,7 +247,7 @@ const TimelineHoverModal: React.FC<TimelineHoverModalProps> = ({ message, positi
 			}
 		}
 	}, [])
-  
+
 	return (
 		<ModalContainer ref={modalRef} x={modalPosition.x} y={modalPosition.y} arrowOffset={modalPosition.arrowOffset}>
 			<ModalHeader>
