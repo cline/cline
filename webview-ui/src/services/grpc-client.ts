@@ -23,11 +23,35 @@ type ProtoService = {
 	}
 }
 
-// Define a generic type that extracts method signatures from a service definition
+// Define a unified client type that handles both unary and streaming methods
 type GrpcClientType<T extends ProtoService> = {
-	[K in keyof T["methods"]]: (
-		request: InstanceType<T["methods"][K]["requestType"]>,
-	) => Promise<InstanceType<T["methods"][K]["responseType"]>>
+	[K in keyof T["methods"]]: T["methods"][K]["responseStream"] extends true
+		? (
+				request: InstanceType<T["methods"][K]["requestType"]>,
+				options: {
+					onResponse: (response: InstanceType<T["methods"][K]["responseType"]>) => void
+					onError?: (error: Error) => void
+					onComplete?: () => void
+				}
+		  ) => () => void // Returns a cancel function
+		: (
+				request: InstanceType<T["methods"][K]["requestType"]>
+		  ) => Promise<InstanceType<T["methods"][K]["responseType"]>>
+}
+
+/**
+ * Helper function to encode request objects
+ */
+function encodeRequest(request: any): any {
+	if (request === null || request === undefined) {
+		return {}
+	} else if (typeof request.toJSON === "function") {
+		return request.toJSON()
+	} else if (typeof request === "object") {
+		return { ...request }
+	} else {
+		return { value: request }
+	}
 }
 
 // Create a client for any protobuf service with inferred types
@@ -36,61 +60,123 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 
 	// For each method in the service
 	Object.values(service.methods).forEach((method) => {
-		// Create a function that matches the method signature
-		client[method.name as keyof GrpcClientType<T>] = ((request: any) => {
-			return new Promise((resolve, reject) => {
+		if (method.responseStream) {
+			// Streaming method implementation
+			client[method.name as keyof GrpcClientType<T>] = ((
+				request: any,
+				options: {
+					onResponse: (response: any) => void
+					onError?: (error: Error) => void
+					onComplete?: () => void
+				}
+			) => {
 				const requestId = uuidv4()
 
-				// Set up one-time listener for this specific request
+				// Set up listener for streaming responses
 				const handleResponse = (event: MessageEvent) => {
 					const message = event.data
 					if (message.type === "grpc_response" && message.grpc_response?.request_id === requestId) {
-						// Remove listener once we get our response
-						window.removeEventListener("message", handleResponse)
-
 						if (message.grpc_response.error) {
-							reject(new Error(message.grpc_response.error))
+							// Handle error
+							if (options.onError) {
+								options.onError(new Error(message.grpc_response.error))
+							}
+							window.removeEventListener("message", handleResponse)
+						} else if (message.grpc_response.is_streaming === false) {
+							// End of stream
+							if (message.grpc_response.message) {
+								// Process final message if present
+								const responseType = method.responseType
+								const response = responseType.fromJSON(message.grpc_response.message)
+								options.onResponse(response)
+							}
+
+							if (options.onComplete) {
+								options.onComplete()
+							}
+							window.removeEventListener("message", handleResponse)
 						} else {
-							// Convert JSON back to protobuf message
-							const responseType = method.responseType
-							const response = responseType.fromJSON(message.grpc_response.message)
-							console.log("[DEBUG] grpc-client sending response:", response)
-							resolve(response)
+							// Process streaming message
+							if (message.grpc_response.message) {
+								const responseType = method.responseType
+								const response = responseType.fromJSON(message.grpc_response.message)
+								options.onResponse(response)
+							}
 						}
 					}
 				}
 
 				window.addEventListener("message", handleResponse)
 
-				let encodedRequest = {}
+				// Send the streaming request
+				const encodedRequest = encodeRequest(request)
 
-				// Handle different types of requests
-				if (request === null || request === undefined) {
-					// Empty request
-					encodedRequest = {}
-				} else if (typeof request.toJSON === "function") {
-					// Proper protobuf object
-					encodedRequest = request.toJSON()
-				} else if (typeof request === "object") {
-					// Plain JavaScript object
-					encodedRequest = { ...request }
-				} else {
-					// Fallback
-					encodedRequest = { value: request }
-				}
-
-				// Send the request
 				vscode.postMessage({
 					type: "grpc_request",
 					grpc_request: {
 						service: service.fullName,
 						method: method.name,
-						message: encodedRequest, // Convert protobuf to JSON
+						message: encodedRequest,
 						request_id: requestId,
+						is_streaming: true,
 					},
 				})
-			})
-		}) as any
+
+				// Return a function to cancel the stream
+				return () => {
+					window.removeEventListener("message", handleResponse)
+					// Send cancellation message
+					vscode.postMessage({
+						type: "grpc_request",
+						grpc_request_cancel: {
+							request_id: requestId,
+						},
+					})
+				}
+			}) as any
+		} else {
+			// Unary method implementation (existing code)
+			client[method.name as keyof GrpcClientType<T>] = ((request: any) => {
+				return new Promise((resolve, reject) => {
+					const requestId = uuidv4()
+
+					// Set up one-time listener for this specific request
+					const handleResponse = (event: MessageEvent) => {
+						const message = event.data
+						if (message.type === "grpc_response" && message.grpc_response?.request_id === requestId) {
+							// Remove listener once we get our response
+							window.removeEventListener("message", handleResponse)
+
+							if (message.grpc_response.error) {
+								reject(new Error(message.grpc_response.error))
+							} else {
+								// Convert JSON back to protobuf message
+								const responseType = method.responseType
+								const response = responseType.fromJSON(message.grpc_response.message)
+								console.log("[DEBUG] grpc-client sending response:", response)
+								resolve(response)
+							}
+						}
+					}
+
+					window.addEventListener("message", handleResponse)
+
+					// Send the request
+					const encodedRequest = encodeRequest(request)
+
+					vscode.postMessage({
+						type: "grpc_request",
+						grpc_request: {
+							service: service.fullName,
+							method: method.name,
+							message: encodedRequest,
+							request_id: requestId,
+							is_streaming: false,
+						},
+					})
+				})
+			}) as any
+		}
 	})
 
 	return client
