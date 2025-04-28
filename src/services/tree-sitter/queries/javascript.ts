@@ -1,9 +1,10 @@
 /*
 - class definitions
-- method definitions
+- method definitions (including decorated methods)
 - named function declarations
 - arrow functions and function expressions assigned to variables
 - JSON object and array definitions (for JSON files)
+- decorators and decorated elements
 */
 export default `
 (
@@ -83,4 +84,40 @@ export default `
 
 ; JSON array definitions
 (array) @array.definition
+; Decorated method definitions
+(
+  [
+    (method_definition
+      decorator: (decorator)
+      name: (property_identifier) @name) @definition.method
+    (method_definition
+      decorator: (decorator
+        (call_expression
+          function: (identifier) @decorator_name))
+      name: (property_identifier) @name) @definition.method
+  ]
+  (#not-eq? @name "constructor")
+)
+
+; Decorated class definitions
+(
+  [
+    (class
+      decorator: (decorator)
+      name: (_) @name) @definition.class
+    (class_declaration
+      decorator: (decorator)
+      name: (_) @name) @definition.class
+  ]
+)
+
+; Capture method names in decorated classes
+(
+  (class_declaration
+    decorator: (decorator)
+    body: (class_body
+      (method_definition
+        name: (property_identifier) @name) @definition.method))
+  (#not-eq? @name "constructor")
+)
 `

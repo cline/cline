@@ -1,78 +1,58 @@
 /*
-- function declarations (with associated comments)
-- method declarations (with associated comments)
-- type specifications
-- struct definitions
-- interface definitions
-- constant declarations
-- variable declarations
-- type aliases
-- init functions
-- anonymous functions
+Go Tree-Sitter Query Patterns
 */
 export default `
-; Function declarations with associated comments
-(
-  (comment)* @doc
-  .
-  (function_declaration
-    name: (identifier) @name.definition.function) @definition.function
-  (#strip! @doc "^//\\s*")
-  (#set-adjacent! @doc @definition.function)
-)
+; Package declarations
+(package_clause
+  (package_identifier) @name.definition.package)
 
-; Method declarations with associated comments
-(
-  (comment)* @doc
-  .
-  (method_declaration
-    name: (field_identifier) @name.definition.method) @definition.method
-  (#strip! @doc "^//\\s*")
-  (#set-adjacent! @doc @definition.method)
-)
+; Import declarations
+(import_declaration
+  (import_spec_list
+    (import_spec path: (_) @name.definition.import)))
 
-; Type specifications
-(type_spec
-  name: (type_identifier) @name.definition.type) @definition.type
-
-; Struct definitions
-(type_spec
-  name: (type_identifier) @name.definition.struct
-  type: (struct_type)) @definition.struct
-
-; Interface definitions
-(type_spec
-  name: (type_identifier) @name.definition.interface
-  type: (interface_type)) @definition.interface
-
-; Constant declarations - single constant
+; Const declarations
 (const_declaration
-  (const_spec
-    name: (identifier) @name.definition.constant)) @definition.constant
+  (const_spec name: (identifier) @name.definition.const))
 
-; Constant declarations - multiple constants in a block
-(const_spec
-  name: (identifier) @name.definition.constant) @definition.constant
-
-; Variable declarations - single variable
+; Var declarations
 (var_declaration
-  (var_spec
-    name: (identifier) @name.definition.variable)) @definition.variable
+  (var_spec name: (identifier) @name.definition.var))
 
-; Variable declarations - multiple variables in a block
-(var_spec
-  name: (identifier) @name.definition.variable) @definition.variable
+; Interface declarations
+(type_declaration
+  (type_spec
+    name: (type_identifier) @name.definition.interface
+    type: (interface_type)))
 
-; Type aliases
-(type_spec
-  name: (type_identifier) @name.definition.type_alias
-  type: (type_identifier)) @definition.type_alias
+; Struct declarations
+(type_declaration
+  (type_spec
+    name: (type_identifier) @name.definition.struct
+    type: (struct_type)))
 
-; Init functions
+; Type declarations
+(type_declaration
+  (type_spec
+    name: (type_identifier) @name.definition.type))
+
+; Function declarations
 (function_declaration
-  name: (identifier) @name.definition.init_function
-  (#eq? @name.definition.init_function "init")) @definition.init_function
+  name: (identifier) @name.definition.function)
 
-; Anonymous functions
-(func_literal) @definition.anonymous_function
+; Method declarations
+(method_declaration
+  name: (field_identifier) @name.definition.method)
+
+; Channel operations
+(channel_type) @name.definition.channel
+
+; Goroutine declarations
+(go_statement) @name.definition.goroutine
+
+; Defer statements
+(defer_statement) @name.definition.defer
+
+; Select statements
+(select_statement) @name.definition.select
 `

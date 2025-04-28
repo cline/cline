@@ -13,8 +13,20 @@ import {
 	rubyQuery,
 	javaQuery,
 	phpQuery,
+	htmlQuery,
 	swiftQuery,
 	kotlinQuery,
+	cssQuery,
+	ocamlQuery,
+	solidityQuery,
+	tomlQuery,
+	vueQuery,
+	luaQuery,
+	systemrdlQuery,
+	tlaPlusQuery,
+	zigQuery,
+	embeddedTemplateQuery,
+	elispQuery,
 } from "./queries"
 
 export interface LanguageParser {
@@ -66,6 +78,7 @@ export async function loadRequiredLanguageParsers(filesToParse: string[]): Promi
 	for (const ext of extensionsToLoad) {
 		let language: Parser.Language
 		let query: Parser.Query
+		let parserKey = ext // Default to using extension as key
 		switch (ext) {
 			case "js":
 			case "jsx":
@@ -128,12 +141,67 @@ export async function loadRequiredLanguageParsers(filesToParse: string[]): Promi
 				language = await loadLanguage("kotlin")
 				query = language.query(kotlinQuery)
 				break
+			case "css":
+				language = await loadLanguage("css")
+				query = language.query(cssQuery)
+				break
+			case "html":
+				language = await loadLanguage("html")
+				query = language.query(htmlQuery)
+				break
+			case "ml":
+			case "mli":
+				language = await loadLanguage("ocaml")
+				query = language.query(ocamlQuery)
+				break
+			case "scala":
+				language = await loadLanguage("scala")
+				query = language.query(luaQuery) // Temporarily use Lua query until Scala is implemented
+				break
+			case "sol":
+				language = await loadLanguage("solidity")
+				query = language.query(solidityQuery)
+				break
+			case "toml":
+				language = await loadLanguage("toml")
+				query = language.query(tomlQuery)
+				break
+			case "vue":
+				language = await loadLanguage("vue")
+				query = language.query(vueQuery)
+				break
+			case "lua":
+				language = await loadLanguage("lua")
+				query = language.query(luaQuery)
+				break
+			case "rdl":
+				language = await loadLanguage("systemrdl")
+				query = language.query(systemrdlQuery)
+				break
+			case "tla":
+				language = await loadLanguage("tlaplus")
+				query = language.query(tlaPlusQuery)
+				break
+			case "zig":
+				language = await loadLanguage("zig")
+				query = language.query(zigQuery)
+				break
+			case "ejs":
+			case "erb":
+				language = await loadLanguage("embedded_template")
+				parserKey = "embedded_template" // Use same key for both extensions
+				query = language.query(embeddedTemplateQuery)
+				break
+			case "el":
+				language = await loadLanguage("elisp")
+				query = language.query(elispQuery)
+				break
 			default:
 				throw new Error(`Unsupported language: ${ext}`)
 		}
 		const parser = new Parser()
 		parser.setLanguage(language)
-		parsers[ext] = { parser, query }
+		parsers[parserKey] = { parser, query }
 	}
 	return parsers
 }

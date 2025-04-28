@@ -1,9 +1,20 @@
 import { jest } from "@jest/globals"
-import { parseSourceCodeDefinitionsForFile } from ".."
+import { parseSourceCodeDefinitionsForFile, setMinComponentLines } from ".."
 import * as fs from "fs/promises"
 import * as path from "path"
 import Parser from "web-tree-sitter"
 import tsxQuery from "../queries/tsx"
+// Mock setup
+jest.mock("fs/promises")
+export const mockedFs = jest.mocked(fs)
+
+jest.mock("../../../utils/fs", () => ({
+	fileExistsAtPath: jest.fn().mockImplementation(() => Promise.resolve(true)),
+}))
+
+jest.mock("../languageParser", () => ({
+	loadRequiredLanguageParsers: jest.fn(),
+}))
 
 // Global debug flag - read from environment variable or default to 0
 export const DEBUG = process.env.DEBUG ? parseInt(process.env.DEBUG, 10) : 0
@@ -14,9 +25,6 @@ export const debugLog = (message: string, ...args: any[]) => {
 		console.debug(message, ...args)
 	}
 }
-
-// Mock fs module
-const mockedFs = jest.mocked(fs)
 
 // Store the initialized TreeSitter for reuse
 let initializedTreeSitter: Parser | null = null
@@ -65,15 +73,18 @@ export async function testParseSourceCodeDefinitions(
 		extKey?: string
 	} = {},
 ): Promise<string | undefined> {
+	// Set minimum component lines to 0 for tests
+	setMinComponentLines(0)
+
 	// Set default options
 	const wasmFile = options.wasmFile || "tree-sitter-tsx.wasm"
 	const queryString = options.queryString || tsxQuery
 	const extKey = options.extKey || "tsx"
 
-	// Clear any previous mocks
+	// Clear any previous mocks and set up fs mock
 	jest.clearAllMocks()
-
-	// Mock fs.readFile to return our sample content
+	jest.mock("fs/promises")
+	const mockedFs = require("fs/promises") as jest.Mocked<typeof import("fs/promises")>
 	mockedFs.readFile.mockResolvedValue(content)
 
 	// Get the mock function
@@ -105,12 +116,12 @@ export async function testParseSourceCodeDefinitions(
 	expect(mockedLoadRequiredLanguageParsers).toHaveBeenCalledWith([testFilePath])
 	expect(mockedLoadRequiredLanguageParsers).toHaveBeenCalled()
 
-	debugLog(`content:\n${content}\n\nResult:\n${result}`)
+	debugLog(`Result:\n${result}`)
 	return result
 }
 
 // Helper function to inspect tree structure
-export async function inspectTreeStructure(content: string, language: string = "typescript"): Promise<void> {
+export async function inspectTreeStructure(content: string, language: string = "typescript"): Promise<string> {
 	const TreeSitter = await initializeTreeSitter()
 	const parser = new TreeSitter()
 	const wasmPath = path.join(process.cwd(), `dist/tree-sitter-${language}.wasm`)
@@ -122,41 +133,5 @@ export async function inspectTreeStructure(content: string, language: string = "
 
 	// Print the tree structure
 	debugLog(`TREE STRUCTURE (${language}):\n${tree.rootNode.toString()}`)
-
-	// Add more detailed debug information
-	debugLog("\nDETAILED NODE INSPECTION:")
-
-	// Function to recursively print node details
-	const printNodeDetails = (node: Parser.SyntaxNode, depth: number = 0) => {
-		const indent = "  ".repeat(depth)
-		debugLog(
-			`${indent}Node Type: ${node.type}, Start: ${node.startPosition.row}:${node.startPosition.column}, End: ${node.endPosition.row}:${node.endPosition.column}`,
-		)
-
-		// Print children
-		for (let i = 0; i < node.childCount; i++) {
-			const child = node.child(i)
-			if (child) {
-				// For type_alias_declaration nodes, print more details
-				if (node.type === "type_alias_declaration") {
-					debugLog(`${indent}  TYPE ALIAS: ${node.text}`)
-				}
-
-				// For conditional_type nodes, print more details
-				if (node.type === "conditional_type" || child.type === "conditional_type") {
-					debugLog(`${indent}  CONDITIONAL TYPE FOUND: ${child.text}`)
-				}
-
-				// For infer_type nodes, print more details
-				if (node.type === "infer_type" || child.type === "infer_type") {
-					debugLog(`${indent}  INFER TYPE FOUND: ${child.text}`)
-				}
-
-				printNodeDetails(child, depth + 1)
-			}
-		}
-	}
-
-	// Start recursive printing from the root node
-	printNodeDetails(tree.rootNode)
+	return tree.rootNode.toString()
 }

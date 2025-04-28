@@ -38,35 +38,21 @@ const copyWasmFiles = {
 				path.join(distDir, "tiktoken_bg.wasm"),
 			)
 
-			// tree-sitter WASM
-			fs.copyFileSync(
-				path.join(nodeModulesDir, "web-tree-sitter", "tree-sitter.wasm"),
-				path.join(distDir, "tree-sitter.wasm"),
-			)
+			// Copy language-specific WASM files
+			const languageWasmDir = path.join(__dirname, "node_modules", "tree-sitter-wasms", "out")
 
-			// language-specific tree-sitter WASMs
-			const languageWasmDir = path.join(nodeModulesDir, "tree-sitter-wasms", "out")
-			const languages = [
-				"typescript",
-				"tsx",
-				"python",
-				"rust",
-				"javascript",
-				"go",
-				"cpp",
-				"c",
-				"c_sharp",
-				"ruby",
-				"java",
-				"php",
-				"swift",
-				"kotlin",
-			]
+			// Dynamically read all WASM files from the directory instead of using a hardcoded list
+			if (fs.existsSync(languageWasmDir)) {
+				const wasmFiles = fs.readdirSync(languageWasmDir).filter((file) => file.endsWith(".wasm"))
 
-			languages.forEach((lang) => {
-				const filename = `tree-sitter-${lang}.wasm`
-				fs.copyFileSync(path.join(languageWasmDir, filename), path.join(distDir, filename))
-			})
+				console.log(`Copying ${wasmFiles.length} tree-sitter WASM files to dist directory`)
+
+				wasmFiles.forEach((filename) => {
+					fs.copyFileSync(path.join(languageWasmDir, filename), path.join(distDir, filename))
+				})
+			} else {
+				console.warn(`Tree-sitter WASM directory not found: ${languageWasmDir}`)
+			}
 		})
 	},
 }

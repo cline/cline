@@ -1,186 +1,73 @@
 import typescriptQuery from "./typescript"
 
 /**
- * Tree-sitter Query for TSX Files:
- *    Combines TypeScript queries with TSX-specific React component queries
+ * Tree-sitter Query for TSX Files
  *
- * This query captures various TypeScript and React component definitions in TSX files,
- * as well as advanced TypeScript language constructs.
- *
- * SUPPORTED LANGUAGE CONSTRUCTS:
- * - React Components (Function, Arrow, Class)
+ * This query captures React component definitions in TSX files:
+ * - Function Components
+ * - Class Components
  * - Higher Order Components
- * - JSX Elements and Expressions
- * - React Hooks
- * - Context Providers/Consumers
- * - React-specific Decorators
- *
- * Note: Generic TypeScript constructs like Utility Types, Async Functions,
- * Class Members, Enums, and Namespaces are defined in typescript.ts
- *
- * TSX COMPONENT STRUCTURE:
- *
- * 1. React Function Component (Function Declaration):
- *    ```tsx
- *    function MyComponent(): JSX.Element {
- *      return <div>...</div>;
- *    }
- *    ```
- *    Tree Structure:
- *    - function_declaration
- *      - name: identifier ("MyComponent")
- *      - return_type: type_annotation
- *        - type_identifier ("JSX.Element") or generic_type
- *      - body: statement_block
- *
- * 2. React Function Component (Arrow Function):
- *    ```tsx
- *    const MyComponent = (): JSX.Element => {
- *      return <div>...</div>;
- *    }
- *    ```
- *    Tree Structure:
- *    - variable_declaration
- *      - variable_declarator
- *        - name: identifier ("MyComponent")
- *        - value: arrow_function
- *          - return_type: type_annotation
- *            - type_identifier or generic_type
- *
- * 3. React Function Component (Exported Arrow Function):
- *    ```tsx
- *    export const MyComponent = ({ prop1, prop2 }) => {
- *      return <div>...</div>;
- *    }
- *    ```
- *    Tree Structure:
- *    - export_statement
- *      - variable_declaration
- *        - variable_declarator
- *          - name: identifier ("MyComponent")
- *          - value: arrow_function
- *
- * 4. React Class Component:
- *    ```tsx
- *    class MyComponent extends React.Component {
- *      render() {
- *        return <div>...</div>;
- *      }
- *    }
- *    ```
- *    Tree Structure:
- *    - class_declaration
- *      - name: type_identifier ("MyComponent")
- *      - class_heritage
- *        - extends_clause
- *          - member_expression ("React.Component")
- *
- * IMPORTANT NOTES:
- * - Field names like "superclass" or "extends" don't exist in the TSX grammar
- * - Use direct node matching instead of field names when possible
- * - Simpler patterns are more robust and less prone to errors
+ * - Type Definitions
+ * - Props Interfaces
+ * - State Definitions
+ * - Generic Components
  */
 
 export default `${typescriptQuery}
 
-; React Component Definitions
-; Function Components
+; Function Components - Both function declarations and arrow functions
 (function_declaration
-  name: (identifier) @name.definition.component) @definition.component
+  name: (identifier) @name) @definition.component
 
 ; Arrow Function Components
 (variable_declaration
   (variable_declarator
-    name: (identifier) @name.definition.component
-    value: [(arrow_function) (function_expression)])) @definition.component
+    name: (identifier) @name
+    value: (arrow_function))) @definition.component
 
-; Class Components
-(class_declaration
-  name: (type_identifier) @name.definition.component
-  (class_heritage
-    (extends_clause
-      (member_expression) @base))) @definition.component
-
-; Higher Order Components
-(variable_declaration
-  (variable_declarator
-    name: (identifier) @name.definition.component
-    value: (call_expression
-      function: (identifier) @hoc))) @definition.component
-  (#match? @hoc "^with[A-Z]")
-
-; Capture all named definitions (component or not)
-(variable_declaration
-  (variable_declarator
-    name: (identifier) @name.definition
-    value: [
-      (call_expression) @value
-      (arrow_function) @value
-    ])) @definition.component
-
-; Capture all exported component declarations, including React component wrappers
+; Export Statement Components
 (export_statement
   (variable_declaration
     (variable_declarator
-      name: (identifier) @name.definition.component
-      value: [
-        (call_expression) @value
-        (arrow_function) @value
-      ]))) @definition.component
+      name: (identifier) @name
+      value: (arrow_function)))) @definition.component
 
-; Capture React component name inside wrapped components
-(call_expression
-  function: (_)
-  arguments: (arguments
-    (arrow_function))) @definition.wrapped_component
+; Class Components
+(class_declaration
+  name: (type_identifier) @name) @definition.class_component
 
-; HOC definitions - capture both the HOC name and definition
+; Interface Declarations
+(interface_declaration
+  name: (type_identifier) @name) @definition.interface
+
+; Type Alias Declarations
+(type_alias_declaration
+  name: (type_identifier) @name) @definition.type
+
+; HOC Components
 (variable_declaration
   (variable_declarator
-    name: (identifier) @name.definition.hoc
-    value: (arrow_function
-      parameters: (formal_parameters)))) @definition.hoc
-
-; Type definitions (to include interfaces and types)
-(type_alias_declaration
-  name: (type_identifier) @name.definition.type) @definition.type
-
-(interface_declaration
-  name: (type_identifier) @name.definition.interface) @definition.interface
-
-; Enhanced Components
-(variable_declaration
-  (variable_declarator
-    name: (identifier) @name.definition.component
-    value: (call_expression))) @definition.component
-
-; Types and Interfaces
-(interface_declaration
-  name: (type_identifier) @name.definition.interface) @definition.interface
-
-(type_alias_declaration
-  name: (type_identifier) @name.definition.type) @definition.type
+    name: (identifier) @name
+    value: (call_expression
+      function: (identifier)))) @definition.component
 
 ; JSX Component Usage - Capture all components in JSX
 (jsx_element
   open_tag: (jsx_opening_element
-    name: [(identifier) @component (member_expression) @component])) @definition.component
-  (#match? @component "^[A-Z]")
+    name: [(identifier) @component (member_expression) @component])) @definition.jsx_element
 
+; Self-closing JSX elements
 (jsx_self_closing_element
-  name: [(identifier) @component (member_expression) @component]) @definition.component
-  (#match? @component "^[A-Z]")
+  name: [(identifier) @component (member_expression) @component]) @definition.jsx_self_closing_element
 
 ; Capture all identifiers in JSX expressions that start with capital letters
 (jsx_expression
   (identifier) @jsx_component) @definition.jsx_component
-  (#match? @jsx_component "^[A-Z]")
 
 ; Capture all member expressions in JSX
 (member_expression
   object: (identifier) @object
   property: (property_identifier) @property) @definition.member_component
-  (#match? @object "^[A-Z]")
 
 ; Capture components in conditional expressions
 (ternary_expression
@@ -188,37 +75,13 @@ export default `${typescriptQuery}
     (jsx_element
       open_tag: (jsx_opening_element
         name: (identifier) @component)))) @definition.conditional_component
-  (#match? @component "^[A-Z]")
 
 (ternary_expression
   alternative: (jsx_self_closing_element
     name: (identifier) @component)) @definition.conditional_component
-  (#match? @component "^[A-Z]")
 
-; Enhanced TypeScript Support - React-specific patterns only
-; Method Definitions specific to React components
-(method_definition
-  name: (property_identifier) @name.definition.method) @definition.method
-
-; React Hooks
-(variable_declaration
-  (variable_declarator
-    name: (array_pattern) @name.definition.hook
-    value: (call_expression
-      function: (identifier) @hook_name))) @definition.hook
-  (#match? @hook_name "^use[A-Z]")
-
-; Custom Hooks
+; Generic Components
 (function_declaration
-  name: (identifier) @name.definition.custom_hook) @definition.custom_hook
-  (#match? @name.definition.custom_hook "^use[A-Z]")
-
-; Context Providers and Consumers
-(variable_declaration
-  (variable_declarator
-    name: (identifier) @name.definition.context
-    value: (member_expression))) @definition.context
-
-; React-specific decorators
-(decorator) @definition.decorator
+  name: (identifier) @name
+  type_parameters: (type_parameters)) @definition.generic_component
 `
