@@ -53,6 +53,18 @@ export function mcpServerStatusToJSON(object: McpServerStatus): string {
 	}
 }
 
+export interface ToggleMcpServerRequest {
+	metadata?: Metadata | undefined
+	serverName: string
+	disabled: boolean
+}
+
+export interface UpdateMcpTimeoutRequest {
+	metadata?: Metadata | undefined
+	serverName: string
+	timeout: number
+}
+
 export interface McpTool {
 	name: string
 	description?: string | undefined
@@ -86,14 +98,194 @@ export interface McpServer {
 	timeout?: number | undefined
 }
 
-export interface ToggleMcpServerRequest {
-	metadata?: Metadata | undefined
-	serverName: string
-	disabled: boolean
-}
-
 export interface McpServers {
 	mcpServers: McpServer[]
+}
+
+function createBaseToggleMcpServerRequest(): ToggleMcpServerRequest {
+	return { metadata: undefined, serverName: "", disabled: false }
+}
+
+export const ToggleMcpServerRequest: MessageFns<ToggleMcpServerRequest> = {
+	encode(message: ToggleMcpServerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.serverName !== "") {
+			writer.uint32(18).string(message.serverName)
+		}
+		if (message.disabled !== false) {
+			writer.uint32(24).bool(message.disabled)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ToggleMcpServerRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseToggleMcpServerRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.serverName = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.disabled = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ToggleMcpServerRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+			disabled: isSet(object.disabled) ? globalThis.Boolean(object.disabled) : false,
+		}
+	},
+
+	toJSON(message: ToggleMcpServerRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.serverName !== "") {
+			obj.serverName = message.serverName
+		}
+		if (message.disabled !== false) {
+			obj.disabled = message.disabled
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ToggleMcpServerRequest>, I>>(base?: I): ToggleMcpServerRequest {
+		return ToggleMcpServerRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ToggleMcpServerRequest>, I>>(object: I): ToggleMcpServerRequest {
+		const message = createBaseToggleMcpServerRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.serverName = object.serverName ?? ""
+		message.disabled = object.disabled ?? false
+		return message
+	},
+}
+
+function createBaseUpdateMcpTimeoutRequest(): UpdateMcpTimeoutRequest {
+	return { metadata: undefined, serverName: "", timeout: 0 }
+}
+
+export const UpdateMcpTimeoutRequest: MessageFns<UpdateMcpTimeoutRequest> = {
+	encode(message: UpdateMcpTimeoutRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.serverName !== "") {
+			writer.uint32(18).string(message.serverName)
+		}
+		if (message.timeout !== 0) {
+			writer.uint32(24).int32(message.timeout)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): UpdateMcpTimeoutRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseUpdateMcpTimeoutRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.serverName = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.timeout = reader.int32()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): UpdateMcpTimeoutRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+			timeout: isSet(object.timeout) ? globalThis.Number(object.timeout) : 0,
+		}
+	},
+
+	toJSON(message: UpdateMcpTimeoutRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.serverName !== "") {
+			obj.serverName = message.serverName
+		}
+		if (message.timeout !== 0) {
+			obj.timeout = Math.round(message.timeout)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<UpdateMcpTimeoutRequest>, I>>(base?: I): UpdateMcpTimeoutRequest {
+		return UpdateMcpTimeoutRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<UpdateMcpTimeoutRequest>, I>>(object: I): UpdateMcpTimeoutRequest {
+		const message = createBaseUpdateMcpTimeoutRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.serverName = object.serverName ?? ""
+		message.timeout = object.timeout ?? 0
+		return message
+	},
 }
 
 function createBaseMcpTool(): McpTool {
@@ -622,99 +814,6 @@ export const McpServer: MessageFns<McpServer> = {
 	},
 }
 
-function createBaseToggleMcpServerRequest(): ToggleMcpServerRequest {
-	return { metadata: undefined, serverName: "", disabled: false }
-}
-
-export const ToggleMcpServerRequest: MessageFns<ToggleMcpServerRequest> = {
-	encode(message: ToggleMcpServerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.serverName !== "") {
-			writer.uint32(18).string(message.serverName)
-		}
-		if (message.disabled !== false) {
-			writer.uint32(24).bool(message.disabled)
-		}
-		return writer
-	},
-
-	decode(input: BinaryReader | Uint8Array, length?: number): ToggleMcpServerRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseToggleMcpServerRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
-
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
-
-					message.serverName = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
-
-					message.disabled = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
-
-	fromJSON(object: any): ToggleMcpServerRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
-			disabled: isSet(object.disabled) ? globalThis.Boolean(object.disabled) : false,
-		}
-	},
-
-	toJSON(message: ToggleMcpServerRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.serverName !== "") {
-			obj.serverName = message.serverName
-		}
-		if (message.disabled !== false) {
-			obj.disabled = message.disabled
-		}
-		return obj
-	},
-
-	create<I extends Exact<DeepPartial<ToggleMcpServerRequest>, I>>(base?: I): ToggleMcpServerRequest {
-		return ToggleMcpServerRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ToggleMcpServerRequest>, I>>(object: I): ToggleMcpServerRequest {
-		const message = createBaseToggleMcpServerRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.serverName = object.serverName ?? ""
-		message.disabled = object.disabled ?? false
-		return message
-	},
-}
-
 function createBaseMcpServers(): McpServers {
 	return { mcpServers: [] }
 }
@@ -785,6 +884,14 @@ export const McpServiceDefinition = {
 		toggleMcpServer: {
 			name: "toggleMcpServer",
 			requestType: ToggleMcpServerRequest,
+			requestStream: false,
+			responseType: McpServers,
+			responseStream: false,
+			options: {},
+		},
+		updateMcpTimeout: {
+			name: "updateMcpTimeout",
+			requestType: UpdateMcpTimeoutRequest,
 			requestStream: false,
 			responseType: McpServers,
 			responseStream: false,

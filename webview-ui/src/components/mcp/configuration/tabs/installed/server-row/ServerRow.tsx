@@ -18,6 +18,7 @@ import McpResourceRow from "./McpResourceRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { McpServers, UpdateMcpTimeoutRequest } from "@shared/proto/mcp"
 // constant JSX.Elements
 const TimeoutOptions = [
 	{ value: "30", label: "30 seconds" },
@@ -77,11 +78,18 @@ const ServerRow = ({
 		const value = select.value
 		const num = parseInt(value)
 		setTimeoutValue(value)
-		vscode.postMessage({
-			type: "updateMcpTimeout",
+
+		McpServiceClient.updateMcpTimeout({
 			serverName: server.name,
 			timeout: num,
-		})
+		} as UpdateMcpTimeoutRequest)
+			.then((response: McpServers) => {
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+			})
+			.catch((error) => {
+				console.error("Error updating MCP server timeout", error)
+			})
 	}
 
 	const handleRestart = () => {

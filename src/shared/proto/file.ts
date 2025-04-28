@@ -24,5 +24,14 @@ export const FileServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Opens an image in the system viewer */
+		openImage: {
+			name: "openImage",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const

@@ -77,10 +77,11 @@ async function generateMethodRegistrations() {
 	console.log(chalk.cyan("Generating method registration files..."))
 
 	const serviceDirs = [
-		path.join(ROOT_DIR, "src", "core", "controller", "mcp"),
+		path.join(ROOT_DIR, "src", "core", "controller", "account"),
 		path.join(ROOT_DIR, "src", "core", "controller", "browser"),
 		path.join(ROOT_DIR, "src", "core", "controller", "checkpoints"),
 		path.join(ROOT_DIR, "src", "core", "controller", "file"),
+		path.join(ROOT_DIR, "src", "core", "controller", "mcp"),
 		path.join(ROOT_DIR, "src", "core", "controller", "task"),
 		// Add more service directories here as needed
 	]

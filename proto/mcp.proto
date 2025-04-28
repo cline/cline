@@ -1,11 +1,26 @@
 syntax = "proto3";
 
 package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
 
 import "common.proto";
 
 service McpService {
   rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
+  rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
+}
+
+message ToggleMcpServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  bool disabled = 3;
+}
+
+message UpdateMcpTimeoutRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  int32 timeout = 3;
 }
 
 message McpTool {
@@ -47,12 +62,6 @@ message McpServer {
   repeated McpResourceTemplate resource_templates = 7;
   optional bool disabled = 8;
   optional int32 timeout = 9;
-}
-
-message ToggleMcpServerRequest {
-  Metadata metadata = 1;
-  string server_name = 2;
-  bool disabled = 3;
 }
 
 message McpServers {

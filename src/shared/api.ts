@@ -81,6 +81,7 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	onModelInfoUpdate?: () => void // Callback to notify when model info is updated asynchronously
+	requestTimeoutMs?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

@@ -1,8 +1,16 @@
 # Changelog
 
+## [3.13.3]
+
+-   Add download counts to MCP marketplace items
+-   Add `/compact` command
+-   Add prompt caching to gemini models in cline / openrouter providers
+-   Add tooltips to bottom row menu
+
 ## [3.13.2]
 
--   Add Caching to gemini provider
+-   Add Gemini 2.5 Flash model to Vertex and Gemini Providers (Thanks monotykamary!)
+-   Add Caching to gemini provider (Thanks arafatkatze!)
 -   Add thinking budget support to Gemini Models (Thanks monotykamary!)
 -   Add !include .file directive support for .clineignore (Thanks watany-dev!)
 -   Improve slash command functionality
@@ -17,7 +25,6 @@
 -   Fix auto approve settings becoming unset
 -   Fix Mermaid syntax error in documentation (Thanks tuki0918!)
 -   Remove supportsComputerUse restriction and support browser use through any model that supports images (Thanks arafatkatze!)
-
 
 ## [3.13.1]
 

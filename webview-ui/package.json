@@ -33,7 +33,11 @@
 		"react-use": "^17.6.0",
 		"react-virtuoso": "^4.12.3",
 		"rehype-highlight": "^7.0.1",
+		"rehype-parse": "^9.0.1",
+		"rehype-remark": "^10.0.1",
+		"remark-stringify": "^11.0.0",
 		"styled-components": "^6.1.15",
+		"unified": "^11.0.5",
 		"uuid": "^9.0.1"
 	},
 	"devDependencies": {
