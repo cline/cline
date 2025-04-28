@@ -20,7 +20,7 @@
 		},
 		{
 			"label": "watch",
-			"dependsOn": ["npm: protos", "npm: dev:webview", "npm: watch:tsc", "npm: watch:esbuild"],
+			"dependsOn": ["npm: protos", "npm: build:webview", "npm: dev:webview", "npm: watch:tsc", "npm: watch:esbuild"],
 			"presentation": {
 				"reveal": "always"
 			},
