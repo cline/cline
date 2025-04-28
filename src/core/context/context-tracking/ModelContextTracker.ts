@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { getTaskMetadata, saveTaskMetadata } from "../../storage/disk"
+import { getTaskMetadata, saveTaskMetadata } from "@core/storage/disk"
 
 export class ModelContextTracker {
 	readonly taskId: string

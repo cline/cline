@@ -60,12 +60,52 @@ import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 import RequestyModelPicker from "./RequestyModelPicker"
+import { useOpenRouterKeyInfo } from "../ui/hooks/useOpenRouterKeyInfo"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
 	isPopup?: boolean
+	saveImmediately?: boolean // Add prop to control immediate saving
+}
+
+const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
+	const { data: keyInfo, isLoading, error } = useOpenRouterKeyInfo(apiKey)
+
+	if (isLoading) {
+		return <span style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>Loading...</span>
+	}
+
+	if (error || !keyInfo || keyInfo.limit === null) {
+		// Don't show anything if there's an error, no info, or no limit set
+		return null
+	}
+
+	// Calculate remaining balance
+	const remainingBalance = keyInfo.limit - keyInfo.usage
+	const formattedBalance = remainingBalance.toLocaleString("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 4,
+	})
+
+	return (
+		<VSCodeLink
+			href="https://openrouter.ai/settings/keys"
+			title={`Remaining balance: ${formattedBalance}\nLimit: ${keyInfo.limit.toLocaleString("en-US", { style: "currency", currency: "USD" })}\nUsage: ${keyInfo.usage.toLocaleString("en-US", { style: "currency", currency: "USD" })}`}
+			style={{
+				fontSize: "12px",
+				color: "var(--vscode-foreground)",
+				textDecoration: "none",
+				fontWeight: 500,
+				paddingLeft: 4,
+				cursor: "pointer",
+			}}>
+			Balance: {formattedBalance}
+		</VSCodeLink>
+	)
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
@@ -92,8 +132,16 @@ declare module "vscode" {
 	}
 }
 
-const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
-	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
+const ApiOptions = ({
+	showModelOptions,
+	apiErrorMessage,
+	modelIdErrorMessage,
+	isPopup,
+	saveImmediately = false, // Default to false
+}: ApiOptionsProps) => {
+	// Use full context state for immediate save payload
+	const extensionState = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, uriScheme } = extensionState
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
@@ -115,14 +163,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			[field]: newValue,
 		})
 
-		// If the field is the provider, save it immediately
-		// Necessary for favorite model selection to work without undoing provider changes
-		if (field === "apiProvider") {
+		// If the field is the provider AND saveImmediately is true, save it immediately using the full context state
+		if (saveImmediately && field === "apiProvider") {
+			// Use apiConfiguration from the full extensionState context to send the most complete data
+			const currentFullApiConfig = extensionState.apiConfiguration
 			vscode.postMessage({
 				type: "apiConfiguration",
 				apiConfiguration: {
-					...apiConfiguration,
-					apiProvider: newValue,
+					...currentFullApiConfig, // Send the most complete config available
+					apiProvider: newValue, // Override with the new provider
 				},
 			})
 		}
@@ -219,7 +268,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
-					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
+					<VSCodeOption value="bedrock">Amazon Bedrock</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
@@ -520,7 +569,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						type="password"
 						onInput={handleInputChange("openRouterApiKey")}
 						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
+						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+							<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
+							{apiConfiguration?.openRouterApiKey && (
+								<OpenRouterBalanceDisplay apiKey={apiConfiguration.openRouterApiKey} />
+							)}
+						</div>
 					</VSCodeTextField>
 					{!apiConfiguration?.openRouterApiKey && (
 						<VSCodeButtonLink
@@ -824,6 +878,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							</VSCodeLink>
 						)}
 					</p>
+
+					{/* Add Thinking Budget Slider specifically for gemini-2.5-flash-preview-04-17 */}
+					{selectedProvider === "gemini" && selectedModelId === "gemini-2.5-flash-preview-04-17" && (
+						<ThinkingBudgetSlider
+							apiConfiguration={apiConfiguration}
+							setApiConfiguration={setApiConfiguration}
+							maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
+						/>
+					)}
 				</div>
 			)}
 
@@ -994,19 +1057,19 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								Supports Images
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
-								checked={!!apiConfiguration?.openAiModelInfo?.supportsComputerUse}
+								checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
 								onChange={(e: any) => {
 									const isChecked = e.target.checked === true
 									let modelInfo = apiConfiguration?.openAiModelInfo
 										? apiConfiguration.openAiModelInfo
 										: { ...openAiModelInfoSaneDefaults }
-									modelInfo = { ...modelInfo, supportsComputerUse: isChecked }
+									modelInfo.supportsImages = isChecked
 									setApiConfiguration({
 										...apiConfiguration,
 										openAiModelInfo: modelInfo,
 									})
 								}}>
-								Supports Computer Use
+								Supports browser use
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
 								checked={!!apiConfiguration?.openAiModelInfo?.isR1FormatRequired}
@@ -1555,6 +1618,31 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</p>
 			)}
 
+			{selectedProvider === "ollama" && showModelOptions && (
+				<>
+					<VSCodeTextField
+						value={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
+						style={{ width: "100%" }}
+						onInput={(e: any) => {
+							const value = e.target.value
+							// Convert to number, with validation
+							const numValue = parseInt(value, 10)
+							if (!isNaN(numValue) && numValue > 0) {
+								setApiConfiguration({
+									...apiConfiguration,
+									requestTimeoutMs: numValue,
+								})
+							}
+						}}
+						placeholder="Default: 30000 (30 seconds)">
+						<span style={{ fontWeight: 500 }}>Request Timeout (ms)</span>
+					</VSCodeTextField>
+					<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+						Maximum time in milliseconds to wait for API responses before timing out.
+					</p>
+				</>
+			)}
+
 			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
 				<>
 					<VSCodeCheckbox
@@ -1738,17 +1826,30 @@ export const formatPrice = (price: number) => {
 }
 
 // Returns an array of formatted tier strings
-const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): string[] => {
+const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): JSX.Element[] => {
 	if (!tiers || tiers.length === 0) {
 		return []
 	}
 	return tiers.map((tier, index, arr) => {
 		const prevLimit = index > 0 ? arr[index - 1].tokenLimit : 0
-		const limitText =
-			tier.tokenLimit === Infinity
-				? `> ${prevLimit.toLocaleString()}` // Assumes sorted and Infinity is last
-				: `<= ${tier.tokenLimit.toLocaleString()}`
-		return `${formatPrice(tier.price)}/million tokens (${limitText} tokens)`
+		return (
+			<span style={{ paddingLeft: "15px" }} key={index}>
+				{formatPrice(tier.price)}/million tokens (
+				{tier.tokenLimit === Number.POSITIVE_INFINITY ? (
+					<span>
+						{"> "}
+						{prevLimit.toLocaleString()}
+					</span>
+				) : (
+					<span>
+						{"<= "}
+						{tier.tokenLimit.toLocaleString()}
+					</span>
+				)}
+				{" tokens)"}
+				{index < arr.length - 1 && <br />}
+			</span>
+		)
 	})
 }
 
@@ -1766,18 +1867,14 @@ export const ModelInfoView = ({
 	isPopup?: boolean
 }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+	const hasThinkingConfig = !!modelInfo.thinkingConfig
 
 	// Create elements for tiered pricing separately
 	const inputPriceElement = modelInfo.inputPriceTiers ? (
 		<Fragment key="inputPriceTiers">
 			<span style={{ fontWeight: 500 }}>Input price:</span>
 			<br />
-			{formatTiers(modelInfo.inputPriceTiers).map((tierString, i, arr) => (
-				<Fragment key={`inputTierFrag${i}`}>
-					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
-					{i < arr.length - 1 && <br />}
-				</Fragment>
-			))}
+			{formatTiers(modelInfo.inputPriceTiers)}
 		</Fragment>
 	) : modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 ? (
 		<span key="inputPrice">
@@ -1785,23 +1882,38 @@ export const ModelInfoView = ({
 		</span>
 	) : null
 
-	const outputPriceElement = modelInfo.outputPriceTiers ? (
-		<Fragment key="outputPriceTiers">
-			<span style={{ fontWeight: 500 }}>Output price:</span>
-			<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
-			<br />
-			{formatTiers(modelInfo.outputPriceTiers).map((tierString, i, arr) => (
-				<Fragment key={`outputTierFrag${i}`}>
-					<span style={{ paddingLeft: "15px" }}>{tierString}</span>
-					{i < arr.length - 1 && <br />}
-				</Fragment>
-			))}
-		</Fragment>
-	) : modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 ? (
-		<span key="outputPrice">
-			<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
-		</span>
-	) : null
+	// --- Output Price Logic ---
+	let outputPriceElement = null
+	if (hasThinkingConfig && modelInfo.outputPrice !== undefined && modelInfo.thinkingConfig?.outputPrice !== undefined) {
+		// Display both standard and thinking budget prices
+		outputPriceElement = (
+			<Fragment key="outputPriceConditional">
+				<span style={{ fontWeight: 500 }}>Output price (Standard):</span> {formatPrice(modelInfo.outputPrice)}/million
+				tokens
+				<br />
+				<span style={{ fontWeight: 500 }}>Output price (Thinking Budget &gt; 0):</span>{" "}
+				{formatPrice(modelInfo.thinkingConfig.outputPrice)}/million tokens
+			</Fragment>
+		)
+	} else if (modelInfo.outputPriceTiers) {
+		// Display tiered output pricing
+		outputPriceElement = (
+			<Fragment key="outputPriceTiers">
+				<span style={{ fontWeight: 500 }}>Output price:</span>
+				<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
+				<br />
+				{formatTiers(modelInfo.outputPriceTiers)}
+			</Fragment>
+		)
+	} else if (modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0) {
+		// Display single standard output price
+		outputPriceElement = (
+			<span key="outputPrice">
+				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million tokens
+			</span>
+		)
+	}
+	// --- End Output Price Logic ---
 
 	const infoItems = [
 		modelInfo.description && (
@@ -1820,10 +1932,10 @@ export const ModelInfoView = ({
 			doesNotSupportLabel="Does not support images"
 		/>,
 		<ModelInfoSupportsItem
-			key="supportsComputerUse"
-			isSupported={modelInfo.supportsComputerUse ?? false}
-			supportsLabel="Supports computer use"
-			doesNotSupportLabel="Does not support computer use"
+			key="supportsBrowserUse"
+			isSupported={modelInfo.supportsImages ?? false} // cline browser tool uses image recognition for navigation (requires model image support).
+			supportsLabel="Supports browser use"
+			doesNotSupportLabel="Does not support browser use"
 		/>,
 		!isGemini && (
 			<ModelInfoSupportsItem

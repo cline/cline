@@ -17,9 +17,11 @@ import {
 } from "@/utils/context-mentions"
 import {
 	SlashCommand,
+	slashCommandDeleteRegex,
 	shouldShowSlashCommandsMenu,
 	getMatchingSlashCommands,
 	insertSlashCommand,
+	removeSlashCommand,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
@@ -253,6 +255,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [selectedMenuIndex, setSelectedMenuIndex] = useState(-1)
 		const [selectedType, setSelectedType] = useState<ContextMenuOptionType | null>(null)
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
+		const [justDeletedSpaceAfterSlashCommand, setJustDeletedSpaceAfterSlashCommand] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 		const [showModelSelector, setShowModelSelector] = useState(false)
@@ -525,13 +528,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						charBeforeCursor === " " || charBeforeCursor === "\n" || charBeforeCursor === "\r\n"
 					const charAfterIsWhitespace =
 						charAfterCursor === " " || charAfterCursor === "\n" || charAfterCursor === "\r\n"
-					// checks if char before cursor is whitespace after a mention
+
+					// Check if we're right after a space that follows a mention or slash command
 					if (
 						charBeforeIsWhitespace &&
-						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$")) // "$" is added to ensure the match occurs at the end of the string
+						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$"))
 					) {
+						// File mention handling
 						const newCursorPosition = cursorPosition - 1
-						// if mention is followed by another word, then instead of deleting the space separating them we just move the cursor to the end of the mention
 						if (!charAfterIsWhitespace) {
 							event.preventDefault()
 							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
@@ -539,17 +543,44 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}
 						setCursorPosition(newCursorPosition)
 						setJustDeletedSpaceAfterMention(true)
-					} else if (justDeletedSpaceAfterMention) {
+						setJustDeletedSpaceAfterSlashCommand(false)
+					} else if (charBeforeIsWhitespace && inputValue.slice(0, cursorPosition - 1).match(slashCommandDeleteRegex)) {
+						// New slash command handling
+						const newCursorPosition = cursorPosition - 1
+						if (!charAfterIsWhitespace) {
+							event.preventDefault()
+							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
+							setCursorPosition(newCursorPosition)
+						}
+						setCursorPosition(newCursorPosition)
+						setJustDeletedSpaceAfterSlashCommand(true)
+						setJustDeletedSpaceAfterMention(false)
+					}
+					// Handle the second backspace press for mentions or slash commands
+					else if (justDeletedSpaceAfterMention) {
 						const { newText, newPosition } = removeMention(inputValue, cursorPosition)
 						if (newText !== inputValue) {
 							event.preventDefault()
 							setInputValue(newText)
-							setIntendedCursorPosition(newPosition) // Store the new cursor position in state
+							setIntendedCursorPosition(newPosition)
 						}
 						setJustDeletedSpaceAfterMention(false)
 						setShowContextMenu(false)
-					} else {
+					} else if (justDeletedSpaceAfterSlashCommand) {
+						// New slash command deletion
+						const { newText, newPosition } = removeSlashCommand(inputValue, cursorPosition)
+						if (newText !== inputValue) {
+							event.preventDefault()
+							setInputValue(newText)
+							setIntendedCursorPosition(newPosition)
+						}
+						setJustDeletedSpaceAfterSlashCommand(false)
+						setShowSlashCommandsMenu(false)
+					}
+					// Default case - reset flags if none of the above apply
+					else {
 						setJustDeletedSpaceAfterMention(false)
+						setJustDeletedSpaceAfterSlashCommand(false)
 					}
 				}
 			},
@@ -566,6 +597,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				justDeletedSpaceAfterMention,
 				queryItems,
 				fileSearchResults,
+				showSlashCommandsMenu,
+				selectedSlashCommandsIndex,
+				slashCommandsQuery,
+				handleSlashCommandsSelect,
 			],
 		)
 
@@ -792,7 +827,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
 
-					const highlighted = `<mark class="slash-command-match-textarea-highlight">${fullCommand}</mark>`
+					const highlighted = `<mark class="mention-context-textarea-highlight">${fullCommand}</mark>`
 					processedText = processedText.substring(0, slashIndex) + highlighted + processedText.substring(endIndex)
 				}
 			}
@@ -1312,49 +1347,53 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				<ControlsContainer>
 					<ButtonGroup>
-						<VSCodeButton
-							data-testid="context-button"
-							appearance="icon"
-							aria-label="Add Context"
-							disabled={textAreaDisabled}
-							onClick={handleContextButtonClick}
-							style={{ padding: "0px 0px", height: "20px" }}>
-							<ButtonContainer>
-								<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
-									@
-								</span>
-								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
-							</ButtonContainer>
-						</VSCodeButton>
+						<Tooltip tipText="Add Context" style={{ left: 0 }}>
+							<VSCodeButton
+								data-testid="context-button"
+								appearance="icon"
+								aria-label="Add Context"
+								disabled={textAreaDisabled}
+								onClick={handleContextButtonClick}
+								style={{ padding: "0px 0px", height: "20px" }}>
+								<ButtonContainer>
+									<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
+										@
+									</span>
+									{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
+								</ButtonContainer>
+							</VSCodeButton>
+						</Tooltip>
 
-						<VSCodeButton
-							data-testid="images-button"
-							appearance="icon"
-							aria-label="Add Images"
-							disabled={shouldDisableImages}
-							onClick={() => {
-								if (!shouldDisableImages) {
-									onSelectImages()
-								}
-							}}
-							style={{ padding: "0px 0px", height: "20px" }}>
-							<ButtonContainer>
-								<span
-									className="codicon codicon-device-camera flex items-center"
-									style={{ fontSize: "14px", marginBottom: -3 }}
-								/>
-								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
-							</ButtonContainer>
-						</VSCodeButton>
+						<Tooltip tipText="Add Images">
+							<VSCodeButton
+								data-testid="images-button"
+								appearance="icon"
+								aria-label="Add Images"
+								disabled={shouldDisableImages}
+								onClick={() => {
+									if (!shouldDisableImages) {
+										onSelectImages()
+									}
+								}}
+								style={{ padding: "0px 0px", height: "20px" }}>
+								<ButtonContainer>
+									<span
+										className="codicon codicon-device-camera flex items-center"
+										style={{ fontSize: "14px", marginBottom: -3 }}
+									/>
+									{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
+								</ButtonContainer>
+							</VSCodeButton>
+						</Tooltip>
 						<ServersToggleModal />
 						<ClineRulesToggleModal />
-
 						<ModelContainer ref={modelSelectorRef}>
 							<ModelButtonWrapper ref={buttonRef}>
 								<ModelDisplayButton
 									role="button"
 									isActive={showModelSelector}
 									disabled={false}
+									title="Select Model / API Provider"
 									onClick={handleModelButtonClick}
 									// onKeyDown={(e) => {
 									// 	if (e.key === "Enter" || e.key === " ") {
@@ -1378,6 +1417,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										apiErrorMessage={undefined}
 										modelIdErrorMessage={undefined}
 										isPopup={true}
+										saveImmediately={true} // Ensure popup saves immediately
 									/>
 								</ModelSelectorTooltip>
 							)}

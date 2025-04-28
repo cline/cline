@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
+import { execa } from "execa"
 import getFolderSize from "get-folder-size"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
@@ -8,30 +9,31 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ApiHandler, buildApiHandler } from "../../api"
-import { AnthropicHandler } from "../../api/providers/anthropic"
-import { ClineHandler } from "../../api/providers/cline"
-import { OpenRouterHandler } from "../../api/providers/openrouter"
-import { ApiStream } from "../../api/transform/stream"
-import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "../../integrations/misc/export-markdown"
-import { extractTextFromFile } from "../../integrations/misc/extract-text"
-import { showSystemNotification } from "../../integrations/notifications"
-import { TerminalManager } from "../../integrations/terminal/TerminalManager"
-import { BrowserSession } from "../../services/browser/BrowserSession"
-import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
-import { listFiles } from "../../services/glob/list-files"
-import { regexSearchFiles } from "../../services/ripgrep"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
-import { parseSourceCodeForDefinitionsTopLevel } from "../../services/tree-sitter"
-import { ApiConfiguration } from "../../shared/api"
-import { findLast, findLastIndex, parsePartialArrayString } from "../../shared/array"
-import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
-import { BrowserSettings } from "../../shared/BrowserSettings"
-import { ChatSettings } from "../../shared/ChatSettings"
-import { combineApiRequests } from "../../shared/combineApiRequests"
-import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../../shared/combineCommandSequences"
+import { Logger } from "@services/logging/Logger"
+import { ApiHandler, buildApiHandler } from "@api/index"
+import { AnthropicHandler } from "@api/providers/anthropic"
+import { ClineHandler } from "@api/providers/cline"
+import { OpenRouterHandler } from "@api/providers/openrouter"
+import { ApiStream } from "@api/transform/stream"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
+import { extractTextFromFile } from "@integrations/misc/extract-text"
+import { showSystemNotification } from "@integrations/notifications"
+import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { listFiles } from "@services/glob/list-files"
+import { regexSearchFiles } from "@services/ripgrep"
+import { telemetryService } from "@services/telemetry/TelemetryService"
+import { parseSourceCodeForDefinitionsTopLevel } from "@services/tree-sitter"
+import { ApiConfiguration } from "@shared/api"
+import { findLast, findLastIndex, parsePartialArrayString } from "@shared/array"
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { ChatSettings } from "@shared/ChatSettings"
+import { combineApiRequests } from "@shared/combineApiRequests"
+import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -48,30 +50,30 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 	ExtensionMessage,
-} from "../../shared/ExtensionMessage"
-import { getApiMetrics } from "../../shared/getApiMetrics"
-import { HistoryItem } from "../../shared/HistoryItem"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "../../shared/Languages"
-import { ClineAskResponse, ClineCheckpointRestore } from "../../shared/WebviewMessage"
-import { calculateApiCostAnthropic } from "../../utils/cost"
-import { fileExistsAtPath } from "../../utils/fs"
-import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "../../utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
-import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
-import { constructNewFileContent } from ".././assistant-message/diff"
-import { ClineIgnoreController } from ".././ignore/ClineIgnoreController"
-import { parseMentions } from ".././mentions"
-import { formatResponse } from ".././prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
-import { getContextWindowInfo } from "../context/context-management/context-window-utils"
-import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
-import { ModelContextTracker } from "../context/context-tracking/ModelContextTracker"
+} from "@shared/ExtensionMessage"
+import { getApiMetrics } from "@shared/getApiMetrics"
+import { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
+import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { calculateApiCostAnthropic } from "@utils/cost"
+import { fileExistsAtPath } from "@utils/fs"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
+import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "@core/assistant-message"
+import { constructNewFileContent } from "@core/assistant-message/diff"
+import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { parseMentions } from "@core/mentions"
+import { formatResponse } from "@core/prompts/responses"
+import { addUserInstructions, SYSTEM_PROMPT } from "@core/prompts/system"
+import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
+import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
-} from "../context/context-management/context-error-handling"
-import { ContextManager } from "../context/context-management/ContextManager"
-import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
+} from "@core/context/context-management/context-error-handling"
+import { ContextManager } from "@core/context/context-management/ContextManager"
+import { loadMcpDocumentation } from "@core/prompts/loadMcpDocumentation"
 import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
@@ -79,16 +81,17 @@ import {
 	getSavedClineMessages,
 	saveApiConversationHistory,
 	saveClineMessages,
-} from "../storage/disk"
+} from "@core/storage/disk"
 import {
 	getGlobalClineRules,
 	getLocalClineRules,
 	refreshClineRulesToggles,
-} from "../context/instructions/user-instructions/cline-rules"
-import { getGlobalState } from "../storage/state"
-import { parseSlashCommands } from ".././slash-commands"
-import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { McpHub } from "../../services/mcp/McpHub"
+} from "@core/context/instructions/user-instructions/cline-rules"
+import { getGlobalState } from "@core/storage/state"
+import { parseSlashCommands } from "@core/slash-commands"
+import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
+import { McpHub } from "@services/mcp/McpHub"
+import { isInTestMode } from "../../services/test/TestMode"
 
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1131,7 +1134,93 @@ export class Task {
 
 	// Tools
 
+	/**
+	 * Executes a command directly in Node.js using execa
+	 * This is used in test mode to capture the full output without using the VS Code terminal
+	 * Commands are automatically terminated after 30 seconds using Promise.race
+	 */
+	private async executeCommandInNode(command: string): Promise<[boolean, ToolResponse]> {
+		try {
+			// Create a child process
+			const childProcess = execa(command, {
+				shell: true,
+				cwd,
+				reject: false,
+				all: true, // Merge stdout and stderr
+			})
+
+			// Set up variables to collect output
+			let output = ""
+
+			// Collect output in real-time
+			if (childProcess.all) {
+				childProcess.all.on("data", (data) => {
+					output += data.toString()
+				})
+			}
+
+			// Create a timeout promise that rejects after 30 seconds
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				setTimeout(() => {
+					if (childProcess.pid) {
+						childProcess.kill("SIGKILL") // Use SIGKILL for more forceful termination
+					}
+					reject(new Error("Command timeout after 30s"))
+				}, 30000)
+			})
+
+			// Race between command completion and timeout
+			const result = await Promise.race([childProcess, timeoutPromise]).catch((error) => {
+				// If we get here due to timeout, return a partial result with timeout flag
+				Logger.info(`Command timed out after 30s: ${command}`)
+				return {
+					stdout: "",
+					stderr: "",
+					exitCode: 124, // Standard timeout exit code
+					timedOut: true,
+				}
+			})
+
+			// Check if timeout occurred
+			const wasTerminated = result.timedOut === true
+
+			// Use collected output or result output
+			if (!output) {
+				output = result.stdout || result.stderr || ""
+			}
+
+			Logger.info(`Command executed in Node: ${command}\nOutput:\n${output}`)
+
+			// Add termination message if the command was terminated
+			if (wasTerminated) {
+				output += "\nCommand was taking a while to run so it was auto terminated after 30s"
+			}
+
+			// Format the result similar to terminal output
+			return [
+				false,
+				`Command executed${wasTerminated ? " (terminated after 30s)" : ""} with exit code ${
+					result.exitCode
+				}.${output.length > 0 ? `\nOutput:\n${output}` : ""}`,
+			]
+		} catch (error) {
+			// Handle any errors that might occur
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return [false, `Error executing command: ${errorMessage}`]
+		}
+	}
+
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+		Logger.info("IS_TEST: " + isInTestMode())
+
+		// Check if we're in test mode
+		if (isInTestMode()) {
+			// In test mode, execute the command directly in Node
+			Logger.info("Executing command in Node: " + command)
+			return this.executeCommandInNode(command)
+		}
+		Logger.info("Executing command in VS code terminal: " + command)
+
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = this.terminalManager.runCommand(terminalInfo, command)
@@ -1334,11 +1423,12 @@ export class Task {
 		})
 
 		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
-		const modelSupportsComputerUse = this.api.getModel().info.supportsComputerUse ?? false
+		// cline browser tool uses image recognition for navigation (requires model image support).
+		const modelSupportsBrowserUse = this.api.getModel().info.supportsImages ?? false
 
-		const supportsComputerUse = modelSupportsComputerUse && !disableBrowserTool // only enable computer use if the model supports it and the user hasn't disabled it
+		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, this.mcpHub, this.browserSettings)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const preferredLanguage = getLanguageKey(
@@ -1415,6 +1505,10 @@ export class Task {
 					"quarter", // Force aggressive truncation
 				)
 				await this.saveClineMessagesAndUpdateHistory()
+				await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+					Date.now(),
+					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+				)
 
 				this.didAutomaticallyRetryFailedApiRequest = true
 			} else if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
@@ -1425,6 +1519,10 @@ export class Task {
 						"quarter", // Force aggressive truncation
 					)
 					await this.saveClineMessagesAndUpdateHistory()
+					await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+						Date.now(),
+						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+					)
 				}
 
 				console.log("first chunk failed, waiting 1 second before retrying")
@@ -1586,6 +1684,8 @@ export class Task {
 							return `[${block.name}]`
 						case "new_task":
 							return `[${block.name} for creating a new task]`
+						case "condense":
+							return `[${block.name}]`
 					}
 				}
 
@@ -2920,6 +3020,65 @@ export class Task {
 							}
 						} catch (error) {
 							await handleError("creating new task", error)
+							break
+						}
+					}
+					case "condense": {
+						const context: string | undefined = block.params.context
+						try {
+							if (block.partial) {
+								await this.ask("condense", removeClosingTag("context", context), block.partial).catch(() => {})
+								break
+							} else {
+								if (!context) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("condense", "context"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle: "Cline wants to condense the conversation...",
+										message: `Cline is suggesting to condense your conversation with: ${context}`,
+									})
+								}
+
+								const { text, images } = await this.ask("condense", context, false)
+
+								// If the user provided a response, treat it as feedback
+								if (text || images?.length) {
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										formatResponse.toolResult(
+											`The user provided feedback on the condensed conversation summary:\n<feedback>\n${text}\n</feedback>`,
+											images,
+										),
+									)
+								} else {
+									// If no response, the user accepted the condensed version
+									pushToolResult(formatResponse.toolResult(formatResponse.condense()))
+
+									const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+									const summaryAlreadyAppended = lastMessage && lastMessage.role === "assistant"
+									const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
+
+									// clear the context history at this point in time
+									this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+										this.apiConversationHistory,
+										this.conversationHistoryDeletedRange,
+										keepStrategy,
+									)
+									await this.saveClineMessagesAndUpdateHistory()
+									await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+										Date.now(),
+										await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+									)
+								}
+								break
+							}
+						} catch (error) {
+							await handleError("condensing context window", error)
 							break
 						}
 					}

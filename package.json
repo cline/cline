@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.13.1",
+	"version": "3.13.3",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -39,7 +39,9 @@
 		"ai",
 		"llama"
 	],
-	"activationEvents": [],
+	"activationEvents": [
+		"workspaceContains:evals.env"
+	],
 	"main": "./dist/extension.js",
 	"contributes": {
 		"viewsContainers": {
@@ -110,11 +112,6 @@
 			{
 				"command": "cline.addTerminalOutputToChat",
 				"title": "Add to Cline",
-				"category": "Cline"
-			},
-			{
-				"command": "cline.fixWithCline",
-				"title": "Fix with Cline",
 				"category": "Cline"
 			},
 			{
@@ -292,13 +289,9 @@
 		"compile": "npm run check-types && npm run lint && node esbuild.js",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.js --watch",
-		"watch:esbuild:test": "IS_TEST=true node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
 		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
 		"protos": "node proto/build-proto.js && prettier src/shared/proto --write && prettier src/core/controller --write",
-		"package:test": "IS_TEST=true npm run build:webview:test && npm run check-types && npm run lint && IS_TEST=true node esbuild.js --production",
-		"build:webview:test": "cd webview-ui && IS_TEST=true npm run build",
-		"watch:test": "IS_TEST=true npm-run-all -p watch:tsc watch:esbuild:test",
 		"compile-tests": "tsc -p ./tsconfig.test.json --outDir out",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"pretest": "npm run compile-tests && npm run compile && npm run lint",
@@ -343,6 +336,7 @@
 		"chalk": "^5.3.0",
 		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
+		"grpc-tools": "^1.13.0",
 		"husky": "^9.1.7",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
@@ -352,6 +346,7 @@
 		"sinon": "^19.0.2",
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
+		"tsconfig-paths": "^4.2.0",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
@@ -361,7 +356,7 @@
 		"@aws-sdk/client-bedrock-runtime": "^3.758.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@google-cloud/vertexai": "^1.9.3",
-		"@google/generative-ai": "^0.18.0",
+		"@google/genai": "^0.9.0",
 		"@grpc/grpc-js": "^1.9.15",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.7.0",
@@ -386,8 +381,10 @@
 		"fzf": "^0.5.2",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
+		"iconv-lite": "^0.6.3",
 		"ignore": "^7.0.3",
 		"isbinaryfile": "^5.0.2",
+		"jschardet": "^3.1.4",
 		"mammoth": "^1.8.0",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"ollama": "^0.5.13",

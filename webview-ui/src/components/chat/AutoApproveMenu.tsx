@@ -1,10 +1,12 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
 import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import { useClickAway } from "react-use"
 
 interface AutoApproveMenuProps {
 	style?: React.CSSProperties
@@ -80,6 +82,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
+	const menuRef = useRef<HTMLDivElement>(null)
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
@@ -153,24 +156,30 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		return enabledActionsCount > 0
 	}, [enabledActions, autoApprovalSettings.actions])
 
+	// Get the full extension state to ensure we have the most up-to-date settings
+	const extensionState = useExtensionState()
+
 	const updateEnabled = useCallback(
 		(enabled: boolean) => {
+			const currentSettings = extensionState.autoApprovalSettings
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
 					enabled,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateAction = useCallback(
 		(actionId: keyof AutoApprovalSettings["actions"], value: boolean) => {
+			const currentSettings = extensionState.autoApprovalSettings
 			// Calculate what the new actions state will be
 			const newActions = {
-				...autoApprovalSettings.actions,
+				...currentSettings.actions,
 				[actionId]: value,
 			}
 
@@ -180,44 +189,57 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
 					actions: newActions,
 					// If no actions will be enabled, ensure the main toggle is off
-					enabled: willHaveEnabledActions ? autoApprovalSettings.enabled : false,
+					enabled: willHaveEnabledActions ? currentSettings.enabled : false,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateMaxRequests = useCallback(
 		(maxRequests: number) => {
+			const currentSettings = extensionState.autoApprovalSettings
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
 					maxRequests,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[extensionState.autoApprovalSettings],
 	)
 
 	const updateNotifications = useCallback(
 		(enableNotifications: boolean) => {
+			const currentSettings = extensionState.autoApprovalSettings
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...autoApprovalSettings,
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
 					enableNotifications,
 				},
 			})
 		},
-		[autoApprovalSettings],
+		[extensionState.autoApprovalSettings],
 	)
+
+	// Handle clicks outside the menu to close it
+	useClickAway(menuRef, () => {
+		if (isExpanded) {
+			setIsExpanded(false)
+		}
+	})
 
 	return (
 		<div
+			ref={menuRef}
 			style={{
 				padding: "0 15px",
 				userSelect: "none",
@@ -225,6 +247,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					? `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
 					: "none",
 				overflowY: "auto",
+				backgroundColor: isExpanded ? CODE_BLOCK_BG_COLOR : "transparent",
 				...style,
 			}}>
 			<div
