@@ -233,7 +233,8 @@
 			"high": "Hoch",
 			"medium": "Mittel",
 			"low": "Niedrig"
-		}
+		},
+		"setReasoningLevel": "Denkaufwand aktivieren"
 	},
 	"browser": {
 		"enable": {

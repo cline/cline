@@ -469,6 +469,7 @@
 		"@types/jest": "^29.5.14",
 		"@types/mocha": "^10.0.10",
 		"@types/node": "20.x",
+		"@types/node-cache": "^4.1.3",
 		"@types/node-ipc": "^9.2.3",
 		"@types/string-similarity": "^4.0.2",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",

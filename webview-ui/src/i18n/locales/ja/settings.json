@@ -233,7 +233,8 @@
 			"high": "高",
 			"medium": "中",
 			"low": "低"
-		}
+		},
+		"setReasoningLevel": "推論労力を有効にする"
 	},
 	"browser": {
 		"enable": {

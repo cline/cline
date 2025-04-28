@@ -233,7 +233,8 @@
 			"high": "高",
 			"medium": "中",
 			"low": "低"
-		}
+		},
+		"setReasoningLevel": "啟用推理工作量"
 	},
 	"browser": {
 		"enable": {

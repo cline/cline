@@ -233,7 +233,8 @@
 			"high": "Wysoki",
 			"medium": "Średni",
 			"low": "Niski"
-		}
+		},
+		"setReasoningLevel": "Włącz wysiłek rozumowania"
 	},
 	"browser": {
 		"enable": {

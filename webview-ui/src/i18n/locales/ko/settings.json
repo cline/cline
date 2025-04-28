@@ -233,7 +233,8 @@
 			"high": "높음",
 			"medium": "중간",
 			"low": "낮음"
-		}
+		},
+		"setReasoningLevel": "추론 노력 활성화"
 	},
 	"browser": {
 		"enable": {

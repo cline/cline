@@ -233,7 +233,8 @@
 			"high": "Yüksek",
 			"medium": "Orta",
 			"low": "Düşük"
-		}
+		},
+		"setReasoningLevel": "Akıl Yürütme Çabasını Etkinleştir"
 	},
 	"browser": {
 		"enable": {

@@ -233,7 +233,8 @@
 			"high": "High",
 			"medium": "Medium",
 			"low": "Low"
-		}
+		},
+		"setReasoningLevel": "Enable Reasoning Effort"
 	},
 	"browser": {
 		"enable": {

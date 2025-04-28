@@ -355,6 +355,7 @@ export const providerSettingsSchema = z.object({
 	openAiUseAzure: z.boolean().optional(),
 	azureApiVersion: z.string().optional(),
 	openAiStreamingEnabled: z.boolean().optional(),
+	enableReasoningEffort: z.boolean().optional(),
 	// Ollama
 	ollamaModelId: z.string().optional(),
 	ollamaBaseUrl: z.string().optional(),
@@ -453,6 +454,7 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	openAiUseAzure: undefined,
 	azureApiVersion: undefined,
 	openAiStreamingEnabled: undefined,
+	enableReasoningEffort: undefined,
 	// Ollama
 	ollamaModelId: undefined,
 	ollamaBaseUrl: undefined,

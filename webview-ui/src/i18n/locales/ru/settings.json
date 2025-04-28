@@ -233,7 +233,8 @@
 			"high": "Высокие",
 			"medium": "Средние",
 			"low": "Низкие"
-		}
+		},
+		"setReasoningLevel": "Включить усилие рассуждения"
 	},
 	"browser": {
 		"enable": {

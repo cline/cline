@@ -1,13 +1,12 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
-import { Trans } from "react-i18next"
-import { getRequestyAuthUrl, getOpenRouterAuthUrl, getGlamaAuthUrl } from "@src/oauth/urls"
 import { useDebounce, useEvent } from "react-use"
+import { Trans } from "react-i18next"
 import { LanguageModelChatSelector } from "vscode"
 import { Checkbox } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { ExternalLinkIcon } from "@radix-ui/react-icons"
 
+import { ReasoningEffort as ReasoningEffortType } from "@roo/schemas"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -21,21 +20,22 @@ import {
 	ApiProvider,
 } from "@roo/shared/api"
 import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
-import { AWS_REGIONS } from "@roo/shared/aws_regions"
 
 import { vscode } from "@src/utils/vscode"
 import { validateApiConfiguration, validateModelId, validateBedrockArn } from "@src/utils/validate"
-import { useRouterModels } from "@/components/ui/hooks/useRouterModels"
-import { useSelectedModel } from "@/components/ui/hooks/useSelectedModel"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { useRouterModels } from "@src/components/ui/hooks/useRouterModels"
+import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
 import {
 	useOpenRouterModelProviders,
 	OPENROUTER_DEFAULT_PROVIDER_NAME,
 } from "@src/components/ui/hooks/useOpenRouterModelProviders"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Button } from "@src/components/ui"
+import { getRequestyAuthUrl, getOpenRouterAuthUrl, getGlamaAuthUrl } from "@src/oauth/urls"
 
 import { VSCodeButtonLink } from "../common/VSCodeButtonLink"
 
-import { MODELS_BY_PROVIDER, PROVIDERS, VERTEX_REGIONS, REASONING_MODELS } from "./constants"
+import { MODELS_BY_PROVIDER, PROVIDERS, VERTEX_REGIONS, REASONING_MODELS, AWS_REGIONS } from "./constants"
 import { ModelInfoView } from "./ModelInfoView"
 import { ModelPicker } from "./ModelPicker"
 import { ApiErrorMessage } from "./ApiErrorMessage"
@@ -851,6 +851,41 @@ const ApiOptions = ({
 						)}
 					</div>
 
+					<div className="flex flex-col gap-1">
+						<Checkbox
+							checked={apiConfiguration.enableReasoningEffort ?? false}
+							onChange={(checked: boolean) => {
+								setApiConfigurationField("enableReasoningEffort", checked)
+
+								if (!checked) {
+									const { reasoningEffort: _, ...openAiCustomModelInfo } =
+										apiConfiguration.openAiCustomModelInfo || openAiModelInfoSaneDefaults
+
+									setApiConfigurationField("openAiCustomModelInfo", openAiCustomModelInfo)
+								}
+							}}>
+							{t("settings:providers.setReasoningLevel")}
+						</Checkbox>
+						{!!apiConfiguration.enableReasoningEffort && (
+							<ReasoningEffort
+								apiConfiguration={{
+									...apiConfiguration,
+									reasoningEffort: apiConfiguration.openAiCustomModelInfo?.reasoningEffort,
+								}}
+								setApiConfigurationField={(field, value) => {
+									if (field === "reasoningEffort") {
+										const openAiCustomModelInfo =
+											apiConfiguration.openAiCustomModelInfo || openAiModelInfoSaneDefaults
+
+										setApiConfigurationField("openAiCustomModelInfo", {
+											...openAiCustomModelInfo,
+											reasoningEffort: value as ReasoningEffortType,
+										})
+									}
+								}}
+							/>
+						)}
+					</div>
 					<div className="flex flex-col gap-3">
 						<div className="text-sm text-vscode-descriptionForeground whitespace-pre-line">
 							{t("settings:providers.customModel.capabilities")}

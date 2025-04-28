@@ -233,7 +233,8 @@
 			"high": "Alt",
 			"medium": "Mitjà",
 			"low": "Baix"
-		}
+		},
+		"setReasoningLevel": "Activa l'esforç de raonament"
 	},
 	"browser": {
 		"enable": {

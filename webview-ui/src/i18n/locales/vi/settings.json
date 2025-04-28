@@ -233,7 +233,8 @@
 			"high": "Cao",
 			"medium": "Trung bình",
 			"low": "Thấp"
-		}
+		},
+		"setReasoningLevel": "Kích hoạt nỗ lực suy luận"
 	},
 	"browser": {
 		"enable": {
