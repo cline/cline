@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import styled from "styled-components"
+import Timeline from "../common/Timeline"
 import {
 	ClineApiReqInfo,
 	ClineAsk,
@@ -994,6 +995,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)}
 				</>
 			)}
+			<Timeline messages={messages} />
 			<ChatTextArea
 				ref={textAreaRef}
 				inputValue={inputValue}
