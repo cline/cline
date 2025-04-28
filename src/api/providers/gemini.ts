@@ -5,11 +5,13 @@ import {
 	type GenerateContentParameters,
 	type Content,
 } from "@google/genai"
+import type { JWTInput } from "google-auth-library"
 import NodeCache from "node-cache"
 
-import { SingleCompletionHandler } from "../"
-import type { ApiHandlerOptions, GeminiModelId, ModelInfo } from "../../shared/api"
-import { geminiDefaultModelId, geminiModels } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, GeminiModelId, geminiDefaultModelId, geminiModels } from "../../shared/api"
+import { safeJsonParse } from "../../shared/safeJsonParse"
+
+import { SingleCompletionHandler } from "../index"
 import {
 	convertAnthropicContentToGemini,
 	convertAnthropicMessageToGemini,
@@ -27,6 +29,10 @@ type CacheEntry = {
 	count: number
 }
 
+type GeminiHandlerOptions = ApiHandlerOptions & {
+	isVertex?: boolean
+}
+
 export class GeminiHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
 
@@ -34,10 +40,35 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 	private contentCaches: NodeCache
 	private isCacheBusy = false
 
-	constructor(options: ApiHandlerOptions) {
+	constructor({ isVertex, ...options }: GeminiHandlerOptions) {
 		super()
+
 		this.options = options
-		this.client = new GoogleGenAI({ apiKey: options.geminiApiKey ?? "not-provided" })
+
+		const project = this.options.vertexProjectId ?? "not-provided"
+		const location = this.options.vertexRegion ?? "not-provided"
+		const apiKey = this.options.geminiApiKey ?? "not-provided"
+
+		this.client = this.options.vertexJsonCredentials
+			? new GoogleGenAI({
+					vertexai: true,
+					project,
+					location,
+					googleAuthOptions: {
+						credentials: safeJsonParse<JWTInput>(this.options.vertexJsonCredentials, undefined),
+					},
+				})
+			: this.options.vertexKeyFile
+				? new GoogleGenAI({
+						vertexai: true,
+						project,
+						location,
+						googleAuthOptions: { keyFile: this.options.vertexKeyFile },
+					})
+				: isVertex
+					? new GoogleGenAI({ vertexai: true, project, location })
+					: new GoogleGenAI({ apiKey })
+
 		this.contentCaches = new NodeCache({ stdTTL: 5 * 60, checkperiod: 5 * 60 })
 	}
 
@@ -170,14 +201,14 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 	}
 
 	override getModel() {
-		let id = this.options.apiModelId ? (this.options.apiModelId as GeminiModelId) : geminiDefaultModelId
-		let info: ModelInfo = geminiModels[id]
+		let id = this.options.apiModelId ?? geminiDefaultModelId
+		let info: ModelInfo = geminiModels[id as GeminiModelId]
 
 		if (id?.endsWith(":thinking")) {
-			id = id.slice(0, -":thinking".length) as GeminiModelId
+			id = id.slice(0, -":thinking".length)
 
-			if (geminiModels[id]) {
-				info = geminiModels[id]
+			if (geminiModels[id as GeminiModelId]) {
+				info = geminiModels[id as GeminiModelId]
 
 				return {
 					id,

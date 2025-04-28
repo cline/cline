@@ -6,9 +6,9 @@ import { VSCodeBadge, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 import { ClineApiReqInfo, ClineAskUseMcpServer, ClineMessage, ClineSayTool } from "@roo/shared/ExtensionMessage"
 import { splitCommandOutput, COMMAND_OUTPUT_STRING } from "@roo/shared/combineCommandSequences"
+import { safeJsonParse } from "@roo/shared/safeJsonParse"
 
 import { useCopyToClipboard } from "@src/utils/clipboard"
-import { safeJsonParse } from "@src/utils/json"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate } from "@src/utils/mcp"
 import { vscode } from "@src/utils/vscode"

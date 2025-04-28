@@ -953,12 +953,14 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 		if (mcpEnabled ?? true) {
 			const provider = this.providerRef.deref()
+
 			if (!provider) {
 				throw new Error("Provider reference lost during view transition")
 			}
 
 			// Wait for MCP hub initialization through McpServerManager
 			mcpHub = await McpServerManager.getInstance(provider.context, provider)
+
 			if (!mcpHub) {
 				throw new Error("Failed to get MCP hub from server manager")
 			}
@@ -980,12 +982,16 @@ export class Cline extends EventEmitter<ClineEvents> {
 			browserToolEnabled,
 			language,
 		} = (await this.providerRef.deref()?.getState()) ?? {}
+
 		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
+
 		const systemPrompt = await (async () => {
 			const provider = this.providerRef.deref()
+
 			if (!provider) {
 				throw new Error("Provider not available")
 			}
+
 			return SYSTEM_PROMPT(
 				provider.context,
 				this.cwd,
@@ -1008,7 +1014,10 @@ export class Cline extends EventEmitter<ClineEvents> {
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = this.clineMessages[previousApiReqIndex]?.text
-			if (!previousRequest) return
+
+			if (!previousRequest) {
+				return
+			}
 
 			const {
 				tokensIn = 0,
@@ -1135,11 +1144,14 @@ export class Cline extends EventEmitter<ClineEvents> {
 					"api_req_failed",
 					error.message ?? JSON.stringify(serializeError(error), null, 2),
 				)
+
 				if (response !== "yesButtonClicked") {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
 					throw new Error("API request failed")
 				}
+
 				await this.say("api_req_retried")
+
 				// delegate generator output from the recursive call
 				yield* this.attemptApiRequest(previousApiReqIndex)
 				return
@@ -1903,8 +1915,13 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 			return didEndLoop // will always be false for now
 		} catch (error) {
-			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
-			return true // needs to be true so parent loop knows to end task
+			// This should never happen since the only thing that can throw an
+			// error is the attemptApiRequest, which is wrapped in a try catch
+			// that sends an ask where if noButtonClicked, will clear current
+			// task and destroy this instance. However to avoid unhandled
+			// promise rejection, we will end this loop which will end execution
+			// of this instance (see `startTask`).
+			return true // Needs to be true so parent loop knows to end task.
 		}
 	}
 
