@@ -142,7 +142,7 @@ export function createServiceRegistry(serviceName: string) {
 			method: string,
 			message: any,
 			responseStream: StreamingResponseHandler,
-		) => registry.handleStreamingRequest(controller, method, responseStream, message),
+		) => registry.handleStreamingRequest(controller, method, message, responseStream),
 
 		isStreamingMethod: (method: string) => registry.isStreamingMethod(method),
 	}
