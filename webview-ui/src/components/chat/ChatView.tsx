@@ -99,10 +99,14 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		vscode.postMessage({ type: "setHistoryPreviewCollapsed", bool: !newState })
 	}, [isExpanded])
 
-	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	// Leaving this less safe version here since if the first message is not a
+	// task, then the extension is in a bad state and needs to be debugged (see
+	// Cline.abort).
+	const task = useMemo(() => messages.at(0), [messages])
+
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
-	// has to be after api_req_finished are all reduced into api_req_started messages
+
+	// Has to be after api_req_finished are all reduced into api_req_started messages.
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
@@ -226,7 +230,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							setClineAsk("command_output")
 							setEnableButtons(true)
 							setPrimaryButtonText(t("chat:proceedWhileRunning.title"))
-							setSecondaryButtonText(undefined)
+							setSecondaryButtonText(t("chat:killCommand.title"))
 							break
 						case "use_mcp_server":
 							setTextAreaDisabled(isPartial)
@@ -270,7 +274,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							break
 						case "api_req_started":
 							if (secondLastMessage?.ask === "command_output") {
-								// if the last ask is a command_output, and we receive an api_req_started, then that means the command has finished and we don't need input from the user anymore (in every other case, the user has to interact with input field or buttons to continue, which does the following automatically)
+								// If the last ask is a command_output, and we
+								// receive an api_req_started, then that means
+								// the command has finished and we don't need
+								// input from the user anymore (in every other
+								// case, the user has to interact with input
+								// field or buttons to continue, which does the
+								// following automatically).
 								setInputValue("")
 								setTextAreaDisabled(true)
 								setSelectedImages([])
@@ -416,7 +426,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			switch (clineAsk) {
 				case "api_req_failed":
 				case "command":
-				case "command_output":
 				case "tool":
 				case "browser_action_launch":
 				case "use_mcp_server":
@@ -431,10 +440,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							images: images,
 						})
 					} else {
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "yesButtonClicked",
-						})
+						vscode.postMessage({ type: "askResponse", askResponse: "yesButtonClicked" })
 					}
 					// Clear input state after sending
 					setInputValue("")
@@ -442,8 +448,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					break
 				case "completion_result":
 				case "resume_completed_task":
-					// extension waiting for feedback. but we can just present a new task button
+					// Waiting for feedback, but we can just present a new task button
 					startNewTask()
+					break
+				case "command_output":
+					vscode.postMessage({ type: "terminalOperation", terminalOperation: "continue" })
 					break
 			}
 			setTextAreaDisabled(true)
@@ -456,6 +465,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const handleSecondaryButtonClick = useCallback(
 		(text?: string, images?: string[]) => {
 			const trimmedInput = text?.trim()
+
 			if (isStreaming) {
 				vscode.postMessage({ type: "cancelTask" })
 				setDidClickCancel(true)
@@ -481,15 +491,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							images: images,
 						})
 					} else {
-						// responds to the API with a "This operation failed" and lets it try again
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "noButtonClicked",
-						})
+						// Responds to the API with a "This operation failed" and lets it try again
+						vscode.postMessage({ type: "askResponse", askResponse: "noButtonClicked" })
 					}
 					// Clear input state after sending
 					setInputValue("")
 					setSelectedImages([])
+					break
+				case "command_output":
+					vscode.postMessage({ type: "terminalOperation", terminalOperation: "abort" })
 					break
 			}
 			setTextAreaDisabled(true)

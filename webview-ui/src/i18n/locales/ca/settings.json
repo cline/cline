@@ -311,6 +311,10 @@
 			"label": "Temps d'espera d'integració de shell del terminal",
 			"description": "Temps màxim d'espera per a la inicialització de la integració de shell abans d'executar comandes. Per a usuaris amb temps d'inici de shell llargs, aquest valor pot necessitar ser augmentat si veieu errors \"Shell Integration Unavailable\" al terminal."
 		},
+		"shellIntegrationDisabled": {
+			"label": "Desactiva la integració de l'intèrpret d'ordres del terminal",
+			"description": "Activa això si les ordres del terminal no funcionen correctament o si veus errors de 'Shell Integration Unavailable'. Això utilitza un mètode més senzill per executar ordres, evitant algunes funcions avançades del terminal."
+		},
 		"compressProgressBar": {
 			"label": "Comprimir sortida de barra de progrés",
 			"description": "Quan està habilitat, processa la sortida del terminal amb retorns de carro (\\r) per simular com un terminal real mostraria el contingut. Això elimina els estats intermedis de les barres de progrés, mantenint només l'estat final, la qual cosa conserva espai de context per a informació més rellevant."

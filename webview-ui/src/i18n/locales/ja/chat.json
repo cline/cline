@@ -52,6 +52,10 @@
 		"title": "実行中も続行",
 		"tooltip": "警告にもかかわらず続行"
 	},
+	"killCommand": {
+		"title": "コマンドを強制終了",
+		"tooltip": "現在のコマンドを強制終了します"
+	},
 	"resumeTask": {
 		"title": "タスクを再開",
 		"tooltip": "現在のタスクを続行"

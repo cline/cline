@@ -52,6 +52,10 @@
 		"title": "執行時繼續",
 		"tooltip": "儘管有警告仍繼續執行"
 	},
+	"killCommand": {
+		"title": "終止指令",
+		"tooltip": "終止目前的指令"
+	},
 	"resumeTask": {
 		"title": "繼續工作",
 		"tooltip": "繼續目前的工作"

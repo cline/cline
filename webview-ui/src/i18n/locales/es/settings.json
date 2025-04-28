@@ -311,6 +311,10 @@
 			"label": "Tiempo de espera de integración del shell del terminal",
 			"description": "Tiempo máximo de espera para la inicialización de la integración del shell antes de ejecutar comandos. Para usuarios con tiempos de inicio de shell largos, este valor puede necesitar ser aumentado si ve errores \"Shell Integration Unavailable\" en el terminal."
 		},
+		"shellIntegrationDisabled": {
+			"label": "Desactivar la integración del shell del terminal",
+			"description": "Activa esto si los comandos del terminal no funcionan correctamente o si ves errores de 'Shell Integration Unavailable'. Esto utiliza un método más simple para ejecutar comandos, omitiendo algunas funciones avanzadas del terminal."
+		},
 		"compressProgressBar": {
 			"label": "Comprimir salida de barras de progreso",
 			"description": "Cuando está habilitado, procesa la salida del terminal con retornos de carro (\\r) para simular cómo un terminal real mostraría el contenido. Esto elimina los estados intermedios de las barras de progreso, conservando solo el estado final, lo que ahorra espacio de contexto para información más relevante."

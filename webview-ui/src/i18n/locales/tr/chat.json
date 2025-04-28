@@ -52,6 +52,10 @@
 		"title": "Çalışırken Devam Et",
 		"tooltip": "Uyarılara rağmen devam et"
 	},
+	"killCommand": {
+		"title": "Komutu Durdur",
+		"tooltip": "Mevcut komutu durdur"
+	},
 	"resumeTask": {
 		"title": "Göreve Devam Et",
 		"tooltip": "Mevcut göreve devam et"

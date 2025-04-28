@@ -1,6 +1,7 @@
 // npx jest src/core/tools/__tests__/executeCommandTool.test.ts
 
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
+
 import { Cline } from "../../Cline"
 import { formatResponse } from "../../prompts/responses"
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../../shared/tools"
@@ -8,6 +9,10 @@ import { ToolUsage } from "../../../schemas"
 import { unescapeHtmlEntities } from "../../../utils/text-normalization"
 
 // Mock dependencies
+jest.mock("execa", () => ({
+	execa: jest.fn(),
+}))
+
 jest.mock("../../Cline")
 jest.mock("../../prompts/responses")
 

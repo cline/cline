@@ -1,3 +1,14 @@
+// npx jest src/activate/__tests__/registerCommands.test.ts
+
+import * as vscode from "vscode"
+import { ClineProvider } from "../../core/webview/ClineProvider"
+
+import { getVisibleProviderOrLog } from "../registerCommands"
+
+jest.mock("execa", () => ({
+	execa: jest.fn(),
+}))
+
 jest.mock("vscode", () => ({
 	CodeActionKind: {
 		QuickFix: { value: "quickfix" },
@@ -7,12 +18,6 @@ jest.mock("vscode", () => ({
 		createTextEditorDecorationType: jest.fn().mockReturnValue({ dispose: jest.fn() }),
 	},
 }))
-
-import * as vscode from "vscode"
-import { ClineProvider } from "../../core/webview/ClineProvider"
-
-// Import the helper function from the actual file
-import { getVisibleProviderOrLog } from "../registerCommands"
 
 jest.mock("../../core/webview/ClineProvider")
 

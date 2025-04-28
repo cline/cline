@@ -211,6 +211,7 @@ type GlobalSettings = {
 	maxReadFileLine?: number | undefined
 	terminalOutputLineLimit?: number | undefined
 	terminalShellIntegrationTimeout?: number | undefined
+	terminalShellIntegrationDisabled?: boolean | undefined
 	terminalCommandDelay?: number | undefined
 	terminalPowershellCounter?: boolean | undefined
 	terminalZshClearEolMark?: boolean | undefined

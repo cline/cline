@@ -1,10 +1,13 @@
-// src/integrations/terminal/__tests__/TerminalProcessExec.bash.test.ts
+// npx jest src/integrations/terminal/__tests__/TerminalProcessExec.bash.test.ts
 
 import * as vscode from "vscode"
 import { execSync } from "child_process"
-import { TerminalProcess, ExitCodeDetails } from "../TerminalProcess"
+
+import { ExitCodeDetails } from "../types"
+import { TerminalProcess } from "../TerminalProcess"
 import { Terminal } from "../Terminal"
 import { TerminalRegistry } from "../TerminalRegistry"
+
 // Mock the vscode module
 jest.mock("vscode", () => {
 	// Store event handlers so we can trigger them in tests
@@ -48,6 +51,10 @@ jest.mock("vscode", () => {
 		__eventHandlers: eventHandlers,
 	}
 })
+
+jest.mock("execa", () => ({
+	execa: jest.fn(),
+}))
 
 // Create a mock stream that uses real command output with realistic chunking
 function createRealCommandStream(command: string): { stream: AsyncIterable<string>; exitCode: number } {

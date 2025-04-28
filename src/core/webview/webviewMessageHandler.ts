@@ -186,6 +186,11 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		case "askResponse":
 			provider.getCurrentCline()?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 			break
+		case "terminalOperation":
+			if (message.terminalOperation) {
+				provider.getCurrentCline()?.handleTerminalOperation(message.terminalOperation)
+			}
+			break
 		case "clearTask":
 			// clear task resets the current session and allows for a new task to be started, if this session is a subtask - it allows the parent task to be resumed
 			await provider.finishSubTask(t("common:tasks.canceled"))
@@ -608,6 +613,13 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			await provider.postStateToWebview()
 			if (message.value !== undefined) {
 				Terminal.setShellIntegrationTimeout(message.value)
+			}
+			break
+		case "terminalShellIntegrationDisabled":
+			await updateGlobalState("terminalShellIntegrationDisabled", message.bool)
+			await provider.postStateToWebview()
+			if (message.bool !== undefined) {
+				Terminal.setShellIntegrationDisabled(message.bool)
 			}
 			break
 		case "terminalCommandDelay":

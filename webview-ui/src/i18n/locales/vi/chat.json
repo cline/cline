@@ -52,6 +52,10 @@
 		"title": "Tiếp tục trong khi chạy",
 		"tooltip": "Tiếp tục bất chấp cảnh báo"
 	},
+	"killCommand": {
+		"title": "Dừng lệnh",
+		"tooltip": "Dừng lệnh hiện tại"
+	},
 	"resumeTask": {
 		"title": "Tiếp tục nhiệm vụ",
 		"tooltip": "Tiếp tục nhiệm vụ hiện tại"

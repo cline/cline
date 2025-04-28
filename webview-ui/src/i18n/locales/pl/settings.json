@@ -311,6 +311,10 @@
 			"label": "Limit czasu integracji powłoki terminala",
 			"description": "Maksymalny czas oczekiwania na inicjalizację integracji powłoki przed wykonaniem poleceń. Dla użytkowników z długim czasem uruchamiania powłoki, ta wartość może wymagać zwiększenia, jeśli widzisz błędy \"Shell Integration Unavailable\" w terminalu."
 		},
+		"shellIntegrationDisabled": {
+			"label": "Wyłącz integrację powłoki terminala",
+			"description": "Włącz tę opcję, jeśli polecenia terminala nie działają poprawnie lub widzisz błędy 'Shell Integration Unavailable'. Używa to prostszej metody uruchamiania poleceń, omijając niektóre zaawansowane funkcje terminala."
+		},
 		"compressProgressBar": {
 			"label": "Kompresuj wyjście pasków postępu",
 			"description": "Po włączeniu, przetwarza wyjście terminala z powrotami karetki (\\r), aby symulować sposób wyświetlania treści przez prawdziwy terminal. Usuwa to pośrednie stany pasków postępu, zachowując tylko stan końcowy, co oszczędza przestrzeń kontekstową dla bardziej istotnych informacji."

@@ -311,6 +311,10 @@
 			"label": "Thời gian chờ tích hợp shell terminal",
 			"description": "Thời gian tối đa để chờ tích hợp shell khởi tạo trước khi thực hiện lệnh. Đối với người dùng có thời gian khởi động shell dài, giá trị này có thể cần được tăng lên nếu bạn thấy lỗi \"Shell Integration Unavailable\" trong terminal."
 		},
+		"shellIntegrationDisabled": {
+			"label": "Tắt tích hợp shell terminal",
+			"description": "Bật tùy chọn này nếu lệnh terminal không hoạt động chính xác hoặc bạn thấy lỗi 'Shell Integration Unavailable'. Tùy chọn này sử dụng phương pháp đơn giản hơn để chạy lệnh, bỏ qua một số tính năng terminal nâng cao."
+		},
 		"compressProgressBar": {
 			"label": "Nén đầu ra thanh tiến trình",
 			"description": "Khi được bật, xử lý đầu ra terminal với các ký tự carriage return (\\r) để mô phỏng cách terminal thật hiển thị nội dung. Điều này loại bỏ các trạng thái trung gian của thanh tiến trình, chỉ giữ lại trạng thái cuối cùng, giúp tiết kiệm không gian ngữ cảnh cho thông tin quan trọng hơn."

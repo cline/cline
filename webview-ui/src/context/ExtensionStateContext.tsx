@@ -41,6 +41,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setSoundVolume: (value: number) => void
 	terminalShellIntegrationTimeout?: number
 	setTerminalShellIntegrationTimeout: (value: number) => void
+	terminalShellIntegrationDisabled?: boolean
+	setTerminalShellIntegrationDisabled: (value: boolean) => void
 	terminalZdotdir?: boolean
 	setTerminalZdotdir: (value: boolean) => void
 	setTtsEnabled: (value: boolean) => void
@@ -298,6 +300,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			setState((prevState) => ({ ...prevState, terminalOutputLineLimit: value })),
 		setTerminalShellIntegrationTimeout: (value) =>
 			setState((prevState) => ({ ...prevState, terminalShellIntegrationTimeout: value })),
+		setTerminalShellIntegrationDisabled: (value) =>
+			setState((prevState) => ({ ...prevState, terminalShellIntegrationDisabled: value })),
 		setTerminalZdotdir: (value) => setState((prevState) => ({ ...prevState, terminalZdotdir: value })),
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
 		setEnableMcpServerCreation: (value) =>

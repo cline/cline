@@ -52,6 +52,10 @@
 		"title": "强制继续",
 		"tooltip": "忽略运行中的命令并继续"
 	},
+	"killCommand": {
+		"title": "终止命令",
+		"tooltip": "终止当前命令"
+	},
 	"resumeTask": {
 		"title": "恢复任务",
 		"tooltip": "继续当前任务"

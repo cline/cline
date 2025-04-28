@@ -52,6 +52,10 @@
 		"title": "Procedi durante l'esecuzione",
 		"tooltip": "Continua nonostante gli avvisi"
 	},
+	"killCommand": {
+		"title": "Termina comando",
+		"tooltip": "Termina il comando corrente"
+	},
 	"resumeTask": {
 		"title": "Riprendi attività",
 		"tooltip": "Continua l'attività corrente"

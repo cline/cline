@@ -1,6 +1,9 @@
-// src/integrations/terminal/__tests__/TerminalProcessExec.pwsh.test.ts
+// npx jest src/integrations/terminal/__tests__/TerminalProcessExec.pwsh.test.ts
+
 import * as vscode from "vscode"
-import { TerminalProcess, ExitCodeDetails } from "../TerminalProcess"
+
+import { ExitCodeDetails } from "../types"
+import { TerminalProcess } from "../TerminalProcess"
 import { Terminal } from "../Terminal"
 import { TerminalRegistry } from "../TerminalRegistry"
 import { createPowerShellStream } from "./streamUtils/pwshStream"
@@ -54,6 +57,10 @@ jest.mock("vscode", () => {
 		__eventHandlers: eventHandlers,
 	}
 })
+
+jest.mock("execa", () => ({
+	execa: jest.fn(),
+}))
 
 /**
  * Test PowerShell command execution

@@ -52,6 +52,10 @@
 		"title": "Proceed While Running",
 		"tooltip": "Continue despite warnings"
 	},
+	"killCommand": {
+		"title": "Kill Command",
+		"tooltip": "Kill the current command"
+	},
 	"resumeTask": {
 		"title": "Resume Task",
 		"tooltip": "Continue the current task"

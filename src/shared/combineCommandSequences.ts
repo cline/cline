@@ -23,7 +23,7 @@ import { ClineMessage } from "./ExtensionMessage"
 export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[] {
 	const combinedCommands: ClineMessage[] = []
 
-	// First pass: combine commands with their outputs
+	// First pass: combine commands with their outputs.
 	for (let i = 0; i < messages.length; i++) {
 		if (messages[i].type === "ask" && messages[i].ask === "command") {
 			let combinedText = messages[i].text || ""
@@ -32,42 +32,82 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 
 			while (j < messages.length) {
 				if (messages[j].type === "ask" && messages[j].ask === "command") {
-					// Stop if we encounter the next command
+					// Stop if we encounter the next command.
 					break
 				}
+
 				if (messages[j].ask === "command_output" || messages[j].say === "command_output") {
 					if (!didAddOutput) {
-						// Add a newline before the first output
+						// Add a newline before the first output.
 						combinedText += `\n${COMMAND_OUTPUT_STRING}`
 						didAddOutput = true
 					}
-					// handle cases where we receive empty command_output (ie when extension is relinquishing control over exit command button)
+
+					// Handle cases where we receive empty command_output (i.e.
+					// when extension is relinquishing control over exit command
+					// button).
 					const output = messages[j].text || ""
+
 					if (output.length > 0) {
 						combinedText += output
 					}
 				}
+
 				j++
 			}
 
-			combinedCommands.push({
-				...messages[i],
-				text: combinedText,
-			})
+			combinedCommands.push({ ...messages[i], text: combinedText })
 
-			i = j - 1 // Move to the index just before the next command or end of array
+			// Move to the index just before the next command or end of array.
+			i = j - 1
 		}
 	}
 
-	// Second pass: remove command_outputs and replace original commands with combined ones
+	// console.log(`[combineCommandSequences] combinedCommands ->`, messages, combinedCommands)
+
+	// Second pass: remove command_outputs and replace original commands with
+	// combined ones.
 	return messages
 		.filter((msg) => !(msg.ask === "command_output" || msg.say === "command_output"))
 		.map((msg) => {
 			if (msg.type === "ask" && msg.ask === "command") {
-				const combinedCommand = combinedCommands.find((cmd) => cmd.ts === msg.ts)
-				return combinedCommand || msg
+				return combinedCommands.find((cmd) => cmd.ts === msg.ts) || msg
 			}
+
 			return msg
 		})
 }
+
+export const splitCommandOutput = (text: string) => {
+	const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
+
+	if (outputIndex === -1) {
+		return { command: text, output: "" }
+	}
+
+	return {
+		command: text.slice(0, outputIndex).trim(),
+
+		output: text
+			.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
+			.trim()
+			.split("")
+			.map((char) => {
+				switch (char) {
+					case "\t":
+						return "→   "
+					case "\b":
+						return "⌫"
+					case "\f":
+						return "⏏"
+					case "\v":
+						return "⇳"
+					default:
+						return char
+				}
+			})
+			.join(""),
+	}
+}
+
 export const COMMAND_OUTPUT_STRING = "Output:"

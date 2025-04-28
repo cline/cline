@@ -52,6 +52,10 @@
 		"title": "Prosseguir durante execução",
 		"tooltip": "Continuar apesar dos avisos"
 	},
+	"killCommand": {
+		"title": "Interromper Comando",
+		"tooltip": "Interromper o comando atual"
+	},
 	"resumeTask": {
 		"title": "Retomar tarefa",
 		"tooltip": "Continuar a tarefa atual"

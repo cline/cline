@@ -1,14 +1,16 @@
-import * as vscode from "vscode"
+import fs from "fs/promises"
 import * as path from "path"
+
+import * as vscode from "vscode"
+import { isBinaryFile } from "isbinaryfile"
+
 import { openFile } from "../../integrations/misc/open-file"
 import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
 import { mentionRegexGlobal } from "../../shared/context-mentions"
-import fs from "fs/promises"
+
 import { extractTextFromFile } from "../../integrations/misc/extract-text"
-import { isBinaryFile } from "isbinaryfile"
 import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
 import { getCommitInfo, getWorkingState } from "../../utils/git"
-import { getLatestTerminalOutput } from "../../integrations/terminal/get-latest-output"
 import { getWorkspacePath } from "../../utils/path"
 import { FileContextTracker } from "../context-tracking/FileContextTracker"
 
@@ -220,4 +222,51 @@ async function getWorkspaceProblems(cwd: string): Promise<string> {
 		return "No errors or warnings detected."
 	}
 	return result
+}
+
+/**
+ * Gets the contents of the active terminal
+ * @returns The terminal contents as a string
+ */
+export async function getLatestTerminalOutput(): Promise<string> {
+	// Store original clipboard content to restore later
+	const originalClipboard = await vscode.env.clipboard.readText()
+
+	try {
+		// Select terminal content
+		await vscode.commands.executeCommand("workbench.action.terminal.selectAll")
+
+		// Copy selection to clipboard
+		await vscode.commands.executeCommand("workbench.action.terminal.copySelection")
+
+		// Clear the selection
+		await vscode.commands.executeCommand("workbench.action.terminal.clearSelection")
+
+		// Get terminal contents from clipboard
+		let terminalContents = (await vscode.env.clipboard.readText()).trim()
+
+		// Check if there's actually a terminal open
+		if (terminalContents === originalClipboard) {
+			return ""
+		}
+
+		// Clean up command separation
+		const lines = terminalContents.split("\n")
+		const lastLine = lines.pop()?.trim()
+
+		if (lastLine) {
+			let i = lines.length - 1
+
+			while (i >= 0 && !lines[i].trim().startsWith(lastLine)) {
+				i--
+			}
+
+			terminalContents = lines.slice(Math.max(i, 0)).join("\n")
+		}
+
+		return terminalContents
+	} finally {
+		// Restore original clipboard content
+		await vscode.env.clipboard.writeText(originalClipboard)
+	}
 }

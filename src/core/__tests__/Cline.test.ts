@@ -13,6 +13,10 @@ import { ApiConfiguration, ModelInfo } from "../../shared/api"
 import { ApiStreamChunk } from "../../api/transform/stream"
 import { ContextProxy } from "../config/ContextProxy"
 
+jest.mock("execa", () => ({
+	execa: jest.fn(),
+}))
+
 // Mock RooIgnoreController
 jest.mock("../ignore/RooIgnoreController")
 

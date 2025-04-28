@@ -311,6 +311,10 @@
 			"label": "終端機 Shell 整合逾時",
 			"description": "執行命令前等待 Shell 整合初始化的最長時間。如果您的 Shell 啟動較慢，且終端機出現「Shell 整合無法使用」的錯誤訊息，可能需要提高此數值。"
 		},
+		"shellIntegrationDisabled": {
+			"label": "停用終端機 Shell 整合",
+			"description": "如果終端機指令無法正常運作或看到 'Shell Integration Unavailable' 錯誤，請啟用此項。這會使用較簡單的方法執行指令，繞過一些進階終端機功能。"
+		},
 		"compressProgressBar": {
 			"label": "壓縮進度條輸出",
 			"description": "啟用後，將處理包含歸位字元 (\\r) 的終端機輸出，模擬真實終端機顯示內容的方式。這會移除進度條的中間狀態，只保留最終狀態，為更重要的資訊節省上下文空間。"

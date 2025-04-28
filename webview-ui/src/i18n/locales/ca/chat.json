@@ -52,6 +52,10 @@
 		"title": "Continuar mentre s'executa",
 		"tooltip": "Continua malgrat els advertiments"
 	},
+	"killCommand": {
+		"title": "Atura l'ordre",
+		"tooltip": "Atura l'ordre actual"
+	},
 	"resumeTask": {
 		"title": "Reprendre la tasca",
 		"tooltip": "Repren la tasca actual"

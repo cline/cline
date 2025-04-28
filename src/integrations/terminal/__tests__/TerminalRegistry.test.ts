@@ -5,6 +5,7 @@ import { TerminalRegistry } from "../TerminalRegistry"
 
 // Mock vscode.window.createTerminal
 const mockCreateTerminal = jest.fn()
+
 jest.mock("vscode", () => ({
 	window: {
 		createTerminal: (...args: any[]) => {
@@ -18,6 +19,10 @@ jest.mock("vscode", () => ({
 	ThemeIcon: jest.fn(),
 }))
 
+jest.mock("execa", () => ({
+	execa: jest.fn(),
+}))
+
 describe("TerminalRegistry", () => {
 	beforeEach(() => {
 		mockCreateTerminal.mockClear()
@@ -25,7 +30,7 @@ describe("TerminalRegistry", () => {
 
 	describe("createTerminal", () => {
 		it("creates terminal with PAGER set to cat", () => {
-			TerminalRegistry.createTerminal("/test/path")
+			TerminalRegistry.createTerminal("/test/path", "vscode")
 
 			expect(mockCreateTerminal).toHaveBeenCalledWith({
 				cwd: "/test/path",
@@ -45,7 +50,7 @@ describe("TerminalRegistry", () => {
 			Terminal.setCommandDelay(50)
 
 			try {
-				TerminalRegistry.createTerminal("/test/path")
+				TerminalRegistry.createTerminal("/test/path", "vscode")
 
 				expect(mockCreateTerminal).toHaveBeenCalledWith({
 					cwd: "/test/path",
@@ -67,7 +72,7 @@ describe("TerminalRegistry", () => {
 		it("adds Oh My Zsh integration env var when enabled", () => {
 			Terminal.setTerminalZshOhMy(true)
 			try {
-				TerminalRegistry.createTerminal("/test/path")
+				TerminalRegistry.createTerminal("/test/path", "vscode")
 
 				expect(mockCreateTerminal).toHaveBeenCalledWith({
 					cwd: "/test/path",
@@ -88,7 +93,7 @@ describe("TerminalRegistry", () => {
 		it("adds Powerlevel10k integration env var when enabled", () => {
 			Terminal.setTerminalZshP10k(true)
 			try {
-				TerminalRegistry.createTerminal("/test/path")
+				TerminalRegistry.createTerminal("/test/path", "vscode")
 
 				expect(mockCreateTerminal).toHaveBeenCalledWith({
 					cwd: "/test/path",

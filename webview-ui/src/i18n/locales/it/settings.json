@@ -311,6 +311,10 @@
 			"label": "Timeout integrazione shell del terminale",
 			"description": "Tempo massimo di attesa per l'inizializzazione dell'integrazione della shell prima di eseguire i comandi. Per gli utenti con tempi di avvio della shell lunghi, questo valore potrebbe dover essere aumentato se si vedono errori \"Shell Integration Unavailable\" nel terminale."
 		},
+		"shellIntegrationDisabled": {
+			"label": "Disabilita l'integrazione della shell del terminale",
+			"description": "Abilita questa opzione se i comandi del terminale non funzionano correttamente o se vedi errori 'Shell Integration Unavailable'. Questo utilizza un metodo più semplice per eseguire i comandi, bypassando alcune funzionalità avanzate del terminale."
+		},
 		"compressProgressBar": {
 			"label": "Comprimi output barre di progresso",
 			"description": "Quando abilitato, elabora l'output del terminale con ritorni a capo (\\r) per simulare come un terminale reale visualizzerebbe il contenuto. Questo rimuove gli stati intermedi delle barre di progresso, mantenendo solo lo stato finale, il che conserva spazio di contesto per informazioni più rilevanti."

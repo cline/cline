@@ -52,6 +52,10 @@
 		"title": "Kontynuuj podczas wykonywania",
 		"tooltip": "Kontynuuj pomimo ostrzeżeń"
 	},
+	"killCommand": {
+		"title": "Zatrzymaj polecenie",
+		"tooltip": "Zatrzymaj bieżące polecenie"
+	},
 	"resumeTask": {
 		"title": "Wznów zadanie",
 		"tooltip": "Kontynuuj bieżące zadanie"

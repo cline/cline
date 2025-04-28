@@ -52,6 +52,10 @@
 		"title": "Continuar mientras se ejecuta",
 		"tooltip": "Continuar a pesar de las advertencias"
 	},
+	"killCommand": {
+		"title": "Terminar comando",
+		"tooltip": "Terminar el comando actual"
+	},
 	"resumeTask": {
 		"title": "Reanudar tarea",
 		"tooltip": "Reanudar la tarea actual"

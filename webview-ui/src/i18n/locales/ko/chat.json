@@ -52,6 +52,10 @@
 		"title": "실행 중에도 계속",
 		"tooltip": "경고에도 불구하고 계속 진행"
 	},
+	"killCommand": {
+		"title": "명령 종료",
+		"tooltip": "현재 명령 종료"
+	},
 	"resumeTask": {
 		"title": "작업 재개",
 		"tooltip": "현재 작업 계속하기"
