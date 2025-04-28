@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+service McpService {
+  rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
+  rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
+}
+
+message ToggleMcpServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  bool disabled = 3;
+}
+
+message UpdateMcpTimeoutRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  int32 timeout = 3;
+}
+
+message McpTool {
+  string name = 1;
+  optional string description = 2;
+  optional string input_schema = 3;
+  optional bool auto_approve = 4;
+}
+
+message McpResource {
+  string uri = 1;
+  string name = 2;
+  optional string mime_type = 3;
+  optional string description = 4;
+}
+
+message McpResourceTemplate {
+  string uri_template = 1;
+  string name = 2;
+  optional string mime_type = 3;
+  optional string description = 4;
+}
+
+enum McpServerStatus {
+  // Protobuf enums (in proto3) must have a zero value defined, which serves as the default if the field isn't explicitly set. 
+  // To align with the required nature of the TypeScript type and avoid an unnecessary UNSPECIFIED state, we map one of the existing statuses to this zero value.
+  MCP_SERVER_STATUS_DISCONNECTED = 0; // default
+  MCP_SERVER_STATUS_CONNECTED = 1;
+  MCP_SERVER_STATUS_CONNECTING = 2;
+}
+
+message McpServer {
+  string name = 1;
+  string config = 2;
+  McpServerStatus status = 3;
+  optional string error = 4;
+  repeated McpTool tools = 5;
+  repeated McpResource resources = 6;
+  repeated McpResourceTemplate resource_templates = 7;
+  optional bool disabled = 8;
+  optional int32 timeout = 9;
+}
+
+message McpServers {
+  repeated McpServer mcp_servers = 1;
+}

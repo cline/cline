@@ -2,10 +2,10 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
-import { ApiStream } from "../transform/stream"
+import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
+import { ApiStream } from "@api/transform/stream"
 import { VertexAI } from "@google-cloud/vertexai"
-import { calculateApiCostOpenAI } from "../../utils/cost"
+import { calculateApiCostOpenAI } from "@utils/cost"
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
 export class VertexHandler implements ApiHandler {

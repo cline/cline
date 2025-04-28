@@ -1,0 +1,177 @@
+name: Create Linear Issue on Pull Request
+
+on:
+    workflow_dispatch:
+    pull_request:
+        branches: [main]
+        types: [opened]
+
+permissions:
+    pull-requests: write
+
+jobs:
+    create-linear-issue-on-pull-request:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check for existing Linear link
+              id: check-linear
+              uses: actions/github-script@v6
+              with:
+                  result-encoding: string
+                  script: |
+                      const pr = context.payload.pull_request;
+                      // 1) PR body
+                      if (/https?:\/\/linear\.app/.test(pr.body||"")) {
+                        return "true";
+                      }
+                      // 2) Any linked GitHub issues?
+                      const res = await github.graphql(
+                        `query($owner:String!,$repo:String!,$prNumber:Int!){
+                           repository(owner:$owner,name:$repo){
+                             pullRequest(number:$prNumber){
+                               closingIssuesReferences(first:10){
+                                 nodes{number}
+                               }
+                             }
+                           }
+                         }`,
+                        {
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          prNumber: pr.number
+                        }
+                      );
+                      for (const {number} of res.repository.pullRequest.closingIssuesReferences.nodes) {
+                        const comments = await github.rest.issues.listComments({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: number
+                        });
+                        if (comments.data.some(c=>/https?:\/\/linear\.app/.test(c.body))) {
+                          return "true";
+                        }
+                      }
+                      return "false";
+
+            - name: Find or create Linear issue via GraphQL
+              if: steps.check-linear.outputs.result == 'false'
+              id: linear
+              uses: actions/github-script@v6
+              env:
+                  LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+              with:
+                  result-encoding: string
+                  script: |
+                      const API = 'https://api.linear.app/graphql';
+                      const apiKey = process.env.LINEAR_API_KEY;
+
+                      // Check if API key exists
+                      if (!apiKey) {
+                        core.setFailed('LINEAR_API_KEY is not set. Please add it to your repository secrets.');
+                        core.setOutput('error', 'true');
+                        core.setOutput('error-message', 'LINEAR_API_KEY is not set. Please add it to your repository secrets.');
+                        return;
+                      }
+
+                      // Helper to call Linear with error handling
+                      async function gql(q, v) {
+                        try {
+                          const r = await fetch(API, {
+                            method:'POST',
+                            headers:{
+                              'Content-Type':'application/json',
+                              'Authorization': apiKey
+                            },
+                            body: JSON.stringify({ query: q, variables: v })
+                          });
+                          
+                          if (!r.ok) {
+                            throw new Error(`Linear API responded with status ${r.status}: ${await r.text()}`);
+                          }
+                          
+                          const json = await r.json();
+                          
+                          // Check for GraphQL errors
+                          if (json.errors && json.errors.length > 0) {
+                            const errorMessages = json.errors.map(e => e.message).join(', ');
+                            throw new Error(`Linear GraphQL errors: ${errorMessages}`);
+                          }
+                          
+                          return json.data;
+                        } catch (error) {
+                          core.error(`Error calling Linear API: ${error.message}`);
+                          throw error;
+                        }
+                      }
+
+                      try {
+                        // 1) Set team ID
+                        const teamId = "19b9c1b2-5f58-498c-b1bf-23ee8f52a677"
+
+                        // 2) Look for existing issue by PR URL
+                        const pr = context.payload.pull_request;
+                        const searchData = await gql(
+                          `query($team:ID!,$q:String!){
+                              issues(filter: { team: { id: { eq: $team } } attachments: { some: { url: { eq: $q } } } }){nodes{id,url}}
+                            }`,
+                          { team: teamId, q: pr.html_url }
+                        );
+                        let issue = searchData.issues.nodes[0];
+
+                        // 3) Create if missing
+                        if (!issue) {
+                          const createData = await gql(
+                            `mutation($input:IssueCreateInput!){
+                                issueCreate(input:$input){issue{id,url}}
+                              }`,
+                            {
+                              input: {
+                                teamId,
+                                title: `[GITHUB] ${pr.title}`,
+                                description: `${pr.body||''}\n\n${pr.html_url}`,
+                                stateId: "4d9bcba2-6712-47e3-b577-6ec1ee023dc2",
+                                labelIds: ["504e7d60-5037-483f-a9b8-7e298bdf116f"]
+                              }
+                            }
+                          );
+                          issue = createData.issueCreate.issue;
+                        }
+
+                        // Set output for next steps
+                        core.setOutput('linear-issue-url', issue.url);
+                        core.setOutput('error', 'false');
+                      } catch (error) {
+                        core.setOutput('error', 'true');
+                        core.setOutput('error-message', error.message);
+                        core.setFailed(`Failed to create or find Linear issue: ${error.message}`);
+                      }
+
+            - name: Comment PR with Linear link
+              if: steps.check-linear.outputs.result == 'false'
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                      const pr = context.payload.pull_request;
+                      const url = `${{ steps.linear.outputs.linear-issue-url }}`;
+                      const body = `🔗 Linear issue created: ${url}`;
+                      // Fetch existing comments
+                      const { data: comments } = await github.rest.issues.listComments({
+                        ...context.repo,
+                        issue_number: pr.number
+                      });
+                      const botComment = comments.find(c =>
+                        c.user.type === "Bot" && c.body.startsWith("🔗 Linear issue created:")
+                      );
+                      if (botComment) {
+                        await github.rest.issues.updateComment({
+                          ...context.repo,
+                          comment_id: botComment.id,
+                          body
+                        });
+                      } else {
+                        await github.rest.issues.createComment({
+                          ...context.repo,
+                          issue_number: pr.number,
+                          body
+                        });
+                      }

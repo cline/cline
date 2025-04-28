@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+service TaskService {
+  // Cancels the currently running task
+  rpc cancelTask(EmptyRequest) returns (Empty);
+  // Clears the current task
+  rpc clearTask(EmptyRequest) returns (Empty);
+  // Creates a new task with the given text and optional images
+  rpc newTask(NewTaskRequest) returns (Empty);
+}
+
+// Request message for creating a new task
+message NewTaskRequest {
+  Metadata metadata = 1;
+  string text = 2;
+  repeated string images = 3;
+}

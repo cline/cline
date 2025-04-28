@@ -18,6 +18,7 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
+import { TaskServiceClient } from "@/services/grpc-client"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import Announcement from "@/components/chat/Announcement"
@@ -27,12 +28,36 @@ import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
 import TaskHeader from "@/components/chat/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
+import { unified } from "unified"
+import remarkStringify from "remark-stringify"
+import rehypeRemark from "rehype-remark"
+import rehypeParse from "rehype-parse"
 
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
+}
+
+async function convertHtmlToMarkdown(html: string) {
+	// Process the HTML to Markdown
+	const result = await unified()
+		.use(rehypeParse as any, { fragment: true }) // Parse HTML fragments
+		.use(rehypeRemark as any) // Convert HTML to Markdown AST
+		.use(remarkStringify as any, {
+			// Convert Markdown AST to text
+			bullet: "-", // Use - for unordered lists
+			emphasis: "*", // Use * for emphasis
+			strong: "_", // Use _ for strong
+			listItemIndent: "one", // Use one space for list indentation
+			rule: "-", // Use - for horizontal rules
+			ruleSpaces: false, // No spaces in horizontal rules
+			fences: true,
+		})
+		.process(html)
+
+	return String(result)
 }
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -77,6 +102,33 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
+
+	useEffect(() => {
+		const handleCopy = async (e: ClipboardEvent) => {
+			if (window.getSelection) {
+				const selection = window.getSelection()
+				if (selection && selection.rangeCount > 0) {
+					// Get the selected HTML content
+					const range = selection.getRangeAt(0)
+					const clonedSelection = range.cloneContents()
+					const div = document.createElement("div")
+					div.appendChild(clonedSelection)
+					const selectedHtml = div.innerHTML
+
+					// Convert HTML to Markdown
+					const markdown = await convertHtmlToMarkdown(selectedHtml)
+
+					vscode.postMessage({ type: "copyToClipboard", text: markdown })
+					e.preventDefault()
+				}
+			}
+		}
+		document.addEventListener("copy", handleCopy)
+
+		return () => {
+			document.removeEventListener("copy", handleCopy)
+		}
+	}, [])
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -202,6 +254,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setPrimaryButtonText("Start New Task with Context")
 							setSecondaryButtonText(undefined)
 							break
+						case "condense":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("condense")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Condense Conversation")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -285,11 +344,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
 
 	const handleSendMessage = useCallback(
-		(text: string, images: string[]) => {
+		async (text: string, images: string[]) => {
 			text = text.trim()
 			if (text || images.length > 0) {
 				if (messages.length === 0) {
-					vscode.postMessage({ type: "newTask", text, images })
+					await TaskServiceClient.newTask({ text, images })
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -304,6 +363,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_completed_task":
 						case "mistake_limit_reached":
 						case "new_task": // user can provide feedback or reject the new task suggestion
+							vscode.postMessage({
+								type: "askResponse",
+								askResponse: "messageResponse",
+								text,
+								images,
+							})
+							break
+						case "condense":
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
@@ -327,15 +394,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[messages.length, clineAsk],
 	)
 
-	const startNewTask = useCallback(() => {
-		vscode.postMessage({ type: "clearTask" })
+	const startNewTask = useCallback(async () => {
+		await TaskServiceClient.clearTask({})
 	}, [])
 
 	/*
 	This logic depends on the useEffect[messages] above to set clineAsk, after which buttons are shown and we then send an askResponse to the extension.
 	*/
 	const handlePrimaryButtonClick = useCallback(
-		(text?: string, images?: string[]) => {
+		async (text?: string, images?: string[]) => {
 			const trimmedInput = text?.trim()
 			switch (clineAsk) {
 				case "api_req_failed":
@@ -371,8 +438,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					break
 				case "new_task":
 					console.info("new task button clicked!", { lastMessage, messages, clineAsk, text })
+					await TaskServiceClient.newTask({
+						text: lastMessage?.text,
+						images: [],
+					})
+					break
+				case "condense":
 					vscode.postMessage({
-						type: "newTask",
+						type: "condense",
 						text: lastMessage?.text,
 					})
 					break
@@ -388,10 +461,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const handleSecondaryButtonClick = useCallback(
-		(text?: string, images?: string[]) => {
+		async (text?: string, images?: string[]) => {
 			const trimmedInput = text?.trim()
 			if (isStreaming) {
-				vscode.postMessage({ type: "cancelTask" })
+				await TaskServiceClient.cancelTask({})
 				setDidClickCancel(true)
 				return
 			}

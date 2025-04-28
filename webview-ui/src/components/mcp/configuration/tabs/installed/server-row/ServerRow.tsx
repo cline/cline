@@ -1,6 +1,6 @@
 import { McpServer } from "@shared/mcp"
 import { DEFAULT_MCP_TIMEOUT_SECONDS } from "@shared/mcp"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { vscode } from "@/utils/vscode"
 import {
 	VSCodeButton,
@@ -16,7 +16,9 @@ import DangerButton from "@/components/common/DangerButton"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-
+import { McpServiceClient } from "@/services/grpc-client"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { McpServers, UpdateMcpTimeoutRequest } from "@shared/proto/mcp"
 // constant JSX.Elements
 const TimeoutOptions = [
 	{ value: "30", label: "30 seconds" },
@@ -40,7 +42,7 @@ const ServerRow = ({
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
 }) => {
-	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()
+	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -76,11 +78,18 @@ const ServerRow = ({
 		const value = select.value
 		const num = parseInt(value)
 		setTimeoutValue(value)
-		vscode.postMessage({
-			type: "updateMcpTimeout",
+
+		McpServiceClient.updateMcpTimeout({
 			serverName: server.name,
 			timeout: num,
-		})
+		} as UpdateMcpTimeoutRequest)
+			.then((response: McpServers) => {
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+			})
+			.catch((error) => {
+				console.error("Error updating MCP server timeout", error)
+			})
 	}
 
 	const handleRestart = () => {
@@ -107,6 +116,20 @@ const ServerRow = ({
 			toolNames: server.tools?.map((tool) => tool.name) || [],
 			autoApprove: !server.tools?.every((tool) => tool.autoApprove),
 		})
+	}
+
+	const handleToggleMcpServer = () => {
+		McpServiceClient.toggleMcpServer({
+			serverName: server.name,
+			disabled: !server.disabled,
+		})
+			.then((response) => {
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+			})
+			.catch((error) => {
+				console.error("Error toggling MCP server", error)
+			})
 	}
 
 	return (
@@ -184,20 +207,12 @@ const ServerRow = ({
 							opacity: server.disabled ? 0.5 : 0.9,
 						}}
 						onClick={() => {
-							vscode.postMessage({
-								type: "toggleMcpServer",
-								serverName: server.name,
-								disabled: !server.disabled,
-							})
+							handleToggleMcpServer()
 						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" || e.key === " ") {
 								e.preventDefault()
-								vscode.postMessage({
-									type: "toggleMcpServer",
-									serverName: server.name,
-									disabled: !server.disabled,
-								})
+								handleToggleMcpServer()
 							}
 						}}>
 						<div

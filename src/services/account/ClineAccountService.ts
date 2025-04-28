@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import type { BalanceResponse, PaymentTransaction, UsageTransaction } from "../../shared/ClineAccount"
-import { ExtensionMessage } from "../../shared/ExtensionMessage"
+import type { BalanceResponse, PaymentTransaction, UsageTransaction } from "@shared/ClineAccount"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 export class ClineAccountService {
 	private readonly baseUrl = "https://api.cline.bot/v1"

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
 import { useDebounceEffect } from "@/utils/useDebounceEffect"
 import styled from "styled-components"
-import { vscode } from "@/utils/vscode"
+import { FileServiceClient } from "@/services/grpc-client"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 const MERMAID_THEME = {
@@ -131,10 +131,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 
 		try {
 			const pngDataUrl = await svgToPng(svgEl)
-			vscode.postMessage({
-				type: "openImage",
-				text: pngDataUrl,
-			})
+			FileServiceClient.openImage({ value: pngDataUrl }).catch((err) => console.error("Failed to open image:", err))
 		} catch (err) {
 			console.error("Error converting SVG to PNG:", err)
 		}

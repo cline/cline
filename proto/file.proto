@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Service for file-related operations
+service FileService {
+  // Opens a file in the editor
+  rpc openFile(StringRequest) returns (Empty);
+  
+  // Opens an image in the system viewer
+  rpc openImage(StringRequest) returns (Empty);
+}

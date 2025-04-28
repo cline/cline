@@ -1,5 +1,52 @@
 # Changelog
 
+## [3.13.3]
+
+-   Add download counts to MCP marketplace items
+-   Add `/compact` command
+-   Add prompt caching to gemini models in cline / openrouter providers
+-   Add tooltips to bottom row menu
+
+## [3.13.2]
+
+-   Add Gemini 2.5 Flash model to Vertex and Gemini Providers (Thanks monotykamary!)
+-   Add Caching to gemini provider (Thanks arafatkatze!)
+-   Add thinking budget support to Gemini Models (Thanks monotykamary!)
+-   Add !include .file directive support for .clineignore (Thanks watany-dev!)
+-   Improve slash command functionality
+-   Improve prompting for new task tool
+-   Fix o1 temperature being passed to the azure api (Thanks treeleaves30760!)
+-   Fix to make "add new rule file" button functional
+-   Fix Ollama provider timeout, allowing for a larger loading time (Thanks suvarchal!)
+-   Fix Non-UTF-8 File Handling: Improve Encoding Detection to Prevent Garbled Text and Binary Misclassification (Thanks yt3trees!)
+-   Fix settings to not reset by changing providers
+-   Fix terminal outputs missing commas
+-   Fix terminal errors caused by starting non-alphanumeric outputs
+-   Fix auto approve settings becoming unset
+-   Fix Mermaid syntax error in documentation (Thanks tuki0918!)
+-   Remove supportsComputerUse restriction and support browser use through any model that supports images (Thanks arafatkatze!)
+
+## [3.13.1]
+
+-   Fix bug where task cancellation during thinking stream would result in error state
+
+## [3.13.0]
+
+-   Add Cline rules popover under the chat field, allowing you to easily add, enable & disable workspace level or global rule files
+-   Add new slash command menu letting you type “/“ to do quick actions like creating new tasks
+-   Add ability to edit past messages, with options to restore your workspace back to that point
+-   Allow sending a message when selecting an option provided by the question or plan tool
+-   Add command to jump to Cline's chat input
+-   Add support for OpenAI o3 & 4o-mini (Thanks @PeterDaveHello and @arafatkatze!)
+-   Add baseURL option for Google Gemini provider (Thanks @owengo and @olivierhub!)
+-   Add support for Azure's DeepSeek model. (Thanks @yt3trees!)
+-   Add ability for models that support it to receive image responses from MCP servers (Thanks @rikaaa0928!)
+-   Improve search and replace diff editing by making it more flexible with models that fail to follow structured output instructions. (Thanks @chi-cat!)
+-   Add detection of Ctrl+C termination in terminal, improving output reading issues
+-   Fix issue where some commands with large output would cause UI to freeze
+-   Fix token usage tracking issues with vertex provider (Thanks @mzsima!)
+-   Fix issue with xAI reasoning content not being parsed (Thanks @mrubens!)
+
 ## [3.12.3]
 
 -   Add copy button to MermaidBlock component (Thanks @cacosub7!)
