@@ -1,5 +1,6 @@
 import { Controller } from ".."
-import { DeleteRuleFileRequest, DeleteRuleFileResponse } from "@shared/proto/file"
+import { DeleteRuleFileRequest } from "@shared/proto/file"
+import { OperationResponse } from "@shared/proto/common"
 import { FileMethodHandler } from "./index"
 import {
 	deleteRuleFile as deleteRuleFileImpl,
@@ -17,13 +18,13 @@ import { cwd } from "@core/task"
 export const deleteRuleFile: FileMethodHandler = async (
 	controller: Controller,
 	request: DeleteRuleFileRequest,
-): Promise<DeleteRuleFileResponse> => {
+): Promise<OperationResponse> => {
 	if (typeof request.isGlobal !== "boolean" || typeof request.rulePath !== "string" || !request.rulePath) {
 		console.error("deleteRuleFile: Missing or invalid parameters", {
 			isGlobal: typeof request.isGlobal === "boolean" ? request.isGlobal : `Invalid: ${typeof request.isGlobal}`,
 			rulePath: typeof request.rulePath === "string" ? request.rulePath : `Invalid: ${typeof request.rulePath}`,
 		})
-		return DeleteRuleFileResponse.create({
+		return OperationResponse.create({
 			success: false,
 			message: "Missing or invalid parameters",
 		})
@@ -41,7 +42,7 @@ export const deleteRuleFile: FileMethodHandler = async (
 		vscode.window.showErrorMessage(result.message)
 	}
 
-	return DeleteRuleFileResponse.create({
+	return OperationResponse.create({
 		success: result.success,
 		message: result.message,
 	})

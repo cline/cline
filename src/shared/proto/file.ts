@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, Metadata, StringRequest } from "./common"
+import { Empty, Metadata, OperationResponse, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -17,14 +17,6 @@ export interface DeleteRuleFileRequest {
 	rulePath: string
 	/** Whether the file is in global or workspace rules directory */
 	isGlobal: boolean
-}
-
-/** Response for deleting a rule file */
-export interface DeleteRuleFileResponse {
-	/** Whether the deletion was successful */
-	success: boolean
-	/** Success or error message */
-	message: string
 }
 
 function createBaseDeleteRuleFileRequest(): DeleteRuleFileRequest {
@@ -120,82 +112,6 @@ export const DeleteRuleFileRequest: MessageFns<DeleteRuleFileRequest> = {
 	},
 }
 
-function createBaseDeleteRuleFileResponse(): DeleteRuleFileResponse {
-	return { success: false, message: "" }
-}
-
-export const DeleteRuleFileResponse: MessageFns<DeleteRuleFileResponse> = {
-	encode(message: DeleteRuleFileResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.success !== false) {
-			writer.uint32(8).bool(message.success)
-		}
-		if (message.message !== "") {
-			writer.uint32(18).string(message.message)
-		}
-		return writer
-	},
-
-	decode(input: BinaryReader | Uint8Array, length?: number): DeleteRuleFileResponse {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseDeleteRuleFileResponse()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 8) {
-						break
-					}
-
-					message.success = reader.bool()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
-
-					message.message = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
-
-	fromJSON(object: any): DeleteRuleFileResponse {
-		return {
-			success: isSet(object.success) ? globalThis.Boolean(object.success) : false,
-			message: isSet(object.message) ? globalThis.String(object.message) : "",
-		}
-	},
-
-	toJSON(message: DeleteRuleFileResponse): unknown {
-		const obj: any = {}
-		if (message.success !== false) {
-			obj.success = message.success
-		}
-		if (message.message !== "") {
-			obj.message = message.message
-		}
-		return obj
-	},
-
-	create<I extends Exact<DeepPartial<DeleteRuleFileResponse>, I>>(base?: I): DeleteRuleFileResponse {
-		return DeleteRuleFileResponse.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<DeleteRuleFileResponse>, I>>(object: I): DeleteRuleFileResponse {
-		const message = createBaseDeleteRuleFileResponse()
-		message.success = object.success ?? false
-		message.message = object.message ?? ""
-		return message
-	},
-}
-
 /** Service for file-related operations */
 export type FileServiceDefinition = typeof FileServiceDefinition
 export const FileServiceDefinition = {
@@ -234,7 +150,7 @@ export const FileServiceDefinition = {
 			name: "deleteRuleFile",
 			requestType: DeleteRuleFileRequest,
 			requestStream: false,
-			responseType: DeleteRuleFileResponse,
+			responseType: OperationResponse,
 			responseStream: false,
 			options: {},
 		},

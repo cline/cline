@@ -16,7 +16,7 @@ service FileService {
   // Creates a rule file in either global or workspace rules directory
   rpc createRuleFile(CreateRuleFileRequest) returns (CreateRuleFileResponse);
   // Deletes a rule file from either global or workspace rules directory
-  rpc deleteRuleFile(DeleteRuleFileRequest) returns (DeleteRuleFileResponse);
+  rpc deleteRuleFile(DeleteRuleFileRequest) returns (OperationResponse);
 }
 
 // Request for deleting a rule file
@@ -24,10 +24,4 @@ message DeleteRuleFileRequest {
   Metadata metadata = 1;
   string rule_path = 2;  // Path of the rule file to delete
   bool is_global = 3;    // Whether the file is in global or workspace rules directory
-}
-
-// Response for deleting a rule file
-message DeleteRuleFileResponse {
-  bool success = 1;     // Whether the deletion was successful
-  string message = 2;   // Success or error message
 }
