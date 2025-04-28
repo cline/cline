@@ -85,7 +85,7 @@ Example:
 </context>
 </condense>
 
-Below is the the user's input when they indicated that they wanted to compact their context window.
+Below is the user's input when they indicated that they wanted to compact their context window.
 </explicit_instructions>\n
 `
 
