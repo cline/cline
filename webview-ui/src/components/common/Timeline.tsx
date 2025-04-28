@@ -1,9 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react"
 import styled from "styled-components"
-import { CheckpointOverlay, CheckpointControls } from "./CheckpointControls"
+import { CheckpointControls } from "./CheckpointControls"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { formatTimestamp } from "@/utils/format"
-import { vscode } from "@/utils/vscode"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import TimelineHoverModal from "./TimelineHoverModal"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
@@ -239,29 +237,24 @@ const CollapseToggle = styled.div`
 	}
 `
 
-// Format timestamp as relative time (e.g., "2m ago", "just now") or time (e.g., "12:13 PM")
 const formatRelativeTime = (timestamp: number): string => {
 	const now = Date.now()
 	const diff = now - timestamp
 
-	// Less than a minute ago
 	if (diff < 60 * 1000) {
 		return "just now"
 	}
 
-	// Less than an hour ago
 	if (diff < 60 * 60 * 1000) {
 		const minutes = Math.floor(diff / (60 * 1000))
 		return `${minutes}m ago`
 	}
 
-	// Less than a day ago
 	if (diff < 24 * 60 * 60 * 1000) {
 		const hours = Math.floor(diff / (60 * 60 * 1000))
 		return `${hours}h ago`
 	}
 
-	// Format as time for today or date for older
 	const date = new Date(timestamp)
 	const timeFormatter = new Intl.DateTimeFormat("en-US", {
 		hour: "numeric",
@@ -273,12 +266,10 @@ const formatRelativeTime = (timestamp: number): string => {
 }
 
 const getItemType = (message: ClineMessage, isFirstMessage: boolean = false): "ask" | "say" | "checkpoint" | "complete" => {
-	// First message is always treated as "say" (user feedback)
 	if (isFirstMessage) {
 		return "say"
 	}
 
-	// User feedback is treated as "say" (will get up arrow)
 	if (message.type === "say" && message.say === "user_feedback") {
 		return "say"
 	}
@@ -290,14 +281,14 @@ const getItemType = (message: ClineMessage, isFirstMessage: boolean = false): "a
 			case "completion_result":
 				return "complete"
 			default:
-				return "ask" // AI responses get "ask" type (will get down arrow)
+				return "ask"
 		}
 	} else if (message.type === "ask") {
 		switch (message.ask) {
 			case "completion_result":
 				return "complete"
 			default:
-				return "ask" // AI questions get "ask" type (will get down arrow)
+				return "ask"
 		}
 	}
 
@@ -307,9 +298,9 @@ const getItemType = (message: ClineMessage, isFirstMessage: boolean = false): "a
 const getItemIcon = (itemType: "ask" | "say" | "checkpoint" | "complete"): string => {
 	switch (itemType) {
 		case "ask":
-			return "arrow-down" // AI asking questions gets down arrow
+			return "arrow-down"
 		case "say":
-			return "arrow-up" // User messages get up arrow
+			return "arrow-up"
 		case "checkpoint":
 			return "bookmark"
 		case "complete":
@@ -334,31 +325,22 @@ const Timeline: React.FC<TimelineProps> = ({ messages }) => {
 				(m.type === "say" && m.say === "checkpoint_created") ||
 				m.lastCheckpointHash,
 		)
-
-		// Remove the code that adds completion messages to the timeline
-
 		const sortedMessages = [...relevantMessages].sort((a, b) => a.ts - b.ts)
-
 		const uniqueMessages = sortedMessages.filter((item, index, self) => index === self.findIndex((t) => t.ts === item.ts))
-
 		return uniqueMessages
 	}, [messages])
 
-	// Scroll to the end when new items are added
 	useEffect(() => {
 		if (scrollContainerRef.current && timelineItems.length > 0) {
 			scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth
 		}
 	}, [timelineItems.length])
 
-	// Only render the timeline if there are items to display
 	if (timelineItems.length === 0) {
 		return null
 	}
 
-	// Function to get a descriptive label for each timeline item
 	const getItemLabel = (message: ClineMessage): string => {
-		// Check for completion messages first
 		if (
 			(message.type === "say" && message.say === "completion_result") ||
 			(message.type === "ask" && message.ask === "completion_result")
@@ -366,12 +348,10 @@ const Timeline: React.FC<TimelineProps> = ({ messages }) => {
 			return "Completed"
 		}
 
-		// Check for checkpoint messages
 		if (message.type === "say" && message.say === "checkpoint_created") {
 			return "Checkpoint"
 		}
 
-		// All other messages
 		return "Message"
 	}
 
@@ -396,7 +376,6 @@ const Timeline: React.FC<TimelineProps> = ({ messages }) => {
 		setHoverPosition(null)
 	}
 
-	// Find the hovered message
 	const hoveredMessage = hoveredItem ? timelineItems.find((item) => item.ts === hoveredItem) : null
 
 	return (
@@ -434,14 +413,10 @@ const Timeline: React.FC<TimelineProps> = ({ messages }) => {
 											onMouseEnter={(e) => handleMouseEnter(e, item)}
 											onMouseLeave={handleMouseLeave}
 											onClick={() => {
-												// Single click no longer does anything for checkpoints
 											}}
 											onDoubleClick={() => {
 												if (itemType === "checkpoint") {
-													// Set this checkpoint as active
 													setActiveCheckpoint(item.ts)
-
-													// On double-click, directly restore workspace files
 													CheckpointsServiceClient.checkpointRestore({
 														number: item.ts,
 														restoreType: "workspace" as ClineCheckpointRestore,
@@ -457,7 +432,6 @@ const Timeline: React.FC<TimelineProps> = ({ messages }) => {
 										</TimelineItem>
 										<TimelineItemLabel>{label}</TimelineItemLabel>
 										<TimelineItemTimestamp>{timestamp}</TimelineItemTimestamp>
-										{/* Removed checkpoint overlay - no UI is shown on click */}
 									</TimelineItemWrapper>
 								)
 							})}
@@ -466,7 +440,6 @@ const Timeline: React.FC<TimelineProps> = ({ messages }) => {
 				</>
 			)}
 
-			{/* Render the hover modal if an item is hovered */}
 			{hoveredMessage && hoverPosition && (
 				<TimelineHoverModal
 					message={hoveredMessage}

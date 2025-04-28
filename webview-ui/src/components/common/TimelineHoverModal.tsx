@@ -91,29 +91,20 @@ const ModalFooter = styled.div`
 	color: var(--vscode-descriptionForeground);
 `
 
-// Format timestamp as relative time (e.g., "2m ago", "just now") or time (e.g., "12:13 PM")
 const formatRelativeTime = (timestamp: number): string => {
 	const now = Date.now()
 	const diff = now - timestamp
-
-	// Less than a minute ago
 	if (diff < 60 * 1000) {
 		return "just now"
 	}
-
-	// Less than an hour ago
 	if (diff < 60 * 60 * 1000) {
 		const minutes = Math.floor(diff / (60 * 1000))
 		return `${minutes}m ago`
 	}
-
-	// Less than a day ago
 	if (diff < 24 * 60 * 60 * 1000) {
 		const hours = Math.floor(diff / (60 * 60 * 1000))
 		return `${hours}h ago`
 	}
-
-	// Format as time for today or date for older
 	const date = new Date(timestamp)
 	const timeFormatter = new Intl.DateTimeFormat("en-US", {
 		hour: "numeric",
@@ -193,7 +184,6 @@ const getModalContent = (message: ClineMessage): string => {
 }
 
 const getMessageType = (message: ClineMessage, isFirstMessage?: boolean): string => {
-	// If this is the first message in the timeline, treat it as user_feedback
 	if (isFirstMessage) {
 		return `Say: user_feedback`
 	}
@@ -207,23 +197,17 @@ const getMessageType = (message: ClineMessage, isFirstMessage?: boolean): string
 }
 
 const TimelineHoverModal: React.FC<TimelineHoverModalProps> = ({ message, position, onClose, isFirstMessage }) => {
-	// Create a ref to detect clicks outside the modal
 	const modalRef = React.useRef<HTMLDivElement>(null)
-
-	// Calculate initial position values
-	// We'll use a reasonable default width estimate for initial positioning
-	const estimatedWidth = 300 // Reasonable default width estimate
+	const estimatedWidth = 300
 	const initialX = Math.max(16, Math.min(position.x - estimatedWidth / 2, window.innerWidth - 16 - estimatedWidth))
 	const initialArrowOffset = estimatedWidth / 2 + (position.x - (initialX + estimatedWidth / 2))
 
-	// State for position and arrow offset
 	const [modalPosition, setModalPosition] = React.useState({
 		x: initialX,
 		y: position.y,
 		arrowOffset: initialArrowOffset,
 	})
 
-	// Handle click outside the modal
 	React.useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
 			if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
@@ -237,33 +221,24 @@ const TimelineHoverModal: React.FC<TimelineHoverModalProps> = ({ message, positi
 		}
 	}, [onClose])
 
-	// Use useLayoutEffect to measure and adjust position once after initial render
 	React.useLayoutEffect(() => {
 		if (modalRef.current) {
 			const rect = modalRef.current.getBoundingClientRect()
 			const actualWidth = rect.width
-
-			// Calculate the adjusted position to ensure modal stays within viewport
 			let newX = position.x - actualWidth / 2 // Center the modal horizontally
 			const newArrowOffset = actualWidth / 2 // Default arrow position (center)
 			let adjustedArrowOffset = newArrowOffset
-
-			// Check if modal would extend beyond left edge of viewport
 			if (newX < 16) {
-				// Add some padding from the edge
 				const offset = newX - 16
 				newX = 16
 				adjustedArrowOffset = newArrowOffset + offset // Adjust arrow position
 			}
-			// Check if modal would extend beyond right edge of viewport
 			else if (newX + actualWidth > window.innerWidth - 16) {
 				const maxX = window.innerWidth - 16 - actualWidth
 				const offset = newX - maxX
 				newX = maxX
 				adjustedArrowOffset = newArrowOffset + offset // Adjust arrow position
 			}
-
-			// Only update state if the position needs to change from our initial estimate
 			if (Math.abs(newX - modalPosition.x) > 5 || Math.abs(adjustedArrowOffset - modalPosition.arrowOffset) > 5) {
 				setModalPosition({
 					x: newX,
@@ -272,8 +247,8 @@ const TimelineHoverModal: React.FC<TimelineHoverModalProps> = ({ message, positi
 				})
 			}
 		}
-	}, []) // Empty dependency array means this runs once after initial render
-
+	}, [])
+  
 	return (
 		<ModalContainer ref={modalRef} x={modalPosition.x} y={modalPosition.y} arrowOffset={modalPosition.arrowOffset}>
 			<ModalHeader>
