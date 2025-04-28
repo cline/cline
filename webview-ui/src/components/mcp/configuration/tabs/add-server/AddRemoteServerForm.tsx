@@ -3,6 +3,8 @@ import { vscode } from "@/utils/vscode"
 import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { LINKS } from "@/constants"
 import { McpServiceClient } from "@/services/grpc-client"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
@@ -10,9 +12,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [error, setError] = useState("")
 	const [showConnectingMessage, setShowConnectingMessage] = useState(false)
-
-	// Store submitted values to check if the server was added
-	const submittedValues = useRef<{ name: string } | null>(null)
+	const { setMcpServers } = useExtensionState()
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
@@ -35,19 +35,22 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 		}
 
 		setError("")
-		submittedValues.current = { name: serverName.trim() }
 		setIsSubmitting(true)
 		setShowConnectingMessage(true)
 
 		try {
-			await McpServiceClient.addRemoteMcpServer({
+			const servers = await McpServiceClient.addRemoteMcpServer({
 				serverName: serverName.trim(),
 				serverUrl: serverUrl.trim(),
 			})
+
 			setIsSubmitting(false)
+
+			const mcpServers = convertProtoMcpServersToMcpServers(servers)
+			setMcpServers(mcpServers)
+
 			setServerName("")
 			setServerUrl("")
-			submittedValues.current = null
 			onServerAdded()
 			setShowConnectingMessage(false)
 		} catch (error) {
