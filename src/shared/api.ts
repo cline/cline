@@ -188,27 +188,33 @@ export const bedrockModels = {
 		contextWindow: 300_000,
 		supportsImages: true,
 
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.8,
 		outputPrice: 3.2,
+		cacheWritesPrice: 3.2, // not written
+		cacheReadsPrice: 0.2,
 	},
 	"amazon.nova-lite-v1:0": {
 		maxTokens: 5000,
 		contextWindow: 300_000,
 		supportsImages: true,
 
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.06,
 		outputPrice: 0.24,
+		cacheWritesPrice: 0.24, // not written
+		cacheReadsPrice: 0.015,
 	},
 	"amazon.nova-micro-v1:0": {
 		maxTokens: 5000,
 		contextWindow: 128_000,
 		supportsImages: false,
 
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.035,
 		outputPrice: 0.14,
+		cacheWritesPrice: 0.14, // not written
+		cacheReadsPrice: 0.00875,
 	},
 	"anthropic.claude-3-7-sonnet-20250219-v1:0": {
 		maxTokens: 8192,
