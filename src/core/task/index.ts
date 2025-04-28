@@ -196,9 +196,7 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
-		this.clineIgnoreController.initialize().catch((error) => {
-			console.error("Failed to initialize ClineIgnoreController:", error)
-		})
+		// Initialization moved to startTask/resumeTaskFromHistory
 		this.terminalManager = new TerminalManager()
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.urlContentFetcher = new UrlContentFetcher(context)
@@ -857,6 +855,12 @@ export class Task {
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
+		try {
+			await this.clineIgnoreController.initialize()
+		} catch (error) {
+			console.error("Failed to initialize ClineIgnoreController:", error)
+			// Optionally, inform the user or handle the error appropriately
+		}
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
@@ -879,6 +883,12 @@ export class Task {
 	}
 
 	private async resumeTaskFromHistory() {
+		try {
+			await this.clineIgnoreController.initialize()
+		} catch (error) {
+			console.error("Failed to initialize ClineIgnoreController:", error)
+			// Optionally, inform the user or handle the error appropriately
+		}
 		// UPDATE: we don't need this anymore since most tasks are now created with checkpoints enabled
 		// right now we let users init checkpoints for old tasks, assuming they're continuing them from the same workspace (which we never tied to tasks, so no way for us to know if it's opened in the right workspace)
 		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.controllerRef.deref())
