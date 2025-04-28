@@ -17,18 +17,17 @@ suite("Roo Code Subtasks", () => {
 			}
 		})
 
-		await api.setConfiguration({
-			mode: "ask",
-			alwaysAllowModeSwitch: true,
-			alwaysAllowSubtasks: true,
-			autoApprovalEnabled: true,
-			enableCheckpoints: false,
-		})
-
 		const childPrompt = "You are a calculator. Respond only with numbers. What is the square root of 9?"
 
 		// Start a parent task that will create a subtask.
 		const parentTaskId = await api.startNewTask({
+			configuration: {
+				mode: "ask",
+				alwaysAllowModeSwitch: true,
+				alwaysAllowSubtasks: true,
+				autoApprovalEnabled: true,
+				enableCheckpoints: false,
+			},
 			text:
 				"You are the parent task. " +
 				`Create a subtask by using the new_task tool with the message '${childPrompt}'.` +
