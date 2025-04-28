@@ -23,5 +23,6 @@
 		"allow": "Consenti",
 		"deny": "Nega"
 	},
-	"or": "o"
+	"or": "o",
+	"importSettings": "Importa impostazioni"
 }

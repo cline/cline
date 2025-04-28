@@ -23,5 +23,6 @@
 		"allow": "Cho phép",
 		"deny": "Từ chối"
 	},
-	"or": "hoặc"
+	"or": "hoặc",
+	"importSettings": "Nhập cài đặt"
 }

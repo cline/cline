@@ -23,5 +23,6 @@
 		"allow": "允许",
 		"deny": "拒绝"
 	},
-	"or": "或"
+	"or": "或",
+	"importSettings": "导入设置"
 }

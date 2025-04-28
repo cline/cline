@@ -23,5 +23,6 @@
 		"allow": "允許",
 		"deny": "拒絕"
 	},
-	"or": "或是"
+	"or": "或是",
+	"importSettings": "匯入設定"
 }

@@ -23,5 +23,6 @@
 		"allow": "İzin Ver",
 		"deny": "Reddet"
 	},
-	"or": "veya"
+	"or": "veya",
+	"importSettings": "Ayarları İçe Aktar"
 }

@@ -23,5 +23,6 @@
 		"allow": "Autoriser",
 		"deny": "Refuser"
 	},
-	"or": "ou"
+	"or": "ou",
+	"importSettings": "Importer les paramètres"
 }

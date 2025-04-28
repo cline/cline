@@ -23,5 +23,6 @@
 		"allow": "Allow",
 		"deny": "Deny"
 	},
-	"or": "or"
+	"or": "or",
+	"importSettings": "Import Settings"
 }

@@ -23,5 +23,6 @@
 		"allow": "Zezwól",
 		"deny": "Odmów"
 	},
-	"or": "lub"
+	"or": "lub",
+	"importSettings": "Importuj ustawienia"
 }

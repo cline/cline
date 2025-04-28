@@ -56,6 +56,7 @@ describe("importExport", () => {
 			setValues: jest.fn(),
 			setValue: jest.fn(),
 			export: jest.fn().mockImplementation(() => Promise.resolve({})),
+			setProviderSettings: jest.fn(),
 		} as unknown as jest.Mocked<ContextProxy>
 
 		// Setup customModesManager mock
