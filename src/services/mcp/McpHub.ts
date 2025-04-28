@@ -691,14 +691,14 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(serverName: string, serverUrl: string) {
+	public async addRemoteServerRPC(serverName: string, serverUrl: string) {
 		try {
-			const settings = await this.readAndValidateMcpSettingsFile()
-			if (!settings) {
+			const config = await this.readAndValidateMcpSettingsFile()
+			if (!config) {
 				throw new Error("Failed to read MCP settings")
 			}
 
-			if (settings.mcpServers[serverName]) {
+			if (config.mcpServers[serverName]) {
 				throw new Error(`An MCP server with the name "${serverName}" already exists`)
 			}
 
@@ -715,7 +715,7 @@ export class McpHub {
 
 			const parsedConfig = ServerConfigSchema.parse(serverConfig)
 
-			settings.mcpServers[serverName] = parsedConfig
+			config.mcpServers[serverName] = parsedConfig
 			const settingsPath = await this.getMcpSettingsFilePath()
 
 			// We don't write the zod-transformed version to the file.
@@ -725,12 +725,21 @@ export class McpHub {
 			// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
 			await fs.writeFile(
 				settingsPath,
-				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
+				JSON.stringify({ mcpServers: { ...config.mcpServers, [serverName]: serverConfig } }, null, 2),
 			)
 
-			await this.updateServerConnections(settings.mcpServers)
+			await this.updateServerConnectionsRPC(config.mcpServers)
 
-			vscode.window.showInformationMessage(`Added ${serverName} MCP server`)
+			const serverOrder = Object.keys(config.mcpServers || {})
+			const updatedMcpServers = [...this.connections]
+				.sort((a, b) => {
+					const indexA = serverOrder.indexOf(a.server.name)
+					const indexB = serverOrder.indexOf(b.server.name)
+					return indexA - indexB
+				})
+				.map((connection) => connection.server)
+
+			return updatedMcpServers
 		} catch (error) {
 			console.error("Failed to add remote MCP server:", error)
 

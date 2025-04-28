@@ -186,28 +186,6 @@ export class Controller {
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
 		switch (message.type) {
-			case "addRemoteServer": {
-				try {
-					await this.mcpHub?.addRemoteServer(message.serverName!, message.serverUrl!)
-					await this.postMessageToWebview({
-						type: "addRemoteServerResult",
-						addRemoteServerResult: {
-							success: true,
-							serverName: message.serverName!,
-						},
-					})
-				} catch (error) {
-					await this.postMessageToWebview({
-						type: "addRemoteServerResult",
-						addRemoteServerResult: {
-							success: false,
-							serverName: message.serverName!,
-							error: error.message,
-						},
-					})
-				}
-				break
-			}
 			case "authStateChanged":
 				await this.setUserInfo(message.user || undefined)
 				await this.postStateToWebview()

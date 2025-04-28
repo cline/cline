@@ -53,6 +53,19 @@ export function mcpServerStatusToJSON(object: McpServerStatus): string {
 	}
 }
 
+export interface AddRemoteServerRequest {
+	metadata?: Metadata | undefined
+	serverName: string
+	serverUrl: string
+}
+
+export interface AddRemoteServer {
+	success: boolean
+	serverName: string
+	error?: string | undefined
+	mcpServers: McpServer[]
+}
+
 export interface ToggleMcpServerRequest {
 	metadata?: Metadata | undefined
 	serverName: string
@@ -100,6 +113,209 @@ export interface McpServer {
 
 export interface McpServers {
 	mcpServers: McpServer[]
+}
+
+function createBaseAddRemoteServerRequest(): AddRemoteServerRequest {
+	return { metadata: undefined, serverName: "", serverUrl: "" }
+}
+
+export const AddRemoteServerRequest: MessageFns<AddRemoteServerRequest> = {
+	encode(message: AddRemoteServerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.serverName !== "") {
+			writer.uint32(18).string(message.serverName)
+		}
+		if (message.serverUrl !== "") {
+			writer.uint32(26).string(message.serverUrl)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): AddRemoteServerRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseAddRemoteServerRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.serverName = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.serverUrl = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): AddRemoteServerRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+			serverUrl: isSet(object.serverUrl) ? globalThis.String(object.serverUrl) : "",
+		}
+	},
+
+	toJSON(message: AddRemoteServerRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.serverName !== "") {
+			obj.serverName = message.serverName
+		}
+		if (message.serverUrl !== "") {
+			obj.serverUrl = message.serverUrl
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<AddRemoteServerRequest>, I>>(base?: I): AddRemoteServerRequest {
+		return AddRemoteServerRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<AddRemoteServerRequest>, I>>(object: I): AddRemoteServerRequest {
+		const message = createBaseAddRemoteServerRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.serverName = object.serverName ?? ""
+		message.serverUrl = object.serverUrl ?? ""
+		return message
+	},
+}
+
+function createBaseAddRemoteServer(): AddRemoteServer {
+	return { success: false, serverName: "", error: undefined, mcpServers: [] }
+}
+
+export const AddRemoteServer: MessageFns<AddRemoteServer> = {
+	encode(message: AddRemoteServer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.success !== false) {
+			writer.uint32(8).bool(message.success)
+		}
+		if (message.serverName !== "") {
+			writer.uint32(18).string(message.serverName)
+		}
+		if (message.error !== undefined) {
+			writer.uint32(26).string(message.error)
+		}
+		for (const v of message.mcpServers) {
+			McpServer.encode(v!, writer.uint32(34).fork()).join()
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): AddRemoteServer {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseAddRemoteServer()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.success = reader.bool()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.serverName = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.error = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.mcpServers.push(McpServer.decode(reader, reader.uint32()))
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): AddRemoteServer {
+		return {
+			success: isSet(object.success) ? globalThis.Boolean(object.success) : false,
+			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+			error: isSet(object.error) ? globalThis.String(object.error) : undefined,
+			mcpServers: globalThis.Array.isArray(object?.mcpServers)
+				? object.mcpServers.map((e: any) => McpServer.fromJSON(e))
+				: [],
+		}
+	},
+
+	toJSON(message: AddRemoteServer): unknown {
+		const obj: any = {}
+		if (message.success !== false) {
+			obj.success = message.success
+		}
+		if (message.serverName !== "") {
+			obj.serverName = message.serverName
+		}
+		if (message.error !== undefined) {
+			obj.error = message.error
+		}
+		if (message.mcpServers?.length) {
+			obj.mcpServers = message.mcpServers.map((e) => McpServer.toJSON(e))
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<AddRemoteServer>, I>>(base?: I): AddRemoteServer {
+		return AddRemoteServer.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<AddRemoteServer>, I>>(object: I): AddRemoteServer {
+		const message = createBaseAddRemoteServer()
+		message.success = object.success ?? false
+		message.serverName = object.serverName ?? ""
+		message.error = object.error ?? undefined
+		message.mcpServers = object.mcpServers?.map((e) => McpServer.fromPartial(e)) || []
+		return message
+	},
 }
 
 function createBaseToggleMcpServerRequest(): ToggleMcpServerRequest {
@@ -894,6 +1110,14 @@ export const McpServiceDefinition = {
 			requestType: UpdateMcpTimeoutRequest,
 			requestStream: false,
 			responseType: McpServers,
+			responseStream: false,
+			options: {},
+		},
+		addRemoteServer: {
+			name: "addRemoteServer",
+			requestType: AddRemoteServerRequest,
+			requestStream: false,
+			responseType: AddRemoteServer,
 			responseStream: false,
 			options: {},
 		},

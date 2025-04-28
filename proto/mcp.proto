@@ -7,6 +7,20 @@ import "common.proto";
 service McpService {
   rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
   rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
+  rpc addRemoteServer(AddRemoteServerRequest) returns (AddRemoteServer);
+}
+
+message AddRemoteServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  string server_url = 3;
+}
+
+message AddRemoteServer {
+  bool success = 1;
+  string server_name = 2;
+  optional string error = 3;
+  repeated McpServer mcp_servers = 4;
 }
 
 message ToggleMcpServerRequest {
