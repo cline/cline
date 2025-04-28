@@ -1,7 +1,7 @@
 // npx jest src/shared/__tests__/combineApiRequests.test.ts
 
 import { combineApiRequests } from "../combineApiRequests"
-import { ClineMessage } from "../ExtensionMessage"
+import { ClineMessage, ClineSay } from "../ExtensionMessage"
 
 describe("combineApiRequests", () => {
 	// Helper function to create a basic api_req_started message
@@ -22,15 +22,10 @@ describe("combineApiRequests", () => {
 
 	// Helper function to create a non-API message
 	const createOtherMessage = (
-		say: "text" | "task" | "error" | "command" = "text",
+		say: ClineSay = "text",
 		text: string = "Hello world",
 		ts: number = 999,
-	): ClineMessage => ({
-		type: "say",
-		say,
-		text,
-		ts,
-	})
+	): ClineMessage => ({ type: "say", say, text, ts })
 
 	describe("Basic functionality", () => {
 		it("should combine a pair of api_req_started and api_req_finished messages", () => {
@@ -141,7 +136,7 @@ describe("combineApiRequests", () => {
 		it("should return original array when no API request messages exist", () => {
 			const messages: ClineMessage[] = [
 				createOtherMessage("text", "Message 1", 999),
-				createOtherMessage("task", "Task message", 1000),
+				createOtherMessage("text", "Task message", 1000),
 				createOtherMessage("error", "Error message", 1001),
 			]
 

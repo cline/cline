@@ -289,7 +289,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							}
 							break
 						case "api_req_finished":
-						case "task":
 						case "error":
 						case "text":
 						case "browser_action":
@@ -298,7 +297,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						case "mcp_server_request_started":
 						case "mcp_server_response":
 						case "completion_result":
-						case "tool":
 							break
 					}
 					break

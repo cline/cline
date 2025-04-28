@@ -253,12 +253,10 @@ export const ChatRowContent = ({
 		overflowWrap: "anywhere",
 	}
 
-	const tool = useMemo(() => {
-		if (message.ask === "tool" || message.say === "tool") {
-			return safeJsonParse<ClineSayTool>(message.text)
-		}
-		return null
-	}, [message.ask, message.say, message.text])
+	const tool = useMemo(
+		() => (message.ask === "tool" ? safeJsonParse<ClineSayTool>(message.text) : null),
+		[message.ask, message.text],
+	)
 
 	const followUpData = useMemo(() => {
 		if (message.type === "ask" && message.ask === "followup" && !message.partial) {

@@ -567,7 +567,11 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							value={(() => {
 								const customMode = findModeBySlug(visualMode, customModes)
 								const prompt = customModePrompts?.[visualMode] as PromptComponent
-								return customMode?.roleDefinition ?? prompt?.roleDefinition ?? getRoleDefinition(visualMode)
+								return (
+									customMode?.roleDefinition ??
+									prompt?.roleDefinition ??
+									getRoleDefinition(visualMode)
+								)
 							})()}
 							onChange={(e) => {
 								const value =

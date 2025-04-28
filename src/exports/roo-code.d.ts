@@ -307,12 +307,10 @@ type ClineMessage = {
 				| "mistake_limit_reached"
 				| "browser_action_launch"
 				| "use_mcp_server"
-				| "finishTask"
 		  )
 		| undefined
 	say?:
 		| (
-				| "task"
 				| "error"
 				| "api_req_started"
 				| "api_req_finished"
@@ -325,15 +323,11 @@ type ClineMessage = {
 				| "user_feedback"
 				| "user_feedback_diff"
 				| "command_output"
-				| "tool"
 				| "shell_integration_warning"
 				| "browser_action"
 				| "browser_action_result"
-				| "command"
 				| "mcp_server_request_started"
 				| "mcp_server_response"
-				| "new_task_started"
-				| "new_task"
 				| "subtask_result"
 				| "checkpoint_saved"
 				| "rooignore_error"
@@ -388,12 +382,10 @@ type RooCodeEvents = {
 							| "mistake_limit_reached"
 							| "browser_action_launch"
 							| "use_mcp_server"
-							| "finishTask"
 					  )
 					| undefined
 				say?:
 					| (
-							| "task"
 							| "error"
 							| "api_req_started"
 							| "api_req_finished"
@@ -406,15 +398,11 @@ type RooCodeEvents = {
 							| "user_feedback"
 							| "user_feedback_diff"
 							| "command_output"
-							| "tool"
 							| "shell_integration_warning"
 							| "browser_action"
 							| "browser_action_result"
-							| "command"
 							| "mcp_server_request_started"
 							| "mcp_server_response"
-							| "new_task_started"
-							| "new_task"
 							| "subtask_result"
 							| "checkpoint_saved"
 							| "rooignore_error"

@@ -49,7 +49,7 @@ describe("ContextWindowProgress", () => {
 	const renderComponent = (props: Record<string, any>) => {
 		// Create a simple mock of the task that avoids importing the actual types
 		const defaultProps = {
-			task: { ts: Date.now(), type: "say" as const, say: "task" as const, text: "Test task" },
+			task: { ts: Date.now(), type: "say" as const, say: "text" as const, text: "Test task" },
 			tokensIn: 100,
 			tokensOut: 50,
 			doesModelSupportPromptCache: true,
