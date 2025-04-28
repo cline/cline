@@ -1,6 +1,5 @@
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
 import type { AddRemoteMcpServerRequest, McpServers } from "../../../shared/proto/mcp"
-import { McpServerStatus } from "../../../shared/proto/mcp"
 import type { Controller } from "../index"
 
 /**
