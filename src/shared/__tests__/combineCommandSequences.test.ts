@@ -40,6 +40,8 @@ const messages: ClineMessage[] = [
 describe("combineCommandSequences", () => {
 	it("should combine command sequences", () => {
 		const message = combineCommandSequences(messages).at(-1)
-		expect(message!.text!.length).toEqual(131)
+		expect(message!.text).toEqual(
+			"ping www.google.com\nOutput:PING www.google.com (142.251.46.228): 56 data bytes\n",
+		)
 	})
 })

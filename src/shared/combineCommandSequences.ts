@@ -1,5 +1,7 @@
 import { ClineMessage } from "./ExtensionMessage"
 
+export const COMMAND_OUTPUT_STRING = "Output:"
+
 /**
  * Combines sequences of command and command_output messages in an array of ClineMessages.
  *
@@ -27,30 +29,28 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 	for (let i = 0; i < messages.length; i++) {
 		if (messages[i].type === "ask" && messages[i].ask === "command") {
 			let combinedText = messages[i].text || ""
-			let didAddOutput = false
 			let j = i + 1
+			let previous: { type: "ask" | "say"; text: string } | undefined
 
 			while (j < messages.length) {
-				if (messages[j].type === "ask" && messages[j].ask === "command") {
-					// Stop if we encounter the next command.
-					break
+				const { type, ask, say, text = "" } = messages[j]
+
+				if (type === "ask" && ask === "command") {
+					break // Stop if we encounter the next command.
 				}
 
-				if (messages[j].ask === "command_output" || messages[j].say === "command_output") {
-					if (!didAddOutput) {
-						// Add a newline before the first output.
+				if (ask === "command_output" || say === "command_output") {
+					if (!previous) {
 						combinedText += `\n${COMMAND_OUTPUT_STRING}`
-						didAddOutput = true
 					}
 
-					// Handle cases where we receive empty command_output (i.e.
-					// when extension is relinquishing control over exit command
-					// button).
-					const output = messages[j].text || ""
+					const isDuplicate = previous && previous.type !== type && previous.text === text
 
-					if (output.length > 0) {
-						combinedText += output
+					if (text.length > 0 && !isDuplicate) {
+						combinedText += text
 					}
+
+					previous = { type, text }
 				}
 
 				j++
@@ -109,5 +109,3 @@ export const splitCommandOutput = (text: string) => {
 			.join(""),
 	}
 }
-
-export const COMMAND_OUTPUT_STRING = "Output:"
