@@ -21,8 +21,6 @@
 	"command.terminal.addToContext.title": "Add Terminal Content to Context",
 	"command.terminal.fixCommand.title": "Fix This Command",
 	"command.terminal.explainCommand.title": "Explain This Command",
-	"command.terminal.fixCommandInCurrentTask.title": "Fix This Command (Current Task)",
-	"command.terminal.explainCommandInCurrentTask.title": "Explain This Command (Current Task)",
 	"command.acceptInput.title": "Accept Input/Suggestion",
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Commands that can be auto-executed when 'Always approve execute operations' is enabled",

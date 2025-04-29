@@ -12,8 +12,6 @@
 	"command.terminal.addToContext.title": "टर्मिनल सामग्री को संदर्भ में जोड़ें",
 	"command.terminal.fixCommand.title": "यह कमांड ठीक करें",
 	"command.terminal.explainCommand.title": "यह कमांड समझाएं",
-	"command.terminal.fixCommandInCurrentTask.title": "यह कमांड ठीक करें (वर्तमान कार्य)",
-	"command.terminal.explainCommandInCurrentTask.title": "यह कमांड समझाएं (वर्तमान कार्य)",
 	"command.acceptInput.title": "इनपुट/सुझाव स्वीकारें",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",

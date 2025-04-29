@@ -21,8 +21,6 @@
 	"command.terminal.addToContext.title": "Добавить содержимое терминала в контекст",
 	"command.terminal.fixCommand.title": "Исправить эту команду",
 	"command.terminal.explainCommand.title": "Объяснить эту команду",
-	"command.terminal.fixCommandInCurrentTask.title": "Исправить эту команду (текущая задача)",
-	"command.terminal.explainCommandInCurrentTask.title": "Объяснить эту команду (текущая задача)",
 	"command.acceptInput.title": "Принять ввод/предложение",
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "Команды, которые могут быть автоматически выполнены, когда включена опция 'Всегда подтверждать операции выполнения'",

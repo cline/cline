@@ -12,8 +12,6 @@
 	"command.terminal.addToContext.title": "Thêm Nội Dung Terminal vào Ngữ Cảnh",
 	"command.terminal.fixCommand.title": "Sửa Lệnh Này",
 	"command.terminal.explainCommand.title": "Giải Thích Lệnh Này",
-	"command.terminal.fixCommandInCurrentTask.title": "Sửa Lệnh Này (Tác Vụ Hiện Tại)",
-	"command.terminal.explainCommandInCurrentTask.title": "Giải Thích Lệnh Này (Tác Vụ Hiện Tại)",
 	"command.acceptInput.title": "Chấp Nhận Đầu Vào/Gợi Ý",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",

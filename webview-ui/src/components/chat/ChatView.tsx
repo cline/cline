@@ -401,6 +401,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		(text: string, images: string[]) => {
 			// Avoid nested template literals by breaking down the logic
 			let newValue = text
+
 			if (inputValue !== "") {
 				newValue = inputValue + " " + text
 			}

@@ -1,16 +1,25 @@
 import * as vscode from "vscode"
+
 import { EditorUtils } from "./EditorUtils"
 
-export const ACTION_NAMES = {
-	EXPLAIN: "Roo Code: Explain Code",
-	FIX: "Roo Code: Fix Code",
-	FIX_LOGIC: "Roo Code: Fix Logic",
-	IMPROVE: "Roo Code: Improve Code",
-	ADD_TO_CONTEXT: "Roo Code: Add to Context",
-	NEW_TASK: "Roo Code: New Task",
+export type CodeActionName = "EXPLAIN" | "FIX" | "IMPROVE" | "ADD_TO_CONTEXT" | "NEW_TASK"
+
+export type CodeActionId =
+	| "roo-cline.explainCode"
+	| "roo-cline.fixCode"
+	| "roo-cline.improveCode"
+	| "roo-cline.addToContext"
+	| "roo-cline.newTask"
+
+export const ACTION_TITLES: Record<CodeActionName, string> = {
+	EXPLAIN: "Explain with Roo Code",
+	FIX: "Fix with Roo Code",
+	IMPROVE: "Improve with Roo Code",
+	ADD_TO_CONTEXT: "Add to Roo Code",
+	NEW_TASK: "New Roo Code Task",
 } as const
 
-export const COMMAND_IDS = {
+export const COMMAND_IDS: Record<CodeActionName, CodeActionId> = {
 	EXPLAIN: "roo-cline.explainCode",
 	FIX: "roo-cline.fixCode",
 	IMPROVE: "roo-cline.improveCode",
@@ -24,22 +33,15 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 		vscode.CodeActionKind.RefactorRewrite,
 	]
 
-	private createAction(title: string, kind: vscode.CodeActionKind, command: string, args: any[]): vscode.CodeAction {
+	private createAction(
+		title: string,
+		kind: vscode.CodeActionKind,
+		command: CodeActionId,
+		args: any[],
+	): vscode.CodeAction {
 		const action = new vscode.CodeAction(title, kind)
 		action.command = { command, title, arguments: args }
 		return action
-	}
-
-	private createActionPair(
-		baseTitle: string,
-		kind: vscode.CodeActionKind,
-		baseCommand: string,
-		args: any[],
-	): vscode.CodeAction[] {
-		return [
-			this.createAction(`${baseTitle} in New Task`, kind, baseCommand, args),
-			this.createAction(`${baseTitle} in Current Task`, kind, `${baseCommand}InCurrentTask`, args),
-		]
 	}
 
 	public provideCodeActions(
@@ -49,6 +51,7 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 	): vscode.ProviderResult<(vscode.CodeAction | vscode.Command)[]> {
 		try {
 			const effectiveRange = EditorUtils.getEffectiveRange(document, range)
+
 			if (!effectiveRange) {
 				return []
 			}
@@ -58,7 +61,7 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 
 			actions.push(
 				this.createAction(
-					ACTION_NAMES.ADD_TO_CONTEXT,
+					ACTION_TITLES.ADD_TO_CONTEXT,
 					vscode.CodeActionKind.QuickFix,
 					COMMAND_IDS.ADD_TO_CONTEXT,
 					[
@@ -70,35 +73,34 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 				),
 			)
 
-			actions.push(
-				...this.createActionPair(ACTION_NAMES.EXPLAIN, vscode.CodeActionKind.QuickFix, COMMAND_IDS.EXPLAIN, [
-					filePath,
-					effectiveRange.text,
-					effectiveRange.range.start.line + 1,
-					effectiveRange.range.end.line + 1,
-				]),
-			)
-
 			if (context.diagnostics.length > 0) {
 				const relevantDiagnostics = context.diagnostics.filter((d) =>
 					EditorUtils.hasIntersectingRange(effectiveRange.range, d.range),
 				)
 
 				if (relevantDiagnostics.length > 0) {
-					const diagnosticMessages = relevantDiagnostics.map(EditorUtils.createDiagnosticData)
 					actions.push(
-						...this.createActionPair(ACTION_NAMES.FIX, vscode.CodeActionKind.QuickFix, COMMAND_IDS.FIX, [
+						this.createAction(ACTION_TITLES.FIX, vscode.CodeActionKind.QuickFix, COMMAND_IDS.FIX, [
 							filePath,
 							effectiveRange.text,
 							effectiveRange.range.start.line + 1,
 							effectiveRange.range.end.line + 1,
-							diagnosticMessages,
+							relevantDiagnostics.map(EditorUtils.createDiagnosticData),
 						]),
 					)
 				}
 			} else {
 				actions.push(
-					...this.createActionPair(ACTION_NAMES.FIX_LOGIC, vscode.CodeActionKind.QuickFix, COMMAND_IDS.FIX, [
+					this.createAction(ACTION_TITLES.EXPLAIN, vscode.CodeActionKind.QuickFix, COMMAND_IDS.EXPLAIN, [
+						filePath,
+						effectiveRange.text,
+						effectiveRange.range.start.line + 1,
+						effectiveRange.range.end.line + 1,
+					]),
+				)
+
+				actions.push(
+					this.createAction(ACTION_TITLES.IMPROVE, vscode.CodeActionKind.QuickFix, COMMAND_IDS.IMPROVE, [
 						filePath,
 						effectiveRange.text,
 						effectiveRange.range.start.line + 1,
@@ -106,20 +108,6 @@ export class CodeActionProvider implements vscode.CodeActionProvider {
 					]),
 				)
 			}
-
-			actions.push(
-				...this.createActionPair(
-					ACTION_NAMES.IMPROVE,
-					vscode.CodeActionKind.RefactorRewrite,
-					COMMAND_IDS.IMPROVE,
-					[
-						filePath,
-						effectiveRange.text,
-						effectiveRange.range.start.line + 1,
-						effectiveRange.range.end.line + 1,
-					],
-				),
-			)
 
 			return actions
 		} catch (error) {

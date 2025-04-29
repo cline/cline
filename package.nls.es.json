@@ -12,8 +12,6 @@
 	"command.terminal.addToContext.title": "Añadir Contenido de Terminal al Contexto",
 	"command.terminal.fixCommand.title": "Corregir Este Comando",
 	"command.terminal.explainCommand.title": "Explicar Este Comando",
-	"command.terminal.fixCommandInCurrentTask.title": "Corregir Este Comando (Tarea Actual)",
-	"command.terminal.explainCommandInCurrentTask.title": "Explicar Este Comando (Tarea Actual)",
 	"command.acceptInput.title": "Aceptar Entrada/Sugerencia",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",

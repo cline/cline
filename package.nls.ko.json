@@ -12,8 +12,6 @@
 	"command.terminal.addToContext.title": "터미널 내용을 컨텍스트에 추가",
 	"command.terminal.fixCommand.title": "이 명령어 수정",
 	"command.terminal.explainCommand.title": "이 명령어 설명",
-	"command.terminal.fixCommandInCurrentTask.title": "이 명령어 수정 (현재 작업)",
-	"command.terminal.explainCommandInCurrentTask.title": "이 명령어 설명 (현재 작업)",
 	"command.acceptInput.title": "입력/제안 수락",
 	"views.activitybar.title": "Roo Code",
 	"views.contextMenu.label": "Roo Code",

@@ -21,8 +21,6 @@
 	"command.terminal.addToContext.title": "ターミナルの内容をコンテキストに追加",
 	"command.terminal.fixCommand.title": "このコマンドを修正",
 	"command.terminal.explainCommand.title": "このコマンドを説明",
-	"command.terminal.fixCommandInCurrentTask.title": "このコマンドを修正（現在のタスク）",
-	"command.terminal.explainCommandInCurrentTask.title": "このコマンドを説明（現在のタスク）",
 	"command.acceptInput.title": "入力/提案を承認",
 	"configuration.title": "Roo Code",
 	"commands.allowedCommands.description": "'常に実行操作を承認する'が有効な場合に自動実行できるコマンド",
