@@ -23,7 +23,6 @@ const getRouterModels = async () =>
 				cleanup()
 
 				if (message.routerModels) {
-					console.log("message.routerModels", message.routerModels)
 					resolve(message.routerModels)
 				} else {
 					reject(new Error("No router models in response"))
