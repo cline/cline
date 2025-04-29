@@ -1,9 +1,9 @@
-import { HTMLAttributes, forwardRef, useMemo, useState } from "react"
-import { Virtuoso } from "react-virtuoso"
-import { ChevronDown } from "lucide-react"
+import { forwardRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { useExtensionState } from "@src/context/ExtensionStateContext"
-import { cn } from "@src/lib/utils"
+import { BaseTerminal } from "../../../../src/integrations/terminal/BaseTerminal"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 
 interface CommandExecutionProps {
 	command: string
@@ -11,45 +11,48 @@ interface CommandExecutionProps {
 }
 
 export const CommandExecution = forwardRef<HTMLDivElement, CommandExecutionProps>(({ command, output }, ref) => {
-	const { terminalShellIntegrationDisabled = false } = useExtensionState()
-
-	// If we aren't opening the VSCode terminal for this command then we default
-	// to expanding the command execution output.
+	const { t } = useTranslation()
+	const { terminalShellIntegrationDisabled = false, terminalOutputLineLimit = 500 } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(terminalShellIntegrationDisabled)
+	const compressedOutput = BaseTerminal.compressTerminalOutput(output, terminalOutputLineLimit)
 
-	const lines = useMemo(() => output.split("\n"), [output])
+	const onToggleExpand = () => {
+		setIsExpanded(!isExpanded)
+	}
 
 	return (
-		<div ref={ref} className="w-full p-2 rounded-xs bg-vscode-editor-background">
+		<>
 			<div
-				className={cn("flex flex-row justify-between cursor-pointer active:opacity-75", {
-					"opacity-50": isExpanded,
-				})}
-				onClick={() => setIsExpanded(!isExpanded)}>
-				<Line>{command}</Line>
-				<ChevronDown className={cn("size-4 transition-transform duration-300", { "rotate-180": isExpanded })} />
+				ref={ref}
+				style={{
+					borderRadius: 3,
+					border: "1px solid var(--vscode-editorGroup-border)",
+					overflow: "hidden",
+					backgroundColor: CODE_BLOCK_BG_COLOR,
+				}}>
+				<CodeBlock source={command} language="shell" />
+				{output.length > 0 && (
+					<div style={{ width: "100%" }}>
+						<div
+							onClick={onToggleExpand}
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "4px",
+								width: "100%",
+								justifyContent: "flex-start",
+								cursor: "pointer",
+								padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
+							}}>
+							<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
+							<span style={{ fontSize: "0.8em" }}>{t("chat:commandOutput")}</span>
+						</div>
+						{isExpanded && <CodeBlock source={compressedOutput} language="log" />}
+					</div>
+				)}
 			</div>
-			<div className={cn("h-[200px]", { hidden: !isExpanded })}>
-				<Virtuoso
-					className="h-full mt-2"
-					totalCount={lines.length}
-					itemContent={(i) => <Line>{lines[i]}</Line>}
-					followOutput="auto"
-				/>
-			</div>
-		</div>
+		</>
 	)
 })
-
-type LineProps = HTMLAttributes<HTMLDivElement>
-
-const Line = ({ className, ...props }: LineProps) => {
-	return (
-		<div
-			className={cn("font-mono text-vscode-editor-foreground whitespace-pre-wrap break-words", className)}
-			{...props}
-		/>
-	)
-}
 
 CommandExecution.displayName = "CommandExecution"
