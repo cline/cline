@@ -35,7 +35,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
-	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
+	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
