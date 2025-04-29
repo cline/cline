@@ -1,10 +1,10 @@
 import * as React from "react"
 
 interface CodeBlockProps {
-	source?: string
+	children?: React.ReactNode
 	language?: string
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = ({ source = "" }) => <div data-testid="mock-code-block">{source}</div>
+const CodeBlock: React.FC<CodeBlockProps> = () => <div data-testid="mock-code-block">Mocked Code Block</div>
 
 export default CodeBlock
