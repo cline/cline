@@ -1481,7 +1481,7 @@ const ApiOptions = ({
 								checked={!!apiConfiguration?.liteLlmModelInfo?.supportsImages}
 								onChange={(e: any) => {
 									const isChecked = e.target.checked === true
-									let modelInfo = apiConfiguration?.liteLlmModelInfo
+									const modelInfo = apiConfiguration?.liteLlmModelInfo
 										? apiConfiguration.liteLlmModelInfo
 										: { ...liteLlmModelInfoSaneDefaults }
 									modelInfo.supportsImages = isChecked
@@ -1501,7 +1501,7 @@ const ApiOptions = ({
 									}
 									style={{ flex: 1 }}
 									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.liteLlmModelInfo
+										const modelInfo = apiConfiguration?.liteLlmModelInfo
 											? apiConfiguration.liteLlmModelInfo
 											: { ...liteLlmModelInfoSaneDefaults }
 										modelInfo.contextWindow = Number(input.target.value)
@@ -1520,7 +1520,7 @@ const ApiOptions = ({
 									}
 									style={{ flex: 1 }}
 									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.liteLlmModelInfo
+										const modelInfo = apiConfiguration?.liteLlmModelInfo
 											? apiConfiguration.liteLlmModelInfo
 											: { ...liteLlmModelInfoSaneDefaults }
 										modelInfo.maxTokens = input.target.value
@@ -1540,7 +1540,7 @@ const ApiOptions = ({
 											: liteLlmModelInfoSaneDefaults.temperature?.toString()
 									}
 									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.liteLlmModelInfo
+										const modelInfo = apiConfiguration?.liteLlmModelInfo
 											? apiConfiguration.liteLlmModelInfo
 											: { ...liteLlmModelInfoSaneDefaults }
 
