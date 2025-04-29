@@ -169,7 +169,7 @@ export class LiteLlmHandler implements ApiHandler {
 	getModel() {
 		return {
 			id: this.options.liteLlmModelId || liteLlmDefaultModelId,
-			info: liteLlmModelInfoSaneDefaults,
+			info: this.options.liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
 		}
 	}
 }

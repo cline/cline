@@ -33,6 +33,7 @@ export interface ApiHandlerOptions {
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
+	liteLlmModelInfo?: ModelInfo
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
