@@ -10,6 +10,7 @@ import { useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { Providers } from "./Providers"
+import WelcomeWrapper from "./components/welcome/WelcomeWrapper"
 
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, showMcp, mcpTab } = useExtensionState()
