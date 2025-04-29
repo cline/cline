@@ -237,6 +237,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	) => {
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+		const [isDraggingOver, setIsDraggingOver] = useState(false) // State for drag feedback
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
@@ -1022,8 +1023,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 *
 		 * @param {React.DragEvent} e - The drag event.
 		 */
+		const handleDragEnter = (e: React.DragEvent) => {
+			e.preventDefault()
+			setIsDraggingOver(true)
+		}
+
 		const onDragOver = (e: React.DragEvent) => {
 			e.preventDefault()
+			// Ensure state remains true if dragging continues over the element
+			if (!isDraggingOver) {
+				setIsDraggingOver(true)
+			}
+		}
+
+		const handleDragLeave = (e: React.DragEvent) => {
+			e.preventDefault()
+			// Check if the related target is still within the drop zone; prevents flickering
+			const dropZone = e.currentTarget as HTMLElement
+			if (!dropZone.contains(e.relatedTarget as Node)) {
+				setIsDraggingOver(false)
+			}
 		}
 
 		/**
@@ -1034,6 +1053,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
+			setIsDraggingOver(false) // Reset state on drop
 
 			// --- 1. VSCode Explorer Drop Handling ---
 			let uris: string[] = []
@@ -1153,9 +1173,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						opacity: textAreaDisabled ? 0.5 : 1,
 						position: "relative",
 						display: "flex",
+						// Drag-over styles moved to DynamicTextArea
+						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
 					}}
 					onDrop={onDrop}
-					onDragOver={onDragOver}>
+					onDragOver={onDragOver}
+					onDragEnter={handleDragEnter} // Add handler
+					onDragLeave={handleDragLeave} // Add handler
+				>
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
@@ -1282,9 +1307,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							cursor: textAreaDisabled ? "not-allowed" : undefined,
 							flex: 1,
 							zIndex: 1,
-							outline: isTextAreaFocused
-								? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
-								: "none",
+							outline: isDraggingOver // Add drag-over outline here
+								? "2px dashed var(--vscode-focusBorder)" // Changed from dotted to dashed
+								: isTextAreaFocused
+									? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+									: "none",
+							outlineOffset: isDraggingOver ? "1px" : "0px", // Add offset for drag-over outline
 						}}
 						onScroll={() => updateHighlights()}
 					/>
