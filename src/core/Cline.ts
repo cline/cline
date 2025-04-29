@@ -134,6 +134,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	readonly rootTask: Cline | undefined = undefined
 	readonly parentTask: Cline | undefined = undefined
 	readonly taskNumber: number
+	readonly workspacePath: string
 
 	isPaused: boolean = false
 	pausedModeSlug: string = defaultModeSlug
@@ -225,6 +226,10 @@ export class Cline extends EventEmitter<ClineEvents> {
 		}
 
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
+		// normal use-case is usually retry similar history task with new workspace
+		this.workspacePath = parentTask
+			? parentTask.workspacePath
+			: getWorkspacePath(path.join(os.homedir(), "Desktop"))
 		this.instanceId = crypto.randomUUID().slice(0, 8)
 		this.taskNumber = -1
 
@@ -292,7 +297,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	}
 
 	get cwd() {
-		return getWorkspacePath(path.join(os.homedir(), "Desktop"))
+		return this.workspacePath
 	}
 
 	// Storing task to disk for history
