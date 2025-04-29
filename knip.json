@@ -17,6 +17,7 @@
 		"evals/**",
 		"src/activate/**",
 		"src/exports/**",
+		"src/workers/**",
 		"src/schemas/ipc.ts",
 		"src/extension.ts",
 		"scripts/**"

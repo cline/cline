@@ -433,6 +433,7 @@
 		"turndown": "^7.2.0",
 		"vscode-material-icons": "^0.1.1",
 		"web-tree-sitter": "^0.22.6",
+		"workerpool": "^9.2.0",
 		"zod": "^3.23.8"
 	},
 	"devDependencies": {

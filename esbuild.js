@@ -167,7 +167,7 @@ const extensionConfig = {
 		{
 			name: "alias-plugin",
 			setup(build) {
-				build.onResolve({ filter: /^pkce-challenge$/ }, (args) => {
+				build.onResolve({ filter: /^pkce-challenge$/ }, (_args) => {
 					return { path: require.resolve("pkce-challenge/dist/index.browser.js") }
 				})
 			},
@@ -181,22 +181,31 @@ const extensionConfig = {
 	external: ["vscode"],
 }
 
+const workerConfig = {
+	bundle: true,
+	minify: production,
+	sourcemap: !production,
+	logLevel: "silent",
+	entryPoints: ["src/workers/countTokens.ts"],
+	format: "cjs",
+	sourcesContent: false,
+	platform: "node",
+	outdir: "dist/workers",
+}
+
 async function main() {
-	const extensionCtx = await esbuild.context(extensionConfig)
+	const [extensionCtx, workerCtx] = await Promise.all([
+		esbuild.context(extensionConfig),
+		esbuild.context(workerConfig),
+	])
 
 	if (watch) {
-		// Start the esbuild watcher
-		await extensionCtx.watch()
-
-		// Copy and watch locale files
-		console.log("Copying locale files initially...")
+		await Promise.all([extensionCtx.watch(), workerCtx.watch()])
 		copyLocaleFiles()
-
-		// Set up the watcher for locale files
 		setupLocaleWatcher()
 	} else {
-		await extensionCtx.rebuild()
-		await extensionCtx.dispose()
+		await Promise.all([extensionCtx.rebuild(), workerCtx.rebuild()])
+		await Promise.all([extensionCtx.dispose(), workerCtx.dispose()])
 	}
 }
 
