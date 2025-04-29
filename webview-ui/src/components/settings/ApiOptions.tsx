@@ -1532,6 +1532,38 @@ const ApiOptions = ({
 									<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 								</VSCodeTextField>
 							</div>
+							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.liteLlmModelInfo?.temperature !== undefined
+											? apiConfiguration.liteLlmModelInfo.temperature.toString()
+											: liteLlmModelInfoSaneDefaults.temperature?.toString()
+									}
+									onInput={(input: any) => {
+										let modelInfo = apiConfiguration?.liteLlmModelInfo
+											? apiConfiguration.liteLlmModelInfo
+											: { ...liteLlmModelInfoSaneDefaults }
+
+										// Check if the input ends with a decimal point or has trailing zeros after decimal
+										const value = input.target.value
+										const shouldPreserveFormat =
+											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+										modelInfo.temperature =
+											value === ""
+												? liteLlmModelInfoSaneDefaults.temperature
+												: shouldPreserveFormat
+													? value // Keep as string to preserve decimal format
+													: parseFloat(value)
+
+										setApiConfiguration({
+											...apiConfiguration,
+											liteLlmModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Temperature</span>
+								</VSCodeTextField>
+							</div>
 						</>
 					)}
 					<p
