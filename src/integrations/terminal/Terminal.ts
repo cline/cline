@@ -41,9 +41,9 @@ export class Terminal extends BaseTerminal {
 	}
 
 	public override runCommand(command: string, callbacks: RooTerminalCallbacks): RooTerminalProcessResultPromise {
-		// We set busy before the command is running because the terminal may be waiting
-		// on terminal integration, and we must prevent another instance from selecting
-		// the terminal for use during that time.
+		// We set busy before the command is running because the terminal may be
+		// waiting on terminal integration, and we must prevent another instance
+		// from selecting the terminal for use during that time.
 		this.busy = true
 
 		const process = new TerminalProcess(this)

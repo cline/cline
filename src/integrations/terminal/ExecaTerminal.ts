@@ -16,6 +16,8 @@ export class ExecaTerminal extends BaseTerminal {
 	}
 
 	public override runCommand(command: string, callbacks: RooTerminalCallbacks): RooTerminalProcessResultPromise {
+		this.busy = true
+
 		const process = new ExecaTerminalProcess(this)
 		process.command = command
 		this.process = process

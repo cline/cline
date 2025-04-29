@@ -11,6 +11,10 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 		super()
 
 		this.terminalRef = new WeakRef(terminal)
+
+		this.once("completed", () => {
+			this.terminal.busy = false
+		})
 	}
 
 	public get terminal(): RooTerminal {

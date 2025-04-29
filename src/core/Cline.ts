@@ -2053,15 +2053,15 @@ export class Cline extends EventEmitter<ClineEvents> {
 			...TerminalRegistry.getBackgroundTerminals(false),
 		]
 
-		if (busyTerminals.length > 0 && this.didEditFile) {
-			await delay(300) // delay after saving file to let terminals catch up
-		}
-
 		if (busyTerminals.length > 0) {
+			if (this.didEditFile) {
+				await delay(300) // Delay after saving file to let terminals catch up.
+			}
+
 			// Wait for terminals to cool down.
 			await pWaitFor(() => busyTerminals.every((t) => !TerminalRegistry.isProcessHot(t.id)), {
 				interval: 100,
-				timeout: 15_000,
+				timeout: 5_000,
 			}).catch(() => {})
 		}
 
