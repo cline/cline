@@ -267,6 +267,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
+		const [showShiftDragTip, setShowShiftDragTip] = useState(false) // State for the shift drag tip
+		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null) // Ref for the timer
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -1017,6 +1019,45 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showModelSelector])
 
+		// Effect for Shift key hold detection
+		useEffect(() => {
+			const handleKeyDown = (event: KeyboardEvent) => {
+				if (event.key === "Shift" && !event.repeat) {
+					// Start timer only if Shift is pressed and not already held down
+					if (shiftHoldTimerRef.current === null) {
+						shiftHoldTimerRef.current = setTimeout(() => {
+							setShowShiftDragTip(true)
+						}, 500) // 500ms delay
+					}
+				}
+			}
+
+			const handleKeyUp = (event: KeyboardEvent) => {
+				if (event.key === "Shift") {
+					// Clear timer and hide tip when Shift is released
+					if (shiftHoldTimerRef.current !== null) {
+						clearTimeout(shiftHoldTimerRef.current)
+						shiftHoldTimerRef.current = null
+					}
+					setShowShiftDragTip(false)
+				}
+			}
+
+			// Add listeners
+			window.addEventListener("keydown", handleKeyDown)
+			window.addEventListener("keyup", handleKeyUp)
+
+			// Cleanup listeners on component unmount
+			return () => {
+				window.removeEventListener("keydown", handleKeyDown)
+				window.removeEventListener("keyup", handleKeyUp)
+				// Clear any running timer on unmount
+				if (shiftHoldTimerRef.current !== null) {
+					clearTimeout(shiftHoldTimerRef.current)
+				}
+			}
+		}, []) // Empty dependency array ensures this runs only once on mount/unmount
+
 		/**
 		 * Handles the drag over event to allow dropping.
 		 * Prevents the default behavior to enable drop.
@@ -1374,83 +1415,106 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				</div>
 
 				<ControlsContainer>
-					<ButtonGroup>
-						<Tooltip tipText="Add Context" style={{ left: 0 }}>
-							<VSCodeButton
-								data-testid="context-button"
-								appearance="icon"
-								aria-label="Add Context"
-								disabled={textAreaDisabled}
-								onClick={handleContextButtonClick}
-								style={{ padding: "0px 0px", height: "20px" }}>
-								<ButtonContainer>
-									<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
-										@
-									</span>
-									{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
-								</ButtonContainer>
-							</VSCodeButton>
-						</Tooltip>
+					{/* Conditionally render ButtonGroup or Shift Tip */}
+					{!showShiftDragTip ? (
+						<ButtonGroup>
+							<Tooltip tipText="Add Context" style={{ left: 0 }}>
+								<VSCodeButton
+									data-testid="context-button"
+									appearance="icon"
+									aria-label="Add Context"
+									disabled={textAreaDisabled}
+									onClick={handleContextButtonClick}
+									style={{ padding: "0px 0px", height: "20px" }}>
+									<ButtonContainer>
+										<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
+											@
+										</span>
+										{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
+									</ButtonContainer>
+								</VSCodeButton>
+							</Tooltip>
 
-						<Tooltip tipText="Add Images">
-							<VSCodeButton
-								data-testid="images-button"
-								appearance="icon"
-								aria-label="Add Images"
-								disabled={shouldDisableImages}
-								onClick={() => {
-									if (!shouldDisableImages) {
-										onSelectImages()
-									}
-								}}
-								style={{ padding: "0px 0px", height: "20px" }}>
-								<ButtonContainer>
-									<span
-										className="codicon codicon-device-camera flex items-center"
-										style={{ fontSize: "14px", marginBottom: -3 }}
-									/>
-									{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
-								</ButtonContainer>
-							</VSCodeButton>
-						</Tooltip>
-						<ServersToggleModal />
-						<ClineRulesToggleModal />
-						<ModelContainer ref={modelSelectorRef}>
-							<ModelButtonWrapper ref={buttonRef}>
-								<ModelDisplayButton
-									role="button"
-									isActive={showModelSelector}
-									disabled={false}
-									title="Select Model / API Provider"
-									onClick={handleModelButtonClick}
-									// onKeyDown={(e) => {
-									// 	if (e.key === "Enter" || e.key === " ") {
-									// 		e.preventDefault()
-									// 		handleModelButtonClick()
-									// 	}
-									// }}
-									tabIndex={0}>
-									<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
-								</ModelDisplayButton>
-							</ModelButtonWrapper>
-							{showModelSelector && (
-								<ModelSelectorTooltip
-									arrowPosition={arrowPosition}
-									menuPosition={menuPosition}
-									style={{
-										bottom: `calc(100vh - ${menuPosition}px + 6px)`,
-									}}>
-									<ApiOptions
-										showModelOptions={true}
-										apiErrorMessage={undefined}
-										modelIdErrorMessage={undefined}
-										isPopup={true}
-										saveImmediately={true} // Ensure popup saves immediately
-									/>
-								</ModelSelectorTooltip>
-							)}
-						</ModelContainer>
-					</ButtonGroup>
+							<Tooltip tipText="Add Images">
+								<VSCodeButton
+									data-testid="images-button"
+									appearance="icon"
+									aria-label="Add Images"
+									disabled={shouldDisableImages}
+									onClick={() => {
+										if (!shouldDisableImages) {
+											onSelectImages()
+										}
+									}}
+									style={{ padding: "0px 0px", height: "20px" }}>
+									<ButtonContainer>
+										<span
+											className="codicon codicon-device-camera flex items-center"
+											style={{ fontSize: "14px", marginBottom: -3 }}
+										/>
+										{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
+									</ButtonContainer>
+								</VSCodeButton>
+							</Tooltip>
+							<ServersToggleModal />
+							<ClineRulesToggleModal />
+							<ModelContainer ref={modelSelectorRef}>
+								<ModelButtonWrapper ref={buttonRef}>
+									<ModelDisplayButton
+										role="button"
+										isActive={showModelSelector}
+										disabled={false}
+										title="Select Model / API Provider"
+										onClick={handleModelButtonClick}
+										// onKeyDown={(e) => {
+										// 	if (e.key === "Enter" || e.key === " ") {
+										// 		e.preventDefault()
+										// 		handleModelButtonClick()
+										// 	}
+										// }}
+										tabIndex={0}>
+										<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
+									</ModelDisplayButton>
+								</ModelButtonWrapper>
+								{showModelSelector && (
+									<ModelSelectorTooltip
+										arrowPosition={arrowPosition}
+										menuPosition={menuPosition}
+										style={{
+											bottom: `calc(100vh - ${menuPosition}px + 6px)`,
+										}}>
+										<ApiOptions
+											showModelOptions={true}
+											apiErrorMessage={undefined}
+											modelIdErrorMessage={undefined}
+											isPopup={true}
+											saveImmediately={true} // Ensure popup saves immediately
+										/>
+									</ModelSelectorTooltip>
+								)}
+							</ModelContainer>
+						</ButtonGroup>
+					) : (
+						// Display only the tip text when showShiftDragTip is true
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								flex: 1, // Take up available space like ButtonGroup
+								minWidth: 0,
+								height: "20px", // Match button height for alignment
+							}}>
+							<span
+								style={{
+									fontSize: "10px",
+									color: "var(--vscode-descriptionForeground)",
+									whiteSpace: "nowrap",
+								}}>
+								Hold Shift to Drag
+							</span>
+						</div>
+					)}
+					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
 					<Tooltip
 						style={{ zIndex: 1000 }}
 						visible={shownTooltipMode !== null}
