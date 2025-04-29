@@ -118,7 +118,7 @@ Example:
 <path>.clinerules/project-preferences.md</path>
 <content>
 ## Brief overview
-  [Brief description of the rules in this file, including if this set of guidelines is project-specific or global]
+  [Brief description of the rules, including if this set of guidelines is project-specific or global]
 
 ## Communication style
   - [Description, rule, preference, instruction]
