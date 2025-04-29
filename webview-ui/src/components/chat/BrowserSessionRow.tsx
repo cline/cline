@@ -357,9 +357,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<span style={{ fontSize: "0.8em" }}>{t("chat:browser.consoleLogs")}</span>
 					</div>
 					{consoleLogsExpanded && (
-						<CodeBlock
-							source={`${"```"}shell\n${displayState.consoleLogs || t("chat:browser.noNewLogs")}\n${"```"}`}
-						/>
+						<CodeBlock source={displayState.consoleLogs || t("chat:browser.noNewLogs")} language="shell" />
 					)}
 				</div>
 			</div>
@@ -488,7 +486,7 @@ const BrowserSessionRowContent = ({
 									overflow: "hidden",
 									backgroundColor: CODE_BLOCK_BG_COLOR,
 								}}>
-								<CodeBlock source={`${"```"}shell\n${message.text}\n${"```"}`} forceWrap={true} />
+								<CodeBlock source={message.text} language="shell" />
 							</div>
 						</>
 					)

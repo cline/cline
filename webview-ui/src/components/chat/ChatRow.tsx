@@ -511,7 +511,7 @@ export const ChatRowContent = ({
 						<CodeAccordian
 							code={tool.content!}
 							path={tool.path! + (tool.filePattern ? `/(${tool.filePattern})` : "")}
-							language="plaintext"
+							language="log"
 							isExpanded={isExpanded}
 							onToggleExpand={onToggleExpand}
 						/>
@@ -731,10 +731,7 @@ export const ChatRowContent = ({
 											backgroundColor: "var(--vscode-editor-background)",
 											borderTop: "none",
 										}}>
-										<CodeBlock
-											source={`${"```"}plaintext\n${message.text || ""}\n${"```"}`}
-											forceWrap={true}
-										/>
+										<CodeBlock source={`${"```"}plaintext\n${message.text || ""}\n${"```"}`} />
 									</div>
 								)}
 							</div>
@@ -1111,7 +1108,6 @@ export const ChatRowContent = ({
 													language="json"
 													isExpanded={true}
 													onToggleExpand={onToggleExpand}
-													forceWrap={true}
 												/>
 											</div>
 										)}

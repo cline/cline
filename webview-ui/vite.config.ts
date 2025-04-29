@@ -1,9 +1,25 @@
 import { resolve } from "path"
 import fs from "fs"
 
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
+
+function wasmPlugin(): Plugin {
+	return {
+		name: "wasm",
+		async load(id: string) {
+			if (id.endsWith(".wasm")) {
+				const wasmBinary = await import(id)
+
+				return `
+          			const wasmModule = new WebAssembly.Module(${wasmBinary.default});
+          			export default wasmModule;
+        		`
+			}
+		},
+	}
+}
 
 // Custom plugin to write the server port to a file
 const writePortToFile = () => {
@@ -31,7 +47,7 @@ const writePortToFile = () => {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-	plugins: [react(), tailwindcss(), writePortToFile()],
+	plugins: [react(), tailwindcss(), writePortToFile(), wasmPlugin()],
 	resolve: {
 		alias: {
 			"@": resolve(__dirname, "./src"),
@@ -65,4 +81,8 @@ export default defineConfig({
 		"process.platform": JSON.stringify(process.platform),
 		"process.env.VSCODE_TEXTMATE_DEBUG": JSON.stringify(process.env.VSCODE_TEXTMATE_DEBUG),
 	},
+	optimizeDeps: {
+		exclude: ["@vscode/codicons", "vscode-oniguruma", "shiki"],
+	},
+	assetsInclude: ["**/*.wasm"],
 })
