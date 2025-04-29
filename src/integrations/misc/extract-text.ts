@@ -6,6 +6,7 @@ import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as chardet from "jschardet"
 import * as iconv from "iconv-lite"
+import { getMimeType } from "./process-images"
 
 export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
@@ -38,6 +39,15 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			return extractTextFromDOCX(filePath)
 		case ".ipynb":
 			return extractTextFromIPYNB(filePath)
+		// Add cases for image file types
+		case ".png":
+		case ".jpg":
+		case ".jpeg":
+		case ".webp":
+			const imageBuffer = await fs.readFile(filePath)
+			const base64 = imageBuffer.toString("base64")
+			const mimeType = getMimeType(filePath)
+			return `data:${mimeType};base64,${base64}`
 		default:
 			const fileBuffer = await fs.readFile(filePath)
 			if (fileBuffer.byteLength > 300 * 1024) {
