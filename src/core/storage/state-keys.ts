@@ -75,6 +75,7 @@ export type GlobalStateKey =
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
 	| "favoritedModelIds"
+	| "requestTimeoutMs"
 	| "openAiConfigs"
 	| "openAiSelectedConfigIndex"
 	| "openAiSelectedConfigIndex_act"

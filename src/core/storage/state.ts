@@ -126,6 +126,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		openAiConfigs,
 		favoritedModelIds,
 		globalClineRulesToggles,
+		requestTimeoutMs,
 	] = await Promise.all([
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
@@ -200,6 +201,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "openAiConfigs") as Promise<any[] | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
+		getGlobalState(context, "requestTimeoutMs") as Promise<number | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -310,6 +312,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			openAiConfigs,
 			openAiSelectedConfigIndex,
 			favoritedModelIds,
+			requestTimeoutMs,
 		},
 		lastShownAnnouncementId,
 		customInstructions,
@@ -448,6 +451,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "clineApiKey", clineApiKey)
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
+	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 	await updateGlobalState(context, "openAiConfigs", openAiConfigs)
 	const planActSeparate = (await getGlobalState(context, "planActSeparateModelsSetting")) as boolean
 	if (planActSeparate) {

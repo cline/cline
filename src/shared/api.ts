@@ -80,6 +80,7 @@ export interface ApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
 	sambanovaApiKey?: string
+	requestTimeoutMs?: number
 	openAiConfigs?: {
 		profileName: string
 		openAiBaseUrl: string

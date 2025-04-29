@@ -51,7 +51,6 @@ export interface WebviewMessage {
 		| "downloadMcp"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
-		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
 		| "openSettings"
@@ -72,6 +71,7 @@ export interface WebviewMessage {
 		| "grpc_request"
 		| "toggleClineRule"
 		| "deleteClineRule"
+		| "copyToClipboard"
 
 	// | "relaunchChromeDebugMode"
 	text?: string

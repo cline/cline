@@ -28,12 +28,36 @@ import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
 import TaskHeader from "@/components/chat/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
+import { unified } from "unified"
+import remarkStringify from "remark-stringify"
+import rehypeRemark from "rehype-remark"
+import rehypeParse from "rehype-parse"
 
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
+}
+
+async function convertHtmlToMarkdown(html: string) {
+	// Process the HTML to Markdown
+	const result = await unified()
+		.use(rehypeParse as any, { fragment: true }) // Parse HTML fragments
+		.use(rehypeRemark as any) // Convert HTML to Markdown AST
+		.use(remarkStringify as any, {
+			// Convert Markdown AST to text
+			bullet: "-", // Use - for unordered lists
+			emphasis: "*", // Use * for emphasis
+			strong: "_", // Use _ for strong
+			listItemIndent: "one", // Use one space for list indentation
+			rule: "-", // Use - for horizontal rules
+			ruleSpaces: false, // No spaces in horizontal rules
+			fences: true,
+		})
+		.process(html)
+
+	return String(result)
 }
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -78,6 +102,33 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
+
+	useEffect(() => {
+		const handleCopy = async (e: ClipboardEvent) => {
+			if (window.getSelection) {
+				const selection = window.getSelection()
+				if (selection && selection.rangeCount > 0) {
+					// Get the selected HTML content
+					const range = selection.getRangeAt(0)
+					const clonedSelection = range.cloneContents()
+					const div = document.createElement("div")
+					div.appendChild(clonedSelection)
+					const selectedHtml = div.innerHTML
+
+					// Convert HTML to Markdown
+					const markdown = await convertHtmlToMarkdown(selectedHtml)
+
+					vscode.postMessage({ type: "copyToClipboard", text: markdown })
+					e.preventDefault()
+				}
+			}
+		}
+		document.addEventListener("copy", handleCopy)
+
+		return () => {
+			document.removeEventListener("copy", handleCopy)
+		}
+	}, [])
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change

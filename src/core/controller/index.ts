@@ -457,10 +457,6 @@ export class Controller {
 				await this.fetchUserCreditsData()
 				break
 			}
-			case "showMcpView": {
-				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked", tab: message.tab || undefined })
-				break
-			}
 			case "openMcpSettings": {
 				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 				if (mcpSettingsFilePath) {
@@ -798,6 +794,15 @@ export class Controller {
 			case "grpc_request": {
 				if (message.grpc_request) {
 					await handleGrpcRequest(this, message.grpc_request)
+				}
+				break
+			}
+
+			case "copyToClipboard": {
+				try {
+					await vscode.env.clipboard.writeText(message.text || "")
+				} catch (error) {
+					console.error("Error copying to clipboard:", error)
 				}
 				break
 			}
