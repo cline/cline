@@ -883,8 +883,7 @@ export class Controller {
 					break
 				case "litellm":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-					const liteLlmModelInfo = await getGlobalState(this.context, "liteLlmModelInfo")
-					await updateGlobalState(this.context, "previousModeModelInfo", liteLlmModelInfo)
+					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
 					break
 				case "requesty":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
@@ -935,8 +934,7 @@ export class Controller {
 						break
 					case "litellm":
 						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-						const liteLlmModelInfo = await getGlobalState(this.context, "liteLlmModelInfo")
-						await updateGlobalState(this.context, "previousModeModelInfo", liteLlmModelInfo)
+						await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
 						break
 					case "requesty":
 						await updateGlobalState(this.context, "requestyModelId", newModelId)

@@ -294,6 +294,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			reasoningEffort,
 			liteLlmBaseUrl,
 			liteLlmModelId,
+			liteLlmModelInfo,
 			liteLlmApiKey,
 			liteLlmUsePromptCache,
 			asksageApiKey,
@@ -371,6 +372,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
+		liteLlmModelInfo,
 		liteLlmApiKey,
 		liteLlmUsePromptCache,
 		qwenApiLine,
@@ -427,7 +429,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
 	await updateGlobalState(context, "liteLlmBaseUrl", liteLlmBaseUrl)
 	await updateGlobalState(context, "liteLlmModelId", liteLlmModelId)
-	await updateGlobalState(context, "liteLlmModelInfo", apiConfiguration.liteLlmModelInfo)
+	await updateGlobalState(context, "liteLlmModelInfo", liteLlmModelInfo)
 	await updateGlobalState(context, "liteLlmUsePromptCache", liteLlmUsePromptCache)
 	await updateGlobalState(context, "qwenApiLine", qwenApiLine)
 	await updateGlobalState(context, "requestyModelId", requestyModelId)
