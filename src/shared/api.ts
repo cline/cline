@@ -402,7 +402,7 @@ export const vertexModels = {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		// inputPrice: 1.25, // Removed
 		// outputPrice: 10, // Removed
 		inputPriceTiers: [
@@ -512,7 +512,7 @@ export const geminiModels = {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPriceTiers: [
 			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
 			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
@@ -538,7 +538,7 @@ export const geminiModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -586,7 +586,7 @@ export const geminiModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
