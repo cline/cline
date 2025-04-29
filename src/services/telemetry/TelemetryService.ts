@@ -23,8 +23,8 @@ class PostHogClient {
 			COMPLETED: "task.completed",
 			// Tracks user feedback on completed tasks
 			FEEDBACK: "task.feedback",
-			// Tracks when a message is sent in a conversation
-			CONVERSATION_TURN: "task.conversation_turn",
+			// Tracks when a task is closed
+			CLOSED: "task.closed",
 			// Tracks token consumption for cost and usage analysis
 			TOKEN_USAGE: "task.tokens",
 			// Tracks switches between plan and act modes
@@ -87,6 +87,8 @@ class PostHogClient {
 	private telemetryEnabled: boolean = false
 	/** Current version of the extension */
 	private readonly version: string = extensionVersion
+	/** Whether the extension is running in development mode */
+	private readonly isDev = process.env.IS_DEV
 
 	/**
 	 * Private constructor to enforce singleton pattern
@@ -146,6 +148,7 @@ class PostHogClient {
 			const propertiesWithVersion = {
 				...event.properties,
 				extension_version: this.version,
+				id_dev: this.isDev,
 			}
 			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
 		}
@@ -186,34 +189,34 @@ class PostHogClient {
 	}
 
 	/**
-	 * Captures that a message was sent, and includes the API provider and model used
+	 * Captures that a task was closed, and includes the number of conversation turns, user conversation turns, and assistant conversation turns
 	 * @param taskId Unique identifier for the task
-	 * @param provider The API provider (e.g., OpenAI, Anthropic)
-	 * @param model The specific model used (e.g., GPT-4, Claude)
-	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
+	 * @param conversationTurns The total number of conversation turns
+	 * @param userConversationTurns The number of user conversation turns
+	 * @param assistantConversationTurns The number of assistant conversation turns
 	 */
-	public captureConversationTurnEvent(
+	public captureClosedEvent(
 		taskId: string,
-		provider: string = "unknown",
-		model: string = "unknown",
-		source: "user" | "assistant",
+		conversationTurns: number,
+		userConversationTurns: number,
+		assistantConversationTurns: number,
 	) {
 		// Ensure required parameters are provided
-		if (!taskId || !provider || !model || !source) {
+		if (!taskId) {
 			console.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
 
 		const properties: Record<string, any> = {
 			taskId,
-			provider,
-			model,
-			source,
+			conversationTurns,
+			userConversationTurns,
+			assistantConversationTurns,
 			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 		}
 
 		this.capture({
-			event: PostHogClient.EVENTS.TASK.CONVERSATION_TURN,
+			event: PostHogClient.EVENTS.TASK.CLOSED,
 			properties,
 		})
 	}

@@ -1827,7 +1827,15 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		}
 	}
 
-	async clearTask() {
+	async clearTask(isCloseTaskEvent: boolean = false) {
+		if (isCloseTaskEvent && this.task) {
+			await telemetryService.captureClosedEvent(
+				this.task.taskId,
+				this.task.apiConversationHistory.length,
+				this.task.apiConversationHistory.filter((msg) => msg.role === "user").length,
+				this.task.apiConversationHistory.filter((msg) => msg.role === "assistant").length,
+			)
+		}
 		this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
 	}
