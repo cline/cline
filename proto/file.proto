@@ -13,36 +13,4 @@ service FileService {
   
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
-  
-  // Search for files and stream results back
-  rpc searchFiles(SearchFilesRequest) returns (stream SearchFilesResponse);
-}
-
-// Request for searching files
-message SearchFilesRequest {
-  string path = 1;        // Directory path to search in
-  string pattern = 2;     // File pattern to match (glob)
-  string regex = 3;       // Regular expression to search for
-  bool recursive = 4;     // Whether to search recursively
-}
-
-// Response for a file search result
-message SearchFilesResponse {
-  repeated FileResult results = 1;  // Batch of search results
-  bool is_complete = 2;             // Whether this is the last batch
-  
-  // Individual file result
-  message FileResult {
-    string path = 1;               // Path to the file
-    string type = 2;               // Type of result (file or folder)
-    repeated MatchResult matches = 3;  // Matches within the file (if any)
-  }
-  
-  // Match result within a file
-  message MatchResult {
-    int32 line_number = 1;         // Line number of the match
-    string line_content = 2;       // Content of the line with the match
-    string context_before = 3;     // Context lines before the match
-    string context_after = 4;      // Context lines after the match
-  }
 }

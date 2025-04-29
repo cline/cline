@@ -32,11 +32,9 @@ type GrpcClientType<T extends ProtoService> = {
 					onResponse: (response: InstanceType<T["methods"][K]["responseType"]>) => void
 					onError?: (error: Error) => void
 					onComplete?: () => void
-				}
-		  ) => () => void // Returns a cancel function
-		: (
-				request: InstanceType<T["methods"][K]["requestType"]>
-		  ) => Promise<InstanceType<T["methods"][K]["responseType"]>>
+				},
+			) => () => void // Returns a cancel function
+		: (request: InstanceType<T["methods"][K]["requestType"]>) => Promise<InstanceType<T["methods"][K]["responseType"]>>
 }
 
 /**
@@ -68,7 +66,7 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 					onResponse: (response: any) => void
 					onError?: (error: Error) => void
 					onComplete?: () => void
-				}
+				},
 			) => {
 				const requestId = uuidv4()
 

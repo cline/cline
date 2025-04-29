@@ -7,7 +7,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
+import { handleGrpcRequest } from "./grpc-handler"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
@@ -58,7 +58,6 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 export class Controller {
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
-	private messageHandlers: Set<(message: any) => void> = new Set()
 
 	private disposables: vscode.Disposable[] = []
 	task?: Task
@@ -66,15 +65,6 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	private latestAnnouncementId = "april-18-2025_21:15::00" // update to some unique identifier when we add a new announcement
-	
-	// Message handler methods for streaming responses
-	addMessageHandler(handler: (message: any) => void): void {
-		this.messageHandlers.add(handler)
-	}
-	
-	removeMessageHandler(handler: (message: any) => void): void {
-		this.messageHandlers.delete(handler)
-	}
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -728,120 +718,27 @@ export class Controller {
 					})
 					break
 				}
-				
+
 				try {
-					console.log("[Controller] Starting file search with gRPC streaming for query:", message.query)
-					
-					// Create a request for the gRPC searchFiles method
-					const request = {
-						path: workspacePath,
-						pattern: "*.ts,*.js,*.tsx,*.jsx,*.md,*.json,*.html,*.css", // Common file types
-						regex: message.query || "",
-						recursive: true
-					}
-					
-					// Collect all results
-					const allResults: any[] = []
-					
-					// Generate a unique request ID for this search
-					const requestId = `search-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
-					
-					// Set up a handler for the streaming responses
-					const handleSearchResponse = (event: any) => {
-						if (event.type === "grpc_response" && event.grpc_response?.request_id === requestId) {
-							const response = event.grpc_response.message
-							
-							if (response) {
-								console.log(`[Controller] Received search batch with ${response.results?.length || 0} results`)
-								
-								if (response.results && response.results.length > 0) {
-									// Transform results to match expected format
-									const transformedResults = response.results.map((file: any) => ({
-										path: file.path,
-										type: file.type,
-										matches: file.matches
-									}))
-									
-									// Add to collected results
-									allResults.push(...transformedResults)
-									
-									// Send incremental results to webview
-									this.postMessageToWebview({
-										type: "fileSearchResults",
-										results: allResults,
-										isComplete: response.isComplete,
-										mentionsRequestId: message.mentionsRequestId,
-									})
-								}
-								
-								// If this is the last batch, send final results and clean up
-								if (response.isComplete || !event.grpc_response.is_streaming) {
-									console.log("[Controller] Search complete, total results:", allResults.length)
-									this.postMessageToWebview({
-										type: "fileSearchResults",
-										results: allResults,
-										isComplete: true,
-										mentionsRequestId: message.mentionsRequestId,
-									})
-									
-									// Clean up the event listener
-									this.removeMessageHandler(handleSearchResponse)
-								}
-							}
-							
-							// Handle errors
-							if (event.grpc_response.error) {
-								console.error("[Controller] Search error:", event.grpc_response.error)
-								this.postMessageToWebview({
-									type: "fileSearchResults",
-									results: [],
-									error: event.grpc_response.error,
-									mentionsRequestId: message.mentionsRequestId,
-								})
-								
-								// Clean up the event listener
-								this.removeMessageHandler(handleSearchResponse)
-							}
-						}
-					}
-					
-					// Add the response handler
-					this.addMessageHandler(handleSearchResponse)
-					
-					// Send the gRPC request
-					await handleGrpcRequest(this, {
-						service: "cline.FileService",
-						method: "searchFiles",
-						message: request,
-						request_id: requestId,
-						is_streaming: true
+					// Call file search service with query from message
+					const results = await searchWorkspaceFiles(
+						message.query || "",
+						workspacePath,
+						20, // Use default limit, as filtering is now done in the backend
+					)
+
+					// debug logging to be removed
+					//console.log(`controller/index.ts: Search results: ${results.length}`)
+
+					// Send results back to webview
+					await this.postMessageToWebview({
+						type: "fileSearchResults",
+						results,
+						mentionsRequestId: message.mentionsRequestId,
 					})
-					
-					// Set up a timeout to clean up if the search takes too long
-					const searchTimeout = setTimeout(() => {
-						console.log("[Controller] Search timeout reached, cleaning up")
-						this.removeMessageHandler(handleSearchResponse)
-						
-						// Send a cancellation request
-						handleGrpcRequestCancel(this, { request_id: requestId })
-						
-						// Notify the user
-						this.postMessageToWebview({
-							type: "fileSearchResults",
-							results: allResults,
-							isComplete: true,
-							error: "Search timed out",
-							mentionsRequestId: message.mentionsRequestId,
-						})
-					}, 30000) // 30 second timeout
-					
-					// Clean up timeout when search completes
-					setTimeout(() => clearTimeout(searchTimeout), 31000)
-					
 				} catch (error) {
-					console.error("[Controller] Error initiating search:", error)
 					const errorMessage = error instanceof Error ? error.message : String(error)
-					
+
 					// Send error response to webview
 					await this.postMessageToWebview({
 						type: "fileSearchResults",
