@@ -5,23 +5,19 @@ import * as path from "path"
 import { execSync } from "child_process"
 import { globby } from "globby"
 import chalk from "chalk"
-import { fileURLToPath } from "url"
 
 import { createRequire } from "module"
 const require = createRequire(import.meta.url)
-const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc.js")
+const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 const tsProtoPlugin = require.resolve("ts-proto/protoc-gen-ts_proto")
 
 // Get script directory and root directory
-// const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname)
-const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
+const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
 
-	console.log(chalk.bold.blue(SCRIPT_DIR))
-	console.log(chalk.bold.blue(ROOT_DIR))
 	// Define output directories
 	const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
 
