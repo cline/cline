@@ -11,9 +11,20 @@ const require = createRequire(import.meta.url)
 const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 const tsProtoPlugin = require.resolve("ts-proto/protoc-gen-ts_proto")
 
-// Get script directory and root directory
 const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
+
+// List of gRPC services
+// Add more service directories here as needed
+const serviceNameMap = {
+	account: "cline.AccountService",
+	browser: "cline.BrowserService",
+	checkpoints: "cline.CheckpointsService",
+	file: "cline.FileService",
+	mcp: "cline.McpService",
+	task: "cline.TaskService",
+}
+const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
@@ -134,16 +145,6 @@ async function parseProtoForStreamingMethods(protoFiles, scriptDir) {
 async function generateMethodRegistrations() {
 	console.log(chalk.cyan("Generating method registration files..."))
 
-	const serviceDirs = [
-		path.join(ROOT_DIR, "src", "core", "controller", "account"),
-		path.join(ROOT_DIR, "src", "core", "controller", "browser"),
-		path.join(ROOT_DIR, "src", "core", "controller", "checkpoints"),
-		path.join(ROOT_DIR, "src", "core", "controller", "file"),
-		path.join(ROOT_DIR, "src", "core", "controller", "mcp"),
-		path.join(ROOT_DIR, "src", "core", "controller", "task"),
-		// Add more service directories here as needed
-	]
-
 	// Parse proto files for streaming methods
 	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
 	const streamingMethodsMap = await parseProtoForStreamingMethods(protoFiles, SCRIPT_DIR)
@@ -158,16 +159,6 @@ async function generateMethodRegistrations() {
 
 		const serviceName = path.basename(serviceDir)
 		const registryFile = path.join(serviceDir, "methods.ts")
-
-		// Determine the full service name for looking up streaming methods
-		const serviceNameMap = {
-			account: "cline.AccountService",
-			browser: "cline.BrowserService",
-			checkpoints: "cline.CheckpointsService",
-			file: "cline.FileService",
-			mcp: "cline.McpService",
-			task: "cline.TaskService",
-		}
 
 		const fullServiceName = serviceNameMap[serviceName]
 		const streamingMethods = streamingMethodsMap.get(fullServiceName) || []
