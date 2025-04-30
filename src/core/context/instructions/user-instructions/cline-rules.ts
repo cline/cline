@@ -221,7 +221,12 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 			filePath = path.join(globalClineRulesFilePath, filename)
 		} else {
 			const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
-			await fs.mkdir(localClineRulesFilePath, { recursive: true })
+
+			const hasError = await ensureLocalClinerulesDirExists(cwd)
+			if (hasError === true) {
+				return { filePath: null, fileExists: false }
+			}
+
 			filePath = path.join(localClineRulesFilePath, filename)
 		}
 
