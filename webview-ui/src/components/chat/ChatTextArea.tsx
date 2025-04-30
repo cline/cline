@@ -1415,9 +1415,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				</div>
 
 				<ControlsContainer>
-					{/* Conditionally render ButtonGroup or Shift Tip */}
-					{!showShiftDragTip ? (
-						<ButtonGroup>
+					{/* Always render both components, but control visibility with CSS */}
+					<div
+						style={{
+							position: "relative",
+							flex: 1,
+							minWidth: 0,
+							height: "28px", // Fixed height to prevent container shrinking
+						}}>
+						{/* ButtonGroup - always in DOM but visibility controlled */}
+						<ButtonGroup
+							style={{
+								opacity: showShiftDragTip ? 0 : 1,
+								visibility: showShiftDragTip ? "hidden" : "visible",
+								position: showShiftDragTip ? "absolute" : "relative",
+								transition: "opacity 0.2s ease-in-out",
+								width: "100%",
+								height: "100%", // Fill the container height
+							}}>
 							<Tooltip tipText="Add Context" style={{ left: 0 }}>
 								<VSCodeButton
 									data-testid="context-button"
@@ -1430,7 +1445,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
 											@
 										</span>
-										{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
 									</ButtonContainer>
 								</VSCodeButton>
 							</Tooltip>
@@ -1452,7 +1466,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											className="codicon codicon-device-camera flex items-center"
 											style={{ fontSize: "14px", marginBottom: -3 }}
 										/>
-										{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
 									</ButtonContainer>
 								</VSCodeButton>
 							</Tooltip>
@@ -1466,12 +1479,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										disabled={false}
 										title="Select Model / API Provider"
 										onClick={handleModelButtonClick}
-										// onKeyDown={(e) => {
-										// 	if (e.key === "Enter" || e.key === " ") {
-										// 		e.preventDefault()
-										// 		handleModelButtonClick()
-										// 	}
-										// }}
 										tabIndex={0}>
 										<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
 									</ModelDisplayButton>
@@ -1494,15 +1501,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								)}
 							</ModelContainer>
 						</ButtonGroup>
-					) : (
-						// Display only the tip text when showShiftDragTip is true
+
+						{/* Shift Tip - always in DOM but visibility controlled */}
 						<div
 							style={{
 								display: "flex",
-								alignItems: "center",
-								flex: 1, // Take up available space like ButtonGroup
-								minWidth: 0,
-								height: "20px", // Match button height for alignment
+								justifyContent: "center", // Center horizontally
+								alignItems: "center", // Center vertically
+								height: "100%", // Fill the container height
+								padding: "4px 0", // Add padding to match button group height
+								boxSizing: "border-box", // Include padding in height calculation
+								opacity: showShiftDragTip ? 1 : 0,
+								visibility: showShiftDragTip ? "visible" : "hidden",
+								position: showShiftDragTip ? "relative" : "absolute",
+								transition: "opacity 0.2s ease-in-out",
+								width: "100%",
 							}}>
 							<span
 								style={{
@@ -1510,10 +1523,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									color: "var(--vscode-descriptionForeground)",
 									whiteSpace: "nowrap",
 								}}>
-								Hold Shift to Drag
+								Drag, then Shift
 							</span>
 						</div>
-					)}
+					</div>
 					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
 					<Tooltip
 						style={{ zIndex: 1000 }}
