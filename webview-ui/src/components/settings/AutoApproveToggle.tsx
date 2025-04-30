@@ -106,7 +106,7 @@ export const AutoApproveToggle = ({ onToggle, ...props }: AutoApproveToggleProps
 					onClick={() => onToggle(key, !props[key])}
 					title={t(descriptionKey || "")}
 					data-testid={testId}
-					className={cn(" aspect-square h-[80px]")}>
+					className={cn(" aspect-square h-[80px]", !props[key] && "opacity-50")}>
 					<span className={cn("flex flex-col items-center gap-1")}>
 						<span className={`codicon codicon-${icon}`} />
 						<span className="text-sm text-center">{t(labelKey)}</span>
