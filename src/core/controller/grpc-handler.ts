@@ -1,11 +1,5 @@
 import { Controller } from "./index"
-import { handleAccountServiceRequest } from "./account"
-import { handleBrowserServiceRequest } from "./browser/index"
-import { handleFileServiceRequest } from "./file"
-import { handleTaskServiceRequest } from "./task"
-import { handleCheckpointsServiceRequest } from "./checkpoints"
-import { handleMcpServiceRequest } from "./mcp"
-import { handleStateServiceRequest } from "./state"
+import { serviceHandlers } from "./grpc-service-config"
 
 /**
  * Type definition for a streaming response handler
@@ -45,50 +39,16 @@ export class GrpcHandler {
 				return
 			}
 
+			// Get the service handler from the config
+			const serviceConfig = serviceHandlers[service]
+			if (!serviceConfig) {
+				throw new Error(`Unknown service: ${service}`)
+			}
+
 			// Handle unary request
-			switch (service) {
-				case "cline.AccountService":
-					return {
-						message: await handleAccountServiceRequest(this.controller, method, message),
-						request_id: requestId,
-					}
-				case "cline.BrowserService":
-					return {
-						message: await handleBrowserServiceRequest(this.controller, method, message),
-						request_id: requestId,
-					}
-				case "cline.CheckpointsService":
-					return {
-						message: await handleCheckpointsServiceRequest(this.controller, method, message),
-						request_id: requestId,
-					}
-				case "cline.FileService":
-					return {
-						message: await handleFileServiceRequest(this.controller, method, message),
-						request_id: requestId,
-					}
-				case "cline.TaskService":
-					return {
-						message: await handleTaskServiceRequest(this.controller, method, message),
-						request_id: requestId,
-					}
-				case "cline.McpService":
-					return {
-						message: await handleMcpServiceRequest(this.controller, method, message),
-						request_id: requestId,
-					}
-				case "cline.StateService":
-					if (method === "subscribeToState") {
-						throw new Error(
-							`Method ${method} is a streaming method and should be handled with handleStreamingRequest`,
-						)
-					}
-					return {
-						message: await handleStateServiceRequest(this.controller, method, message),
-						request_id: requestId,
-					}
-				default:
-					throw new Error(`Unknown service: ${service}`)
+			return {
+				message: await serviceConfig.requestHandler(this.controller, method, message),
+				request_id: requestId,
 			}
 		} catch (error) {
 			return {
@@ -124,65 +84,19 @@ export class GrpcHandler {
 		}
 
 		try {
-			// Route to the appropriate service handler based on service name
-			switch (service) {
-				case "cline.AccountService":
-					// Get the service registry's handleStreamingRequest function
-					const accountServiceRegistry = await import("./account")
-					if (typeof accountServiceRegistry.handleStreamingRequest === "function") {
-						await accountServiceRegistry.handleStreamingRequest(this.controller, method, message, responseStream)
-					} else {
-						throw new Error(`Service ${service} does not support streaming for method ${method}`)
-					}
-					break
-				case "cline.BrowserService":
-					const browserServiceRegistry = await import("./browser/index")
-					if (typeof browserServiceRegistry.handleStreamingRequest === "function") {
-						await browserServiceRegistry.handleStreamingRequest(this.controller, method, message, responseStream)
-					} else {
-						throw new Error(`Service ${service} does not support streaming for method ${method}`)
-					}
-					break
-				case "cline.CheckpointsService":
-					const checkpointsServiceRegistry = await import("./checkpoints")
-					if (typeof checkpointsServiceRegistry.handleStreamingRequest === "function") {
-						await checkpointsServiceRegistry.handleStreamingRequest(this.controller, method, message, responseStream)
-					} else {
-						throw new Error(`Service ${service} does not support streaming for method ${method}`)
-					}
-					break
-				case "cline.FileService":
-					const fileServiceRegistry = await import("./file")
-					if (typeof fileServiceRegistry.handleStreamingRequest === "function") {
-						await fileServiceRegistry.handleStreamingRequest(this.controller, method, message, responseStream)
-					} else {
-						throw new Error(`Service ${service} does not support streaming for method ${method}`)
-					}
-					break
-				case "cline.TaskService":
-					const taskServiceRegistry = await import("./task")
-					if (typeof taskServiceRegistry.handleStreamingRequest === "function") {
-						await taskServiceRegistry.handleStreamingRequest(this.controller, method, message, responseStream)
-					} else {
-						throw new Error(`Service ${service} does not support streaming for method ${method}`)
-					}
-					break
-				case "cline.McpService":
-					const mcpServiceRegistry = await import("./mcp")
-					if (typeof mcpServiceRegistry.handleStreamingRequest === "function") {
-						await mcpServiceRegistry.handleStreamingRequest(this.controller, method, message, responseStream)
-					} else {
-						throw new Error(`Service ${service} does not support streaming for method ${method}`)
-					}
-					break
-				case "cline.StateService":
-					const stateServiceRegistry = await import("./state")
-					// Use the exported streaming request handler
-					await stateServiceRegistry.handleStreamingRequest(this.controller, method, message, responseStream)
-					break
-				default:
-					throw new Error(`Unknown service: ${service}`)
+			// Get the service handler from the config
+			const serviceConfig = serviceHandlers[service]
+			if (!serviceConfig) {
+				throw new Error(`Unknown service: ${service}`)
 			}
+
+			// Check if the service supports streaming
+			if (!serviceConfig.streamingHandler) {
+				throw new Error(`Service ${service} does not support streaming`)
+			}
+
+			// Handle streaming request
+			await serviceConfig.streamingHandler(this.controller, method, message, responseStream)
 
 			// Don't send a final message here - the stream should stay open for future updates
 			// The stream will be closed when the client disconnects or when the service explicitly ends it

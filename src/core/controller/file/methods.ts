@@ -5,12 +5,10 @@
 import { registerMethod } from "./index"
 import { openFile } from "./openFile"
 import { openImage } from "./openImage"
-import { searchFiles } from "./searchFiles"
 
 // Register all file service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("openFile", openFile)
 	registerMethod("openImage", openImage)
-	registerMethod("searchFiles", searchFiles)
 }
