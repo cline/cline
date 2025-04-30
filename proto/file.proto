@@ -18,7 +18,11 @@ service FileService {
   rpc createRuleFile(RuleFileRequest) returns (RuleFile);
 
   // Deletes a rule file from either global or workspace rules directory
+<<<<<<< HEAD
   rpc deleteRuleFile(RuleFileRequest) returns (RuleFile);
+=======
+  rpc deleteRuleFile(DeleteRuleFileRequest) returns (RuleFile);
+>>>>>>> ae4cba74 (rename ruleFileResult to ruleFile)
 }
 
 // Unified request for all rule file operations
