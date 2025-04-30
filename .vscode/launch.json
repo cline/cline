@@ -22,13 +22,14 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
-      "args": [
-        "--profile-temp",
-        "--sync", "off",
-        "--disable-extensions",
-        "--extensionDevelopmentPath=${workspaceFolder}",
-        "${workspaceFolder}"  
-      ],
+			"args": [
+				"--profile-temp",
+				"--sync",
+				"off",
+				"--disable-extensions",
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"${workspaceFolder}"
+			],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"preLaunchTask": "clean-sandbox",
 			"internalConsoleOptions": "openOnSessionStart",
