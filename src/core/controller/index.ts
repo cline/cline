@@ -1891,29 +1891,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		}
 	}
 
-	// Check if a URL is an image
-	async checkIsImageUrl(url: string) {
-		try {
-			// Check if the URL is an image
-			const isImage = await isImageUrl(url)
-
-			// Send the result back to the webview
-			await this.postMessageToWebview({
-				type: "isImageUrlResult",
-				isImage,
-				url,
-			})
-		} catch (error) {
-			console.error(`Error checking if URL is an image: ${url}`, error)
-			// Send an error response
-			await this.postMessageToWebview({
-				type: "isImageUrlResult",
-				isImage: false,
-				url,
-			})
-		}
-	}
-
 	// dev
 
 	async resetState() {

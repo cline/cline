@@ -1,4 +1,4 @@
-import { FileServiceClient } from "@/services/grpc-client"
+import { WebContentServiceClient } from "@/services/grpc-client"
 
 // Safely create a URL object with error handling and ensure HTTPS
 export const safeCreateUrl = (url: string): URL | null => {
@@ -145,7 +145,7 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 			})
 
 			// Create the actual service call
-			const servicePromise = FileServiceClient.checkIsImageUrl({ value: url })
+			const servicePromise = WebContentServiceClient.checkIsImageUrl({ value: url })
 				.then((result) => result.isImage)
 				.catch((error) => {
 					console.error("Error checking if URL is an image via gRPC:", error)

@@ -3,12 +3,10 @@
 
 // Import all method implementations
 import { registerMethod } from "./index"
-import { openFile } from "./openFile"
-import { openImage } from "./openImage"
+import { checkIsImageUrl } from "./checkIsImageUrl"
 
-// Register all file service methods
+// Register all web-content service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
-	registerMethod("openFile", openFile)
-	registerMethod("openImage", openImage)
+	registerMethod("checkIsImageUrl", checkIsImageUrl)
 }
