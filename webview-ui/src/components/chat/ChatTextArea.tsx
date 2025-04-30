@@ -1412,12 +1412,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							cursor: textAreaDisabled ? "not-allowed" : undefined,
 							flex: 1,
 							zIndex: 1,
-							outline: isDraggingOver // Add drag-over outline here
-								? "2px dashed var(--vscode-focusBorder)" // Changed from dotted to dashed
-								: isTextAreaFocused
-									? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
-									: "none",
-							outlineOffset: isDraggingOver ? "1px" : "0px", // Add offset for drag-over outline
+							outline:
+								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
+									? "2px dashed var(--vscode-focusBorder)" // Changed from dotted to dashed
+									: isTextAreaFocused
+										? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+										: "none",
+							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
 						}}
 						onScroll={() => updateHighlights()}
 					/>
