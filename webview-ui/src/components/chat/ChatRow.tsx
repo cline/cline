@@ -211,6 +211,7 @@ export const ChatRowContent = ({
 		(event: MouseEvent<HTMLDivElement>) => {
 			const selection = window.getSelection()
 			const selectedText = selection?.toString().trim() ?? ""
+			console.log("[ChatRow] handleMouseUp - Selected text:", selectedText) // Log selected text
 
 			if (selectedText && contentRef.current && selection?.anchorNode && selection?.focusNode) {
 				// Check if selection is fully within the contentRef element
@@ -233,6 +234,12 @@ export const ChatRowContent = ({
 						left: left,
 						selectedText: selectedText,
 					})
+					console.log("[ChatRow] handleMouseUp - Setting quote button state:", {
+						visible: true,
+						top,
+						left,
+						selectedText,
+					}) // Log state set
 					return // Don't hide if selection is valid
 				}
 			}
@@ -251,6 +258,8 @@ export const ChatRowContent = ({
 	)
 
 	const handleQuoteClick = useCallback(() => {
+		console.log("[ChatRow] handleQuoteClick - Function entered") // Log function entry
+		console.log("[ChatRow] handleQuoteClick - Posting setActiveQuote message with text:", quoteButtonState.selectedText) // Log message post
 		vscode.postMessage({ type: "setActiveQuote", text: quoteButtonState.selectedText }) // Use setActiveQuote
 		window.getSelection()?.removeAllRanges() // Clear the browser selection
 		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" }) // Hide the button
@@ -523,7 +532,7 @@ export const ChatRowContent = ({
 										direction: "rtl",
 										textAlign: "left",
 									}}>
-									{cleanPathPrefix(tool.path ?? "") + "\u200E"}
+									{cleanPathPrefix(tool.path ?? "") + ""}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span
@@ -586,7 +595,7 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							{tool.operationIsLocatedInWorkspace === false &&
-								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
 									? "Cline wants to view source code definition names used in this directory:"
@@ -900,7 +909,14 @@ export const ChatRowContent = ({
 						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
 							<Markdown markdown={message.text} />
 							{quoteButtonState.visible && (
-								<QuoteButton top={quoteButtonState.top} left={quoteButtonState.left} onClick={handleQuoteClick} />
+								<QuoteButton
+									top={quoteButtonState.top}
+									left={quoteButtonState.left}
+									onClick={() => {
+										console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
+										handleQuoteClick()
+									}}
+								/>
 							)}
 						</div>
 					)
@@ -945,7 +961,7 @@ export const ChatRowContent = ({
 													textAlign: "left",
 													flex: 1,
 												}}>
-												{message.text + "\u200E"}
+												{message.text + ""}
 											</span>
 											<span
 												className="codicon codicon-chevron-right"
@@ -1344,7 +1360,10 @@ export const ChatRowContent = ({
 									<QuoteButton
 										top={quoteButtonState.top}
 										left={quoteButtonState.left}
-										onClick={handleQuoteClick}
+										onClick={() => {
+											console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
+											handleQuoteClick()
+										}}
 									/>
 								)}
 							</div>
@@ -1405,7 +1424,14 @@ export const ChatRowContent = ({
 								inputValue={inputValue}
 							/>
 							{quoteButtonState.visible && (
-								<QuoteButton top={quoteButtonState.top} left={quoteButtonState.left} onClick={handleQuoteClick} />
+								<QuoteButton
+									top={quoteButtonState.top}
+									left={quoteButtonState.left}
+									onClick={() => {
+										console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
+										handleQuoteClick()
+									}}
+								/>
 							)}
 						</div>
 					)

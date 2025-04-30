@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect } from "react"
 import styled from "styled-components"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
@@ -45,6 +45,11 @@ interface QuotedMessagePreviewProps {
 }
 
 const QuotedMessagePreview: React.FC<QuotedMessagePreviewProps> = ({ text, onDismiss }) => {
+	console.log("[QuotedMessagePreview] Rendering with text:", text) // Log component render
+	useEffect(() => {
+		console.log("[QuotedMessagePreview] Rendering with text:", text) // Log component render
+	}, [text])
+
 	return (
 		<PreviewContainer>
 			<TextContainer title={text}>{text}</TextContainer>

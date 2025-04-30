@@ -8,10 +8,16 @@ interface QuoteButtonProps {
 	onClick: () => void
 }
 
-const ButtonContainer = styled.div<{ top: number; left: number }>`
+// Define props specifically for the styled component using transient props
+interface ButtonContainerProps {
+	$top: number
+	$left: number
+}
+
+const ButtonContainer = styled.div<ButtonContainerProps>`
 	position: absolute;
-	top: ${(props) => props.top}px;
-	left: ${(props) => props.left}px;
+	top: ${(props) => props.$top}px; // Use transient prop $top
+	left: ${(props) => props.$left}px; // Use transient prop $left
 	z-index: 10; // Ensure it's above the text
 	background-color: var(--vscode-button-background);
 	border: 1px solid var(--vscode-button-border);
@@ -27,7 +33,8 @@ const ButtonContainer = styled.div<{ top: number; left: number }>`
 
 const QuoteButton: React.FC<QuoteButtonProps> = ({ top, left, onClick }) => {
 	return (
-		<ButtonContainer top={top} left={left} className="quote-button-class">
+		// Pass transient props to the styled component
+		<ButtonContainer $top={top} $left={left} className="quote-button-class">
 			<VSCodeButton
 				appearance="icon"
 				aria-label="Quote selection"

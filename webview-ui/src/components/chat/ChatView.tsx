@@ -352,6 +352,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			// Prepend the active quote if it exists
 			if (activeQuote && hasContent) {
+				console.log("[ChatView] handleSendMessage - Prepending active quote:", activeQuote) // Log quote prepend
 				const formattedQuote = activeQuote
 					.split("\n")
 					.map((line) => `> ${line}`)
@@ -360,6 +361,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 
 			if (hasContent) {
+				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend) // Log final message
 				if (messages.length === 0) {
 					await TaskServiceClient.newTask({ text: messageToSend, images })
 				} else if (clineAsk) {
@@ -395,6 +397,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 				}
 				setInputValue("")
+				console.log("[ChatView] handleSendMessage - Clearing active quote") // Log quote clear
 				setActiveQuote(null) // Clear quote when sending message
 				setTextAreaDisabled(true)
 				setSelectedImages([])
@@ -542,6 +545,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const handleMessage = useCallback(
 		(e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
+			console.log("[ChatView] handleMessage - Received message:", message) // Log ALL incoming messages
 			switch (message.type) {
 				case "action":
 					switch (message.action!) {
@@ -581,6 +585,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}, 0)
 					break
 				case "setActiveQuote": // Handle the new message type
+					console.log("[ChatView] handleMessage - Received setActiveQuote message:", message.text) // Log message received
 					setActiveQuote(message.text ?? null)
 					textAreaRef.current?.focus() // Focus input when quote is set
 					break
@@ -1065,7 +1070,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)}
 				</>
 			)}
-			{activeQuote && <QuotedMessagePreview text={activeQuote} onDismiss={() => setActiveQuote(null)} />}
+			{/* Log activeQuote state before rendering preview */}
+			{(() => {
+				console.log("[ChatView] Rendering - activeQuote:", activeQuote) // Log here
+				return activeQuote ? <QuotedMessagePreview text={activeQuote} onDismiss={() => setActiveQuote(null)} /> : null
+			})()}
 			<ChatTextArea
 				ref={textAreaRef}
 				inputValue={inputValue}
