@@ -4,10 +4,7 @@
 /* @import "tailwindcss/preflight.css" layer(base); */
 @import "tailwindcss/utilities.css" layer(utilities);
 
-/* HeroUI */
-@plugin './heroui.ts';
-@source '../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
-@custom-variant dark (&:is(.dark *));
+@config "../tailwind.config.js";
 
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);

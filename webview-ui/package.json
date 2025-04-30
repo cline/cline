@@ -15,7 +15,7 @@
 	},
 	"dependencies": {
 		"@floating-ui/react": "^0.27.4",
-		"@heroui/react": "^2.7.6",
+		"@heroui/react": "^2.8.0-beta.2",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
 		"debounce": "^2.1.1",
 		"dompurify": "^3.2.4",
@@ -44,7 +44,7 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.17.0",
-		"@tailwindcss/vite": "^4.0.12",
+		"@tailwindcss/vite": "^4.1.4",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/react": "^16.2.0",
 		"@testing-library/user-event": "^14.6.1",
