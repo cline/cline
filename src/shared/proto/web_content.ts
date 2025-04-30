@@ -6,26 +6,30 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { StringRequest } from "./common"
+import { Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
 export interface ImageUrlCheckResult {
+	metadata?: Metadata | undefined
 	isImage: boolean
 	url: string
 }
 
 function createBaseImageUrlCheckResult(): ImageUrlCheckResult {
-	return { isImage: false, url: "" }
+	return { metadata: undefined, isImage: false, url: "" }
 }
 
 export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 	encode(message: ImageUrlCheckResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
 		if (message.isImage !== false) {
-			writer.uint32(8).bool(message.isImage)
+			writer.uint32(16).bool(message.isImage)
 		}
 		if (message.url !== "") {
-			writer.uint32(18).string(message.url)
+			writer.uint32(26).string(message.url)
 		}
 		return writer
 	},
@@ -38,15 +42,23 @@ export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
 				case 1: {
-					if (tag !== 8) {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
 						break
 					}
 
 					message.isImage = reader.bool()
 					continue
 				}
-				case 2: {
-					if (tag !== 18) {
+				case 3: {
+					if (tag !== 26) {
 						break
 					}
 
@@ -64,6 +76,7 @@ export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 
 	fromJSON(object: any): ImageUrlCheckResult {
 		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
 			isImage: isSet(object.isImage) ? globalThis.Boolean(object.isImage) : false,
 			url: isSet(object.url) ? globalThis.String(object.url) : "",
 		}
@@ -71,6 +84,9 @@ export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 
 	toJSON(message: ImageUrlCheckResult): unknown {
 		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
 		if (message.isImage !== false) {
 			obj.isImage = message.isImage
 		}
@@ -85,6 +101,8 @@ export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 	},
 	fromPartial<I extends Exact<DeepPartial<ImageUrlCheckResult>, I>>(object: I): ImageUrlCheckResult {
 		const message = createBaseImageUrlCheckResult()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
 		message.isImage = object.isImage ?? false
 		message.url = object.url ?? ""
 		return message

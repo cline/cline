@@ -11,6 +11,7 @@ service WebContentService {
 }
 
 message ImageUrlCheckResult {
-  bool is_image = 1;
-  string url = 2;
+  Metadata metadata = 1;
+  bool is_image = 2;
+  string url = 3;
 }

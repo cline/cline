@@ -16,12 +16,14 @@ export async function checkIsImageUrl(controller: Controller, request: StringReq
 		const isImage = await isImageUrl(url)
 
 		return {
+			metadata: request.metadata,
 			isImage,
 			url,
 		}
 	} catch (error) {
 		console.error(`Error checking if URL is an image: ${request.value}`, error)
 		return {
+			metadata: request.metadata,
 			isImage: false,
 			url: request.value || "",
 		}
