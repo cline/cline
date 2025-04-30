@@ -28,7 +28,10 @@ export const CommandExecution = forwardRef<HTMLDivElement, CommandExecutionProps
 
 		const [status, setStatus] = useState<CommandExecutionStatus | null>(null)
 
-		const lines = useMemo(() => output.split("\n").filter((line) => line.trim() !== ""), [output])
+		const lines = useMemo(
+			() => [`$ ${command}`, ...output.split("\n").filter((line) => line.trim() !== "")],
+			[command, output],
+		)
 
 		const onMessage = useCallback(
 			(event: MessageEvent) => {
@@ -61,14 +64,14 @@ export const CommandExecution = forwardRef<HTMLDivElement, CommandExecutionProps
 
 		return (
 			<div ref={ref} className="w-full p-2 rounded-xs bg-vscode-editor-background">
-				<div className="flex flex-row justify-between">
-					<Line>{command}</Line>
-					<div>
+				<div className="flex flex-row items-center justify-between gap-2 px-1">
+					<Line className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">{command}</Line>
+					<div className="flex flex-row items-center gap-1">
 						{status?.status === "running" && (
-							<div className="flex flex-row items-center gap-2 shrink-0 font-mono text-sm">
+							<div className="flex flex-row items-center gap-2 font-mono text-xs">
 								<div className="rounded-full size-1.5 bg-lime-400" />
 								<div>Running</div>
-								{status.pid && <div>(PID: {status.pid})</div>}
+								{status.pid && <div className="whitespace-nowrap">(PID: {status.pid})</div>}
 								<Button
 									variant="ghost"
 									size="icon"
@@ -80,26 +83,30 @@ export const CommandExecution = forwardRef<HTMLDivElement, CommandExecutionProps
 							</div>
 						)}
 						{status?.status === "exited" && (
-							<div className="flex flex-row items-center gap-2 shrink-0 font-mono text-sm">
-								<div className="rounded-full size-1.5 bg-red-400" />
-								<div>Exited ({status.exitCode})</div>
+							<div className="flex flex-row items-center gap-2 font-mono text-xs">
+								<div
+									className={cn(
+										"rounded-full size-1.5",
+										status.exitCode === 0 ? "bg-lime-400" : "bg-red-400",
+									)}
+								/>
+								<div className="whitespace-nowrap">Exited ({status.exitCode})</div>
 							</div>
 						)}
 						{lines.length > 0 && (
-							<div className="flex flex-row items-center justify-end gap-2">
-								<Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)}>
-									<div>Output</div>
-									<ChevronDown
-										className={cn("size-4 transition-transform duration-300", {
-											"rotate-180": isExpanded,
-										})}
-									/>
-								</Button>
-							</div>
+							<Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
+								<ChevronDown
+									className={cn("size-4 transition-transform duration-300", {
+										"rotate-180": isExpanded,
+									})}
+								/>
+							</Button>
 						)}
 					</div>
 				</div>
-				<div className={cn("h-[200px] mt-1 pt-1 border-t border-border/25", { hidden: !isExpanded })}>
+				<div
+					className={cn("mt-1 pt-1 border-t border-border/25", { hidden: !isExpanded })}
+					style={{ height: Math.min((lines.length + 1) * 16, 200) }}>
 					{lines.length > 0 && (
 						<Virtuoso
 							className="h-full"

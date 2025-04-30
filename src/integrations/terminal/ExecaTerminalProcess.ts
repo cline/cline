@@ -60,7 +60,7 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 		} catch (error) {
 			if (error instanceof ExecaError) {
 				console.error(`[ExecaTerminalProcess] shell execution error: ${error.message}`)
-				this.emit("shell_execution_complete", { exitCode: error.exitCode ?? 1, signalName: error.signal })
+				this.emit("shell_execution_complete", { exitCode: error.exitCode ?? 0, signalName: error.signal })
 			} else {
 				this.emit("shell_execution_complete", { exitCode: 1 })
 			}
