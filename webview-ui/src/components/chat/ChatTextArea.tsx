@@ -1380,7 +1380,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 							onHeightChange?.(height)
 						}}
-						placeholder={placeholderText}
+						placeholder={showUnsupportedFileError ? "" : placeholderText}
 						maxRows={10}
 						autoFocus={true}
 						style={{
