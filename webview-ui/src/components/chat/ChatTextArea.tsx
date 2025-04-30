@@ -1029,7 +1029,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (shiftHoldTimerRef.current === null) {
 						shiftHoldTimerRef.current = setTimeout(() => {
 							setShowShiftDragTip(true)
-						}, 250) // 500ms delay
+						}, 250) // 250ms delay
 					}
 				}
 			}
@@ -1510,11 +1510,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<ButtonGroup
 							style={{
 								opacity: showShiftDragTip ? 0 : 1,
-								visibility: showShiftDragTip ? "hidden" : "visible",
-								position: showShiftDragTip ? "absolute" : "relative",
-								transition: "opacity 0.2s ease-in-out",
+								pointerEvents: showShiftDragTip ? "none" : "auto",
+								position: "absolute",
+								top: 0,
+								left: 0,
+								right: 0,
+								transition: "opacity 0.3s ease-in-out",
+								transitionDelay: showShiftDragTip ? "0s" : "0.2s",
 								width: "100%",
 								height: "100%",
+								zIndex: showShiftDragTip ? 0 : 1,
 							}}>
 							<Tooltip tipText="Add Context" style={{ left: 0 }}>
 								<VSCodeButton
@@ -1595,10 +1600,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								padding: "4px 0", // Add padding to match button group height
 								boxSizing: "border-box", // Include padding in height calculation
 								opacity: showShiftDragTip ? 1 : 0,
-								visibility: showShiftDragTip ? "visible" : "hidden",
-								position: showShiftDragTip ? "relative" : "absolute",
-								transition: "opacity 0.2s ease-in-out",
+								pointerEvents: showShiftDragTip ? "auto" : "none",
+								position: "absolute",
+								top: 0,
+								left: 0,
+								right: 0,
+								transition: "opacity 0.3s ease-in-out",
+								transitionDelay: showShiftDragTip ? "0.2s" : "0s",
 								width: "100%",
+								zIndex: showShiftDragTip ? 1 : 0,
 							}}>
 							<span
 								style={{
