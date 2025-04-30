@@ -6,30 +6,30 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { EmptyRequest } from "./common"
+import { Empty, EmptyRequest } from "./common"
 
 export const protobufPackage = "cline"
 
-export interface ExtensionState {
+export interface State {
 	stateJson: string
 }
 
-function createBaseExtensionState(): ExtensionState {
+function createBaseState(): State {
 	return { stateJson: "" }
 }
 
-export const ExtensionState: MessageFns<ExtensionState> = {
-	encode(message: ExtensionState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const State: MessageFns<State> = {
+	encode(message: State, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		if (message.stateJson !== "") {
 			writer.uint32(10).string(message.stateJson)
 		}
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ExtensionState {
+	decode(input: BinaryReader | Uint8Array, length?: number): State {
 		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseExtensionState()
+		const message = createBaseState()
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
@@ -50,11 +50,11 @@ export const ExtensionState: MessageFns<ExtensionState> = {
 		return message
 	},
 
-	fromJSON(object: any): ExtensionState {
+	fromJSON(object: any): State {
 		return { stateJson: isSet(object.stateJson) ? globalThis.String(object.stateJson) : "" }
 	},
 
-	toJSON(message: ExtensionState): unknown {
+	toJSON(message: State): unknown {
 		const obj: any = {}
 		if (message.stateJson !== "") {
 			obj.stateJson = message.stateJson
@@ -62,11 +62,11 @@ export const ExtensionState: MessageFns<ExtensionState> = {
 		return obj
 	},
 
-	create<I extends Exact<DeepPartial<ExtensionState>, I>>(base?: I): ExtensionState {
-		return ExtensionState.fromPartial(base ?? ({} as any))
+	create<I extends Exact<DeepPartial<State>, I>>(base?: I): State {
+		return State.fromPartial(base ?? ({} as any))
 	},
-	fromPartial<I extends Exact<DeepPartial<ExtensionState>, I>>(object: I): ExtensionState {
-		const message = createBaseExtensionState()
+	fromPartial<I extends Exact<DeepPartial<State>, I>>(object: I): State {
+		const message = createBaseState()
 		message.stateJson = object.stateJson ?? ""
 		return message
 	},
@@ -81,8 +81,16 @@ export const StateServiceDefinition = {
 			name: "getLatestState",
 			requestType: EmptyRequest,
 			requestStream: false,
-			responseType: ExtensionState,
+			responseType: Empty,
 			responseStream: false,
+			options: {},
+		},
+		subscribeToState: {
+			name: "subscribeToState",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: State,
+			responseStream: true,
 			options: {},
 		},
 	},

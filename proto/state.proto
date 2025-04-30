@@ -5,6 +5,7 @@ import "common.proto";
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (Empty);
+  rpc subscribeToState(EmptyRequest) returns (stream State);
 }
 
 message State {

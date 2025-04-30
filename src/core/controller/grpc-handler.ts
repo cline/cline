@@ -78,6 +78,11 @@ export class GrpcHandler {
 						request_id: requestId,
 					}
 				case "cline.StateService":
+					if (method === "subscribeToState") {
+						throw new Error(
+							`Method ${method} is a streaming method and should be handled with handleStreamingRequest`,
+						)
+					}
 					return {
 						message: await handleStateServiceRequest(this.controller, method, message),
 						request_id: requestId,
@@ -169,6 +174,11 @@ export class GrpcHandler {
 					} else {
 						throw new Error(`Service ${service} does not support streaming for method ${method}`)
 					}
+					break
+				case "cline.StateService":
+					const stateServiceRegistry = await import("./state")
+					// Use the exported streaming request handler
+					await stateServiceRegistry.handleStreamingRequest(this.controller, method, message, responseStream)
 					break
 				default:
 					throw new Error(`Unknown service: ${service}`)
