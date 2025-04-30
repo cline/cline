@@ -148,6 +148,23 @@ describe("HistoryView", () => {
 		})
 	})
 
+	it("handles selection mode clicks", async () => {
+		const onDone = jest.fn()
+		render(<HistoryView onDone={onDone} />)
+
+		// Go to selection mode
+		fireEvent.click(screen.getByTestId("toggle-selection-mode-button"))
+
+		const taskContainer = screen.getByTestId("task-item-1")
+
+		// Click anywhere in the task item
+		fireEvent.click(taskContainer)
+
+		// Check the box instead of sending a message to open the task
+		expect(within(taskContainer).getByRole("checkbox")).toBeChecked()
+		expect(vscode.postMessage).not.toHaveBeenCalled()
+	})
+
 	describe("task deletion", () => {
 		it("shows confirmation dialog on regular click", () => {
 			const onDone = jest.fn()
