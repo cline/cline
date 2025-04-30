@@ -76,5 +76,6 @@ export type GlobalStateKey =
 	| "planActSeparateModelsSetting"
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
+	| "shellIntegrationTimeout"
 
 export type LocalStateKey = "localClineRulesToggles"

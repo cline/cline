@@ -173,6 +173,7 @@ export class Task {
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
+		shellIntegrationTimeout: number,
 		customInstructions?: string,
 		task?: string,
 		images?: string[],
@@ -191,6 +192,7 @@ export class Task {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
 		this.terminalManager = new TerminalManager()
+		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()

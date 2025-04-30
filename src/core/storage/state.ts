@@ -126,6 +126,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		favoritedModelIds,
 		globalClineRulesToggles,
 		requestTimeoutMs,
+		shellIntegrationTimeout,
 	] = await Promise.all([
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
@@ -200,6 +201,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "requestTimeoutMs") as Promise<number | undefined>,
+		getGlobalState(context, "shellIntegrationTimeout") as Promise<number | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -319,6 +321,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		mcpMarketplaceEnabled,
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
+		shellIntegrationTimeout: shellIntegrationTimeout || 4000,
 	}
 }
 
