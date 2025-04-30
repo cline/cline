@@ -201,12 +201,12 @@
 		"copyToInput": "入力欄にコピー（またはShift + クリック）"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.14 リリース",
-		"description": "Roo Code 3.14は新機能とあなたのフィードバックに基づく改善をもたらします。",
+		"title": "🎉 Roo Code 3.15 リリース",
+		"description": "Roo Code 3.15は新機能とあなたのフィードバックに基づく改善をもたらします。",
 		"whatsNew": "新機能",
-		"feature1": "<bold>編集ツールの改善</bold>: <code>search_and_replace</code>と<code>insert_content</code>ツールが改善され、実験的ステータスから正式機能になりました",
-		"feature2": "<bold>apply_diffの修正</bold>: <code>apply_diff</code>ツールの改善に継続的に取り組んでいます",
-		"feature3": "<bold>その他多数の改善点</bold>: 拡張機能全体にわたる多くの修正と機能強化",
+		"feature1": "<bold>Vertex用プロンプトキャッシング</bold>: Vertex AI向けのプロンプトキャッシングサポートを追加し、応答時間を改善しAPIコストを削減",
+		"feature2": "<bold>ターミナルフォールバック</bold>: VSCodeターミナルシェル統合が失敗した場合のフォールバックメカニズムを実装",
+		"feature3": "<bold>コードスニペットの改善</bold>: チャットインターフェースでのコードスニペットのレンダリングと操作性を向上",
 		"hideButton": "通知を非表示",
 		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
 	},

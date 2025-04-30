@@ -201,12 +201,12 @@
 		"copyToInput": "Kopiuj do pola wprowadzania (lub Shift + kliknięcie)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.14 wydany",
-		"description": "Roo Code 3.14 przynosi nowe funkcje i ulepszenia na podstawie Twoich opinii.",
+		"title": "🎉 Roo Code 3.15 wydany",
+		"description": "Roo Code 3.15 przynosi nowe funkcje i ulepszenia na podstawie Twoich opinii.",
 		"whatsNew": "Co nowego",
-		"feature1": "<bold>Ulepszone narzędzia edycji</bold>: Narzędzia <code>search_and_replace</code> i <code>insert_content</code> zostały ulepszone i nie są już eksperymentalne",
-		"feature2": "<bold>Poprawki apply_diff</bold>: Kontynuujemy pracę nad ulepszaniem narzędzia <code>apply_diff</code>",
-		"feature3": "<bold>Mnóstwo innych ulepszeń</bold>: Liczne poprawki i usprawnienia w całym rozszerzeniu",
+		"feature1": "<bold>Buforowanie podpowiedzi dla Vertex</bold>: Dodano obsługę buforowania podpowiedzi dla Vertex AI, poprawiając czasy odpowiedzi i zmniejszając koszty API",
+		"feature2": "<bold>Mechanizm awaryjny dla Terminala</bold>: Zaimplementowano mechanizm awaryjny w przypadku awarii integracji powłoki terminala VSCode",
+		"feature3": "<bold>Ulepszone fragmenty kodu</bold>: Ulepszono renderowanie i interakcję z fragmentami kodu w interfejsie czatu",
 		"hideButton": "Ukryj ogłoszenie",
 		"detailsDiscussLinks": "Uzyskaj więcej szczegółów i dołącz do dyskusji na <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},

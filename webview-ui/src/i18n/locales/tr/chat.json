@@ -201,12 +201,12 @@
 		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.14 Yayınlandı",
-		"description": "Roo Code 3.14 geri bildirimlerinize dayalı yeni özellikler ve iyileştirmeler getiriyor.",
+		"title": "🎉 Roo Code 3.15 Yayınlandı",
+		"description": "Roo Code 3.15 geri bildirimlerinize dayalı yeni özellikler ve iyileştirmeler getiriyor.",
 		"whatsNew": "Yenilikler",
-		"feature1": "<bold>Geliştirilmiş Düzenleme Araçları</bold>: <code>search_and_replace</code> ve <code>insert_content</code> araçları iyileştirildi ve deneysel statüsünden çıkarıldı",
-		"feature2": "<bold>Apply_diff İyileştirmeleri</bold>: <code>apply_diff</code> aracını geliştirmeye devam ediyoruz",
-		"feature3": "<bold>Çok Sayıda Diğer İyileştirme</bold>: Eklenti genelinde sayısız düzeltme ve geliştirme",
+		"feature1": "<bold>Vertex için İstem Önbelleği</bold>: Vertex AI için istem önbelleği desteği eklendi, yanıt sürelerini iyileştiriyor ve API maliyetlerini azaltıyor",
+		"feature2": "<bold>Terminal Yedek Mekanizması</bold>: VSCode terminal kabuk entegrasyonu başarısız olduğunda devreye giren yedek mekanizma uygulandı",
+		"feature3": "<bold>Geliştirilmiş Kod Parçacıkları</bold>: Sohbet arayüzünde kod parçacıklarının görüntülenmesi ve etkileşimi iyileştirildi",
 		"hideButton": "Duyuruyu gizle",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
 	},

@@ -49,13 +49,13 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.14 Released
+## 🎉 Roo Code 3.15 Released
 
-Roo Code 3.14 brings new features and improvements based on your feedback!
+Roo Code 3.15 brings new features and improvements based on your feedback!
 
-- **Prompt Caching** - `gemini-2.5-pro-preview-03-25` now supports prompt caching in the Gemini provider (Vertex and OpenRouter coming soon).
-- **Improved Editing Tools** - The `search_and_replace` and `insert_content` tools have been improved and graduated from experimental status.
-- **Tons of Other Improvements** - Numerous fixes and enhancements throughout the extension.
+- **Prompt Caching for Vertex** - Vertex AI now supports prompt caching, improving response times and reducing API costs.
+- **Terminal Fallback** - Implemented a fallback mechanism when VSCode terminal shell integration fails, ensuring more reliable terminal operations.
+- **Improved Code Snippets** - Enhanced code snippet rendering and interaction in the chat interface for better readability and usability.
 
 ---
 
