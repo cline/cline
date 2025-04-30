@@ -1616,7 +1616,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									color: "var(--vscode-descriptionForeground)",
 									whiteSpace: "nowrap",
 								}}>
-								Hold Shift to Drag Files
+								Hold Shift to Drop Files
 							</span>
 						</div>
 					</div>
