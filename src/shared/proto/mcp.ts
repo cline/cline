@@ -65,6 +65,12 @@ export interface UpdateMcpTimeoutRequest {
 	timeout: number
 }
 
+export interface AddRemoteMcpServerRequest {
+	metadata?: Metadata | undefined
+	serverName: string
+	serverUrl: string
+}
+
 export interface McpTool {
 	name: string
 	description?: string | undefined
@@ -284,6 +290,99 @@ export const UpdateMcpTimeoutRequest: MessageFns<UpdateMcpTimeoutRequest> = {
 			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
 		message.serverName = object.serverName ?? ""
 		message.timeout = object.timeout ?? 0
+		return message
+	},
+}
+
+function createBaseAddRemoteMcpServerRequest(): AddRemoteMcpServerRequest {
+	return { metadata: undefined, serverName: "", serverUrl: "" }
+}
+
+export const AddRemoteMcpServerRequest: MessageFns<AddRemoteMcpServerRequest> = {
+	encode(message: AddRemoteMcpServerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.serverName !== "") {
+			writer.uint32(18).string(message.serverName)
+		}
+		if (message.serverUrl !== "") {
+			writer.uint32(26).string(message.serverUrl)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): AddRemoteMcpServerRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseAddRemoteMcpServerRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.serverName = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.serverUrl = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): AddRemoteMcpServerRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+			serverUrl: isSet(object.serverUrl) ? globalThis.String(object.serverUrl) : "",
+		}
+	},
+
+	toJSON(message: AddRemoteMcpServerRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.serverName !== "") {
+			obj.serverName = message.serverName
+		}
+		if (message.serverUrl !== "") {
+			obj.serverUrl = message.serverUrl
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<AddRemoteMcpServerRequest>, I>>(base?: I): AddRemoteMcpServerRequest {
+		return AddRemoteMcpServerRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<AddRemoteMcpServerRequest>, I>>(object: I): AddRemoteMcpServerRequest {
+		const message = createBaseAddRemoteMcpServerRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.serverName = object.serverName ?? ""
+		message.serverUrl = object.serverUrl ?? ""
 		return message
 	},
 }
@@ -892,6 +991,14 @@ export const McpServiceDefinition = {
 		updateMcpTimeout: {
 			name: "updateMcpTimeout",
 			requestType: UpdateMcpTimeoutRequest,
+			requestStream: false,
+			responseType: McpServers,
+			responseStream: false,
+			options: {},
+		},
+		addRemoteMcpServer: {
+			name: "addRemoteMcpServer",
+			requestType: AddRemoteMcpServerRequest,
 			requestStream: false,
 			responseType: McpServers,
 			responseStream: false,
