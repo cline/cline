@@ -237,7 +237,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	) => {
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
-		const [isDraggingOver, setIsDraggingOver] = useState(false) // State for drag feedback
+		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
@@ -267,10 +267,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
-		const [showShiftDragTip, setShowShiftDragTip] = useState(false) // State for the shift drag tip
-		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null) // Ref for the timer
-		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false) // State for unsupported file error
-		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null) // Ref for the error timer
+		const [showShiftDragTip, setShowShiftDragTip] = useState(false)
+		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
+		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -1060,13 +1060,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, []) // Empty dependency array ensures this runs only once on mount/unmount
 
-		/**
-		 * Handles the drag over event to allow dropping.
-		 * Prevents the default behavior to enable drop.
-		 *
-		 * @param {React.DragEvent} e - The drag event.
-		 */
-		// Function to show error message for unsupported files
+		// Function to show error message for unsupported files for drag and drop
 		const showUnsupportedFileErrorMessage = () => {
 			// Show error message for unsupported files
 			setShowUnsupportedFileError(true)
@@ -1105,6 +1099,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}
 
+		/**
+		 * Handles the drag over event to allow dropping.
+		 * Prevents the default behavior to enable drop.
+		 *
+		 * @param {React.DragEvent} e - The drag event.
+		 */
 		const onDragOver = (e: React.DragEvent) => {
 			e.preventDefault()
 			// Ensure state remains true if dragging continues over the element
@@ -1278,10 +1278,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}}
 					onDrop={onDrop}
 					onDragOver={onDragOver}
-					onDragEnter={handleDragEnter} // Add handler
-					onDragLeave={handleDragLeave} // Add handler
-				>
-					{/* Error message for unsupported files */}
+					onDragEnter={handleDragEnter}
+					onDragLeave={handleDragLeave}>
 					{showUnsupportedFileError && (
 						<div
 							style={{
@@ -1434,7 +1432,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							zIndex: 1,
 							outline:
 								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
-									? "2px dashed var(--vscode-focusBorder)" // Changed from dotted to dashed
+									? "2px dashed var(--vscode-focusBorder)"
 									: isTextAreaFocused
 										? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
 										: "none",
@@ -1516,7 +1514,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								position: showShiftDragTip ? "absolute" : "relative",
 								transition: "opacity 0.2s ease-in-out",
 								width: "100%",
-								height: "100%", // Fill the container height
+								height: "100%",
 							}}>
 							<Tooltip tipText="Add Context" style={{ left: 0 }}>
 								<VSCodeButton
