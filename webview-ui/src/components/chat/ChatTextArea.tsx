@@ -1066,6 +1066,23 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 *
 		 * @param {React.DragEvent} e - The drag event.
 		 */
+		// Function to show error message for unsupported files
+		const showUnsupportedFileErrorMessage = () => {
+			// Show error message for unsupported files
+			setShowUnsupportedFileError(true)
+
+			// Clear any existing timer
+			if (unsupportedFileTimerRef.current) {
+				clearTimeout(unsupportedFileTimerRef.current)
+			}
+
+			// Set timer to hide error after 3 seconds
+			unsupportedFileTimerRef.current = setTimeout(() => {
+				setShowUnsupportedFileError(false)
+				unsupportedFileTimerRef.current = null
+			}, 3000)
+		}
+
 		const handleDragEnter = (e: React.DragEvent) => {
 			e.preventDefault()
 			setIsDraggingOver(true)
@@ -1083,19 +1100,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				})
 
 				if (hasNonImageFile) {
-					// Show error message for unsupported files
-					setShowUnsupportedFileError(true)
-
-					// Clear any existing timer
-					if (unsupportedFileTimerRef.current) {
-						clearTimeout(unsupportedFileTimerRef.current)
-					}
-
-					// Set timer to hide error after 3 seconds
-					unsupportedFileTimerRef.current = setTimeout(() => {
-						setShowUnsupportedFileError(false)
-						unsupportedFileTimerRef.current = null
-					}, 3000)
+					showUnsupportedFileErrorMessage()
 				}
 			}
 		}
@@ -1117,6 +1122,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				// Don't clear the error message here, let it time out naturally
 			}
 		}
+
+		// Effect to detect when drag operation ends outside the component
+		useEffect(() => {
+			const handleGlobalDragEnd = () => {
+				// This will be triggered when the drag operation ends anywhere
+				setIsDraggingOver(false)
+				// Don't clear error message, let it time out naturally
+			}
+
+			document.addEventListener("dragend", handleGlobalDragEnd)
+
+			return () => {
+				document.removeEventListener("dragend", handleGlobalDragEnd)
+			}
+		}, [])
 
 		/**
 		 * Handles the drop event for files and text.
