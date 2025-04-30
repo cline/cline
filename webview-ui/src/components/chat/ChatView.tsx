@@ -564,6 +564,22 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}
 					}, 0)
 					break
+				case "quoteText":
+					setInputValue((prevValue) => {
+						const quotedText = message.text ?? ""
+						const formattedQuote = quotedText
+							.split("\n")
+							.map((line) => `> ${line}`)
+							.join("\n")
+						return prevValue ? `${prevValue}\n\n${formattedQuote}\n\n` : `${formattedQuote}\n\n`
+					})
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
+							textAreaRef.current.focus()
+						}
+					}, 0)
+					break
 				case "invoke":
 					switch (message.invoke!) {
 						case "sendMessage":

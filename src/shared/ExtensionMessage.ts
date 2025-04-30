@@ -48,6 +48,7 @@ export interface ExtensionMessage {
 		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
+		| "quoteText" // For quoting selected text
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:

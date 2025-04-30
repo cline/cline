@@ -1,6 +1,7 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState, MouseEvent } from "react"
+
 import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
 import {
@@ -34,6 +35,7 @@ import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import NewTaskPreview from "./NewTaskPreview"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import UserMessage from "./UserMessage"
+import QuoteButton from "./QuoteButton" // Import the new component
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -53,6 +55,13 @@ interface ChatRowProps {
 	onHeightChange: (isTaller: boolean) => void
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
+}
+
+interface QuoteButtonState {
+	visible: boolean
+	top: number
+	left: number
+	selectedText: string
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -121,6 +130,25 @@ const ChatRow = memo(
 
 export default ChatRow
 
+// Helper function to parse error text
+function parseErrorText(text: string | undefined) {
+	if (!text) {
+		return undefined
+	}
+	try {
+		const startIndex = text.indexOf("{")
+		const endIndex = text.lastIndexOf("}")
+		if (startIndex !== -1 && endIndex !== -1) {
+			const jsonStr = text.substring(startIndex, endIndex + 1)
+			const errorObject = JSON.parse(jsonStr)
+			return errorObject
+		}
+	} catch (e) {
+		// Not JSON or missing required fields
+	}
+	return undefined
+}
+
 export const ChatRowContent = ({
 	message,
 	isExpanded,
@@ -132,7 +160,13 @@ export const ChatRowContent = ({
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
-
+	const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
+		visible: false,
+		top: 0,
+		left: 0,
+		selectedText: "",
+	})
+	const contentRef = useRef<HTMLDivElement>(null) // Ref for the content area
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -172,6 +206,55 @@ export const ChatRowContent = ({
 	}, [])
 
 	useEvent("message", handleMessage)
+	// --- Quote Button Logic ---
+	const handleMouseUp = useCallback(
+		(event: MouseEvent<HTMLDivElement>) => {
+			const selection = window.getSelection()
+			const selectedText = selection?.toString().trim() ?? ""
+
+			if (selectedText && contentRef.current && selection?.anchorNode && selection?.focusNode) {
+				// Check if selection is fully within the contentRef element
+				const isSelectionWithin =
+					contentRef.current.contains(selection.anchorNode) && contentRef.current.contains(selection.focusNode)
+
+				if (isSelectionWithin) {
+					const range = selection.getRangeAt(0)
+					const rect = range.getBoundingClientRect()
+					const containerRect = contentRef.current.getBoundingClientRect()
+
+					// Position button relative to the container
+					const top = rect.bottom - containerRect.top + window.scrollY + 5 // 5px below selection
+					const left = rect.right - containerRect.left + window.scrollX - 15 // 15px offset from right edge
+
+					setQuoteButtonState({
+						visible: true,
+						top: top,
+						left: left,
+						selectedText: selectedText,
+					})
+					return // Don't hide if selection is valid
+				}
+			}
+
+			// If no valid selection or selection outside, hide the button
+			if (quoteButtonState.visible) {
+				// Check if the click was on the quote button itself
+				const targetElement = event.target as Element
+				if (!targetElement.closest(".quote-button-class")) {
+					// Assuming QuoteButton has this class
+					setQuoteButtonState((prev) => ({ ...prev, visible: false }))
+				}
+			}
+		},
+		[quoteButtonState.visible],
+	)
+
+	const handleQuoteClick = useCallback(() => {
+		vscode.postMessage({ type: "quoteText", text: quoteButtonState.selectedText })
+		window.getSelection()?.removeAllRanges()
+		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
+	}, [quoteButtonState.selectedText])
+	// --- End Quote Button Logic ---
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
@@ -1316,22 +1399,5 @@ export const ChatRowContent = ({
 				default:
 					return null
 			}
-	}
-}
-
-function parseErrorText(text: string | undefined) {
-	if (!text) {
-		return undefined
-	}
-	try {
-		const startIndex = text.indexOf("{")
-		const endIndex = text.lastIndexOf("}")
-		if (startIndex !== -1 && endIndex !== -1) {
-			const jsonStr = text.substring(startIndex, endIndex + 1)
-			const errorObject = JSON.parse(jsonStr)
-			return errorObject
-		}
-	} catch (e) {
-		// Not JSON or missing required fields
 	}
 }
