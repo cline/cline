@@ -269,6 +269,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
 		const [showShiftDragTip, setShowShiftDragTip] = useState(false) // State for the shift drag tip
 		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null) // Ref for the timer
+		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false) // State for unsupported file error
+		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null) // Ref for the error timer
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -1067,6 +1069,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handleDragEnter = (e: React.DragEvent) => {
 			e.preventDefault()
 			setIsDraggingOver(true)
+
+			// Check if files are being dragged
+			if (e.dataTransfer.types.includes("Files")) {
+				// Check if any of the files are not images
+				const items = Array.from(e.dataTransfer.items)
+				const hasNonImageFile = items.some((item) => {
+					if (item.kind === "file") {
+						const type = item.type.split("/")[0]
+						return type !== "image"
+					}
+					return false
+				})
+
+				if (hasNonImageFile) {
+					// Show error message for unsupported files
+					setShowUnsupportedFileError(true)
+
+					// Clear any existing timer
+					if (unsupportedFileTimerRef.current) {
+						clearTimeout(unsupportedFileTimerRef.current)
+					}
+
+					// Set timer to hide error after 3 seconds
+					unsupportedFileTimerRef.current = setTimeout(() => {
+						setShowUnsupportedFileError(false)
+						unsupportedFileTimerRef.current = null
+					}, 3000)
+				}
+			}
 		}
 
 		const onDragOver = (e: React.DragEvent) => {
@@ -1083,6 +1114,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const dropZone = e.currentTarget as HTMLElement
 			if (!dropZone.contains(e.relatedTarget as Node)) {
 				setIsDraggingOver(false)
+				// Don't clear the error message here, let it time out naturally
 			}
 		}
 
@@ -1095,6 +1127,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
 			setIsDraggingOver(false) // Reset state on drop
+
+			// Clear any error message when something is actually dropped
+			setShowUnsupportedFileError(false)
+			if (unsupportedFileTimerRef.current) {
+				clearTimeout(unsupportedFileTimerRef.current)
+				unsupportedFileTimerRef.current = null
+			}
 
 			// --- 1. VSCode Explorer Drop Handling ---
 			let uris: string[] = []
@@ -1222,6 +1261,31 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragEnter={handleDragEnter} // Add handler
 					onDragLeave={handleDragLeave} // Add handler
 				>
+					{/* Error message for unsupported files */}
+					{showUnsupportedFileError && (
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px",
+								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
+								border: "2px solid var(--vscode-errorForeground)",
+								borderRadius: 2,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								zIndex: 10,
+								pointerEvents: "none",
+							}}>
+							<span
+								style={{
+									color: "var(--vscode-errorForeground)",
+									fontWeight: "bold",
+									fontSize: "12px",
+								}}>
+								Only image files are supported
+							</span>
+						</div>
+					)}
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
@@ -1523,7 +1587,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									color: "var(--vscode-descriptionForeground)",
 									whiteSpace: "nowrap",
 								}}>
-								Drag, then Shift
+								Drag, hold shift, then drop
 							</span>
 						</div>
 					</div>
