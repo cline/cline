@@ -2,6 +2,7 @@ import { mentionRegex } from "@roo/shared/context-mentions"
 import { Fzf } from "fzf"
 import { ModeConfig } from "@roo/shared/modes"
 import * as path from "path"
+import { escapeSpaces } from "./path-mentions"
 
 export interface SearchResult {
 	path: string
@@ -27,6 +28,15 @@ export function insertMention(
 	// Find the position of the last '@' symbol before the cursor
 	const lastAtIndex = beforeCursor.lastIndexOf("@")
 
+	// Process the value - escape spaces if it's a file path
+	let processedValue = value
+	if (value && value.startsWith("/")) {
+		// Only escape if the path contains spaces that aren't already escaped
+		if (value.includes(" ") && !value.includes("\\ ")) {
+			processedValue = escapeSpaces(value)
+		}
+	}
+
 	let newValue: string
 	let mentionIndex: number
 
@@ -38,11 +48,11 @@ export function insertMention(
 		const afterCursorContent = /^[a-zA-Z0-9\s]*$/.test(afterCursor)
 			? afterCursor.replace(/^[^\s]*/, "")
 			: afterCursor
-		newValue = beforeMention + "@" + value + " " + afterCursorContent
+		newValue = beforeMention + "@" + processedValue + " " + afterCursorContent
 		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position
-		newValue = beforeCursor + "@" + value + " " + afterCursor
+		newValue = beforeCursor + "@" + processedValue + " " + afterCursor
 		mentionIndex = position
 	}
 
@@ -58,8 +68,11 @@ export function removeMention(text: string, position: number): { newText: string
 
 	if (matchEnd) {
 		// If we're at the end of a mention, remove it
-		const newText = text.slice(0, position - matchEnd[0].length) + afterCursor.replace(" ", "") // removes the first space after the mention
-		const newPosition = position - matchEnd[0].length
+		// Remove the mention and the first space that follows it
+		const mentionLength = matchEnd[0].length
+		// Remove the mention and one space after it if it exists
+		const newText = text.slice(0, position - mentionLength) + afterCursor.replace(/^\s/, "")
+		const newPosition = position - mentionLength
 		return { newText, newPosition }
 	}
 
@@ -236,13 +249,21 @@ export function getContextMenuOptions(
 
 	// Convert search results to queryItems format
 	const searchResultItems = dynamicSearchResults.map((result) => {
-		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+		// Ensure paths start with / for consistency
+		let formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+
+		// For display purposes, we don't escape spaces in the label or description
+		const displayPath = formattedPath
+		const displayName = result.label || path.basename(result.path)
+
+		// We don't need to escape spaces here because the insertMention function
+		// will handle that when the user selects a suggestion
 
 		return {
 			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
 			value: formattedPath,
-			label: result.label || path.basename(result.path),
-			description: formattedPath,
+			label: displayName,
+			description: displayPath,
 		}
 	})
 
@@ -285,8 +306,11 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 
 	const textAfterAt = beforeCursor.slice(atIndex + 1)
 
-	// Check if there's any whitespace after the '@'
-	if (/\s/.test(textAfterAt)) return false
+	// Check if there's any unescaped whitespace after the '@'
+	// We need to check for whitespace that isn't preceded by a backslash
+	// Using a negative lookbehind to ensure the space isn't escaped
+	const hasUnescapedSpace = /(?<!\\)\s/.test(textAfterAt)
+	if (hasUnescapedSpace) return false
 
 	// Don't show the menu if it's clearly a URL
 	if (textAfterAt.toLowerCase().startsWith("http")) {

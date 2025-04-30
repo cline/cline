@@ -3,9 +3,20 @@
  */
 
 /**
+ * Escapes spaces in a path with backslashes
+ *
+ * @param path The path to escape
+ * @returns A path with spaces escaped
+ */
+export function escapeSpaces(path: string): string {
+	return path.replace(/ /g, "\\ ")
+}
+
+/**
  * Converts an absolute path to a mention-friendly path
  * If the provided path starts with the current working directory,
  * it's converted to a relative path prefixed with @
+ * Spaces in the path are escaped with backslashes
  *
  * @param path The path to convert
  * @param cwd The current working directory
@@ -55,9 +66,14 @@ export function convertToMentionPath(path: string, cwd?: string): string {
 	const lowerCwd = normalizedCwd.toLowerCase()
 
 	if (lowerPath.startsWith(lowerCwd)) {
-		const relativePath = normalizedPath.substring(normalizedCwd.length)
+		let relativePath = normalizedPath.substring(normalizedCwd.length)
 		// Ensure there's a slash after the @ symbol when we create the mention path
-		return "@" + (relativePath.startsWith("/") ? relativePath : "/" + relativePath)
+		relativePath = relativePath.startsWith("/") ? relativePath : "/" + relativePath
+
+		// Escape any spaces in the path with backslashes
+		const escapedRelativePath = escapeSpaces(relativePath)
+
+		return "@" + escapedRelativePath
 	}
 
 	return pathWithoutProtocol

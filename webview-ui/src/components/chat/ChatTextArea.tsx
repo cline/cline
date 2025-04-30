@@ -2,7 +2,7 @@ import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, us
 import { useEvent } from "react-use"
 import DynamicTextArea from "react-textarea-autosize"
 
-import { mentionRegex, mentionRegexGlobal } from "@roo/shared/context-mentions"
+import { mentionRegex, mentionRegexGlobal, unescapeSpaces } from "@roo/shared/context-mentions"
 import { WebviewMessage } from "@roo/shared/WebviewMessage"
 import { Mode, getAllModes } from "@roo/shared/modes"
 import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
@@ -470,7 +470,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								// Send message to extension to search files
 								vscode.postMessage({
 									type: "searchFiles",
-									query: query,
+									query: unescapeSpaces(query),
 									requestId: reqId,
 								})
 							}, 200) // 200ms debounce

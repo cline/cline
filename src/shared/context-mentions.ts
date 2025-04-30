@@ -16,10 +16,13 @@ Mention regex:
 	  - `\/`: 
 		- **Slash (`/`)**: Indicates that the mention is a file or folder path starting with a '/'.
 	  - `|`: Logical OR.
-	  - `\w+:\/\/`: 
-		- **Protocol (`\w+://`)**: Matches URLs that start with a word character sequence followed by '://', such as 'http://', 'https://', 'ftp://', etc.
-	- `[^\s]+?`: 
-	  - **Non-Whitespace Characters (`[^\s]+`)**: Matches one or more characters that are not whitespace.
+	  - `\w+:\/\/`:
+	    - **Protocol (`\w+://`)**: Matches URLs that start with a word character sequence followed by '://', such as 'http://', 'https://', 'ftp://', etc.
+	- `(?:[^\s\\]|\\ )+?`:
+	  - **Non-Capturing Group (`(?:...)`)**: Groups the alternatives without capturing them.
+	  - **Non-Whitespace and Non-Backslash (`[^\s\\]`)**: Matches any character that is not whitespace or a backslash.
+	  - **OR (`|`)**: Logical OR.
+	  - **Escaped Space (`\\ `)**: Matches a backslash followed by a space (an escaped space).
 	  - **Non-Greedy (`+?`)**: Ensures the smallest possible match, preventing the inclusion of trailing punctuation.
 	- `|`: Logical OR.
 	- `problems\b`: 
@@ -39,6 +42,7 @@ Mention regex:
 - **Summary**:
   - The regex effectively matches:
 	- Mentions that are file or folder paths starting with '/' and containing any non-whitespace characters (including periods within the path).
+	- File paths can include spaces if they are escaped with a backslash (e.g., `@/path/to/file\ with\ spaces.txt`).
 	- URLs that start with a protocol (like 'http://') followed by any non-whitespace characters (including query parameters).
 	- The exact word 'problems'.
 	- The exact word 'git-changes'.
@@ -50,7 +54,7 @@ Mention regex:
 
 */
 export const mentionRegex =
-	/@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b|terminal\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
+	/@((?:\/|\w+:\/\/)(?:[^\s\\]|\\ )+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b|terminal\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
 export const mentionRegexGlobal = new RegExp(mentionRegex.source, "g")
 
 export interface MentionSuggestion {
@@ -89,4 +93,9 @@ export function formatGitSuggestion(commit: {
 		author: commit.author,
 		date: commit.date,
 	}
+}
+
+// Helper function to unescape paths with backslash-escaped spaces
+export function unescapeSpaces(path: string): string {
+	return path.replace(/\\ /g, " ")
 }
