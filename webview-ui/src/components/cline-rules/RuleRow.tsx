@@ -1,6 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { FileServiceClient } from "@/services/grpc-client"
-import { DeleteRuleFileRequest } from "@shared/proto/file"
+import { DeleteRuleFileRequest } from "@shared/ruleFileOperations"
 
 const RuleRow: React.FC<{
 	rulePath: string

@@ -40,5 +40,6 @@ export const deleteRuleFile: FileMethodHandler = async (controller: Controller, 
 	return RuleFile.create({
 		filePath: request.rulePath,
 		displayName: fileName,
+		alreadyExists: false,
 	})
 }
