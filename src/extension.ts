@@ -12,7 +12,6 @@ import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
-import { WelcomeTabProvider } from "./core/welcome/WelcomeTabProvider"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -35,24 +34,7 @@ export function activate(context: vscode.ExtensionContext) {
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
 
-	// Create the welcome tab provider
-	const welcomeTabProvider = new WelcomeTabProvider(context)
-
-	// Show the welcome tab if it hasn't been shown before
-	welcomeTabProvider.showWelcomeTabIfNeeded().catch((err) => {
-		Logger.error("Failed to show welcome tab", err)
-	})
-
-	// Register command to manually show the welcome tab
-	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.showWelcomeTab", () => {
-			welcomeTabProvider.showWelcomeTab().catch((err) => {
-				Logger.error("Failed to show welcome tab", err)
-			})
-		}),
-	)
-
-	const sidebarWebview = new WebviewProvider(context, outputChannel)
+	const sidebarWebview = new WebviewProvider(context, outputChannel, "sidebar")
 
 	// Initialize test mode and add disposables to context
 	context.subscriptions.push(...initializeTestMode(context, sidebarWebview))
@@ -104,7 +86,7 @@ export function activate(context: vscode.ExtensionContext) {
 		Logger.log("Opening Cline in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-		const tabWebview = new WebviewProvider(context, outputChannel)
+		const tabWebview = new WebviewProvider(context, outputChannel, "tab")
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
@@ -132,6 +114,8 @@ export function activate(context: vscode.ExtensionContext) {
 		await setTimeoutPromise(100)
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 	}
+
+	checkInstallationStatus(context)
 
 	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
 	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
@@ -441,6 +425,24 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	return createClineAPI(outputChannel, sidebarWebview.controller)
+
+	async function checkInstallationStatus(context: vscode.ExtensionContext) {
+		const VERSION_KEY = "cline.version"
+		const current = context.extension.packageJSON.version as string
+		const previous = context.globalState.get<string>(VERSION_KEY)
+
+		if (!previous) {
+			// ── first-ever install ──
+			WebviewProvider.getTabInstances().forEach(async (tab) => {
+				const state = await tab.controller.getStateToPostToWebview()
+				state.showWelcome = true
+				await tab.controller.postMessageToWebview({ type: "state", state })
+			})
+			openClineInNewTab()
+		}
+		// persist for the next activation
+		await context.globalState.update(VERSION_KEY, current)
+	}
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.

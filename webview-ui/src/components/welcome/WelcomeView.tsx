@@ -1,33 +1,21 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState, memo } from "react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { validateApiConfiguration } from "@/utils/validate"
-import { vscode } from "@/utils/vscode"
-import ApiOptions from "@/components/settings/ApiOptions"
+import { memo, Dispatch, SetStateAction } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
+import ApiOptionsSection from "./ApiOptionsSection"
 
-const WelcomeView = memo(() => {
-	const { apiConfiguration } = useExtensionState()
-	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
-	const [showApiOptions, setShowApiOptions] = useState(false)
+interface WelcomeViewProps {
+	showApiOptions: boolean
+	setShowApiOptions: Dispatch<SetStateAction<boolean>>
+}
 
-	const disableLetsGoButton = apiErrorMessage != null
-
+const WelcomeView = memo(({ showApiOptions, setShowApiOptions }: WelcomeViewProps) => {
 	const handleLogin = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
 			console.error("Failed to get login URL:", err),
 		)
 	}
-
-	const handleSubmit = () => {
-		vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-	}
-
-	useEffect(() => {
-		setApiErrorMessage(validateApiConfiguration(apiConfiguration))
-	}, [apiConfiguration])
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
@@ -64,16 +52,7 @@ const WelcomeView = memo(() => {
 					</VSCodeButton>
 				)}
 
-				<div className="mt-4.5">
-					{showApiOptions && (
-						<div>
-							<ApiOptions showModelOptions={false} />
-							<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} className="mt-0.75">
-								Let's go!
-							</VSCodeButton>
-						</div>
-					)}
-				</div>
+				<ApiOptionsSection showApiOptions={showApiOptions} />
 			</div>
 		</div>
 	)

@@ -61,6 +61,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		clineMessages: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,
+		showWelcome: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
@@ -106,33 +107,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							: prevState.autoApprovalSettings,
 					}
 				})
-				const config = message.state?.apiConfiguration
-				const hasKey = config
-					? [
-							config.apiKey,
-							config.openRouterApiKey,
-							config.awsRegion,
-							config.vertexProjectId,
-							config.openAiApiKey,
-							config.ollamaModelId,
-							config.lmStudioModelId,
-							config.liteLlmApiKey,
-							config.geminiApiKey,
-							config.openAiNativeApiKey,
-							config.deepSeekApiKey,
-							config.requestyApiKey,
-							config.togetherApiKey,
-							config.qwenApiKey,
-							config.doubaoApiKey,
-							config.mistralApiKey,
-							config.vsCodeLmModelSelector,
-							config.clineApiKey,
-							config.asksageApiKey,
-							config.xaiApiKey,
-							config.sambanovaApiKey,
-						].some((key) => key !== undefined)
-					: false
-				setShowWelcome(!hasKey)
+				setShowWelcome(true)
 				setDidHydrateState(true)
 				break
 			}

@@ -285,11 +285,6 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
-				},
-				"cline.showWelcomeTabOnInstall": {
-					"type": "boolean",
-					"default": true,
-					"description": "Controls whether the welcome tab is shown when the extension is installed."
 				}
 			}
 		}

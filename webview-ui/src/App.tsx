@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { WebviewType } from "@shared/WebviewMessage"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
 import SettingsView from "./components/settings/SettingsView"
-import WelcomeView from "./components/welcome/WelcomeView"
 import AccountView from "./components/account/AccountView"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
@@ -97,7 +97,7 @@ const AppContent = () => {
 	return (
 		<>
 			{showWelcome ? (
-				<WelcomeView />
+				<WelcomeWrapper />
 			) : (
 				<>
 					{showSettings && <SettingsView onDone={hideSettings} />}
