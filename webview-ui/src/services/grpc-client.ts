@@ -80,6 +80,7 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 							if (options.onError) {
 								options.onError(new Error(message.grpc_response.error))
 							}
+							// Only remove the event listener on error
 							window.removeEventListener("message", handleResponse)
 						} else if (message.grpc_response.is_streaming === false) {
 							// End of stream
@@ -93,12 +94,14 @@ function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T>
 							if (options.onComplete) {
 								options.onComplete()
 							}
+							// Only remove the event listener when the stream is explicitly ended
 							window.removeEventListener("message", handleResponse)
 						} else {
 							// Process streaming message
 							if (message.grpc_response.message) {
 								const responseType = method.responseType
 								const response = responseType.fromJSON(message.grpc_response.message)
+								console.log("[DEBUG] Received streaming response:", message.grpc_response.message)
 								options.onResponse(response)
 							}
 						}

@@ -52,13 +52,15 @@ export async function sendStateUpdate(state: any): Promise<void> {
 	// Send the update to all active subscribers
 	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
 		try {
+			// The issue might be that we're not properly formatting the response
+			// Let's ensure we're sending a properly formatted State message
 			await responseStream(
 				{
 					stateJson,
 				},
-				false,
-			) // Not the last message
-			console.log("[DEBUG] sending followup state", stateJson)
+				false, // Not the last message
+			)
+			console.log("[DEBUG] sending followup state", stateJson.length, "chars")
 		} catch (error) {
 			console.error("Error sending state update:", error)
 			// Remove the subscription if there was an error

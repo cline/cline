@@ -184,8 +184,8 @@ export class GrpcHandler {
 					throw new Error(`Unknown service: ${service}`)
 			}
 
-			// Send a final empty message to indicate the end of the stream if not already sent
-			await responseStream(null, true)
+			// Don't send a final message here - the stream should stay open for future updates
+			// The stream will be closed when the client disconnects or when the service explicitly ends it
 		} catch (error) {
 			// Send error response
 			await this.controller.postMessageToWebview({
