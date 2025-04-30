@@ -1029,7 +1029,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (shiftHoldTimerRef.current === null) {
 						shiftHoldTimerRef.current = setTimeout(() => {
 							setShowShiftDragTip(true)
-						}, 500) // 500ms delay
+						}, 100) // 500ms delay
 					}
 				}
 			}
