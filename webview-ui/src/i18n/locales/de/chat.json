@@ -201,12 +201,12 @@
 		"copyToInput": "In Eingabefeld kopieren (oder Shift + Klick)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.14 veröffentlicht",
-		"description": "Roo Code 3.14 bringt neue Funktionen und Verbesserungen basierend auf deinem Feedback.",
+		"title": "🎉 Roo Code 3.15 veröffentlicht",
+		"description": "Roo Code 3.15 bringt neue Funktionen und Verbesserungen basierend auf deinem Feedback.",
 		"whatsNew": "Was ist neu",
-		"feature1": "<bold>Verbesserte Bearbeitungswerkzeuge</bold>: Die <code>search_and_replace</code> und <code>insert_content</code> Tools wurden verbessert und sind nicht mehr experimentell",
-		"feature2": "<bold>Diff Apply Fixes</bold>: Wir arbeiten weiterhin an der Verbesserung des <code>apply_diff</code> Tools",
-		"feature3": "<bold>Zahlreiche andere Verbesserungen</bold>: Viele Fehlerbehebungen und Optimierungen in der gesamten Erweiterung",
+		"feature1": "<bold>Prompt-Caching für Vertex</bold>: Prompt-Caching-Unterstützung für Vertex AI hinzugefügt, verbessert Antwortzeiten und reduziert API-Kosten",
+		"feature2": "<bold>Terminal-Fallback</bold>: Implementierung eines Fallback-Mechanismus, wenn die VSCode-Terminal-Shell-Integration fehlschlägt",
+		"feature3": "<bold>Verbesserte Code-Snippets</bold>: Verbesserte Darstellung und Interaktion mit Code-Snippets in der Chat-Oberfläche",
 		"hideButton": "Ankündigung ausblenden",
 		"detailsDiscussLinks": "Erhalte mehr Details und diskutiere auf <discordLink>Discord</discordLink> und <redditLink>Reddit</redditLink> 🚀"
 	},

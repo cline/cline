@@ -201,12 +201,12 @@
 		"copyToInput": "複製到輸入框（或按住 Shift 並點選）"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.14 已發布",
-		"description": "Roo Code 3.14 帶來基於您意見回饋的新功能與改進。",
+		"title": "🎉 Roo Code 3.15 已發布",
+		"description": "Roo Code 3.15 帶來基於您意見回饋的新功能與改進。",
 		"whatsNew": "新功能",
-		"feature1": "<bold>編輯工具增強</bold>: <code>search_and_replace</code> 和 <code>insert_content</code> 工具已獲改進，並從實驗階段升級為正式功能",
-		"feature2": "<bold>差異更新修復</bold>: 我們持續改進 <code>apply_diff</code> 工具",
-		"feature3": "<bold>大量其他改進</bold>: 擴充套件中眾多的修復和增強功能",
+		"feature1": "<bold>Vertex 提示詞快取</bold>: 為 Vertex AI 新增提示詞快取支援，改善回應時間並降低 API 費用",
+		"feature2": "<bold>終端機備援機制</bold>: 實作 VSCode 終端機 shell 整合失敗時的備援機制",
+		"feature3": "<bold>程式碼片段強化</bold>: 增強聊天介面中程式碼片段的渲染與互動體驗",
 		"hideButton": "隱藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
 	},
