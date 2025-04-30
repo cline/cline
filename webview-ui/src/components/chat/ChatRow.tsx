@@ -896,8 +896,11 @@ export const ChatRowContent = ({
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
-						<div>
+						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
 							<Markdown markdown={message.text} />
+							{quoteButtonState.visible && (
+								<QuoteButton top={quoteButtonState.top} left={quoteButtonState.left} onClick={handleQuoteClick} />
+							)}
 						</div>
 					)
 				case "reasoning":
@@ -1328,7 +1331,7 @@ export const ChatRowContent = ({
 									{title}
 								</div>
 							)}
-							<div style={{ paddingTop: 10 }}>
+							<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative", paddingTop: 10 }}>
 								<Markdown markdown={question} />
 								<OptionsButtons
 									options={options}
@@ -1336,6 +1339,13 @@ export const ChatRowContent = ({
 									isActive={isLast && lastModifiedMessage?.ask === "followup"}
 									inputValue={inputValue}
 								/>
+								{quoteButtonState.visible && (
+									<QuoteButton
+										top={quoteButtonState.top}
+										left={quoteButtonState.left}
+										onClick={handleQuoteClick}
+									/>
+								)}
 							</div>
 						</>
 					)
@@ -1385,7 +1395,7 @@ export const ChatRowContent = ({
 						response = message.text
 					}
 					return (
-						<div style={{}}>
+						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
 							<Markdown markdown={response} />
 							<OptionsButtons
 								options={options}
@@ -1393,6 +1403,9 @@ export const ChatRowContent = ({
 								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_respond"}
 								inputValue={inputValue}
 							/>
+							{quoteButtonState.visible && (
+								<QuoteButton top={quoteButtonState.top} left={quoteButtonState.left} onClick={handleQuoteClick} />
+							)}
 						</div>
 					)
 				}
