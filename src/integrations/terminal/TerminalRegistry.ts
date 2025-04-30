@@ -35,11 +35,11 @@ export class TerminalRegistry {
 
 		// Register handler for terminal close events to clean up temporary
 		// directories.
-		const closeDisposable = vscode.window.onDidCloseTerminal((terminal) => {
-			const terminalInfo = this.getTerminalByVSCETerminal(terminal)
+		const closeDisposable = vscode.window.onDidCloseTerminal((vsceTerminal) => {
+			const terminal = this.getTerminalByVSCETerminal(vsceTerminal)
 
-			if (terminalInfo) {
-				ShellIntegrationManager.zshCleanupTmpDir(terminalInfo.id)
+			if (terminal) {
+				ShellIntegrationManager.zshCleanupTmpDir(terminal.id)
 			}
 		})
 
@@ -50,16 +50,16 @@ export class TerminalRegistry {
 				async (e: vscode.TerminalShellExecutionStartEvent) => {
 					// Get a handle to the stream as early as possible:
 					const stream = e.execution.read()
-					const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
+					const terminal = this.getTerminalByVSCETerminal(e.terminal)
 
 					console.info("[onDidStartTerminalShellExecution] Shell execution started:", {
 						hasExecution: !!e.execution,
 						command: e.execution?.commandLine?.value,
-						terminalId: terminalInfo?.id,
+						terminalId: terminal?.id,
 					})
 
-					if (terminalInfo) {
-						terminalInfo.setActiveStream(stream)
+					if (terminal) {
+						terminal.setActiveStream(stream)
 					} else {
 						console.error(
 							"[onDidStartTerminalShellExecution] Shell execution started, but not from a Roo-registered terminal:",
@@ -75,18 +75,18 @@ export class TerminalRegistry {
 
 			const endDisposable = vscode.window.onDidEndTerminalShellExecution?.(
 				async (e: vscode.TerminalShellExecutionEndEvent) => {
-					const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
-					const process = terminalInfo?.process
+					const terminal = this.getTerminalByVSCETerminal(e.terminal)
+					const process = terminal?.process
 					const exitDetails = TerminalProcess.interpretExitCode(e.exitCode)
 
 					console.info("[TerminalRegistry] Shell execution ended:", {
 						hasExecution: !!e.execution,
 						command: e.execution?.commandLine?.value,
-						terminalId: terminalInfo?.id,
+						terminalId: terminal?.id,
 						...exitDetails,
 					})
 
-					if (!terminalInfo) {
+					if (!terminal) {
 						console.error(
 							"[onDidEndTerminalShellExecution] Shell execution ended, but not from a Roo-registered terminal:",
 							e,
@@ -95,10 +95,10 @@ export class TerminalRegistry {
 						return
 					}
 
-					if (!terminalInfo.running) {
+					if (!terminal.running) {
 						console.error(
 							"[TerminalRegistry] Shell execution end event received, but process is not running for terminal:",
-							{ terminalId: terminalInfo?.id, command: process?.command, exitCode: e.exitCode },
+							{ terminalId: terminal?.id, command: process?.command, exitCode: e.exitCode },
 						)
 
 						return
@@ -107,14 +107,14 @@ export class TerminalRegistry {
 					if (!process) {
 						console.error(
 							"[TerminalRegistry] Shell execution end event received on running terminal, but process is undefined:",
-							{ terminalId: terminalInfo.id, exitCode: e.exitCode },
+							{ terminalId: terminal.id, exitCode: e.exitCode },
 						)
 
 						return
 					}
 
 					// Signal completion to any waiting processes.
-					terminalInfo.shellExecutionComplete(exitDetails)
+					terminal.shellExecutionComplete(exitDetails)
 				},
 			)
 
@@ -317,8 +317,8 @@ export class TerminalRegistry {
 	 * @param terminal The VSCode terminal instance
 	 * @returns The Terminal object, or undefined if not found
 	 */
-	private static getTerminalByVSCETerminal(terminal: vscode.Terminal): RooTerminal | undefined {
-		const found = this.terminals.find((t) => t instanceof Terminal && t.terminal === terminal)
+	private static getTerminalByVSCETerminal(vsceTerminal: vscode.Terminal): RooTerminal | undefined {
+		const found = this.terminals.find((t) => t instanceof Terminal && t.terminal === vsceTerminal)
 
 		if (found?.isClosed()) {
 			this.removeTerminal(found.id)

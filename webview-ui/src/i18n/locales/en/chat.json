@@ -186,13 +186,6 @@
 		"title": "Edit Unsuccessful"
 	},
 	"troubleMessage": "Roo is having trouble...",
-	"shellIntegration": {
-		"unavailable": "Shell Integration Unavailable",
-		"troubleshooting": "Still having trouble? Click here for shell integration documentation.",
-		"checkSettings": "Check terminal workarounds in the settings page",
-		"updateVSCode": "Update VSCode",
-		"supportedShell": "Make sure you're using a supported shell: zsh, bash, fish, or PowerShell"
-	},
 	"powershell": {
 		"issues": "It seems like you're having Windows PowerShell issues, please see this"
 	},
@@ -240,5 +233,10 @@
 			"close": "Close browser"
 		}
 	},
-	"systemPromptWarning": "WARNING: Custom system prompt override active. This can severely break functionality and cause unpredictable behavior."
+	"systemPromptWarning": "WARNING: Custom system prompt override active. This can severely break functionality and cause unpredictable behavior.",
+	"shellIntegration": {
+		"title": "Shell Integration Unavailable",
+		"description": "Your command is being executed without VSCode shell integration. You can re-enable shell integration in the <strong>Terminal</strong> section of the <settingsLink>Roo Code settings</settingsLink>.",
+		"troubleshooting": "Click here for shell integration documentation."
+	}
 }

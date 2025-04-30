@@ -185,13 +185,6 @@
 		"hasQuestion": "Roo tiene una pregunta:"
 	},
 	"taskCompleted": "Tarea completada",
-	"shellIntegration": {
-		"unavailable": "Integración de shell no disponible",
-		"troubleshooting": "¿Sigues teniendo problemas? Haz clic aquí para ver la documentación de integración de shell.",
-		"checkSettings": "Revisa los ajustes alternativos de terminal en la página de configuración",
-		"updateVSCode": "Actualiza VSCode",
-		"supportedShell": "Asegúrate de usar un shell compatible: zsh, bash, fish o PowerShell"
-	},
 	"powershell": {
 		"issues": "Parece que estás teniendo problemas con Windows PowerShell, por favor consulta esta"
 	},
@@ -240,5 +233,10 @@
 		}
 	},
 	"systemPromptWarning": "ADVERTENCIA: Anulación de instrucciones del sistema personalizada activa. Esto puede romper gravemente la funcionalidad y causar un comportamiento impredecible.",
-	"selectApiConfig": "Seleccionar configuración de API"
+	"selectApiConfig": "Seleccionar configuración de API",
+	"shellIntegration": {
+		"title": "Integración de Shell no disponible",
+		"description": "Tu comando se está ejecutando sin la integración de shell de VSCode. Puedes reactivar la integración de shell en la sección <strong>Terminal</strong> de la <settingsLink>configuración de Roo Code</settingsLink>.",
+		"troubleshooting": "Haz clic aquí para ver la documentación de integración de shell."
+	}
 }

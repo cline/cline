@@ -185,13 +185,6 @@
 		"hasQuestion": "Roo에게 질문이 있습니다:"
 	},
 	"taskCompleted": "작업 완료",
-	"shellIntegration": {
-		"unavailable": "쉘 통합 사용 불가",
-		"troubleshooting": "여전히 문제가 있나요? 쉘 통합 문서를 보려면 여기를 클릭하세요.",
-		"checkSettings": "설정 페이지에서 터미널 해결 방법을 확인하세요",
-		"updateVSCode": "VSCode를 업데이트하세요",
-		"supportedShell": "지원되는 쉘을 사용하고 있는지 확인하세요: zsh, bash, fish 또는 PowerShell"
-	},
 	"powershell": {
 		"issues": "Windows PowerShell에 문제가 있는 것 같습니다. 다음을 참조하세요"
 	},
@@ -240,5 +233,10 @@
 		}
 	},
 	"systemPromptWarning": "경고: 사용자 정의 시스템 프롬프트 재정의가 활성화되었습니다. 이로 인해 기능이 심각하게 손상되고 예측할 수 없는 동작이 발생할 수 있습니다.",
-	"selectApiConfig": "API 구성 선택"
+	"selectApiConfig": "API 구성 선택",
+	"shellIntegration": {
+		"title": "Shell 통합 사용 불가",
+		"description": "명령이 VSCode shell 통합 없이 실행되고 있습니다. <settingsLink>Roo Code 설정</settingsLink>의 <strong>터미널</strong> 섹션에서 shell 통합을 다시 활성화할 수 있습니다.",
+		"troubleshooting": "shell 통합 문서를 보려면 여기를 클릭하세요."
+	}
 }

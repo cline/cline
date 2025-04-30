@@ -185,13 +185,6 @@
 		"hasQuestion": "Roo有一个问题:"
 	},
 	"taskCompleted": "任务完成",
-	"shellIntegration": {
-		"unavailable": "Shell集成不可用",
-		"troubleshooting": "仍有问题吗？点击此处查看Shell集成文档。",
-		"checkSettings": "检查设置页面中的终端解决方案",
-		"updateVSCode": "更新VSCode",
-		"supportedShell": "确保使用受支持的shell：zsh、bash、fish或PowerShell"
-	},
 	"powershell": {
 		"issues": "看起来您遇到了Windows PowerShell问题，请参阅此"
 	},
@@ -240,5 +233,10 @@
 		}
 	},
 	"systemPromptWarning": "警告：自定义系统提示词覆盖已激活。这可能严重破坏功能并导致不可预测的行为。",
-	"selectApiConfig": "选择 API 配置"
+	"selectApiConfig": "选择 API 配置",
+	"shellIntegration": {
+		"title": "Shell 集成不可用",
+		"description": "您的命令正在没有 VSCode shell 集成的情况下执行。您可以在 <settingsLink>Roo Code 设置</settingsLink> 的 <strong>终端</strong> 部分重新启用 shell 集成。",
+		"troubleshooting": "点击此处查看 shell 集成文档。"
+	}
 }

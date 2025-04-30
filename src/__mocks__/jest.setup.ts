@@ -1,3 +1,15 @@
+import nock from "nock"
+
+nock.disableNetConnect()
+
+export function allowNetConnect(host?: string | RegExp) {
+	if (host) {
+		nock.enableNetConnect(host)
+	} else {
+		nock.enableNetConnect()
+	}
+}
+
 // Mock the logger globally for all tests
 jest.mock("../utils/logging", () => ({
 	logger: {

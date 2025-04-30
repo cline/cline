@@ -1,3 +1,5 @@
+// npx jest src/api/providers/__tests__/requesty.test.ts
+
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
@@ -9,6 +11,22 @@ import { convertToR1Format } from "../../transform/r1-format"
 jest.mock("openai")
 jest.mock("../../transform/openai-format")
 jest.mock("../../transform/r1-format")
+jest.mock("../fetchers/cache", () => ({
+	getModels: jest.fn().mockResolvedValue({
+		"test-model": {
+			maxTokens: 8192,
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsComputerUse: true,
+			supportsPromptCache: true,
+			inputPrice: 3.0,
+			outputPrice: 15.0,
+			cacheWritesPrice: 3.75,
+			cacheReadsPrice: 0.3,
+			description: "Test model description",
+		},
+	}),
+}))
 
 describe("RequestyHandler", () => {
 	let handler: RequestyHandler

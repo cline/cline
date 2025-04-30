@@ -28,6 +28,7 @@ import { FollowUpSuggest } from "./FollowUpSuggest"
 import { ProgressIndicator } from "./ProgressIndicator"
 import { Markdown } from "./Markdown"
 import { CommandExecution } from "./CommandExecution"
+import { CommandExecutionError } from "./CommandExecutionError"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -918,51 +919,7 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "shell_integration_warning":
-					return (
-						<>
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									backgroundColor: "rgba(255, 191, 0, 0.1)",
-									padding: 8,
-									borderRadius: 3,
-									fontSize: 12,
-								}}>
-								<div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
-									<i
-										className="codicon codicon-warning"
-										style={{
-											marginRight: 8,
-											fontSize: 18,
-											color: "#FFA500",
-										}}></i>
-									<span style={{ fontWeight: 500, color: "#FFA500" }}>
-										{t("chat:shellIntegration.unavailable")}
-									</span>
-								</div>
-								<div>
-									<strong>{message.text}</strong>
-									<br />
-									<div>
-										&bull; {t("chat:shellIntegration.checkSettings")}
-										<br />
-										&bull; {t("chat:shellIntegration.updateVSCode")} (
-										<code>CMD/CTRL + Shift + P</code> → "Update")
-										<br />
-										&bull; {t("chat:shellIntegration.supportedShell")} (
-										<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default Profile")
-									</div>
-									<br />
-									<a
-										href="http://docs.roocode.com/troubleshooting/shell-integration/"
-										style={{ color: "inherit", textDecoration: "underline" }}>
-										{t("chat:shellIntegration.troubleshooting")}
-									</a>
-								</div>
-							</div>
-						</>
-					)
+					return <CommandExecutionError />
 				case "mcp_server_response":
 					return (
 						<>

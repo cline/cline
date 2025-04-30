@@ -19,7 +19,7 @@ export class GlamaHandler extends RouterProvider implements SingleCompletionHand
 	constructor(options: ApiHandlerOptions) {
 		super({
 			options,
-			name: "unbound",
+			name: "glama",
 			baseURL: "https://glama.ai/api/gateway/openai/v1",
 			apiKey: options.glamaApiKey,
 			modelId: options.glamaModelId,

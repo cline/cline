@@ -8,9 +8,11 @@ import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag, To
 import { formatResponse } from "../prompts/responses"
 import { unescapeHtmlEntities } from "../../utils/text-normalization"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
-import { ExitCodeDetails, RooTerminalProcess } from "../../integrations/terminal/types"
+import { ExitCodeDetails, RooTerminalCallbacks, RooTerminalProcess } from "../../integrations/terminal/types"
 import { TerminalRegistry } from "../../integrations/terminal/TerminalRegistry"
 import { Terminal } from "../../integrations/terminal/Terminal"
+
+class ShellIntegrationError extends Error {}
 
 export async function executeCommandTool(
 	cline: Cline,
@@ -52,13 +54,44 @@ export async function executeCommandTool(
 				return
 			}
 
-			const [userRejected, result] = await executeCommand(cline, command, customCwd)
+			const clineProvider = await cline.providerRef.deref()
+			const clineProviderState = await clineProvider?.getState()
+			const { terminalOutputLineLimit = 500, terminalShellIntegrationDisabled = false } = clineProviderState ?? {}
 
-			if (userRejected) {
-				cline.didRejectTool = true
+			const options: ExecuteCommandOptions = {
+				command,
+				customCwd,
+				terminalShellIntegrationDisabled,
+				terminalOutputLineLimit,
 			}
 
-			pushToolResult(result)
+			try {
+				const [rejected, result] = await executeCommand(cline, options)
+
+				if (rejected) {
+					cline.didRejectTool = true
+				}
+
+				pushToolResult(result)
+			} catch (error: unknown) {
+				await cline.say("shell_integration_warning")
+				clineProvider?.setValue("terminalShellIntegrationDisabled", true)
+
+				if (error instanceof ShellIntegrationError) {
+					const [rejected, result] = await executeCommand(cline, {
+						...options,
+						terminalShellIntegrationDisabled: true,
+					})
+
+					if (rejected) {
+						cline.didRejectTool = true
+					}
+
+					pushToolResult(result)
+				} else {
+					pushToolResult(`Command failed to execute in terminal due to a shell integration error.`)
+				}
+			}
 
 			return
 		}
@@ -68,10 +101,21 @@ export async function executeCommandTool(
 	}
 }
 
+export type ExecuteCommandOptions = {
+	command: string
+	customCwd?: string
+	terminalShellIntegrationDisabled?: boolean
+	terminalOutputLineLimit?: number
+}
+
 export async function executeCommand(
 	cline: Cline,
-	command: string,
-	customCwd?: string,
+	{
+		command,
+		customCwd,
+		terminalShellIntegrationDisabled = false,
+		terminalOutputLineLimit = 500,
+	}: ExecuteCommandOptions,
 ): Promise<[boolean, ToolResponse]> {
 	let workingDir: string
 
@@ -94,13 +138,11 @@ export async function executeCommand(
 	let completed = false
 	let result: string = ""
 	let exitDetails: ExitCodeDetails | undefined
+	let shellIntegrationError: string | undefined
 
-	const clineProvider = await cline.providerRef.deref()
-	const clineProviderState = await clineProvider?.getState()
-	const { terminalOutputLineLimit = 500, terminalShellIntegrationDisabled = false } = clineProviderState ?? {}
 	const terminalProvider = terminalShellIntegrationDisabled ? "execa" : "vscode"
 
-	const callbacks = {
+	const callbacks: RooTerminalCallbacks = {
 		onLine: async (output: string, process: RooTerminalProcess) => {
 			const compressed = Terminal.compressTerminalOutput(output, terminalOutputLineLimit)
 			cline.say("command_output", compressed)
@@ -123,13 +165,14 @@ export async function executeCommand(
 			result = Terminal.compressTerminalOutput(output ?? "", terminalOutputLineLimit)
 			completed = true
 		},
-		onShellExecutionComplete: (details: ExitCodeDetails) => {
-			exitDetails = details
-		},
-		onNoShellIntegration: async (message: string) => {
+		onShellExecutionComplete: (details: ExitCodeDetails) => (exitDetails = details),
+	}
+
+	if (terminalProvider === "vscode") {
+		callbacks.onNoShellIntegration = async (error: string) => {
 			telemetryService.captureShellIntegrationError(cline.taskId)
-			await cline.say("shell_integration_warning", message)
-		},
+			shellIntegrationError = error
+		}
 	}
 
 	const terminal = await TerminalRegistry.getOrCreateTerminal(workingDir, !!customCwd, cline.taskId, terminalProvider)
@@ -148,6 +191,10 @@ export async function executeCommand(
 
 	await process
 	cline.terminalProcess = undefined
+
+	if (shellIntegrationError) {
+		throw new ShellIntegrationError(shellIntegrationError)
+	}
 
 	// Wait for a short delay to ensure all messages are sent to the webview.
 	// This delay allows time for non-awaited promises to be created and

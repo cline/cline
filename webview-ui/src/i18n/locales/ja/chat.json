@@ -185,13 +185,6 @@
 		"hasQuestion": "Rooは質問があります:"
 	},
 	"taskCompleted": "タスク完了",
-	"shellIntegration": {
-		"unavailable": "シェル統合が利用できません",
-		"troubleshooting": "まだ問題がありますか？シェル統合のドキュメントはこちらをクリックしてください。",
-		"checkSettings": "設定ページでターミナルの回避策を確認してください",
-		"updateVSCode": "VSCodeを更新してください",
-		"supportedShell": "サポートされているシェルを使用していることを確認してください：zsh、bash、fish、またはPowerShell"
-	},
 	"powershell": {
 		"issues": "Windows PowerShellに問題があるようです。こちらを参照してください"
 	},
@@ -240,5 +233,10 @@
 		}
 	},
 	"systemPromptWarning": "警告：カスタムシステムプロンプトの上書きが有効です。これにより機能が深刻に損なわれ、予測不可能な動作が発生する可能性があります。",
-	"selectApiConfig": "API構成を選択"
+	"selectApiConfig": "API構成を選択",
+	"shellIntegration": {
+		"title": "シェル統合が利用できません",
+		"description": "コマンドはVSCodeシェル統合なしで実行されています。<settingsLink>Roo Code設定</settingsLink>の<strong>ターミナル</strong>セクションでシェル統合を再有効化できます。",
+		"troubleshooting": "シェル統合のドキュメントはこちらをクリック"
+	}
 }

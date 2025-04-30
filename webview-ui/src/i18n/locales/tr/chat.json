@@ -185,13 +185,6 @@
 		"hasQuestion": "Roo'nun bir sorusu var:"
 	},
 	"taskCompleted": "Görev Tamamlandı",
-	"shellIntegration": {
-		"unavailable": "Kabuk Entegrasyonu Kullanılamıyor",
-		"troubleshooting": "Hala sorun mu yaşıyorsunuz? Kabuk entegrasyonu belgelerine göz atmak için buraya tıklayın.",
-		"checkSettings": "Ayarlar sayfasındaki terminal geçici çözümlerini kontrol et",
-		"updateVSCode": "VSCode'u güncelle",
-		"supportedShell": "Desteklenen bir kabuk kullandığından emin ol: zsh, bash, fish veya PowerShell"
-	},
 	"powershell": {
 		"issues": "Windows PowerShell ile ilgili sorunlar yaşıyor gibi görünüyorsunuz, lütfen şu konuya bakın"
 	},
@@ -240,5 +233,10 @@
 		}
 	},
 	"systemPromptWarning": "UYARI: Özel sistem komut geçersiz kılma aktif. Bu işlevselliği ciddi şekilde bozabilir ve öngörülemeyen davranışlara neden olabilir.",
-	"selectApiConfig": "API yapılandırmasını seçin"
+	"selectApiConfig": "API yapılandırmasını seçin",
+	"shellIntegration": {
+		"title": "Kabuk Entegrasyonu Kullanılamıyor",
+		"description": "Komutunuz VSCode kabuk entegrasyonu olmadan çalıştırılıyor. <settingsLink>Roo Code ayarları</settingsLink>'nın <strong>Terminal</strong> bölümünden kabuk entegrasyonunu yeniden etkinleştirebilirsiniz.",
+		"troubleshooting": "Kabuk entegrasyonu belgeleri için buraya tıklayın."
+	}
 }

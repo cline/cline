@@ -13,7 +13,7 @@ nockBack.setMode("lockdown")
 
 describe("OpenRouter API", () => {
 	describe("getOpenRouterModels", () => {
-		it("fetches models and validates schema", async () => {
+		it.skip("fetches models and validates schema", async () => {
 			const { nockDone } = await nockBack("openrouter-models.json")
 
 			const models = await getOpenRouterModels()

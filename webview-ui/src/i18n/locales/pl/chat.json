@@ -185,13 +185,6 @@
 		"hasQuestion": "Roo ma pytanie:"
 	},
 	"taskCompleted": "Zadanie zakończone",
-	"shellIntegration": {
-		"unavailable": "Integracja powłoki niedostępna",
-		"troubleshooting": "Nadal masz problemy? Kliknij tutaj, aby zobaczyć dokumentację integracji powłoki.",
-		"checkSettings": "Sprawdź obejścia terminala na stronie ustawień",
-		"updateVSCode": "Zaktualizuj VSCode",
-		"supportedShell": "Upewnij się, że używasz obsługiwanej powłoki: zsh, bash, fish lub PowerShell"
-	},
 	"powershell": {
 		"issues": "Wygląda na to, że masz problemy z Windows PowerShell, proszę zapoznaj się z tym"
 	},
@@ -240,5 +233,10 @@
 		}
 	},
 	"systemPromptWarning": "OSTRZEŻENIE: Aktywne niestandardowe zastąpienie instrukcji systemowych. Może to poważnie zakłócić funkcjonalność i powodować nieprzewidywalne zachowanie.",
-	"selectApiConfig": "Wybierz konfigurację API"
+	"selectApiConfig": "Wybierz konfigurację API",
+	"shellIntegration": {
+		"title": "Integracja powłoki niedostępna",
+		"description": "Twoje polecenie jest wykonywane bez integracji powłoki VSCode. Możesz ponownie włączyć integrację powłoki w sekcji <strong>Terminal</strong> w <settingsLink>ustawieniach Roo Code</settingsLink>.",
+		"troubleshooting": "Kliknij tutaj, aby zobaczyć dokumentację integracji powłoki."
+	}
 }
