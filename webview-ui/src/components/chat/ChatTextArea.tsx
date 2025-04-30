@@ -1591,7 +1591,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<div
 							style={{
 								display: "flex",
-								justifyContent: "center", // Center horizontally
+								justifyContent: "flex-start", // Left align horizontally
 								alignItems: "center", // Center vertically
 								height: "100%", // Fill the container height
 								padding: "4px 0", // Add padding to match button group height
@@ -1608,7 +1608,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									color: "var(--vscode-descriptionForeground)",
 									whiteSpace: "nowrap",
 								}}>
-								Drag, hold shift, then drop
+								Hold Shift to Drag
 							</span>
 						</div>
 					</div>
