@@ -12,7 +12,7 @@ export interface RooTerminal {
 	getCurrentWorkingDirectory(): string
 	isClosed: () => boolean
 	runCommand: (command: string, callbacks: RooTerminalCallbacks) => RooTerminalProcessResultPromise
-	setActiveStream(stream: AsyncIterable<string> | undefined): void
+	setActiveStream(stream: AsyncIterable<string> | undefined, pid?: number): void
 	shellExecutionComplete(exitDetails: ExitCodeDetails): void
 	getProcessesWithOutput(): RooTerminalProcess[]
 	getUnretrievedOutput(): string
@@ -23,6 +23,7 @@ export interface RooTerminal {
 export interface RooTerminalCallbacks {
 	onLine: (line: string, process: RooTerminalProcess) => void
 	onCompleted: (output: string | undefined, process: RooTerminalProcess) => void
+	onShellExecutionStarted: (pid: number | undefined, process: RooTerminalProcess) => void
 	onShellExecutionComplete: (details: ExitCodeDetails, process: RooTerminalProcess) => void
 	onNoShellIntegration?: (message: string, process: RooTerminalProcess) => void
 }
@@ -43,15 +44,11 @@ export interface RooTerminalProcessEvents {
 	line: [line: string]
 	continue: []
 	completed: [output?: string]
+	stream_available: [stream: AsyncIterable<string>]
+	shell_execution_started: [pid: number | undefined]
+	shell_execution_complete: [exitDetails: ExitCodeDetails]
 	error: [error: Error]
 	no_shell_integration: [message: string]
-	/**
-	 * Emitted when a shell execution completes
-	 * @param id The terminal ID
-	 * @param exitDetails Contains exit code and signal information if process was terminated by signal
-	 */
-	shell_execution_complete: [exitDetails: ExitCodeDetails]
-	stream_available: [stream: AsyncIterable<string>]
 }
 
 export interface ExitCodeDetails {

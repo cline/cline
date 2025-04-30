@@ -67,6 +67,7 @@ export interface ExtensionMessage {
 		| "toggleApiConfigPin"
 		| "acceptInput"
 		| "setHistoryPreviewCollapsed"
+		| "commandExecutionStatus"
 	text?: string
 	action?:
 		| "chatButtonClicked"

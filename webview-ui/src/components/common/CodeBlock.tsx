@@ -598,6 +598,10 @@ const CodeBlock = memo(
 			[source, rawSource, copyWithFeedback],
 		)
 
+		if (source?.length === 0) {
+			return null
+		}
+
 		return (
 			<CodeBlockContainer ref={codeBlockRef}>
 				<StyledPre
@@ -607,9 +611,7 @@ const CodeBlock = memo(
 					windowshade={windowShade ? "true" : "false"}
 					collapsedHeight={collapsedHeight}
 					onMouseDown={() => updateCodeBlockButtonPosition(true)}
-					onMouseUp={() => updateCodeBlockButtonPosition(false)}
-					// onScroll prop is removed - handled by the useEffect scroll listener now
-				>
+					onMouseUp={() => updateCodeBlockButtonPosition(false)}>
 					<div dangerouslySetInnerHTML={{ __html: highlightedCode }} />
 				</StyledPre>
 				{!isSelecting && (
@@ -685,10 +687,7 @@ const CodeBlock = memo(
 									// After UI updates, ensure code block is visible and update button position
 									setTimeout(
 										() => {
-											codeBlock.scrollIntoView({
-												behavior: "smooth",
-												block: "nearest",
-											})
+											codeBlock.scrollIntoView({ behavior: "smooth", block: "nearest" })
 
 											// Wait for scroll to complete before updating button position
 											setTimeout(() => {

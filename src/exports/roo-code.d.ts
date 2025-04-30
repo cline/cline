@@ -347,6 +347,7 @@ type ClineMessage = {
 		| undefined
 	progressStatus?:
 		| {
+				id?: string | undefined
 				icon?: string | undefined
 				text?: string | undefined
 		  }
@@ -422,6 +423,7 @@ type RooCodeEvents = {
 					| undefined
 				progressStatus?:
 					| {
+							id?: string | undefined
 							icon?: string | undefined
 							text?: string | undefined
 					  }

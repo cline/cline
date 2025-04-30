@@ -24,6 +24,7 @@ export class ExecaTerminal extends BaseTerminal {
 
 		process.on("line", (line) => callbacks.onLine(line, process))
 		process.once("completed", (output) => callbacks.onCompleted(output, process))
+		process.once("shell_execution_started", (pid) => callbacks.onShellExecutionStarted(pid, process))
 		process.once("shell_execution_complete", (details) => callbacks.onShellExecutionComplete(details, process))
 
 		const promise = new Promise<void>((resolve, reject) => {

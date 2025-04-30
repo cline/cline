@@ -987,7 +987,11 @@ export const ChatRowContent = ({
 								{icon}
 								{title}
 							</div>
-							<CommandExecution command={command} output={output} />
+							<CommandExecution
+								executionId={message.progressStatus?.id}
+								command={command}
+								output={output}
+							/>
 						</>
 					)
 				case "use_mcp_server":

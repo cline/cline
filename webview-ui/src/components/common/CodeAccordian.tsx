@@ -117,7 +117,6 @@ const CodeAccordian = ({
 			)}
 			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
 				<div
-					//className="code-block-scrollable" this doesn't seem to be necessary anymore, on silicon macs it shows the native mac scrollbar instead of the vscode styled one
 					style={{
 						overflowX: "auto",
 						overflowY: "hidden",
