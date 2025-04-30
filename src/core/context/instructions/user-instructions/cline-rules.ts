@@ -7,6 +7,45 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
 import * as vscode from "vscode"
 
+/**
+ * Converts .clinerules file to directory and places old .clinerule file inside directory, renaming it
+ * Doesn't do anything if .clinerules dir already exists or doesn't exist
+ * Returns whether there are any uncaught errors
+ */
+export async function ensureLocalClinerulesDirExists(cwd: string): Promise<boolean> {
+	const clinerulePath = path.resolve(cwd, GlobalFileNames.clineRules)
+	const defaultRuleFilename = "default-rules.md"
+
+	try {
+		const exists = await fileExistsAtPath(clinerulePath)
+
+		if (exists && !(await isDirectory(clinerulePath))) {
+			// logic to convert .clinerules file into directory, and rename the rules file to {defaultRuleFilename}
+			const content = await fs.readFile(clinerulePath, "utf8")
+			const tempPath = clinerulePath + ".bak"
+			await fs.rename(clinerulePath, tempPath) // create backup
+			try {
+				await fs.mkdir(clinerulePath, { recursive: true })
+				await fs.writeFile(path.join(clinerulePath, defaultRuleFilename), content, "utf8")
+				await fs.unlink(tempPath).catch(() => {}) // delete backup
+
+				return false // conversion successful with no errors
+			} catch (conversionError) {
+				// attempt to restore backup on conversion failure
+				try {
+					await fs.rm(clinerulePath, { recursive: true, force: true }).catch(() => {})
+					await fs.rename(tempPath, clinerulePath) // restore backup
+				} catch (restoreError) {}
+				return true // in either case here we consider this an error
+			}
+		}
+		// exists and is a dir or doesn't exist, either of these cases we dont need to handle here
+		return false
+	} catch (error) {
+		return true
+	}
+}
+
 export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
 	if (await fileExistsAtPath(globalClineRulesFilePath)) {
 		if (await isDirectory(globalClineRulesFilePath)) {
