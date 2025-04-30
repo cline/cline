@@ -1029,7 +1029,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (shiftHoldTimerRef.current === null) {
 						shiftHoldTimerRef.current = setTimeout(() => {
 							setShowShiftDragTip(true)
-						}, 100) // 500ms delay
+						}, 250) // 500ms delay
 					}
 				}
 			}
@@ -1606,7 +1606,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									color: "var(--vscode-descriptionForeground)",
 									whiteSpace: "nowrap",
 								}}>
-								Hold Shift to Drag
+								Hold Shift to Drag Files
 							</span>
 						</div>
 					</div>
