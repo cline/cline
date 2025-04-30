@@ -13,5 +13,4 @@ export function registerAllMethods(): void {
 	registerMethod("deleteRuleFile", deleteRuleFile)
 	registerMethod("openFile", openFile)
 	registerMethod("openImage", openImage)
-	registerMethod("createRuleFile", createRuleFile)
 }

@@ -6,17 +6,23 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, Metadata, OperationResponse, StringRequest } from "./common"
+import { Empty, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
-/** Request for deleting a rule file */
+/** Request for deleteRuleFile */
 export interface DeleteRuleFileRequest {
 	metadata?: Metadata | undefined
-	/** Path of the rule file to delete */
 	rulePath: string
-	/** Whether the file is in global or workspace rules directory */
 	isGlobal: boolean
+}
+
+/** Result for rule file operations with meaningful data only */
+export interface RuleFileResult {
+	/** Path to the rule file */
+	filePath: string
+	/** Filename for display purposes */
+	displayName: string
 }
 
 function createBaseDeleteRuleFileRequest(): DeleteRuleFileRequest {
@@ -112,6 +118,82 @@ export const DeleteRuleFileRequest: MessageFns<DeleteRuleFileRequest> = {
 	},
 }
 
+function createBaseRuleFileResult(): RuleFileResult {
+	return { filePath: "", displayName: "" }
+}
+
+export const RuleFileResult: MessageFns<RuleFileResult> = {
+	encode(message: RuleFileResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.filePath !== "") {
+			writer.uint32(10).string(message.filePath)
+		}
+		if (message.displayName !== "") {
+			writer.uint32(18).string(message.displayName)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): RuleFileResult {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseRuleFileResult()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.filePath = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.displayName = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): RuleFileResult {
+		return {
+			filePath: isSet(object.filePath) ? globalThis.String(object.filePath) : "",
+			displayName: isSet(object.displayName) ? globalThis.String(object.displayName) : "",
+		}
+	},
+
+	toJSON(message: RuleFileResult): unknown {
+		const obj: any = {}
+		if (message.filePath !== "") {
+			obj.filePath = message.filePath
+		}
+		if (message.displayName !== "") {
+			obj.displayName = message.displayName
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<RuleFileResult>, I>>(base?: I): RuleFileResult {
+		return RuleFileResult.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<RuleFileResult>, I>>(object: I): RuleFileResult {
+		const message = createBaseRuleFileResult()
+		message.filePath = object.filePath ?? ""
+		message.displayName = object.displayName ?? ""
+		return message
+	},
+}
+
 /** Service for file-related operations */
 export type FileServiceDefinition = typeof FileServiceDefinition
 export const FileServiceDefinition = {
@@ -136,21 +218,12 @@ export const FileServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
-		/** Creates a rule file in either global or workspace rules directory */
-		createRuleFile: {
-			name: "createRuleFile",
-			requestType: CreateRuleFileRequest,
-			requestStream: false,
-			responseType: CreateRuleFileResponse,
-			responseStream: false,
-			options: {},
-		},
 		/** Deletes a rule file from either global or workspace rules directory */
 		deleteRuleFile: {
 			name: "deleteRuleFile",
 			requestType: DeleteRuleFileRequest,
 			requestStream: false,
-			responseType: OperationResponse,
+			responseType: RuleFileResult,
 			responseStream: false,
 			options: {},
 		},
