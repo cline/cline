@@ -1,7 +1,7 @@
 import { Controller } from "../index"
 import { StringRequest } from "../../../shared/proto/common"
-import { ImageUrlCheckResult } from "../../../shared/proto/web_content"
-import { isImageUrl } from "@integrations/misc/link-preview"
+import { IsImageUrl } from "../../../shared/proto/web_content"
+import { detectImageUrl } from "@integrations/misc/link-preview"
 
 /**
  * Checks if a URL is an image URL
@@ -9,11 +9,11 @@ import { isImageUrl } from "@integrations/misc/link-preview"
  * @param request The request containing the URL to check
  * @returns A result indicating if the URL is an image and the URL that was checked
  */
-export async function checkIsImageUrl(controller: Controller, request: StringRequest): Promise<ImageUrlCheckResult> {
+export async function checkIsImageUrl(controller: Controller, request: StringRequest): Promise<IsImageUrl> {
 	try {
 		const url = request.value || ""
 		// Check if the URL is an image
-		const isImage = await isImageUrl(url)
+		const isImage = await detectImageUrl(url)
 
 		return {
 			metadata: request.metadata,

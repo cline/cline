@@ -10,18 +10,18 @@ import { Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
-export interface ImageUrlCheckResult {
+export interface IsImageUrl {
 	metadata?: Metadata | undefined
 	isImage: boolean
 	url: string
 }
 
-function createBaseImageUrlCheckResult(): ImageUrlCheckResult {
+function createBaseIsImageUrl(): IsImageUrl {
 	return { metadata: undefined, isImage: false, url: "" }
 }
 
-export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
-	encode(message: ImageUrlCheckResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const IsImageUrl: MessageFns<IsImageUrl> = {
+	encode(message: IsImageUrl, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		if (message.metadata !== undefined) {
 			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
 		}
@@ -34,10 +34,10 @@ export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ImageUrlCheckResult {
+	decode(input: BinaryReader | Uint8Array, length?: number): IsImageUrl {
 		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseImageUrlCheckResult()
+		const message = createBaseIsImageUrl()
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
@@ -74,7 +74,7 @@ export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 		return message
 	},
 
-	fromJSON(object: any): ImageUrlCheckResult {
+	fromJSON(object: any): IsImageUrl {
 		return {
 			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
 			isImage: isSet(object.isImage) ? globalThis.Boolean(object.isImage) : false,
@@ -82,7 +82,7 @@ export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 		}
 	},
 
-	toJSON(message: ImageUrlCheckResult): unknown {
+	toJSON(message: IsImageUrl): unknown {
 		const obj: any = {}
 		if (message.metadata !== undefined) {
 			obj.metadata = Metadata.toJSON(message.metadata)
@@ -96,11 +96,11 @@ export const ImageUrlCheckResult: MessageFns<ImageUrlCheckResult> = {
 		return obj
 	},
 
-	create<I extends Exact<DeepPartial<ImageUrlCheckResult>, I>>(base?: I): ImageUrlCheckResult {
-		return ImageUrlCheckResult.fromPartial(base ?? ({} as any))
+	create<I extends Exact<DeepPartial<IsImageUrl>, I>>(base?: I): IsImageUrl {
+		return IsImageUrl.fromPartial(base ?? ({} as any))
 	},
-	fromPartial<I extends Exact<DeepPartial<ImageUrlCheckResult>, I>>(object: I): ImageUrlCheckResult {
-		const message = createBaseImageUrlCheckResult()
+	fromPartial<I extends Exact<DeepPartial<IsImageUrl>, I>>(object: I): IsImageUrl {
+		const message = createBaseIsImageUrl()
 		message.metadata =
 			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
 		message.isImage = object.isImage ?? false
@@ -118,7 +118,7 @@ export const WebContentServiceDefinition = {
 			name: "checkIsImageUrl",
 			requestType: StringRequest,
 			requestStream: false,
-			responseType: ImageUrlCheckResult,
+			responseType: IsImageUrl,
 			responseStream: false,
 			options: {},
 		},
