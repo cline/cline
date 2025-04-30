@@ -14,7 +14,7 @@ import * as vscode from "vscode"
  */
 export async function ensureLocalClinerulesDirExists(cwd: string): Promise<boolean> {
 	const clinerulePath = path.resolve(cwd, GlobalFileNames.clineRules)
-	const defaultRuleFilename = "default-rules.txt"
+	const defaultRuleFilename = "default-rules.md"
 
 	try {
 		const exists = await fileExistsAtPath(clinerulePath)
