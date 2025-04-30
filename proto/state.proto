@@ -1,0 +1,12 @@
+syntax = "proto3";
+package cline;
+
+import "common.proto";
+
+service StateService {
+  rpc getLatestState(EmptyRequest) returns (Empty);
+}
+
+message State {
+  string state_json = 1;
+}

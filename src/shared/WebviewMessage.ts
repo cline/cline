@@ -41,7 +41,6 @@ export interface WebviewMessage {
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
-		| "getLatestState"
 		| "accountLogoutClicked"
 		| "showAccountViewClicked"
 		| "authStateChanged"

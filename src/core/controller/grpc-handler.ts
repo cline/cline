@@ -5,6 +5,7 @@ import { handleFileServiceRequest } from "./file"
 import { handleTaskServiceRequest } from "./task"
 import { handleCheckpointsServiceRequest } from "./checkpoints"
 import { handleMcpServiceRequest } from "./mcp"
+import { handleStateServiceRequest } from "./state"
 
 /**
  * Type definition for a streaming response handler
@@ -74,6 +75,11 @@ export class GrpcHandler {
 				case "cline.McpService":
 					return {
 						message: await handleMcpServiceRequest(this.controller, method, message),
+						request_id: requestId,
+					}
+				case "cline.StateService":
+					return {
+						message: await handleStateServiceRequest(this.controller, method, message),
 						request_id: requestId,
 					}
 				default:
