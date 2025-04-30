@@ -18,7 +18,7 @@ export interface DeleteRuleFileRequest {
 }
 
 /** Result for rule file operations with meaningful data only */
-export interface RuleFileResult {
+export interface RuleFile {
 	/** Path to the rule file */
 	filePath: string
 	/** Filename for display purposes */
@@ -118,12 +118,12 @@ export const DeleteRuleFileRequest: MessageFns<DeleteRuleFileRequest> = {
 	},
 }
 
-function createBaseRuleFileResult(): RuleFileResult {
+function createBaseRuleFile(): RuleFile {
 	return { filePath: "", displayName: "" }
 }
 
-export const RuleFileResult: MessageFns<RuleFileResult> = {
-	encode(message: RuleFileResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const RuleFile: MessageFns<RuleFile> = {
+	encode(message: RuleFile, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		if (message.filePath !== "") {
 			writer.uint32(10).string(message.filePath)
 		}
@@ -133,10 +133,10 @@ export const RuleFileResult: MessageFns<RuleFileResult> = {
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): RuleFileResult {
+	decode(input: BinaryReader | Uint8Array, length?: number): RuleFile {
 		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseRuleFileResult()
+		const message = createBaseRuleFile()
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
@@ -165,14 +165,14 @@ export const RuleFileResult: MessageFns<RuleFileResult> = {
 		return message
 	},
 
-	fromJSON(object: any): RuleFileResult {
+	fromJSON(object: any): RuleFile {
 		return {
 			filePath: isSet(object.filePath) ? globalThis.String(object.filePath) : "",
 			displayName: isSet(object.displayName) ? globalThis.String(object.displayName) : "",
 		}
 	},
 
-	toJSON(message: RuleFileResult): unknown {
+	toJSON(message: RuleFile): unknown {
 		const obj: any = {}
 		if (message.filePath !== "") {
 			obj.filePath = message.filePath
@@ -183,11 +183,11 @@ export const RuleFileResult: MessageFns<RuleFileResult> = {
 		return obj
 	},
 
-	create<I extends Exact<DeepPartial<RuleFileResult>, I>>(base?: I): RuleFileResult {
-		return RuleFileResult.fromPartial(base ?? ({} as any))
+	create<I extends Exact<DeepPartial<RuleFile>, I>>(base?: I): RuleFile {
+		return RuleFile.fromPartial(base ?? ({} as any))
 	},
-	fromPartial<I extends Exact<DeepPartial<RuleFileResult>, I>>(object: I): RuleFileResult {
-		const message = createBaseRuleFileResult()
+	fromPartial<I extends Exact<DeepPartial<RuleFile>, I>>(object: I): RuleFile {
+		const message = createBaseRuleFile()
 		message.filePath = object.filePath ?? ""
 		message.displayName = object.displayName ?? ""
 		return message
@@ -223,7 +223,7 @@ export const FileServiceDefinition = {
 			name: "deleteRuleFile",
 			requestType: DeleteRuleFileRequest,
 			requestStream: false,
-			responseType: RuleFileResult,
+			responseType: RuleFile,
 			responseStream: false,
 			options: {},
 		},
