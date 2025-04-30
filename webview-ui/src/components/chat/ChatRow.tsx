@@ -55,6 +55,7 @@ interface ChatRowProps {
 	onHeightChange: (isTaller: boolean) => void
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
+	onSetQuote: (text: string) => void // <-- Add prop type
 }
 
 interface QuoteButtonState {
@@ -157,6 +158,7 @@ export const ChatRowContent = ({
 	isLast,
 	inputValue,
 	sendMessageFromChatRow,
+	onSetQuote, // <-- Destructure the new prop
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
@@ -206,7 +208,16 @@ export const ChatRowContent = ({
 	}, [])
 
 	useEvent("message", handleMessage)
+
 	// --- Quote Button Logic ---
+	// MOVE handleQuoteClick INSIDE ChatRowContent
+	const handleQuoteClick = useCallback(() => {
+		console.log("[ChatRow] handleQuoteClick - Calling onSetQuote with text:", quoteButtonState.selectedText) // Log prop call
+		onSetQuote(quoteButtonState.selectedText) // <-- Call the prop function (now directly accessible)
+		window.getSelection()?.removeAllRanges() // Clear the browser selection
+		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" }) // Hide the button
+	}, [onSetQuote, quoteButtonState.selectedText]) // <-- Use onSetQuote from props
+
 	const handleMouseUp = useCallback(
 		(event: MouseEvent<HTMLDivElement>) => {
 			const selection = window.getSelection()
@@ -256,14 +267,8 @@ export const ChatRowContent = ({
 		},
 		[quoteButtonState.visible],
 	)
+	// REMOVED handleQuoteClick from here - moved inside component
 
-	const handleQuoteClick = useCallback(() => {
-		console.log("[ChatRow] handleQuoteClick - Function entered") // Log function entry
-		console.log("[ChatRow] handleQuoteClick - Posting setActiveQuote message with text:", quoteButtonState.selectedText) // Log message post
-		vscode.postMessage({ type: "setActiveQuote", text: quoteButtonState.selectedText }) // Use setActiveQuote
-		window.getSelection()?.removeAllRanges() // Clear the browser selection
-		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" }) // Hide the button
-	}, [quoteButtonState.selectedText])
 	// --- End Quote Button Logic ---
 
 	const [icon, title] = useMemo(() => {

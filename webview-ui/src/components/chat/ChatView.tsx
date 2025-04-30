@@ -544,6 +544,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const handleMessage = useCallback(
 		(e: MessageEvent) => {
+			console.log("[ChatView] handleMessage - Listener triggered with event:", e) // <-- ADD THIS LINE
 			const message: ExtensionMessage = e.data
 			console.log("[ChatView] handleMessage - Received message:", message) // Log ALL incoming messages
 			switch (message.type) {
@@ -584,11 +585,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}
 					}, 0)
 					break
-				case "setActiveQuote": // Handle the new message type
-					console.log("[ChatView] handleMessage - Received setActiveQuote message:", message.text) // Log message received
-					setActiveQuote(message.text ?? null)
-					textAreaRef.current?.focus() // Focus input when quote is set
-					break
+				// REMOVED setActiveQuote case - state is now set directly via prop
 				case "invoke":
 					switch (message.invoke!) {
 						case "sendMessage":
@@ -604,10 +601,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 			// textAreaRef.current is not explicitly required here since react guarantees that ref will be stable across re-renders, and we're not using its value but its reference.
 		},
-		[isHidden, textAreaDisabled, enableButtons, handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick],
+		[isHidden, textAreaDisabled, enableButtons, handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick], // <-- RESTORE DEPENDENCIES
 	)
 
-	useEvent("message", handleMessage)
+	useEvent("message", handleMessage) // <-- REVERT TO ORIGINAL
 
 	useMount(() => {
 		// NOTE: the vscode window needs to be focused for this to work
@@ -897,10 +894,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					onHeightChange={handleRowHeightChange}
 					inputValue={inputValue}
 					sendMessageFromChatRow={handleSendMessage}
+					onSetQuote={setActiveQuote} // <-- Pass down the state setter
 				/>
 			)
 		},
-		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange, inputValue],
+		[
+			expandedRows,
+			modifiedMessages,
+			groupedMessages.length,
+			toggleRowExpansion,
+			handleRowHeightChange,
+			inputValue,
+			setActiveQuote,
+		], // <-- Add setActiveQuote dependency
 	)
 
 	return (
