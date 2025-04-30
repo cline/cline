@@ -71,7 +71,8 @@ export interface WebviewMessage {
 		| "toggleClineRule"
 		| "deleteClineRule"
 		| "copyToClipboard"
-		| "quoteText"
+		// | "quoteText" // Removed, use setActiveQuote instead
+		| "setActiveQuote"
 
 	// | "relaunchChromeDebugMode"
 	text?: string

@@ -49,6 +49,7 @@ export interface ExtensionMessage {
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 		| "quoteText" // For quoting selected text
+		| "setActiveQuote" // For setting the active quote preview
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:

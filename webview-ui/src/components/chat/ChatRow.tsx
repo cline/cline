@@ -251,9 +251,9 @@ export const ChatRowContent = ({
 	)
 
 	const handleQuoteClick = useCallback(() => {
-		vscode.postMessage({ type: "quoteText", text: quoteButtonState.selectedText })
-		window.getSelection()?.removeAllRanges()
-		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
+		vscode.postMessage({ type: "setActiveQuote", text: quoteButtonState.selectedText }) // Use setActiveQuote
+		window.getSelection()?.removeAllRanges() // Clear the browser selection
+		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" }) // Hide the button
 	}, [quoteButtonState.selectedText])
 	// --- End Quote Button Logic ---
 

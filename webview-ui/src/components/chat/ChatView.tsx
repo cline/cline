@@ -26,6 +26,7 @@ import AutoApproveMenu from "@/components/chat/AutoApproveMenu"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
+import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview" // Import the new component
 import TaskHeader from "@/components/chat/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
 import { unified } from "unified"
@@ -86,6 +87,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
+	const [activeQuote, setActiveQuote] = useState<string | null>(null) // State for the quote preview
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
@@ -345,10 +347,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[]) => {
-			text = text.trim()
-			if (text || images.length > 0) {
+			let messageToSend = text.trim()
+			const hasContent = messageToSend || images.length > 0
+
+			// Prepend the active quote if it exists
+			if (activeQuote && hasContent) {
+				const formattedQuote = activeQuote
+					.split("\n")
+					.map((line) => `> ${line}`)
+					.join("\n")
+				messageToSend = `${formattedQuote}\n\n${messageToSend}`
+			}
+
+			if (hasContent) {
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask({ text, images })
+					await TaskServiceClient.newTask({ text: messageToSend, images })
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -366,7 +379,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
-								text,
+								text: messageToSend,
 								images,
 							})
 							break
@@ -374,7 +387,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
-								text,
+								text: messageToSend,
 								images,
 							})
 							break
@@ -382,6 +395,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 				}
 				setInputValue("")
+				setActiveQuote(null) // Clear quote when sending message
 				setTextAreaDisabled(true)
 				setSelectedImages([])
 				setClineAsk(undefined)
@@ -391,7 +405,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk],
+		[messages.length, clineAsk, activeQuote], // Add activeQuote to dependencies
 	)
 
 	const startNewTask = useCallback(async () => {
@@ -429,6 +443,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
+					setActiveQuote(null) // Clear quote when using primary button
 					setSelectedImages([])
 					break
 				case "completion_result":
@@ -495,6 +510,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
+					setActiveQuote(null) // Clear quote when using secondary button
 					setSelectedImages([])
 					break
 			}
@@ -564,21 +580,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}
 					}, 0)
 					break
-				case "quoteText":
-					setInputValue((prevValue) => {
-						const quotedText = message.text ?? ""
-						const formattedQuote = quotedText
-							.split("\n")
-							.map((line) => `> ${line}`)
-							.join("\n")
-						return prevValue ? `${prevValue}\n\n${formattedQuote}\n\n` : `${formattedQuote}\n\n`
-					})
-					setTimeout(() => {
-						if (textAreaRef.current) {
-							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
-							textAreaRef.current.focus()
-						}
-					}, 0)
+				case "setActiveQuote": // Handle the new message type
+					setActiveQuote(message.text ?? null)
+					textAreaRef.current?.focus() // Focus input when quote is set
 					break
 				case "invoke":
 					switch (message.invoke!) {
@@ -1061,6 +1065,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)}
 				</>
 			)}
+			{activeQuote && <QuotedMessagePreview text={activeQuote} onDismiss={() => setActiveQuote(null)} />}
 			<ChatTextArea
 				ref={textAreaRef}
 				inputValue={inputValue}
