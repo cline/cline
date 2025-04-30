@@ -222,9 +222,10 @@ export const ChatRowContent = ({
 					const rect = range.getBoundingClientRect()
 					const containerRect = contentRef.current.getBoundingClientRect()
 
-					// Position button relative to the container
-					const top = rect.bottom - containerRect.top + window.scrollY + 5 // 5px below selection
-					const left = rect.right - containerRect.left + window.scrollX - 15 // 15px offset from right edge
+					// Position button relative to the selection
+					const buttonHeight = 30 // Approximate height of the button
+					const top = rect.top - containerRect.top - buttonHeight - 5 // 5px above selection
+					const left = rect.left - containerRect.left // Align with the left edge of the selection
 
 					setQuoteButtonState({
 						visible: true,

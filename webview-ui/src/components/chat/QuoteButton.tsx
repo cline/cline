@@ -13,10 +13,16 @@ const ButtonContainer = styled.div<{ top: number; left: number }>`
 	top: ${(props) => props.top}px;
 	left: ${(props) => props.left}px;
 	z-index: 10; // Ensure it's above the text
-	background-color: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-editorWidget-border);
+	background-color: var(--vscode-button-background);
+	border: 1px solid var(--vscode-button-border);
 	border-radius: 4px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	transition: transform 0.1s ease;
+
+	&:hover {
+		transform: scale(1.05);
+		background-color: var(--vscode-button-hoverBackground);
+	}
 `
 
 const QuoteButton: React.FC<QuoteButtonProps> = ({ top, left, onClick }) => {
@@ -29,8 +35,10 @@ const QuoteButton: React.FC<QuoteButtonProps> = ({ top, left, onClick }) => {
 					e.stopPropagation() // Prevent triggering mouseup on the parent
 					onClick()
 				}}
-				style={{ padding: "2px 4px", height: "auto", minWidth: "auto" }}>
-				<span className="codicon codicon-quote" style={{ fontSize: "12px" }}></span>
+				style={{ padding: "4px 6px", height: "auto", minWidth: "auto" }}>
+				<span
+					className="codicon codicon-quote"
+					style={{ fontSize: "14px", color: "var(--vscode-button-foreground)" }}></span>
 			</VSCodeButton>
 		</ButtonContainer>
 	)
