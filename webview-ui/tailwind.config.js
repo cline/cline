@@ -7,5 +7,16 @@ module.exports = {
 		extend: {},
 	},
 	darkMode: "class",
-	plugins: [heroui()],
+	plugins: [
+		heroui({
+			defaultTheme: "vscode",
+			themes: {
+				vscode: {
+					colors: {
+						background: "",
+					},
+				},
+			},
+		}),
+	],
 }
