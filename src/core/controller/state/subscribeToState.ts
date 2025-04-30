@@ -3,6 +3,9 @@ import { Controller } from "../index"
 import { EmptyRequest } from "../../../shared/proto/common"
 import { StreamingResponseHandler } from "../grpc-handler"
 
+// Keep track of active state subscriptions
+const activeStateSubscriptions = new Set<StreamingResponseHandler>()
+
 /**
  * Subscribe to state updates
  * @param controller The controller instance
@@ -18,17 +21,50 @@ export async function subscribeToState(
 	const initialState = await controller.getStateToPostToWebview()
 	const initialStateJson = JSON.stringify(initialState)
 
+	console.log("[DEBUG] set up state subscription")
+
 	await responseStream({
 		stateJson: initialStateJson,
 	})
 
-	// Since we don't have a built-in event system for state changes,
-	// we'll use the postMessageToWebview method as a hook point
-	// This will be implemented in the controller class later
+	// Add this subscription to the active subscriptions
+	activeStateSubscriptions.add(responseStream)
 
-	// For now, we'll just send the initial state and keep the connection open
-	// The client can always request a new state if needed
+	// Register cleanup when the connection is closed
+	// We don't actually return this function, but the gRPC handler will call it
+	// when the connection is closed
+	const cleanup = () => {
+		activeStateSubscriptions.delete(responseStream)
+	}
 
-	// Note: In a real implementation, we would set up a proper event listener
-	// to send updates when the state changes
+	// TODO Store the cleanup function somewhere the gRPC handler can access it
+	// This is a workaround since we can't return it directly
+	;(responseStream as any).__cleanup = cleanup
+}
+
+/**
+ * Send a state update to all active subscribers
+ * @param state The state to send
+ */
+export async function sendStateUpdate(state: any): Promise<void> {
+	const stateJson = JSON.stringify(state)
+
+	// Send the update to all active subscribers
+	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
+		try {
+			await responseStream(
+				{
+					stateJson,
+				},
+				false,
+			) // Not the last message
+			console.log("[DEBUG] sending followup state", stateJson)
+		} catch (error) {
+			console.error("Error sending state update:", error)
+			// Remove the subscription if there was an error
+			activeStateSubscriptions.delete(responseStream)
+		}
+	})
+
+	await Promise.all(promises)
 }

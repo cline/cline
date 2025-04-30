@@ -49,6 +49,7 @@ import {
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { sendStateUpdate } from "./state/subscribeToState"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -1756,7 +1757,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		this.postMessageToWebview({ type: "state", state })
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {

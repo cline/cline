@@ -1,7 +1,8 @@
 import * as vscode from "vscode"
 import { Controller } from "../index"
 import { EmptyRequest } from "../../../shared/proto/common"
-import { ExtensionState } from "../../../shared/proto/state"
+import { State } from "../../../shared/proto/state"
+import { ExtensionState } from "../../../shared/ExtensionMessage"
 
 /**
  * Get the latest extension state
@@ -9,7 +10,7 @@ import { ExtensionState } from "../../../shared/proto/state"
  * @param request The empty request
  * @returns The current extension state
  */
-export async function getLatestState(controller: Controller, request: EmptyRequest): Promise<ExtensionState> {
+export async function getLatestState(controller: Controller, request: EmptyRequest): Promise<State> {
 	// Get the state using the existing method
 	const state = await controller.getStateToPostToWebview()
 
