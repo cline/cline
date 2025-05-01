@@ -21,6 +21,15 @@ export interface RuleFileRequest {
 	filename?: string | undefined
 }
 
+/** Request for creating a rule file */
+export interface CreateRuleFileRequest {
+	metadata?: Metadata | undefined
+	/** Name of the rule file to create */
+	filename: string
+	/** Whether to create in global or workspace rules directory */
+	isGlobal: boolean
+}
+
 /** Result for rule file operations with meaningful data only */
 export interface RuleFile {
 	/** Path to the rule file */
@@ -136,6 +145,99 @@ export const RuleFileRequest: MessageFns<RuleFileRequest> = {
 		message.isGlobal = object.isGlobal ?? false
 		message.rulePath = object.rulePath ?? undefined
 		message.filename = object.filename ?? undefined
+		return message
+	},
+}
+
+function createBaseCreateRuleFileRequest(): CreateRuleFileRequest {
+	return { metadata: undefined, filename: "", isGlobal: false }
+}
+
+export const CreateRuleFileRequest: MessageFns<CreateRuleFileRequest> = {
+	encode(message: CreateRuleFileRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.filename !== "") {
+			writer.uint32(18).string(message.filename)
+		}
+		if (message.isGlobal !== false) {
+			writer.uint32(24).bool(message.isGlobal)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): CreateRuleFileRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseCreateRuleFileRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.filename = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.isGlobal = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): CreateRuleFileRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			filename: isSet(object.filename) ? globalThis.String(object.filename) : "",
+			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
+		}
+	},
+
+	toJSON(message: CreateRuleFileRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.filename !== "") {
+			obj.filename = message.filename
+		}
+		if (message.isGlobal !== false) {
+			obj.isGlobal = message.isGlobal
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<CreateRuleFileRequest>, I>>(base?: I): CreateRuleFileRequest {
+		return CreateRuleFileRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<CreateRuleFileRequest>, I>>(object: I): CreateRuleFileRequest {
+		const message = createBaseCreateRuleFileRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.filename = object.filename ?? ""
+		message.isGlobal = object.isGlobal ?? false
 		return message
 	},
 }
@@ -269,6 +371,15 @@ export const FileServiceDefinition = {
 		deleteRuleFile: {
 			name: "deleteRuleFile",
 			requestType: RuleFileRequest,
+			requestStream: false,
+			responseType: RuleFile,
+			responseStream: false,
+			options: {},
+		},
+		/** Deletes a rule file from either global or workspace rules directory */
+		createRuleFile: {
+			name: "createRuleFile",
+			requestType: CreateRuleFileRequest,
 			requestStream: false,
 			responseType: RuleFile,
 			responseStream: false,
