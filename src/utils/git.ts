@@ -30,6 +30,15 @@ async function checkGitInstalled(): Promise<boolean> {
 	}
 }
 
+async function checkGitRepoHasCommits(cwd: string): Promise<boolean> {
+	try {
+		await execAsync("git rev-parse HEAD", { cwd })
+		return true
+	} catch (error) {
+		return false
+	}
+}
+
 export async function searchCommits(query: string, cwd: string): Promise<GitCommit[]> {
 	try {
 		const isInstalled = await checkGitInstalled()
@@ -45,9 +54,7 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 		}
 
 		// Check if repo has any commits
-		try {
-			await execAsync("git rev-parse HEAD", { cwd })
-		} catch (error) {
+		if (!(await checkGitRepoHasCommits(cwd))) {
 			// No commits yet in the repository
 			return []
 		}
@@ -109,9 +116,7 @@ export async function getCommitInfo(hash: string, cwd: string): Promise<string> 
 		}
 
 		// Check if repo has any commits
-		try {
-			await execAsync("git rev-parse HEAD", { cwd })
-		} catch (error) {
+		if (!(await checkGitRepoHasCommits(cwd))) {
 			return "Repository has no commits yet"
 		}
 
@@ -164,12 +169,11 @@ export async function getWorkingState(cwd: string): Promise<string> {
 
 		// Check if repo has any commits before trying to diff against HEAD
 		let diff = ""
-		try {
-			await execAsync("git rev-parse HEAD", { cwd })
+		if (await checkGitRepoHasCommits(cwd)) {
 			// Only run git diff if there are commits
 			const { stdout: diffOutput } = await execAsync("git diff HEAD", { cwd })
 			diff = diffOutput
-		} catch (error) {
+		} else {
 			// No commits yet, use status output only
 			return `Working directory changes (new repository):\n\n${status}`
 		}
