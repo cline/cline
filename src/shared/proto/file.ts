@@ -11,7 +11,7 @@ import { Empty, Metadata, StringRequest } from "./common"
 export const protobufPackage = "cline"
 
 /** Response for searchCommits */
-export interface GitCommitSearchResponse {
+export interface GitCommits {
 	commits: GitCommit[]
 }
 
@@ -45,22 +45,22 @@ export interface RuleFile {
 	alreadyExists: boolean
 }
 
-function createBaseGitCommitSearchResponse(): GitCommitSearchResponse {
+function createBaseGitCommits(): GitCommits {
 	return { commits: [] }
 }
 
-export const GitCommitSearchResponse: MessageFns<GitCommitSearchResponse> = {
-	encode(message: GitCommitSearchResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const GitCommits: MessageFns<GitCommits> = {
+	encode(message: GitCommits, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		for (const v of message.commits) {
 			GitCommit.encode(v!, writer.uint32(10).fork()).join()
 		}
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): GitCommitSearchResponse {
+	decode(input: BinaryReader | Uint8Array, length?: number): GitCommits {
 		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseGitCommitSearchResponse()
+		const message = createBaseGitCommits()
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
@@ -81,13 +81,13 @@ export const GitCommitSearchResponse: MessageFns<GitCommitSearchResponse> = {
 		return message
 	},
 
-	fromJSON(object: any): GitCommitSearchResponse {
+	fromJSON(object: any): GitCommits {
 		return {
 			commits: globalThis.Array.isArray(object?.commits) ? object.commits.map((e: any) => GitCommit.fromJSON(e)) : [],
 		}
 	},
 
-	toJSON(message: GitCommitSearchResponse): unknown {
+	toJSON(message: GitCommits): unknown {
 		const obj: any = {}
 		if (message.commits?.length) {
 			obj.commits = message.commits.map((e) => GitCommit.toJSON(e))
@@ -95,11 +95,11 @@ export const GitCommitSearchResponse: MessageFns<GitCommitSearchResponse> = {
 		return obj
 	},
 
-	create<I extends Exact<DeepPartial<GitCommitSearchResponse>, I>>(base?: I): GitCommitSearchResponse {
-		return GitCommitSearchResponse.fromPartial(base ?? ({} as any))
+	create<I extends Exact<DeepPartial<GitCommits>, I>>(base?: I): GitCommits {
+		return GitCommits.fromPartial(base ?? ({} as any))
 	},
-	fromPartial<I extends Exact<DeepPartial<GitCommitSearchResponse>, I>>(object: I): GitCommitSearchResponse {
-		const message = createBaseGitCommitSearchResponse()
+	fromPartial<I extends Exact<DeepPartial<GitCommits>, I>>(object: I): GitCommits {
+		const message = createBaseGitCommits()
 		message.commits = object.commits?.map((e) => GitCommit.fromPartial(e)) || []
 		return message
 	},
@@ -477,7 +477,7 @@ export const FileServiceDefinition = {
 			name: "searchCommits",
 			requestType: StringRequest,
 			requestStream: false,
-			responseType: GitCommitSearchResponse,
+			responseType: GitCommits,
 			responseStream: false,
 			options: {},
 		},

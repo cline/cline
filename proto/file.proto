@@ -21,11 +21,11 @@ service FileService {
   rpc createRuleFile(RuleFileRequest) returns (RuleFile);
   
   // Search git commits in the workspace
-  rpc searchCommits(StringRequest) returns (GitCommitSearchResponse);
+  rpc searchCommits(StringRequest) returns (GitCommits);
 }
 
 // Response for searchCommits
-message GitCommitSearchResponse {
+message GitCommits {
   repeated GitCommit commits = 1;
 }
 

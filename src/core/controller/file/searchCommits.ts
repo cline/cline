@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { GitCommitSearchResponse, GitCommit as ProtoGitCommit } from "@shared/proto/file"
+import { GitCommits, GitCommit as ProtoGitCommit } from "@shared/proto/file"
 import { StringRequest } from "@shared/proto/common"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
@@ -11,13 +11,10 @@ import { FileMethodHandler } from "./index"
  * @param request The request message containing the search query in the 'value' field
  * @returns GitCommitSearchResponse containing the matching commits
  */
-export const searchCommits: FileMethodHandler = async (
-	controller: Controller,
-	request: StringRequest,
-): Promise<GitCommitSearchResponse> => {
+export const searchCommits: FileMethodHandler = async (controller: Controller, request: StringRequest): Promise<GitCommits> => {
 	const cwd = getWorkspacePath()
 	if (!cwd) {
-		return GitCommitSearchResponse.create({ commits: [] })
+		return GitCommits.create({ commits: [] })
 	}
 
 	try {
@@ -32,9 +29,9 @@ export const searchCommits: FileMethodHandler = async (
 			date: commit.date,
 		}))
 
-		return GitCommitSearchResponse.create({ commits: protoCommits })
+		return GitCommits.create({ commits: protoCommits })
 	} catch (error) {
 		console.error(`Error searching commits: ${JSON.stringify(error)}`)
-		return GitCommitSearchResponse.create({ commits: [] })
+		return GitCommits.create({ commits: [] })
 	}
 }
