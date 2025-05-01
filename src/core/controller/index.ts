@@ -93,6 +93,20 @@ export class Controller {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+
+		// Capture telemetry when the extension is disposed
+		this.context.subscriptions.push({
+			dispose: () => {
+				if (this.task) {
+					telemetryService.captureClosedEvent(
+						this.task.taskId,
+						this.task.apiConversationHistory.length,
+						this.task.apiConversationHistory.filter((msg) => msg.role === "user").length,
+						this.task.apiConversationHistory.filter((msg) => msg.role === "assistant").length,
+					)
+				}
+			},
+		})
 	}
 
 	/*
