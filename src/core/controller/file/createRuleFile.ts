@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { RuleFileRequest, RuleFileResult } from "@shared/proto/file"
+import { RuleFileRequest, RuleFile } from "@shared/proto/file"
 import { FileMethodHandler } from "./index"
 import {
 	createRuleFile as createRuleFileImpl,
@@ -17,10 +17,7 @@ import { cwd } from "@core/task"
  * @returns Result with file path and display name
  * @throws Error if operation fails
  */
-export const createRuleFile: FileMethodHandler = async (
-	controller: Controller,
-	request: RuleFileRequest,
-): Promise<RuleFileResult> => {
+export const createRuleFile: FileMethodHandler = async (controller: Controller, request: RuleFileRequest): Promise<RuleFile> => {
 	if (typeof request.isGlobal !== "boolean" || typeof request.filename !== "string" || !request.filename) {
 		console.error("createRuleFile: Missing or invalid parameters", {
 			isGlobal: typeof request.isGlobal === "boolean" ? request.isGlobal : `Invalid: ${typeof request.isGlobal}`,
@@ -50,7 +47,7 @@ export const createRuleFile: FileMethodHandler = async (
 		)
 	}
 
-	return RuleFileResult.create({
+	return RuleFile.create({
 		filePath: filePath,
 		displayName: path.basename(filePath),
 		alreadyExists: fileExists,
