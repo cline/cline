@@ -27,6 +27,7 @@ import {
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
+import { FileServiceClient } from "@/services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
@@ -282,27 +283,29 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
 			if (selectedType === ContextMenuOptionType.Git || /^[a-f0-9]+$/i.test(searchQuery)) {
-				vscode.postMessage({
-					type: "searchCommits",
-					text: searchQuery || "",
-				})
+				FileServiceClient.searchCommits({ value: searchQuery || "" })
+					.then((response) => {
+						if (response.commits) {
+							const commits: GitCommit[] = response.commits.map(
+								(commit: { hash: string; shortHash: string; subject: string; author: string; date: string }) => ({
+									type: ContextMenuOptionType.Git,
+									value: commit.hash,
+									label: commit.subject,
+									description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
+								}),
+							)
+							setGitCommits(commits)
+						}
+					})
+					.catch((error) => {
+						console.error("Error searching commits:", error)
+					})
 			}
 		}, [selectedType, searchQuery])
 
 		const handleMessage = useCallback((event: MessageEvent) => {
 			const message: ExtensionMessage = event.data
 			switch (message.type) {
-				case "commitSearchResults": {
-					const commits: GitCommit[] =
-						message.commits?.map((commit) => ({
-							type: ContextMenuOptionType.Git,
-							value: commit.hash,
-							label: commit.subject,
-							description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
-						})) || []
-					setGitCommits(commits)
-					break
-				}
 				case "relativePathsResponse": {
 					// New case for batch response
 					const validPaths = message.paths?.filter((path): path is string => !!path) || []

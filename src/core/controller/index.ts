@@ -538,21 +538,6 @@ export class Controller {
 				this.mcpHub?.sendLatestMcpServers()
 				break
 			}
-			case "searchCommits": {
-				const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-				if (cwd) {
-					try {
-						const commits = await searchCommits(message.text || "", cwd)
-						await this.postMessageToWebview({
-							type: "commitSearchResults",
-							commits,
-						})
-					} catch (error) {
-						console.error(`Error searching commits: ${JSON.stringify(error)}`)
-					}
-				}
-				break
-			}
 			case "openExtensionSettings": {
 				const settingsFilter = message.text || ""
 				await vscode.commands.executeCommand(
