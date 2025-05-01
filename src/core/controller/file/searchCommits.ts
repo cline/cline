@@ -9,7 +9,7 @@ import { FileMethodHandler } from "./index"
  * Searches for git commits in the workspace repository
  * @param controller The controller instance
  * @param request The request message containing the search query in the 'value' field
- * @returns GitCommitSearchResponse containing the matching commits
+ * @returns GitCommits containing the matching commits
  */
 export const searchCommits: FileMethodHandler = async (controller: Controller, request: StringRequest): Promise<GitCommits> => {
 	const cwd = getWorkspacePath()
