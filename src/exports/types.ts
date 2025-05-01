@@ -106,6 +106,7 @@ type ProviderSettings = {
 	geminiApiKey?: string | undefined
 	googleGeminiBaseUrl?: string | undefined
 	openAiNativeApiKey?: string | undefined
+	openAiNativeBaseUrl?: string | undefined
 	mistralApiKey?: string | undefined
 	mistralCodestralUrl?: string | undefined
 	deepSeekBaseUrl?: string | undefined

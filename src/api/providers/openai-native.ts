@@ -29,7 +29,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		super()
 		this.options = options
 		const apiKey = this.options.openAiNativeApiKey ?? "not-provided"
-		this.client = new OpenAI({ apiKey })
+		this.client = new OpenAI({ baseURL: this.options.openAiNativeBaseUrl, apiKey })
 	}
 
 	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {

@@ -401,6 +401,7 @@ export const providerSettingsSchema = z.object({
 	googleGeminiBaseUrl: z.string().optional(),
 	// OpenAI Native
 	openAiNativeApiKey: z.string().optional(),
+	openAiNativeBaseUrl: z.string().optional(),
 	// Mistral
 	mistralApiKey: z.string().optional(),
 	mistralCodestralUrl: z.string().optional(),
@@ -492,6 +493,7 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	googleGeminiBaseUrl: undefined,
 	// OpenAI Native
 	openAiNativeApiKey: undefined,
+	openAiNativeBaseUrl: undefined,
 	// Mistral
 	mistralApiKey: undefined,
 	mistralCodestralUrl: undefined,
