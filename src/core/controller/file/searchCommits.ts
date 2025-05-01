@@ -1,9 +1,10 @@
 import { Controller } from ".."
-import { GitCommits, GitCommit as ProtoGitCommit } from "@shared/proto/file"
+import { GitCommits } from "@shared/proto/file"
 import { StringRequest } from "@shared/proto/common"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
 import { FileMethodHandler } from "./index"
+import { convertGitCommitsToProtoGitCommits } from "@shared/proto-conversions/file/git-commit-conversion"
 
 /**
  * Searches for git commits in the workspace repository
@@ -20,14 +21,7 @@ export const searchCommits: FileMethodHandler = async (controller: Controller, r
 	try {
 		const commits = await searchCommitsUtil(request.value || "", cwd)
 
-		// Map the domain GitCommit type to the proto GitCommit type
-		const protoCommits: ProtoGitCommit[] = commits.map((commit) => ({
-			hash: commit.hash,
-			shortHash: commit.shortHash,
-			subject: commit.subject,
-			author: commit.author,
-			date: commit.date,
-		}))
+		const protoCommits = convertGitCommitsToProtoGitCommits(commits)
 
 		return GitCommits.create({ commits: protoCommits })
 	} catch (error) {
