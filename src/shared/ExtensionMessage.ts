@@ -35,7 +35,6 @@ export interface ExtensionMessage {
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
 		| "openGraphData"
-		| "isImageUrlResult"
 		| "didUpdateSettings"
 		| "userCreditsBalance"
 		| "userCreditsUsage"

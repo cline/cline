@@ -11,7 +11,7 @@ import { handleGrpcRequest } from "./grpc-handler"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
-import { fetchOpenGraphData, isImageUrl } from "@integrations/misc/link-preview"
+import { fetchOpenGraphData } from "@integrations/misc/link-preview"
 import { handleFileServiceRequest } from "./file"
 import { selectImages } from "@integrations/misc/process-images"
 import { getTheme } from "@integrations/theme/getTheme"
@@ -384,9 +384,6 @@ export class Controller {
 				break
 			case "fetchOpenGraphData":
 				this.fetchOpenGraphData(message.text!)
-				break
-			case "checkIsImageUrl":
-				this.checkIsImageUrl(message.text!)
 				break
 			case "createRuleFile":
 				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
@@ -1914,29 +1911,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				type: "openGraphData",
 				error: `Failed to fetch Open Graph data: ${error}`,
 				url: url,
-			})
-		}
-	}
-
-	// Check if a URL is an image
-	async checkIsImageUrl(url: string) {
-		try {
-			// Check if the URL is an image
-			const isImage = await isImageUrl(url)
-
-			// Send the result back to the webview
-			await this.postMessageToWebview({
-				type: "isImageUrlResult",
-				isImage,
-				url,
-			})
-		} catch (error) {
-			console.error(`Error checking if URL is an image: ${url}`, error)
-			// Send an error response
-			await this.postMessageToWebview({
-				type: "isImageUrlResult",
-				isImage: false,
-				url,
 			})
 		}
 	}
