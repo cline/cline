@@ -185,6 +185,15 @@ export const anthropicModels = {
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 export const bedrockModels = {
+	"amazon.nova-premier-v1:0": {
+		maxTokens: 10_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 12.5,
+	},
 	"amazon.nova-pro-v1:0": {
 		maxTokens: 5000,
 		contextWindow: 300_000,

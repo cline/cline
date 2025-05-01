@@ -493,7 +493,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	/**
 	 * Creates a message using Amazon Nova models through AWS Bedrock
-	 * Implements support for Nova Micro, Nova Lite, and Nova Pro models
+	 * Implements support for Amazon Nova models
 	 */
 	private async *createNovaMessage(
 		systemPrompt: string,
