@@ -2,22 +2,7 @@ import React from "react"
 import { render, screen } from "@testing-library/react"
 import ApiOptions from "../ApiOptions"
 import { ApiConfiguration } from "@shared/api"
-
-// Mock the useExtensionState hook instead of trying to use the context directly
-jest.mock("../../../context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({
-		apiConfiguration: mockApiConfig,
-		setApiConfiguration: jest.fn(),
-		uriScheme: "vscode",
-	}),
-}))
-
-// Mock the vscode API
-jest.mock("../../../utils/vscode", () => ({
-	vscode: {
-		postMessage: jest.fn(),
-	},
-}))
+import { vi, describe, test, expect, beforeEach } from "vitest"
 
 // Create a variable for the mock config that we can change between tests
 let mockApiConfig: ApiConfiguration | undefined = {
@@ -26,97 +11,113 @@ let mockApiConfig: ApiConfiguration | undefined = {
 	// Add other needed fields
 }
 
+// Mock the useExtensionState hook instead of trying to use the context directly
+vi.mock("../../../context/ExtensionStateContext", () => ({
+	useExtensionState: () => ({
+		apiConfiguration: mockApiConfig,
+		setApiConfiguration: vi.fn(),
+		uriScheme: "vscode",
+	}),
+}))
+
+// Mock the vscode API
+vi.mock("../../../utils/vscode", () => ({
+	vscode: {
+		postMessage: vi.fn(),
+	},
+}))
+
 // Mock subcomponents to simplify the test
-jest.mock("../providers/AnthropicProvider", () => ({
+vi.mock("../providers/AnthropicProvider", () => ({
 	AnthropicProvider: () => <div data-testid="anthropic-provider">Anthropic Provider</div>,
 }))
 
-jest.mock("../providers/OpenRouterProvider", () => ({
+vi.mock("../providers/OpenRouterProvider", () => ({
 	OpenRouterProvider: () => <div data-testid="openrouter-provider">OpenRouter Provider</div>,
 }))
 
-jest.mock("../providers/GeminiProvider", () => ({
+vi.mock("../providers/GeminiProvider", () => ({
 	GeminiProvider: () => <div data-testid="gemini-provider">Gemini Provider</div>,
 }))
 
-jest.mock("../providers/RequestyProvider", () => ({
+vi.mock("../providers/RequestyProvider", () => ({
 	RequestyProvider: () => <div data-testid="requesty-provider">Requesty Provider</div>,
 }))
 
-jest.mock("../providers/TogetherProvider", () => ({
+vi.mock("../providers/TogetherProvider", () => ({
 	TogetherProvider: () => <div data-testid="together-provider">Together Provider</div>,
 }))
 
-jest.mock("../providers/QwenProvider", () => ({
+vi.mock("../providers/QwenProvider", () => ({
 	QwenProvider: () => <div data-testid="qwen-provider">Qwen Provider</div>,
 }))
 
-jest.mock("../providers/DoubaoProvider", () => ({
+vi.mock("../providers/DoubaoProvider", () => ({
 	DoubaoProvider: () => <div data-testid="doubao-provider">Doubao Provider</div>,
 }))
 
-jest.mock("../providers/LMStudioProvider", () => ({
+vi.mock("../providers/LMStudioProvider", () => ({
 	LMStudioProvider: () => <div data-testid="lmstudio-provider">LM Studio Provider</div>,
 }))
 
-jest.mock("../providers/LiteLLMProvider", () => ({
+vi.mock("../providers/LiteLLMProvider", () => ({
 	LiteLLMProvider: () => <div data-testid="litellm-provider">LiteLLM Provider</div>,
 }))
 
-jest.mock("../providers/AskSageProvider", () => ({
+vi.mock("../providers/AskSageProvider", () => ({
 	AskSageProvider: () => <div data-testid="asksage-provider">AskSage Provider</div>,
 }))
 
-jest.mock("../providers/XAIProvider", () => ({
+vi.mock("../providers/XAIProvider", () => ({
 	XAIProvider: () => <div data-testid="xai-provider">XAI Provider</div>,
 }))
 
-jest.mock("../providers/SambanovaProvider", () => ({
+vi.mock("../providers/SambanovaProvider", () => ({
 	SambanovaProvider: () => <div data-testid="sambanova-provider">SambaNova Provider</div>,
 }))
 
-jest.mock("../providers/MistralProvider", () => ({
+vi.mock("../providers/MistralProvider", () => ({
 	MistralProvider: () => <div data-testid="mistral-provider">Mistral Provider</div>,
 }))
 
-jest.mock("../providers/DeepSeekProvider", () => ({
+vi.mock("../providers/DeepSeekProvider", () => ({
 	DeepSeekProvider: () => <div data-testid="deepseek-provider">DeepSeek Provider</div>,
 }))
 
-jest.mock("../providers/BedrockProvider", () => ({
+vi.mock("../providers/BedrockProvider", () => ({
 	BedrockProvider: () => <div data-testid="bedrock-provider">Bedrock Provider</div>,
 }))
 
-jest.mock("../providers/OpenAICompatibleProvider", () => ({
+vi.mock("../providers/OpenAICompatibleProvider", () => ({
 	OpenAICompatibleProvider: () => <div data-testid="openai-provider">OpenAI Compatible Provider</div>,
 }))
 
-jest.mock("../providers/OllamaProvider", () => ({
+vi.mock("../providers/OllamaProvider", () => ({
 	OllamaProvider: () => <div data-testid="ollama-provider">Ollama Provider</div>,
 }))
 
-jest.mock("../providers/VSCodeLMProvider", () => ({
+vi.mock("../providers/VSCodeLMProvider", () => ({
 	VSCodeLMProvider: () => <div data-testid="vscode-lm-provider">VS Code LM Provider</div>,
 }))
 
-jest.mock("../providers/VertexProvider", () => ({
+vi.mock("../providers/VertexProvider", () => ({
 	VertexProvider: () => <div data-testid="vertex-provider">Vertex Provider</div>,
 }))
 
-jest.mock("../providers/ClineProvider", () => ({
+vi.mock("../providers/ClineProvider", () => ({
 	ClineProvider: () => <div data-testid="cline-provider">Cline Provider</div>,
 }))
 
-jest.mock("../providers/OpenAINativeProvider", () => ({
+vi.mock("../providers/OpenAINativeProvider", () => ({
 	OpenAINativeProvider: () => <div data-testid="openai-native-provider">OpenAI Native Provider</div>,
 }))
 
 // Mock the common components
-jest.mock("../common/ModelSelector", () => ({
+vi.mock("../common/ModelSelector", () => ({
 	DropdownContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="dropdown-container">{children}</div>,
 }))
 
-jest.mock("../common/ErrorMessage", () => ({
+vi.mock("../common/ErrorMessage", () => ({
 	ErrorMessage: ({ message }: { message: string }) => <div data-testid="error-message">{message}</div>,
 }))
 
