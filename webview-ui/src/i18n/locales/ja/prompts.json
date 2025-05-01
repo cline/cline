@@ -25,7 +25,8 @@
 			"browser": "ブラウザを使用",
 			"command": "コマンドを実行",
 			"mcp": "MCP を使用"
-		}
+		},
+		"noTools": "なし"
 	},
 	"roleDefinition": {
 		"title": "役割の定義",

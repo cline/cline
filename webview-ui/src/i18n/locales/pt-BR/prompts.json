@@ -25,7 +25,8 @@
 			"browser": "Usar navegador",
 			"command": "Executar comandos",
 			"mcp": "Usar MCP"
-		}
+		},
+		"noTools": "Nenhuma"
 	},
 	"roleDefinition": {
 		"title": "Definição de função",

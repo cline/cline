@@ -25,7 +25,8 @@
 			"browser": "浏览器",
 			"command": "运行命令",
 			"mcp": "MCP服务"
-		}
+		},
+		"noTools": "无"
 	},
 	"roleDefinition": {
 		"title": "角色定义",

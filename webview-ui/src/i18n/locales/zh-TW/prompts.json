@@ -25,7 +25,8 @@
 			"browser": "使用瀏覽器",
 			"command": "執行命令",
 			"mcp": "使用 MCP"
-		}
+		},
+		"noTools": "無"
 	},
 	"roleDefinition": {
 		"title": "角色定義",

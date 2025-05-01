@@ -25,7 +25,8 @@
 			"browser": "Sử dụng trình duyệt",
 			"command": "Chạy lệnh",
 			"mcp": "Sử dụng MCP"
-		}
+		},
+		"noTools": "Không có"
 	},
 	"roleDefinition": {
 		"title": "Định nghĩa vai trò",

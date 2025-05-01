@@ -25,7 +25,8 @@
 			"browser": "브라우저 사용",
 			"command": "명령 실행",
 			"mcp": "MCP 사용"
-		}
+		},
+		"noTools": "없음"
 	},
 	"roleDefinition": {
 		"title": "역할 정의",

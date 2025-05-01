@@ -25,7 +25,8 @@
 			"browser": "Browser verwenden",
 			"command": "Befehle ausführen",
 			"mcp": "MCP verwenden"
-		}
+		},
+		"noTools": "Keine"
 	},
 	"roleDefinition": {
 		"title": "Rollendefinition",

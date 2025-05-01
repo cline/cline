@@ -25,7 +25,8 @@
 			"browser": "Utilitzar navegador",
 			"command": "Executar comandes",
 			"mcp": "Utilitzar MCP"
-		}
+		},
+		"noTools": "Cap"
 	},
 	"roleDefinition": {
 		"title": "Definició de rol",

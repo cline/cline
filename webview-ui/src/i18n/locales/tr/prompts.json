@@ -25,7 +25,8 @@
 			"browser": "Tarayıcı Kullan",
 			"command": "Komutları Çalıştır",
 			"mcp": "MCP Kullan"
-		}
+		},
+		"noTools": "Yok"
 	},
 	"roleDefinition": {
 		"title": "Rol Tanımı",

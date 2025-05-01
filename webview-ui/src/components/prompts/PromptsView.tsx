@@ -696,6 +696,12 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									{(() => {
 										const currentMode = getCurrentMode()
 										const enabledGroups = currentMode?.groups || []
+
+										// If there are no enabled groups, display translated "None"
+										if (enabledGroups.length === 0) {
+											return t("prompts:tools.noTools")
+										}
+
 										return enabledGroups
 											.map((group) => {
 												const groupName = getGroupName(group)
