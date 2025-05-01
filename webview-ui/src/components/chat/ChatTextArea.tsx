@@ -237,6 +237,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	) => {
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
@@ -266,6 +267,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
+		const [showShiftDragTip, setShowShiftDragTip] = useState(false)
+		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
+		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -1016,6 +1021,84 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showModelSelector])
 
+		// Effect for Shift key hold detection
+		useEffect(() => {
+			const handleKeyDown = (event: KeyboardEvent) => {
+				if (event.key === "Shift" && !event.repeat) {
+					// Start timer only if Shift is pressed and not already held down
+					if (shiftHoldTimerRef.current === null) {
+						shiftHoldTimerRef.current = setTimeout(() => {
+							setShowShiftDragTip(true)
+						}, 250) // 250ms delay
+					}
+				}
+			}
+
+			const handleKeyUp = (event: KeyboardEvent) => {
+				if (event.key === "Shift") {
+					// Clear timer and hide tip when Shift is released
+					if (shiftHoldTimerRef.current !== null) {
+						clearTimeout(shiftHoldTimerRef.current)
+						shiftHoldTimerRef.current = null
+					}
+					setShowShiftDragTip(false)
+				}
+			}
+
+			// Add listeners
+			window.addEventListener("keydown", handleKeyDown)
+			window.addEventListener("keyup", handleKeyUp)
+
+			// Cleanup listeners on component unmount
+			return () => {
+				window.removeEventListener("keydown", handleKeyDown)
+				window.removeEventListener("keyup", handleKeyUp)
+				// Clear any running timer on unmount
+				if (shiftHoldTimerRef.current !== null) {
+					clearTimeout(shiftHoldTimerRef.current)
+				}
+			}
+		}, []) // Empty dependency array ensures this runs only once on mount/unmount
+
+		// Function to show error message for unsupported files for drag and drop
+		const showUnsupportedFileErrorMessage = () => {
+			// Show error message for unsupported files
+			setShowUnsupportedFileError(true)
+
+			// Clear any existing timer
+			if (unsupportedFileTimerRef.current) {
+				clearTimeout(unsupportedFileTimerRef.current)
+			}
+
+			// Set timer to hide error after 3 seconds
+			unsupportedFileTimerRef.current = setTimeout(() => {
+				setShowUnsupportedFileError(false)
+				unsupportedFileTimerRef.current = null
+			}, 3000)
+		}
+
+		const handleDragEnter = (e: React.DragEvent) => {
+			e.preventDefault()
+			setIsDraggingOver(true)
+
+			// Check if files are being dragged
+			if (e.dataTransfer.types.includes("Files")) {
+				// Check if any of the files are not images
+				const items = Array.from(e.dataTransfer.items)
+				const hasNonImageFile = items.some((item) => {
+					if (item.kind === "file") {
+						const type = item.type.split("/")[0]
+						return type !== "image"
+					}
+					return false
+				})
+
+				if (hasNonImageFile) {
+					showUnsupportedFileErrorMessage()
+				}
+			}
+		}
+
 		/**
 		 * Handles the drag over event to allow dropping.
 		 * Prevents the default behavior to enable drop.
@@ -1024,7 +1107,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDragOver = (e: React.DragEvent) => {
 			e.preventDefault()
+			// Ensure state remains true if dragging continues over the element
+			if (!isDraggingOver) {
+				setIsDraggingOver(true)
+			}
 		}
+
+		const handleDragLeave = (e: React.DragEvent) => {
+			e.preventDefault()
+			// Check if the related target is still within the drop zone; prevents flickering
+			const dropZone = e.currentTarget as HTMLElement
+			if (!dropZone.contains(e.relatedTarget as Node)) {
+				setIsDraggingOver(false)
+				// Don't clear the error message here, let it time out naturally
+			}
+		}
+
+		// Effect to detect when drag operation ends outside the component
+		useEffect(() => {
+			const handleGlobalDragEnd = () => {
+				// This will be triggered when the drag operation ends anywhere
+				setIsDraggingOver(false)
+				// Don't clear error message, let it time out naturally
+			}
+
+			document.addEventListener("dragend", handleGlobalDragEnd)
+
+			return () => {
+				document.removeEventListener("dragend", handleGlobalDragEnd)
+			}
+		}, [])
 
 		/**
 		 * Handles the drop event for files and text.
@@ -1034,6 +1146,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
+			setIsDraggingOver(false) // Reset state on drop
+
+			// Clear any error message when something is actually dropped
+			setShowUnsupportedFileError(false)
+			if (unsupportedFileTimerRef.current) {
+				clearTimeout(unsupportedFileTimerRef.current)
+				unsupportedFileTimerRef.current = null
+			}
 
 			// --- 1. VSCode Explorer Drop Handling ---
 			let uris: string[] = []
@@ -1153,9 +1273,37 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						opacity: textAreaDisabled ? 0.5 : 1,
 						position: "relative",
 						display: "flex",
+						// Drag-over styles moved to DynamicTextArea
+						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
 					}}
 					onDrop={onDrop}
-					onDragOver={onDragOver}>
+					onDragOver={onDragOver}
+					onDragEnter={handleDragEnter}
+					onDragLeave={handleDragLeave}>
+					{showUnsupportedFileError && (
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px",
+								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
+								border: "2px solid var(--vscode-errorForeground)",
+								borderRadius: 2,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								zIndex: 10,
+								pointerEvents: "none",
+							}}>
+							<span
+								style={{
+									color: "var(--vscode-errorForeground)",
+									fontWeight: "bold",
+									fontSize: "12px",
+								}}>
+								Only image files are supported
+							</span>
+						</div>
+					)}
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
@@ -1250,7 +1398,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 							onHeightChange?.(height)
 						}}
-						placeholder={placeholderText}
+						placeholder={showUnsupportedFileError ? "" : placeholderText}
 						maxRows={10}
 						autoFocus={true}
 						style={{
@@ -1282,9 +1430,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							cursor: textAreaDisabled ? "not-allowed" : undefined,
 							flex: 1,
 							zIndex: 1,
-							outline: isTextAreaFocused
-								? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
-								: "none",
+							outline:
+								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
+									? "2px dashed var(--vscode-focusBorder)"
+									: isTextAreaFocused
+										? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+										: "none",
+							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
 						}}
 						onScroll={() => updateHighlights()}
 					/>
@@ -1346,83 +1498,129 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				</div>
 
 				<ControlsContainer>
-					<ButtonGroup>
-						<Tooltip tipText="Add Context" style={{ left: 0 }}>
-							<VSCodeButton
-								data-testid="context-button"
-								appearance="icon"
-								aria-label="Add Context"
-								disabled={textAreaDisabled}
-								onClick={handleContextButtonClick}
-								style={{ padding: "0px 0px", height: "20px" }}>
-								<ButtonContainer>
-									<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
-										@
-									</span>
-									{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
-								</ButtonContainer>
-							</VSCodeButton>
-						</Tooltip>
+					{/* Always render both components, but control visibility with CSS */}
+					<div
+						style={{
+							position: "relative",
+							flex: 1,
+							minWidth: 0,
+							height: "28px", // Fixed height to prevent container shrinking
+						}}>
+						{/* ButtonGroup - always in DOM but visibility controlled */}
+						<ButtonGroup
+							style={{
+								opacity: showShiftDragTip ? 0 : 1,
+								pointerEvents: showShiftDragTip ? "none" : "auto",
+								position: "absolute",
+								top: 0,
+								left: 0,
+								right: 0,
+								transition: "opacity 0.3s ease-in-out",
+								transitionDelay: showShiftDragTip ? "0s" : "0.2s",
+								width: "100%",
+								height: "100%",
+								zIndex: showShiftDragTip ? 0 : 1,
+							}}>
+							<Tooltip tipText="Add Context" style={{ left: 0 }}>
+								<VSCodeButton
+									data-testid="context-button"
+									appearance="icon"
+									aria-label="Add Context"
+									disabled={textAreaDisabled}
+									onClick={handleContextButtonClick}
+									style={{ padding: "0px 0px", height: "20px" }}>
+									<ButtonContainer>
+										<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
+											@
+										</span>
+									</ButtonContainer>
+								</VSCodeButton>
+							</Tooltip>
 
-						<Tooltip tipText="Add Images">
-							<VSCodeButton
-								data-testid="images-button"
-								appearance="icon"
-								aria-label="Add Images"
-								disabled={shouldDisableImages}
-								onClick={() => {
-									if (!shouldDisableImages) {
-										onSelectImages()
-									}
-								}}
-								style={{ padding: "0px 0px", height: "20px" }}>
-								<ButtonContainer>
-									<span
-										className="codicon codicon-device-camera flex items-center"
-										style={{ fontSize: "14px", marginBottom: -3 }}
-									/>
-									{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
-								</ButtonContainer>
-							</VSCodeButton>
-						</Tooltip>
-						<ServersToggleModal />
-						<ClineRulesToggleModal />
-						<ModelContainer ref={modelSelectorRef}>
-							<ModelButtonWrapper ref={buttonRef}>
-								<ModelDisplayButton
-									role="button"
-									isActive={showModelSelector}
-									disabled={false}
-									title="Select Model / API Provider"
-									onClick={handleModelButtonClick}
-									// onKeyDown={(e) => {
-									// 	if (e.key === "Enter" || e.key === " ") {
-									// 		e.preventDefault()
-									// 		handleModelButtonClick()
-									// 	}
-									// }}
-									tabIndex={0}>
-									<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
-								</ModelDisplayButton>
-							</ModelButtonWrapper>
-							{showModelSelector && (
-								<ModelSelectorTooltip
-									arrowPosition={arrowPosition}
-									menuPosition={menuPosition}
-									style={{
-										bottom: `calc(100vh - ${menuPosition}px + 6px)`,
-									}}>
-									<ApiOptions
-										showModelOptions={true}
-										apiErrorMessage={undefined}
-										modelIdErrorMessage={undefined}
-										isPopup={true}
-										saveImmediately={true} // Ensure popup saves immediately
-									/>
-								</ModelSelectorTooltip>
-							)}
-						</ModelContainer>
-					</ButtonGroup>
+							<Tooltip tipText="Add Images">
+								<VSCodeButton
+									data-testid="images-button"
+									appearance="icon"
+									aria-label="Add Images"
+									disabled={shouldDisableImages}
+									onClick={() => {
+										if (!shouldDisableImages) {
+											onSelectImages()
+										}
+									}}
+									style={{ padding: "0px 0px", height: "20px" }}>
+									<ButtonContainer>
+										<span
+											className="codicon codicon-device-camera flex items-center"
+											style={{ fontSize: "14px", marginBottom: -3 }}
+										/>
+									</ButtonContainer>
+								</VSCodeButton>
+							</Tooltip>
+							<ServersToggleModal />
+							<ClineRulesToggleModal />
+							<ModelContainer ref={modelSelectorRef}>
+								<ModelButtonWrapper ref={buttonRef}>
+									<ModelDisplayButton
+										role="button"
+										isActive={showModelSelector}
+										disabled={false}
+										title="Select Model / API Provider"
+										onClick={handleModelButtonClick}
+										tabIndex={0}>
+										<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
+									</ModelDisplayButton>
+								</ModelButtonWrapper>
+								{showModelSelector && (
+									<ModelSelectorTooltip
+										arrowPosition={arrowPosition}
+										menuPosition={menuPosition}
+										style={{
+											bottom: `calc(100vh - ${menuPosition}px + 6px)`,
+										}}>
+										<ApiOptions
+											showModelOptions={true}
+											apiErrorMessage={undefined}
+											modelIdErrorMessage={undefined}
+											isPopup={true}
+											saveImmediately={true} // Ensure popup saves immediately
+										/>
+									</ModelSelectorTooltip>
+								)}
+							</ModelContainer>
+						</ButtonGroup>
+
+						{/* Shift Tip - always in DOM but visibility controlled */}
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "flex-start", // Left align horizontally
+								alignItems: "center", // Center vertically
+								height: "100%", // Fill the container height
+								padding: "4px 0", // Add padding to match button group height
+								boxSizing: "border-box", // Include padding in height calculation
+								opacity: showShiftDragTip ? 1 : 0,
+								pointerEvents: showShiftDragTip ? "auto" : "none",
+								position: "absolute",
+								top: 0,
+								left: 0,
+								right: 0,
+								transition: "opacity 0.3s ease-in-out",
+								transitionDelay: showShiftDragTip ? "0.2s" : "0s",
+								width: "100%",
+								zIndex: showShiftDragTip ? 1 : 0,
+							}}>
+							<span
+								style={{
+									fontSize: "10px",
+									color: "var(--vscode-descriptionForeground)",
+									whiteSpace: "nowrap",
+								}}>
+								Hold Shift to Drag Files
+							</span>
+						</div>
+					</div>
+					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
 					<Tooltip
 						style={{ zIndex: 1000 }}
 						visible={shownTooltipMode !== null}
