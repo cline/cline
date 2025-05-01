@@ -71,6 +71,7 @@ export interface WebviewMessage {
 		| "toggleClineRule"
 		| "deleteClineRule"
 		| "copyToClipboard"
+		| "updateTerminalConnectionTimeout"
 
 	// | "relaunchChromeDebugMode"
 	text?: string
@@ -121,6 +122,7 @@ export interface WebviewMessage {
 	filename?: string
 
 	offset?: number
+	shellIntegrationTimeout?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
