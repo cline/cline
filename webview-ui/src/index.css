@@ -7,6 +7,8 @@
 
 @config "../tailwind.config.js";
 
+@config "../tailwind.config.js";
+
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
 }

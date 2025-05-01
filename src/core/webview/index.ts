@@ -5,13 +5,9 @@ import { getUri } from "./getUri"
 import { getTheme } from "@integrations/theme/getTheme"
 import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
-<<<<<<< HEAD
 import { readFile } from "fs/promises"
 import path from "node:path"
-
-=======
 import { WebviewType } from "@shared/WebviewMessage"
->>>>>>> 7d06d3ab (onboarding screen iteration)
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
