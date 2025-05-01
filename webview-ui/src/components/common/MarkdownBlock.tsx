@@ -57,11 +57,10 @@ const remarkUrlToLink = () => {
 const StyledMarkdown = styled.div`
 	code:not(pre > code) {
 		font-family: var(--vscode-editor-font-family, monospace);
-		color: var(--vscode-textPreformat-foreground, #f78383);
-		background-color: var(--vscode-textCodeBlock-background, #1e1e1e);
+		filter: saturation(110%) brightness(95%);
+		color: var(--vscode-textPreformat-foreground) !important;
+		background-color: var(--vscode-textPreformat-background) !important;
 		padding: 0px 2px;
-		border-radius: 3px;
-		border: 1px solid var(--vscode-textSeparator-foreground, #424242);
 		white-space: pre-line;
 		word-break: break-word;
 		overflow-wrap: anywhere;
