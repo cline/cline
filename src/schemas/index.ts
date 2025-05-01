@@ -851,6 +851,10 @@ export const tokenUsageSchema = z.object({
 
 export type TokenUsage = z.infer<typeof tokenUsageSchema>
 
+/**
+ * ToolName
+ */
+
 export const toolNames = [
 	"execute_command",
 	"read_file",

@@ -13,14 +13,14 @@
 		"drizzle:studio": "pnpm --filter @evals/db db:studio"
 	},
 	"devDependencies": {
-		"@dotenvx/dotenvx": "^1.39.1",
-		"@eslint/js": "^9.24.0",
-		"eslint": "^9.24.0",
+		"@dotenvx/dotenvx": "^1.41.0",
+		"@eslint/js": "^9.25.1",
+		"eslint": "^9.25.1",
 		"globals": "^16.0.0",
 		"prettier": "^3.5.3",
-		"tsx": "^4.19.3",
-		"turbo": "^2.5.0",
+		"tsx": "^4.19.4",
+		"turbo": "^2.5.2",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "^8.29.1"
+		"typescript-eslint": "^8.31.1"
 	}
 }
