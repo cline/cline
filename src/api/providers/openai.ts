@@ -5,6 +5,7 @@ import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModel
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity"
 import { convertToR1Format } from "../transform/r1-format"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
@@ -21,12 +22,24 @@ export class OpenAiHandler implements ApiHandler {
 			(this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") &&
 				!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
 		) {
-			this.client = new AzureOpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-				defaultHeaders: this.options.openAiHeaders,
-			})
+			if (this.options.azureIdentity) {
+				this.client = new AzureOpenAI({
+					baseURL: this.options.openAiBaseUrl,
+					azureADTokenProvider: getBearerTokenProvider(
+						new DefaultAzureCredential(),
+						"https://cognitiveservices.azure.com/.default",
+					),
+					apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+					defaultHeaders: this.options.openAiHeaders,
+				})
+			} else {
+				this.client = new AzureOpenAI({
+					baseURL: this.options.openAiBaseUrl,
+					apiKey: this.options.openAiApiKey,
+					apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+					defaultHeaders: this.options.openAiHeaders,
+				})
+			}
 		} else {
 			this.client = new OpenAI({
 				baseURL: this.options.openAiBaseUrl,

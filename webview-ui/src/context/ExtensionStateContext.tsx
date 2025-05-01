@@ -112,6 +112,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.awsRegion,
 							config.vertexProjectId,
 							config.openAiApiKey,
+							config.azureIdentity,
 							config.ollamaModelId,
 							config.lmStudioModelId,
 							config.liteLlmApiKey,
