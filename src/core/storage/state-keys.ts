@@ -18,6 +18,7 @@ export type SecretKey =
 	| "authNonce"
 	| "asksageApiKey"
 	| "xaiApiKey"
+	| "nebiusApiKey"
 	| "sambanovaApiKey"
 
 export type GlobalStateKey =
@@ -74,6 +75,7 @@ export type GlobalStateKey =
 	| "thinkingBudgetTokens"
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
+	| "nebiusModelId"
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
