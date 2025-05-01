@@ -13,4 +13,20 @@ service FileService {
   
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
+  
+  // Deletes a rule file from either global or workspace rules directory
+  rpc deleteRuleFile(DeleteRuleFileRequest) returns (RuleFile);
+}
+
+// Request for deleteRuleFile
+message DeleteRuleFileRequest {
+  Metadata metadata = 1;
+  string rule_path = 2;
+  bool is_global = 3;
+}
+
+// Result for rule file operations with meaningful data only
+message RuleFile {
+  string file_path = 1;     // Path to the rule file
+  string display_name = 2;  // Filename for display purposes
 }

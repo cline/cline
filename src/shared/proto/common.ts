@@ -53,6 +53,14 @@ export interface Boolean {
 	value: boolean
 }
 
+/** Generic response for operations that return success status and a message */
+export interface OperationResponse {
+	/** Whether the operation was successful */
+	success: boolean
+	/** Success or error message */
+	message: string
+}
+
 function createBaseMetadata(): Metadata {
 	return {}
 }
@@ -734,6 +742,82 @@ export const Boolean: MessageFns<Boolean> = {
 	fromPartial<I extends Exact<DeepPartial<Boolean>, I>>(object: I): Boolean {
 		const message = createBaseBoolean()
 		message.value = object.value ?? false
+		return message
+	},
+}
+
+function createBaseOperationResponse(): OperationResponse {
+	return { success: false, message: "" }
+}
+
+export const OperationResponse: MessageFns<OperationResponse> = {
+	encode(message: OperationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.success !== false) {
+			writer.uint32(8).bool(message.success)
+		}
+		if (message.message !== "") {
+			writer.uint32(18).string(message.message)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): OperationResponse {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseOperationResponse()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.success = reader.bool()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.message = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): OperationResponse {
+		return {
+			success: isSet(object.success) ? globalThis.Boolean(object.success) : false,
+			message: isSet(object.message) ? globalThis.String(object.message) : "",
+		}
+	},
+
+	toJSON(message: OperationResponse): unknown {
+		const obj: any = {}
+		if (message.success !== false) {
+			obj.success = message.success
+		}
+		if (message.message !== "") {
+			obj.message = message.message
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<OperationResponse>, I>>(base?: I): OperationResponse {
+		return OperationResponse.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<OperationResponse>, I>>(object: I): OperationResponse {
+		const message = createBaseOperationResponse()
+		message.success = object.success ?? false
+		message.message = object.message ?? ""
 		return message
 	},
 }
