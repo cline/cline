@@ -55,7 +55,10 @@ export function parseAssistantMessage(assistantMessage: string) {
 
 				// special case for write_to_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting content tag and the LAST content tag.
 				const contentParamName: ToolParamName = "content"
-				if (currentToolUse.name === "write_to_file" && accumulator.endsWith(`</${contentParamName}>`)) {
+				if (
+					(currentToolUse.name === "write_to_file" || currentToolUse.name === "new_rule") &&
+					accumulator.endsWith(`</${contentParamName}>`)
+				) {
 					const toolContent = accumulator.slice(currentToolUseStartIndex)
 					const contentStartTag = `<${contentParamName}>`
 					const contentEndTag = `</${contentParamName}>`
@@ -123,7 +126,7 @@ export function parseAssistantMessage(assistantMessage: string) {
 		contentBlocks.push(currentToolUse)
 	}
 
-	// Note: it doesnt matter if check for currentToolUse or currentTextContent, only one of them will be defined since only one can be partial at a time
+	// Note: it doesn't matter if check for currentToolUse or currentTextContent, only one of them will be defined since only one can be partial at a time
 	if (currentTextContent) {
 		// stream did not complete text content, add it as partial
 		contentBlocks.push(currentTextContent)

@@ -76,16 +76,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					if (lines.length > 0) {
 						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
 					}
-					// Check if first two characters are the same, if so remove the first character
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
+					// Check for duplicated first character that might be a terminal artifact
+					// But skip this check for known syntax characters like {, [, ", etc.
+					if (
+						lines.length > 0 &&
+						lines[0].length >= 2 &&
+						lines[0][0] === lines[0][1] &&
+						!["[", "{", '"', "'", "<", "("].includes(lines[0][0])
+					) {
 						lines[0] = lines[0].slice(1)
 					}
-					// Remove everything up to the first alphanumeric character for first two lines
+					// Only remove specific terminal artifacts from line beginnings while preserving JSON syntax
 					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
+						// This regex only removes common terminal artifacts (%, $, >, #) and invisible control chars
+						// but preserves important syntax chars like {, [, ", etc.
+						lines[0] = lines[0].replace(/^[\x00-\x1F%$>#\s]*/, "")
 					}
 					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
+						lines[1] = lines[1].replace(/^[\x00-\x1F%$>#\s]*/, "")
 					}
 					// Join lines back
 					data = lines.join("\n")
@@ -94,8 +102,17 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = stripAnsi(data)
 				}
 
+				// Ctrl+C detection: if user presses Ctrl+C, treat as command terminated
+				if (data.includes("^C") || data.includes("\u0003")) {
+					if (this.hotTimer) {
+						clearTimeout(this.hotTimer)
+					}
+					this.isHot = false
+					break
+				}
+
 				// first few chunks could be the command being echoed back, so we must ignore
-				// note this means that 'echo' commands wont work
+				// note this means that 'echo' commands won't work
 				if (!didOutputNonCommand) {
 					const lines = data.split("\n")
 					for (let i = 0; i < lines.length; i++) {
@@ -109,9 +126,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					}
 					data = lines.join("\n")
 				}
-
-				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
-				data = data.replace(/,/g, "")
 
 				// 2. Set isHot depending on the command
 				// Set to hot to stall API requests until terminal is cool again
@@ -145,7 +159,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
 				)
 
-				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
+				// For non-immediately returning commands we want to show loading spinner right away but this wouldn't happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
 				if (!didEmitEmptyLine && !this.fullOutput && data) {
 					this.emit("line", "") // empty line to indicate start of command output stream
 					didEmitEmptyLine = true

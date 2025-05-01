@@ -1,12 +1,14 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
-import { createDirectoriesForFile } from "../../utils/fs"
-import { arePathsEqual } from "../../utils/path"
-import { formatResponse } from "../../core/prompts/responses"
+import { createDirectoriesForFile } from "@utils/fs"
+import { arePathsEqual } from "@utils/path"
+import { formatResponse } from "@core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import { detectEncoding } from "../misc/extract-text"
+import * as iconv from "iconv-lite"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -23,6 +25,7 @@ export class DiffViewProvider {
 	private activeLineController?: DecorationController
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+	private fileEncoding: string = "utf8"
 
 	constructor(private cwd: string) {}
 
@@ -43,9 +46,12 @@ export class DiffViewProvider {
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		if (fileExists) {
-			this.originalContent = await fs.readFile(absolutePath, "utf-8")
+			const fileBuffer = await fs.readFile(absolutePath)
+			this.fileEncoding = await detectEncoding(fileBuffer)
+			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
 		} else {
 			this.originalContent = ""
+			this.fileEncoding = "utf8"
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
 		this.createdDirs = await createDirectoriesForFile(absolutePath)
@@ -289,7 +295,7 @@ export class DiffViewProvider {
 				updatedDocument.positionAt(updatedDocument.getText().length),
 			)
 			edit.replace(updatedDocument.uri, fullRange, this.originalContent ?? "")
-			// Apply the edit and save, since contents shouldnt have changed this wont show in local history unless of course the user made changes and saved during the edit
+			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of course the user made changes and saved during the edit
 			await vscode.workspace.applyEdit(edit)
 			await updatedDocument.save()
 			console.log(`File ${absolutePath} has been reverted to its original content.`)

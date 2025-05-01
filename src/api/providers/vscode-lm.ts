@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import { ApiHandler, SingleCompletionHandler } from "../"
-import { calculateApiCostAnthropic } from "../../utils/cost"
-import { ApiStream } from "../transform/stream"
-import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
-import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "../../shared/vsCodeSelectorUtils"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { calculateApiCostAnthropic } from "@utils/cost"
+import { ApiStream } from "@api/transform/stream"
+import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
+import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
+import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 
 // Cline does not update VSCode type definitions or engine requirements to maintain compatibility.

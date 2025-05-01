@@ -1,4 +1,6 @@
 export interface AutoApprovalSettings {
+	// Version for race condition prevention (incremented on every change)
+	version: number
 	// Whether auto-approval is enabled
 	enabled: boolean
 	// Individual action permissions
@@ -18,6 +20,7 @@ export interface AutoApprovalSettings {
 }
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
+	version: 1,
 	enabled: false,
 	actions: {
 		readFiles: false,

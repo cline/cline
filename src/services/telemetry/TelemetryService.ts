@@ -2,8 +2,8 @@ import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../package.json"
 
-import type { TaskFeedbackType } from "../../shared/WebviewMessage"
-import type { BrowserSettings } from "../../shared/BrowserSettings"
+import type { TaskFeedbackType } from "@shared/WebviewMessage"
+import type { BrowserSettings } from "@shared/BrowserSettings"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension

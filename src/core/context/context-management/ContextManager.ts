@@ -1,12 +1,12 @@
 import { getContextWindowInfo } from "./context-window-utils"
-import { formatResponse } from "../../prompts/responses"
-import { GlobalFileNames } from "../../storage/disk"
-import { fileExistsAtPath } from "../../../utils/fs"
+import { formatResponse } from "@core/prompts/responses"
+import { GlobalFileNames } from "@core/storage/disk"
+import { fileExistsAtPath } from "@utils/fs"
 import * as path from "path"
 import fs from "fs/promises"
 import cloneDeep from "clone-deep"
-import { ClineApiReqInfo, ClineMessage } from "../../../shared/ExtensionMessage"
-import { ApiHandler } from "../../../api"
+import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
+import { ApiHandler } from "@api/index"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 enum EditType {
@@ -193,14 +193,20 @@ export class ContextManager {
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		currentDeletedRange: [number, number] | undefined,
-		keep: "half" | "quarter",
+		keep: "none" | "lastTwo" | "half" | "quarter",
 	): [number, number] {
 		// We always keep the first user-assistant pairing, and truncate an even number of messages from there
 		const rangeStartIndex = 2 // index 0 and 1 are kept
 		const startOfRest = currentDeletedRange ? currentDeletedRange[1] + 1 : 2 // inclusive starting index
 
 		let messagesToRemove: number
-		if (keep === "half") {
+		if (keep === "none") {
+			// Removes all messages beyond the first core user/assistant message pair
+			messagesToRemove = Math.max(apiMessages.length - startOfRest, 0)
+		} else if (keep === "lastTwo") {
+			// Keep the last user-assistant pair in addition to the first core user/assistant message pair
+			messagesToRemove = Math.max(apiMessages.length - startOfRest - 2, 0)
+		} else if (keep === "half") {
 			// Remove half of remaining user-assistant pairs
 			// We first calculate half of the messages then divide by 2 to get the number of pairs.
 			// After flooring, we multiply by 2 to get the number of messages.
@@ -383,6 +389,17 @@ export class ContextManager {
 	}
 
 	/**
+	 * Public function for triggering potentially setting the truncation message
+	 * If the truncation message already exists, does nothing, otherwise adds the message
+	 */
+	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
+		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		if (updated) {
+			await this.saveContextHistory(taskDirectory)
+		}
+	}
+
+	/**
 	 * if there is any truncation and there is no other alteration already set, alter the assistant message to indicate this occurred
 	 */
 	private applyStandardContextTruncationNoticeChange(timestamp: number): boolean {
@@ -537,7 +554,7 @@ export class ContextManager {
 
 			// we can assume that thisExistingFileReads does not have many entries
 			if (!thisExistingFileReads.includes(filePath)) {
-				// meaning we havent already replaced this file read
+				// meaning we haven't already replaced this file read
 
 				const entireMatch = match[0] // The entire matched string
 
@@ -590,7 +607,7 @@ export class ContextManager {
 	) {
 		const pattern = new RegExp(`(<final_file_content path="[^"]*">)[\\s\\S]*?(</final_file_content>)`)
 
-		// check if this exists in the text, it wont exist if the user rejects the file change for example
+		// check if this exists in the text, it won't exist if the user rejects the file change for example
 		if (pattern.test(secondBlockText)) {
 			const replacementText = secondBlockText.replace(pattern, `$1 ${formatResponse.duplicateFileReadNotice()} $2`)
 			const indices = fileReadIndices.get(filePath) || []
@@ -741,7 +758,7 @@ export class ContextManager {
 		let totalCharactersSaved = 0
 
 		for (let i = startIndex; i < endIndex; i++) {
-			// looping over the outer indicies of messages
+			// looping over the outer indices of messages
 			const message = apiMessages[i]
 
 			if (!message.content) {
@@ -782,7 +799,7 @@ export class ContextManager {
 
 									totalCharCount += originalTextLength
 								} else {
-									// meaning there was an update to this text previously, but we didnt just alter it
+									// meaning there was an update to this text previously, but we didn't just alter it
 									totalCharCount += latestUpdate[2][0].length
 								}
 							} else {
@@ -790,7 +807,7 @@ export class ContextManager {
 								totalCharCount += block.text.length
 							}
 						} else {
-							// reach here if there's no alterations for this outer index, meaning each inner index wont have any changes either
+							// reach here if there's no alterations for this outer index, meaning each inner index won't have any changes either
 							totalCharCount += block.text.length
 						}
 					} else if (block.type === "image" && block.source) {

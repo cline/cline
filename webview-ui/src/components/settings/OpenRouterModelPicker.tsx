@@ -51,8 +51,8 @@ const featuredModels = [
 		label: "Trending",
 	},
 	{
-		id: "meta-llama/llama-4-maverick",
-		description: "Efficient performance at lower cost",
+		id: "openai/gpt-4.1",
+		description: "1M context window, blazing fast",
 		label: "New",
 	},
 ]

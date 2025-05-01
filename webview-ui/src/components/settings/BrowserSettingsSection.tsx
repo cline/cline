@@ -5,6 +5,7 @@ import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import styled from "styled-components"
+import { BrowserServiceClient } from "../../services/grpc-client"
 
 const ConnectionStatusIndicator = ({
 	isChecking,
@@ -58,9 +59,6 @@ export const BrowserSettingsSection: React.FC = () => {
 					message: message.text,
 				})
 				setDebugMode(false)
-			} else if (message.type === "detectedChromePath") {
-				setDetectedChromePath(message.text)
-				setIsBundled(message.isBundled)
 			}
 		}
 
@@ -82,9 +80,15 @@ export const BrowserSettingsSection: React.FC = () => {
 
 	// Request detected Chrome path on mount
 	useEffect(() => {
-		vscode.postMessage({
-			type: "getDetectedChromePath",
-		})
+		// Use gRPC for getDetectedChromePath
+		BrowserServiceClient.getDetectedChromePath({})
+			.then((result) => {
+				setDetectedChromePath(result.path)
+				setIsBundled(result.isBundled)
+			})
+			.catch((error) => {
+				console.error("Error getting detected Chrome path:", error)
+			})
 	}, [])
 
 	// Debounced connection check function
@@ -93,10 +97,30 @@ export const BrowserSettingsSection: React.FC = () => {
 			if (browserSettings.remoteBrowserEnabled) {
 				setIsCheckingConnection(true)
 				setConnectionStatus(null)
-				vscode.postMessage({
-					type: browserSettings.remoteBrowserHost ? "testBrowserConnection" : "discoverBrowser",
-					text: browserSettings.remoteBrowserHost,
-				})
+				if (browserSettings.remoteBrowserHost) {
+					// Use gRPC for testBrowserConnection
+					BrowserServiceClient.testBrowserConnection({ value: browserSettings.remoteBrowserHost })
+						.then((result) => {
+							setConnectionStatus(result.success)
+							setIsCheckingConnection(false)
+						})
+						.catch((error) => {
+							console.error("Error testing browser connection:", error)
+							setConnectionStatus(false)
+							setIsCheckingConnection(false)
+						})
+				} else {
+					BrowserServiceClient.discoverBrowser({})
+						.then((result) => {
+							setConnectionStatus(result.success)
+							setIsCheckingConnection(false)
+						})
+						.catch((error) => {
+							console.error("Error discovering browser:", error)
+							setConnectionStatus(false)
+							setIsCheckingConnection(false)
+						})
+				}
 			}
 		}, 1000),
 		[browserSettings.remoteBrowserEnabled, browserSettings.remoteBrowserHost],
@@ -115,48 +139,91 @@ export const BrowserSettingsSection: React.FC = () => {
 		const target = event.target as HTMLSelectElement
 		const selectedSize = BROWSER_VIEWPORT_PRESETS[target.value as keyof typeof BROWSER_VIEWPORT_PRESETS]
 		if (selectedSize) {
-			vscode.postMessage({
-				type: "browserSettings",
-				browserSettings: {
-					...browserSettings,
-					viewport: selectedSize,
+			BrowserServiceClient.updateBrowserSettings({
+				metadata: {},
+				viewport: {
+					width: selectedSize.width,
+					height: selectedSize.height,
 				},
+				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
 			})
+				.then((response) => {
+					if (!response.value) {
+						console.error("Failed to update browser settings")
+					}
+				})
+				.catch((error) => {
+					console.error("Error updating browser settings:", error)
+				})
 		}
 	}
 
 	const updateRemoteBrowserEnabled = (enabled: boolean) => {
-		// Also update browserSettings to ensure task settings are updated
-		vscode.postMessage({
-			type: "browserSettings",
-			browserSettings: {
-				...browserSettings,
-				remoteBrowserEnabled: enabled,
-				// If disabling, also clear the host in browserSettings
-				...(enabled ? {} : { remoteBrowserHost: undefined }),
+		BrowserServiceClient.updateBrowserSettings({
+			metadata: {},
+			viewport: {
+				width: browserSettings.viewport.width,
+				height: browserSettings.viewport.height,
 			},
+			remoteBrowserEnabled: enabled,
+			// If disabling, also clear the host
+			remoteBrowserHost: enabled ? browserSettings.remoteBrowserHost : undefined,
 		})
+			.then((response) => {
+				if (!response.value) {
+					console.error("Failed to update browser settings")
+				}
+			})
+			.catch((error) => {
+				console.error("Error updating browser settings:", error)
+			})
 	}
 
 	const updateRemoteBrowserHost = (host: string | undefined) => {
-		// Also update browserSettings to ensure task settings are updated
-		vscode.postMessage({
-			type: "browserSettings",
-			browserSettings: {
-				...browserSettings,
-				remoteBrowserHost: host,
+		BrowserServiceClient.updateBrowserSettings({
+			metadata: {},
+			viewport: {
+				width: browserSettings.viewport.width,
+				height: browserSettings.viewport.height,
 			},
+			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+			remoteBrowserHost: host,
 		})
+			.then((response) => {
+				if (!response.value) {
+					console.error("Failed to update browser settings")
+				}
+			})
+			.catch((error) => {
+				console.error("Error updating browser settings:", error)
+			})
 	}
 
 	// Function to check connection once without changing UI state immediately
 	const checkConnectionOnce = useCallback(() => {
 		// Don't show the spinner for every check to avoid UI flicker
 		// We'll rely on the response to update the connectionStatus
-		vscode.postMessage({
-			type: browserSettings.remoteBrowserHost ? "testBrowserConnection" : "discoverBrowser",
-			text: browserSettings.remoteBrowserHost,
-		})
+		if (browserSettings.remoteBrowserHost) {
+			// Use gRPC for testBrowserConnection
+			BrowserServiceClient.testBrowserConnection({ value: browserSettings.remoteBrowserHost })
+				.then((result) => {
+					setConnectionStatus(result.success)
+				})
+				.catch((error) => {
+					console.error("Error testing browser connection:", error)
+					setConnectionStatus(false)
+				})
+		} else {
+			BrowserServiceClient.discoverBrowser({})
+				.then((result) => {
+					setConnectionStatus(result.success)
+				})
+				.catch((error) => {
+					console.error("Error discovering browser:", error)
+					setConnectionStatus(false)
+				})
+		}
 	}, [browserSettings.remoteBrowserHost])
 
 	// Setup continuous polling for connection status when remote browser is enabled

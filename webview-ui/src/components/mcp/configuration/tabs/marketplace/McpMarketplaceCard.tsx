@@ -181,7 +181,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								<span className="codicon codicon-star-full" />
 								<span style={{ wordBreak: "break-all" }}>{item.githubStars?.toLocaleString() ?? 0}</span>
 							</div>
-							{/* <div
+							<div
 								style={{
 									display: "flex",
 									alignItems: "center",
@@ -191,7 +191,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								}}>
 								<span className="codicon codicon-cloud-download" />
 								<span style={{ wordBreak: "break-all" }}>{item.downloadCount?.toLocaleString() ?? 0}</span>
-							</div> */}
+							</div>
 							{item.requiresApiKey && (
 								<span className="codicon codicon-key" title="Requires API key" style={{ flexShrink: 0 }} />
 							)}

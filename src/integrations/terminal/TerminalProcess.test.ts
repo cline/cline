@@ -4,7 +4,6 @@ import * as sinon from "sinon"
 import { TerminalProcess } from "./TerminalProcess"
 import * as vscode from "vscode"
 import { TerminalRegistry } from "./TerminalRegistry"
-import { EventEmitter } from "events"
 
 declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442

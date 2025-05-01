@@ -9,6 +9,7 @@ import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import BrowserSettingsSection from "./BrowserSettingsSection"
+import TerminalSettingsSection from "./TerminalSettingsSection"
 
 const { IS_DEV } = process.env
 
@@ -148,7 +149,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		<div className="fixed top-0 left-0 right-0 bottom-0 pt-[10px] pr-0 pb-0 pl-5 flex flex-col overflow-hidden">
 			<div className="flex justify-between items-center mb-[13px] pr-[17px]">
 				<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
-				<VSCodeButton onClick={() => handleSubmit(false)}>Done</VSCodeButton>
+				<VSCodeButton onClick={() => handleSubmit(false)}>Save</VSCodeButton>
 			</div>
 			<div className="grow overflow-y-scroll pr-2 flex flex-col">
 				{/* Tabs container */}
@@ -240,6 +241,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				{/* Browser Settings Section */}
 				<BrowserSettingsSection />
 
+				{/* Terminal Settings Section */}
+				<TerminalSettingsSection />
+
 				<div className="mt-auto pr-2 flex justify-center">
 					<SettingsButton
 						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
@@ -252,7 +256,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				{IS_DEV && (
 					<>
 						<div className="mt-[10px] mb-1">Debug</div>
-						<VSCodeButton onClick={handleResetState} className="mt-[5px] w-auto">
+						<VSCodeButton
+							onClick={handleResetState}
+							className="mt-[5px] w-auto"
+							style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
 							Reset State
 						</VSCodeButton>
 						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">

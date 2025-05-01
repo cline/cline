@@ -9,6 +9,7 @@ import { formatSize } from "@/utils/format"
 import { vscode } from "@/utils/vscode"
 import Thumbnails from "@/components/common/Thumbnails"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import { validateSlashCommand } from "@/utils/slash-commands"
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -34,7 +35,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
-	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
+	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
@@ -136,6 +137,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	const shouldShowPromptCacheInfo =
 		doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter" && apiConfiguration?.apiProvider !== "cline"
+
+	const shouldShowPromptCacheInfoClineOR =
+		doesModelSupportPromptCache &&
+		(apiConfiguration?.apiProvider === "openrouter" || apiConfiguration?.apiProvider === "cline")
 
 	const ContextWindowComponent = (
 		<>
@@ -254,7 +259,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								Task
 								{!isTaskExpanded && ":"}
 							</span>
-							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>}
+							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightText(task.text, false)}</span>}
 						</div>
 					</div>
 					{!isTaskExpanded && isCostAvailable && (
@@ -300,7 +305,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
 								}}>
-								{highlightMentions(task.text, false)}
+								{highlightText(task.text, false)}
 							</div>
 							{!isTextExpanded && showSeeMore && (
 								<div
@@ -405,6 +410,33 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								)}
 							</div>
 
+							{shouldShowPromptCacheInfoClineOR && cacheReads !== undefined && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
+										flexWrap: "wrap",
+									}}>
+									<span style={{ fontWeight: "bold" }}>Cache:</span>
+									<span
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "3px",
+										}}>
+										<i
+											className="codicon codicon-arrow-right"
+											style={{
+												fontSize: "12px",
+												fontWeight: "bold",
+												marginBottom: 0,
+											}}
+										/>
+										{formatLargeNumber(cacheReads || 0)}
+									</span>
+								</div>
+							)}
 							{shouldShowPromptCacheInfo &&
 								(cacheReads !== undefined ||
 									cacheWrites !== undefined ||
@@ -554,9 +586,41 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	)
 }
 
-export const highlightMentions = (text?: string, withShadow = true) => {
-	if (!text) return text
+/**
+ * Highlights slash-command in this text if it exists
+ */
+const highlightSlashCommands = (text: string, withShadow = true) => {
+	const match = text.match(/^\s*\/([a-zA-Z0-9_-]+)(\s*|$)/)
+	if (!match) {
+		return text
+	}
+
+	const commandName = match[1]
+	const validationResult = validateSlashCommand(commandName)
+
+	if (!validationResult || validationResult !== "full") {
+		return text
+	}
+
+	const commandEndIndex = match[0].length
+	const beforeCommand = text.substring(0, text.indexOf("/"))
+	const afterCommand = match[2] + text.substring(commandEndIndex)
+
+	return [
+		beforeCommand,
+		<span key="slashCommand" className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}>
+			/{commandName}
+		</span>,
+		afterCommand,
+	]
+}
+
+/**
+ * Highlights & formats all mentions inside this text
+ */
+export const highlightMentions = (text: string, withShadow = true) => {
 	const parts = text.split(mentionRegexGlobal)
+
 	return parts.map((part, index) => {
 		if (index % 2 === 0) {
 			// This is regular text
@@ -574,6 +638,30 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 			)
 		}
 	})
+}
+
+/**
+ * Handles parsing both mentions and slash-commands
+ */
+export const highlightText = (text?: string, withShadow = true) => {
+	if (!text) {
+		return text
+	}
+
+	const resultWithSlashHighlighting = highlightSlashCommands(text, withShadow)
+
+	if (resultWithSlashHighlighting === text) {
+		// no highlighting done
+		return highlightMentions(resultWithSlashHighlighting, withShadow)
+	}
+
+	if (Array.isArray(resultWithSlashHighlighting) && resultWithSlashHighlighting.length === 3) {
+		const [beforeCommand, commandElement, afterCommand] = resultWithSlashHighlighting as [string, JSX.Element, string]
+
+		return [beforeCommand, commandElement, ...highlightMentions(afterCommand, withShadow)]
+	}
+
+	return [text]
 }
 
 const DeleteButton: React.FC<{

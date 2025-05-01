@@ -11,7 +11,7 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { findLastIndex } from "@shared/array"
-import { McpMarketplaceCatalog, McpServer } from "../../../src/shared/mcp"
+import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
@@ -29,11 +29,22 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
 	totalTasksSize: number | null
+	// View state
+	showMcp: boolean
+	mcpTab?: McpViewTab
+
+	// Setters
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
+	setShellIntegrationTimeout: (value: number) => void
+	setMcpServers: (value: McpServer[]) => void
+
+	// Navigation
+	setShowMcp: (value: boolean) => void
+	setMcpTab: (tab?: McpViewTab) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -41,6 +52,10 @@ const ExtensionStateContext = createContext<ExtensionStateContextType | undefine
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
 }> = ({ children }) => {
+	// UI view state
+	const [showMcp, setShowMcp] = useState(false)
+	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
+
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
 		clineMessages: [],
@@ -53,6 +68,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		telemetrySetting: "unset",
 		vscMachineId: "",
 		planActSeparateModelsSetting: true,
+		globalClineRulesToggles: {},
+		localClineRulesToggles: {},
+		shellIntegrationTimeout: 4000, // default timeout for shell integration
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -73,7 +91,19 @@ export const ExtensionStateContextProvider: React.FC<{
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
 			case "state": {
-				setState(message.state!)
+				setState((prevState) => {
+					const incoming = message.state!
+					// Versioning logic for autoApprovalSettings
+					const incomingVersion = incoming.autoApprovalSettings?.version ?? 1
+					const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+					const shouldUpdateAutoApproval = incomingVersion > currentVersion
+					return {
+						...incoming,
+						autoApprovalSettings: shouldUpdateAutoApproval
+							? incoming.autoApprovalSettings
+							: prevState.autoApprovalSettings,
+					}
+				})
 				const config = message.state?.apiConfiguration
 				const hasKey = config
 					? [
@@ -128,6 +158,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 				break
 			}
+
 			case "openRouterModels": {
 				const updatedModels = message.openRouterModels ?? {}
 				setOpenRouterModels({
@@ -184,6 +215,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpMarketplaceCatalog,
 		filePaths,
 		totalTasksSize,
+		showMcp,
+		mcpTab,
+		globalClineRulesToggles: state.globalClineRulesToggles || {},
+		localClineRulesToggles: state.localClineRulesToggles || {},
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -209,6 +244,14 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				shouldShowAnnouncement: value,
 			})),
+		setShellIntegrationTimeout: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				shellIntegrationTimeout: value,
+			})),
+		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
+		setShowMcp,
+		setMcpTab,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

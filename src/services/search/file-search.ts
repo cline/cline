@@ -120,7 +120,7 @@ export async function searchWorkspaceFiles(
 			limit: limit * 2,
 		})
 
-		// The min threshold value will require some testing and tuning as the scores are exponential, and exagerated
+		// The min threshold value will require some testing and tuning as the scores are exponential, and exaggerated
 		const MIN_SCORE_THRESHOLD = 100
 
 		// Filter results by score and map to original items

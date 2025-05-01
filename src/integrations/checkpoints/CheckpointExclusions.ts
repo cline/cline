@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import { join } from "path"
-import { fileExistsAtPath } from "../../utils/fs"
+import { fileExistsAtPath } from "@utils/fs"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
 
 /**

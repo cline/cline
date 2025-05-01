@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Service for account-related operations
+service AccountService {
+    // Handles the user clicking the login link in the UI.
+    // Generates a secure nonce for state validation, stores it in secrets,
+    // and opens the authentication URL in the external browser.
+    rpc accountLoginClicked(EmptyRequest) returns (String);
+}
