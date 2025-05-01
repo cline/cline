@@ -11,6 +11,10 @@ import { ApiStream } from "../transform/stream"
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const DEFAULT_CACHE_TTL_SECONDS = 900
 
+interface GeminiHandlerOptions extends ApiHandlerOptions {
+	isVertex?: boolean
+}
+
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: GoogleGenAI
@@ -19,17 +23,34 @@ export class GeminiHandler implements ApiHandler {
 	private contentCaches: NodeCache
 	private isCacheBusy = false
 
-	constructor(options: ApiHandlerOptions) {
-		if (!options.geminiApiKey) {
-			throw new Error("API key is required for Google Gemini")
-		}
+	constructor(options: GeminiHandlerOptions) {
+		// Store the options
 		this.options = options
 
-		// Initialize Google Gemini client
-		this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
+		if (options.isVertex) {
+			// Initialize with Vertex AI configuration
+			const project = this.options.vertexProjectId ?? "not-provided"
+			const location = this.options.vertexRegion ?? "not-provided"
+
+			this.client = new GoogleGenAI({
+				vertexai: true,
+				project,
+				location,
+			})
+		} else {
+			// Initialize with standard API key
+			if (!options.geminiApiKey) {
+				throw new Error("API key is required for Google Gemini when not using Vertex AI")
+			}
+
+			this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
+		}
 
 		// Initialize cache with TTL and check period
-		this.contentCaches = new NodeCache({ stdTTL: DEFAULT_CACHE_TTL_SECONDS, checkperiod: DEFAULT_CACHE_TTL_SECONDS })
+		this.contentCaches = new NodeCache({
+			stdTTL: DEFAULT_CACHE_TTL_SECONDS,
+			checkperiod: DEFAULT_CACHE_TTL_SECONDS,
+		})
 	}
 
 	@withRetry()
@@ -185,7 +206,7 @@ export class GeminiHandler implements ApiHandler {
 	/**
 	 * Calculate the dollar cost of the API call based on token usage and model pricing
 	 */
-	private calculateCost({
+	public calculateCost({
 		info,
 		inputTokens,
 		outputTokens,
@@ -198,65 +219,60 @@ export class GeminiHandler implements ApiHandler {
 		cacheWriteTokens?: number
 		cacheReadTokens?: number
 	}) {
-		// If pricing information is not available, return undefined
-		if (!info.inputPrice && !info.inputPriceTiers && !info.outputPrice && !info.outputPriceTiers) {
+		// Exit early if any required pricing information is missing
+		if (!info.inputPrice || !info.outputPrice) {
 			return undefined
 		}
 
-		let inputPrice = info.inputPrice ?? 0
-		let outputPrice = info.outputPrice ?? 0
+		let inputPrice = info.inputPrice
+		let outputPrice = info.outputPrice
 		let cacheWritesPrice = info.cacheWritesPrice ?? 0
 		let cacheReadsPrice = info.cacheReadsPrice ?? 0
 
-		// Handle tiered pricing based on input tokens
-		if (info.inputPriceTiers) {
-			const tier = info.inputPriceTiers.find((tier) => inputTokens <= tier.tokenLimit)
+		// If there's tiered pricing then adjust prices based on the input tokens used
+		if (info.tiers) {
+			const tier = info.tiers.find((tier) => inputTokens <= tier.contextWindow)
 			if (tier) {
-				inputPrice = tier.price
+				inputPrice = tier.inputPrice ?? inputPrice
+				outputPrice = tier.outputPrice ?? outputPrice
+				cacheWritesPrice = tier.cacheWritesPrice ?? cacheWritesPrice
+				cacheReadsPrice = tier.cacheReadsPrice ?? cacheReadsPrice
 			}
 		}
 
-		// Handle tiered pricing for output tokens
-		if (info.outputPriceTiers) {
-			const tier = info.outputPriceTiers.find((tier) => inputTokens <= tier.tokenLimit)
-			if (tier) {
-				outputPrice = tier.price
-			}
-		}
-
-		// Subtract cached input tokens from total input tokens
+		// Subtract the cached input tokens from the total input tokens
 		const uncachedInputTokens = inputTokens - (cacheReadTokens ?? 0)
 
-		// Calculate costs for each component
+		// Calculate cache costs
 		const cacheWriteCost =
-			cacheWriteTokens && cacheWriteTokens > 0
-				? cacheWritesPrice * (cacheWriteTokens / 1_000_000) * (DEFAULT_CACHE_TTL_SECONDS / 3600)
+			(cacheWriteTokens ?? 0) > 0
+				? cacheWritesPrice * ((cacheWriteTokens ?? 0) / 1_000_000) * (DEFAULT_CACHE_TTL_SECONDS / 3600)
 				: 0
 
-		const cacheReadCost = cacheReadTokens && cacheReadTokens > 0 ? cacheReadsPrice * (cacheReadTokens / 1_000_000) : 0
+		const cacheReadCost = (cacheReadTokens ?? 0) > 0 ? cacheReadsPrice * ((cacheReadTokens ?? 0) / 1_000_000) : 0
 
+		// Calculate token costs
 		const inputTokensCost = inputPrice * (uncachedInputTokens / 1_000_000)
 		const outputTokensCost = outputPrice * (outputTokens / 1_000_000)
 
 		// Calculate total cost
 		const totalCost = inputTokensCost + outputTokensCost + cacheWriteCost + cacheReadCost
 
-		// For debugging
+		// Create the trace object for debugging
 		const trace: Record<string, { price: number; tokens: number; cost: number }> = {
 			input: { price: inputPrice, tokens: uncachedInputTokens, cost: inputTokensCost },
 			output: { price: outputPrice, tokens: outputTokens, cost: outputTokensCost },
 		}
 
-		if (cacheWriteTokens && cacheWriteTokens > 0) {
-			trace.cacheWrite = { price: cacheWritesPrice, tokens: cacheWriteTokens, cost: cacheWriteCost }
+		if ((cacheWriteTokens ?? 0) > 0) {
+			trace.cacheWrite = { price: cacheWritesPrice, tokens: cacheWriteTokens ?? 0, cost: cacheWriteCost }
 		}
 
-		if (cacheReadTokens && cacheReadTokens > 0) {
-			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens, cost: cacheReadCost }
+		if ((cacheReadTokens ?? 0) > 0) {
+			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens ?? 0, cost: cacheReadCost }
 		}
 
 		// console.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
-
 		return totalCost
 	}
 
