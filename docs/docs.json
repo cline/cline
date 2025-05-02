@@ -53,7 +53,17 @@
 		}
 	},
 	"navigation": {
-		"pages": ["introduction"]
+		"groups": [
+			{
+				"group": "Enterprise Solutions",
+				"pages": [
+					"enterprise-solutions/cloud-provider-integration",
+					"enterprise-solutions/custom-instructions",
+					"enterprise-solutions/mcp-servers",
+					"enterprise-solutions/security-concerns"
+				]
+			}
+		]
 	},
 	"footer": {
 		"socials": {
