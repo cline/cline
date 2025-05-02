@@ -182,7 +182,6 @@ const StyledMarkdown = styled.div`
 
 	.katex-error {
 		color: var(--vscode-errorForeground);
-		background-color: var(--vscode-inputValidation-errorBackground);
 		border: 1px solid var(--vscode-inputValidation-errorBorder);
 		padding: 8px;
 		border-radius: 3px;
@@ -301,7 +300,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			},
 		],
 		rehypePlugins: [
-			rehypeKatex,
+			[rehypeKatex, { throwOnError: false }],
 			rehypeHighlight as any,
 			{
 				// languages: {},
@@ -335,7 +334,13 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	})
 
 	useEffect(() => {
-		setMarkdown(markdown || "")
+		try {
+			// Process markdown
+			setMarkdown(markdown || "")
+		} catch (err) {
+			// If an error occurs during markdown processing, capture it
+			console.error("Error processing markdown:", err)
+		}
 	}, [markdown, setMarkdown, theme])
 
 	return (
