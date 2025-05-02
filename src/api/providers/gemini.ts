@@ -15,13 +15,35 @@ interface GeminiHandlerOptions extends ApiHandlerOptions {
 	isVertex?: boolean
 }
 
+/**
+ * Handler for Google's Gemini API with optimized caching strategy and accurate cost accounting.
+ *
+ * Key features:
+ * - One cache per task: Creates a single cache per task and reuses it for subsequent turns
+ * - Stable cache keys: Uses taskId as a stable identifier for caches
+ * - Efficient cache updates: Only updates caches when there's new content to add
+ * - Split cost accounting: Separates immediate costs from ongoing cache storage costs
+ *
+ * Cost accounting approach:
+ * - Immediate costs (per message): Input tokens, output tokens, and cache read costs
+ * - Ongoing costs (per task): Cache storage costs for the TTL period
+ *
+ * Gemini's caching system is unique in that it charges for holding tokens in cache by the hour.
+ * This implementation optimizes for both performance and cost by:
+ * 1. Minimizing redundant cache creations
+ * 2. Properly accounting for cache costs in the billing calculations
+ * 3. Using a stable cache key to ensure cache reuse across turns
+ * 4. Separating immediate costs from ongoing costs to avoid double-counting
+ */
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: GoogleGenAI
 
 	// Enhanced caching system
-	private contentCaches: NodeCache
+	private contentCaches: NodeCache // Stores cache details (key, count, etc.)
 	private isCacheBusy = false
+	private taskCacheNames: Map<string, string> = new Map() // Maps taskId to cache name for stable lookup
+	private taskCacheTokens: Map<string, number> = new Map() // Maps taskId to total tokens in cache
 
 	constructor(options: GeminiHandlerOptions) {
 		// Store the options
@@ -53,13 +75,34 @@ export class GeminiHandler implements ApiHandler {
 		})
 	}
 
+	/**
+	 * Creates a message using the Gemini API with optimized caching and split cost accounting.
+	 *
+	 * This method implements a task-based caching strategy:
+	 * 1. Each task gets its own cache, identified by taskId
+	 * 2. On first call for a task, a new cache is created
+	 * 3. On subsequent calls, the existing cache is reused and only new messages are sent
+	 * 4. Cache operations are tracked for accurate cost accounting
+	 *
+	 * Cost accounting:
+	 * - Immediate costs (returned in the usage object): Input tokens, output tokens, cache read costs
+	 * - Ongoing costs (tracked at task level): Cache storage costs for the TTL period
+	 *
+	 * @param systemPrompt The system prompt to use for the message
+	 * @param messages The conversation history to include in the message
+	 * @returns An async generator that yields chunks of the response with accurate immediate costs
+	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const { id: model, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
-		// Generate a cache key based on the conversation
-		const cacheKey = this.options.taskId || Date.now().toString()
+		// Ensure we have a stable cache key (taskId)
+		if (!this.options.taskId) {
+			console.warn("[GeminiHandler] No taskId provided, caching will be disabled")
+		}
+
+		const taskId = this.options.taskId
 
 		// Calculate total content length for cache eligibility check
 		const contentsLength = systemPrompt.length + this.getMessagesLength(contents)
@@ -71,25 +114,34 @@ export class GeminiHandler implements ApiHandler {
 		let cachedContent: string | undefined = undefined
 
 		// Check if caching is available and content is large enough to benefit from caching
-		const isCacheAvailable = info.supportsPromptCache && contentsLength > 4 * CONTEXT_CACHE_TOKEN_MINIMUM && cacheKey
+		// We only enable caching for conversations above a certain size to avoid overhead for small requests
+		const isCacheAvailable = info.supportsPromptCache && contentsLength > 4 * CONTEXT_CACHE_TOKEN_MINIMUM && taskId
 
+		// This flag tracks whether this operation involves a cache write/update
+		// It's used to track task-level ongoing costs, not immediate costs
 		let cacheWrite = false
 
 		if (isCacheAvailable) {
-			// Try to get existing cache entry
-			const cacheEntry = this.contentCaches.get<{ key: string; count: number }>(cacheKey)
+			// Check if we already have a cache for this task
+			const existingCacheName = this.taskCacheNames.get(taskId)
+			const cacheEntry = existingCacheName ? this.contentCaches.get<{ key: string; count: number }>(taskId) : undefined
 
 			if (cacheEntry) {
-				// Use partial cache if available
+				// Use existing cache
 				uncachedContent = contents.slice(cacheEntry.count, contents.length)
 				cachedContent = cacheEntry.key
 				console.log(
-					`[GeminiHandler] using ${cacheEntry.count} cached messages (${cacheEntry.key}) and ${uncachedContent.length} uncached messages`,
+					`[GeminiHandler] using existing cache for task ${taskId}: ${cacheEntry.count} cached messages (${cacheEntry.key}) and ${uncachedContent.length} uncached messages`,
 				)
 			}
 
-			// Create cache in background if not busy
-			if (!this.isCacheBusy) {
+			// Create or update cache only if not busy and either:
+			// 1. No cache exists for this task, or
+			// 2. We have new content to add to the cache
+			const shouldCreateOrUpdateCache =
+				!this.isCacheBusy && (!existingCacheName || (cacheEntry && uncachedContent && uncachedContent.length > 0))
+
+			if (shouldCreateOrUpdateCache) {
 				this.isCacheBusy = true
 				const timestamp = Date.now()
 
@@ -107,12 +159,19 @@ export class GeminiHandler implements ApiHandler {
 						const { name, usageMetadata } = result
 
 						if (name) {
-							this.contentCaches.set<{ key: string; count: number }>(cacheKey, {
+							// Store in both caches
+							this.contentCaches.set<{ key: string; count: number }>(taskId, {
 								key: name,
 								count: contents.length,
 							})
+							this.taskCacheNames.set(taskId, name)
+
+							// Track total tokens in cache for ongoing cost calculation
+							const totalTokens = usageMetadata?.totalTokenCount ?? 0
+							this.taskCacheTokens.set(taskId, totalTokens)
+
 							console.log(
-								`[GeminiHandler] cached ${contents.length} messages (${usageMetadata?.totalTokenCount ?? "-"} tokens) in ${Date.now() - timestamp}ms`,
+								`[GeminiHandler] ${existingCacheName ? "updated" : "created new"} cache for task ${taskId}: ${contents.length} messages (${totalTokens} tokens) in ${Date.now() - timestamp}ms`,
 							)
 						}
 					})
@@ -123,6 +182,8 @@ export class GeminiHandler implements ApiHandler {
 						this.isCacheBusy = false
 					})
 
+				// Mark this as a cache write operation for task-level ongoing cost tracking
+				// The actual costs will be calculated separately via getTaskOngoingCosts()
 				cacheWrite = true
 			}
 		}
@@ -183,28 +244,82 @@ export class GeminiHandler implements ApiHandler {
 		if (lastUsageMetadata) {
 			const inputTokens = lastUsageMetadata.promptTokenCount ?? 0
 			const outputTokens = lastUsageMetadata.candidatesTokenCount ?? 0
-			const cacheWriteTokens = cacheWrite ? inputTokens : undefined
 			const cacheReadTokens = lastUsageMetadata.cachedContentTokenCount
+
+			// Calculate immediate costs only (excluding cache write/storage costs)
 			const totalCost = this.calculateCost({
 				info,
 				inputTokens,
 				outputTokens,
-				cacheWriteTokens,
 				cacheReadTokens,
 			})
+
+			// Store the token count for task-level ongoing cost tracking
+			// This is not included in the immediate costs returned to the user
+			const cacheWriteTokens = cacheWrite ? inputTokens : undefined
+
+			// If this is a cache write operation, update the task's ongoing costs
+			if (cacheWrite && this.options.taskId && inputTokens > 0) {
+				// Log the ongoing costs for debugging
+				const ongoingCosts = this.getTaskOngoingCosts(this.options.taskId)
+				console.log(
+					`[GeminiHandler] Task ${this.options.taskId} ongoing costs: $${ongoingCosts?.toFixed(6) ?? "unknown"}`,
+				)
+			}
+
 			yield {
 				type: "usage",
 				inputTokens,
 				outputTokens,
-				cacheWriteTokens,
 				cacheReadTokens,
+				cacheWriteTokens,
 				totalCost,
 			}
 		}
 	}
 
 	/**
-	 * Calculate the dollar cost of the API call based on token usage and model pricing
+	 * Calculate the ongoing costs for a task based on cache storage.
+	 *
+	 * This method calculates the cost of holding tokens in cache for the TTL period.
+	 * These costs are separate from the immediate costs of API calls and should be
+	 * tracked at the task level rather than the message level.
+	 *
+	 * TODO: Surface these ongoing costs to the user in the UI, possibly in:
+	 * - The task header/summary
+	 * - A dedicated "costs" panel or tooltip
+	 * - As part of the total cost calculation for the task
+	 *
+	 *
+	 * @param taskId The ID of the task to calculate ongoing costs for
+	 * @returns The ongoing cost in dollars, or undefined if no cache exists for the task
+	 */
+	public getTaskOngoingCosts(taskId: string): number | undefined {
+		const tokens = this.taskCacheTokens.get(taskId)
+		if (!tokens) {
+			return undefined
+		}
+
+		const { info } = this.getModel()
+		if (!info.cacheWritesPrice) {
+			return undefined
+		}
+
+		// Calculate the cost of holding tokens in cache for the TTL period
+		// (tokens / 1M) * (price per 1M tokens) * (cache TTL in hours)
+		return info.cacheWritesPrice * (tokens / 1_000_000) * (DEFAULT_CACHE_TTL_SECONDS / 3600)
+	}
+
+	/**
+	 * Calculate the immediate dollar cost of the API call based on token usage and model pricing.
+	 *
+	 * This method accounts for the immediate costs of the API call:
+	 * - Input token costs (for uncached tokens)
+	 * - Output token costs
+	 * - Cache read costs
+	 *
+	 * It does NOT include ongoing costs like cache storage, which are tracked separately
+	 * at the task level through getTaskOngoingCosts().
 	 */
 	public calculateCost({
 		info,
@@ -243,20 +358,19 @@ export class GeminiHandler implements ApiHandler {
 		// Subtract the cached input tokens from the total input tokens
 		const uncachedInputTokens = inputTokens - (cacheReadTokens ?? 0)
 
-		// Calculate cache costs
-		const cacheWriteCost =
-			(cacheWriteTokens ?? 0) > 0
-				? cacheWritesPrice * ((cacheWriteTokens ?? 0) / 1_000_000) * (DEFAULT_CACHE_TTL_SECONDS / 3600)
-				: 0
+		// Calculate immediate costs only
 
-		const cacheReadCost = (cacheReadTokens ?? 0) > 0 ? cacheReadsPrice * ((cacheReadTokens ?? 0) / 1_000_000) : 0
-
-		// Calculate token costs
+		// 1. Input token costs (for uncached tokens)
 		const inputTokensCost = inputPrice * (uncachedInputTokens / 1_000_000)
+
+		// 2. Output token costs
 		const outputTokensCost = outputPrice * (outputTokens / 1_000_000)
 
-		// Calculate total cost
-		const totalCost = inputTokensCost + outputTokensCost + cacheWriteCost + cacheReadCost
+		// 3. Cache read costs (immediate)
+		const cacheReadCost = (cacheReadTokens ?? 0) > 0 ? cacheReadsPrice * ((cacheReadTokens ?? 0) / 1_000_000) : 0
+
+		// Calculate total immediate cost (excluding cache write/storage costs)
+		const totalCost = inputTokensCost + outputTokensCost + cacheReadCost
 
 		// Create the trace object for debugging
 		const trace: Record<string, { price: number; tokens: number; cost: number }> = {
@@ -264,10 +378,7 @@ export class GeminiHandler implements ApiHandler {
 			output: { price: outputPrice, tokens: outputTokens, cost: outputTokensCost },
 		}
 
-		if ((cacheWriteTokens ?? 0) > 0) {
-			trace.cacheWrite = { price: cacheWritesPrice, tokens: cacheWriteTokens ?? 0, cost: cacheWriteCost }
-		}
-
+		// Only include cache read costs in the trace (cache write costs are tracked separately)
 		if ((cacheReadTokens ?? 0) > 0) {
 			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens ?? 0, cost: cacheReadCost }
 		}
