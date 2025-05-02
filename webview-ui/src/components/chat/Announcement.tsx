@@ -43,24 +43,21 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price tracking for
-					Gemini models.
+					<b>Caching in:</b> You asked for Caching, we delivered. Gemini and Vertex providers have more robust caching.
+					We also added cache tracking for these providers.
+				</li>
+				<li>
+					<b>Checkpoints:</b> We added checkpoints to more message responses. Restore from more than just file changes.
 				</li>
 				<li>
 					<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their contents
 					easily.
 				</li>
 				<li>
-					<b>/newrule command:</b> New slash command to have cline write your .clinerules for you based on your
-					workflow.
+					<b>Is it pie?:</b> Added support for rendering LaTeX in message responses.
 				</li>
-				<li>
-					<b>Drag and drop improvements:</b> Don't forget to hold shift while dragging files!
-				</li>
-				<li>Added more checkpoints across the task, allowing you to restore from more than just file changes.</li>
-				<li>Added support for rendering LaTeX in message responses. (Try asking Cline to show the quadratic formula)</li>
 			</ul>
-			{/* <h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
+			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
 			<ul style={ulStyle}>
 				<li>
 					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
@@ -77,7 +74,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore
 					your project when the message was sent!
 				</li>
-			</ul> */}
+			</ul>
 			{/*
 			// Leave this here for an example of how to structure the announcement
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
