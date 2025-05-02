@@ -164,7 +164,7 @@ export class VertexHandler implements ApiHandler {
 					yield {
 						type: "usage",
 						inputTokens: 0,
-						outputTokens: chunk.usage.output_tokens || 0,
+						outputTokens: chunk.usage?.output_tokens || 0,
 					}
 					break
 				case "message_stop":
