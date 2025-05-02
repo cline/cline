@@ -1,4 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
@@ -63,7 +64,7 @@ async function convertHtmlToMarkdown(html: string) {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting, userInfo } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -913,22 +914,30 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						paddingBottom: "10px",
 					}}>
 					{telemetrySetting === "unset" && <TelemetryBanner />}
+					<div
+						style={{
+							padding: "30px 20px",
+							flexShrink: 0,
+							display: "flex",
+							flexDirection: "column",
+							alignItems: "center",
+							textAlign: "center",
+						}}>
+						<div style={{ marginBottom: "15px" }}>
+							<ClineLogoWhite style={{ width: "50px", height: "50px", marginBottom: "15px" }} />
+						</div>
+						<div style={{ marginBottom: "5px" }}>
+							<p style={{ fontSize: "16px", fontWeight: "500", margin: "0", color: "var(--vscode-foreground)" }}>
+								{userInfo?.displayName ? `Hello ${userInfo.displayName.split(" ")[0]}!` : "Hello there!"}
+							</p>
+							<p style={{ fontSize: "14px", color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
+								Let the vibe coding begin.
+							</p>
+						</div>
+					</div>
 
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 
-					<div style={{ padding: "0 20px", flexShrink: 0 }}>
-						<h2>What can I do for you?</h2>
-						<p>
-							Thanks to{" "}
-							<VSCodeLink href="https://www.anthropic.com/claude/sonnet" style={{ display: "inline" }}>
-								Claude 3.7 Sonnet's
-							</VSCodeLink>
-							agentic coding capabilities, I can handle complex software development tasks step-by-step. With tools
-							that let me create & edit files, explore complex projects, use a browser, and execute terminal
-							commands (after you grant permission), I can assist you in ways that go beyond code completion or tech
-							support. I can even use MCP to create new tools and extend my own capabilities.
-						</p>
-					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</div>
 			)}
