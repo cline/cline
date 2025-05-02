@@ -5,9 +5,232 @@
 // source: file.proto
 
 /* eslint-disable */
-import { Empty, StringRequest } from "./common"
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
+import { Empty, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
+
+/** Unified request for all rule file operations */
+export interface RuleFileRequest {
+	metadata?: Metadata | undefined
+	/** Common field for all operations */
+	isGlobal: boolean
+	/** Path field for deleteRuleFile (optional) */
+	rulePath?: string | undefined
+	/** Filename field for createRuleFile (optional) */
+	filename?: string | undefined
+}
+
+/** Result for rule file operations with meaningful data only */
+export interface RuleFile {
+	/** Path to the rule file */
+	filePath: string
+	/** Filename for display purposes */
+	displayName: string
+	/** For createRuleFile, indicates if file already existed */
+	alreadyExists: boolean
+}
+
+function createBaseRuleFileRequest(): RuleFileRequest {
+	return { metadata: undefined, isGlobal: false, rulePath: undefined, filename: undefined }
+}
+
+export const RuleFileRequest: MessageFns<RuleFileRequest> = {
+	encode(message: RuleFileRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.isGlobal !== false) {
+			writer.uint32(16).bool(message.isGlobal)
+		}
+		if (message.rulePath !== undefined) {
+			writer.uint32(26).string(message.rulePath)
+		}
+		if (message.filename !== undefined) {
+			writer.uint32(34).string(message.filename)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): RuleFileRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseRuleFileRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.isGlobal = reader.bool()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.rulePath = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.filename = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): RuleFileRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
+			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : undefined,
+			filename: isSet(object.filename) ? globalThis.String(object.filename) : undefined,
+		}
+	},
+
+	toJSON(message: RuleFileRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.isGlobal !== false) {
+			obj.isGlobal = message.isGlobal
+		}
+		if (message.rulePath !== undefined) {
+			obj.rulePath = message.rulePath
+		}
+		if (message.filename !== undefined) {
+			obj.filename = message.filename
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<RuleFileRequest>, I>>(base?: I): RuleFileRequest {
+		return RuleFileRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<RuleFileRequest>, I>>(object: I): RuleFileRequest {
+		const message = createBaseRuleFileRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.isGlobal = object.isGlobal ?? false
+		message.rulePath = object.rulePath ?? undefined
+		message.filename = object.filename ?? undefined
+		return message
+	},
+}
+
+function createBaseRuleFile(): RuleFile {
+	return { filePath: "", displayName: "", alreadyExists: false }
+}
+
+export const RuleFile: MessageFns<RuleFile> = {
+	encode(message: RuleFile, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.filePath !== "") {
+			writer.uint32(10).string(message.filePath)
+		}
+		if (message.displayName !== "") {
+			writer.uint32(18).string(message.displayName)
+		}
+		if (message.alreadyExists !== false) {
+			writer.uint32(24).bool(message.alreadyExists)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): RuleFile {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseRuleFile()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.filePath = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.displayName = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.alreadyExists = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): RuleFile {
+		return {
+			filePath: isSet(object.filePath) ? globalThis.String(object.filePath) : "",
+			displayName: isSet(object.displayName) ? globalThis.String(object.displayName) : "",
+			alreadyExists: isSet(object.alreadyExists) ? globalThis.Boolean(object.alreadyExists) : false,
+		}
+	},
+
+	toJSON(message: RuleFile): unknown {
+		const obj: any = {}
+		if (message.filePath !== "") {
+			obj.filePath = message.filePath
+		}
+		if (message.displayName !== "") {
+			obj.displayName = message.displayName
+		}
+		if (message.alreadyExists !== false) {
+			obj.alreadyExists = message.alreadyExists
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<RuleFile>, I>>(base?: I): RuleFile {
+		return RuleFile.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<RuleFile>, I>>(object: I): RuleFile {
+		const message = createBaseRuleFile()
+		message.filePath = object.filePath ?? ""
+		message.displayName = object.displayName ?? ""
+		message.alreadyExists = object.alreadyExists ?? false
+		return message
+	},
+}
 
 /** Service for file-related operations */
 export type FileServiceDefinition = typeof FileServiceDefinition
@@ -33,5 +256,53 @@ export const FileServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Deletes a rule file from either global or workspace rules directory */
+		deleteRuleFile: {
+			name: "deleteRuleFile",
+			requestType: RuleFileRequest,
+			requestStream: false,
+			responseType: RuleFile,
+			responseStream: false,
+			options: {},
+		},
+		/** Creates a rule file from either global or workspace rules directory */
+		createRuleFile: {
+			name: "createRuleFile",
+			requestType: RuleFileRequest,
+			requestStream: false,
+			responseType: RuleFile,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
+
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
+
+export type DeepPartial<T> = T extends Builtin
+	? T
+	: T extends globalThis.Array<infer U>
+		? globalThis.Array<DeepPartial<U>>
+		: T extends ReadonlyArray<infer U>
+			? ReadonlyArray<DeepPartial<U>>
+			: T extends {}
+				? { [K in keyof T]?: DeepPartial<T[K]> }
+				: Partial<T>
+
+type KeysOfUnion<T> = T extends T ? keyof T : never
+export type Exact<P, I extends P> = P extends Builtin
+	? P
+	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+
+function isSet(value: any): boolean {
+	return value !== null && value !== undefined
+}
+
+export interface MessageFns<T> {
+	encode(message: T, writer?: BinaryWriter): BinaryWriter
+	decode(input: BinaryReader | Uint8Array, length?: number): T
+	fromJSON(object: any): T
+	toJSON(message: T): unknown
+	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T
+	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T
+}

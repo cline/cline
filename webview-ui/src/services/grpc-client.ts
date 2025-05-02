@@ -17,6 +17,7 @@ const FileServiceClient = createGrpcClient(FileServiceDefinition)
 const McpServiceClient = createGrpcClient(McpServiceDefinition)
 const StateServiceClient = createGrpcClient(StateServiceDefinition)
 const TaskServiceClient = createGrpcClient(TaskServiceDefinition)
+const WebContentServiceClient = createGrpcClient(WebContentServiceDefinition)
 
 export {
 	AccountServiceClient,
@@ -25,5 +26,6 @@ export {
 	FileServiceClient,
 	McpServiceClient,
 	StateServiceClient,
-	TaskServiceClient
+	TaskServiceClient,
+	WebContentServiceClient,
 }

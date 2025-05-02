@@ -9,6 +9,7 @@ import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import BrowserSettingsSection from "./BrowserSettingsSection"
+import TerminalSettingsSection from "./TerminalSettingsSection"
 
 const { IS_DEV } = process.env
 
@@ -239,6 +240,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 				{/* Browser Settings Section */}
 				<BrowserSettingsSection />
+
+				{/* Terminal Settings Section */}
+				<TerminalSettingsSection />
 
 				<div className="mt-auto pr-2 flex justify-center">
 					<SettingsButton

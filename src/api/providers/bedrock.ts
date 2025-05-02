@@ -28,20 +28,26 @@ export class AwsBedrockHandler implements ApiHandler {
 		const modelId = await this.getModelId()
 		const model = this.getModel()
 
+		// This baseModelId is used to indicate the capabilities of the model.
+		// If the user selects a custom model, baseModelId will be set to the base model ID of the custom model.
+		// Otherwise, baseModelId will be the same as modelId.
+		const baseModelId =
+			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : modelId) || modelId
+
 		// Check if this is an Amazon Nova model
-		if (modelId.includes("amazon.nova")) {
+		if (baseModelId.includes("amazon.nova")) {
 			yield* this.createNovaMessage(systemPrompt, messages, modelId, model)
 			return
 		}
 
 		// Check if this is a Deepseek model
-		if (modelId.includes("deepseek")) {
+		if (baseModelId.includes("deepseek")) {
 			yield* this.createDeepseekMessage(systemPrompt, messages, modelId, model)
 			return
 		}
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn = baseModelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -167,12 +173,23 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: BedrockModelId; info: ModelInfo } {
+	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in bedrockModels) {
 			const id = modelId as BedrockModelId
 			return { id, info: bedrockModels[id] }
 		}
+
+		const customSelected = this.options.awsBedrockCustomSelected
+		const baseModel = this.options.awsBedrockCustomModelBaseId
+		if (customSelected && modelId && baseModel && baseModel in bedrockModels) {
+			// Use the user-input model ID but inherit capabilities from the base model
+			return {
+				id: modelId,
+				info: bedrockModels[baseModel],
+			}
+		}
+
 		return {
 			id: bedrockDefaultModelId,
 			info: bedrockModels[bedrockDefaultModelId],
@@ -290,7 +307,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
-		model: { id: BedrockModelId; info: ModelInfo },
+		model: { id: string; info: ModelInfo },
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
@@ -476,13 +493,13 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	/**
 	 * Creates a message using Amazon Nova models through AWS Bedrock
-	 * Implements support for Nova Micro, Nova Lite, and Nova Pro models
+	 * Implements support for Amazon Nova models
 	 */
 	private async *createNovaMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
-		model: { id: BedrockModelId; info: ModelInfo },
+		model: { id: string; info: ModelInfo },
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()

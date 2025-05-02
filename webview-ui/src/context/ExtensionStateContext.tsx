@@ -41,6 +41,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
+	setShellIntegrationTimeout: (value: number) => void
 	setMcpServers: (value: McpServer[]) => void
 
 	// Navigation
@@ -71,6 +72,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		planActSeparateModelsSetting: true,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
+		shellIntegrationTimeout: 4000, // default timeout for shell integration
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -231,7 +233,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				onComplete: () => {
 					console.log("State subscription completed")
 				},
-			}
+			},
 		)
 
 		// Still send the webviewDidLaunch message for other initialization
@@ -286,6 +288,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				shouldShowAnnouncement: value,
+			})),
+		setShellIntegrationTimeout: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				shellIntegrationTimeout: value,
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setShowMcp,

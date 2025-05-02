@@ -24,7 +24,6 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openInBrowser"
-		| "createRuleFile"
 		| "openMention"
 		| "showChatView"
 		| "refreshOpenRouterModels"
@@ -53,7 +52,6 @@ export interface WebviewMessage {
 		| "telemetrySetting"
 		| "openSettings"
 		| "fetchOpenGraphData"
-		| "checkIsImageUrl"
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
@@ -71,6 +69,7 @@ export interface WebviewMessage {
 		| "toggleClineRule"
 		| "deleteClineRule"
 		| "copyToClipboard"
+		| "updateTerminalConnectionTimeout"
 
 	// | "relaunchChromeDebugMode"
 	text?: string
@@ -125,6 +124,7 @@ export interface WebviewMessage {
 	filename?: string
 
 	offset?: number
+	shellIntegrationTimeout?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

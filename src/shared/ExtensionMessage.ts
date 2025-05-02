@@ -35,7 +35,6 @@ export interface ExtensionMessage {
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
 		| "openGraphData"
-		| "isImageUrlResult"
 		| "didUpdateSettings"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
@@ -134,6 +133,7 @@ export interface ExtensionState {
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
+	shellIntegrationTimeout: number
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null
