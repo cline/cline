@@ -53,7 +53,20 @@
 		}
 	},
 	"navigation": {
-		"pages": ["introduction"]
+		"groups": [
+			{
+				"group": "Getting Started",
+				"pages": [
+					"getting-started/for-new-coders",
+					"getting-started/installing-cline",
+					"getting-started/installing-dev-essentials",
+					"getting-started/model-selection-guide",
+					"getting-started/our-favorite-tech-stack",
+					"getting-started/understanding-context-management",
+					"getting-started/what-is-cline"
+				]
+			}
+		]
 	},
 	"footer": {
 		"socials": {
