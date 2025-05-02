@@ -254,7 +254,9 @@ export class GeminiHandler implements ApiHandler {
 					caches.push(cache)
 				}
 
-				if (!pager.hasNextPage()) break
+				if (!pager.hasNextPage()) {
+					break
+				}
 				page = await pager.nextPage()
 			}
 
