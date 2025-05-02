@@ -11,9 +11,13 @@ import { GlobalFileNames } from "../../shared/globalFileNames"
 const ROOMODES_FILENAME = ".roomodes"
 
 export class CustomModesManager {
+	private static readonly cacheTTL = 10_000
+
 	private disposables: vscode.Disposable[] = []
 	private isWriting = false
 	private writeQueue: Array<() => Promise<void>> = []
+	private cachedModes: ModeConfig[] | null = null
+	private cachedAt: number = 0
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -25,6 +29,7 @@ export class CustomModesManager {
 
 	private async queueWrite(operation: () => Promise<void>): Promise<void> {
 		this.writeQueue.push(operation)
+
 		if (!this.isWriting) {
 			await this.processWriteQueue()
 		}
@@ -36,9 +41,11 @@ export class CustomModesManager {
 		}
 
 		this.isWriting = true
+
 		try {
 			while (this.writeQueue.length > 0) {
 				const operation = this.writeQueue.shift()
+
 				if (operation) {
 					await operation()
 				}
@@ -50,9 +57,11 @@ export class CustomModesManager {
 
 	private async getWorkspaceRoomodes(): Promise<string | undefined> {
 		const workspaceFolders = vscode.workspace.workspaceFolders
+
 		if (!workspaceFolders || workspaceFolders.length === 0) {
 			return undefined
 		}
+
 		const workspaceRoot = getWorkspacePath()
 		const roomodesPath = path.join(workspaceRoot, ROOMODES_FILENAME)
 		const exists = await fileExistsAtPath(roomodesPath)
@@ -73,10 +82,7 @@ export class CustomModesManager {
 			const source = isRoomodes ? ("project" as const) : ("global" as const)
 
 			// Add source to each mode
-			return result.data.customModes.map((mode) => ({
-				...mode,
-				source,
-			}))
+			return result.data.customModes.map((mode) => ({ ...mode, source }))
 		} catch (error) {
 			const errorMsg = `Failed to load modes from ${filePath}: ${error instanceof Error ? error.message : String(error)}`
 			console.error(`[CustomModesManager] ${errorMsg}`)
@@ -92,10 +98,7 @@ export class CustomModesManager {
 		for (const mode of projectModes) {
 			if (!slugs.has(mode.slug)) {
 				slugs.add(mode.slug)
-				merged.push({
-					...mode,
-					source: "project",
-				})
+				merged.push({ ...mode, source: "project" })
 			}
 		}
 
@@ -103,25 +106,22 @@ export class CustomModesManager {
 		for (const mode of globalModes) {
 			if (!slugs.has(mode.slug)) {
 				slugs.add(mode.slug)
-				merged.push({
-					...mode,
-					source: "global",
-				})
+				merged.push({ ...mode, source: "global" })
 			}
 		}
 
 		return merged
 	}
 
-	async getCustomModesFilePath(): Promise<string> {
+	public async getCustomModesFilePath(): Promise<string> {
 		const settingsDir = await this.ensureSettingsDirectoryExists()
 		const filePath = path.join(settingsDir, GlobalFileNames.customModes)
 		const fileExists = await fileExistsAtPath(filePath)
+
 		if (!fileExists) {
-			await this.queueWrite(async () => {
-				await fs.writeFile(filePath, JSON.stringify({ customModes: [] }, null, 2))
-			})
+			await this.queueWrite(() => fs.writeFile(filePath, JSON.stringify({ customModes: [] }, null, 2)))
 		}
+
 		return filePath
 	}
 
@@ -133,10 +133,12 @@ export class CustomModesManager {
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
 					const content = await fs.readFile(settingsPath, "utf-8")
+
 					const errorMessage =
 						"Invalid custom modes format. Please ensure your settings follow the correct JSON format."
 
 					let config: any
+
 					try {
 						config = JSON.parse(content)
 					} catch (error) {
@@ -159,6 +161,7 @@ export class CustomModesManager {
 					// Merge modes from both sources (.roomodes takes precedence)
 					const mergedModes = await this.mergeCustomModes(roomodesModes, result.data.customModes)
 					await this.context.globalState.update("customModes", mergedModes)
+					this.clearCache()
 					await this.onUpdate()
 				}
 			}),
@@ -166,6 +169,7 @@ export class CustomModesManager {
 
 		// Watch .roomodes file if it exists
 		const roomodesPath = await this.getWorkspaceRoomodes()
+
 		if (roomodesPath) {
 			this.disposables.push(
 				vscode.workspace.onDidSaveTextDocument(async (document) => {
@@ -175,6 +179,7 @@ export class CustomModesManager {
 						// .roomodes takes precedence
 						const mergedModes = await this.mergeCustomModes(roomodesModes, settingsModes)
 						await this.context.globalState.update("customModes", mergedModes)
+						this.clearCache()
 						await this.onUpdate()
 					}
 				}),
@@ -182,32 +187,39 @@ export class CustomModesManager {
 		}
 	}
 
-	async getCustomModes(): Promise<ModeConfig[]> {
-		// Get modes from settings file
+	public async getCustomModes(): Promise<ModeConfig[]> {
+		// Check if we have a valid cached result.
+		const now = Date.now()
+
+		if (this.cachedModes && now - this.cachedAt < CustomModesManager.cacheTTL) {
+			return this.cachedModes
+		}
+
+		// Get modes from settings file.
 		const settingsPath = await this.getCustomModesFilePath()
 		const settingsModes = await this.loadModesFromFile(settingsPath)
 
-		// Get modes from .roomodes if it exists
+		// Get modes from .roomodes if it exists.
 		const roomodesPath = await this.getWorkspaceRoomodes()
 		const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
 
-		// Create maps to store modes by source
+		// Create maps to store modes by source.
 		const projectModes = new Map<string, ModeConfig>()
 		const globalModes = new Map<string, ModeConfig>()
 
-		// Add project modes (they take precedence)
+		// Add project modes (they take precedence).
 		for (const mode of roomodesModes) {
 			projectModes.set(mode.slug, { ...mode, source: "project" as const })
 		}
 
-		// Add global modes
+		// Add global modes.
 		for (const mode of settingsModes) {
 			if (!projectModes.has(mode.slug)) {
 				globalModes.set(mode.slug, { ...mode, source: "global" as const })
 			}
 		}
 
-		// Combine modes in the correct order: project modes first, then global modes
+		// Combine modes in the correct order: project modes first, then global modes.
 		const mergedModes = [
 			...roomodesModes.map((mode) => ({ ...mode, source: "project" as const })),
 			...settingsModes
@@ -216,22 +228,30 @@ export class CustomModesManager {
 		]
 
 		await this.context.globalState.update("customModes", mergedModes)
+
+		this.cachedModes = mergedModes
+		this.cachedAt = now
+
 		return mergedModes
 	}
-	async updateCustomMode(slug: string, config: ModeConfig): Promise<void> {
+
+	public async updateCustomMode(slug: string, config: ModeConfig): Promise<void> {
 		try {
 			const isProjectMode = config.source === "project"
 			let targetPath: string
 
 			if (isProjectMode) {
 				const workspaceFolders = vscode.workspace.workspaceFolders
+
 				if (!workspaceFolders || workspaceFolders.length === 0) {
 					logger.error("Failed to update project mode: No workspace folder found", { slug })
 					throw new Error("No workspace folder found for project-specific mode")
 				}
+
 				const workspaceRoot = getWorkspacePath()
 				targetPath = path.join(workspaceRoot, ROOMODES_FILENAME)
 				const exists = await fileExistsAtPath(targetPath)
+
 				logger.info(`${exists ? "Updating" : "Creating"} project mode in ${ROOMODES_FILENAME}`, {
 					slug,
 					workspace: workspaceRoot,
@@ -241,7 +261,7 @@ export class CustomModesManager {
 			}
 
 			await this.queueWrite(async () => {
-				// Ensure source is set correctly based on target file
+				// Ensure source is set correctly based on target file.
 				const modeWithSource = {
 					...config,
 					source: isProjectMode ? ("project" as const) : ("global" as const),
@@ -253,6 +273,7 @@ export class CustomModesManager {
 					return updatedModes
 				})
 
+				this.clearCache()
 				await this.refreshMergedState()
 			})
 		} catch (error) {
@@ -261,22 +282,26 @@ export class CustomModesManager {
 			vscode.window.showErrorMessage(`Failed to update custom mode: ${errorMessage}`)
 		}
 	}
+
 	private async updateModesInFile(filePath: string, operation: (modes: ModeConfig[]) => ModeConfig[]): Promise<void> {
 		let content = "{}"
+
 		try {
 			content = await fs.readFile(filePath, "utf-8")
 		} catch (error) {
-			// File might not exist yet
+			// File might not exist yet.
 			content = JSON.stringify({ customModes: [] })
 		}
 
 		let settings
+
 		try {
 			settings = JSON.parse(content)
 		} catch (error) {
 			console.error(`[CustomModesManager] Failed to parse JSON from ${filePath}:`, error)
 			settings = { customModes: [] }
 		}
+
 		settings.customModes = operation(settings.customModes || [])
 		await fs.writeFile(filePath, JSON.stringify(settings, null, 2), "utf-8")
 	}
@@ -290,10 +315,13 @@ export class CustomModesManager {
 		const mergedModes = await this.mergeCustomModes(roomodesModes, settingsModes)
 
 		await this.context.globalState.update("customModes", mergedModes)
+
+		this.clearCache()
+
 		await this.onUpdate()
 	}
 
-	async deleteCustomMode(slug: string): Promise<void> {
+	public async deleteCustomMode(slug: string): Promise<void> {
 		try {
 			const settingsPath = await this.getCustomModesFilePath()
 			const roomodesPath = await this.getWorkspaceRoomodes()
@@ -320,6 +348,8 @@ export class CustomModesManager {
 					await this.updateModesInFile(settingsPath, (modes) => modes.filter((m) => m.slug !== slug))
 				}
 
+				// Clear cache when modes are deleted
+				this.clearCache()
 				await this.refreshMergedState()
 			})
 		} catch (error) {
@@ -335,11 +365,12 @@ export class CustomModesManager {
 		return settingsDir
 	}
 
-	async resetCustomModes(): Promise<void> {
+	public async resetCustomModes(): Promise<void> {
 		try {
 			const filePath = await this.getCustomModesFilePath()
 			await fs.writeFile(filePath, JSON.stringify({ customModes: [] }, null, 2))
 			await this.context.globalState.update("customModes", [])
+			this.clearCache()
 			await this.onUpdate()
 		} catch (error) {
 			vscode.window.showErrorMessage(
@@ -348,10 +379,16 @@ export class CustomModesManager {
 		}
 	}
 
+	private clearCache(): void {
+		this.cachedModes = null
+		this.cachedAt = 0
+	}
+
 	dispose(): void {
 		for (const disposable of this.disposables) {
 			disposable.dispose()
 		}
+
 		this.disposables = []
 	}
 }

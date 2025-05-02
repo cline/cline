@@ -131,6 +131,257 @@ describe("CustomModesManager", () => {
 			expect(modes).toHaveLength(1)
 			expect(modes[0].slug).toBe("mode1")
 		})
+
+		it("should memoize results for 10 seconds", async () => {
+			// Setup test data
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+
+			// Mock fileExistsAtPath to only return true for settings path
+			;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+
+			// First call should read from file
+			const firstResult = await manager.getCustomModes()
+
+			// Reset mock to verify it's not called again
+			jest.clearAllMocks()
+
+			// Setup mocks again for second call
+			;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+
+			// Second call should use cached result
+			const secondResult = await manager.getCustomModes()
+			expect(fs.readFile).not.toHaveBeenCalled()
+			expect(secondResult).toHaveLength(1)
+			expect(secondResult[0].slug).toBe("mode1")
+
+			// Results should be the same object (not just equal)
+			expect(secondResult).toBe(firstResult)
+		})
+
+		it("should invalidate cache when modes are updated", async () => {
+			// Setup initial data
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+			;(fs.writeFile as jest.Mock).mockResolvedValue(undefined)
+
+			// First call to cache the result
+			await manager.getCustomModes()
+
+			// Reset mocks to track new calls
+			jest.clearAllMocks()
+
+			// Update a mode
+			const updatedMode: ModeConfig = {
+				slug: "mode1",
+				name: "Updated Mode 1",
+				roleDefinition: "Updated Role 1",
+				groups: ["read"],
+				source: "global",
+			}
+
+			// Mock the updated file content
+			const updatedSettingsModes = [updatedMode]
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: updatedSettingsModes })
+				}
+				throw new Error("File not found")
+			})
+
+			// Update the mode
+			await manager.updateCustomMode("mode1", updatedMode)
+
+			// Reset mocks again
+			jest.clearAllMocks()
+
+			// Next call should read from file again (cache invalidated)
+			await manager.getCustomModes()
+			expect(fs.readFile).toHaveBeenCalled()
+		})
+
+		it("should invalidate cache when modes are deleted", async () => {
+			// Setup initial data
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+			;(fs.writeFile as jest.Mock).mockResolvedValue(undefined)
+
+			// First call to cache the result
+			await manager.getCustomModes()
+
+			// Reset mocks to track new calls
+			jest.clearAllMocks()
+
+			// Delete a mode
+			await manager.deleteCustomMode("mode1")
+
+			// Mock the updated file content (empty)
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: [] })
+				}
+				throw new Error("File not found")
+			})
+
+			// Reset mocks again
+			jest.clearAllMocks()
+
+			// Next call should read from file again (cache invalidated)
+			await manager.getCustomModes()
+			expect(fs.readFile).toHaveBeenCalled()
+		})
+
+		it("should invalidate cache when modes are updated (simulating file changes)", async () => {
+			// Setup initial data
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+			;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+			;(fs.writeFile as jest.Mock).mockResolvedValue(undefined)
+
+			// First call to cache the result
+			await manager.getCustomModes()
+
+			// Reset mocks to track new calls
+			jest.clearAllMocks()
+
+			// Setup for update
+			const updatedMode: ModeConfig = {
+				slug: "mode1",
+				name: "Updated Mode 1",
+				roleDefinition: "Updated Role 1",
+				groups: ["read"],
+				source: "global",
+			}
+
+			// Mock the updated file content
+			const updatedSettingsModes = [updatedMode]
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: updatedSettingsModes })
+				}
+				throw new Error("File not found")
+			})
+
+			// Simulate a file change by updating a mode
+			// This should invalidate the cache
+			await manager.updateCustomMode("mode1", updatedMode)
+
+			// Reset mocks again
+			jest.clearAllMocks()
+
+			// Setup mocks again
+			;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: updatedSettingsModes })
+				}
+				throw new Error("File not found")
+			})
+
+			// Next call should read from file again (cache was invalidated by the update)
+			await manager.getCustomModes()
+			expect(fs.readFile).toHaveBeenCalled()
+		})
+
+		it("should refresh cache after TTL expires", async () => {
+			// Setup test data
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+			;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+
+			// Mock Date.now to control time
+			const originalDateNow = Date.now
+			let currentTime = 1000
+			Date.now = jest.fn(() => currentTime)
+
+			try {
+				// First call should read from file
+				await manager.getCustomModes()
+
+				// Reset mock to verify it's not called again
+				jest.clearAllMocks()
+
+				// Setup mocks again for second call
+				;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+					return path === mockSettingsPath
+				})
+				;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return JSON.stringify({ customModes: settingsModes })
+					}
+					throw new Error("File not found")
+				})
+
+				// Second call within TTL should use cache
+				await manager.getCustomModes()
+				expect(fs.readFile).not.toHaveBeenCalled()
+
+				// Advance time beyond TTL (10 seconds)
+				currentTime += 11000
+
+				// Reset mocks again
+				jest.clearAllMocks()
+
+				// Setup mocks again for third call
+				;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+					return path === mockSettingsPath
+				})
+				;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+					if (path === mockSettingsPath) {
+						return JSON.stringify({ customModes: settingsModes })
+					}
+					throw new Error("File not found")
+				})
+
+				// Call after TTL should read from file again
+				await manager.getCustomModes()
+				expect(fs.readFile).toHaveBeenCalled()
+			} finally {
+				// Restore original Date.now
+				Date.now = originalDateNow
+			}
+		})
 	})
 
 	describe("updateCustomMode", () => {
