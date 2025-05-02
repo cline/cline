@@ -344,7 +344,7 @@
 		},
 		"zshOhMy": {
 			"label": "Habilitar integración Oh My Zsh",
-			"description": "Cuando está habilitado, establece ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar las características de integración del shell Oh My Zsh. (experimental)"
+			"description": "Cuando está habilitado, establece ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar las características de integración del shell Oh My Zsh. Aplicar esta configuración puede requerir reiniciar el IDE. (experimental)"
 		},
 		"zshP10k": {
 			"label": "Habilitar integración Powerlevel10k",

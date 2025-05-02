@@ -344,7 +344,7 @@
 		},
 		"zshOhMy": {
 			"label": "Bật tích hợp Oh My Zsh",
-			"description": "Khi được bật, đặt ITERM_SHELL_INTEGRATION_INSTALLED=Yes để kích hoạt các tính năng tích hợp shell của Oh My Zsh. (thử nghiệm)"
+			"description": "Khi được bật, đặt ITERM_SHELL_INTEGRATION_INSTALLED=Yes để kích hoạt các tính năng tích hợp shell của Oh My Zsh. Việc áp dụng cài đặt này có thể yêu cầu khởi động lại IDE. (thử nghiệm)"
 		},
 		"zshP10k": {
 			"label": "Bật tích hợp Powerlevel10k",

@@ -344,7 +344,7 @@
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh 통합 활성화",
-			"description": "활성화하면 ITERM_SHELL_INTEGRATION_INSTALLED=Yes를 설정하여 Oh My Zsh 셸 통합 기능을 활성화합니다. (실험적)"
+			"description": "활성화하면 ITERM_SHELL_INTEGRATION_INSTALLED=Yes를 설정하여 Oh My Zsh 셸 통합 기능을 활성화합니다. 이 설정을 적용하려면 IDE를 다시 시작해야 할 수 있습니다. (실험적)"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k 통합 활성화",

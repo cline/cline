@@ -344,7 +344,7 @@
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh 統合を有効化",
-			"description": "有効にすると、ITERM_SHELL_INTEGRATION_INSTALLED=Yes を設定して Oh My Zsh シェル統合機能を有効にします。（実験的）"
+			"description": "有効にすると、ITERM_SHELL_INTEGRATION_INSTALLED=Yes を設定して Oh My Zsh シェル統合機能を有効にします。この設定を適用するには、IDEの再起動が必要な場合があります。（実験的）"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k 統合を有効化",

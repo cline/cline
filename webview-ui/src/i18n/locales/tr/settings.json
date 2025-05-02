@@ -344,7 +344,7 @@
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh entegrasyonunu etkinleştir",
-			"description": "Etkinleştirildiğinde, Oh My Zsh kabuk entegrasyon özelliklerini etkinleştirmek için ITERM_SHELL_INTEGRATION_INSTALLED=Yes ayarlar. (deneysel)"
+			"description": "Etkinleştirildiğinde, Oh My Zsh kabuk entegrasyon özelliklerini etkinleştirmek için ITERM_SHELL_INTEGRATION_INSTALLED=Yes ayarlar. Bu ayarın uygulanması IDE'nin yeniden başlatılmasını gerektirebilir. (deneysel)"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k entegrasyonunu etkinleştir",

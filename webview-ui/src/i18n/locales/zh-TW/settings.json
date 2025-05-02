@@ -344,7 +344,7 @@
 		},
 		"zshOhMy": {
 			"label": "啟用 Oh My Zsh 整合",
-			"description": "啟用後，設定 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以啟用 Oh My Zsh shell 整合功能。（實驗性）"
+			"description": "啟用後，設定 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以啟用 Oh My Zsh shell 整合功能。套用此設定可能需要重新啟動 IDE。（實驗性）"
 		},
 		"zshP10k": {
 			"label": "啟用 Powerlevel10k 整合",

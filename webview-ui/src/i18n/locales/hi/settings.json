@@ -344,7 +344,7 @@
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh एकीकरण सक्षम करें",
-			"description": "सक्षम होने पर, Oh My Zsh शेल एकीकरण सुविधाओं को सक्षम करने के लिए ITERM_SHELL_INTEGRATION_INSTALLED=Yes सेट करता है। (प्रयोगात्मक)"
+			"description": "सक्षम होने पर, Oh My Zsh शेल एकीकरण सुविधाओं को सक्षम करने के लिए ITERM_SHELL_INTEGRATION_INSTALLED=Yes सेट करता है। इस सेटिंग को लागू करने के लिए IDE को पुनरारंभ करने की आवश्यकता हो सकती है। (प्रयोगात्मक)"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k एकीकरण सक्षम करें",
