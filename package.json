@@ -389,6 +389,7 @@
 		"jschardet": "^3.1.4",
 		"mammoth": "^1.8.0",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
+		"node-cache": "^5.1.2",
 		"ollama": "^0.5.13",
 		"open-graph-scraper": "^6.9.0",
 		"openai": "^4.83.0",

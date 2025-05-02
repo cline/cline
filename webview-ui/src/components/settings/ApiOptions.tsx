@@ -1920,31 +1920,39 @@ export const formatPrice = (price: number) => {
 }
 
 // Returns an array of formatted tier strings
-const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): JSX.Element[] => {
+const formatTiers = (
+	tiers: ModelInfo["tiers"],
+	priceType: "inputPrice" | "outputPrice" | "cacheReadsPrice" | "cacheWritesPrice",
+): JSX.Element[] => {
 	if (!tiers || tiers.length === 0) {
 		return []
 	}
-	return tiers.map((tier, index, arr) => {
-		const prevLimit = index > 0 ? arr[index - 1].tokenLimit : 0
-		return (
-			<span style={{ paddingLeft: "15px" }} key={index}>
-				{formatPrice(tier.price)}/million tokens (
-				{tier.tokenLimit === Number.POSITIVE_INFINITY ? (
-					<span>
-						{"> "}
-						{prevLimit.toLocaleString()}
-					</span>
-				) : (
-					<span>
-						{"<= "}
-						{tier.tokenLimit.toLocaleString()}
-					</span>
-				)}
-				{" tokens)"}
-				{index < arr.length - 1 && <br />}
-			</span>
-		)
-	})
+
+	return tiers
+		.map((tier, index, arr) => {
+			const prevLimit = index > 0 ? arr[index - 1].contextWindow : 0
+			const price = tier[priceType]
+
+			if (price === undefined) return null
+
+			return (
+				<span style={{ paddingLeft: "15px" }} key={index}>
+					{formatPrice(price)}/million tokens (
+					{tier.contextWindow === Number.POSITIVE_INFINITY ? (
+						<span>
+							{">"} {prevLimit.toLocaleString()}
+						</span>
+					) : (
+						<span>
+							{"<="} {tier.contextWindow.toLocaleString()}
+						</span>
+					)}
+					{" tokens)"}
+					{index < arr.length - 1 && <br />}
+				</span>
+			)
+		})
+		.filter((element): element is JSX.Element => element !== null)
 }
 
 export const ModelInfoView = ({
@@ -1962,13 +1970,14 @@ export const ModelInfoView = ({
 }) => {
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 	const hasThinkingConfig = !!modelInfo.thinkingConfig
+	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
 
-	// Create elements for tiered pricing separately
-	const inputPriceElement = modelInfo.inputPriceTiers ? (
+	// Create elements for input pricing
+	const inputPriceElement = hasTiers ? (
 		<Fragment key="inputPriceTiers">
 			<span style={{ fontWeight: 500 }}>Input price:</span>
 			<br />
-			{formatTiers(modelInfo.inputPriceTiers)}
+			{formatTiers(modelInfo.tiers, "inputPrice")}
 		</Fragment>
 	) : modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 ? (
 		<span key="inputPrice">
@@ -1989,14 +1998,14 @@ export const ModelInfoView = ({
 				{formatPrice(modelInfo.thinkingConfig.outputPrice)}/million tokens
 			</Fragment>
 		)
-	} else if (modelInfo.outputPriceTiers) {
+	} else if (hasTiers) {
 		// Display tiered output pricing
 		outputPriceElement = (
 			<Fragment key="outputPriceTiers">
 				<span style={{ fontWeight: 500 }}>Output price:</span>
 				<span style={{ fontStyle: "italic" }}> (based on input tokens)</span>
 				<br />
-				{formatTiers(modelInfo.outputPriceTiers)}
+				{formatTiers(modelInfo.tiers, "outputPrice")}
 			</Fragment>
 		)
 	} else if (modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0) {
