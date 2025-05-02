@@ -47,7 +47,7 @@ body:
           placeholder: "e.g., Windows 11, macOS Sonoma, Ubuntu 22.04"
       validations:
           required: true
-    - type: input
+    - type: textarea
       id: system-info
       attributes:
           label: System Info
