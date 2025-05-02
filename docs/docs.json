@@ -53,7 +53,12 @@
 		}
 	},
 	"navigation": {
-		"pages": ["introduction"]
+		"groups": [
+			{
+				"group": "Improving Your Prompting Skills",
+				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
+			}
+		]
 	},
 	"footer": {
 		"socials": {
