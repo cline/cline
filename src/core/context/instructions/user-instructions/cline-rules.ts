@@ -6,6 +6,7 @@ import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
 import * as vscode from "vscode"
+import { synchronizeRuleToggles, getRuleFilesTotalContent } from "@core/context/instructions/user-instructions/rule-helpers"
 
 /**
  * Converts .clinerules file to directory and places old .clinerule file inside directory, renaming it
@@ -51,11 +52,7 @@ export const getGlobalClineRules = async (globalClineRulesFilePath: string, togg
 		if (await isDirectory(globalClineRulesFilePath)) {
 			try {
 				const rulesFilePaths = await readDirectory(globalClineRulesFilePath)
-				const rulesFilesTotalContent = await getClineRulesFilesTotalContent(
-					rulesFilePaths,
-					globalClineRulesFilePath,
-					toggles,
-				)
+				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, globalClineRulesFilePath, toggles)
 				if (rulesFilesTotalContent) {
 					const clineRulesFileInstructions = formatResponse.clineRulesGlobalDirectoryInstructions(
 						globalClineRulesFilePath,
@@ -84,7 +81,7 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 		if (await isDirectory(clineRulesFilePath)) {
 			try {
 				const rulesFilePaths = await readDirectory(clineRulesFilePath)
-				const rulesFilesTotalContent = await getClineRulesFilesTotalContent(rulesFilePaths, cwd, toggles)
+				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, cwd, toggles)
 				if (rulesFilesTotalContent) {
 					clineRulesFileInstructions = formatResponse.clineRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent)
 				}
@@ -106,86 +103,6 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 	}
 
 	return clineRulesFileInstructions
-}
-
-const getClineRulesFilesTotalContent = async (rulesFilePaths: string[], basePath: string, toggles: ClineRulesToggles) => {
-	const ruleFilesTotalContent = await Promise.all(
-		rulesFilePaths.map(async (filePath) => {
-			const ruleFilePath = path.resolve(basePath, filePath)
-			const ruleFilePathRelative = path.relative(basePath, ruleFilePath)
-
-			if (ruleFilePath in toggles && toggles[ruleFilePath] === false) {
-				return null
-			}
-
-			return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
-		}),
-	).then((contents) => contents.filter(Boolean).join("\n\n"))
-	return ruleFilesTotalContent
-}
-
-export async function synchronizeRuleToggles(
-	rulesDirectoryPath: string,
-	currentToggles: ClineRulesToggles,
-): Promise<ClineRulesToggles> {
-	// Create a copy of toggles to modify
-	const updatedToggles = { ...currentToggles }
-
-	try {
-		const pathExists = await fileExistsAtPath(rulesDirectoryPath)
-
-		if (pathExists) {
-			const isDir = await isDirectory(rulesDirectoryPath)
-
-			if (isDir) {
-				// DIRECTORY CASE
-				const filePaths = await readDirectory(rulesDirectoryPath)
-				const existingRulePaths = new Set<string>()
-
-				for (const filePath of filePaths) {
-					const ruleFilePath = path.resolve(rulesDirectoryPath, filePath)
-					existingRulePaths.add(ruleFilePath)
-
-					const pathHasToggle = ruleFilePath in updatedToggles
-					if (!pathHasToggle) {
-						updatedToggles[ruleFilePath] = true
-					}
-				}
-
-				// Clean up toggles for non-existent files
-				for (const togglePath in updatedToggles) {
-					const pathExists = existingRulePaths.has(togglePath)
-					if (!pathExists) {
-						delete updatedToggles[togglePath]
-					}
-				}
-			} else {
-				// FILE CASE
-				// Add toggle for this file
-				const pathHasToggle = rulesDirectoryPath in updatedToggles
-				if (!pathHasToggle) {
-					updatedToggles[rulesDirectoryPath] = true
-				}
-
-				// Remove toggles for any other paths
-				for (const togglePath in updatedToggles) {
-					if (togglePath !== rulesDirectoryPath) {
-						delete updatedToggles[togglePath]
-					}
-				}
-			}
-		} else {
-			// PATH DOESN'T EXIST CASE
-			// Clear all toggles since the path doesn't exist
-			for (const togglePath in updatedToggles) {
-				delete updatedToggles[togglePath]
-			}
-		}
-	} catch (error) {
-		console.error(`Failed to synchronize rule toggles for path: ${rulesDirectoryPath}`, error)
-	}
-
-	return updatedToggles
 }
 
 export async function refreshClineRulesToggles(
