@@ -3,5 +3,6 @@
 	"useTabs": true,
 	"printWidth": 130,
 	"semi": false,
-	"bracketSameLine": true
+	"bracketSameLine": true,
+	"endOfLine": "lf"
 }
