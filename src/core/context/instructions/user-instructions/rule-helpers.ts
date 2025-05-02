@@ -4,37 +4,21 @@ import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
 
 /**
- * Recursively traverses directory and finds all files
+ * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
  */
 export async function readDirectoryRecursive(directoryPath: string, allowedFileExtension: string): Promise<string[]> {
 	try {
 		const entries = await readDirectory(directoryPath)
 		let results: string[] = []
-
 		for (const entry of entries) {
-			const fullPath = path.join(directoryPath, entry)
-
-			try {
-				if (await isDirectory(fullPath)) {
-					// If it's a directory, recursively read its contents
-					const subEntries = await readDirectoryRecursive(fullPath, allowedFileExtension)
-					// Add path prefix to subdirectory files
-					results = results.concat(subEntries.map((subEntry) => path.join(entry, subEntry)))
-				} else {
-					// in some cases we may only want to allow a single file extension, so that needs to be checked here if specified
-					if (allowedFileExtension !== "") {
-						const fileExtension = path.extname(entry)
-						if (fileExtension !== allowedFileExtension) {
-							continue
-						}
-					}
-					results.push(entry)
+			if (allowedFileExtension !== "") {
+				const fileExtension = path.extname(entry)
+				if (fileExtension !== allowedFileExtension) {
+					continue
 				}
-			} catch (error) {
-				console.error(`Error processing entry ${entry}: ${error}`)
 			}
+			results.push(entry)
 		}
-
 		return results
 	} catch (error) {
 		console.error(`Error reading directory ${directoryPath}: ${error}`)
