@@ -1,10 +1,10 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import styled from "styled-components"
+import HomeHeader from "@/components/welcome/HomeHeader"
 import {
 	ClineApiReqInfo,
 	ClineAsk,
@@ -63,52 +63,8 @@ async function convertHtmlToMarkdown(html: string) {
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
-// Helper function to get time-based greeting
-const getTimeBasedGreeting = () => {
-	const hour = new Date().getHours()
-
-	if (hour >= 5 && hour < 12) return "Good Morning"
-	if (hour >= 12 && hour < 18) return "Good Afternoon"
-	return "Good Evening"
-}
-
-// Helper function to get random sub-message based on time
-const getRandomSubMessage = () => {
-	const hour = new Date().getHours()
-	const isLateNight = hour >= 0 && hour < 5
-
-	const normalMessages = [
-		"Welcome back. Let's build something great.",
-		"Ready when you are. Let's create.",
-		"New session, new possibilities.",
-		"Let's make meaningful progress today.",
-		"You've got this — I'm here to help.",
-		"Let's turn your ideas into reality.",
-		"One step at a time. Let's move forward.",
-		"Great things start with a single line of code.",
-		"Coding session ready. Let's make it count.",
-		"Back to work? Let's do it with purpose.",
-	]
-
-	const lateNightMessages = [
-		"Ah, the silence of deep focus… or deep chaos.",
-		"Running on caffeine and pure determination?",
-		"The world sleeps. You debug.",
-		"Back again? The bugs didn't stand a chance.",
-		"Let's code like no one's watching — because no one is.",
-		"Quiet hours, loud ideas.",
-		"Running low on sleep, high on inspiration?",
-		"The best commits are made under moonlight.",
-		"If this isn't dedication, I don't know what is.",
-		"Brainstorming or bug-hunting — I'm with you either way.",
-	]
-
-	const messages = isLateNight ? lateNightMessages : normalMessages
-	return messages[Math.floor(Math.random() * messages.length)]
-}
-
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting, userInfo } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -958,32 +914,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						paddingBottom: "10px",
 					}}>
 					{telemetrySetting === "unset" && <TelemetryBanner />}
-					<div
-						style={{
-							padding: "30px 20px",
-							flexShrink: 0,
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-							textAlign: "center",
-						}}>
-						<div style={{ marginBottom: "15px" }}>
-							<ClineLogoWhite style={{ width: "50px", height: "50px", marginBottom: "15px" }} />
-						</div>
-						<div style={{ marginBottom: "5px" }}>
-							<p style={{ fontSize: "16px", fontWeight: "500", margin: "0", color: "var(--vscode-foreground)" }}>
-								{userInfo?.displayName
-									? `${getTimeBasedGreeting()}, ${userInfo.displayName.split(" ")[0]}!`
-									: `${getTimeBasedGreeting()}!`}
-							</p>
-							<p style={{ fontSize: "14px", color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
-								{getRandomSubMessage()}
-							</p>
-						</div>
-					</div>
 
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 
+					<HomeHeader />
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</div>
 			)}
