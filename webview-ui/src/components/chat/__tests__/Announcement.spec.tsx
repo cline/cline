@@ -24,9 +24,8 @@ describe("Announcement", () => {
 		expect(hideAnnouncement).toHaveBeenCalled()
 	})
 
-	it("renders the enhanced MCP support announcement", () => {
+	it("renders the Global Cline Rules feature announcement", () => {
 		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		// Updated text based on actual component output
-		expect(screen.getByText(/Enhanced MCP Support:/)).toBeInTheDocument()
+		expect(screen.getByText(/Global Cline Rules:/)).toBeInTheDocument()
 	})
 })
