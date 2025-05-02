@@ -300,7 +300,12 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			},
 		],
 		rehypePlugins: [
-			[rehypeKatex, { throwOnError: false }],
+			[
+				rehypeKatex,
+				{
+					throwOnError: false,
+				},
+			],
 			rehypeHighlight as any,
 			{
 				// languages: {},
@@ -338,7 +343,6 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			// Process markdown
 			setMarkdown(markdown || "")
 		} catch (err) {
-			// If an error occurs during markdown processing, capture it
 			console.error("Error processing markdown:", err)
 		}
 	}, [markdown, setMarkdown, theme])
