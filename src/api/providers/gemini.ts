@@ -135,56 +135,12 @@ export class GeminiHandler implements ApiHandler {
 				)
 			}
 
-			// Create or update cache only if not busy and either:
-			// 1. No cache exists for this task, or
-			// 2. We have new content to add to the cache
-			const shouldCreateOrUpdateCache =
-				!this.isCacheBusy && (!existingCacheName || (cacheEntry && uncachedContent && uncachedContent.length > 0))
+			// Create or update cache only if there's new content to add
+			const shouldUpdateCache = !existingCacheName || (cacheEntry && uncachedContent && uncachedContent.length > 0)
 
-			if (shouldCreateOrUpdateCache) {
-				this.isCacheBusy = true
-				const timestamp = Date.now()
-
-				this.client.caches
-					.create({
-						model,
-						config: {
-							contents,
-							systemInstruction: systemPrompt,
-							ttl: `${DEFAULT_CACHE_TTL_SECONDS}s`,
-							httpOptions: { timeout: 120_000 },
-						},
-					})
-					.then((result) => {
-						const { name, usageMetadata } = result
-
-						if (name) {
-							// Store in both caches
-							this.contentCaches.set<{ key: string; count: number }>(taskId, {
-								key: name,
-								count: contents.length,
-							})
-							this.taskCacheNames.set(taskId, name)
-
-							// Track total tokens in cache for ongoing cost calculation
-							const totalTokens = usageMetadata?.totalTokenCount ?? 0
-							this.taskCacheTokens.set(taskId, totalTokens)
-
-							console.log(
-								`[GeminiHandler] ${existingCacheName ? "updated" : "created new"} cache for task ${taskId}: ${contents.length} messages (${totalTokens} tokens) in ${Date.now() - timestamp}ms`,
-							)
-						}
-					})
-					.catch((error) => {
-						console.error(`[GeminiHandler] caches.create error`, error)
-					})
-					.finally(() => {
-						this.isCacheBusy = false
-					})
-
-				// Mark this as a cache write operation for task-level ongoing cost tracking
-				// The actual costs will be calculated separately via getTaskOngoingCosts()
-				cacheWrite = true
+			if (shouldUpdateCache) {
+				// Use the updateCacheContent method to handle cache creation/update and cleanup
+				cacheWrite = await this.updateCacheContent(taskId, model, contents, systemPrompt)
 			}
 		}
 
@@ -279,6 +235,188 @@ export class GeminiHandler implements ApiHandler {
 	}
 
 	/**
+	 * Lists all caches for the current API key.
+	 *
+	 * According to the Gemini API documentation, you can retrieve metadata for all uploaded caches
+	 * using the caches.list() method. This is useful for monitoring cache usage and cleanup.
+	 *
+	 * @param pageSize Optional number of caches to return per page (default: 10)
+	 * @returns A promise that resolves to an array of cache metadata objects
+	 */
+	public async listCaches(pageSize: number = 10): Promise<any[]> {
+		try {
+			const caches: any[] = []
+			const pager = await this.client.caches.list({ config: { pageSize } })
+
+			let page = pager.page
+			while (true) {
+				for (const cache of page) {
+					caches.push(cache)
+				}
+
+				if (!pager.hasNextPage()) break
+				page = await pager.nextPage()
+			}
+
+			return caches
+		} catch (error) {
+			console.error(`[GeminiHandler] Failed to list caches:`, error)
+			return []
+		}
+	}
+
+	/**
+	 * Deletes a cache for a specific task.
+	 *
+	 * According to the Gemini API documentation, you can manually remove content from the cache
+	 * using the caches.delete() method. This is useful for cleaning up caches that are no longer needed.
+	 *
+	 * @param taskId The ID of the task whose cache should be deleted
+	 * @returns A promise that resolves when the deletion is complete
+	 */
+	public async deleteCache(taskId: string): Promise<void> {
+		const cacheName = this.taskCacheNames.get(taskId)
+		if (!cacheName) {
+			console.warn(`[GeminiHandler] No cache found for task ${taskId}, nothing to delete`)
+			return
+		}
+
+		try {
+			await this.client.caches.delete({ name: cacheName })
+
+			// Clean up local cache references
+			this.contentCaches.del(taskId)
+			this.taskCacheNames.delete(taskId)
+			this.taskCacheTokens.delete(taskId)
+
+			console.log(`[GeminiHandler] Deleted cache ${cacheName} for task ${taskId}`)
+		} catch (error) {
+			console.error(`[GeminiHandler] Failed to delete cache ${cacheName}:`, error)
+		}
+	}
+
+	/**
+	 * Updates the content of a cache for a specific task.
+	 *
+	 * Since the Gemini API doesn't support incremental updates to cache content,
+	 * this method:
+	 * 1. Creates a new cache with the full content (old + new)
+	 * 2. Deletes the old cache if it exists
+	 * 3. Updates our local tracking to point to the new cache
+	 *
+	 * @param taskId The ID of the task whose cache should be updated
+	 * @param model The model to use for the cache
+	 * @param contents The full content to cache (including both old and new messages)
+	 * @param systemInstruction The system instruction to include in the cache
+	 * @returns A promise that resolves to true if a cache write occurred, false otherwise
+	 */
+	private async updateCacheContent(
+		taskId: string,
+		model: string,
+		contents: Content[],
+		systemInstruction: string,
+	): Promise<boolean> {
+		if (this.isCacheBusy) {
+			console.log(`[GeminiHandler] Cache is busy, skipping update for task ${taskId}`)
+			return false
+		}
+
+		this.isCacheBusy = true
+		const timestamp = Date.now()
+		const existingCacheName = this.taskCacheNames.get(taskId)
+
+		try {
+			// 1. Create a new cache with the full content
+			const result = await this.client.caches.create({
+				model,
+				config: {
+					contents,
+					systemInstruction,
+					ttl: `${DEFAULT_CACHE_TTL_SECONDS}s`,
+					httpOptions: { timeout: 120_000 },
+				},
+			})
+
+			const { name, usageMetadata } = result
+
+			if (name) {
+				// 2. Delete the old cache if it exists (non-blocking)
+				// We don't await this operation to avoid blocking the main flow if deletion fails
+				if (existingCacheName) {
+					// Schedule cache deletion in the background
+					setTimeout(() => {
+						this.client.caches
+							.delete({ name: existingCacheName })
+							.then(() => {
+								console.log(`[GeminiHandler] Deleted old cache ${existingCacheName} for task ${taskId}`)
+							})
+							.catch((error) => {
+								console.error(`[GeminiHandler] Failed to delete old cache ${existingCacheName}:`, error)
+								console.log(`[GeminiHandler] Continuing without deleting old cache. It will expire after TTL.`)
+							})
+					}, 100)
+				}
+
+				// 3. Update our local tracking
+				this.contentCaches.set<{ key: string; count: number }>(taskId, {
+					key: name,
+					count: contents.length,
+				})
+				this.taskCacheNames.set(taskId, name)
+
+				// Track total tokens in cache for ongoing cost calculation
+				const totalTokens = usageMetadata?.totalTokenCount ?? 0
+				this.taskCacheTokens.set(taskId, totalTokens)
+
+				const operation = existingCacheName ? "Updated" : "Created new"
+				console.log(
+					`[GeminiHandler] ${operation} cache for task ${taskId}: ${contents.length} messages (${totalTokens} tokens) in ${Date.now() - timestamp}ms`,
+				)
+
+				return true // Indicate that a cache write occurred
+			}
+
+			return false // No cache write occurred
+		} catch (error) {
+			console.error(`[GeminiHandler] Failed to update cache for task ${taskId}:`, error)
+			return false
+		} finally {
+			this.isCacheBusy = false
+		}
+	}
+
+	/**
+	 * Updates the TTL of an existing cache.
+	 *
+	 * According to the Gemini API documentation, you can update the TTL of a cache
+	 * using the caches.update() method. This is useful for extending the lifetime
+	 * of a cache that's still being used.
+	 *
+	 * @param taskId The ID of the task whose cache TTL should be updated
+	 * @param ttlSeconds The new TTL in seconds
+	 * @returns A promise that resolves to the updated cache, or undefined if the update fails
+	 */
+	public async updateCacheTTL(taskId: string, ttlSeconds: number = DEFAULT_CACHE_TTL_SECONDS): Promise<any> {
+		const cacheName = this.taskCacheNames.get(taskId)
+		if (!cacheName) {
+			console.warn(`[GeminiHandler] No cache found for task ${taskId}, cannot update TTL`)
+			return
+		}
+
+		try {
+			const updatedCache = await this.client.caches.update({
+				name: cacheName,
+				config: { ttl: `${ttlSeconds}s` },
+			})
+
+			console.log(`[GeminiHandler] Updated TTL for cache ${cacheName} to ${ttlSeconds}s`)
+			return updatedCache
+		} catch (error) {
+			console.error(`[GeminiHandler] Failed to update TTL for cache ${cacheName}:`, error)
+		}
+	}
+
+	/**
 	 * Calculate the ongoing costs for a task based on cache storage.
 	 *
 	 * This method calculates the cost of holding tokens in cache for the TTL period.
@@ -289,7 +427,6 @@ export class GeminiHandler implements ApiHandler {
 	 * - The task header/summary
 	 * - A dedicated "costs" panel or tooltip
 	 * - As part of the total cost calculation for the task
-	 *
 	 *
 	 * @param taskId The ID of the task to calculate ongoing costs for
 	 * @returns The ongoing cost in dollars, or undefined if no cache exists for the task
