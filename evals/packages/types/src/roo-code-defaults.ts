@@ -6,6 +6,8 @@ export const rooCodeDefaults: RooCodeSettings = {
 
 	lastShownAnnouncementId: "apr-30-2025-3-15",
 
+	pinnedApiConfigs: {},
+
 	autoApprovalEnabled: true,
 	alwaysAllowReadOnly: true,
 	alwaysAllowReadOnlyOutsideWorkspace: false,
@@ -22,17 +24,43 @@ export const rooCodeDefaults: RooCodeSettings = {
 	allowedCommands: ["*"],
 
 	browserToolEnabled: false,
+	browserViewportSize: "900x600",
+	screenshotQuality: 75,
+	remoteBrowserEnabled: false,
+
+	ttsEnabled: false,
+	ttsSpeed: 1,
+	soundEnabled: false,
+	soundVolume: 0.5,
+
+	terminalOutputLineLimit: 500,
+	terminalShellIntegrationTimeout: 30000,
+	terminalCommandDelay: 0,
+	terminalPowershellCounter: false,
+	terminalZshOhMy: true,
+	terminalZshClearEolMark: true,
+	terminalZshP10k: false,
+	terminalZdotdir: true,
+	terminalCompressProgressBar: true,
+	terminalShellIntegrationDisabled: true,
+
+	diffEnabled: true,
+	fuzzyMatchThreshold: 1,
 
 	enableCheckpoints: false,
 
+	rateLimitSeconds: 0,
 	maxOpenTabsContext: 20,
 	maxWorkspaceFiles: 200,
 	showRooIgnoredFiles: true,
 	maxReadFileLine: 500,
 
-	terminalShellIntegrationDisabled: true,
+	language: "en",
+	telemetrySetting: "enabled",
 
 	mcpEnabled: false,
 
 	mode: "code",
+
+	customModes: [],
 }

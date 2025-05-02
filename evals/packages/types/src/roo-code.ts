@@ -399,8 +399,6 @@ export const providerSettingsSchema = z.object({
 	// OpenAI Native
 	openAiNativeApiKey: z.string().optional(),
 	openAiNativeBaseUrl: z.string().optional(),
-	// XAI
-	xaiApiKey: z.string().optional(),
 	// Mistral
 	mistralApiKey: z.string().optional(),
 	mistralCodestralUrl: z.string().optional(),
