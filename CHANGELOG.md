@@ -1,45 +1,34 @@
 # Changelog
 
-## 3.14.0
+## [3.14.0]
 
--   77c9863: create clinerules folder if its currently a file and creating new rule
--   0ffb7dd: disabling shift hint for now & improving tooltip behavior
--   79b76fd: Add support for custom model ID in AWS Bedrock provider, enabling use of Application Inference Profile.
--   eb6e481: Full support for LaTeX rendering
--   df37f29: Add support for custom API request timeout. Previously, timeouts were hardcoded to 30 seconds for providers like Ollama or 15 seconds for OpenRouter and Cline. Now users can set a custom timeout value in milliseconds through the settings interface.
--   e4d26be: allow cursorrules and windsurfrules
--   c5de50f: Fix Handle @withRetry() SyntaxError when running extension locally issue
--   61d2f42: enabled pricing calculation for gemini and vertex + more robust caching & cache tracking for gemini & vertex
--   aed152b: add truncation notice when truncating manually
--   2fe2405: Migrate Cline Tools Section to new docs
--   19cc8bc: Add a timeout setting for the terminal connection, allowing users to adjust this if they are having timeout issues
--   03d4410: Added copy button to code blocks.
--   c78fe23: addressed race condition in terminal command usage
--   91e222f: add checkpoints after more messages
--   14230e7: add newrule slash command
--   1c7d33a: Add remote config with posthog allowing for disabling new features until they're reading, making for a better developer experience.
--   4196c14: add cache ui for open router and cline provider
--   d97424f: showing expanded task by default
--   5294e78: Refactor to not pass a message for showing the MCP View from the servers modal
--   70cc437: Fix Windows path issue: Correct handling of import.meta.url to avoid leading slash in pathname
--   4b697d8: Migrate the addRemoteServer to protobus
--   c63d9a1: updated drag and drop text to say "drop" instead of "drag"
--   459adf0: Add markdown copy to chat
--   74ec823: Minor UX improvement to drag and drop ux
--   b0961f4: Remove linear pull request action
--   e9ce384: searchCommits protobus migration
--   5802b68: createRuleFile protobus migration
--   df7f9fc: Add dependsOn to more blocks in the tasks.json
--   41ae732: Fix for git commit mentions in repos with no git commits
--   7e78445: Adding args to allow Cursor to open workspaces (for checkpoint testing/development)
--   bdfda6f: feat(bedrock): Introduce Amazon Nova Premier
--   65243ad: Introduce UI library for future UI development
--   4565e06: checkIsImageURL migrated to protobus
--   5a8e9d8: protobus migration for openImage
--   deeda6e: Lowering Gemini cache TTL time
--   db0b022: Adding UI to show openrouter balance next to provider
--   4650ffa: deleteRuleFile protobus migration
--   d4bd755: fix cost calculation
+-   Add UI to show openrouter balance next to provider
+-   Add support for custom model ID in AWS Bedrock provider, enabling use of Application Inference Profile (Thanks @clicube!)
+-   Add more robust caching & cache tracking for gemini & vertex providers
+-   Add support for LaTeX rendering
+-   Add support for custom API request timeout. Timeouts were 15-30s, but can now be configured via settings for OpenRouter/Cline & Ollama (Thanks @WingsDrafterwork!)
+-   Add truncation notice when truncating manually
+-   Add a timeout setting for the terminal connection, allowing users to set a time to wait for terminal startup
+-   Add copy button to code blocks
+-   Add copy button to markdown blocks (Thanks @weshoke!)
+-   Add checkpoints to more messages
+-   Add slash command to create a new rules file (/newrule)
+-   Add cache ui for open router and cline provider
+-   Add Amazon Nova Premier model to Bedrock (Thanks @watany!)
+-   Add support for cursorrules and windsurfrules
+-   Add support for batch history deletion (Thanks @danix800!)
+-   Improve Drag & Drop experience
+-   Create clinerules folder creating new rule if it's needed
+-   Enable pricing calculation for gemini and vertex providers
+-   Refactor message handling to not show the MCP View of the server modal
+-   Migrate the addRemoteServer to protobus (Thanks @DaveFres!)
+-   Update task header to be expanded by default
+-   Update Gemini cache TTL time to 15 minutes
+-   Fix race condition in terminal command usage
+-   Fix to correctly handle `import.meta.url`, avoiding leading slash in pathname for Windows (Thanks @DaveFres!)
+-   Fix @withRetry() decoration syntax error when running extension locally (Thanks @DaveFres!)
+-   Fix for git commit mentions in repos with no git commits
+-   Fix cost calculation (Thanks @BarreiroT!)
 
 ## [3.13.3]
 
