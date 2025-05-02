@@ -2,4 +2,4 @@
 "claude-dev": minor
 ---
 
-add smol command
+add newrule slash command

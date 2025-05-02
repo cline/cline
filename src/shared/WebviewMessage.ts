@@ -9,7 +9,6 @@ import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
-		| "addRemoteServer"
 		| "apiConfiguration"
 		| "webviewDidLaunch"
 		| "newTask"
@@ -24,7 +23,6 @@ export interface WebviewMessage {
 		| "resetState"
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
-		| "openImage"
 		| "openInBrowser"
 		| "createRuleFile"
 		| "openMention"
@@ -44,7 +42,6 @@ export interface WebviewMessage {
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
 		| "getLatestState"
-		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "showAccountViewClicked"
 		| "authStateChanged"
@@ -53,12 +50,10 @@ export interface WebviewMessage {
 		| "downloadMcp"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
-		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
 		| "openSettings"
 		| "fetchOpenGraphData"
-		| "checkIsImageUrl"
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
@@ -74,6 +69,8 @@ export interface WebviewMessage {
 		| "grpc_request"
 		| "toggleClineRule"
 		| "deleteClineRule"
+		| "copyToClipboard"
+		| "updateTerminalConnectionTimeout"
 
 	// | "relaunchChromeDebugMode"
 	text?: string
@@ -124,6 +121,7 @@ export interface WebviewMessage {
 	filename?: string
 
 	offset?: number
+	shellIntegrationTimeout?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

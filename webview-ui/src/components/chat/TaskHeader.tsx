@@ -35,7 +35,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
-	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
+	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
@@ -137,6 +137,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	const shouldShowPromptCacheInfo =
 		doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter" && apiConfiguration?.apiProvider !== "cline"
+
+	const shouldShowPromptCacheInfoClineOR =
+		doesModelSupportPromptCache &&
+		(apiConfiguration?.apiProvider === "openrouter" || apiConfiguration?.apiProvider === "cline")
 
 	const ContextWindowComponent = (
 		<>
@@ -406,6 +410,33 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								)}
 							</div>
 
+							{shouldShowPromptCacheInfoClineOR && cacheReads !== undefined && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
+										flexWrap: "wrap",
+									}}>
+									<span style={{ fontWeight: "bold" }}>Cache:</span>
+									<span
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "3px",
+										}}>
+										<i
+											className="codicon codicon-arrow-right"
+											style={{
+												fontSize: "12px",
+												fontWeight: "bold",
+												marginBottom: 0,
+											}}
+										/>
+										{formatLargeNumber(cacheReads || 0)}
+									</span>
+								</div>
+							)}
 							{shouldShowPromptCacheInfo &&
 								(cacheReads !== undefined ||
 									cacheWrites !== undefined ||
