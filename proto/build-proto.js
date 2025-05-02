@@ -2,6 +2,7 @@
 
 import * as fs from "fs/promises"
 import * as path from "path"
+import { fileURLToPath } from "url"
 import { execSync } from "child_process"
 import { globby } from "globby"
 import chalk from "chalk"
@@ -12,7 +13,8 @@ const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 const tsProtoPlugin = require.resolve("ts-proto/protoc-gen-ts_proto")
 
 // Get script directory and root directory
-const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname)
+const __filename = fileURLToPath(import.meta.url)
+const SCRIPT_DIR = path.dirname(__filename)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
 
 async function main() {
@@ -83,6 +85,7 @@ async function generateMethodRegistrations() {
 		path.join(ROOT_DIR, "src", "core", "controller", "file"),
 		path.join(ROOT_DIR, "src", "core", "controller", "mcp"),
 		path.join(ROOT_DIR, "src", "core", "controller", "task"),
+		path.join(ROOT_DIR, "src", "core", "controller", "web-content"),
 		// Add more service directories here as needed
 	]
 

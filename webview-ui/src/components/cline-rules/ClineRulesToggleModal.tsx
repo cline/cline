@@ -62,7 +62,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<Tooltip tipText="Manage Cline Rules">
+				<Tooltip tipText="Manage Cline Rules" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
 						aria-label="Cline Rules"

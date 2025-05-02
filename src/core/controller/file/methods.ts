@@ -3,12 +3,18 @@
 
 // Import all method implementations
 import { registerMethod } from "./index"
+import { createRuleFile } from "./createRuleFile"
+import { deleteRuleFile } from "./deleteRuleFile"
 import { openFile } from "./openFile"
 import { openImage } from "./openImage"
+import { searchCommits } from "./searchCommits"
 
 // Register all file service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
+	registerMethod("createRuleFile", createRuleFile)
+	registerMethod("deleteRuleFile", deleteRuleFile)
 	registerMethod("openFile", openFile)
 	registerMethod("openImage", openImage)
+	registerMethod("searchCommits", searchCommits)
 }

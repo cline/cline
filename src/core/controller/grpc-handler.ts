@@ -5,6 +5,7 @@ import { handleFileServiceRequest } from "./file"
 import { handleTaskServiceRequest } from "./task"
 import { handleCheckpointsServiceRequest } from "./checkpoints"
 import { handleMcpServiceRequest } from "./mcp"
+import { handleWebContentServiceRequest } from "./web-content"
 
 /**
  * Handles gRPC requests from the webview
@@ -60,6 +61,11 @@ export class GrpcHandler {
 				case "cline.McpService":
 					return {
 						message: await handleMcpServiceRequest(this.controller, method, message),
+						request_id: requestId,
+					}
+				case "cline.WebContentService":
+					return {
+						message: await handleWebContentServiceRequest(this.controller, method, message),
 						request_id: requestId,
 					}
 				default:

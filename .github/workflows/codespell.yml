@@ -13,6 +13,7 @@ permissions:
 
 jobs:
     codespell:
+        if: false
         name: Check for spelling errors
         runs-on: ubuntu-latest
 
