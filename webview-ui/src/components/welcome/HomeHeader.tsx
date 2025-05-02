@@ -13,20 +13,24 @@ const getTimeOfDay = (): TimeOfDay => {
 }
 
 const secondaryMessages: Record<TimeOfDay, string[]> = {
-	morning: ["Grab coffee and let's get to work."],
-	afternoon: ["Let's keep the momentum going."],
-	evening: ["Still going strong!"],
+	morning: ["Grab coffee and let's get to work.", "Ready for a productive day?", "What are we building today?"],
+	afternoon: ["Let's keep the momentum going.", "Time for the next task."],
+	evening: ["Still going strong!", "Let's get those final touches in."],
 	night: ["Burning the midnight oil?"],
 }
-const defaultSecondaryMessages = ["Let's get to work."]
+
+// Should never hit default, just built in for redundancy
+const defaultSecondaryMessages = ["Let's get to work.", "Ready when you are.", "How can I assist?"]
 
 const primaryGreetings: Record<TimeOfDay, string[]> = {
-	morning: ["Good Morning"],
-	afternoon: ["Good Afternoon"],
-	evening: ["Good Evening"],
-	night: ["Good Night"],
+	morning: ["Good Morning", "Morning", "Top o' the mornin'"],
+	afternoon: ["Good Afternoon", "Afternoon", "Howdy"],
+	evening: ["Good Evening", "Evening"],
+	night: ["Good Evening", "Evening"],
 }
-const defaultPrimaryGreetings = ["Hello"]
+
+// Should never hit default, just built in for redundancy
+const defaultPrimaryGreetings = ["Hello", "Hi", "Hey!", "Yo!"]
 
 const getSecondaryMessage = (timeOfDay: TimeOfDay): string => {
 	const messages = secondaryMessages[timeOfDay] || defaultSecondaryMessages
