@@ -2,8 +2,6 @@
 
 ## 3.14.0
 
-### Minor Changes
-
 -   77c9863: create clinerules folder if its currently a file and creating new rule
 -   0ffb7dd: disabling shift hint for now & improving tooltip behavior
 -   79b76fd: Add support for custom model ID in AWS Bedrock provider, enabling use of Application Inference Profile.
@@ -25,9 +23,6 @@
 -   5294e78: Refactor to not pass a message for showing the MCP View from the servers modal
 -   70cc437: Fix Windows path issue: Correct handling of import.meta.url to avoid leading slash in pathname
 -   4b697d8: Migrate the addRemoteServer to protobus
-
-### Patch Changes
-
 -   c63d9a1: updated drag and drop text to say "drop" instead of "drag"
 -   459adf0: Add markdown copy to chat
 -   74ec823: Minor UX improvement to drag and drop ux
