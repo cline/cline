@@ -268,7 +268,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
-		const [showShiftDragTip, setShowShiftDragTip] = useState(false)
 		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -1024,45 +1023,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showModelSelector])
 
-		// Effect for Shift key hold detection
-		useEffect(() => {
-			const handleKeyDown = (event: KeyboardEvent) => {
-				if (event.key === "Shift" && !event.repeat) {
-					// Start timer only if Shift is pressed and not already held down
-					if (shiftHoldTimerRef.current === null) {
-						shiftHoldTimerRef.current = setTimeout(() => {
-							setShowShiftDragTip(true)
-						}, 250) // 250ms delay
-					}
-				}
-			}
-
-			const handleKeyUp = (event: KeyboardEvent) => {
-				if (event.key === "Shift") {
-					// Clear timer and hide tip when Shift is released
-					if (shiftHoldTimerRef.current !== null) {
-						clearTimeout(shiftHoldTimerRef.current)
-						shiftHoldTimerRef.current = null
-					}
-					setShowShiftDragTip(false)
-				}
-			}
-
-			// Add listeners
-			window.addEventListener("keydown", handleKeyDown)
-			window.addEventListener("keyup", handleKeyUp)
-
-			// Cleanup listeners on component unmount
-			return () => {
-				window.removeEventListener("keydown", handleKeyDown)
-				window.removeEventListener("keyup", handleKeyUp)
-				// Clear any running timer on unmount
-				if (shiftHoldTimerRef.current !== null) {
-					clearTimeout(shiftHoldTimerRef.current)
-				}
-			}
-		}, []) // Empty dependency array ensures this runs only once on mount/unmount
-
 		// Function to show error message for unsupported files for drag and drop
 		const showUnsupportedFileErrorMessage = () => {
 			// Show error message for unsupported files
@@ -1512,17 +1472,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup
 							style={{
-								opacity: showShiftDragTip ? 0 : 1,
-								pointerEvents: showShiftDragTip ? "none" : "auto",
 								position: "absolute",
 								top: 0,
 								left: 0,
 								right: 0,
 								transition: "opacity 0.3s ease-in-out",
-								transitionDelay: showShiftDragTip ? "0s" : "0.2s",
 								width: "100%",
 								height: "100%",
-								zIndex: showShiftDragTip ? 0 : 1,
+								zIndex: 6,
 							}}>
 							<Tooltip tipText="Add Context" style={{ left: 0 }}>
 								<VSCodeButton
@@ -1592,36 +1549,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								)}
 							</ModelContainer>
 						</ButtonGroup>
-
-						{/* Shift Tip - always in DOM but visibility controlled */}
-						<div
-							style={{
-								display: "flex",
-								justifyContent: "flex-start", // Left align horizontally
-								alignItems: "center", // Center vertically
-								height: "100%", // Fill the container height
-								padding: "4px 0", // Add padding to match button group height
-								boxSizing: "border-box", // Include padding in height calculation
-								opacity: showShiftDragTip ? 1 : 0,
-								pointerEvents: showShiftDragTip ? "auto" : "none",
-								position: "absolute",
-								top: 0,
-								left: 0,
-								right: 0,
-								transition: "opacity 0.3s ease-in-out",
-								transitionDelay: showShiftDragTip ? "0.2s" : "0s",
-								width: "100%",
-								zIndex: showShiftDragTip ? 1 : 0,
-							}}>
-							<span
-								style={{
-									fontSize: "10px",
-									color: "var(--vscode-descriptionForeground)",
-									whiteSpace: "nowrap",
-								}}>
-								Hold Shift to Drop Files
-							</span>
-						</div>
 					</div>
 					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
 					<Tooltip
