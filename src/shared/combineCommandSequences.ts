@@ -77,35 +77,3 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 			return msg
 		})
 }
-
-export const splitCommandOutput = (text: string) => {
-	const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
-
-	if (outputIndex === -1) {
-		return { command: text, output: "" }
-	}
-
-	return {
-		command: text.slice(0, outputIndex).trim(),
-
-		output: text
-			.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
-			.trim()
-			.split("")
-			.map((char) => {
-				switch (char) {
-					case "\t":
-						return "→   "
-					case "\b":
-						return "⌫"
-					case "\f":
-						return "⏏"
-					case "\v":
-						return "⇳"
-					default:
-						return char
-				}
-			})
-			.join(""),
-	}
-}

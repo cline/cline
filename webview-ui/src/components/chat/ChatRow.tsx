@@ -5,7 +5,7 @@ import deepEqual from "fast-deep-equal"
 import { VSCodeBadge, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 import { ClineApiReqInfo, ClineAskUseMcpServer, ClineMessage, ClineSayTool } from "@roo/shared/ExtensionMessage"
-import { splitCommandOutput, COMMAND_OUTPUT_STRING } from "@roo/shared/combineCommandSequences"
+import { COMMAND_OUTPUT_STRING } from "@roo/shared/combineCommandSequences"
 import { safeJsonParse } from "@roo/shared/safeJsonParse"
 
 import { useCopyToClipboard } from "@src/utils/clipboard"
@@ -979,19 +979,13 @@ export const ChatRowContent = ({
 						</>
 					)
 				case "command":
-					const { command, output } = splitCommandOutput(message.text || "")
-
 					return (
 						<>
 							<div style={headerStyle}>
 								{icon}
 								{title}
 							</div>
-							<CommandExecution
-								executionId={message.progressStatus?.id}
-								command={command}
-								output={output}
-							/>
+							<CommandExecution executionId={message.progressStatus?.id} text={message.text} />
 						</>
 					)
 				case "use_mcp_server":

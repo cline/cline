@@ -6,6 +6,7 @@ import { BaseTerminalProcess } from "./BaseTerminalProcess"
 export class ExecaTerminalProcess extends BaseTerminalProcess {
 	private terminalRef: WeakRef<RooTerminal>
 	private controller?: AbortController
+	private aborted = false
 
 	constructor(terminal: RooTerminal) {
 		super()
@@ -45,16 +46,46 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 			this.terminal.setActiveStream(stream, subprocess.pid)
 
 			for await (const line of stream) {
+				if (this.aborted) {
+					break
+				}
+
 				this.fullOutput += line
 
 				const now = Date.now()
 
-				if (this.isListening && (now - this.lastEmitTime_ms > 250 || this.lastEmitTime_ms === 0)) {
+				if (this.isListening && (now - this.lastEmitTime_ms > 500 || this.lastEmitTime_ms === 0)) {
 					this.emitRemainingBufferIfListening()
 					this.lastEmitTime_ms = now
 				}
 
 				this.startHotTimer(line)
+			}
+
+			if (this.aborted) {
+				let timeoutId: NodeJS.Timeout | undefined
+
+				const kill = new Promise<void>((resolve) => {
+					timeoutId = setTimeout(() => {
+						try {
+							subprocess.kill("SIGKILL")
+						} catch (e) {}
+
+						resolve()
+					}, 5_000)
+				})
+
+				try {
+					await Promise.race([subprocess, kill])
+				} catch (error) {
+					console.log(
+						`[ExecaTerminalProcess] subprocess termination error: ${error instanceof Error ? error.message : String(error)}`,
+					)
+				}
+
+				if (timeoutId) {
+					clearTimeout(timeoutId)
+				}
 			}
 
 			this.emit("shell_execution_complete", { exitCode: 0 })
@@ -84,6 +115,7 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 	}
 
 	public override abort() {
+		this.aborted = true
 		this.controller?.abort()
 	}
 
