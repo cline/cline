@@ -385,36 +385,6 @@ export class Controller {
 			case "fetchOpenGraphData":
 				this.fetchOpenGraphData(message.text!)
 				break
-			case "createRuleFile":
-				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
-					console.error("createRuleFile: Missing or invalid parameters", {
-						isGlobal:
-							typeof message.isGlobal === "boolean" ? message.isGlobal : `Invalid: ${typeof message.isGlobal}`,
-						filename: typeof message.filename === "string" ? message.filename : `Invalid: ${typeof message.filename}`,
-					})
-					return
-				}
-				const { filePath, fileExists } = await createRuleFile(message.isGlobal, message.filename, cwd)
-				if (fileExists && filePath) {
-					vscode.window.showWarningMessage(`Rule file "${message.filename}" already exists.`)
-					// Still open it for editing
-					await handleFileServiceRequest(this, "openFile", { value: filePath })
-					return
-				} else if (filePath && !fileExists) {
-					await refreshClineRulesToggles(this.context, cwd)
-					await this.postStateToWebview()
-
-					await handleFileServiceRequest(this, "openFile", { value: filePath })
-
-					vscode.window.showInformationMessage(
-						`Created new ${message.isGlobal ? "global" : "workspace"} rule file: ${message.filename}`,
-					)
-				} else {
-					// null filePath
-					vscode.window.showErrorMessage(`Failed to create rule file.`)
-				}
-
-				break
 			case "openMention":
 				openMention(message.text)
 				break

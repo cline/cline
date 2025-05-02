@@ -49,9 +49,3 @@ message BooleanRequest {
 message Boolean {
   bool value = 1;
 }
-
-// Generic response for operations that return success status and a message
-message OperationResponse {
-  bool success = 1;     // Whether the operation was successful
-  string message = 2;   // Success or error message
-}
