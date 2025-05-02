@@ -11,7 +11,7 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import BrowserSettingsSection from "./BrowserSettingsSection"
 import TerminalSettingsSection from "./TerminalSettingsSection"
 import { useFeatureFlag } from "@/hooks/useFeatureFlag"
-
+import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
 const { IS_DEV } = process.env
 
 type SettingsViewProps = {
@@ -146,7 +146,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		handleSubmit(true)
 	}
 
-	const showCustomInstructions = useFeatureFlag("custom-instructions")
+	const showCustomInstructions = useFeatureFlag(FEATURE_FLAGS.CUSTOM_INSTRUCTIONS)
 
 	return (
 		<div className="fixed top-0 left-0 right-0 bottom-0 pt-[10px] pr-0 pb-0 pl-5 flex flex-col overflow-hidden">
