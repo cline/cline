@@ -7,6 +7,7 @@ import { EmptyRequest } from "@shared/proto/common"
 import { FileServiceDefinition } from "@shared/proto/file"
 import { McpServiceDefinition } from "@shared/proto/mcp"
 import { TaskServiceDefinition } from "@shared/proto/task"
+import { WebContentServiceDefinition } from "@shared/proto/web_content"
 // Generic type for any protobuf service definition
 type ProtoService = {
 	name: string
@@ -102,6 +103,7 @@ const CheckpointsServiceClient = createGrpcClient(CheckpointsServiceDefinition)
 const FileServiceClient = createGrpcClient(FileServiceDefinition)
 const McpServiceClient = createGrpcClient(McpServiceDefinition)
 const TaskServiceClient = createGrpcClient(TaskServiceDefinition)
+const WebContentServiceClient = createGrpcClient(WebContentServiceDefinition)
 
 export {
 	AccountServiceClient,
@@ -110,4 +112,5 @@ export {
 	FileServiceClient,
 	TaskServiceClient,
 	McpServiceClient,
+	WebContentServiceClient,
 }

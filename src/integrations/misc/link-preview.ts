@@ -87,7 +87,7 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
  * @param url The URL to check
  * @returns Promise resolving to boolean indicating if the URL is an image
  */
-export async function isImageUrl(url: string): Promise<boolean> {
+export async function detectImageUrl(url: string): Promise<boolean> {
 	try {
 		const response = await axios.head(url, {
 			headers: {
