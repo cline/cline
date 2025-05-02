@@ -501,11 +501,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				</div>
 
 				<div ref={experimentalRef}>
-					<ExperimentalSettings
-						setCachedStateField={setCachedStateField}
-						setExperimentEnabled={setExperimentEnabled}
-						experiments={experiments}
-					/>
+					<ExperimentalSettings setExperimentEnabled={setExperimentEnabled} experiments={experiments} />
 				</div>
 
 				<div ref={languageRef}>

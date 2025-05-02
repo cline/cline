@@ -2,9 +2,11 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
 import { ApiHandlerOptions, unboundDefaultModelId, unboundDefaultModelInfo } from "../../shared/api"
+
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { addCacheControlDirectives } from "../transform/caching"
+import { addCacheBreakpoints } from "../transform/caching/anthropic"
+
 import { SingleCompletionHandler } from "../index"
 import { RouterProvider } from "./router-provider"
 
@@ -39,7 +41,7 @@ export class UnboundHandler extends RouterProvider implements SingleCompletionHa
 		]
 
 		if (modelId.startsWith("anthropic/claude-3")) {
-			addCacheControlDirectives(systemPrompt, openAiMessages)
+			addCacheBreakpoints(systemPrompt, openAiMessages)
 		}
 
 		// Required by Anthropic; other providers default to max tokens allowed.

@@ -3,9 +3,11 @@ import axios from "axios"
 import OpenAI from "openai"
 
 import { ApiHandlerOptions, glamaDefaultModelId, glamaDefaultModelInfo } from "../../shared/api"
+
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { addCacheControlDirectives } from "../transform/caching"
+import { addCacheBreakpoints } from "../transform/caching/anthropic"
+
 import { SingleCompletionHandler } from "../index"
 import { RouterProvider } from "./router-provider"
 
@@ -37,7 +39,7 @@ export class GlamaHandler extends RouterProvider implements SingleCompletionHand
 		]
 
 		if (modelId.startsWith("anthropic/claude-3")) {
-			addCacheControlDirectives(systemPrompt, openAiMessages)
+			addCacheBreakpoints(systemPrompt, openAiMessages)
 		}
 
 		// Required by Anthropic; other providers default to max tokens allowed.

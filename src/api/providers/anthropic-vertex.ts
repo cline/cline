@@ -3,13 +3,14 @@ import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { GoogleAuth, JWTInput } from "google-auth-library"
 
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
-import { ApiStream } from "../transform/stream"
 import { safeJsonParse } from "../../shared/safeJsonParse"
 
+import { ApiStream } from "../transform/stream"
+import { addCacheBreakpoints } from "../transform/caching/vertex"
+
 import { getModelParams, SingleCompletionHandler } from "../index"
-import { BaseProvider } from "./base-provider"
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
-import { formatMessageForCache } from "../transform/vertex-caching"
+import { BaseProvider } from "./base-provider"
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
 export class AnthropicVertexHandler extends BaseProvider implements SingleCompletionHandler {
@@ -57,16 +58,6 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 			thinking,
 		} = this.getModel()
 
-		// Find indices of user messages that we want to cache
-		// We only cache the last two user messages to stay within the 4-block limit
-		// (1 block for system + 1 block each for last two user messages = 3 total)
-		const userMsgIndices = supportsPromptCache
-			? messages.reduce((acc, msg, i) => (msg.role === "user" ? [...acc, i] : acc), [] as number[])
-			: []
-
-		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
-		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-
 		/**
 		 * Vertex API has specific limitations for prompt caching:
 		 * 1. Maximum of 4 blocks can have cache_control
@@ -89,12 +80,7 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 			system: supportsPromptCache
 				? [{ text: systemPrompt, type: "text" as const, cache_control: { type: "ephemeral" } }]
 				: systemPrompt,
-			messages: messages.map((message, index) => {
-				// Only cache the last two user messages.
-				const shouldCache =
-					supportsPromptCache && (index === lastUserMsgIndex || index === secondLastMsgUserIndex)
-				return formatMessageForCache(message, shouldCache)
-			}),
+			messages: supportsPromptCache ? addCacheBreakpoints(messages) : messages,
 			stream: true,
 		}
 

@@ -6,13 +6,12 @@ import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "@roo/shared/
 
 import { cn } from "@/lib/utils"
 
-import { SetCachedStateField, SetExperimentEnabled } from "./types"
+import { SetExperimentEnabled } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { ExperimentalFeature } from "./ExperimentalFeature"
 
 type ExperimentalSettingsProps = HTMLAttributes<HTMLDivElement> & {
-	setCachedStateField: SetCachedStateField<"terminalOutputLineLimit" | "maxOpenTabsContext">
 	experiments: Record<ExperimentId, boolean>
 	setExperimentEnabled: SetExperimentEnabled
 }
