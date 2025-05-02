@@ -25,6 +25,8 @@ const collectSystemInfo = () => {
 	try {
 		if (process.platform === "darwin") {
 			// macOS specific commands
+			// cpuInfo = os.cpus().length > 0 ? os.cpus()[0].model : "N/A"
+			// memoryInfo = `${Math.round(os.freemem() / 1e9)} GB RAM`
 			cpuInfo = execSync("sysctl -n machdep.cpu.brand_string").toString().trim()
 			memoryInfo = execSync("sysctl -n hw.memsize").toString().trim()
 			memoryInfo = `${Math.round(parseInt(memoryInfo) / 1e9)} GB RAM`
@@ -42,7 +44,7 @@ const collectSystemInfo = () => {
 	return {
 		cpuInfo,
 		memoryInfo,
-		uname: execSync("uname -a").toString().trim(),
+		os: `${os.arch()}; ${os.version()}`,
 		nodeVersion: execSync("node -v").toString().trim(),
 		npmVersion: execSync("npm -v").toString().trim(),
 		clineVersion: getClineVersion(),
@@ -63,18 +65,16 @@ const checkGitHubAuth = async () => {
 }
 
 const createIssueUrl = (systemInfo, issueTitle) => {
-	const encodedTitle = encodeURIComponent(issueTitle)
-
 	return (
 		`https://github.com/DaveFres/cline/issues/new?template=bug_report.yml` +
-		`&title=${encodedTitle}` +
+		`&title=${issueTitle}` +
 		`&operating-system=${systemInfo.os}` +
 		`&cline-version=${systemInfo.clineVersion}` +
 		`&system-info=${
 			`Node: ${systemInfo.nodeVersion}\n` +
 			`npm: ${systemInfo.npmVersion}\n` +
 			`CPU Info: ${systemInfo.cpuInfo}\n` +
-			`Memory Info: ${systemInfo.memoryInfo}`
+			`Free RAM: ${systemInfo.memoryInfo}`
 		}`
 	)
 }
@@ -82,6 +82,11 @@ const createIssueUrl = (systemInfo, issueTitle) => {
 const submitIssue = async (issueTitle, systemInfo) => {
 	try {
 		const issueUrl = createIssueUrl(systemInfo, issueTitle)
+
+		if (issueUrl.length > 2000) {
+			throw new Error("Issue URL is too long to open in the browser.")
+		}
+
 		console.log("\nOpening GitHub issue creation page in your browser...")
 		execSync(`open "${issueUrl}"`)
 	} catch (err) {
