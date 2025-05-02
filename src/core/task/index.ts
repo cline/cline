@@ -88,6 +88,11 @@ import {
 	refreshClineRulesToggles,
 	ensureLocalClinerulesDirExists,
 } from "@core/context/instructions/user-instructions/cline-rules"
+import {
+	refreshExternalRulesToggles,
+	getLocalWindsurfRules,
+	getLocalCursorRules,
+} from "@core/context/instructions/user-instructions/"
 import { getGlobalState } from "@core/storage/state"
 import { parseSlashCommands } from "@core/slash-commands"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
@@ -1444,11 +1449,14 @@ export class Task {
 				: ""
 
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), cwd)
+		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.getContext(), cwd)
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
 
 		const localClineRulesFileInstructions = await getLocalClineRules(cwd, localToggles)
+		const localCursorRulesFileInstructions = await getLocalCursorRules(cwd, cursorLocalToggles)
+		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(cwd, windsurfLocalToggles)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -1460,6 +1468,8 @@ export class Task {
 			settingsCustomInstructions ||
 			globalClineRulesFileInstructions ||
 			localClineRulesFileInstructions ||
+			localCursorRulesFileInstructions ||
+			localWindsurfRulesFileInstructions ||
 			clineIgnoreInstructions ||
 			preferredLanguageInstructions
 		) {
