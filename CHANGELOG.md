@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## [3.15.2] - 2025-05-02
+
+- Fix terminal performance issues
+- Handle Mermaid validation errors
+- Add customizable headers for OpenAI-compatible provider (thanks @mark-bradshaw!)
+- Add config option to overwrite OpenAI's API base (thanks @GOODBOY008!)
+- Fixes to padding and height issues when resizing the sidebar (thanks @zhangtony239!)
+- Remove tool groups from orchestrator mode definition
+- Add telemetry for title button clicks
+
 ## [3.15.1] - 2025-04-30
 
 - Capture stderr in execa-spawned processes
