@@ -1,0 +1,108 @@
+---
+title: "Checkpoints and Messages"
+description: "When working with AI coding assistants, it's easy to lose control as they make rapid changes to your codebase. That's why we built Checkpoints - your safety net for experimenting confidently."
+---
+
+Checkpoints automatically save snapshots of your workspace after each step in a task. This powerful feature lets you:
+
+-   Track and review changes made during a task
+-   Roll back to any previous point if needed
+-   Experiment confidently with auto-approve mode
+-   Maintain full control over your workspace
+
+### ⚙️ How Checkpoints Work
+
+Cline creates a checkpoint after each tool use (file edits, commands, etc.). These checkpoints:
+
+-   Work alongside your Git workflow without interference
+-   Maintain context between restores
+-   Use a shadow Git repository to track changes
+
+For example, if you're working on a feature and Cline makes multiple file changes, each change creates a checkpoint. This means you can review each modification and, if needed, roll back to any point without affecting your main Git repository.
+
+#### Viewing Changes & Restoring to Checkpoint
+
+After each tool use, you can:
+
+1. Click the "Compare" button to see modified files
+2. Click the "Restore" button to open restore options
+
+<Frame>
+	<img src="/assets/robot_panel_dark.png" alt="Checkpoint comparison and restore options" />
+</Frame>
+
+#### Rolling Back
+
+To restore to a previous point:
+
+1. Click the "Restore" button next to any step
+2. Choose from three options:
+    - **Restore Task and Workspace**: Reset both codebase and task to that point
+    - **Restore Task Only**: Keep codebase changes but revert task context
+    - **Restore Workspace Only**: Reset codebase while preserving task context
+
+Example: If Cline makes changes you don't like while styling a component, you can use "Restore Workspace Only" to revert the code changes while keeping the conversation context, allowing you to try a different approach.
+
+### 💡 Use Cases
+
+Checkpoints let you be more experimental with Cline. While human coding is often methodical and iterative, AI can make substantial changes quickly. Checkpoints help you track these changes and revert if needed.
+
+#### 1. Using Auto-Approve Mode
+
+-   Provides safety net for rapid iterations
+-   Makes it easy to undo unexpected results
+
+#### 2. Testing Different Approaches
+
+-   Try multiple solutions confidently
+-   Compare different implementations
+-   Quickly revert to working states
+-   Ideal for exploring different design patterns or architectural approaches
+
+<Frame caption="In this case, I didn't like the changes Cline made to my robot dog-walking website (still working on the robots) and I wanted to revert both the codebase and the task to before any changes were made so I could start fresh.">
+	<img src="/assets/robot_panel_dark.png" alt="Checkpoint restore demo" />
+</Frame>
+
+### ✨ Best Practices
+
+1. Use checkpoints as safety nets when experimenting
+2. Leverage auto-approve mode more confidently, knowing you can always roll back
+3. Restore selectively based on needs:
+
+    - Use "Restore Task and Workspace" for a fresh start, reversing changes to files and the task conversation.
+    - Use "Restore Task Only" to try different prompts, but leave all files as they exist
+    - Use "Restore Workspace Only" to attempt different implementations, or prune context from the task
+
+🛟 Checkpoints are your safety net when working with Cline, enabling you to experiment freely while maintaining full control over your codebase. Whether you're refactoring a complex component, trying different implementation approaches, or using auto-approve mode for rapid development, checkpoints ensure you can always review changes and roll back if needed.
+
+#### 🗑️ Deleting Checkpoints
+
+You can delete all checkpoints by using the **"Delete All History"** button in the task history menu. Note that this will also delete all tasks. Checkpoints are stored in VS Code's globalStorage.
+
+---
+
+## Editing Messages
+
+Cline allows you to edit chat messages in a task after they've been submitted (with the exception of the message that started the task).
+
+Perhaps you didn't get the results you wanted, thought of a better way to phrase your request, or need to add more information. Editing your message allows you to re-submit a request without starting over or restoring your files or workspace with checkpoints. There are two Restore options:
+
+-   **"Restore Chat"** restores just the task state and re-submits an API request to your provider with your edited message.
+
+-   **"Restore All"** restores both the task state and workspace state before re-submitting an API request. "Workspace state" refers to the condition of your workspace (files, content, etc.) at different points in the conversation.
+
+**Interactive Editing:**
+
+-   Messages can be clicked to enter edit mode
+-   Cline automatically selects all text when entering edit mode
+
+**Keyboard Shortcuts:**
+
+-   Escape: Exit edit mode
+-   Enter: Restore just the task
+-   Cmd/Ctrl + Enter: Restore the task and workspace
+-   Shift + Enter: Insert new line / line break
+
+<Frame>
+	<img src="/assets/robot_panel_dark.png" alt="Message editing interface" />
+</Frame>

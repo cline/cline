@@ -53,7 +53,19 @@
 		}
 	},
 	"navigation": {
-		"pages": ["introduction"]
+		"groups": [
+			{
+				"group": "Exploring Cline's Tools",
+				"pages": [
+					"exploring-clines-tools/cline-tools-guide",
+					"exploring-clines-tools/plan-and-act-modes-a-guide-to-effective-ai-development",
+					"exploring-clines-tools/checkpoints",
+					"exploring-clines-tools/new-task-tool",
+					"exploring-clines-tools/remote-browser-support",
+					"exploring-clines-tools/slash-commands"
+				]
+			}
+		]
 	},
 	"footer": {
 		"socials": {
