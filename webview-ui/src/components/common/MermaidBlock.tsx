@@ -186,7 +186,8 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 							<CopyButton
 								onClick={(e) => {
 									e.stopPropagation()
-									copyWithFeedback(code, e)
+									const combinedContent = `Error: ${error}\n\n\`\`\`mermaid\n${code}\n\`\`\``
+									copyWithFeedback(combinedContent, e)
 								}}>
 								<span className={`codicon codicon-${showCopyFeedback ? "check" : "copy"}`}></span>
 							</CopyButton>
