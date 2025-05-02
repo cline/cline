@@ -60,14 +60,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 	}, [])
 
-	const handleBatchHistorySelect = useCallback((selectAll: boolean) => {
-		if (selectAll) {
-			setSelectedItems(taskHistorySearchResults.map((item) => item.id))
-		} else {
-			setSelectedItems([])
-		}
-	}, [])
-
 	const handleDeleteHistoryItem = useCallback((id: string) => {
 		vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify([id]) })
 	}, [])
@@ -139,6 +131,24 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		return results
 	}, [presentableTasks, searchQuery, fuse, sortOption])
 
+	// Calculate total size of selected items
+	const selectedItemsSize = useMemo(() => {
+		if (selectedItems.length === 0) return 0
+
+		return taskHistory.filter((item) => selectedItems.includes(item.id)).reduce((total, item) => total + (item.size || 0), 0)
+	}, [selectedItems, taskHistory])
+
+	const handleBatchHistorySelect = useCallback(
+		(selectAll: boolean) => {
+			if (selectAll) {
+				setSelectedItems(taskHistorySearchResults.map((item) => item.id))
+			} else {
+				setSelectedItems([])
+			}
+		},
+		[taskHistorySearchResults],
+	)
+
 	return (
 		<>
 			<style>
@@ -186,21 +196,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						}}>
 						History
 					</h3>
-					<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-						<VSCodeButton
-							onClick={() => {
-								handleBatchHistorySelect(true)
-							}}>
-							Select All
-						</VSCodeButton>
-						<VSCodeButton
-							onClick={() => {
-								handleBatchHistorySelect(false)
-							}}>
-							Select None
-						</VSCodeButton>
-						<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-					</div>
+					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 				</div>
 				<div style={{ padding: "5px 17px 6px 17px" }}>
 					<div
@@ -256,6 +252,20 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								Most Relevant
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
+						<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+							<VSCodeButton
+								onClick={() => {
+									handleBatchHistorySelect(true)
+								}}>
+								Select All
+							</VSCodeButton>
+							<VSCodeButton
+								onClick={() => {
+									handleBatchHistorySelect(false)
+								}}>
+								Select None
+							</VSCodeButton>
+						</div>
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
@@ -289,16 +299,28 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									cursor: "pointer",
 									borderBottom:
 										index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
-								}}
-								onClick={() => handleShowTaskWithId(item.id)}>
+									display: "flex",
+								}}>
+								<VSCodeCheckbox
+									className="pl-3 pr-1 py-auto"
+									checked={selectedItems.includes(item.id)}
+									onClick={(e) => {
+										const checked = (e.target as HTMLInputElement).checked
+										handleHistorySelect(item.id, checked)
+										e.stopPropagation()
+									}}
+								/>
 								<div
 									style={{
 										display: "flex",
 										flexDirection: "column",
 										gap: "8px",
 										padding: "12px 20px",
+										paddingLeft: "16px",
 										position: "relative",
-									}}>
+										flexGrow: 1,
+									}}
+									onClick={() => handleShowTaskWithId(item.id)}>
 									<div
 										style={{
 											display: "flex",
@@ -370,15 +392,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													gap: "4px",
 													flexWrap: "wrap",
 												}}>
-												<VSCodeCheckbox
-													style={{ marginRight: "5px" }}
-													checked={selectedItems.includes(item.id)}
-													onClick={(e) => {
-														const checked = (e.target as HTMLInputElement).checked
-														handleHistorySelect(item.id, checked)
-														e.stopPropagation()
-													}}
-												/>
 												<span
 													style={{
 														fontWeight: 500,
@@ -523,7 +536,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							onClick={() => {
 								handleDeleteSelectedHistoryItems(selectedItems)
 							}}>
-							Delete Selected
+							Delete {selectedItems.length > 1 ? selectedItems.length : ""} Selected
+							{selectedItemsSize > 0 ? ` (${formatSize(selectedItemsSize)})` : ""}
 						</DangerButton>
 					) : (
 						<DangerButton
