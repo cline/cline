@@ -1,5 +1,6 @@
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import * as path from "path"
+import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
 
 /**

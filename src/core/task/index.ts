@@ -92,7 +92,7 @@ import {
 	refreshExternalRulesToggles,
 	getLocalWindsurfRules,
 	getLocalCursorRules,
-} from "@core/context/instructions/user-instructions/"
+} from "@core/context/instructions/user-instructions/external-rules"
 import { getGlobalState } from "@core/storage/state"
 import { parseSlashCommands } from "@core/slash-commands"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
@@ -1455,7 +1455,10 @@ export class Task {
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
 
 		const localClineRulesFileInstructions = await getLocalClineRules(cwd, localToggles)
-		const localCursorRulesFileInstructions = await getLocalCursorRules(cwd, cursorLocalToggles)
+		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
+			cwd,
+			cursorLocalToggles,
+		)
 		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(cwd, windsurfLocalToggles)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
@@ -1469,18 +1472,23 @@ export class Task {
 			globalClineRulesFileInstructions ||
 			localClineRulesFileInstructions ||
 			localCursorRulesFileInstructions ||
+			localCursorRulesDirInstructions ||
 			localWindsurfRulesFileInstructions ||
 			clineIgnoreInstructions ||
 			preferredLanguageInstructions
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(
+			const userInstructions = addUserInstructions(
 				settingsCustomInstructions,
 				globalClineRulesFileInstructions,
 				localClineRulesFileInstructions,
+				localCursorRulesFileInstructions,
+				localCursorRulesDirInstructions,
+				localWindsurfRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
+			systemPrompt += userInstructions
 		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,

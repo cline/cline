@@ -636,6 +636,7 @@ export function addUserInstructions(
 	globalClineRulesFileInstructions?: string,
 	localClineRulesFileInstructions?: string,
 	localCursorRulesFileInstructions?: string,
+	localCursorRulesDirInstructions?: string,
 	localWindsurfRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
 	preferredLanguageInstructions?: string,
@@ -655,6 +656,9 @@ export function addUserInstructions(
 	}
 	if (localCursorRulesFileInstructions) {
 		customInstructions += localCursorRulesFileInstructions + "\n\n"
+	}
+	if (localCursorRulesDirInstructions) {
+		customInstructions += localCursorRulesDirInstructions + "\n\n"
 	}
 	if (localWindsurfRulesFileInstructions) {
 		customInstructions += localWindsurfRulesFileInstructions + "\n\n"
