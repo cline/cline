@@ -24,9 +24,6 @@ const collectSystemInfo = () => {
 	let memoryInfo = "N/A"
 	try {
 		if (process.platform === "darwin") {
-			// macOS specific commands
-			// cpuInfo = os.cpus().length > 0 ? os.cpus()[0].model : "N/A"
-			// memoryInfo = `${Math.round(os.freemem() / 1e9)} GB RAM`
 			cpuInfo = execSync("sysctl -n machdep.cpu.brand_string").toString().trim()
 			memoryInfo = execSync("sysctl -n hw.memsize").toString().trim()
 			memoryInfo = `${Math.round(parseInt(memoryInfo) / 1e9)} GB RAM`
