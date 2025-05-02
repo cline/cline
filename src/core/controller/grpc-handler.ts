@@ -1,5 +1,6 @@
 import { Controller } from "./index"
 import { serviceHandlers } from "./grpc-service-config"
+import { GrpcRequestRegistry } from "./grpc/GrpcRequestRegistry"
 
 /**
  * Type definition for a streaming response handler
@@ -95,8 +96,8 @@ export class GrpcHandler {
 				throw new Error(`Service ${service} does not support streaming`)
 			}
 
-			// Handle streaming request
-			await serviceConfig.streamingHandler(this.controller, method, message, responseStream)
+			// Handle streaming request and pass the requestId to all streaming handlers
+			await serviceConfig.streamingHandler(this.controller, method, message, responseStream, requestId)
 
 			// Don't send a final message here - the stream should stay open for future updates
 			// The stream will be closed when the client disconnects or when the service explicitly ends it
@@ -114,8 +115,8 @@ export class GrpcHandler {
 	}
 }
 
-// Map to track active streaming requests
-const activeStreamingRequests = new Map<string, AbortController>()
+// Registry to track active gRPC requests and their cleanup functions
+const requestRegistry = new GrpcRequestRegistry()
 
 /**
  * Handle a gRPC request from the webview
@@ -137,15 +138,11 @@ export async function handleGrpcRequest(
 
 		// For streaming requests, handleRequest handles sending responses directly
 		if (request.is_streaming) {
-			// Create an AbortController for this streaming request
-			const abortController = new AbortController()
-			activeStreamingRequests.set(request.request_id, abortController)
-
 			try {
 				await grpcHandler.handleRequest(request.service, request.method, request.message, request.request_id, true)
 			} finally {
-				// Clean up when the request is done
-				activeStreamingRequests.delete(request.request_id)
+				// Note: We don't automatically clean up here anymore
+				// The request will be cleaned up when it completes or is cancelled
 			}
 			return
 		}
@@ -191,12 +188,9 @@ export async function handleGrpcRequestCancel(
 		request_id: string
 	},
 ) {
-	const abortController = activeStreamingRequests.get(request.request_id)
-	if (abortController) {
-		// Abort the request
-		abortController.abort()
-		activeStreamingRequests.delete(request.request_id)
+	const cancelled = requestRegistry.cancelRequest(request.request_id)
 
+	if (cancelled) {
 		// Send a cancellation confirmation
 		await controller.postMessageToWebview({
 			type: "grpc_response",
@@ -206,5 +200,15 @@ export async function handleGrpcRequestCancel(
 				is_streaming: false,
 			},
 		})
+	} else {
+		console.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
 	}
+}
+
+/**
+ * Get the request registry instance
+ * This allows other parts of the code to access the registry
+ */
+export function getRequestRegistry(): GrpcRequestRegistry {
+	return requestRegistry
 }

@@ -332,7 +332,7 @@ ${serviceImports.join("\n")}
  */
 export interface ServiceHandlerConfig {
   requestHandler: (controller: Controller, method: string, message: any) => Promise<any>;
-  streamingHandler: (controller: Controller, method: string, message: any, responseStream: StreamingResponseHandler) => Promise<void>;
+  streamingHandler: (controller: Controller, method: string, message: any, responseStream: StreamingResponseHandler, requestId?: string) => Promise<void>;
 }
 
 /**

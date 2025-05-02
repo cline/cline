@@ -122,11 +122,12 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 					window.removeEventListener("message", handleResponse)
 					// Send cancellation message
 					vscode.postMessage({
-						type: "grpc_request",
+						type: "grpc_request_cancel",
 						grpc_request_cancel: {
 							request_id: requestId,
 						},
 					})
+					console.log(`[DEBUG] Sent cancellation for request: ${requestId}`)
 				}
 			}) as any
 		} else {

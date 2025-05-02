@@ -13,6 +13,7 @@ export type StreamingMethodHandler = (
 	controller: Controller,
 	message: any,
 	responseStream: StreamingResponseHandler,
+	requestId?: string,
 ) => Promise<void>
 
 /**
@@ -102,12 +103,14 @@ export class ServiceRegistry {
 	 * @param method The method name
 	 * @param message The request message
 	 * @param responseStream The streaming response handler
+	 * @param requestId The request ID for correlation and cleanup
 	 */
 	async handleStreamingRequest(
 		controller: Controller,
 		method: string,
 		message: any,
 		responseStream: StreamingResponseHandler,
+		requestId?: string,
 	): Promise<void> {
 		const handler = this.streamingMethodRegistry[method]
 
@@ -118,7 +121,7 @@ export class ServiceRegistry {
 			throw new Error(`Unknown ${this.serviceName} streaming method: ${method}`)
 		}
 
-		await handler(controller, message, responseStream)
+		await handler(controller, message, responseStream, requestId)
 	}
 }
 
@@ -142,7 +145,8 @@ export function createServiceRegistry(serviceName: string) {
 			method: string,
 			message: any,
 			responseStream: StreamingResponseHandler,
-		) => registry.handleStreamingRequest(controller, method, message, responseStream),
+			requestId?: string,
+		) => registry.handleStreamingRequest(controller, method, message, responseStream, requestId),
 
 		isStreamingMethod: (method: string) => registry.isStreamingMethod(method),
 	}

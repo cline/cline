@@ -22,6 +22,7 @@ export interface ServiceHandlerConfig {
 		method: string,
 		message: any,
 		responseStream: StreamingResponseHandler,
+		requestId?: string,
 	) => Promise<void>
 }
 

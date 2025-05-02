@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { Controller } from "../index"
 import { EmptyRequest } from "../../../shared/proto/common"
-import { StreamingResponseHandler } from "../grpc-handler"
+import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
 // Keep track of active state subscriptions
 const activeStateSubscriptions = new Set<StreamingResponseHandler>()
@@ -11,11 +11,13 @@ const activeStateSubscriptions = new Set<StreamingResponseHandler>()
  * @param controller The controller instance
  * @param request The empty request
  * @param responseStream The streaming response handler
+ * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToState(
 	controller: Controller,
 	request: EmptyRequest,
 	responseStream: StreamingResponseHandler,
+	requestId?: string,
 ): Promise<void> {
 	// Send the initial state
 	const initialState = await controller.getStateToPostToWebview()
@@ -31,15 +33,15 @@ export async function subscribeToState(
 	activeStateSubscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
-	// We don't actually return this function, but the gRPC handler will call it
-	// when the connection is closed
 	const cleanup = () => {
 		activeStateSubscriptions.delete(responseStream)
+		console.log("[DEBUG] Cleaned up state subscription")
 	}
 
-	// TODO Store the cleanup function somewhere the gRPC handler can access it
-	// This is a workaround since we can't return it directly
-	;(responseStream as any).__cleanup = cleanup
+	// Register the cleanup function with the request registry if we have a requestId
+	if (requestId) {
+		getRequestRegistry().registerRequest(requestId, cleanup, { type: "state_subscription" }, responseStream)
+	}
 }
 
 /**
