@@ -1264,7 +1264,7 @@ export class Task {
 				didContinue = true
 				process.continue()
 			} catch {
-				// ask promise was ignored
+				Logger.error("Error while asking for command output")
 			} finally {
 				chunkEnroute = false
 				// If more output accumulated while chunkEnroute, flush again
@@ -1278,11 +1278,11 @@ export class Task {
 			if (chunkTimer) {
 				clearTimeout(chunkTimer)
 			}
-			chunkTimer = setTimeout(() => flushBuffer(), CHUNK_DEBOUNCE_MS)
+			chunkTimer = setTimeout(async () => await flushBuffer(), CHUNK_DEBOUNCE_MS)
 		}
 
 		let result = ""
-		process.on("line", (line) => {
+		process.on("line", async (line) => {
 			result += line + "\n"
 
 			if (!didContinue) {
@@ -1290,7 +1290,7 @@ export class Task {
 				outputBufferSize += Buffer.byteLength(line, "utf8")
 				// Flush if buffer is large enough
 				if (outputBuffer.length >= CHUNK_LINE_COUNT || outputBufferSize >= CHUNK_BYTE_SIZE) {
-					flushBuffer()
+					await flushBuffer()
 				} else {
 					scheduleFlush()
 				}
