@@ -146,6 +146,14 @@ class TelemetryService {
 	}
 
 	/**
+	 * Captures a title button click event
+	 * @param button The button that was clicked
+	 */
+	public captureTitleButtonClicked(button: string): void {
+		this.captureEvent("Title Button Clicked", { button })
+	}
+
+	/**
 	 * Checks if telemetry is currently enabled
 	 * @returns Whether telemetry is enabled
 	 */
