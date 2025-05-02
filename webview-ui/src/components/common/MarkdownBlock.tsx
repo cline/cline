@@ -330,7 +330,6 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 					return <code {...props} />
 				},
 			},
-
 		},
 	})
 
