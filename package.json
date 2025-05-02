@@ -313,7 +313,8 @@
 		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
-		"docs:preview": "cd docs && mintlify dev"
+		"docs:preview": "cd docs && mintlify dev",
+		"report-issue": "node scripts/report-issue.js"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",
