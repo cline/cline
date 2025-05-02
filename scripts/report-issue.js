@@ -76,18 +76,35 @@ const createIssueUrl = (systemInfo, issueTitle) => {
 	)
 }
 
+const openUrl = (url) => {
+	try {
+		switch (process.platform) {
+			case "darwin":
+				execSync(`open "${url}"`)
+				break
+			case "win32":
+				execSync(`start "" "${url}"`)
+				break
+			case "linux":
+				execSync(`xdg-open "${url}"`)
+				break
+			default:
+				console.log("\nPlease open this URL in your browser:")
+				console.log(url)
+		}
+	} catch (err) {
+		console.log("\nFailed to open URL automatically. Please open this URL in your browser:")
+		console.log(url)
+	}
+}
+
 const submitIssue = async (issueTitle, systemInfo) => {
 	try {
 		const issueUrl = createIssueUrl(systemInfo, issueTitle)
-
-		if (issueUrl.length > 2000) {
-			throw new Error("Issue URL is too long to open in the browser.")
-		}
-
 		console.log("\nOpening GitHub issue creation page in your browser...")
-		execSync(`open "${issueUrl}"`)
+		openUrl(issueUrl)
 	} catch (err) {
-		console.error("\nFailed to open issue:", err.message)
+		console.error("\nFailed to create issue URL:", err.message)
 	}
 }
 
