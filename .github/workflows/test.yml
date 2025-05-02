@@ -20,6 +20,9 @@ jobs:
             matrix:
                 os: [ubuntu-latest, windows-latest]
         runs-on: ${{ matrix.os }}
+        defaults:
+            run:
+                shell: bash
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -64,6 +67,11 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
+            - name: Set up NPM on Windows
+              if: runner.os == 'Windows'
+              run: |
+                  npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
+
             - name: Type Check
               run: npm run check-types
 
@@ -85,7 +93,7 @@ jobs:
               id: extension_coverage
               continue-on-error: true
               run: |
-                  xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1
+                  node ./scripts/test-ci.js > extension_coverage.txt 2>&1
                   PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
             # Run webview tests with coverage
