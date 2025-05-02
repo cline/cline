@@ -95,13 +95,13 @@ export class Controller {
 		})
 
 		// Capture telemetry when the extension is disposed
-		this.context.subscriptions.push({
-			dispose: async () => {
-				if (this.task) {
-					await telemetryService.sendCollectedEvents()
-				}
-			},
-		})
+		// this.context.subscriptions.push({
+		// 	dispose: async () => {
+		// 		if (this.task) {
+		// 			await telemetryService.sendCollectedEvents()
+		// 		}
+		// 	},
+		// })
 	}
 
 	/*
@@ -174,6 +174,7 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			shellIntegrationTimeout,
 			customInstructions,
 			task,
 			images,
@@ -1802,7 +1803,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async clearTask(isCloseTaskEvent: boolean = false) {
 		if (isCloseTaskEvent && this.task) {
-			await telemetryService.sendCollectedEvents()
+			await telemetryService.sendCollectedEvents(this.task.taskId)
 		}
 		this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected

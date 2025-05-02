@@ -10,9 +10,20 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
  * Uses PostHog analytics to track user interactions and system events
  * Respects user privacy settings and VSCode's global telemetry configuration
  */
+
+interface CollectedTasks {
+	taskId: string
+	collection: Collection[]
+}
+
+interface Collection {
+	event: string
+	properties: any
+}
+
 class PostHogClient {
 	// Stores events when collect=true
-	private collectedEvents: Array<{ event: string; properties: any }> = []
+	private collectedTasks: CollectedTasks[] = []
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
@@ -147,16 +158,30 @@ class PostHogClient {
 	 * @param collect If true, store the event in collectedEvents instead of sending to PostHog
 	 */
 	public capture(event: { event: string; properties?: any }, collect: boolean = false): void {
+		const taskId = event.properties.taskId
 		const propertiesWithVersion = {
 			...event.properties,
 			extension_version: this.version,
 			is_dev: this.isDev,
 		}
 		if (collect) {
-			this.collectedEvents.push({
-				event: event.event,
-				properties: propertiesWithVersion,
-			})
+			const existingTask = this.collectedTasks.find((task) => task.taskId === taskId)
+			if (existingTask) {
+				existingTask.collection.push({
+					event: event.event,
+					properties: propertiesWithVersion,
+				})
+			} else {
+				this.collectedTasks.push({
+					taskId,
+					collection: [
+						{
+							event: event.event,
+							properties: propertiesWithVersion,
+						},
+					],
+				})
+			}
 		} else if (this.telemetryEnabled) {
 			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
 		}
@@ -700,24 +725,32 @@ class PostHogClient {
 		return this.telemetryEnabled
 	}
 
-	public getCollectedEvents(): Array<{ event: string; properties: any }> {
-		return [...this.collectedEvents]
-	}
-
-	public clearCollectedEvents(): void {
-		this.collectedEvents = []
-	}
-
-	public async sendCollectedEvents(): Promise<void> {
-		if (this.collectedEvents.length > 0) {
-			this.capture(
-				{
-					event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
-					properties: { events: this.collectedEvents },
-				},
-				false,
-			)
-			this.clearCollectedEvents()
+	public async sendCollectedEvents(taskId?: string): Promise<void> {
+		if (this.collectedTasks.length > 0) {
+			if (taskId) {
+				const task = this.collectedTasks.find((t) => t.taskId === taskId)
+				if (task) {
+					this.capture(
+						{
+							event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
+							properties: { taskId, events: task.collection },
+						},
+						false,
+					)
+					this.collectedTasks = this.collectedTasks.filter((t) => t.taskId !== taskId)
+				}
+			} else {
+				for (const task of this.collectedTasks) {
+					this.capture(
+						{
+							event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
+							properties: { taskId: task.taskId, events: task.collection },
+						},
+						false,
+					)
+					this.collectedTasks = this.collectedTasks.filter((t) => t.taskId !== task.taskId)
+				}
+			}
 		}
 	}
 
