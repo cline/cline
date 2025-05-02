@@ -573,6 +573,7 @@ CAPABILITIES
 		: ""
 }
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.
+- You can use LaTeX syntax in your responses to render mathematical expressions
 
 ====
 
