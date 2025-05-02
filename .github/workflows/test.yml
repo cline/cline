@@ -111,6 +111,8 @@ jobs:
             # Save coverage reports as artifacts (workflow-scoped)
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
+              # Only upload artifacts on Linux - We only need coverage from one OS
+              if: runner.os == 'Linux'
               with:
                   name: pr-coverage-reports
                   path: |
