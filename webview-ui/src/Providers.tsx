@@ -7,11 +7,11 @@ import { PostHogProvider } from "posthog-js/react"
 import { posthogConfig } from "@shared/services/config/posthog-config"
 import posthog from "posthog-js"
 
-export function Providers({ children }: { children: ReactNode }) {
-	posthog.init(posthogConfig.apiKey, {
-		api_host: posthogConfig.host,
-	})
+posthog.init(posthogConfig.apiKey, {
+	api_host: posthogConfig.host,
+})
 
+export function Providers({ children }: { children: ReactNode }) {
 	return (
 		<ExtensionStateContextProvider>
 			<PostHogProvider client={posthog}>
