@@ -90,6 +90,7 @@
 		}
 	},
 	"selectMode": "Wybierz tryb interakcji",
+	"selectApiConfig": "Wybierz konfigurację API",
 	"enhancePrompt": "Ulepsz podpowiedź dodatkowym kontekstem",
 	"addImages": "Dodaj obrazy do wiadomości",
 	"sendMessage": "Wyślij wiadomość",
@@ -233,10 +234,9 @@
 		}
 	},
 	"systemPromptWarning": "OSTRZEŻENIE: Aktywne niestandardowe zastąpienie instrukcji systemowych. Może to poważnie zakłócić funkcjonalność i powodować nieprzewidywalne zachowanie.",
-	"selectApiConfig": "Wybierz konfigurację API",
 	"shellIntegration": {
-		"title": "Integracja powłoki niedostępna",
-		"description": "Twoje polecenie jest wykonywane bez integracji powłoki VSCode. Możesz ponownie włączyć integrację powłoki w sekcji <strong>Terminal</strong> w <settingsLink>ustawieniach Roo Code</settingsLink>.",
+		"title": "Ostrzeżenie wykonania polecenia",
+		"description": "Twoje polecenie jest wykonywane bez integracji powłoki terminala VSCode. Aby ukryć to ostrzeżenie, możesz wyłączyć integrację powłoki w sekcji <strong>Terminal</strong> w <settingsLink>ustawieniach Roo Code</settingsLink> lub rozwiązać problemy z integracją terminala VSCode korzystając z poniższego linku.",
 		"troubleshooting": "Kliknij tutaj, aby zobaczyć dokumentację integracji powłoki."
 	}
 }

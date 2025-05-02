@@ -90,6 +90,7 @@
 		}
 	},
 	"selectMode": "Seleziona modalità di interazione",
+	"selectApiConfig": "Seleziona la configurazione API",
 	"enhancePrompt": "Migliora prompt con contesto aggiuntivo",
 	"addImages": "Aggiungi immagini al messaggio",
 	"sendMessage": "Invia messaggio",
@@ -233,10 +234,9 @@
 		}
 	},
 	"systemPromptWarning": "ATTENZIONE: Sovrascrittura personalizzata delle istruzioni di sistema attiva. Questo può compromettere gravemente le funzionalità e causare comportamenti imprevedibili.",
-	"selectApiConfig": "Seleziona la configurazione API",
 	"shellIntegration": {
-		"title": "Integrazione Shell non disponibile",
-		"description": "Il tuo comando viene eseguito senza l'integrazione shell di VSCode. Puoi riattivare l'integrazione shell nella sezione <strong>Terminal</strong> delle <settingsLink>impostazioni di Roo Code</settingsLink>.",
+		"title": "Avviso di esecuzione comando",
+		"description": "Il tuo comando viene eseguito senza l'integrazione shell del terminale VSCode. Per sopprimere questo avviso puoi disattivare l'integrazione shell nella sezione <strong>Terminal</strong> delle <settingsLink>impostazioni di Roo Code</settingsLink> o risolvere i problemi di integrazione del terminale VSCode utilizzando il link qui sotto.",
 		"troubleshooting": "Clicca qui per la documentazione sull'integrazione shell."
 	}
 }

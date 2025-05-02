@@ -90,6 +90,7 @@
 		}
 	},
 	"selectMode": "Etkileşim modunu seçin",
+	"selectApiConfig": "API yapılandırmasını seçin",
 	"enhancePrompt": "Ek bağlamla istemi geliştir",
 	"addImages": "Mesaja resim ekle",
 	"sendMessage": "Mesaj gönder",
@@ -233,10 +234,9 @@
 		}
 	},
 	"systemPromptWarning": "UYARI: Özel sistem komut geçersiz kılma aktif. Bu işlevselliği ciddi şekilde bozabilir ve öngörülemeyen davranışlara neden olabilir.",
-	"selectApiConfig": "API yapılandırmasını seçin",
 	"shellIntegration": {
-		"title": "Kabuk Entegrasyonu Kullanılamıyor",
-		"description": "Komutunuz VSCode kabuk entegrasyonu olmadan çalıştırılıyor. <settingsLink>Roo Code ayarları</settingsLink>'nın <strong>Terminal</strong> bölümünden kabuk entegrasyonunu yeniden etkinleştirebilirsiniz.",
-		"troubleshooting": "Kabuk entegrasyonu belgeleri için buraya tıklayın."
+		"title": "Komut Çalıştırma Uyarısı",
+		"description": "Komutunuz VSCode terminal kabuk entegrasyonu olmadan çalıştırılıyor. Bu uyarıyı gizlemek için <settingsLink>Roo Code ayarları</settingsLink>'nın <strong>Terminal</strong> bölümünden kabuk entegrasyonunu devre dışı bırakabilir veya aşağıdaki bağlantıyı kullanarak VSCode terminal entegrasyonu sorunlarını giderebilirsiniz.",
+		"troubleshooting": "Kabuk entegrasyonu belgelerini görmek için buraya tıklayın."
 	}
 }

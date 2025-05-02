@@ -11,7 +11,7 @@ export const CommandExecutionError = () => {
 	}, [])
 
 	return (
-		<div className="text-sm rounded-xs p-2 border border-vscode-editorWarning-foreground">
+		<div className="text-sm bg-vscode-editor-background border border-vscode-border rounded-xs p-2">
 			<div className="flex flex-col gap-2">
 				<div className="flex items-center">
 					<i className="codicon codicon-warning mr-1 text-vscode-editorWarning-foreground" />

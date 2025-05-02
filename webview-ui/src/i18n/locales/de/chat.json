@@ -90,6 +90,7 @@
 		}
 	},
 	"selectMode": "Interaktionsmodus auswählen",
+	"selectApiConfig": "API-Konfiguration auswählen",
 	"enhancePrompt": "Prompt mit zusätzlichem Kontext verbessern",
 	"addImages": "Bilder zur Nachricht hinzufügen",
 	"sendMessage": "Nachricht senden",
@@ -233,10 +234,9 @@
 		}
 	},
 	"systemPromptWarning": "WARNUNG: Benutzerdefinierte Systemaufforderung aktiv. Dies kann die Funktionalität erheblich beeinträchtigen und zu unvorhersehbarem Verhalten führen.",
-	"selectApiConfig": "API-Konfiguration auswählen",
 	"shellIntegration": {
-		"title": "Shell-Integration nicht verfügbar",
-		"description": "Dein Befehl wird ohne VSCode-Shell-Integration ausgeführt. Du kannst die Shell-Integration im Bereich <strong>Terminal</strong> in den <settingsLink>Roo Code Einstellungen</settingsLink> wieder aktivieren.",
-		"troubleshooting": "Klicke hier für die Shell-Integrations-Dokumentation."
+		"title": "Befehlsausführungswarnung",
+		"description": "Dein Befehl wird ohne VSCode Terminal-Shell-Integration ausgeführt. Um diese Warnung zu unterdrücken, kannst du die Shell-Integration im Abschnitt <strong>Terminal</strong> der <settingsLink>Roo Code Einstellungen</settingsLink> deaktivieren oder die VSCode Terminal-Integration mit dem Link unten beheben.",
+		"troubleshooting": "Klicke hier für die Shell-Integrationsdokumentation."
 	}
 }

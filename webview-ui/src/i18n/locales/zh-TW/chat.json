@@ -90,6 +90,7 @@
 		}
 	},
 	"selectMode": "選擇互動模式",
+	"selectApiConfig": "選取 API 設定",
 	"enhancePrompt": "使用額外內容增強提示",
 	"addImages": "新增圖片到訊息中",
 	"sendMessage": "傳送訊息",
@@ -233,10 +234,9 @@
 		}
 	},
 	"systemPromptWarning": "警告：自訂系統提示詞覆蓋已啟用。這可能嚴重破壞功能並導致不可預測的行為。",
-	"selectApiConfig": "選取 API 設定",
 	"shellIntegration": {
-		"title": "Shell 整合不可用",
-		"description": "您的命令正在沒有 VSCode shell 整合的情況下執行。您可以在 <settingsLink>Roo Code 設定</settingsLink> 的 <strong>終端機</strong> 部分重新啟用 shell 整合。",
+		"title": "命令執行警告",
+		"description": "您的命令正在沒有 VSCode 終端機 shell 整合的情況下執行。要隱藏此警告，您可以在 <settingsLink>Roo Code 設定</settingsLink>的 <strong>Terminal</strong> 部分停用 shell 整合，或使用下方連結排查 VSCode 終端機整合問題。",
 		"troubleshooting": "點擊此處查看 shell 整合文件。"
 	}
 }

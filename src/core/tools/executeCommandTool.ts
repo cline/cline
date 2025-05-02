@@ -79,7 +79,6 @@ export async function executeCommandTool(
 			} catch (error: unknown) {
 				const status: CommandExecutionStatus = { executionId, status: "fallback" }
 				clineProvider?.postMessageToWebview({ type: "commandExecutionStatus", text: JSON.stringify(status) })
-				clineProvider?.setValue("terminalShellIntegrationDisabled", true)
 				await cline.say("shell_integration_warning")
 
 				if (error instanceof ShellIntegrationError) {

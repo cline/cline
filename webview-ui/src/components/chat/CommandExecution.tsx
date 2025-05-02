@@ -87,7 +87,7 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 	}, [status, text])
 
 	return (
-		<div className="w-full p-2 rounded-xs bg-vscode-editor-background">
+		<div className="w-full bg-vscode-editor-background border border-vscode-border rounded-xs p-2">
 			<div className="flex flex-row items-center justify-between gap-2 px-1">
 				<Line className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">{command}</Line>
 				<div className="flex flex-row items-center gap-1">
