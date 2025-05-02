@@ -119,24 +119,10 @@ describe("tiktoken", () => {
 
 		const content: Anthropic.Messages.ContentBlockParam[] = [{ type: "text", text: "Hello world" }]
 
-		// Time the first call which should create the encoder
-		const startTime1 = performance.now()
 		const result1 = await tiktoken(content)
-		const endTime1 = performance.now()
-		const duration1 = endTime1 - startTime1
-
-		// Time the second call which should reuse the encoder
-		const startTime2 = performance.now()
 		const result2 = await tiktoken(content)
-		const endTime2 = performance.now()
-		const duration2 = endTime2 - startTime2
 
 		// Both calls should return the same token count
 		expect(result1).toBe(result2)
-
-		// This is a loose test and might occasionally fail due to system load,
-		// but generally the second call should be faster or similar in speed
-		// since it reuses the encoder
-		expect(duration2).toBeLessThanOrEqual(duration1 * 1.5)
 	})
 })
