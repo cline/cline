@@ -26,6 +26,7 @@
 		"fzf": "^0.5.2",
 		"katex": "^0.16.22",
 		"mermaid": "^11.4.1",
+		"package.json": "^2.0.1",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",
@@ -66,10 +67,16 @@
 		"eslint-plugin-react-refresh": "^0.4.16",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
-		"tailwindcss": "^4.1.4",
+		"tailwindcss": "^4.1.5",
 		"typescript": "^5.7.3",
 		"typescript-eslint": "^8.18.2",
 		"vite": "^6.3.4",
 		"vitest": "^3.0.5"
+	},
+	"optionalDependencies": {
+		"@rollup/rollup-linux-x64-gnu": "^4.40.0",
+		"@swc/core-linux-x64-gnu": "^1.11.0",
+		"@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
+		"lightningcss-linux-x64-gnu": "^1.29.1"
 	}
 }
