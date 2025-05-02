@@ -1,7 +1,10 @@
 const tsConfigPaths = require("tsconfig-paths")
 const fs = require("fs")
+const path = require("path")
 
-const tsConfig = JSON.parse(fs.readFileSync("./tsconfig.json", "utf-8"))
+const baseUrl = path.resolve(__dirname)
+
+const tsConfig = JSON.parse(fs.readFileSync(path.join(baseUrl, "tsconfig.json"), "utf-8"))
 
 /**
  * The aliases point towards the `src` directory.
@@ -17,6 +20,6 @@ Object.keys(tsConfig.compilerOptions.paths).forEach((key) => {
 })
 
 tsConfigPaths.register({
-	baseUrl: ".",
+	baseUrl: baseUrl,
 	paths: outPaths,
 })
