@@ -300,16 +300,11 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			},
 		],
 		rehypePlugins: [
-			[
-				rehypeKatex,
-				{
-					throwOnError: false,
-				},
-			],
 			rehypeHighlight as any,
 			{
 				// languages: {},
 			} as Options,
+			rehypeKatex,
 		],
 		rehypeReactOptions: {
 			components: {
@@ -335,16 +330,12 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 					return <code {...props} />
 				},
 			},
+
 		},
 	})
 
 	useEffect(() => {
-		try {
-			// Process markdown
-			setMarkdown(markdown || "")
-		} catch (err) {
-			console.error("Error processing markdown:", err)
-		}
+		setMarkdown(markdown || "")
 	}, [markdown, setMarkdown, theme])
 
 	return (

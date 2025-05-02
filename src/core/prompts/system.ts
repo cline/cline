@@ -573,14 +573,7 @@ CAPABILITIES
 		: ""
 }
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.
-- You can use LaTeX syntax in your responses to render mathematical expressions:
-  - Use single dollar signs for inline math: $E = mc^2$
-  - For block equations, use double dollar signs: $$\nabla \cdot \vec{E} = \frac{\rho}{\varepsilon_0}$$
-  - For multiple equations, use separate $$ blocks for each equation rather than using aligned environments
-  - For piecewise functions, use the cases environment with simple formatting
-  - Prefer simpler LaTeX constructs that are more widely supported, avoid complex LaTeX environments like \begin{aligned}, \begin{matrix}, etc. as they may not render correctly
-  - Break complex formulas into smaller parts when possible
-  - Ensure all brackets, parentheses, and braces are properly paired
+- You can use LaTeX syntax in your responses to render mathematical expressions
 
 ====
 
