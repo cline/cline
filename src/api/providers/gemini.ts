@@ -139,11 +139,10 @@ export class GeminiHandler implements ApiHandler {
 			const shouldUpdateCache = !existingCacheName || (cacheEntry && uncachedContent && uncachedContent.length > 0)
 
 			if (shouldUpdateCache) {
-				// Use the updateCacheContent method to handle cache creation/update and cleanup
-				cacheWrite = await this.updateCacheContent(taskId, model, contents, systemPrompt)
+				// If we should update the cache, then there will be a cache write
+				cacheWrite = true
 			}
 		}
-
 		const isCacheUsed = !!cachedContent
 
 		// Configure thinking budget if supported
@@ -179,6 +178,12 @@ export class GeminiHandler implements ApiHandler {
 			},
 		})
 
+		// Update the cache after the LLM request is already sent to avoid blocking
+		// We only update the cache if we have a taskId and the cache write flag is set
+		// This is a non-blocking operation and will not affect the response time
+		if (cacheWrite && taskId) {
+			this.updateCacheContent(taskId, model, contents, systemPrompt)
+		}
 		// Track usage metadata
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 
@@ -268,36 +273,6 @@ export class GeminiHandler implements ApiHandler {
 	}
 
 	/**
-	 * Deletes a cache for a specific task.
-	 *
-	 * According to the Gemini API documentation, you can manually remove content from the cache
-	 * using the caches.delete() method. This is useful for cleaning up caches that are no longer needed.
-	 *
-	 * @param taskId The ID of the task whose cache should be deleted
-	 * @returns A promise that resolves when the deletion is complete
-	 */
-	public async deleteCache(taskId: string): Promise<void> {
-		const cacheName = this.taskCacheNames.get(taskId)
-		if (!cacheName) {
-			console.warn(`[GeminiHandler] No cache found for task ${taskId}, nothing to delete`)
-			return
-		}
-
-		try {
-			await this.client.caches.delete({ name: cacheName })
-
-			// Clean up local cache references
-			this.contentCaches.del(taskId)
-			this.taskCacheNames.delete(taskId)
-			this.taskCacheTokens.delete(taskId)
-
-			console.log(`[GeminiHandler] Deleted cache ${cacheName} for task ${taskId}`)
-		} catch (error) {
-			console.error(`[GeminiHandler] Failed to delete cache ${cacheName}:`, error)
-		}
-	}
-
-	/**
 	 * Updates the content of a cache for a specific task.
 	 *
 	 * Since the Gemini API doesn't support incremental updates to cache content,
@@ -310,17 +285,16 @@ export class GeminiHandler implements ApiHandler {
 	 * @param model The model to use for the cache
 	 * @param contents The full content to cache (including both old and new messages)
 	 * @param systemInstruction The system instruction to include in the cache
-	 * @returns A promise that resolves to true if a cache write occurred, false otherwise
 	 */
 	private async updateCacheContent(
 		taskId: string,
 		model: string,
 		contents: Content[],
 		systemInstruction: string,
-	): Promise<boolean> {
+	): Promise<void> {
 		if (this.isCacheBusy) {
 			console.log(`[GeminiHandler] Cache is busy, skipping update for task ${taskId}`)
-			return false
+			return
 		}
 
 		this.isCacheBusy = true
@@ -356,7 +330,7 @@ export class GeminiHandler implements ApiHandler {
 								console.error(`[GeminiHandler] Failed to delete old cache ${existingCacheName}:`, error)
 								console.log(`[GeminiHandler] Continuing without deleting old cache. It will expire after TTL.`)
 							})
-					}, 100)
+					}, 1000)
 				}
 
 				// 3. Update our local tracking
@@ -375,13 +349,13 @@ export class GeminiHandler implements ApiHandler {
 					`[GeminiHandler] ${operation} cache for task ${taskId}: ${contents.length} messages (${totalTokens} tokens) in ${Date.now() - timestamp}ms`,
 				)
 
-				return true // Indicate that a cache write occurred
+				return // Indicate that a cache write occurred
 			}
 
-			return false // No cache write occurred
+			return
 		} catch (error) {
 			console.error(`[GeminiHandler] Failed to update cache for task ${taskId}:`, error)
-			return false
+			return
 		} finally {
 			this.isCacheBusy = false
 		}
@@ -481,6 +455,8 @@ export class GeminiHandler implements ApiHandler {
 		let inputPrice = info.inputPrice
 		let outputPrice = info.outputPrice
 		let cacheWritesPrice = info.cacheWritesPrice ?? 0
+		// Right now, we only show the immediate costs of caching and not the ongoing costs of storing the cache
+		cacheWritesPrice = 0
 		let cacheReadsPrice = info.cacheReadsPrice ?? 0
 
 		// If there's tiered pricing then adjust prices based on the input tokens used
