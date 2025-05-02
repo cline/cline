@@ -10,6 +10,17 @@ import { Empty, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
+/** Request to convert a list of URIs to relative paths */
+export interface RelativePathsRequest {
+	metadata?: Metadata | undefined
+	uris: string[]
+}
+
+/** Response containing the converted relative paths */
+export interface RelativePaths {
+	paths: string[]
+}
+
 /** Response for searchCommits */
 export interface GitCommits {
 	commits: GitCommit[]
@@ -43,6 +54,141 @@ export interface RuleFile {
 	displayName: string
 	/** For createRuleFile, indicates if file already existed */
 	alreadyExists: boolean
+}
+
+function createBaseRelativePathsRequest(): RelativePathsRequest {
+	return { metadata: undefined, uris: [] }
+}
+
+export const RelativePathsRequest: MessageFns<RelativePathsRequest> = {
+	encode(message: RelativePathsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		for (const v of message.uris) {
+			writer.uint32(18).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): RelativePathsRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseRelativePathsRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.uris.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): RelativePathsRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			uris: globalThis.Array.isArray(object?.uris) ? object.uris.map((e: any) => globalThis.String(e)) : [],
+		}
+	},
+
+	toJSON(message: RelativePathsRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.uris?.length) {
+			obj.uris = message.uris
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<RelativePathsRequest>, I>>(base?: I): RelativePathsRequest {
+		return RelativePathsRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<RelativePathsRequest>, I>>(object: I): RelativePathsRequest {
+		const message = createBaseRelativePathsRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.uris = object.uris?.map((e) => e) || []
+		return message
+	},
+}
+
+function createBaseRelativePaths(): RelativePaths {
+	return { paths: [] }
+}
+
+export const RelativePaths: MessageFns<RelativePaths> = {
+	encode(message: RelativePaths, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		for (const v of message.paths) {
+			writer.uint32(10).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): RelativePaths {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseRelativePaths()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.paths.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): RelativePaths {
+		return { paths: globalThis.Array.isArray(object?.paths) ? object.paths.map((e: any) => globalThis.String(e)) : [] }
+	},
+
+	toJSON(message: RelativePaths): unknown {
+		const obj: any = {}
+		if (message.paths?.length) {
+			obj.paths = message.paths
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<RelativePaths>, I>>(base?: I): RelativePaths {
+		return RelativePaths.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<RelativePaths>, I>>(object: I): RelativePaths {
+		const message = createBaseRelativePaths()
+		message.paths = object.paths?.map((e) => e) || []
+		return message
+	},
 }
 
 function createBaseGitCommits(): GitCommits {
@@ -478,6 +624,15 @@ export const FileServiceDefinition = {
 			requestType: StringRequest,
 			requestStream: false,
 			responseType: GitCommits,
+			responseStream: false,
+			options: {},
+		},
+		/** Convert URIs to workspace-relative paths */
+		getRelativePaths: {
+			name: "getRelativePaths",
+			requestType: RelativePathsRequest,
+			requestStream: false,
+			responseType: RelativePaths,
 			responseStream: false,
 			options: {},
 		},

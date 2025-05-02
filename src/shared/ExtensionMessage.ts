@@ -44,11 +44,9 @@ export interface ExtensionMessage {
 		| "browserConnectionResult"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
-		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"
