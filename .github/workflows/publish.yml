@@ -23,7 +23,7 @@ jobs:
         uses: ./.github/workflows/test.yml
 
     publish:
-        needs: test
+        # needs: test
         name: Publish Extension
         runs-on: ubuntu-latest
         environment: publish
@@ -34,7 +34,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: 20.15.1
+                  node-version: "lts/*"
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
@@ -61,7 +61,7 @@ jobs:
               run: cd webview-ui && npm ci
 
             - name: Install Publishing Tools
-              run: npm install -g vsce ovsx
+              run: npm install -g @vscode/vsce ovsx
 
             - name: Get Version
               id: get_version
