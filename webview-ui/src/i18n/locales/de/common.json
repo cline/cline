@@ -6,5 +6,9 @@
 	},
 	"ui": {
 		"search_placeholder": "Suchen..."
+	},
+	"mermaid": {
+		"loading": "Mermaid-Diagramm wird generiert...",
+		"render_error": "Diagramm kann nicht gerendert werden"
 	}
 }

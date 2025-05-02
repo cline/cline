@@ -6,5 +6,9 @@
 	},
 	"ui": {
 		"search_placeholder": "검색..."
+	},
+	"mermaid": {
+		"loading": "머메이드 다이어그램 생성 중...",
+		"render_error": "다이어그램을 렌더링할 수 없음"
 	}
 }

@@ -6,5 +6,9 @@
 	},
 	"ui": {
 		"search_placeholder": "検索..."
+	},
+	"mermaid": {
+		"loading": "Mermaidダイアグラムを生成中...",
+		"render_error": "ダイアグラムをレンダリングできません"
 	}
 }

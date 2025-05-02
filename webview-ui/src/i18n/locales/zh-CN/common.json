@@ -6,5 +6,9 @@
 	},
 	"ui": {
 		"search_placeholder": "搜索..."
+	},
+	"mermaid": {
+		"loading": "生成 Mermaid 图表中...",
+		"render_error": "无法渲染图表"
 	}
 }

@@ -6,5 +6,9 @@
 	},
 	"ui": {
 		"search_placeholder": "Tìm kiếm..."
+	},
+	"mermaid": {
+		"loading": "Đang tạo biểu đồ mermaid...",
+		"render_error": "Không thể hiển thị biểu đồ"
 	}
 }
