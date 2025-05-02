@@ -134,14 +134,14 @@ export class Controller {
 		await updateGlobalState(this.context, "userInfo", info)
 	}
 
-	async initTask(task?: string, images?: string[], historyItem?: HistoryItem) {
+	async initTask(task?: string, images?: string[], historyItem?: HistoryItem, overrideChatSettings?: ChatSettings) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
 			apiConfiguration,
 			customInstructions,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			chatSettings: extensionChatSettings,
 			shellIntegrationTimeout,
 		} = await getAllExtensionState(this.context)
 
@@ -164,7 +164,7 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			overrideChatSettings || extensionChatSettings,
 			shellIntegrationTimeout,
 			customInstructions,
 			task,
@@ -176,7 +176,7 @@ export class Controller {
 	async reinitExistingTaskFromId(taskId: string) {
 		const history = await this.getTaskWithId(taskId)
 		if (history) {
-			await this.initTask(undefined, undefined, history.historyItem)
+			await this.initTask(undefined, undefined, history.historyItem, undefined)
 		}
 	}
 
@@ -267,7 +267,7 @@ export class Controller {
 				// Could also do this in extension .ts
 				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
 				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images)
+				await this.initTask(message.text, message.images, undefined, undefined)
 				break
 			case "condense":
 				this.task?.handleWebviewAskResponse("yesButtonClicked")
@@ -918,6 +918,7 @@ export class Controller {
 	async cancelTask() {
 		if (this.task) {
 			const { historyItem } = await this.getTaskWithId(this.task.taskId)
+			const currentChatSettings = this.task.chatSettings
 			try {
 				await this.task.abortTask()
 			} catch (error) {
@@ -939,7 +940,7 @@ export class Controller {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.abandoned = true
 			}
-			await this.initTask(undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
+			await this.initTask(undefined, undefined, historyItem, currentChatSettings) // Pass current chat settings to new task
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
 	}
@@ -1203,7 +1204,7 @@ export class Controller {
 Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
 			// Initialize task and show chat view
-			await this.initTask(task)
+			await this.initTask(task, undefined, undefined, undefined)
 			await this.postMessageToWebview({
 				type: "action",
 				action: "chatButtonClicked",
@@ -1543,7 +1544,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		const fileMention = this.getFileMentionFromPath(filePath)
 		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
-		await this.initTask(`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`)
+		await this.initTask(
+			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`,
+			undefined,
+			undefined,
+			undefined,
+		)
 
 		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
 	}
@@ -1619,7 +1625,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		if (id !== this.task?.taskId) {
 			// non-current task
 			const { historyItem } = await this.getTaskWithId(id)
-			await this.initTask(undefined, undefined, historyItem) // clears existing task
+			await this.initTask(undefined, undefined, historyItem, undefined) // clears existing task
 		}
 		await this.postMessageToWebview({
 			type: "action",
