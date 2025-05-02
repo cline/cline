@@ -10,6 +10,7 @@ import { handleFileServiceRequest, handleFileServiceStreamingRequest } from "./f
 import { handleMcpServiceRequest, handleMcpServiceStreamingRequest } from "./mcp/index"
 import { handleStateServiceRequest, handleStateServiceStreamingRequest } from "./state/index"
 import { handleTaskServiceRequest, handleTaskServiceStreamingRequest } from "./task/index"
+import { handleWebServiceRequest, handleWebServiceStreamingRequest } from "./web/index"
 
 /**
  * Configuration for a service handler
@@ -55,5 +56,9 @@ export const serviceHandlers: Record<string, ServiceHandlerConfig> = {
 	"cline.TaskService": {
 		requestHandler: handleTaskServiceRequest,
 		streamingHandler: handleTaskServiceStreamingRequest,
+	},
+	"cline.WebService": {
+		requestHandler: handleWebServiceRequest,
+		streamingHandler: handleWebServiceStreamingRequest,
 	},
 }

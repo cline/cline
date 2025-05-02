@@ -4,7 +4,7 @@ package cline;
 import "common.proto";
 
 service StateService {
-  rpc getLatestState(EmptyRequest) returns (Empty);
+  rpc getLatestState(EmptyRequest) returns (State);
   rpc subscribeToState(EmptyRequest) returns (stream State);
 }
 

@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest } from "./common"
+import { EmptyRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -81,7 +81,7 @@ export const StateServiceDefinition = {
 			name: "getLatestState",
 			requestType: EmptyRequest,
 			requestStream: false,
-			responseType: Empty,
+			responseType: State,
 			responseStream: false,
 			options: {},
 		},

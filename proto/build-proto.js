@@ -27,6 +27,7 @@ const serviceNameMap = {
 	mcp: "cline.McpService",
 	state: "cline.StateService",
 	task: "cline.TaskService",
+	web: "cline.WebService",
 	// Add new services here - no other code changes needed!
 }
 const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
@@ -103,7 +104,7 @@ async function generateGrpcClientConfig() {
 
 		// Add client creation
 		serviceClientCreations.push(
-			`const ${capitalizedName}ServiceClient = createGrpcClient(${capitalizedName}ServiceDefinition)`,
+			`const ${capitalizedName}ServiceClient = createGrpcClient(${capitalizedName}ServiceDefinition)`
 		)
 
 		// Add to exports
@@ -156,7 +157,7 @@ async function parseProtoForStreamingMethods(protoFiles, scriptDir) {
 
 			// Extract method definitions with streaming
 			const methodMatches = Array.from(
-				serviceBody.matchAll(/rpc\s+(\w+)\s*\(\s*(stream\s+)?(\w+)\s*\)\s*returns\s*\(\s*(stream\s+)?(\w+)\s*\)/g),
+				serviceBody.matchAll(/rpc\s+(\w+)\s*\(\s*(stream\s+)?(\w+)\s*\)\s*returns\s*\(\s*(stream\s+)?(\w+)\s*\)/g)
 			)
 
 			const streamingMethods = []
@@ -235,7 +236,7 @@ import { registerMethod } from "./index"\n`
 export const streamingMethods = ${JSON.stringify(
 				streamingMethods.map((m) => m.name),
 				null,
-				2,
+				2
 			)}\n`
 		}
 
@@ -310,7 +311,7 @@ async function generateServiceConfig() {
 	for (const [dirName, fullServiceName] of Object.entries(serviceNameMap)) {
 		const capitalizedName = dirName.charAt(0).toUpperCase() + dirName.slice(1)
 		serviceImports.push(
-			`import { handle${capitalizedName}ServiceRequest, handle${capitalizedName}ServiceStreamingRequest } from "./${dirName}/index"`,
+			`import { handle${capitalizedName}ServiceRequest, handle${capitalizedName}ServiceStreamingRequest } from "./${dirName}/index"`
 		)
 		serviceConfigs.push(`
   "${fullServiceName}": {

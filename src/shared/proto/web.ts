@@ -2,7 +2,7 @@
 // versions:
 //   protoc-gen-ts_proto  v2.7.0
 //   protoc               v3.19.1
-// source: web_content.proto
+// source: web.proto
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
@@ -91,10 +91,10 @@ export const IsImageUrl: MessageFns<IsImageUrl> = {
 	},
 }
 
-export type WebContentServiceDefinition = typeof WebContentServiceDefinition
-export const WebContentServiceDefinition = {
-	name: "WebContentService",
-	fullName: "cline.WebContentService",
+export type WebServiceDefinition = typeof WebServiceDefinition
+export const WebServiceDefinition = {
+	name: "WebService",
+	fullName: "cline.WebService",
 	methods: {
 		checkIsImageUrl: {
 			name: "checkIsImageUrl",
