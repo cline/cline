@@ -310,7 +310,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 				const openAiModels = await getOpenAiModels(
 					message?.values?.baseUrl,
 					message?.values?.apiKey,
-					message?.values?.hostHeader,
+					message?.values?.openAiHeaders,
 				)
 
 				provider.postMessageToWebview({ type: "openAiModels", openAiModels })

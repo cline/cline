@@ -4,7 +4,9 @@
 		"done": "完了",
 		"cancel": "キャンセル",
 		"reset": "リセット",
-		"select": "選択"
+		"select": "選択",
+		"add": "ヘッダーを追加",
+		"remove": "削除"
 	},
 	"header": {
 		"title": "設定",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "カスタムベースURLを使用",
 		"useHostHeader": "カスタムHostヘッダーを使用",
 		"useLegacyFormat": "レガシーOpenAI API形式を使用",
+		"customHeaders": "カスタムヘッダー",
+		"headerName": "ヘッダー名",
+		"headerValue": "ヘッダー値",
+		"noCustomHeaders": "カスタムヘッダーが定義されていません。+ ボタンをクリックして追加してください。",
 		"requestyApiKey": "Requesty APIキー",
 		"getRequestyApiKey": "Requesty APIキーを取得",
 		"openRouterTransformsText": "プロンプトとメッセージチェーンをコンテキストサイズに圧縮 (<a>OpenRouter Transforms</a>)",

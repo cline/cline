@@ -4,7 +4,9 @@
 		"done": "完成",
 		"cancel": "取消",
 		"reset": "恢复默认设置",
-		"select": "选择"
+		"select": "选择",
+		"add": "添加标头",
+		"remove": "移除"
 	},
 	"header": {
 		"title": "设置",
@@ -109,6 +111,10 @@
 		"useCustomBaseUrl": "使用自定义基础 URL",
 		"useHostHeader": "使用自定义 Host 标头",
 		"useLegacyFormat": "使用传统 OpenAI API 格式",
+		"customHeaders": "自定义标头",
+		"headerName": "标头名称",
+		"headerValue": "标头值",
+		"noCustomHeaders": "暂无自定义标头。点击 + 按钮添加。",
 		"glamaApiKey": "Glama API 密钥",
 		"getGlamaApiKey": "获取 Glama API 密钥",
 		"requestyApiKey": "Requesty API 密钥",

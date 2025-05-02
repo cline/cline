@@ -4,7 +4,9 @@
 		"done": "Hecho",
 		"cancel": "Cancelar",
 		"reset": "Restablecer",
-		"select": "Seleccionar"
+		"select": "Seleccionar",
+		"add": "Añadir encabezado",
+		"remove": "Eliminar"
 	},
 	"header": {
 		"title": "Configuración",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "Usar URL base personalizada",
 		"useHostHeader": "Usar encabezado Host personalizado",
 		"useLegacyFormat": "Usar formato API de OpenAI heredado",
+		"customHeaders": "Encabezados personalizados",
+		"headerName": "Nombre del encabezado",
+		"headerValue": "Valor del encabezado",
+		"noCustomHeaders": "No hay encabezados personalizados definidos. Haga clic en el botón + para añadir uno.",
 		"requestyApiKey": "Clave API de Requesty",
 		"getRequestyApiKey": "Obtener clave API de Requesty",
 		"openRouterTransformsText": "Comprimir prompts y cadenas de mensajes al tamaño del contexto (<a>Transformaciones de OpenRouter</a>)",

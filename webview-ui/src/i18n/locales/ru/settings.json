@@ -4,7 +4,9 @@
 		"done": "Готово",
 		"cancel": "Отмена",
 		"reset": "Сбросить",
-		"select": "Выбрать"
+		"select": "Выбрать",
+		"add": "Добавить заголовок",
+		"remove": "Удалить"
 	},
 	"header": {
 		"title": "Настройки",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "Использовать пользовательский базовый URL",
 		"useHostHeader": "Использовать пользовательский Host-заголовок",
 		"useLegacyFormat": "Использовать устаревший формат OpenAI API",
+		"customHeaders": "Пользовательские заголовки",
+		"headerName": "Имя заголовка",
+		"headerValue": "Значение заголовка",
+		"noCustomHeaders": "Пользовательские заголовки не определены. Нажмите кнопку +, чтобы добавить.",
 		"requestyApiKey": "Requesty API-ключ",
 		"getRequestyApiKey": "Получить Requesty API-ключ",
 		"openRouterTransformsText": "Сжимать подсказки и цепочки сообщений до размера контекста (<a>OpenRouter Transforms</a>)",

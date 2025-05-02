@@ -4,7 +4,9 @@
 		"done": "Fertig",
 		"cancel": "Abbrechen",
 		"reset": "Zurücksetzen",
-		"select": "Auswählen"
+		"select": "Auswählen",
+		"add": "Header hinzufügen",
+		"remove": "Entfernen"
 	},
 	"header": {
 		"title": "Einstellungen",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "Benutzerdefinierte Basis-URL verwenden",
 		"useHostHeader": "Benutzerdefinierten Host-Header verwenden",
 		"useLegacyFormat": "Altes OpenAI API-Format verwenden",
+		"customHeaders": "Benutzerdefinierte Headers",
+		"headerName": "Header-Name",
+		"headerValue": "Header-Wert",
+		"noCustomHeaders": "Keine benutzerdefinierten Headers definiert. Klicke auf die + Schaltfläche, um einen hinzuzufügen.",
 		"requestyApiKey": "Requesty API-Schlüssel",
 		"getRequestyApiKey": "Requesty API-Schlüssel erhalten",
 		"openRouterTransformsText": "Prompts und Nachrichtenketten auf Kontextgröße komprimieren (<a>OpenRouter Transformationen</a>)",

@@ -56,6 +56,7 @@ describe("ProviderSettingsManager", () => {
 					migrations: {
 						rateLimitSecondsMigrated: true,
 						diffSettingsMigrated: true,
+						openAiHeadersMigrated: true,
 					},
 				}),
 			)

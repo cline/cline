@@ -4,7 +4,9 @@
 		"done": "Gotowe",
 		"cancel": "Anuluj",
 		"reset": "Resetuj",
-		"select": "Wybierz"
+		"select": "Wybierz",
+		"add": "Dodaj nagłówek",
+		"remove": "Usuń"
 	},
 	"header": {
 		"title": "Ustawienia",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "Użyj niestandardowego URL bazowego",
 		"useHostHeader": "Użyj niestandardowego nagłówka Host",
 		"useLegacyFormat": "Użyj starszego formatu API OpenAI",
+		"customHeaders": "Niestandardowe nagłówki",
+		"headerName": "Nazwa nagłówka",
+		"headerValue": "Wartość nagłówka",
+		"noCustomHeaders": "Brak zdefiniowanych niestandardowych nagłówków. Kliknij przycisk +, aby dodać.",
 		"requestyApiKey": "Klucz API Requesty",
 		"getRequestyApiKey": "Uzyskaj klucz API Requesty",
 		"openRouterTransformsText": "Kompresuj podpowiedzi i łańcuchy wiadomości do rozmiaru kontekstu (<a>Transformacje OpenRouter</a>)",

@@ -4,7 +4,9 @@
 		"done": "完成",
 		"cancel": "取消",
 		"reset": "重設",
-		"select": "選擇"
+		"select": "選擇",
+		"add": "新增標頭",
+		"remove": "移除"
 	},
 	"header": {
 		"title": "設定",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "使用自訂基礎 URL",
 		"useHostHeader": "使用自訂 Host 標頭",
 		"useLegacyFormat": "使用舊版 OpenAI API 格式",
+		"customHeaders": "自訂標頭",
+		"headerName": "標頭名稱",
+		"headerValue": "標頭值",
+		"noCustomHeaders": "尚未定義自訂標頭。點擊 + 按鈕以新增。",
 		"requestyApiKey": "Requesty API 金鑰",
 		"getRequestyApiKey": "取得 Requesty API 金鑰",
 		"openRouterTransformsText": "將提示和訊息鏈壓縮到上下文大小 (<a>OpenRouter 轉換</a>)",

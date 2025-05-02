@@ -4,7 +4,9 @@
 		"done": "Fatto",
 		"cancel": "Annulla",
 		"reset": "Ripristina",
-		"select": "Seleziona"
+		"select": "Seleziona",
+		"add": "Aggiungi intestazione",
+		"remove": "Rimuovi"
 	},
 	"header": {
 		"title": "Impostazioni",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "Usa URL base personalizzato",
 		"useHostHeader": "Usa intestazione Host personalizzata",
 		"useLegacyFormat": "Usa formato API OpenAI legacy",
+		"customHeaders": "Intestazioni personalizzate",
+		"headerName": "Nome intestazione",
+		"headerValue": "Valore intestazione",
+		"noCustomHeaders": "Nessuna intestazione personalizzata definita. Fai clic sul pulsante + per aggiungerne una.",
 		"requestyApiKey": "Chiave API Requesty",
 		"getRequestyApiKey": "Ottieni chiave API Requesty",
 		"openRouterTransformsText": "Comprimi prompt e catene di messaggi alla dimensione del contesto (<a>Trasformazioni OpenRouter</a>)",

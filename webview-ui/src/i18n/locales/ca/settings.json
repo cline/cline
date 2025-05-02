@@ -4,7 +4,9 @@
 		"done": "Fet",
 		"cancel": "Cancel·lar",
 		"reset": "Restablir",
-		"select": "Seleccionar"
+		"select": "Seleccionar",
+		"add": "Afegir capçalera",
+		"remove": "Eliminar"
 	},
 	"header": {
 		"title": "Configuració",
@@ -107,6 +109,10 @@
 		"useCustomBaseUrl": "Utilitzar URL base personalitzada",
 		"useHostHeader": "Utilitzar capçalera Host personalitzada",
 		"useLegacyFormat": "Utilitzar el format d'API OpenAI antic",
+		"customHeaders": "Capçaleres personalitzades",
+		"headerName": "Nom de la capçalera",
+		"headerValue": "Valor de la capçalera",
+		"noCustomHeaders": "No hi ha capçaleres personalitzades definides. Feu clic al botó + per afegir-ne una.",
 		"openRouterTransformsText": "Comprimir prompts i cadenes de missatges a la mida del context (<a>Transformacions d'OpenRouter</a>)",
 		"model": "Model",
 		"getOpenRouterApiKey": "Obtenir clau API d'OpenRouter",

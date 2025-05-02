@@ -4,7 +4,9 @@
 		"done": "Terminé",
 		"cancel": "Annuler",
 		"reset": "Réinitialiser",
-		"select": "Sélectionner"
+		"select": "Sélectionner",
+		"add": "Ajouter un en-tête",
+		"remove": "Supprimer"
 	},
 	"header": {
 		"title": "Paramètres",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "Utiliser une URL de base personnalisée",
 		"useHostHeader": "Utiliser un en-tête Host personnalisé",
 		"useLegacyFormat": "Utiliser le format API OpenAI hérité",
+		"customHeaders": "En-têtes personnalisés",
+		"headerName": "Nom de l'en-tête",
+		"headerValue": "Valeur de l'en-tête",
+		"noCustomHeaders": "Aucun en-tête personnalisé défini. Cliquez sur le bouton + pour en ajouter un.",
 		"requestyApiKey": "Clé API Requesty",
 		"getRequestyApiKey": "Obtenir la clé API Requesty",
 		"openRouterTransformsText": "Compresser les prompts et chaînes de messages à la taille du contexte (<a>Transformations OpenRouter</a>)",

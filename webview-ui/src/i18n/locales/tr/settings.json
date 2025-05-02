@@ -4,7 +4,9 @@
 		"done": "Tamamlandı",
 		"cancel": "İptal",
 		"reset": "Sıfırla",
-		"select": "Seç"
+		"select": "Seç",
+		"add": "Başlık Ekle",
+		"remove": "Kaldır"
 	},
 	"header": {
 		"title": "Ayarlar",
@@ -111,6 +113,10 @@
 		"useCustomBaseUrl": "Özel temel URL kullan",
 		"useHostHeader": "Özel Host başlığı kullan",
 		"useLegacyFormat": "Eski OpenAI API formatını kullan",
+		"customHeaders": "Özel Başlıklar",
+		"headerName": "Başlık adı",
+		"headerValue": "Başlık değeri",
+		"noCustomHeaders": "Tanımlanmış özel başlık yok. Eklemek için + düğmesine tıklayın.",
 		"requestyApiKey": "Requesty API Anahtarı",
 		"getRequestyApiKey": "Requesty API Anahtarı Al",
 		"openRouterTransformsText": "İstem ve mesaj zincirlerini bağlam boyutuna sıkıştır (<a>OpenRouter Dönüşümleri</a>)",
