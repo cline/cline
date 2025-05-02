@@ -335,8 +335,8 @@ export class Controller {
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
 				break
-			case "deleteTaskWithId":
-				this.deleteTaskWithId(message.text!)
+			case "deleteTasksWithIds":
+				this.deleteTasksWithIds(message.text!)
 				break
 			case "exportTaskWithId":
 				this.exportTaskWithId(message.text!)
@@ -1710,6 +1710,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		}
 
 		this.refreshTotalTasksSize()
+	}
+
+	async deleteTasksWithIds(ids: string) {
+		for (const id of JSON.parse(ids) as string[]) {
+			await this.deleteTaskWithId(id)
+		}
 	}
 
 	async deleteTaskFromState(id: string) {
