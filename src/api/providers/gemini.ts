@@ -21,12 +21,13 @@ import type { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
 
 const CACHE_TTL = 5
-
+const CACHE_WRITE_FREQUENCY = 10
 const CONTEXT_CACHE_TOKEN_MINIMUM = 4096
 
 type CacheEntry = {
 	key: string
 	count: number
+	tokens?: number
 }
 
 type GeminiHandlerOptions = ApiHandlerOptions & {
@@ -96,7 +97,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			cacheKey &&
 			contentsLength > 4 * CONTEXT_CACHE_TOKEN_MINIMUM
 
-		let cacheWrite = false
+		let isCacheWriteQueued = false
 
 		if (isCacheAvailable) {
 			const cacheEntry = this.contentCaches.get<CacheEntry>(cacheKey)
@@ -104,43 +105,16 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			if (cacheEntry) {
 				uncachedContent = contents.slice(cacheEntry.count, contents.length)
 				cachedContent = cacheEntry.key
-				console.log(
-					`[GeminiHandler] using ${cacheEntry.count} cached messages (${cacheEntry.key}) and ${uncachedContent.length} uncached messages`,
-				)
+				// console.log(
+				// 	`[GeminiHandler] using cache entry ${cacheEntry.key} -> ${cacheEntry.count} messages, ${cacheEntry.tokens} tokens (+${uncachedContent.length} uncached messages)`,
+				// )
 			}
 
-			if (!this.isCacheBusy) {
-				this.isCacheBusy = true
-				const timestamp = Date.now()
-
-				this.client.caches
-					.create({
-						model,
-						config: {
-							contents,
-							systemInstruction,
-							ttl: `${CACHE_TTL * 60}s`,
-							httpOptions: { timeout: 120_000 },
-						},
-					})
-					.then((result) => {
-						const { name, usageMetadata } = result
-
-						if (name) {
-							this.contentCaches.set<CacheEntry>(cacheKey, { key: name, count: contents.length })
-							console.log(
-								`[GeminiHandler] cached ${contents.length} messages (${usageMetadata?.totalTokenCount ?? "-"} tokens) in ${Date.now() - timestamp}ms`,
-							)
-						}
-					})
-					.catch((error) => {
-						console.error(`[GeminiHandler] caches.create error`, error)
-					})
-					.finally(() => {
-						this.isCacheBusy = false
-					})
-
-				cacheWrite = true
+			// If `CACHE_WRITE_FREQUENCY` messages have been appended since the
+			// last cache write then write a new cache entry.
+			// TODO: Use a token count instead.
+			if (!cacheEntry || (uncachedContent && uncachedContent.length >= CACHE_WRITE_FREQUENCY)) {
+				isCacheWriteQueued = true
 			}
 		}
 
@@ -163,6 +137,10 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 
 		const result = await this.client.models.generateContentStream(params)
 
+		if (cacheKey && isCacheWriteQueued) {
+			this.writeCache({ cacheKey, model, systemInstruction, contents })
+		}
+
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 
 		for await (const chunk of result) {
@@ -178,7 +156,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		if (lastUsageMetadata) {
 			const inputTokens = lastUsageMetadata.promptTokenCount ?? 0
 			const outputTokens = lastUsageMetadata.candidatesTokenCount ?? 0
-			const cacheWriteTokens = cacheWrite ? inputTokens : undefined
+			const cacheWriteTokens = isCacheWriteQueued ? inputTokens : undefined
 			const cacheReadTokens = lastUsageMetadata.cachedContentTokenCount
 			const reasoningTokens = lastUsageMetadata.thoughtsTokenCount
 
@@ -337,5 +315,78 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		// console.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
 
 		return totalCost
+	}
+
+	private writeCache({
+		cacheKey,
+		model,
+		systemInstruction,
+		contents,
+	}: {
+		cacheKey: string
+		model: string
+		systemInstruction: string
+		contents: Content[]
+	}) {
+		// TODO: https://www.npmjs.com/package/p-queue
+		if (this.isCacheBusy) {
+			return
+		}
+
+		this.isCacheBusy = true
+		// const timestamp = Date.now()
+
+		const previousCacheEntry = this.contentCaches.get<CacheEntry>(cacheKey)
+
+		this.client.caches
+			.create({
+				model,
+				config: {
+					contents,
+					systemInstruction,
+					ttl: `${CACHE_TTL * 60}s`,
+					httpOptions: { timeout: 120_000 },
+				},
+			})
+			.then((result) => {
+				const { name, usageMetadata } = result
+
+				if (name) {
+					const newCacheEntry: CacheEntry = {
+						key: name,
+						count: contents.length,
+						tokens: usageMetadata?.totalTokenCount,
+					}
+
+					this.contentCaches.set<CacheEntry>(cacheKey, newCacheEntry)
+
+					// console.log(
+					// 	`[GeminiHandler] created cache entry ${newCacheEntry.key} -> ${newCacheEntry.count} messages, ${newCacheEntry.tokens} tokens (${Date.now() - timestamp}ms)`,
+					// )
+
+					if (previousCacheEntry) {
+						// const timestamp = Date.now()
+
+						this.client.caches
+							.delete({ name: previousCacheEntry.key })
+							.then(() => {
+								// console.log(
+								// 	`[GeminiHandler] deleted cache entry ${previousCacheEntry.key} -> ${previousCacheEntry.count} messages, ${previousCacheEntry.tokens} tokens (${Date.now() - timestamp}ms)`,
+								// )
+							})
+							.catch((error) => {
+								console.error(
+									`[GeminiHandler] failed to delete stale cache entry ${previousCacheEntry.key} -> ${error instanceof Error ? error.message : String(error)}`,
+								)
+							})
+					}
+				}
+			})
+			.catch((error) => {
+				console.error(`[GeminiHandler] caches.create error`, error)
+			})
+			.finally(() => {
+				this.isCacheBusy = false
+			})
 	}
 }
