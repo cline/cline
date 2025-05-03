@@ -351,12 +351,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							</div>
 						)}
 						{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: "4px",
-								}}>
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column",
+								gap: "4px",
+							}}>
 							<div
 								style={{
 									display: "flex",
@@ -411,7 +411,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 								)}
 							</div>
-							
+
 							<TaskTimeline messages={clineMessages} />
 
 							{shouldShowPromptCacheInfoClineOR && cacheReads !== undefined && (
