@@ -65,7 +65,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "april-18-2025_21:15::00" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "may-02-2025_16:27:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -336,8 +336,8 @@ export class Controller {
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
 				break
-			case "deleteTaskWithId":
-				this.deleteTaskWithId(message.text!)
+			case "deleteTasksWithIds":
+				this.deleteTasksWithIds(message.text!)
 				break
 			case "exportTaskWithId":
 				this.exportTaskWithId(message.text!)
@@ -534,21 +534,6 @@ export class Controller {
 			}
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
-			case "searchCommits": {
-				const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-				if (cwd) {
-					try {
-						const commits = await searchCommits(message.text || "", cwd)
-						await this.postMessageToWebview({
-							type: "commitSearchResults",
-							commits,
-						})
-					} catch (error) {
-						console.error(`Error searching commits: ${JSON.stringify(error)}`)
-					}
-				}
 				break
 			}
 			case "openExtensionSettings": {
@@ -1730,6 +1715,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		}
 
 		this.refreshTotalTasksSize()
+	}
+
+	async deleteTasksWithIds(ids: string) {
+		for (const id of JSON.parse(ids) as string[]) {
+			await this.deleteTaskWithId(id)
+		}
 	}
 
 	async deleteTaskFromState(id: string) {

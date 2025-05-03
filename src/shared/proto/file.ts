@@ -10,6 +10,20 @@ import { Empty, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
+/** Response for searchCommits */
+export interface GitCommits {
+	commits: GitCommit[]
+}
+
+/** Represents a Git commit */
+export interface GitCommit {
+	hash: string
+	shortHash: string
+	subject: string
+	author: string
+	date: string
+}
+
 /** Unified request for all rule file operations */
 export interface RuleFileRequest {
 	metadata?: Metadata | undefined
@@ -29,6 +43,190 @@ export interface RuleFile {
 	displayName: string
 	/** For createRuleFile, indicates if file already existed */
 	alreadyExists: boolean
+}
+
+function createBaseGitCommits(): GitCommits {
+	return { commits: [] }
+}
+
+export const GitCommits: MessageFns<GitCommits> = {
+	encode(message: GitCommits, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		for (const v of message.commits) {
+			GitCommit.encode(v!, writer.uint32(10).fork()).join()
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): GitCommits {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseGitCommits()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.commits.push(GitCommit.decode(reader, reader.uint32()))
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): GitCommits {
+		return {
+			commits: globalThis.Array.isArray(object?.commits) ? object.commits.map((e: any) => GitCommit.fromJSON(e)) : [],
+		}
+	},
+
+	toJSON(message: GitCommits): unknown {
+		const obj: any = {}
+		if (message.commits?.length) {
+			obj.commits = message.commits.map((e) => GitCommit.toJSON(e))
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<GitCommits>, I>>(base?: I): GitCommits {
+		return GitCommits.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<GitCommits>, I>>(object: I): GitCommits {
+		const message = createBaseGitCommits()
+		message.commits = object.commits?.map((e) => GitCommit.fromPartial(e)) || []
+		return message
+	},
+}
+
+function createBaseGitCommit(): GitCommit {
+	return { hash: "", shortHash: "", subject: "", author: "", date: "" }
+}
+
+export const GitCommit: MessageFns<GitCommit> = {
+	encode(message: GitCommit, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.hash !== "") {
+			writer.uint32(10).string(message.hash)
+		}
+		if (message.shortHash !== "") {
+			writer.uint32(18).string(message.shortHash)
+		}
+		if (message.subject !== "") {
+			writer.uint32(26).string(message.subject)
+		}
+		if (message.author !== "") {
+			writer.uint32(34).string(message.author)
+		}
+		if (message.date !== "") {
+			writer.uint32(42).string(message.date)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): GitCommit {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseGitCommit()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.hash = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.shortHash = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.subject = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.author = reader.string()
+					continue
+				}
+				case 5: {
+					if (tag !== 42) {
+						break
+					}
+
+					message.date = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): GitCommit {
+		return {
+			hash: isSet(object.hash) ? globalThis.String(object.hash) : "",
+			shortHash: isSet(object.shortHash) ? globalThis.String(object.shortHash) : "",
+			subject: isSet(object.subject) ? globalThis.String(object.subject) : "",
+			author: isSet(object.author) ? globalThis.String(object.author) : "",
+			date: isSet(object.date) ? globalThis.String(object.date) : "",
+		}
+	},
+
+	toJSON(message: GitCommit): unknown {
+		const obj: any = {}
+		if (message.hash !== "") {
+			obj.hash = message.hash
+		}
+		if (message.shortHash !== "") {
+			obj.shortHash = message.shortHash
+		}
+		if (message.subject !== "") {
+			obj.subject = message.subject
+		}
+		if (message.author !== "") {
+			obj.author = message.author
+		}
+		if (message.date !== "") {
+			obj.date = message.date
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<GitCommit>, I>>(base?: I): GitCommit {
+		return GitCommit.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<GitCommit>, I>>(object: I): GitCommit {
+		const message = createBaseGitCommit()
+		message.hash = object.hash ?? ""
+		message.shortHash = object.shortHash ?? ""
+		message.subject = object.subject ?? ""
+		message.author = object.author ?? ""
+		message.date = object.date ?? ""
+		return message
+	},
 }
 
 function createBaseRuleFileRequest(): RuleFileRequest {
@@ -271,6 +469,15 @@ export const FileServiceDefinition = {
 			requestType: RuleFileRequest,
 			requestStream: false,
 			responseType: RuleFile,
+			responseStream: false,
+			options: {},
+		},
+		/** Search git commits in the workspace */
+		searchCommits: {
+			name: "searchCommits",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: GitCommits,
 			responseStream: false,
 			options: {},
 		},

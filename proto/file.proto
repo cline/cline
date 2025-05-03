@@ -10,7 +10,7 @@ import "common.proto";
 service FileService {
   // Opens a file in the editor
   rpc openFile(StringRequest) returns (Empty);
-  
+ 
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
 
@@ -19,6 +19,23 @@ service FileService {
 
   // Creates a rule file from either global or workspace rules directory
   rpc createRuleFile(RuleFileRequest) returns (RuleFile);
+  
+  // Search git commits in the workspace
+  rpc searchCommits(StringRequest) returns (GitCommits);
+}
+
+// Response for searchCommits
+message GitCommits {
+  repeated GitCommit commits = 1;
+}
+
+// Represents a Git commit
+message GitCommit {
+  string hash = 1;
+  string short_hash = 2;
+  string subject = 3;
+  string author = 4;
+  string date = 5;
 }
 
 // Unified request for all rule file operations

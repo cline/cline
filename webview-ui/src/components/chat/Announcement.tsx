@@ -43,6 +43,23 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
+					<b>Caching in:</b> You asked for Caching, we delivered. Gemini and Vertex providers have more robust caching.
+					We also added cache tracking for these providers.
+				</li>
+				<li>
+					<b>Checkpoints:</b> We added checkpoints to more message responses. Restore from more than just file changes.
+				</li>
+				<li>
+					<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their contents
+					easily.
+				</li>
+				<li>
+					<b>Is it pie?:</b> Added support for rendering LaTeX in message responses.
+				</li>
+			</ul>
+			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
+			<ul style={ulStyle}>
+				<li>
 					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
 				</li>
 				<li>
@@ -56,20 +73,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<li>
 					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore
 					your project when the message was sent!
-				</li>
-			</ul>
-			<h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
-			<ul style={ulStyle}>
-				<li>
-					<b>Model Favorites:</b> You can now mark your favorite models when using Cline & OpenRouter providers for
-					quick access!
-				</li>
-				<li>
-					<b>Faster Diff Editing:</b> Improved animation performance for large files, plus a new indicator in chat
-					showing the number of edits Cline makes.
-				</li>
-				<li>
-					<b>New Auto-Approve Options:</b> Turn off Cline's ability to read and edit files outside your workspace.
 				</li>
 			</ul>
 			{/*

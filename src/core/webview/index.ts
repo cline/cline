@@ -181,6 +181,14 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
+		const katexCssUri = getUri(webview, this.context.extensionUri, [
+			"webview-ui",
+			"node_modules",
+			"katex",
+			"dist",
+			"katex.min.css",
+		])
+
 		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
 
 		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
@@ -204,24 +212,25 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
 		return /*html*/ `
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
-            <meta name="theme-color" content="#000000">
-            <link rel="stylesheet" type="text/css" href="${stylesUri}">
-            <link href="${codiconsUri}" rel="stylesheet" />
-						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';">
-            <title>Cline</title>
-          </head>
-          <body>
-            <noscript>You need to enable JavaScript to run this app.</noscript>
-            <div id="root"></div>
-            <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
-          </body>
-        </html>
-      `
+			<!DOCTYPE html>
+			<html lang="en">
+				<head>
+				<meta charset="utf-8">
+				<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+				<meta name="theme-color" content="#000000">
+				<link rel="stylesheet" type="text/css" href="${stylesUri}">
+				<link href="${codiconsUri}" rel="stylesheet" />
+				<link href="${katexCssUri}" rel="stylesheet" />
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';">
+				<title>Cline</title>
+			</head>
+			<body>
+				<noscript>You need to enable JavaScript to run this app.</noscript>
+				<div id="root"></div>
+				<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+			</body>
+		</html>
+		`
 	}
 
 	/**
@@ -256,6 +265,15 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
+		// Get KaTeX resources
+		const katexCssUri = getUri(webview, this.context.extensionUri, [
+			"webview-ui",
+			"node_modules",
+			"katex",
+			"dist",
+			"katex.min.css",
+		])
+
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
 
@@ -271,7 +289,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 		const csp = [
 			"default-src 'none'",
-			`font-src ${webview.cspSource}`,
+			`font-src ${webview.cspSource} data:`,
 			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`img-src ${webview.cspSource} https: data:`,
 			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
@@ -287,6 +305,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUri}">
 					<link href="${codiconsUri}" rel="stylesheet" />
+					<link href="${katexCssUri}" rel="stylesheet" />
 					<title>Cline</title>
 				</head>
 				<body>
