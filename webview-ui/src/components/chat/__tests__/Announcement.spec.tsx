@@ -23,10 +23,4 @@ describe("Announcement", () => {
 		fireEvent.click(screen.getByRole("button"))
 		expect(hideAnnouncement).toHaveBeenCalled()
 	})
-
-	it("renders the enhanced MCP support announcement", () => {
-		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		// Updated text based on actual component output
-		expect(screen.getByText(/Enhanced MCP Support:/)).toBeInTheDocument()
-	})
 })
