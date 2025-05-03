@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata } from "./common"
+import { Empty, EmptyRequest, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -137,6 +137,15 @@ export const TaskServiceDefinition = {
 		newTask: {
 			name: "newTask",
 			requestType: NewTaskRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		/** Exports a task with the given ID to markdown */
+		exportTaskWithId: {
+			name: "exportTaskWithId",
+			requestType: StringRequest,
 			requestStream: false,
 			responseType: Empty,
 			responseStream: false,
