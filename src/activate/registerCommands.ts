@@ -128,11 +128,6 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 
 			visibleProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
 		},
-		"roo-cline.helpButtonClicked": () => {
-			telemetryService.captureTitleButtonClicked("help")
-
-			vscode.env.openExternal(vscode.Uri.parse("https://docs.roocode.com"))
-		},
 		"roo-cline.showHumanRelayDialog": (params: { requestId: string; promptText: string }) => {
 			const panel = getPanel()
 

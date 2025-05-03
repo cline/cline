@@ -111,11 +111,6 @@
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "roo-cline.helpButtonClicked",
-				"title": "%command.documentation.title%",
-				"icon": "$(question)"
-			},
-			{
 				"command": "roo-cline.openInNewTab",
 				"title": "%command.openInNewTab.title%",
 				"category": "%configuration.title%"
@@ -247,11 +242,6 @@
 					"command": "roo-cline.settingsButtonClicked",
 					"group": "navigation@6",
 					"when": "view == roo-cline.SidebarProvider"
-				},
-				{
-					"command": "roo-cline.helpButtonClicked",
-					"group": "navigation@7",
-					"when": "view == roo-cline.SidebarProvider"
 				}
 			],
 			"editor/title": [
@@ -283,11 +273,6 @@
 				{
 					"command": "roo-cline.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
-				},
-				{
-					"command": "roo-cline.helpButtonClicked",
-					"group": "navigation@7",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				}
 			]
