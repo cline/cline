@@ -1,6 +1,7 @@
 import React from "react"
 import { vscode } from "@/utils/vscode"
 import DOMPurify from "dompurify"
+import { SystemServiceClient } from "@/services/grpc-client"
 import { getSafeHostname, formatUrlForOpening, checkIfImageUrl } from "./utils/mcpRichUtil"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 
@@ -233,8 +234,7 @@ class ImagePreview extends React.Component<
 						color: "var(--vscode-errorForeground)",
 					}}
 					onClick={() => {
-						vscode.postMessage({
-							type: "openInBrowser",
+						SystemServiceClient.openUrl({
 							url: DOMPurify.sanitize(url),
 						})
 					}}>
@@ -257,8 +257,7 @@ class ImagePreview extends React.Component<
 					cursor: "pointer",
 				}}
 				onClick={() => {
-					vscode.postMessage({
-						type: "openInBrowser",
+					SystemServiceClient.openUrl({
 						url: DOMPurify.sanitize(formatUrlForOpening(url)),
 					})
 				}}>

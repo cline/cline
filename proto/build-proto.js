@@ -86,6 +86,7 @@ async function generateMethodRegistrations() {
 		path.join(ROOT_DIR, "src", "core", "controller", "mcp"),
 		path.join(ROOT_DIR, "src", "core", "controller", "task"),
 		path.join(ROOT_DIR, "src", "core", "controller", "web-content"),
+		path.join(ROOT_DIR, "src", "core", "controller", "system"),
 		// Add more service directories here as needed
 	]
 

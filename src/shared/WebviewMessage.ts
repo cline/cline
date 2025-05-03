@@ -23,7 +23,6 @@ export interface WebviewMessage {
 		| "resetState"
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
-		| "openInBrowser"
 		| "openMention"
 		| "showChatView"
 		| "refreshOpenRouterModels"
@@ -96,8 +95,6 @@ export interface WebviewMessage {
 	// For auth
 	user?: UserInfo | null
 	customToken?: string
-	// For openInBrowser
-	url?: string
 	planActSeparateModelsSetting?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
