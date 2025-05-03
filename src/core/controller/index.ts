@@ -1415,6 +1415,15 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 							modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
 							break
+						default:
+							if (rawModel.id.startsWith("openai/")) {
+								modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
+								if (modelInfo.cacheReadsPrice) {
+									modelInfo.supportsPromptCache = true
+									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
+								}
+							}
+							break
 					}
 
 					models[rawModel.id] = modelInfo
