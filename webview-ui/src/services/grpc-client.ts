@@ -28,5 +28,5 @@ export {
 	McpServiceClient,
 	StateServiceClient,
 	TaskServiceClient,
-	WebServiceClient,
+	WebServiceClient
 }
