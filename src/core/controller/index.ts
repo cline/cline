@@ -176,7 +176,7 @@ export class Controller {
 	async reinitExistingTaskFromId(taskId: string) {
 		const history = await this.getTaskWithId(taskId)
 		if (history) {
-			await this.initTask(undefined, undefined, history.historyItem, undefined)
+			await this.initTask(undefined, undefined, history.historyItem)
 		}
 	}
 
@@ -267,7 +267,7 @@ export class Controller {
 				// Could also do this in extension .ts
 				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
 				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images, undefined, undefined)
+				await this.initTask(message.text, message.images)
 				break
 			case "condense":
 				this.task?.handleWebviewAskResponse("yesButtonClicked")
@@ -1204,7 +1204,7 @@ export class Controller {
 Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
 			// Initialize task and show chat view
-			await this.initTask(task, undefined, undefined, undefined)
+			await this.initTask(task)
 			await this.postMessageToWebview({
 				type: "action",
 				action: "chatButtonClicked",
@@ -1625,7 +1625,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		if (id !== this.task?.taskId) {
 			// non-current task
 			const { historyItem } = await this.getTaskWithId(id)
-			await this.initTask(undefined, undefined, historyItem, undefined) // clears existing task
+			await this.initTask(undefined, undefined, historyItem) // clears existing task
 		}
 		await this.postMessageToWebview({
 			type: "action",
