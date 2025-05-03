@@ -66,7 +66,7 @@ export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 // Helper function to get time-based greeting
 const getTimeBasedGreeting = () => {
 	const hour = new Date().getHours()
-	
+
 	if (hour >= 5 && hour < 12) return "Good Morning"
 	if (hour >= 12 && hour < 18) return "Good Afternoon"
 	return "Good Evening"
@@ -76,7 +76,7 @@ const getTimeBasedGreeting = () => {
 const getRandomSubMessage = () => {
 	const hour = new Date().getHours()
 	const isLateNight = hour >= 0 && hour < 5
-	
+
 	const normalMessages = [
 		"Welcome back. Let's build something great.",
 		"Ready when you are. Let's create.",
@@ -87,9 +87,9 @@ const getRandomSubMessage = () => {
 		"One step at a time. Let's move forward.",
 		"Great things start with a single line of code.",
 		"Coding session ready. Let's make it count.",
-		"Back to work? Let's do it with purpose."
+		"Back to work? Let's do it with purpose.",
 	]
-	
+
 	const lateNightMessages = [
 		"Ah, the silence of deep focus… or deep chaos.",
 		"Running on caffeine and pure determination?",
@@ -100,9 +100,9 @@ const getRandomSubMessage = () => {
 		"Running low on sleep, high on inspiration?",
 		"The best commits are made under moonlight.",
 		"If this isn't dedication, I don't know what is.",
-		"Brainstorming or bug-hunting — I'm with you either way."
+		"Brainstorming or bug-hunting — I'm with you either way.",
 	]
-	
+
 	const messages = isLateNight ? lateNightMessages : normalMessages
 	return messages[Math.floor(Math.random() * messages.length)]
 }
@@ -972,8 +972,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						</div>
 						<div style={{ marginBottom: "5px" }}>
 							<p style={{ fontSize: "16px", fontWeight: "500", margin: "0", color: "var(--vscode-foreground)" }}>
-								{userInfo?.displayName 
-									? `${getTimeBasedGreeting()}, ${userInfo.displayName.split(" ")[0]}!` 
+								{userInfo?.displayName
+									? `${getTimeBasedGreeting()}, ${userInfo.displayName.split(" ")[0]}!`
 									: `${getTimeBasedGreeting()}!`}
 							</p>
 							<p style={{ fontSize: "14px", color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
