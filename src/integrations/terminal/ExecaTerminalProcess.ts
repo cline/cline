@@ -1,12 +1,14 @@
 import { execa, ExecaError } from "execa"
+import psTree from "ps-tree"
+import process from "process"
 
 import type { RooTerminal } from "./types"
 import { BaseTerminalProcess } from "./BaseTerminalProcess"
 
 export class ExecaTerminalProcess extends BaseTerminalProcess {
 	private terminalRef: WeakRef<RooTerminal>
-	private controller?: AbortController
 	private aborted = false
+	private pid?: number
 
 	constructor(terminal: RooTerminal) {
 		super()
@@ -30,7 +32,6 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 
 	public override async run(command: string) {
 		this.command = command
-		this.controller = new AbortController()
 
 		try {
 			this.isHot = true
@@ -38,10 +39,10 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 			const subprocess = execa({
 				shell: true,
 				cwd: this.terminal.getCurrentWorkingDirectory(),
-				cancelSignal: this.controller.signal,
 				all: true,
 			})`${command}`
 
+			this.pid = subprocess.pid
 			const stream = subprocess.iterable({ from: "all", preserveNewlines: true })
 			this.terminal.setActiveStream(stream, subprocess.pid)
 
@@ -116,7 +117,37 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 
 	public override abort() {
 		this.aborted = true
-		this.controller?.abort()
+
+		if (this.pid) {
+			psTree(this.pid, async (err, children) => {
+				if (!err) {
+					const pids = children.map((p) => parseInt(p.PID))
+
+					for (const pid of pids) {
+						try {
+							process.kill(pid, "SIGINT")
+						} catch (e) {
+							console.warn(
+								`[ExecaTerminalProcess] Failed to send SIGINT to child PID ${pid}: ${e instanceof Error ? e.message : String(e)}`,
+							)
+							// Optionally try SIGTERM or SIGKILL on failure, depending on desired behavior.
+						}
+					}
+				} else {
+					console.error(
+						`[ExecaTerminalProcess] Failed to get process tree for PID ${this.pid}: ${err.message}`,
+					)
+				}
+			})
+
+			try {
+				process.kill(this.pid, "SIGINT")
+			} catch (e) {
+				console.warn(
+					`[ExecaTerminalProcess] Failed to send SIGINT to main PID ${this.pid}: ${e instanceof Error ? e.message : String(e)}`,
+				)
+			}
+		}
 	}
 
 	public override hasUnretrievedOutput() {

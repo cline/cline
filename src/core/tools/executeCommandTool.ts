@@ -174,6 +174,7 @@ export async function executeCommand(
 			completed = true
 		},
 		onShellExecutionStarted: (pid: number | undefined) => {
+			console.log(`[executeCommand] onShellExecutionStarted: ${pid}`)
 			const status: CommandExecutionStatus = { executionId, status: "started", pid, command }
 			clineProvider?.postMessageToWebview({ type: "commandExecutionStatus", text: JSON.stringify(status) })
 		},
