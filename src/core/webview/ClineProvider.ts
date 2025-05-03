@@ -1517,6 +1517,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			properties.diffStrategy = currentCline.diffStrategy.getName()
 		}
 
+		// Add isSubtask property that indicates whether this task is a subtask
+		if (currentCline) {
+			properties.isSubtask = !!currentCline.parentTask
+		}
+
 		return properties
 	}
 }
