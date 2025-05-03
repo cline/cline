@@ -17,7 +17,6 @@ export interface WebviewMessage {
 		| "didShowAnnouncement"
 		| "selectImages"
 		| "exportCurrentTask"
-		| "showTaskWithId"
 		| "deleteTasksWithIds"
 		| "exportTaskWithId"
 		| "resetState"

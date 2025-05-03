@@ -332,9 +332,6 @@ export class Controller {
 					this.exportTaskWithId(currentTaskId)
 				}
 				break
-			case "showTaskWithId":
-				this.showTaskWithId(message.text!)
-				break
 			case "deleteTasksWithIds":
 				this.deleteTasksWithIds(message.text!)
 				break

@@ -17,6 +17,12 @@ export interface NewTaskRequest {
 	images: string[]
 }
 
+/** Request message for showing a task with a specific ID */
+export interface ShowTaskWithIdRequest {
+	metadata?: Metadata | undefined
+	taskId: string
+}
+
 function createBaseNewTaskRequest(): NewTaskRequest {
 	return { metadata: undefined, text: "", images: [] }
 }
@@ -110,6 +116,83 @@ export const NewTaskRequest: MessageFns<NewTaskRequest> = {
 	},
 }
 
+function createBaseShowTaskWithIdRequest(): ShowTaskWithIdRequest {
+	return { metadata: undefined, taskId: "" }
+}
+
+export const ShowTaskWithIdRequest: MessageFns<ShowTaskWithIdRequest> = {
+	encode(message: ShowTaskWithIdRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.taskId !== "") {
+			writer.uint32(18).string(message.taskId)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ShowTaskWithIdRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseShowTaskWithIdRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.taskId = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ShowTaskWithIdRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
+		}
+	},
+
+	toJSON(message: ShowTaskWithIdRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.taskId !== "") {
+			obj.taskId = message.taskId
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ShowTaskWithIdRequest>, I>>(base?: I): ShowTaskWithIdRequest {
+		return ShowTaskWithIdRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ShowTaskWithIdRequest>, I>>(object: I): ShowTaskWithIdRequest {
+		const message = createBaseShowTaskWithIdRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.taskId = object.taskId ?? ""
+		return message
+	},
+}
+
 export type TaskServiceDefinition = typeof TaskServiceDefinition
 export const TaskServiceDefinition = {
 	name: "TaskService",
@@ -137,6 +220,15 @@ export const TaskServiceDefinition = {
 		newTask: {
 			name: "newTask",
 			requestType: NewTaskRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		/** Shows a task with the specified ID */
+		showTaskWithId: {
+			name: "showTaskWithId",
+			requestType: ShowTaskWithIdRequest,
 			requestStream: false,
 			responseType: Empty,
 			responseStream: false,
