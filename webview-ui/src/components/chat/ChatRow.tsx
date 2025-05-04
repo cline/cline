@@ -1141,7 +1141,6 @@ export const ChatRowContent = ({
 									position: "relative", // Added position
 								}}>
 								<Markdown markdown={text} />
-								{/* Added QuoteButton rendering */}
 								{quoteButtonState.visible && (
 									<QuoteButton
 										top={quoteButtonState.top}
@@ -1305,7 +1304,6 @@ export const ChatRowContent = ({
 										position: "relative", // Added position
 									}}>
 									<Markdown markdown={text} />
-									{/* Added QuoteButton rendering */}
 									{quoteButtonState.visible && (
 										<QuoteButton
 											top={quoteButtonState.top}
