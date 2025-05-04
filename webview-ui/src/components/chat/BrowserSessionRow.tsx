@@ -19,6 +19,7 @@ interface BrowserSessionRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	onSetQuote: (text: string) => void // <-- Add prop type
 }
 
 const browserSessionRowContainerInnerStyle: CSSProperties = {
@@ -109,7 +110,7 @@ const headerStyle: CSSProperties = {
 }
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
-	const { messages, isLast, onHeightChange, lastModifiedMessage } = props
+	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props // <-- Destructure onSetQuote
 	const { browserSettings } = useExtensionState()
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
@@ -290,7 +291,13 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const [actionContent, { height: actionHeight }] = useSize(
 		<div>
 			{currentPage?.nextAction?.messages.map((message) => (
-				<BrowserSessionRowContent key={message.ts} {...props} message={message} setMaxActionHeight={setMaxActionHeight} />
+				<BrowserSessionRowContent
+					key={message.ts}
+					{...props}
+					message={message}
+					setMaxActionHeight={setMaxActionHeight}
+					onSetQuote={onSetQuote} // <-- Pass onSetQuote down
+				/>
 			))}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
 				<BrowserActionBox action={"launch"} text={initialUrl} />
@@ -484,9 +491,11 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	return browserSessionRow
 }, deepEqual)
 
-interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages"> {
+interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages" | "onHeightChange"> {
+	// Omit onHeightChange as well, it's not used here
 	message: ClineMessage
 	setMaxActionHeight: (height: number) => void
+	onSetQuote: (text: string) => void // <-- Add prop type
 }
 
 const BrowserSessionRowContent = ({
@@ -496,6 +505,7 @@ const BrowserSessionRowContent = ({
 	lastModifiedMessage,
 	isLast,
 	setMaxActionHeight,
+	onSetQuote, // <-- Destructure onSetQuote
 }: BrowserSessionRowContentProps) => {
 	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 		return (
@@ -529,6 +539,7 @@ const BrowserSessionRowContent = ({
 								}}
 								lastModifiedMessage={lastModifiedMessage}
 								isLast={isLast}
+								onSetQuote={onSetQuote} // <-- Pass onSetQuote down
 							/>
 						</div>
 					)

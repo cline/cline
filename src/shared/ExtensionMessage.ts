@@ -47,6 +47,7 @@ export interface ExtensionMessage {
 		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
+		| "setActiveQuote" // For setting the active quote preview
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:

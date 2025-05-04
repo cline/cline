@@ -183,3 +183,76 @@ vscode-dropdown::part(listbox) {
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
 	color: transparent;
 }
+
+/* ========== reply-card ========== */
+.reply-card {
+	background: #2b2b2b; /* match dark theme */
+	border: 1px solid #3a3a3a;
+	border-left: 2px solid #3a3a3a; /* Initial accent bar color (match border) */
+	border-radius: 8px;
+	margin-top: 10px;
+	margin-left: 15px; /* Add left margin */
+	margin-right: 15px; /* Add right margin */
+	overflow: hidden;
+	font-family: system-ui, sans-serif;
+	position: relative; /* Needed for potential mask */
+}
+
+.reply-card--focused {
+	/* Override all borders to be 1px and use focus color */
+	border: 1px solid var(--vscode-focusBorder, #007fd4);
+}
+
+.reply-card__header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	background: #252525;
+	color: #cccccc; /* Lighten header text */
+	font-size: 12px;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	padding: 6px 10px;
+}
+
+.reply-card__close {
+	background: none;
+	border: none;
+	color: #cccccc; /* Match header text */
+	font-size: 14px;
+	cursor: pointer;
+	line-height: 1;
+	padding: 6px; /* Enlarge hit area */
+	margin: -6px; /* Keep visual size */
+}
+
+.reply-card__close:hover {
+	color: #fff;
+}
+
+.reply-card__snippet {
+	max-height: 120px; /* ≈3 lines, then scroll */
+	overflow: auto;
+	padding: 10px 12px;
+	font:
+		13px/1.4 Menlo,
+		monospace;
+	white-space: pre-wrap; /* keeps wrapping for long lines */
+	color: #eaeaea;
+	/* Add fade-out gradient for overflow */
+	mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+	-webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+}
+
+/* Remove selection highlight in reply snippet */
+.reply-card__snippet::selection {
+	background-color: transparent;
+}
+.reply-card__snippet code::selection {
+	background-color: transparent;
+}
+
+/* Ensure code background is transparent */
+.reply-card__snippet code {
+	background-color: transparent !important; /* Override potential defaults */
+}

@@ -1,6 +1,7 @@
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState, MouseEvent } from "react"
+
 import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
 import {
@@ -34,6 +35,7 @@ import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import NewTaskPreview from "./NewTaskPreview"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import UserMessage from "./UserMessage"
+import QuoteButton from "./QuoteButton" // Import the new component
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -53,6 +55,14 @@ interface ChatRowProps {
 	onHeightChange: (isTaller: boolean) => void
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
+	onSetQuote: (text: string) => void // <-- Add prop type
+}
+
+interface QuoteButtonState {
+	visible: boolean
+	top: number
+	left: number
+	selectedText: string
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -121,6 +131,25 @@ const ChatRow = memo(
 
 export default ChatRow
 
+// Helper function to parse error text
+function parseErrorText(text: string | undefined) {
+	if (!text) {
+		return undefined
+	}
+	try {
+		const startIndex = text.indexOf("{")
+		const endIndex = text.lastIndexOf("}")
+		if (startIndex !== -1 && endIndex !== -1) {
+			const jsonStr = text.substring(startIndex, endIndex + 1)
+			const errorObject = JSON.parse(jsonStr)
+			return errorObject
+		}
+	} catch (e) {
+		// Not JSON or missing required fields
+	}
+	return undefined
+}
+
 export const ChatRowContent = ({
 	message,
 	isExpanded,
@@ -129,10 +158,17 @@ export const ChatRowContent = ({
 	isLast,
 	inputValue,
 	sendMessageFromChatRow,
+	onSetQuote, // <-- Destructure the new prop
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
-
+	const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
+		visible: false,
+		top: 0,
+		left: 0,
+		selectedText: "",
+	})
+	const contentRef = useRef<HTMLDivElement>(null) // Ref for the content area
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -172,6 +208,122 @@ export const ChatRowContent = ({
 	}, [])
 
 	useEvent("message", handleMessage)
+
+	// --- Quote Button Logic ---
+	// MOVE handleQuoteClick INSIDE ChatRowContent
+	const handleQuoteClick = useCallback(() => {
+		console.log("[ChatRow] handleQuoteClick - Calling onSetQuote with text:", quoteButtonState.selectedText) // Log prop call
+		onSetQuote(quoteButtonState.selectedText) // <-- Call the prop function (now directly accessible)
+		window.getSelection()?.removeAllRanges() // Clear the browser selection
+		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" }) // Hide the button
+	}, [onSetQuote, quoteButtonState.selectedText]) // <-- Use onSetQuote from props
+
+	const handleMouseUp = useCallback(
+		(event: MouseEvent<HTMLDivElement>) => {
+			const selection = window.getSelection()
+			const selectedText = selection?.toString().trim() ?? ""
+			console.log("[ChatRow] handleMouseUp - Selected text:", selectedText) // Log selected text
+
+			// Safely check selection and rangeCount
+			if (selectedText && contentRef.current && selection && selection.rangeCount > 0) {
+				const range = selection.getRangeAt(0)
+
+				// Get the bounding rectangle of the selection range
+				const rangeRect = range.getBoundingClientRect()
+				// Get the bounding rectangle of the content container
+				const containerRect = contentRef.current.getBoundingClientRect()
+
+				// Check if the selection's rectangle is fully contained within the container's rectangle
+				const isSelectionWithin =
+					rangeRect.top >= containerRect.top &&
+					rangeRect.left >= containerRect.left &&
+					rangeRect.bottom <= containerRect.bottom &&
+					rangeRect.right <= containerRect.right
+
+				if (isSelectionWithin) {
+					// Position button relative to the selection
+					const buttonHeight = 30 // Approximate height of the button
+					const top = rangeRect.top - containerRect.top - buttonHeight - 5 // 5px above selection
+					const left = rangeRect.left - containerRect.left // Align with the left edge of the selection
+
+					setQuoteButtonState({
+						visible: true,
+						top: top,
+						left: left,
+						selectedText: selectedText,
+					})
+					console.log("[ChatRow] handleMouseUp - Setting quote button state:", {
+						visible: true,
+						top,
+						left,
+						selectedText,
+					}) // Log state set
+					return // Don't hide if selection is valid
+				}
+			}
+
+			// If no valid selection or selection outside, hide the button
+			if (quoteButtonState.visible) {
+				// Check if the click was on the quote button itself
+				const targetElement = event.target as Element
+				if (!targetElement.closest(".quote-button-class")) {
+					// Assuming QuoteButton has this class
+					setQuoteButtonState((prev) => ({ ...prev, visible: false }))
+				}
+			}
+		},
+		[quoteButtonState.visible],
+	)
+
+	const handleDoubleClick = useCallback(
+		(event: MouseEvent<HTMLDivElement>) => {
+			const selection = window.getSelection()
+			const selectedText = selection?.toString().trim() ?? ""
+			console.log("[ChatRow] handleDoubleClick - Selected text:", selectedText) // Log selected text
+
+			// Safely check selection and rangeCount
+			if (selectedText && contentRef.current && selection && selection.rangeCount > 0) {
+				const range = selection.getRangeAt(0)
+
+				// Get the bounding rectangle of the selection range
+				const rangeRect = range.getBoundingClientRect()
+				// Get the bounding rectangle of the content container
+				const containerRect = contentRef.current.getBoundingClientRect()
+
+				// Check if the selection's rectangle is fully contained within the container's rectangle
+				const isSelectionWithin =
+					rangeRect.top >= containerRect.top &&
+					rangeRect.left >= containerRect.left &&
+					rangeRect.bottom <= containerRect.bottom &&
+					rangeRect.right <= containerRect.right
+
+				if (isSelectionWithin) {
+					// Position button relative to the selection
+					const buttonHeight = 30 // Approximate height of the button
+					const top = rangeRect.top - containerRect.top - buttonHeight - 5 // 5px above selection
+					const left = rangeRect.left - containerRect.left // Align with the left edge of the selection
+
+					setQuoteButtonState({
+						visible: true,
+						top: top,
+						left: left,
+						selectedText: selectedText,
+					})
+					console.log("[ChatRow] handleDoubleClick - Setting quote button state:", {
+						visible: true,
+						top,
+						left,
+						selectedText,
+					}) // Log state set
+				}
+			}
+			// No need to explicitly hide here, mouseup will handle deselection clicks
+		},
+		[], // No dependencies needed for this specific handler logic
+	)
+	// REMOVED handleQuoteClick from here - moved inside component
+
+	// --- End Quote Button Logic ---
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
@@ -439,7 +591,7 @@ export const ChatRowContent = ({
 										direction: "rtl",
 										textAlign: "left",
 									}}>
-									{cleanPathPrefix(tool.path ?? "") + "\u200E"}
+									{cleanPathPrefix(tool.path ?? "") + ""}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span
@@ -502,7 +654,7 @@ export const ChatRowContent = ({
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							{tool.operationIsLocatedInWorkspace === false &&
-								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
+								toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 							<span style={{ fontWeight: "bold" }}>
 								{message.type === "ask"
 									? "Cline wants to view source code definition names used in this directory:"
@@ -813,8 +965,22 @@ export const ChatRowContent = ({
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
-						<div>
+						<div
+							ref={contentRef}
+							onMouseUp={handleMouseUp}
+							onDoubleClick={handleDoubleClick}
+							style={{ position: "relative" }}>
 							<Markdown markdown={message.text} />
+							{quoteButtonState.visible && (
+								<QuoteButton
+									top={quoteButtonState.top}
+									left={quoteButtonState.left}
+									onClick={() => {
+										console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
+										handleQuoteClick()
+									}}
+								/>
+							)}
 						</div>
 					)
 				case "reasoning":
@@ -858,7 +1024,7 @@ export const ChatRowContent = ({
 													textAlign: "left",
 													flex: 1,
 												}}>
-												{message.text + "\u200E"}
+												{message.text + ""}
 											</span>
 											<span
 												className="codicon codicon-chevron-right"
@@ -1245,7 +1411,11 @@ export const ChatRowContent = ({
 									{title}
 								</div>
 							)}
-							<div style={{ paddingTop: 10 }}>
+							<div
+								ref={contentRef}
+								onMouseUp={handleMouseUp}
+								onDoubleClick={handleDoubleClick}
+								style={{ position: "relative", paddingTop: 10 }}>
 								<Markdown markdown={question} />
 								<OptionsButtons
 									options={options}
@@ -1253,6 +1423,16 @@ export const ChatRowContent = ({
 									isActive={isLast && lastModifiedMessage?.ask === "followup"}
 									inputValue={inputValue}
 								/>
+								{quoteButtonState.visible && (
+									<QuoteButton
+										top={quoteButtonState.top}
+										left={quoteButtonState.left}
+										onClick={() => {
+											console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
+											handleQuoteClick()
+										}}
+									/>
+								)}
 							</div>
 						</>
 					)
@@ -1302,7 +1482,11 @@ export const ChatRowContent = ({
 						response = message.text
 					}
 					return (
-						<div style={{}}>
+						<div
+							ref={contentRef}
+							onMouseUp={handleMouseUp}
+							onDoubleClick={handleDoubleClick}
+							style={{ position: "relative" }}>
 							<Markdown markdown={response} />
 							<OptionsButtons
 								options={options}
@@ -1310,28 +1494,21 @@ export const ChatRowContent = ({
 								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_respond"}
 								inputValue={inputValue}
 							/>
+							{quoteButtonState.visible && (
+								<QuoteButton
+									top={quoteButtonState.top}
+									left={quoteButtonState.left}
+									onClick={() => {
+										console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
+										handleQuoteClick()
+									}}
+								/>
+							)}
 						</div>
 					)
 				}
 				default:
 					return null
 			}
-	}
-}
-
-function parseErrorText(text: string | undefined) {
-	if (!text) {
-		return undefined
-	}
-	try {
-		const startIndex = text.indexOf("{")
-		const endIndex = text.lastIndexOf("}")
-		if (startIndex !== -1 && endIndex !== -1) {
-			const jsonStr = text.substring(startIndex, endIndex + 1)
-			const errorObject = JSON.parse(jsonStr)
-			return errorObject
-		}
-	} catch (e) {
-		// Not JSON or missing required fields
 	}
 }

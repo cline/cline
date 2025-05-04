@@ -26,6 +26,7 @@ import AutoApproveMenu from "@/components/chat/AutoApproveMenu"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
+import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview" // Import the new component
 import TaskHeader from "@/components/chat/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
 import { unified } from "unified"
@@ -86,6 +87,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
+	const [activeQuote, setActiveQuote] = useState<string | null>(null) // State for the quote preview
+	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false) // State for text area focus
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
@@ -345,10 +348,23 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[]) => {
-			text = text.trim()
-			if (text || images.length > 0) {
+			let messageToSend = text.trim()
+			const hasContent = messageToSend || images.length > 0
+
+			// Prepend the active quote if it exists
+			if (activeQuote && hasContent) {
+				console.log("[ChatView] handleSendMessage - Prepending active quote:", activeQuote) // Log quote prepend
+				const formattedQuote = activeQuote
+					.split("\n")
+					.map((line) => `> ${line}`)
+					.join("\n")
+				messageToSend = `${formattedQuote}\n\n${messageToSend}`
+			}
+
+			if (hasContent) {
+				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend) // Log final message
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask({ text, images })
+					await TaskServiceClient.newTask({ text: messageToSend, images })
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -366,7 +382,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
-								text,
+								text: messageToSend,
 								images,
 							})
 							break
@@ -374,7 +390,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
-								text,
+								text: messageToSend,
 								images,
 							})
 							break
@@ -382,6 +398,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 				}
 				setInputValue("")
+				console.log("[ChatView] handleSendMessage - Clearing active quote") // Log quote clear
+				setActiveQuote(null) // Clear quote when sending message
 				setTextAreaDisabled(true)
 				setSelectedImages([])
 				setClineAsk(undefined)
@@ -391,12 +409,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk],
+		[messages.length, clineAsk, activeQuote], // Add activeQuote to dependencies
 	)
 
 	const startNewTask = useCallback(async () => {
+		setActiveQuote(null) // Clear the active quote state
 		await TaskServiceClient.clearTask({})
-	}, [])
+	}, []) // Removed setActiveQuote from dependency array as it's stable
 
 	/*
 	This logic depends on the useEffect[messages] above to set clineAsk, after which buttons are shown and we then send an askResponse to the extension.
@@ -429,6 +448,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
+					setActiveQuote(null) // Clear quote when using primary button
 					setSelectedImages([])
 					break
 				case "completion_result":
@@ -495,6 +515,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
+					setActiveQuote(null) // Clear quote when using secondary button
 					setSelectedImages([])
 					break
 			}
@@ -512,6 +533,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		startNewTask()
 	}, [startNewTask])
 
+	const handleFocusChange = useCallback((isFocused: boolean) => {
+		setIsTextAreaFocused(isFocused)
+	}, [])
+
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
@@ -525,7 +550,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const handleMessage = useCallback(
 		(e: MessageEvent) => {
+			console.log("[ChatView] handleMessage - Listener triggered with event:", e) // <-- ADD THIS LINE
 			const message: ExtensionMessage = e.data
+			console.log("[ChatView] handleMessage - Received message:", message) // Log ALL incoming messages
 			switch (message.type) {
 				case "action":
 					switch (message.action!) {
@@ -564,6 +591,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}
 					}, 0)
 					break
+				// REMOVED setActiveQuote case - state is now set directly via prop
 				case "invoke":
 					switch (message.invoke!) {
 						case "sendMessage":
@@ -579,10 +607,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 			// textAreaRef.current is not explicitly required here since react guarantees that ref will be stable across re-renders, and we're not using its value but its reference.
 		},
-		[isHidden, textAreaDisabled, enableButtons, handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick],
+		[isHidden, textAreaDisabled, enableButtons, handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick], // <-- RESTORE DEPENDENCIES
 	)
 
-	useEvent("message", handleMessage)
+	useEvent("message", handleMessage) // <-- REVERT TO ORIGINAL
 
 	useMount(() => {
 		// NOTE: the vscode window needs to be focused for this to work
@@ -856,6 +884,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								[messageTs]: !prev[messageTs],
 							}))
 						}}
+						onSetQuote={setActiveQuote} // <-- Add this line
 					/>
 				)
 			}
@@ -872,10 +901,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					onHeightChange={handleRowHeightChange}
 					inputValue={inputValue}
 					sendMessageFromChatRow={handleSendMessage}
+					onSetQuote={setActiveQuote} // <-- Pass down the state setter
 				/>
 			)
 		},
-		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange, inputValue],
+		[
+			expandedRows,
+			modifiedMessages,
+			groupedMessages.length,
+			toggleRowExpansion,
+			handleRowHeightChange,
+			inputValue,
+			setActiveQuote,
+		], // <-- Add setActiveQuote dependency
 	)
 
 	return (
@@ -1045,8 +1083,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)}
 				</>
 			)}
+			{/* Log activeQuote state before rendering preview */}
+			{(() => {
+				console.log("[ChatView] Rendering - activeQuote:", activeQuote) // Log here
+				return activeQuote ? (
+					<QuotedMessagePreview
+						text={activeQuote}
+						onDismiss={() => setActiveQuote(null)}
+						isFocused={isTextAreaFocused} // Pass focus state
+					/>
+				) : null
+			})()}
+			{/* Wrap ChatTextArea to apply negative margin only when quote is active */}
 			<ChatTextArea
 				ref={textAreaRef}
+				onFocusChange={handleFocusChange} // Pass handler
 				inputValue={inputValue}
 				setInputValue={setInputValue}
 				textAreaDisabled={textAreaDisabled}

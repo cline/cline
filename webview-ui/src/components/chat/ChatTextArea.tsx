@@ -50,6 +50,7 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
+	onFocusChange?: (isFocused: boolean) => void // Add this prop
 }
 
 interface GitCommit {
@@ -233,11 +234,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSelectImages,
 			shouldDisableImages,
 			onHeightChange,
+			onFocusChange, // Destructure the new prop
 		},
 		ref,
 	) => {
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
-		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false) // Keep internal state for outline
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 
@@ -722,7 +724,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setShowSlashCommandsMenu(false)
 			}
 			setIsTextAreaFocused(false)
-		}, [isMouseDownOnMenu])
+			onFocusChange?.(false) // Call prop on blur
+		}, [isMouseDownOnMenu, onFocusChange])
 
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
@@ -1062,12 +1065,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}
 
-		/**
-		 * Handles the drag over event to allow dropping.
-		 * Prevents the default behavior to enable drop.
-		 *
-		 * @param {React.DragEvent} e - The drag event.
-		 */
 		const onDragOver = (e: React.DragEvent) => {
 			e.preventDefault()
 			// Ensure state remains true if dragging continues over the element
@@ -1350,7 +1347,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onKeyDown={handleKeyDown}
 						onKeyUp={handleKeyUp}
-						onFocus={() => setIsTextAreaFocused(true)}
+						onFocus={() => {
+							setIsTextAreaFocused(true)
+							onFocusChange?.(true) // Call prop on focus
+						}}
 						onBlur={handleBlur}
 						onPaste={handlePaste}
 						onSelect={updateCursorPosition}
