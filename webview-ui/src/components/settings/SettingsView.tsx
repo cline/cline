@@ -155,6 +155,21 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<VSCodeButton onClick={() => handleSubmit(false)}>Save</VSCodeButton>
 			</div>
 			<div className="grow overflow-y-scroll pr-2 flex flex-col">
+				<div className="mb-[5px]">
+					<VSCodeCheckbox
+						className="mb-[5px]"
+						checked={planActSeparateModelsSetting}
+						onChange={(e: any) => {
+							const checked = e.target.checked === true
+							setPlanActSeparateModelsSetting(checked)
+						}}>
+						Use different models for Plan and Act modes
+					</VSCodeCheckbox>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
+						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
+					</p>
+				</div>
 				{/* Tabs container */}
 				{planActSeparateModelsSetting ? (
 					<div className="border border-solid border-[var(--vscode-panel-border)] rounded-md p-[10px] mb-5 bg-[var(--vscode-panel-background)]">
@@ -204,22 +219,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</p>
 					</div>
 				)}
-
-				<div className="mb-[5px]">
-					<VSCodeCheckbox
-						className="mb-[5px]"
-						checked={planActSeparateModelsSetting}
-						onChange={(e: any) => {
-							const checked = e.target.checked === true
-							setPlanActSeparateModelsSetting(checked)
-						}}>
-						Use different models for Plan and Act modes
-					</VSCodeCheckbox>
-					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
-						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
-					</p>
-				</div>
 
 				<div className="mb-[5px]">
 					<VSCodeCheckbox
