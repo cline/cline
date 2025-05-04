@@ -198,72 +198,55 @@ export const ChatRowContent = ({
 		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
 	}, [onSetQuote, quoteButtonState.selectedText]) // <-- Use onSetQuote from props
 
-	const handleMouseUp = useCallback(
-		(event: MouseEvent<HTMLDivElement>) => {
-			const selection = window.getSelection()
-			const selectedText = selection?.toString().trim() ?? ""
-			const targetElement = event.target as Element
+	const handleMouseUp = useCallback((event: MouseEvent<HTMLDivElement>) => {
+		const selection = window.getSelection()
+		const selectedText = selection?.toString().trim() ?? ""
+		const targetElement = event.target as Element
+		const isClickOnButton = !!targetElement.closest(".quote-button-class") // Check if click was on the button
 
-			// --- REVISED FIX: If button is visible, hide it on any click inside the content (but not on the button itself) ---
-			if (quoteButtonState.visible && !targetElement.closest(".quote-button-class")) {
-				// Check if the click originated within the contentRef
-				if (contentRef.current?.contains(targetElement)) {
-					setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
-					// Optional: Clear selection visually if needed, though the click might do this anyway
-					// window.getSelection()?.removeAllRanges();
-					return // Hide button and finish handling
-				}
+		let shouldShowButton = false
+		let buttonTop = 0
+		let buttonLeft = 0
+		let textToQuote = ""
+
+		// Condition 1: Check if there's a valid, non-collapsed selection within bounds
+		if (selectedText && contentRef.current && selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+			const range = selection.getRangeAt(0)
+			const rangeRect = range.getBoundingClientRect()
+			const containerRect = contentRef.current.getBoundingClientRect()
+
+			const isSelectionWithin =
+				rangeRect.top >= containerRect.top &&
+				rangeRect.left >= containerRect.left &&
+				rangeRect.bottom <= containerRect.bottom &&
+				rangeRect.right <= containerRect.right
+
+			if (isSelectionWithin) {
+				shouldShowButton = true // Mark that we should show the button
+				const buttonHeight = 30
+				buttonTop = rangeRect.top - containerRect.top - buttonHeight - 5
+				buttonLeft = rangeRect.left - containerRect.left
+				textToQuote = selectedText
 			}
-			// --- END REVISED FIX ---
+		}
 
-			// Logic to SHOW the button if a new, valid selection is made
-			// (Only runs if the button wasn't hidden by the logic above)
-			if (selectedText && contentRef.current && selection && selection.rangeCount > 0 && !selection.isCollapsed) {
-				const range = selection.getRangeAt(0)
-
-				// Get the bounding rectangle of the selection range
-				const rangeRect = range.getBoundingClientRect()
-				// Get the bounding rectangle of the content container
-				const containerRect = contentRef.current.getBoundingClientRect()
-
-				// Check if the selection's rectangle is fully contained within the container's rectangle
-				const isSelectionWithin =
-					rangeRect.top >= containerRect.top &&
-					rangeRect.left >= containerRect.left &&
-					rangeRect.bottom <= containerRect.bottom &&
-					rangeRect.right <= containerRect.right
-
-				if (isSelectionWithin) {
-					// Position button relative to the selection
-					const buttonHeight = 30 // Approximate height of the button
-					const top = rangeRect.top - containerRect.top - buttonHeight - 5 // 5px above selection
-					const left = rangeRect.left - containerRect.left // Align with the left edge of the selection
-
-					setQuoteButtonState({
-						visible: true,
-						top: top,
-						left: left,
-						selectedText: selectedText,
-					})
-					console.log("[ChatRow] handleMouseUp - Setting quote button state:", {
-						visible: true,
-						top,
-						left,
-						selectedText,
-					}) // Log state set
-					return // Showed/updated button, finish handling
-				}
-			}
-
-			// Fallback: If we reach here and the button is still somehow marked visible (e.g., click outside contentRef),
-			// ensure it's hidden unless the click was on the button.
-			// This might be redundant now but acts as a safeguard.
-			if (quoteButtonState.visible && !targetElement.closest(".quote-button-class")) {
-				setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
-			}
-		},
-		[quoteButtonState.visible],
-	)
+		// Decision: Set the state based on whether we should show or hide
+		if (shouldShowButton) {
+			// Scenario A: Valid selection exists -> Show button
+			setQuoteButtonState({
+				visible: true,
+				top: buttonTop,
+				left: buttonLeft,
+				selectedText: textToQuote,
+			})
+			// console.log("[ChatRow] handleMouseUp - SHOWING button");
+		} else if (!isClickOnButton) {
+			// Scenario B: No valid selection AND click was NOT on button -> Hide button
+			setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
+			// console.log("[ChatRow] handleMouseUp - HIDING button");
+		}
+		// Scenario C (Click WAS on button): Do nothing here, let handleQuoteClick manage it.
+	}, []) // No dependencies needed as it recalculates based on current selection state
 	// --- Quote Button Logic Ending ---
 
 	const [icon, title] = useMemo(() => {
