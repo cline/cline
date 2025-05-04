@@ -199,55 +199,63 @@ export const ChatRowContent = ({
 	}, [onSetQuote, quoteButtonState.selectedText]) // <-- Use onSetQuote from props
 
 	const handleMouseUp = useCallback((event: MouseEvent<HTMLDivElement>) => {
-		const selection = window.getSelection()
-		const selectedText = selection?.toString().trim() ?? ""
+		// Get the target element immediately, before the timeout
 		const targetElement = event.target as Element
-		const isClickOnButton = !!targetElement.closest(".quote-button-class") // Check if click was on the button
+		const isClickOnButton = !!targetElement.closest(".quote-button-class")
 
-		let shouldShowButton = false
-		let buttonTop = 0
-		let buttonLeft = 0
-		let textToQuote = ""
+		// Delay the selection check slightly
+		setTimeout(() => {
+			// Now, check the selection state *after* the browser has likely updated it
+			const selection = window.getSelection()
+			const selectedText = selection?.toString().trim() ?? ""
 
-		// Condition 1: Check if there's a valid, non-collapsed selection within bounds
-		if (selectedText && contentRef.current && selection && selection.rangeCount > 0 && !selection.isCollapsed) {
-			const range = selection.getRangeAt(0)
-			const rangeRect = range.getBoundingClientRect()
-			const containerRect = contentRef.current.getBoundingClientRect()
+			let shouldShowButton = false
+			let buttonTop = 0
+			let buttonLeft = 0
+			let textToQuote = ""
 
-			const isSelectionWithin =
-				rangeRect.top >= containerRect.top &&
-				rangeRect.left >= containerRect.left &&
-				rangeRect.bottom <= containerRect.bottom &&
-				rangeRect.right <= containerRect.right
+			// Condition 1: Check if there's a valid, non-collapsed selection within bounds
+			// Ensure contentRef.current still exists in case component unmounted during timeout
+			if (selectedText && contentRef.current && selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+				const range = selection.getRangeAt(0)
+				const rangeRect = range.getBoundingClientRect()
+				// Re-check ref inside timeout and ensure containerRect is valid
+				const containerRect = contentRef.current?.getBoundingClientRect()
 
-			if (isSelectionWithin) {
-				shouldShowButton = true // Mark that we should show the button
-				const buttonHeight = 30
-				buttonTop = rangeRect.top - containerRect.top - buttonHeight - 5
-				buttonLeft = rangeRect.left - containerRect.left
-				textToQuote = selectedText
+				if (containerRect) {
+					// Check if containerRect was successfully obtained
+					const isSelectionWithin =
+						rangeRect.top >= containerRect.top &&
+						rangeRect.left >= containerRect.left &&
+						rangeRect.bottom <= containerRect.bottom &&
+						rangeRect.right <= containerRect.right
+
+					if (isSelectionWithin) {
+						shouldShowButton = true // Mark that we should show the button
+						const buttonHeight = 30
+						buttonTop = rangeRect.top - containerRect.top - buttonHeight - 5
+						buttonLeft = rangeRect.left - containerRect.left
+						textToQuote = selectedText
+					}
+				}
 			}
-		}
 
-		// Decision: Set the state based on whether we should show or hide
-		if (shouldShowButton) {
-			// Scenario A: Valid selection exists -> Show button
-			setQuoteButtonState({
-				visible: true,
-				top: buttonTop,
-				left: buttonLeft,
-				selectedText: textToQuote,
-			})
-			// console.log("[ChatRow] handleMouseUp - SHOWING button");
-		} else if (!isClickOnButton) {
-			// Scenario B: No valid selection AND click was NOT on button -> Hide button
-			setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
-			// console.log("[ChatRow] handleMouseUp - HIDING button");
-		}
-		// Scenario C (Click WAS on button): Do nothing here, let handleQuoteClick manage it.
-	}, []) // No dependencies needed as it recalculates based on current selection state
-	// --- Quote Button Logic Ending ---
+			// Decision: Set the state based on whether we should show or hide
+			if (shouldShowButton) {
+				// Scenario A: Valid selection exists -> Show button
+				setQuoteButtonState({
+					visible: true,
+					top: buttonTop,
+					left: buttonLeft,
+					selectedText: textToQuote,
+				})
+			} else if (!isClickOnButton) {
+				// Scenario B: No valid selection AND click was NOT on button -> Hide button
+				setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
+			}
+			// Scenario C (Click WAS on button): Do nothing here, handleQuoteClick takes over.
+		}, 0) // Delay of 0ms pushes execution after current event cycle
+	}, []) // Dependencies remain empty
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
