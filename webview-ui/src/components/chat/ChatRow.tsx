@@ -224,17 +224,21 @@ export const ChatRowContent = ({
 
 				if (containerRect) {
 					// Check if containerRect was successfully obtained
+					const tolerance = 5 // Allow for a small pixel overflow (e.g., for margins)
 					const isSelectionWithin =
 						rangeRect.top >= containerRect.top &&
 						rangeRect.left >= containerRect.left &&
-						rangeRect.bottom <= containerRect.bottom &&
+						rangeRect.bottom <= containerRect.bottom + tolerance && // Added tolerance
 						rangeRect.right <= containerRect.right
 
 					if (isSelectionWithin) {
 						shouldShowButton = true // Mark that we should show the button
 						const buttonHeight = 30
-						buttonTop = rangeRect.top - containerRect.top - buttonHeight - 5
-						buttonLeft = rangeRect.left - containerRect.left
+						// Calculate the raw top position
+						const calculatedTop = rangeRect.top - containerRect.top - buttonHeight - 5
+						// Ensure the button doesn't go above the container's top edge
+						buttonTop = Math.max(0, calculatedTop)
+						buttonLeft = Math.max(0, rangeRect.left - containerRect.left)
 						textToQuote = selectedText
 					}
 				}
