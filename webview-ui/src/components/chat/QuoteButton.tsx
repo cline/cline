@@ -38,14 +38,18 @@ const QuoteButton: React.FC<QuoteButtonProps> = ({ top, left, onClick }) => {
 			<VSCodeButton
 				appearance="icon"
 				aria-label="Quote selection"
+				title="Quote selection" // Add tooltip
 				onClick={(e) => {
 					e.stopPropagation() // Prevent triggering mouseup on the parent
 					onClick()
 				}}
-				style={{ padding: "4px 6px", height: "auto", minWidth: "auto" }}>
+				style={{ padding: "2px 4px", height: "auto", minWidth: "auto" }}>
+				{" "}
+				{/* Adjust padding */}
 				<span
 					className="codicon codicon-quote"
-					style={{ fontSize: "14px", color: "var(--vscode-button-foreground)" }}></span>
+					style={{ fontSize: "12px", color: "var(--vscode-button-foreground)" }}></span>{" "}
+				{/* Adjust font size */}
 			</VSCodeButton>
 		</ButtonContainer>
 	)

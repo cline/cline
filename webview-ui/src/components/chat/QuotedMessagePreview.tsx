@@ -19,7 +19,7 @@ const QuotedMessagePreview: React.FC<QuotedMessagePreviewProps> = ({ text, onDis
 			</div>
 
 			<pre className="reply-card__snippet">
-				<code>{text}</code> {/* Populate dynamically with truncated text */}
+				<code>{text}</code>
 			</pre>
 		</div>
 	)
