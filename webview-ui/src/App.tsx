@@ -16,8 +16,11 @@ const AppContent = () => {
 	const [showSettings, setShowSettings] = useState(false)
 	const hideSettings = useCallback(() => setShowSettings(false), [])
 	const [showHistory, setShowHistory] = useState(false)
+	const hideHistory = useCallback(() => setShowHistory(false), [])
 	const [showAccount, setShowAccount] = useState(false)
+	const hideAccount = useCallback(() => setShowAccount(false), [])
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [])
 
 	const { setShowMcp, setMcpTab } = useExtensionState()
 
@@ -101,9 +104,9 @@ const AppContent = () => {
 			) : (
 				<>
 					{showSettings && <SettingsView onDone={hideSettings} />}
-					{showHistory && <HistoryView onDone={() => setShowHistory(false)} />}
+					{showHistory && <HistoryView onDone={hideHistory} />}
 					{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
-					{showAccount && <AccountView onDone={() => setShowAccount(false)} />}
+					{showAccount && <AccountView onDone={hideAccount} />}
 					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 					<ChatView
 						showHistoryView={() => {
@@ -114,9 +117,7 @@ const AppContent = () => {
 						}}
 						isHidden={showSettings || showHistory || showMcp || showAccount}
 						showAnnouncement={showAnnouncement}
-						hideAnnouncement={() => {
-							setShowAnnouncement(false)
-						}}
+						hideAnnouncement={hideAnnouncement}
 					/>
 				</>
 			)}
