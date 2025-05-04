@@ -264,54 +264,6 @@ export const ChatRowContent = ({
 		},
 		[quoteButtonState.visible],
 	)
-	// --- End of Quote Button Logic ---
-
-	const handleDoubleClick = useCallback(
-		(event: MouseEvent<HTMLDivElement>) => {
-			const selection = window.getSelection()
-			const selectedText = selection?.toString().trim() ?? ""
-			console.log("[ChatRow] handleDoubleClick - Selected text:", selectedText) // Log selected text
-
-			// Safely check selection and rangeCount
-			if (selectedText && contentRef.current && selection && selection.rangeCount > 0) {
-				const range = selection.getRangeAt(0)
-
-				// Get the bounding rectangle of the selection range
-				const rangeRect = range.getBoundingClientRect()
-				// Get the bounding rectangle of the content container
-				const containerRect = contentRef.current.getBoundingClientRect()
-
-				// Check if the selection's rectangle is fully contained within the container's rectangle
-				const isSelectionWithin =
-					rangeRect.top >= containerRect.top &&
-					rangeRect.left >= containerRect.left &&
-					rangeRect.bottom <= containerRect.bottom &&
-					rangeRect.right <= containerRect.right
-
-				if (isSelectionWithin) {
-					// Position button relative to the selection
-					const buttonHeight = 30 // Approximate height of the button
-					const top = rangeRect.top - containerRect.top - buttonHeight - 5 // 5px above selection
-					const left = rangeRect.left - containerRect.left // Align with the left edge of the selection
-
-					setQuoteButtonState({
-						visible: true,
-						top: top,
-						left: left,
-						selectedText: selectedText,
-					})
-					console.log("[ChatRow] handleDoubleClick - Setting quote button state:", {
-						visible: true,
-						top,
-						left,
-						selectedText,
-					}) // Log state set
-				}
-			}
-			// No need to explicitly hide here, mouseup will handle deselection clicks
-		},
-		[], // No dependencies needed for this specific handler logic
-	)
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
@@ -953,11 +905,7 @@ export const ChatRowContent = ({
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
-						<div
-							ref={contentRef}
-							onMouseUp={handleMouseUp}
-							onDoubleClick={handleDoubleClick}
-							style={{ position: "relative" }}>
+						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
 							<Markdown markdown={message.text} />
 							{quoteButtonState.visible && (
 								<QuoteButton
@@ -1398,11 +1346,7 @@ export const ChatRowContent = ({
 									{title}
 								</div>
 							)}
-							<div
-								ref={contentRef}
-								onMouseUp={handleMouseUp}
-								onDoubleClick={handleDoubleClick}
-								style={{ position: "relative", paddingTop: 10 }}>
+							<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative", paddingTop: 10 }}>
 								<Markdown markdown={question} />
 								<OptionsButtons
 									options={options}
@@ -1468,11 +1412,7 @@ export const ChatRowContent = ({
 						response = message.text
 					}
 					return (
-						<div
-							ref={contentRef}
-							onMouseUp={handleMouseUp}
-							onDoubleClick={handleDoubleClick}
-							style={{ position: "relative" }}>
+						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
 							<Markdown markdown={response} />
 							<OptionsButtons
 								options={options}
