@@ -264,6 +264,7 @@ export const ChatRowContent = ({
 		},
 		[quoteButtonState.visible],
 	)
+	// --- Quote Button Logic Ending ---
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
