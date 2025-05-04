@@ -5,14 +5,9 @@ import { ApiHandler } from "../"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "../../utils/cost"
-import { ApiStream } from "../transform/stream"
+import { ApiStream, ApiStreamChunk } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import {
-	BedrockRuntimeClient,
-	ConversationRole,
-	ConverseStreamCommand,
-	InvokeModelWithResponseStreamCommand,
-} from "@aws-sdk/client-bedrock-runtime"
+import { BedrockRuntimeClient, ConversationRole, ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -34,15 +29,9 @@ export class AwsBedrockHandler implements ApiHandler {
 		const baseModelId =
 			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : modelId) || modelId
 
-		// Check if this is an Amazon Nova model
-		if (baseModelId.includes("amazon.nova")) {
-			yield* this.createNovaMessage(systemPrompt, messages, modelId, model)
-			return
-		}
-
-		// Check if this is a Deepseek model
-		if (baseModelId.includes("deepseek")) {
-			yield* this.createDeepseekMessage(systemPrompt, messages, modelId, model)
+		// Check if this is an Amazon Nova model or a DeepSeek model
+		if (baseModelId.includes("amazon.nova") || baseModelId.includes("deepseek")) {
+			yield* this.createConverseMessage(systemPrompt, messages, modelId, model, baseModelId)
 			return
 		}
 
@@ -301,98 +290,75 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Creates a message using the Deepseek R1 model through AWS Bedrock
+	 * Creates a message using the Converse API for both Nova and DeepSeek models
+	 * This is a unified implementation that handles both model types
 	 */
-	private async *createDeepseekMessage(
+	private async *createConverseMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
+		baseModelId: string,
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
 
-		// Format prompt for DeepSeek R1 according to documentation
-		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
+		// Format messages for the Converse API
+		const formattedResult = this.formatConverseMessages(systemPrompt, messages, baseModelId)
 
-		// Prepare the request based on DeepSeek R1's expected format
-		const command = new InvokeModelWithResponseStreamCommand({
+		// Prepare request for Converse API
+		const command = new ConverseStreamCommand({
 			modelId: modelId,
-			contentType: "application/json",
-			accept: "application/json",
-			body: JSON.stringify({
-				prompt: formattedPrompt,
-				max_tokens: model.info.maxTokens || 8000,
+			messages: formattedResult.messages,
+			system: formattedResult.system,
+			inferenceConfig: {
+				maxTokens: model.info.maxTokens || 5000,
 				temperature: 0,
-			}),
+				// topP: 0.9, // Using both temperature and topP as recommended in the docs
+			},
 		})
 
-		// Track token usage
-		const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
-		let outputTokens = 0
-		let isFirstChunk = true
-		let accumulatedTokens = 0
-		const TOKEN_REPORT_THRESHOLD = 100 // Report usage after accumulating this many tokens
+		// Execute the streaming request and handle response
+		try {
+			const response = await client.send(command)
 
-		// Execute the streaming request
-		const response = await client.send(command)
+			if (response.stream) {
+				let hasReportedInputTokens = false
+				let accumulatedTokens = 0
+				const TOKEN_REPORT_THRESHOLD = 100 // Report usage after accumulating this many tokens
 
-		if (response.body) {
-			for await (const chunk of response.body) {
-				if (chunk.chunk?.bytes) {
-					try {
-						// Parse the response chunk
-						const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes)
-						const parsedChunk = JSON.parse(decodedChunk)
+				for await (const chunk of response.stream) {
+					// Handle metadata events with token usage information
+					if (chunk.metadata?.usage) {
+						// Process usage metadata to extract cache information if available
+						const usageData = this.processUsageMetadata(chunk.metadata.usage, model)
 
-						// Report usage on first chunk
-						if (isFirstChunk) {
-							isFirstChunk = false
-							const totalCost = calculateApiCostOpenAI(model.info, inputTokenEstimate, 0, 0, 0)
-							yield {
-								type: "usage",
-								inputTokens: inputTokenEstimate,
-								outputTokens: 0,
-								totalCost: totalCost,
-							}
+						yield {
+							type: "usage",
+							inputTokens: usageData.inputTokens,
+							outputTokens: usageData.outputTokens,
+							cacheReadTokens: usageData.cacheReadTokens,
+							cacheWriteTokens: usageData.cacheWriteTokens,
+							totalCost: usageData.totalCost,
 						}
 
-						// Handle DeepSeek R1 response format
-						if (parsedChunk.choices && parsedChunk.choices.length > 0) {
-							// For non-streaming response (full response)
-							const text = parsedChunk.choices[0].text
-							if (text) {
-								const chunkTokens = this.estimateTokenCount(text)
-								outputTokens += chunkTokens
-								accumulatedTokens += chunkTokens
+						hasReportedInputTokens = true
+						accumulatedTokens = 0 // Reset accumulated tokens after reporting
+					}
 
-								yield {
-									type: "text",
-									text: text,
-								}
+					// Handle content delta (text generation)
+					if (chunk.contentBlockDelta?.delta?.text) {
+						const text = chunk.contentBlockDelta.delta.text
+						yield {
+							type: "text",
+							text: text,
+						}
 
-								if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
-									const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
-									yield {
-										type: "usage",
-										inputTokens: 0,
-										outputTokens: accumulatedTokens,
-										totalCost: totalCost,
-									}
-									accumulatedTokens = 0
-								}
-							}
-						} else if (parsedChunk.delta?.text) {
-							// For streaming response (delta updates)
-							const text = parsedChunk.delta.text
+						// Estimate token count for reporting
+						if (!hasReportedInputTokens) {
 							const chunkTokens = this.estimateTokenCount(text)
-							outputTokens += chunkTokens
 							accumulatedTokens += chunkTokens
 
-							yield {
-								type: "text",
-								text: text,
-							}
 							// Report aggregated token usage only when threshold is reached
 							if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
 								const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
@@ -405,155 +371,16 @@ export class AwsBedrockHandler implements ApiHandler {
 								accumulatedTokens = 0
 							}
 						}
-					} catch (error) {
-						console.error("Error parsing Deepseek response chunk:", error)
-						// Propagate the error by yielding a text response with error information
-						yield {
-							type: "text",
-							text: `[ERROR] Failed to parse Deepseek response: ${error instanceof Error ? error.message : String(error)}`,
-						}
-					}
-				}
-			}
-
-			// Report any remaining accumulated tokens at the end of the stream
-			if (accumulatedTokens > 0) {
-				const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
-				yield {
-					type: "usage",
-					inputTokens: 0,
-					outputTokens: accumulatedTokens,
-					totalCost: totalCost,
-				}
-			}
-
-			// Add final total cost calculation that includes both input and output tokens
-			const finalTotalCost = calculateApiCostOpenAI(model.info, inputTokenEstimate, outputTokens, 0, 0)
-			yield {
-				type: "usage",
-				inputTokens: inputTokenEstimate,
-				outputTokens: outputTokens,
-				totalCost: finalTotalCost,
-			}
-		}
-	}
-
-	/**
-	 * Formats prompt for DeepSeek R1 model according to documentation
-	 * First uses convertToR1Format to merge consecutive messages with the same role,
-	 * then converts to the string format that DeepSeek R1 expects
-	 */
-	private formatDeepseekR1Prompt(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): string {
-		// First use convertToR1Format to merge consecutive messages with the same role
-		const r1Messages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-
-		// Then convert to the special string format expected by DeepSeek R1
-		let combinedContent = ""
-
-		for (const message of r1Messages) {
-			let content = ""
-
-			if (message.content) {
-				if (typeof message.content === "string") {
-					content = message.content
-				} else {
-					// Extract text content from message parts
-					content = message.content
-						.filter((part) => part.type === "text")
-						.map((part) => part.text)
-						.join("\n")
-				}
-			}
-
-			combinedContent += message.role === "user" ? "User: " + content + "\n" : "Assistant: " + content + "\n"
-		}
-
-		// Format according to DeepSeek R1's expected prompt format
-		return `<｜begin▁of▁sentence｜><｜User｜>${combinedContent}<｜Assistant｜><think>\n`
-	}
-
-	/**
-	 * Estimates token count based on text length (approximate)
-	 * Note: This is a rough estimation, as the actual token count depends on the tokenizer
-	 */
-	private estimateInputTokens(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): number {
-		// For Deepseek R1, we estimate the token count of the formatted prompt
-		// The formatted prompt includes special tokens and consistent formatting
-		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
-		return Math.ceil(formattedPrompt.length / 4)
-	}
-
-	/**
-	 * Estimates token count for a text string
-	 */
-	private estimateTokenCount(text: string): number {
-		// Approximate 4 characters per token
-		return Math.ceil(text.length / 4)
-	}
-
-	/**
-	 * Creates a message using Amazon Nova models through AWS Bedrock
-	 * Implements support for Amazon Nova models
-	 */
-	private async *createNovaMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		modelId: string,
-		model: { id: string; info: ModelInfo },
-	): ApiStream {
-		// Get Bedrock client with proper credentials
-		const client = await this.getBedrockClient()
-
-		// Format messages for Nova model
-		const formattedMessages = this.formatNovaMessages(messages)
-
-		// Prepare request for Nova model
-		const command = new ConverseStreamCommand({
-			modelId: modelId,
-			messages: formattedMessages,
-			system: systemPrompt ? [{ text: systemPrompt }] : undefined,
-			inferenceConfig: {
-				maxTokens: model.info.maxTokens || 5000,
-				temperature: 0,
-				// topP: 0.9, // Alternative: use topP instead of temperature
-			},
-		})
-
-		// Execute the streaming request and handle response
-		try {
-			const response = await client.send(command)
-
-			if (response.stream) {
-				let hasReportedInputTokens = false
-
-				for await (const chunk of response.stream) {
-					// Handle metadata events with token usage information
-					if (chunk.metadata?.usage) {
-						// Report complete token usage from the model itself
-						const inputTokens = chunk.metadata.usage.inputTokens || 0
-						const outputTokens = chunk.metadata.usage.outputTokens || 0
-						yield {
-							type: "usage",
-							inputTokens,
-							outputTokens,
-							totalCost: calculateApiCostOpenAI(model.info, inputTokens, outputTokens, 0, 0),
-						}
-						hasReportedInputTokens = true
-					}
-
-					// Handle content delta (text generation)
-					if (chunk.contentBlockDelta?.delta?.text) {
-						yield {
-							type: "text",
-							text: chunk.contentBlockDelta.delta.text,
-						}
 					}
 
 					// Handle reasoning content if present
-					if (chunk.contentBlockDelta?.delta?.reasoningContent?.text) {
-						yield {
-							type: "reasoning",
-							reasoning: chunk.contentBlockDelta.delta.reasoningContent.text,
+					if (chunk.contentBlockDelta?.delta?.reasoningContent) {
+						const reasoning = this.processReasoningContent(chunk.contentBlockDelta.delta.reasoningContent)
+						if (reasoning) {
+							yield {
+								type: "reasoning",
+								reasoning: reasoning,
+							}
 						}
 					}
 
@@ -585,97 +412,252 @@ export class AwsBedrockHandler implements ApiHandler {
 						}
 					}
 				}
+
+				// Report any remaining accumulated tokens at the end of the stream
+				if (accumulatedTokens > 0) {
+					const totalCost = calculateApiCostOpenAI(model.info, 0, accumulatedTokens, 0, 0)
+					yield {
+						type: "usage",
+						inputTokens: 0,
+						outputTokens: accumulatedTokens,
+						totalCost: totalCost,
+					}
+				}
 			}
 		} catch (error) {
-			console.error("Error processing Nova model response:", error)
+			console.error("Error processing Converse API response:", error)
 			yield {
 				type: "text",
-				text: `[ERROR] Failed to process Nova response: ${error instanceof Error ? error.message : String(error)}`,
+				text: `[ERROR] Failed to process response: ${error instanceof Error ? error.message : String(error)}`,
 			}
 		}
 	}
 
 	/**
-	 * Formats messages for Amazon Nova models according to the SDK specification
+	 * Formats messages for the Converse API with model-specific adjustments
 	 */
-	private formatNovaMessages(messages: Anthropic.Messages.MessageParam[]): { role: ConversationRole; content: any[] }[] {
-		return messages.map((message) => {
-			// Determine role (user or assistant)
-			const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
+	private formatConverseMessages(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		baseModelId: string,
+	): {
+		messages: { role: ConversationRole; content: any[] }[]
+		system?: { text: string }[]
+	} {
+		// For DeepSeek R1, we need to use the R1 format conversion
+		if (baseModelId.includes("deepseek")) {
+			// First use convertToR1Format to merge consecutive messages with the same role
+			const r1Messages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 
-			// Process content based on type
-			let content: any[] = []
+			// Then convert to the format expected by the Converse API
+			return {
+				messages: r1Messages.map((message) => {
+					const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
 
-			if (typeof message.content === "string") {
-				// Simple text content
-				content = [{ text: message.content }]
-			} else if (Array.isArray(message.content)) {
-				// Convert Anthropic content format to Nova content format
-				content = message.content
-					.map((item) => {
-						// Text content
-						if (item.type === "text") {
-							return { text: item.text }
-						}
+					// Process content based on type
+					let content: any[] = []
 
-						// Image content
-						if (item.type === "image") {
-							// Handle different image source formats
-							let imageData: Uint8Array
-							let format = "jpeg" // default format
+					if (typeof message.content === "string") {
+						content = [{ text: message.content }]
+					} else if (Array.isArray(message.content)) {
+						content = message.content
+							.map((item) => {
+								if (typeof item === "string") {
+									return { text: item }
+								}
 
-							// Extract format from media_type if available
-							if (item.source.media_type) {
-								// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
-								const formatMatch = item.source.media_type.match(/image\/(\w+)/)
-								if (formatMatch && formatMatch[1]) {
-									format = formatMatch[1]
-									// Ensure format is one of the allowed values
-									if (!["png", "jpeg", "gif", "webp"].includes(format)) {
-										format = "jpeg" // Default to jpeg if not supported
+								if (item.type === "text") {
+									return { text: item.text }
+								}
+
+								if (item.type === "image_url") {
+									// Extract image data from URL
+									try {
+										const imageUrl = item.image_url.url
+										const match = imageUrl.match(/^data:image\/(\w+);base64,(.+)$/)
+
+										if (match) {
+											const format = match[1]
+											const base64Data = match[2]
+											const imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
+
+											return {
+												image: {
+													format,
+													source: {
+														bytes: imageData,
+													},
+												},
+											}
+										}
+									} catch (error) {
+										console.error("Could not convert image data:", error)
 									}
 								}
-							}
 
-							// Get image data
-							try {
-								if (typeof item.source.data === "string") {
-									// Handle base64 encoded data
-									const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
-									imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
-								} else if (item.source.data && typeof item.source.data === "object") {
-									// Try to convert to Uint8Array
-									imageData = new Uint8Array(Buffer.from(item.source.data as any))
-								} else {
-									console.error("Unsupported image data format")
-									return null // Skip this item if format is not supported
-								}
-							} catch (error) {
-								console.error("Could not convert image data to Uint8Array:", error)
-								return null // Skip this item if conversion fails
-							}
+								return null
+							})
+							.filter(Boolean)
+					}
 
-							return {
-								image: {
-									format,
-									source: {
-										bytes: imageData,
-									},
-								},
-							}
-						}
-
-						// Return null for unsupported content types
-						return null
-					})
-					.filter(Boolean) // Remove any null items
+					return {
+						role,
+						content,
+					}
+				}),
+				// For DeepSeek R1, we don't use a separate system message
+				system: undefined,
 			}
-
-			// Return formatted message
+		} else {
+			// For Nova and other models, use standard formatting
 			return {
-				role,
-				content,
+				messages: messages.map((message) => {
+					const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
+
+					// Process content based on type
+					let content: any[] = []
+
+					if (typeof message.content === "string") {
+						// Simple text content
+						content = [{ text: message.content }]
+					} else if (Array.isArray(message.content)) {
+						// Convert Anthropic content format to Nova content format
+						content = message.content
+							.map((item) => {
+								// Text content
+								if (item.type === "text") {
+									return { text: item.text }
+								}
+
+								// Image content
+								if (item.type === "image") {
+									// Handle image content
+									let format = "jpeg" // default format
+
+									// Extract format from media_type if available
+									if (item.source.media_type) {
+										const formatMatch = item.source.media_type.match(/image\/(\w+)/)
+										if (formatMatch && formatMatch[1]) {
+											format = formatMatch[1]
+											if (!["png", "jpeg", "gif", "webp"].includes(format)) {
+												format = "jpeg" // Default to jpeg if not supported
+											}
+										}
+									}
+
+									// Get image data
+									try {
+										let imageData: Uint8Array
+
+										if (typeof item.source.data === "string") {
+											// Handle base64 encoded data
+											const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
+											imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
+										} else if (item.source.data && typeof item.source.data === "object") {
+											// Try to convert to Uint8Array
+											imageData = new Uint8Array(Buffer.from(item.source.data as any))
+										} else {
+											console.error("Unsupported image data format")
+											return null // Skip this item if format is not supported
+										}
+
+										return {
+											image: {
+												format,
+												source: {
+													bytes: imageData,
+												},
+											},
+										}
+									} catch (error) {
+										console.error("Could not convert image data:", error)
+										return null
+									}
+								}
+								// Return null for unsupported content types
+								return null
+							})
+							.filter(Boolean) // Remove any null items
+					}
+
+					// Return formatted message
+					return {
+						role,
+						content,
+					}
+				}),
+				// For Nova models, we use a separate system message
+				system: systemPrompt ? [{ text: systemPrompt }] : undefined,
 			}
-		})
+		}
+	}
+
+	/**
+	 * Process usage metadata to extract cache information if available
+	 */
+	private processUsageMetadata(
+		metadata: any,
+		model: { id: string; info: ModelInfo },
+	): {
+		inputTokens: number
+		outputTokens: number
+		cacheReadTokens?: number
+		cacheWriteTokens?: number
+		totalCost: number
+	} {
+		const inputTokens = metadata.inputTokens || 0
+		const outputTokens = metadata.outputTokens || 0
+
+		// Extract cache information if available
+		const cacheReadTokens = metadata.cacheReadTokens || metadata.prompt_cache_hit_tokens || 0
+		const cacheWriteTokens = metadata.cacheWriteTokens || metadata.prompt_cache_miss_tokens || 0
+
+		// Calculate total cost
+		const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+
+		return {
+			inputTokens,
+			outputTokens,
+			cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : undefined,
+			cacheWriteTokens: cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
+			totalCost,
+		}
+	}
+
+	/**
+	 * Extract reasoning content from different response formats
+	 */
+	private processReasoningContent(content: any): string {
+		if (!content) {
+			return ""
+		}
+
+		// Handle different reasoning content formats
+		if (typeof content === "string") {
+			return content
+		}
+
+		if (content.text) {
+			return content.text
+		}
+
+		if (content.thinking) {
+			return content.thinking
+		}
+
+		// Try to convert to string if it's an object
+		try {
+			return JSON.stringify(content)
+		} catch (e) {
+			return "[Reasoning content in unsupported format]"
+		}
+	}
+
+	/**
+	 * Estimates token count for a text string
+	 */
+	private estimateTokenCount(text: string): number {
+		// Approximate 4 characters per token
+		return Math.ceil(text.length / 4)
 	}
 }
