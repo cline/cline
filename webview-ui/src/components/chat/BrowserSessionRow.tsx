@@ -110,7 +110,7 @@ const headerStyle: CSSProperties = {
 }
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
-	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props // <-- Destructure onSetQuote
+	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props
 	const { browserSettings } = useExtensionState()
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
@@ -296,7 +296,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					{...props}
 					message={message}
 					setMaxActionHeight={setMaxActionHeight}
-					onSetQuote={onSetQuote} // <-- Pass onSetQuote down
+					onSetQuote={onSetQuote}
 				/>
 			))}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
@@ -492,10 +492,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 }, deepEqual)
 
 interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages" | "onHeightChange"> {
-	// Omit onHeightChange as well, it's not used here
 	message: ClineMessage
 	setMaxActionHeight: (height: number) => void
-	onSetQuote: (text: string) => void // <-- Add prop type
+	onSetQuote: (text: string) => void
 }
 
 const BrowserSessionRowContent = ({
@@ -505,7 +504,7 @@ const BrowserSessionRowContent = ({
 	lastModifiedMessage,
 	isLast,
 	setMaxActionHeight,
-	onSetQuote, // <-- Destructure onSetQuote
+	onSetQuote,
 }: BrowserSessionRowContentProps) => {
 	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 		return (
@@ -539,7 +538,7 @@ const BrowserSessionRowContent = ({
 								}}
 								lastModifiedMessage={lastModifiedMessage}
 								isLast={isLast}
-								onSetQuote={onSetQuote} // <-- Pass onSetQuote down
+								onSetQuote={onSetQuote}
 							/>
 						</div>
 					)
