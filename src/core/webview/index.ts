@@ -244,8 +244,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	private getDevServerPort(): Promise<number> {
 		const DEFAULT_PORT = 25463
 
-		const projectRoot = path.resolve(__dirname, "../../..")
-		const portFilePath = path.join(projectRoot, "webview-ui", ".vite-port")
+		const portFilePath = path.join(__dirname, "..", "webview-ui", ".vite-port")
 
 		return readFile(portFilePath, "utf8")
 			.then((portFile) => {
