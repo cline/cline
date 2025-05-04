@@ -50,7 +50,7 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
-	onFocusChange?: (isFocused: boolean) => void // Add this prop
+	onFocusChange?: (isFocused: boolean) => void
 }
 
 interface GitCommit {
@@ -234,12 +234,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSelectImages,
 			shouldDisableImages,
 			onHeightChange,
-			onFocusChange, // Destructure the new prop
+			onFocusChange,
 		},
 		ref,
 	) => {
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
-		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false) // Keep internal state for outline
+		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 
@@ -1064,7 +1064,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 			}
 		}
-
+		/**
+		 * Handles the drag over event to allow dropping.
+		 * Prevents the default behavior to enable drop.
+		 *
+		 * @param {React.DragEvent} e - The drag event.
+		 */
 		const onDragOver = (e: React.DragEvent) => {
 			e.preventDefault()
 			// Ensure state remains true if dragging continues over the element
