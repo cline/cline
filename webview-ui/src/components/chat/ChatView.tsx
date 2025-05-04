@@ -353,9 +353,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			// Prepend the active quote if it exists
 			if (activeQuote && hasContent) {
-				const prefix = "## Reply Context\n> "
+				const prefix = "[context] \n> "
 				const formattedQuote = activeQuote
-				const suffix = "\n\n ## My reply\n"
+				const suffix = "\n[/context] \n\n"
 				messageToSend = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
 			}
 
