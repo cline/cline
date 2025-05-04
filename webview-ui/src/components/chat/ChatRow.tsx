@@ -1129,11 +1129,22 @@ export const ChatRowContent = ({
 								/>
 							</div>
 							<div
+								ref={contentRef} // Added ref
+								onMouseUp={handleMouseUp} // Added handler
 								style={{
 									color: "var(--vscode-charts-green)",
 									paddingTop: 10,
+									position: "relative", // Added position
 								}}>
 								<Markdown markdown={text} />
+								{/* Added QuoteButton rendering */}
+								{quoteButtonState.visible && (
+									<QuoteButton
+										top={quoteButtonState.top}
+										left={quoteButtonState.left}
+										onClick={handleQuoteClick}
+									/>
+								)}
 							</div>
 							{message.partial !== true && hasChanges && (
 								<div style={{ paddingTop: 17 }}>
@@ -1282,11 +1293,22 @@ export const ChatRowContent = ({
 									/>
 								</div>
 								<div
+									ref={contentRef} // Added ref
+									onMouseUp={handleMouseUp} // Added handler
 									style={{
 										color: "var(--vscode-charts-green)",
 										paddingTop: 10,
+										position: "relative", // Added position
 									}}>
 									<Markdown markdown={text} />
+									{/* Added QuoteButton rendering */}
+									{quoteButtonState.visible && (
+										<QuoteButton
+											top={quoteButtonState.top}
+											left={quoteButtonState.left}
+											onClick={handleQuoteClick}
+										/>
+									)}
 									{message.partial !== true && hasChanges && (
 										<div style={{ marginTop: 15 }}>
 											<SuccessButton
