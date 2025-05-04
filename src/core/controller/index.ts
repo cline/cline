@@ -1421,6 +1421,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 								if (modelInfo.cacheReadsPrice) {
 									modelInfo.supportsPromptCache = true
 									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
+									// openrouter charges no cache write pricing for openAI models
 								}
 							}
 							break
