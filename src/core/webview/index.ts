@@ -249,12 +249,15 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 		return readFile(portFilePath, "utf8")
 			.then((portFile) => {
-				const port = parseInt(portFile.trim(), 10)
+				const port = parseInt(portFile.trim())
 				console.info(`[getDevServerPort] Using dev server port from file: ${port}`)
+
 				return port
 			})
 			.catch((err) => {
-				console.warn(`[getDevServerPort] Port file not found or couldn't be read, using default port: ${DEFAULT_PORT}`)
+				console.warn(
+					`[getDevServerPort] Port file not found or couldn't be read at ${portFilePath}, using default port: ${DEFAULT_PORT}`,
+				)
 				return DEFAULT_PORT
 			})
 	}
