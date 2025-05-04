@@ -396,7 +396,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 				}
 				setInputValue("")
-				console.log("[ChatView] handleSendMessage - Clearing active quote") // Log quote clear
 				setActiveQuote(null) // Clear quote when sending message
 				setTextAreaDisabled(true)
 				setSelectedImages([])
