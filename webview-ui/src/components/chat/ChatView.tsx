@@ -407,13 +407,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk, activeQuote], // Add activeQuote to dependencies
+		[messages.length, clineAsk, activeQuote],
 	)
 
 	const startNewTask = useCallback(async () => {
 		setActiveQuote(null) // Clear the active quote state
 		await TaskServiceClient.clearTask({})
-	}, []) // Removed setActiveQuote from dependency array as it's stable
+	}, [])
 
 	/*
 	This logic depends on the useEffect[messages] above to set clineAsk, after which buttons are shown and we then send an askResponse to the extension.
@@ -548,9 +548,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const handleMessage = useCallback(
 		(e: MessageEvent) => {
-			console.log("[ChatView] handleMessage - Listener triggered with event:", e) // <-- ADD THIS LINE
 			const message: ExtensionMessage = e.data
-			console.log("[ChatView] handleMessage - Received message:", message) // Log ALL incoming messages
 			switch (message.type) {
 				case "action":
 					switch (message.action!) {
@@ -589,7 +587,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}
 					}, 0)
 					break
-				// REMOVED setActiveQuote case - state is now set directly via prop
 				case "invoke":
 					switch (message.invoke!) {
 						case "sendMessage":
@@ -605,10 +602,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 			// textAreaRef.current is not explicitly required here since react guarantees that ref will be stable across re-renders, and we're not using its value but its reference.
 		},
-		[isHidden, textAreaDisabled, enableButtons, handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick], // <-- RESTORE DEPENDENCIES
+		[isHidden, textAreaDisabled, enableButtons, handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick],
 	)
 
-	useEvent("message", handleMessage) // <-- REVERT TO ORIGINAL
+	useEvent("message", handleMessage)
 
 	useMount(() => {
 		// NOTE: the vscode window needs to be focused for this to work
@@ -882,7 +879,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								[messageTs]: !prev[messageTs],
 							}))
 						}}
-						onSetQuote={setActiveQuote} // <-- Add this line
+						onSetQuote={setActiveQuote}
 					/>
 				)
 			}
@@ -899,7 +896,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					onHeightChange={handleRowHeightChange}
 					inputValue={inputValue}
 					sendMessageFromChatRow={handleSendMessage}
-					onSetQuote={setActiveQuote} // <-- Pass down the state setter
+					onSetQuote={setActiveQuote}
 				/>
 			)
 		},
@@ -911,7 +908,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			handleRowHeightChange,
 			inputValue,
 			setActiveQuote,
-		], // <-- Add setActiveQuote dependency
+		],
 	)
 
 	return (
@@ -1081,9 +1078,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)}
 				</>
 			)}
-			{/* Log activeQuote state before rendering preview */}
 			{(() => {
-				console.log("[ChatView] Rendering - activeQuote:", activeQuote) // Log here
 				return activeQuote ? (
 					<QuotedMessagePreview
 						text={activeQuote}
@@ -1092,10 +1087,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					/>
 				) : null
 			})()}
-			{/* Wrap ChatTextArea to apply negative margin only when quote is active */}
 			<ChatTextArea
 				ref={textAreaRef}
-				onFocusChange={handleFocusChange} // Pass handler
+				onFocusChange={handleFocusChange}
 				inputValue={inputValue}
 				setInputValue={setInputValue}
 				textAreaDisabled={textAreaDisabled}
