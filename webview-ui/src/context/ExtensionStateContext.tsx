@@ -70,6 +70,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		planActSeparateModelsSetting: true,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
+		localCursorRulesToggles: {},
+		localWindsurfRulesToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -219,6 +221,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpTab,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
+		localCursorRulesToggles: state.localCursorRulesToggles || {},
+		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,

@@ -6,10 +6,22 @@ const RuleRow: React.FC<{
 	rulePath: string
 	enabled: boolean
 	isGlobal: boolean
+	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
-}> = ({ rulePath, enabled, isGlobal, toggleRule }) => {
+}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType }) => {
 	// Get the filename from the path for display
 	const displayName = rulePath.split("/").pop() || rulePath
+
+	const getRuleTypeIcon = () => {
+		switch (ruleType) {
+			case "cursor":
+				return <span className="codicon-link-external" style={{ fontSize: "14px" }} />
+			case "windsurf":
+				return <span className="codicon-link-external" style={{ fontSize: "14px" }} />
+			default:
+				return null // No special icon for cline rules
+		}
+	}
 
 	const handleEditClick = () => {
 		FileServiceClient.openFile({ value: rulePath }).catch((err) => console.error("Failed to open file:", err))
@@ -31,6 +43,7 @@ const RuleRow: React.FC<{
 					enabled ? "opacity-100" : "opacity-60"
 				}`}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
+					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
 					{displayName}
 				</span>
 
