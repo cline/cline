@@ -2,7 +2,6 @@
 
 ## [3.14.0]
 
--   Add UI to show openrouter balance next to provider
 -   Add support for custom model ID in AWS Bedrock provider, enabling use of Application Inference Profile (Thanks @clicube!)
 -   Add more robust caching & cache tracking for gemini & vertex providers
 -   Add support for LaTeX rendering
