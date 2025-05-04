@@ -16,7 +16,6 @@ const dirsToIgnore = [
 	"out",
 	"bundle",
 	"vendor",
-	"tmp",
 	"temp",
 	"deps",
 	"pkg",
