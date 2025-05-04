@@ -149,7 +149,7 @@ export const ChatRowContent = ({
 		left: 0,
 		selectedText: "",
 	})
-	const contentRef = useRef<HTMLDivElement>(null) // Ref for the content area
+	const contentRef = useRef<HTMLDivElement>(null)
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -193,20 +193,32 @@ export const ChatRowContent = ({
 	// --- Quote Button Logic ---
 	// MOVE handleQuoteClick INSIDE ChatRowContent
 	const handleQuoteClick = useCallback(() => {
-		console.log("[ChatRow] handleQuoteClick - Calling onSetQuote with text:", quoteButtonState.selectedText) // Log prop call
-		onSetQuote(quoteButtonState.selectedText) // <-- Call the prop function (now directly accessible)
+		onSetQuote(quoteButtonState.selectedText)
 		window.getSelection()?.removeAllRanges() // Clear the browser selection
-		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" }) // Hide the button
+		setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
 	}, [onSetQuote, quoteButtonState.selectedText]) // <-- Use onSetQuote from props
 
 	const handleMouseUp = useCallback(
 		(event: MouseEvent<HTMLDivElement>) => {
 			const selection = window.getSelection()
 			const selectedText = selection?.toString().trim() ?? ""
-			console.log("[ChatRow] handleMouseUp - Selected text:", selectedText) // Log selected text
+			const targetElement = event.target as Element
 
-			// Safely check selection and rangeCount
-			if (selectedText && contentRef.current && selection && selection.rangeCount > 0) {
+			// --- REVISED FIX: If button is visible, hide it on any click inside the content (but not on the button itself) ---
+			if (quoteButtonState.visible && !targetElement.closest(".quote-button-class")) {
+				// Check if the click originated within the contentRef
+				if (contentRef.current?.contains(targetElement)) {
+					setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
+					// Optional: Clear selection visually if needed, though the click might do this anyway
+					// window.getSelection()?.removeAllRanges();
+					return // Hide button and finish handling
+				}
+			}
+			// --- END REVISED FIX ---
+
+			// Logic to SHOW the button if a new, valid selection is made
+			// (Only runs if the button wasn't hidden by the logic above)
+			if (selectedText && contentRef.current && selection && selection.rangeCount > 0 && !selection.isCollapsed) {
 				const range = selection.getRangeAt(0)
 
 				// Get the bounding rectangle of the selection range
@@ -239,22 +251,20 @@ export const ChatRowContent = ({
 						left,
 						selectedText,
 					}) // Log state set
-					return // Don't hide if selection is valid
+					return // Showed/updated button, finish handling
 				}
 			}
 
-			// If no valid selection or selection outside, hide the button
-			if (quoteButtonState.visible) {
-				// Check if the click was on the quote button itself
-				const targetElement = event.target as Element
-				if (!targetElement.closest(".quote-button-class")) {
-					// Assuming QuoteButton has this class
-					setQuoteButtonState((prev) => ({ ...prev, visible: false }))
-				}
+			// Fallback: If we reach here and the button is still somehow marked visible (e.g., click outside contentRef),
+			// ensure it's hidden unless the click was on the button.
+			// This might be redundant now but acts as a safeguard.
+			if (quoteButtonState.visible && !targetElement.closest(".quote-button-class")) {
+				setQuoteButtonState({ visible: false, top: 0, left: 0, selectedText: "" })
 			}
 		},
 		[quoteButtonState.visible],
 	)
+	// --- End of Quote Button Logic ---
 
 	const handleDoubleClick = useCallback(
 		(event: MouseEvent<HTMLDivElement>) => {
@@ -302,9 +312,6 @@ export const ChatRowContent = ({
 		},
 		[], // No dependencies needed for this specific handler logic
 	)
-	// REMOVED handleQuoteClick from here - moved inside component
-
-	// --- End Quote Button Logic ---
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
