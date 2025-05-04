@@ -14,6 +14,10 @@ const timeout = () => {
 	return new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1000))
 }
 
+const wait = (n: number) => {
+	return new Promise((res) => setTimeout(res, n))
+}
+
 describe("WorkspaceTracker", () => {
 	describe("file system watcher", () => {
 		const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
@@ -42,10 +46,10 @@ describe("WorkspaceTracker", () => {
 			// If we don't wait for the directory to be created,
 			// the fileSystemWatcher might send the event while we are waiting for another file operation
 			// which will resolve the promise before we intend and fail the tests.
-			await new Promise((res) => setTimeout(res, 500))
+			await wait(500)
 		})
 
-		beforeEach(() => {
+		before(async () => {
 			sandbox = sinon.createSandbox()
 
 			sandbox.stub(vscode.workspace, "workspaceFolders").value([
@@ -58,7 +62,6 @@ describe("WorkspaceTracker", () => {
 				},
 			])
 
-			filePaths = []
 			workspaceTracker = new WorkspaceTracker(async (message) => {
 				filePaths = message.filePaths || []
 
@@ -67,9 +70,19 @@ describe("WorkspaceTracker", () => {
 					resolve?.()
 				}
 			})
+
+			// If we don't wait, the fileSystemWatcher might not be ready,
+			// and tests will consistently time out.
+			// TODO: Can we do this deterministically?
+			await wait(500)
 		})
 
-		afterEach(() => {
+		beforeEach(() => {
+			filePaths = []
+			fileSystemWatcherWaiter = []
+		})
+
+		after(() => {
 			workspaceTracker.dispose()
 			sandbox.restore()
 		})
