@@ -48,14 +48,14 @@ export async function executeCommandTool(
 
 			cline.consecutiveMistakeCount = 0
 
-			const executionId = Date.now().toString()
 			command = unescapeHtmlEntities(command) // Unescape HTML entities.
-			const didApprove = await askApproval("command", command, { id: executionId })
+			const didApprove = await askApproval("command", command)
 
 			if (!didApprove) {
 				return
 			}
 
+			const executionId = cline.lastMessageTs?.toString() ?? Date.now().toString()
 			const clineProvider = await cline.providerRef.deref()
 			const clineProviderState = await clineProvider?.getState()
 			const { terminalOutputLineLimit = 500, terminalShellIntegrationDisabled = false } = clineProviderState ?? {}

@@ -161,7 +161,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
-	private lastMessageTs?: number
+	public lastMessageTs?: number
 
 	// Not private since it needs to be accessible by tools.
 	consecutiveMistakeCount: number = 0

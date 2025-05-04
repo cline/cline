@@ -14,7 +14,7 @@ import { cn } from "@src/lib/utils"
 import { Button } from "@src/components/ui"
 
 interface CommandExecutionProps {
-	executionId?: string
+	executionId: string
 	text?: string
 }
 
@@ -36,10 +36,6 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 
 	const onMessage = useCallback(
 		(event: MessageEvent) => {
-			if (!executionId) {
-				return
-			}
-
 			const message: ExtensionMessage = event.data
 
 			if (message.type === "commandExecutionStatus") {
