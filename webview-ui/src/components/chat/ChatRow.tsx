@@ -35,7 +35,7 @@ import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import NewTaskPreview from "./NewTaskPreview"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import UserMessage from "./UserMessage"
-import QuoteButton from "./QuoteButton" // Import the new component
+import QuoteButton from "./QuoteButton"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -55,7 +55,7 @@ interface ChatRowProps {
 	onHeightChange: (isTaller: boolean) => void
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
-	onSetQuote: (text: string) => void // <-- Add prop type
+	onSetQuote: (text: string) => void
 }
 
 interface QuoteButtonState {
@@ -139,7 +139,7 @@ export const ChatRowContent = ({
 	isLast,
 	inputValue,
 	sendMessageFromChatRow,
-	onSetQuote, // <-- Destructure the new prop
+	onSetQuote,
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
@@ -572,7 +572,7 @@ export const ChatRowContent = ({
 										direction: "rtl",
 										textAlign: "left",
 									}}>
-									{cleanPathPrefix(tool.path ?? "") + ""}
+									{cleanPathPrefix(tool.path ?? "") + "\u200E"}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span
@@ -957,7 +957,6 @@ export const ChatRowContent = ({
 									top={quoteButtonState.top}
 									left={quoteButtonState.left}
 									onClick={() => {
-										console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
 										handleQuoteClick()
 									}}
 								/>
@@ -1005,7 +1004,7 @@ export const ChatRowContent = ({
 													textAlign: "left",
 													flex: 1,
 												}}>
-												{message.text + ""}
+												{message.text + "\u200E"}
 											</span>
 											<span
 												className="codicon codicon-chevron-right"
@@ -1409,7 +1408,6 @@ export const ChatRowContent = ({
 										top={quoteButtonState.top}
 										left={quoteButtonState.left}
 										onClick={() => {
-											console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
 											handleQuoteClick()
 										}}
 									/>
@@ -1480,7 +1478,6 @@ export const ChatRowContent = ({
 									top={quoteButtonState.top}
 									left={quoteButtonState.left}
 									onClick={() => {
-										console.log("[ChatRow] QuoteButton onClick triggered") // Log inside onClick prop
 										handleQuoteClick()
 									}}
 								/>
