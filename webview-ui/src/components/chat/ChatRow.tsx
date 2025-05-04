@@ -131,25 +131,6 @@ const ChatRow = memo(
 
 export default ChatRow
 
-// Helper function to parse error text
-function parseErrorText(text: string | undefined) {
-	if (!text) {
-		return undefined
-	}
-	try {
-		const startIndex = text.indexOf("{")
-		const endIndex = text.lastIndexOf("}")
-		if (startIndex !== -1 && endIndex !== -1) {
-			const jsonStr = text.substring(startIndex, endIndex + 1)
-			const errorObject = JSON.parse(jsonStr)
-			return errorObject
-		}
-	} catch (e) {
-		// Not JSON or missing required fields
-	}
-	return undefined
-}
-
 export const ChatRowContent = ({
 	message,
 	isExpanded,
@@ -1510,5 +1491,22 @@ export const ChatRowContent = ({
 				default:
 					return null
 			}
+	}
+}
+
+function parseErrorText(text: string | undefined) {
+	if (!text) {
+		return undefined
+	}
+	try {
+		const startIndex = text.indexOf("{")
+		const endIndex = text.lastIndexOf("}")
+		if (startIndex !== -1 && endIndex !== -1) {
+			const jsonStr = text.substring(startIndex, endIndex + 1)
+			const errorObject = JSON.parse(jsonStr)
+			return errorObject
+		}
+	} catch (e) {
+		// Not JSON or missing required fields
 	}
 }
