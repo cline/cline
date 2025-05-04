@@ -19,7 +19,7 @@ interface BrowserSessionRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
-	onSetQuote: (text: string) => void // <-- Add prop type
+	onSetQuote: (text: string) => void
 }
 
 const browserSessionRowContainerInnerStyle: CSSProperties = {

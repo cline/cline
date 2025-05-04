@@ -38,7 +38,7 @@ const QuoteButton: React.FC<QuoteButtonProps> = ({ top, left, onClick }) => {
 			<VSCodeButton
 				appearance="icon"
 				aria-label="Quote selection"
-				title="Quote selection" // Add tooltip
+				title="Quote selection in reply"
 				onClick={(e) => {
 					e.stopPropagation() // Prevent triggering mouseup on the parent
 					onClick()
