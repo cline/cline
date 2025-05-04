@@ -26,7 +26,7 @@ import AutoApproveMenu from "@/components/chat/AutoApproveMenu"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
-import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview" // Import the new component
+import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
 import TaskHeader from "@/components/chat/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
 import { unified } from "unified"
@@ -87,8 +87,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
-	const [activeQuote, setActiveQuote] = useState<string | null>(null) // State for the quote preview
-	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false) // State for text area focus
+	const [activeQuote, setActiveQuote] = useState<string | null>(null)
+	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
@@ -353,16 +353,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			// Prepend the active quote if it exists
 			if (activeQuote && hasContent) {
-				console.log("[ChatView] handleSendMessage - Prepending active quote:", activeQuote) // Log quote prepend
+				const prefix = "## Reply Context\n> "
 				const formattedQuote = activeQuote
-					.split("\n")
-					.map((line) => `> ${line}`)
-					.join("\n")
-				messageToSend = `${formattedQuote}\n\n${messageToSend}`
+				const suffix = "\n\n ## My reply\n"
+				messageToSend = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
 			}
 
 			if (hasContent) {
-				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend) // Log final message
+				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
 					await TaskServiceClient.newTask({ text: messageToSend, images })
 				} else if (clineAsk) {
