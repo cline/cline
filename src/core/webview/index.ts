@@ -249,7 +249,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		return readFile(portFilePath, "utf8")
 			.then((portFile) => {
 				const port = parseInt(portFile.trim())
-				console.info(`[getDevServerPort] Using dev server port from file: ${port}`)
+				console.info(`[getDevServerPort] Using dev server port ${port} from .vite-port file`)
 
 				return port
 			})
