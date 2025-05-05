@@ -632,9 +632,16 @@ export class Controller {
 				break
 			}
 			case "clearAllTaskHistory": {
-				await this.deleteAllTaskHistory()
-				await this.postStateToWebview()
-				this.refreshTotalTasksSize()
+				const answer = await vscode.window.showWarningMessage(
+					"Are you sure you want to delete all history?",
+					"Delete",
+					"Cancel",
+				)
+				if (answer === "Delete") {
+					await this.deleteAllTaskHistory()
+					await this.postStateToWebview()
+					this.refreshTotalTasksSize()
+				}
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
