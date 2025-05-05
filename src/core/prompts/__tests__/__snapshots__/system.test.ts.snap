@@ -5,6 +5,12 @@ exports[`SYSTEM_PROMPT should exclude diff strategy tool description when diffEn
 
 ====
 
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
+
+====
+
 TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -469,6 +475,12 @@ Mock generic rules"
 
 exports[`SYSTEM_PROMPT should exclude diff strategy tool description when diffEnabled is undefined 1`] = `
 "You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+
+====
+
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
 
 ====
 
@@ -939,6 +951,12 @@ exports[`SYSTEM_PROMPT should explicitly handle undefined mcpHub 1`] = `
 
 ====
 
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
+
+====
+
 TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -1403,6 +1421,12 @@ Mock generic rules"
 
 exports[`SYSTEM_PROMPT should handle different browser viewport sizes 1`] = `
 "You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+
+====
+
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
 
 ====
 
@@ -1926,6 +1950,12 @@ Mock generic rules"
 
 exports[`SYSTEM_PROMPT should include MCP server info when mcpHub is provided 1`] = `
 "You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+
+====
+
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
 
 ====
 
@@ -2464,6 +2494,12 @@ exports[`SYSTEM_PROMPT should include browser actions when supportsComputerUse i
 
 ====
 
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
+
+====
+
 TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -2984,6 +3020,12 @@ Mock generic rules"
 
 exports[`SYSTEM_PROMPT should include diff strategy tool description when diffEnabled is true 1`] = `
 "You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+
+====
+
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
 
 ====
 
@@ -3544,6 +3586,12 @@ exports[`SYSTEM_PROMPT should maintain consistent system prompt 1`] = `
 
 ====
 
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
+
+====
+
 TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -4050,6 +4098,12 @@ Mock generic rules"
 
 exports[`addCustomInstructions should exclude MCP server creation info when disabled 1`] = `
 "You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+
+====
+
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
 
 ====
 
@@ -4597,6 +4651,12 @@ exports[`addCustomInstructions should generate correct prompt for architect mode
 
 ====
 
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
+
+====
+
 TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -5055,6 +5115,12 @@ exports[`addCustomInstructions should generate correct prompt for ask mode 1`] =
 
 ====
 
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
+
+====
+
 TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -5427,6 +5493,12 @@ Mock generic rules"
 
 exports[`addCustomInstructions should include MCP server creation info when enabled 1`] = `
 "You are Roo, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+
+====
+
+MARKDOWN RULES
+
+ALL responses MUST show ANY \`language construct\` OR filename reterence as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses and ALSO those in <attempt_completion>
 
 ====
 
