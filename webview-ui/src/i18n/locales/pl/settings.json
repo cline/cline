@@ -316,7 +316,7 @@
 		},
 		"advanced": {
 			"label": "Ustawienia terminala: Zaawansowane",
-			"description": "Poniższe opcje mogą wymagać ponownego uruchomienia terminala, aby zastosować ustawienie"
+			"description": "Poniższe opcje mogą wymagać ponownego uruchomienia terminala, aby zastosować ustawienie."
 		},
 		"outputLineLimit": {
 			"label": "Limit wyjścia terminala",

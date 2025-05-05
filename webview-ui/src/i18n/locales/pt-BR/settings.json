@@ -316,7 +316,7 @@
 		},
 		"advanced": {
 			"label": "Configurações do terminal: Avançadas",
-			"description": "As seguintes opções podem exigir reiniciar o terminal para aplicar a configuração"
+			"description": "As seguintes opções podem exigir reiniciar o terminal para aplicar a configuração."
 		},
 		"outputLineLimit": {
 			"label": "Limite de saída do terminal",
@@ -336,7 +336,7 @@
 		},
 		"zdotdir": {
 			"label": "Ativar gerenciamento do ZDOTDIR",
-			"description": "Quando ativado, cria um diretório temporário para o ZDOTDIR para lidar corretamente com a integração do shell zsh. Isso garante que a integração do shell do VSCode funcione corretamente com o zsh enquanto preserva sua configuração do zsh. (experimental)"
+			"description": "Quando ativado, cria um diretório temporário para o ZDOTDIR para lidar corretamente com a integração do shell zsh. Isso garante que a integração do shell do VSCode funcione corretamente com o zsh enquanto preserva sua configuração do zsh."
 		},
 		"commandDelay": {
 			"label": "Atraso de comando do terminal",
@@ -352,11 +352,11 @@
 		},
 		"zshOhMy": {
 			"label": "Ativar integração Oh My Zsh",
-			"description": "Quando ativado, define ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar os recursos de integração do shell Oh My Zsh. A aplicação desta configuração pode exigir a reinicialização do IDE. (experimental)"
+			"description": "Quando ativado, define ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar os recursos de integração do shell Oh My Zsh. A aplicação desta configuração pode exigir a reinicialização do IDE."
 		},
 		"zshP10k": {
 			"label": "Ativar integração Powerlevel10k",
-			"description": "Quando ativado, define POWERLEVEL9K_TERM_SHELL_INTEGRATION=true para habilitar os recursos de integração do shell Powerlevel10k. (experimental)"
+			"description": "Quando ativado, define POWERLEVEL9K_TERM_SHELL_INTEGRATION=true para habilitar os recursos de integração do shell Powerlevel10k."
 		},
 		"inheritEnv": {
 			"label": "Herdar variáveis de ambiente",

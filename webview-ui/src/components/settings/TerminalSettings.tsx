@@ -1,8 +1,11 @@
-import { HTMLAttributes, useState, useEffect } from "react"
+import { HTMLAttributes, useState, useCallback } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
 import { SquareTerminal } from "lucide-react"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { useEvent, useMount } from "react-use"
+
+import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
 
 import { cn } from "@/lib/utils"
 import { Slider } from "@/components/ui"
@@ -51,31 +54,34 @@ export const TerminalSettings = ({
 	className,
 	...props
 }: TerminalSettingsProps) => {
-	const [inheritEnv, setInheritEnv] = useState<boolean>(true)
-
-	useEffect(() => {
-		// Get initial value from VSCode configuration
-		vscode.postMessage({ type: "getVSCodeSetting", setting: "terminal.integrated.inheritEnv" })
-	}, [])
-	useEffect(() => {
-		const handler = (event: MessageEvent<{ type: string; setting?: string; value?: boolean; error?: string }>) => {
-			const message = event.data
-			if (message.type === "vsCodeSetting" && message.setting === "terminal.integrated.inheritEnv") {
-				if (message.error) {
-					console.error("Failed to get terminal setting:", message.error)
-				} else {
-					setInheritEnv(message.value ?? true)
-				}
-			}
-		}
-		window.addEventListener("message", handler)
-		return () => window.removeEventListener("message", handler)
-	}, [])
-
 	const { t } = useAppTranslation()
 
+	const [inheritEnv, setInheritEnv] = useState<boolean>(true)
+
+	useMount(() => vscode.postMessage({ type: "getVSCodeSetting", setting: "terminal.integrated.inheritEnv" }))
+
+	const onMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+
+		switch (message.type) {
+			case "vsCodeSetting":
+				switch (message.setting) {
+					case "terminal.integrated.inheritEnv":
+						setInheritEnv(message.value ?? true)
+						break
+					default:
+						break
+				}
+				break
+			default:
+				break
+		}
+	}, [])
+
+	useEvent("message", onMessage)
+
 	return (
-		<div className={cn("flex flex-col gap-0", className)} {...props}>
+		<div className={cn("flex flex-col", className)} {...props}>
 			<SectionHeader>
 				<div className="flex items-center gap-2">
 					<SquareTerminal className="w-4" />
@@ -86,11 +92,13 @@ export const TerminalSettings = ({
 			<Section>
 				{/* Basic Settings */}
 				<div className="flex flex-col gap-3">
-					<div className="flex items-center gap-4 font-bold">
-						<span className="codicon codicon-settings-gear" />
-						<div>{t("settings:terminal.basic.label")}</div>
+					<div className="flex flex-col gap-1">
+						<div className="flex items-center gap-2 font-bold">
+							<span className="codicon codicon-settings-gear" />
+							<div>{t("settings:terminal.basic.label")}</div>
+						</div>
 					</div>
-					<div className="pl-3 border-vscode-button-background">
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
 						<div>
 							<label className="block font-medium mb-1">
 								{t("settings:terminal.outputLineLimit.label")}
@@ -127,15 +135,17 @@ export const TerminalSettings = ({
 				</div>
 
 				{/* Advanced Settings */}
-				<div className="flex flex-col gap-3 mt-6">
-					<div className="flex items-center gap-4 font-bold">
-						<span className="codicon codicon-tools" />
-						<div>{t("settings:terminal.advanced.label")}</div>
+				<div className="flex flex-col gap-3">
+					<div className="flex flex-col gap-1">
+						<div className="flex items-center gap-2 font-bold">
+							<span className="codicon codicon-tools" />
+							<div>{t("settings:terminal.advanced.label")}</div>
+						</div>
+						<div className="text-vscode-descriptionForeground">
+							{t("settings:terminal.advanced.description")}
+						</div>
 					</div>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						{t("settings:terminal.advanced.description")}
-					</p>
-					<div className="pl-3 border-vscode-button-background">
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
 						<div>
 							<VSCodeCheckbox
 								checked={inheritEnv}
@@ -169,6 +179,7 @@ export const TerminalSettings = ({
 								{t("settings:terminal.shellIntegrationDisabled.description")}
 							</div>
 						</div>
+
 						{!terminalShellIntegrationDisabled && (
 							<>
 								<div>

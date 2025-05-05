@@ -137,7 +137,6 @@ export interface WebviewMessage {
 	images?: string[]
 	bool?: boolean
 	value?: number
-	vscodeSettingValue?: unknown
 	commands?: string[]
 	audioType?: AudioType
 	serverName?: string

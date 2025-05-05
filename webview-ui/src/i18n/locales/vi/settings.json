@@ -316,7 +316,7 @@
 		},
 		"advanced": {
 			"label": "Cài đặt Terminal: Nâng cao",
-			"description": "Các tùy chọn sau có thể yêu cầu khởi động lại terminal để áp dụng cài đặt"
+			"description": "Các tùy chọn sau có thể yêu cầu khởi động lại terminal để áp dụng cài đặt."
 		},
 		"outputLineLimit": {
 			"label": "Giới hạn đầu ra terminal",

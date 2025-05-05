@@ -316,7 +316,7 @@
 		},
 		"advanced": {
 			"label": "Terminal Ayarları: Gelişmiş",
-			"description": "Aşağıdaki seçeneklerin uygulanması için terminalin yeniden başlatılması gerekebilir"
+			"description": "Aşağıdaki seçeneklerin uygulanması için terminalin yeniden başlatılması gerekebilir."
 		},
 		"outputLineLimit": {
 			"label": "Terminal çıktısı sınırı",

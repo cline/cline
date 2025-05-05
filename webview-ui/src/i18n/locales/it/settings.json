@@ -316,7 +316,7 @@
 		},
 		"advanced": {
 			"label": "Impostazioni terminale: Avanzate",
-			"description": "Le seguenti opzioni potrebbero richiedere il riavvio del terminale per applicare l'impostazione"
+			"description": "Le seguenti opzioni potrebbero richiedere il riavvio del terminale per applicare l'impostazione."
 		},
 		"outputLineLimit": {
 			"label": "Limite output terminale",

@@ -316,7 +316,7 @@
 		},
 		"advanced": {
 			"label": "Terminal Settings: Advanced",
-			"description": "The following options may require a terminal restart to apply the setting"
+			"description": "The following options may require a terminal restart to apply the setting."
 		},
 		"outputLineLimit": {
 			"label": "Terminal output limit",
@@ -348,15 +348,15 @@
 		},
 		"zshOhMy": {
 			"label": "Enable Oh My Zsh integration",
-			"description": "When enabled, sets ITERM_SHELL_INTEGRATION_INSTALLED=Yes to enable Oh My Zsh shell integration features. Applying this setting might require restarting the IDE. (experimental)"
+			"description": "When enabled, sets ITERM_SHELL_INTEGRATION_INSTALLED=Yes to enable Oh My Zsh shell integration features. Applying this setting might require restarting the IDE."
 		},
 		"zshP10k": {
 			"label": "Enable Powerlevel10k integration",
-			"description": "When enabled, sets POWERLEVEL9K_TERM_SHELL_INTEGRATION=true to enable Powerlevel10k shell integration features. (experimental)"
+			"description": "When enabled, sets POWERLEVEL9K_TERM_SHELL_INTEGRATION=true to enable Powerlevel10k shell integration features."
 		},
 		"zdotdir": {
 			"label": "Enable ZDOTDIR handling",
-			"description": "When enabled, creates a temporary directory for ZDOTDIR to handle zsh shell integration properly. This ensures VSCode shell integration works correctly with zsh while preserving your zsh configuration. (experimental)"
+			"description": "When enabled, creates a temporary directory for ZDOTDIR to handle zsh shell integration properly. This ensures VSCode shell integration works correctly with zsh while preserving your zsh configuration."
 		},
 		"inheritEnv": {
 			"label": "Inherit environment variables",

@@ -316,7 +316,7 @@
 		},
 		"advanced": {
 			"label": "Paramètres du terminal : Avancé",
-			"description": "Les options suivantes peuvent nécessiter un redémarrage du terminal pour appliquer le paramètre"
+			"description": "Les options suivantes peuvent nécessiter un redémarrage du terminal pour appliquer le paramètre."
 		},
 		"outputLineLimit": {
 			"label": "Limite de sortie du terminal",

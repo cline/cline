@@ -107,7 +107,6 @@ export interface ExtensionMessage {
 	error?: string
 	setting?: string
 	value?: any
-	vscodeSettingValue?: unknown
 }
 
 export type ExtensionState = Pick<

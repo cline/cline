@@ -316,7 +316,7 @@
 		},
 		"advanced": {
 			"label": "Configuración del terminal: Avanzada",
-			"description": "Las siguientes opciones pueden requerir reiniciar el terminal para aplicar la configuración"
+			"description": "Las siguientes opciones pueden requerir reiniciar el terminal para aplicar la configuración."
 		},
 		"outputLineLimit": {
 			"label": "Límite de salida de terminal",
@@ -336,7 +336,7 @@
 		},
 		"zdotdir": {
 			"label": "Habilitar gestión de ZDOTDIR",
-			"description": "Cuando está habilitado, crea un directorio temporal para ZDOTDIR para manejar correctamente la integración del shell zsh. Esto asegura que la integración del shell de VSCode funcione correctamente con zsh mientras preserva tu configuración de zsh. (experimental)"
+			"description": "Cuando está habilitado, crea un directorio temporal para ZDOTDIR para manejar correctamente la integración del shell zsh. Esto asegura que la integración del shell de VSCode funcione correctamente con zsh mientras preserva tu configuración de zsh."
 		},
 		"commandDelay": {
 			"label": "Retraso de comando del terminal",
@@ -352,11 +352,11 @@
 		},
 		"zshOhMy": {
 			"label": "Habilitar integración Oh My Zsh",
-			"description": "Cuando está habilitado, establece ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar las características de integración del shell Oh My Zsh. Aplicar esta configuración puede requerir reiniciar el IDE. (experimental)"
+			"description": "Cuando está habilitado, establece ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar las características de integración del shell Oh My Zsh. Aplicar esta configuración puede requerir reiniciar el IDE."
 		},
 		"zshP10k": {
 			"label": "Habilitar integración Powerlevel10k",
-			"description": "Cuando está habilitado, establece POWERLEVEL9K_TERM_SHELL_INTEGRATION=true para habilitar las características de integración del shell Powerlevel10k. (experimental)"
+			"description": "Cuando está habilitado, establece POWERLEVEL9K_TERM_SHELL_INTEGRATION=true para habilitar las características de integración del shell Powerlevel10k."
 		},
 		"inheritEnv": {
 			"label": "Heredar variables de entorno",
