@@ -40,6 +40,7 @@ const DIRS_TO_IGNORE = [
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
 	// Handle special directories
 	const specialResult = await handleSpecialDirectories(dirPath)
+
 	if (specialResult) {
 		return specialResult
 	}

@@ -13,6 +13,10 @@ import { ApiConfiguration, ModelInfo } from "../../shared/api"
 import { ApiStreamChunk } from "../../api/transform/stream"
 import { ContextProxy } from "../config/ContextProxy"
 
+jest.mock("../environment/getEnvironmentDetails", () => ({
+	getEnvironmentDetails: jest.fn().mockResolvedValue(""),
+}))
+
 jest.mock("execa", () => ({
 	execa: jest.fn(),
 }))
@@ -316,90 +320,7 @@ describe("Cline", () => {
 	})
 
 	describe("getEnvironmentDetails", () => {
-		let originalDate: DateConstructor
-		let mockDate: Date
-
-		beforeEach(() => {
-			originalDate = global.Date
-			const fixedTime = new Date("2024-01-01T12:00:00Z")
-			mockDate = new Date(fixedTime)
-			mockDate.getTimezoneOffset = jest.fn().mockReturnValue(420) // UTC-7
-
-			class MockDate extends Date {
-				constructor() {
-					super()
-					return mockDate
-				}
-				static override now() {
-					return mockDate.getTime()
-				}
-			}
-
-			global.Date = MockDate as DateConstructor
-
-			// Create a proper mock of Intl.DateTimeFormat
-			const mockDateTimeFormat = {
-				resolvedOptions: () => ({
-					timeZone: "America/Los_Angeles",
-				}),
-				format: () => "1/1/2024, 5:00:00 AM",
-			}
-
-			const MockDateTimeFormat = function (this: any) {
-				return mockDateTimeFormat
-			} as any
-
-			MockDateTimeFormat.prototype = mockDateTimeFormat
-			MockDateTimeFormat.supportedLocalesOf = jest.fn().mockReturnValue(["en-US"])
-
-			global.Intl.DateTimeFormat = MockDateTimeFormat
-		})
-
-		afterEach(() => {
-			global.Date = originalDate
-		})
-
-		it("should include timezone information in environment details", async () => {
-			const cline = new Cline({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				task: "test task",
-				startTask: false,
-			})
-
-			const details = await cline["getEnvironmentDetails"](false)
-
-			// Verify timezone information is present and formatted correctly.
-			expect(details).toContain("America/Los_Angeles")
-			expect(details).toMatch(/UTC-7:00/) // Fixed offset for America/Los_Angeles.
-			expect(details).toContain("# Current Time")
-			expect(details).toMatch(/1\/1\/2024.*5:00:00 AM.*\(America\/Los_Angeles, UTC-7:00\)/) // Full time string format.
-		})
-
 		describe("API conversation handling", () => {
-			/**
-			 * Mock environment details retrieval to avoid filesystem access in tests
-			 *
-			 * This setup:
-			 * 1. Prevents file listing operations that might cause test instability
-			 * 2. Preserves test-specific mocks when they exist (via _mockGetEnvironmentDetails)
-			 * 3. Provides a stable, empty environment by default
-			 */
-			beforeEach(() => {
-				// Mock the method with a stable implementation
-				jest.spyOn(Cline.prototype, "getEnvironmentDetails").mockImplementation(
-					// Use 'any' type to allow for dynamic test properties
-					async function (this: any, _verbose: boolean = false): Promise<string> {
-						// Use test-specific mock if available
-						if (this._mockGetEnvironmentDetails) {
-							return this._mockGetEnvironmentDetails()
-						}
-						// Default to empty environment details for stability
-						return ""
-					},
-				)
-			})
-
 			it("should clean conversation history before sending to API", async () => {
 				// Cline.create will now use our mocked getEnvironmentDetails
 				const [cline, task] = Cline.create({
@@ -419,12 +340,6 @@ describe("Cline", () => {
 				// Set up spy.
 				const cleanMessageSpy = jest.fn().mockReturnValue(mockStreamForClean)
 				jest.spyOn(cline.api, "createMessage").mockImplementation(cleanMessageSpy)
-
-				// Mock getEnvironmentDetails to return empty details.
-				jest.spyOn(cline as any, "getEnvironmentDetails").mockResolvedValue("")
-
-				// Mock loadContext to return unmodified content.
-				jest.spyOn(cline as any, "parseUserContent").mockImplementation(async (content) => [content, ""])
 
 				// Add test message to conversation history.
 				cline.apiConversationHistory = [
@@ -573,12 +488,6 @@ describe("Cline", () => {
 					set: () => {},
 					configurable: true,
 				})
-
-				// Mock environment details and context loading
-				jest.spyOn(clineWithImages as any, "getEnvironmentDetails").mockResolvedValue("")
-				jest.spyOn(clineWithoutImages as any, "getEnvironmentDetails").mockResolvedValue("")
-				jest.spyOn(clineWithImages as any, "parseUserContent").mockImplementation(async (content) => content)
-				jest.spyOn(clineWithoutImages as any, "parseUserContent").mockImplementation(async (content) => content)
 
 				// Set up mock streams
 				const mockStreamWithImages = (async function* () {
