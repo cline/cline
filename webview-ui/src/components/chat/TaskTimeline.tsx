@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from "react"
+import React, { useMemo, useState, useRef, useEffect } from "react"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
@@ -27,7 +27,7 @@ const getBlockColor = (message: ClineMessage): string => {
 							toolData.tool === "listCodeDefinitionNames" ||
 							toolData.tool === "searchFiles"
 						) {
-							return "#FFFF00"
+							return "#F5F5DC"
 						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 							return "#3B82F6"
 						}
@@ -68,6 +68,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 	const [hoveredMessage, setHoveredMessage] = useState<ClineMessage | null>(null)
 	const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
+	const scrollableRef = useRef<HTMLDivElement>(null)
 
 	const taskTimelinePropsMessages = useMemo(() => {
 		if (messages.length <= 1) return []
@@ -88,6 +89,12 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 			return true
 		})
 	}, [messages])
+
+	useEffect(() => {
+		if (scrollableRef.current && taskTimelinePropsMessages.length > 0) {
+			scrollableRef.current.scrollLeft = scrollableRef.current.scrollWidth
+		}
+	}, [taskTimelinePropsMessages])
 
 	if (taskTimelinePropsMessages.length === 0) {
 		return null
@@ -123,6 +130,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				overflow: "hidden",
 			}}>
 			<div
+				ref={scrollableRef}
 				style={{
 					display: "flex",
 					height: "10px",
