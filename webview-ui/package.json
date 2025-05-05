@@ -26,6 +26,7 @@
 		"fzf": "^0.5.2",
 		"katex": "^0.16.22",
 		"mermaid": "^11.4.1",
+		"package.json": "^2.0.1",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",
@@ -73,9 +74,9 @@
 		"vitest": "^3.0.5"
 	},
 	"optionalDependencies": {
-		"@rollup/rollup-linux-arm64-gnu": "^4.40.0",
+		"@rollup/rollup-linux-x64-gnu": "^4.40.0",
+		"@swc/core-linux-x64-gnu": "^1.11.0",
 		"@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
-		"@swc/core-linux-arm64-gnu": "^1.11.0",
 		"lightningcss-linux-x64-gnu": "^1.29.1"
 	}
 }
