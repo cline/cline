@@ -78,6 +78,11 @@ export async function showCommitMessageOptions(message: string): Promise<void> {
 		editAction,
 	)
 
+	// Handle user dismissing the dialog (selectedAction is undefined)
+	if (!selectedAction) {
+		return
+	}
+
 	switch (selectedAction) {
 		case copyAction:
 			await copyCommitMessageToClipboard(message)
