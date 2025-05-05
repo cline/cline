@@ -1,0 +1,57 @@
+---
+title: "Slash Commands"
+---
+
+#### Overview
+
+Cline provides slash commands as a quick way to invoke specific tools or actions directly from the chat input, offering shortcuts for common operations. This page details the available slash commands and their usage.
+
+#### /newtask
+
+The `/newtask` slash command provides a fast, user-initiated way to leverage the `new_task` tool's functionality for branching explorations or managing long sessions without waiting for Cline to suggest it.
+
+**Functionality:**
+
+1. **Initiation:** Typing `/newtask` in the chat input signals Cline to prepare for starting a new task session.
+2. **Context Proposal:** Cline proposes creating a new task and typically suggests context to preload based on the current session (summarizing key aspects like current work, technical concepts, relevant files, problems solved, and next steps).
+3. **User Confirmation:** You will receive a confirmation prompt (via the `ask_followup_question` tool) displaying the proposed context. You can approve it directly or modify the context before the new task begins.
+4. **New Session:** Upon confirmation, Cline ends the current task session and immediately starts a new one, preloaded with the approved context.
+
+**Benefit:** Allows you to cleanly branch your work or start a new phase while carrying over essential background information ("knowledge transfer") without manual copying or losing the thread of the previous session.
+
+#### /smol (alias /compact)
+
+The `/smol` slash command (with `/compact` as an alias) allows you to condense the chat history **within your current task**. This is useful when a conversation becomes very long, potentially impacting performance or making it harder for the model to maintain focus.
+
+**Functionality:**
+
+1. **Initiation:** Typing `/smol` or `/compact` tells Cline you want to condense the current chat history. You can optionally add instructions after the command to guide the summarization process (e.g., `/smol focus only on the database changes` or `/smol be concise, use bullet points`).
+2. **Summarization:** Cline analyzes the conversation history, considering any additional instructions provided, and generates a summary focusing on key elements: recent discussion points, important decisions, technical concepts, relevant files, problems solved, and planned next steps. Cline determines the appropriate length and detail for the summary. It retains the beginning and very recent parts of the chat while summarizing the middle sections.
+3. **User Confirmation:** Cline presents this generated summary to you via a confirmation prompt and asks if it accurately reflects the essential context.
+4. **Condensing:** If you approve the summary, Cline replaces the summarized middle portion of the chat history in its active context with the generated summary. This reduces the overall token count for subsequent interactions within the _same task_.
+5. **Feedback:** If you reject the summary or provide feedback, Cline will retain the original history and incorporate your feedback for future actions.
+
+**Benefit:** Helps maintain focus and manage token usage during very long, continuous tasks (like deep debugging or extended feature development) without needing to start an entirely new task session. Allows user guidance on the summarization focus.
+
+#### When to Use Which?
+
+Choosing between `/newtask` and `/smol` depends on your goal:
+
+-   Use `/smol` (or `/compact`) when:
+    -   You want to continue the **same task**, but the chat history has become very long or costly.
+    -   You need to reduce token usage for upcoming interactions within the current workflow.
+    -   Example: Deep debugging session where you want to summarize previous steps before continuing.
+-   Use `/newtask` when:
+    -   You have finished one phase of work and want to start a **fresh, related task**.
+    -   You want to branch your exploration while preserving key context from the previous session.
+    -   Example: Moving from developing Feature A to starting work on Feature B, carrying over relevant architectural decisions.
+
+#### Why Manage Context?
+
+While Cline supports large context windows, actively managing context using tools and commands like `/newtask` and `/smol` is often beneficial:
+
+-   **Performance:** Large language models can sometimes experience performance degradation or lose focus when context windows become extremely full (e.g., over 50-75% capacity, depending on the model). Condensing or resetting context can help maintain optimal performance.
+-   **Relevance:** Summarizing or starting fresh ensures the most relevant information is prioritized in the context window.
+-   **Cost:** Reducing the number of tokens sent to the model in each turn can help manage costs, especially with more expensive models.
+
+Using `/newtask` and `/smol` provides you with direct control over the conversation context, allowing for more efficient and effective interaction with Cline.
