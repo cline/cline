@@ -102,7 +102,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 		const tooltipWidth = viewportWidth - TOOLTIP_MARGIN * 2
 
 		// Center the tooltip horizontally in the viewport
-		const x = Math.max(TOOLTIP_MARGIN, Math.floor((viewportWidth - tooltipWidth) / 2))
+		const x = TOOLTIP_MARGIN
 
 		setTooltipPosition({ x, y: event.clientY })
 	}
