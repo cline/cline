@@ -19,7 +19,6 @@ import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { McpHub } from "@services/mcp/McpHub"
-import { searchWorkspaceFiles } from "@services/search/file-search"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
@@ -28,11 +27,10 @@ import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/Exte
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
+import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { searchCommits, getWorkingState } from "@utils/git"
+import { getWorkingState } from "@utils/git"
 import { extractCommitMessage } from "@integrations/git/commit-message-generator"
-import { getWorkspacePath } from "@utils/path"
 import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
@@ -331,10 +329,6 @@ export class Controller {
 				break
 			case "resetState":
 				await this.resetState()
-				break
-			case "requestVsCodeLmModels":
-				const vsCodeLmModels = await this.getVsCodeLmModels()
-				this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
 				break
 			case "refreshOpenRouterModels":
 				await this.refreshOpenRouterModels()
@@ -881,18 +875,6 @@ export class Controller {
 		await updateGlobalState(this.context, "customInstructions", instructions || undefined)
 		if (this.task) {
 			this.task.customInstructions = instructions || undefined
-		}
-	}
-
-	// VSCode LM API
-
-	private async getVsCodeLmModels() {
-		try {
-			const models = await vscode.lm.selectChatModels({})
-			return models || []
-		} catch (error) {
-			console.error("Error fetching VS Code LM models:", error)
-			return []
 		}
 	}
 
@@ -1519,15 +1501,9 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async showTaskWithId(id: string) {
 		if (id !== this.task?.taskId) {
-			const taskHistory = ((await this.context.globalState.get("taskHistory")) as HistoryItem[]) || []
-			const historyItem = taskHistory.find((item) => item.id === id)
-
-			if (historyItem) {
-				await this.initTask(undefined, undefined, historyItem)
-			} else {
-				const { historyItem } = await this.getTaskWithId(id)
-				await this.initTask(undefined, undefined, historyItem)
-			}
+			// non-current task
+			const { historyItem } = await this.getTaskWithId(id)
+			await this.initTask(undefined, undefined, historyItem) // clears existing task
 		}
 		await this.postMessageToWebview({
 			type: "action",
@@ -1542,61 +1518,17 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async deleteAllTaskHistory() {
 		await this.clearTask()
-		const startTime = Date.now()
-
-		// Get existing task history
-		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[]) || []
-
-		// Filter out non-favorited tasks
-		const favoritedTasks = taskHistory.filter((task) => task.isFavorited === true)
-		console.log(`[deleteAllTaskHistory] Found ${favoritedTasks.length} favorited tasks to preserve`)
-
-		// Only update the global state if we're preserving any favorited tasks
-		if (favoritedTasks.length > 0) {
-			await updateGlobalState(this.context, "taskHistory", favoritedTasks)
-		} else {
-			await updateGlobalState(this.context, "taskHistory", undefined)
-		}
-
+		await updateGlobalState(this.context, "taskHistory", undefined)
 		try {
-			const preserveTaskIds = favoritedTasks.map((task) => task.id)
-
-			// Remove task files only for non-favorited tasks
+			// Remove all contents of tasks directory
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
 			if (await fileExistsAtPath(taskDirPath)) {
-				// If there are favorited tasks to preserve
-				if (preserveTaskIds.length > 0) {
-					const taskDirs = await fs.readdir(taskDirPath)
-					console.debug(`[deleteAllTaskHistory] Found ${taskDirs.length} task directories`)
-
-					// Delete directories for non-favorited tasks only
-					let deletedCount = 0
-					for (const taskDir of taskDirs) {
-						if (!preserveTaskIds.includes(taskDir)) {
-							const fullPath = path.join(taskDirPath, taskDir)
-							await fs.rm(fullPath, { recursive: true, force: true })
-							deletedCount++
-						}
-					}
-					console.debug(`[deleteAllTaskHistory] Deleted ${deletedCount} non-favorited task directories`)
-				} else {
-					// No favorited tasks to preserve, delete all
-					console.debug(`[deleteAllTaskHistory] No favorites to preserve, deleting all task directories`)
-					await fs.rm(taskDirPath, { recursive: true, force: true })
-				}
+				await fs.rm(taskDirPath, { recursive: true, force: true })
 			}
-
-			// Delete checkpoints directories
-			if (favoritedTasks.length > 0) {
-				console.debug(`[deleteAllTaskHistory] Preserving checkpoints for ${favoritedTasks.length} favorited tasks`)
-				// For now, we leave all checkpoints intact when preserving favorites
-			} else {
-				// No favorited tasks to preserve, delete all checkpoints
-				const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
-				if (await fileExistsAtPath(checkpointsDirPath)) {
-					console.debug(`[deleteAllTaskHistory] No favorites to preserve, deleting all checkpoints`)
-					await fs.rm(checkpointsDirPath, { recursive: true, force: true })
-				}
+			// Remove checkpoints directory contents
+			const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
+			if (await fileExistsAtPath(checkpointsDirPath)) {
+				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(

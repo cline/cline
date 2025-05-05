@@ -17,13 +17,6 @@ export interface NewTaskRequest {
 	images: string[]
 }
 
-/** Request message for toggling task favorite status */
-export interface TaskFavoriteRequest {
-	metadata?: Metadata | undefined
-	taskId: string
-	isFavorited: boolean
-}
-
 function createBaseNewTaskRequest(): NewTaskRequest {
 	return { metadata: undefined, text: "", images: [] }
 }
@@ -117,99 +110,6 @@ export const NewTaskRequest: MessageFns<NewTaskRequest> = {
 	},
 }
 
-function createBaseTaskFavoriteRequest(): TaskFavoriteRequest {
-	return { metadata: undefined, taskId: "", isFavorited: false }
-}
-
-export const TaskFavoriteRequest: MessageFns<TaskFavoriteRequest> = {
-	encode(message: TaskFavoriteRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.taskId !== "") {
-			writer.uint32(18).string(message.taskId)
-		}
-		if (message.isFavorited !== false) {
-			writer.uint32(24).bool(message.isFavorited)
-		}
-		return writer
-	},
-
-	decode(input: BinaryReader | Uint8Array, length?: number): TaskFavoriteRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseTaskFavoriteRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
-
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
-
-					message.taskId = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
-
-					message.isFavorited = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
-
-	fromJSON(object: any): TaskFavoriteRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
-			isFavorited: isSet(object.isFavorited) ? globalThis.Boolean(object.isFavorited) : false,
-		}
-	},
-
-	toJSON(message: TaskFavoriteRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.taskId !== "") {
-			obj.taskId = message.taskId
-		}
-		if (message.isFavorited !== false) {
-			obj.isFavorited = message.isFavorited
-		}
-		return obj
-	},
-
-	create<I extends Exact<DeepPartial<TaskFavoriteRequest>, I>>(base?: I): TaskFavoriteRequest {
-		return TaskFavoriteRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<TaskFavoriteRequest>, I>>(object: I): TaskFavoriteRequest {
-		const message = createBaseTaskFavoriteRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.taskId = object.taskId ?? ""
-		message.isFavorited = object.isFavorited ?? false
-		return message
-	},
-}
-
 export type TaskServiceDefinition = typeof TaskServiceDefinition
 export const TaskServiceDefinition = {
 	name: "TaskService",
@@ -264,15 +164,6 @@ export const TaskServiceDefinition = {
 		exportTaskWithId: {
 			name: "exportTaskWithId",
 			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Toggles the favorite status of a task */
-		toggleTaskFavorite: {
-			name: "toggleTaskFavorite",
-			requestType: TaskFavoriteRequest,
 			requestStream: false,
 			responseType: Empty,
 			responseStream: false,

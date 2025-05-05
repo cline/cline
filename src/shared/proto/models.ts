@@ -5,9 +5,191 @@
 // source: models.proto
 
 /* eslint-disable */
-import { StringArray, StringRequest } from "./common"
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
+import { EmptyRequest, StringArray, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
+
+/** List of VS Code LM models */
+export interface VsCodeLmModelsArray {
+	models: VsCodeLmModel[]
+}
+
+/** Structure representing a VS Code LM model */
+export interface VsCodeLmModel {
+	vendor: string
+	family: string
+	version: string
+	id: string
+}
+
+function createBaseVsCodeLmModelsArray(): VsCodeLmModelsArray {
+	return { models: [] }
+}
+
+export const VsCodeLmModelsArray: MessageFns<VsCodeLmModelsArray> = {
+	encode(message: VsCodeLmModelsArray, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		for (const v of message.models) {
+			VsCodeLmModel.encode(v!, writer.uint32(10).fork()).join()
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): VsCodeLmModelsArray {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseVsCodeLmModelsArray()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.models.push(VsCodeLmModel.decode(reader, reader.uint32()))
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): VsCodeLmModelsArray {
+		return {
+			models: globalThis.Array.isArray(object?.models) ? object.models.map((e: any) => VsCodeLmModel.fromJSON(e)) : [],
+		}
+	},
+
+	toJSON(message: VsCodeLmModelsArray): unknown {
+		const obj: any = {}
+		if (message.models?.length) {
+			obj.models = message.models.map((e) => VsCodeLmModel.toJSON(e))
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<VsCodeLmModelsArray>, I>>(base?: I): VsCodeLmModelsArray {
+		return VsCodeLmModelsArray.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<VsCodeLmModelsArray>, I>>(object: I): VsCodeLmModelsArray {
+		const message = createBaseVsCodeLmModelsArray()
+		message.models = object.models?.map((e) => VsCodeLmModel.fromPartial(e)) || []
+		return message
+	},
+}
+
+function createBaseVsCodeLmModel(): VsCodeLmModel {
+	return { vendor: "", family: "", version: "", id: "" }
+}
+
+export const VsCodeLmModel: MessageFns<VsCodeLmModel> = {
+	encode(message: VsCodeLmModel, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.vendor !== "") {
+			writer.uint32(10).string(message.vendor)
+		}
+		if (message.family !== "") {
+			writer.uint32(18).string(message.family)
+		}
+		if (message.version !== "") {
+			writer.uint32(26).string(message.version)
+		}
+		if (message.id !== "") {
+			writer.uint32(34).string(message.id)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): VsCodeLmModel {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseVsCodeLmModel()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.vendor = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.family = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.version = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.id = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): VsCodeLmModel {
+		return {
+			vendor: isSet(object.vendor) ? globalThis.String(object.vendor) : "",
+			family: isSet(object.family) ? globalThis.String(object.family) : "",
+			version: isSet(object.version) ? globalThis.String(object.version) : "",
+			id: isSet(object.id) ? globalThis.String(object.id) : "",
+		}
+	},
+
+	toJSON(message: VsCodeLmModel): unknown {
+		const obj: any = {}
+		if (message.vendor !== "") {
+			obj.vendor = message.vendor
+		}
+		if (message.family !== "") {
+			obj.family = message.family
+		}
+		if (message.version !== "") {
+			obj.version = message.version
+		}
+		if (message.id !== "") {
+			obj.id = message.id
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<VsCodeLmModel>, I>>(base?: I): VsCodeLmModel {
+		return VsCodeLmModel.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<VsCodeLmModel>, I>>(object: I): VsCodeLmModel {
+		const message = createBaseVsCodeLmModel()
+		message.vendor = object.vendor ?? ""
+		message.family = object.family ?? ""
+		message.version = object.version ?? ""
+		message.id = object.id ?? ""
+		return message
+	},
+}
 
 /** Service for model-related operations */
 export type ModelsServiceDefinition = typeof ModelsServiceDefinition
@@ -33,5 +215,44 @@ export const ModelsServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Fetches available models from VS Code LM API */
+		getVsCodeLmModels: {
+			name: "getVsCodeLmModels",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: VsCodeLmModelsArray,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
+
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
+
+export type DeepPartial<T> = T extends Builtin
+	? T
+	: T extends globalThis.Array<infer U>
+		? globalThis.Array<DeepPartial<U>>
+		: T extends ReadonlyArray<infer U>
+			? ReadonlyArray<DeepPartial<U>>
+			: T extends {}
+				? { [K in keyof T]?: DeepPartial<T[K]> }
+				: Partial<T>
+
+type KeysOfUnion<T> = T extends T ? keyof T : never
+export type Exact<P, I extends P> = P extends Builtin
+	? P
+	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+
+function isSet(value: any): boolean {
+	return value !== null && value !== undefined
+}
+
+export interface MessageFns<T> {
+	encode(message: T, writer?: BinaryWriter): BinaryWriter
+	decode(input: BinaryReader | Uint8Array, length?: number): T
+	fromJSON(object: any): T
+	toJSON(message: T): unknown
+	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T
+	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T
+}

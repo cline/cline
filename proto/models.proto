@@ -10,7 +10,21 @@ import "common.proto";
 service ModelsService {
   // Fetches available models from Ollama
   rpc getOllamaModels(StringRequest) returns (StringArray);
-  
   // Fetches available models from LM Studio
   rpc getLmStudioModels(StringRequest) returns (StringArray);
+  // Fetches available models from VS Code LM API
+  rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
+}
+
+// List of VS Code LM models
+message VsCodeLmModelsArray {
+  repeated VsCodeLmModel models = 1;
+}
+
+// Structure representing a VS Code LM model
+message VsCodeLmModel {
+  string vendor = 1;
+  string family = 2;
+  string version = 3;
+  string id = 4;
 }

@@ -824,7 +824,7 @@ export const Boolean: MessageFns<Boolean> = {
 	},
 }
 
-functixson createBaseStringArray(): StringArray {
+function createBaseStringArray(): StringArray {
 	return { values: [] }
 }
 
