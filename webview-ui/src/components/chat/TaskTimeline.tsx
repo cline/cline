@@ -64,8 +64,9 @@ const getBlockColor = (message: ClineMessage): string => {
 	return "#CCCCCC"
 }
 
-const TaskTimelineProps: React.FC<TaskTimelineProps> = ({ messages }) => {
+const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 	const [hoveredMessage, setHoveredMessage] = useState<ClineMessage | null>(null)
+	const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 
 	const taskTimelinePropsMessages = useMemo(() => {
@@ -92,12 +93,23 @@ const TaskTimelineProps: React.FC<TaskTimelineProps> = ({ messages }) => {
 		return null
 	}
 
+	const TOOLTIP_MARGIN = 32 // 32px margin on each side
+
 	const handleMouseEnter = (message: ClineMessage, event: React.MouseEvent<HTMLDivElement>) => {
 		setHoveredMessage(message)
+
+		const viewportWidth = window.innerWidth
+		const tooltipWidth = viewportWidth - TOOLTIP_MARGIN * 2
+
+		// Center the tooltip horizontally in the viewport
+		const x = Math.max(TOOLTIP_MARGIN, Math.floor((viewportWidth - tooltipWidth) / 2))
+
+		setTooltipPosition({ x, y: event.clientY })
 	}
 
 	const handleMouseLeave = () => {
 		setHoveredMessage(null)
+		setTooltipPosition(null)
 	}
 
 	return (
@@ -145,13 +157,15 @@ const TaskTimelineProps: React.FC<TaskTimelineProps> = ({ messages }) => {
 				))}
 			</div>
 
-			{hoveredMessage && (
+			{hoveredMessage && containerRef.current && tooltipPosition && (
 				<div
 					style={{
-						position: "absolute",
-						left: "0",
-						top: "100%",
-						marginTop: "5px",
+						position: "fixed",
+						left: `${tooltipPosition.x}px`,
+						top: `${tooltipPosition.y + 20}px`,
+						zIndex: 1000,
+						pointerEvents: "none",
+						width: `calc(100% - ${TOOLTIP_MARGIN * 2}px)`,
 					}}>
 					<TaskTimelineTooltip message={hoveredMessage} />
 				</div>
@@ -160,4 +174,4 @@ const TaskTimelineProps: React.FC<TaskTimelineProps> = ({ messages }) => {
 	)
 }
 
-export default TaskTimelineProps
+export default TaskTimeline

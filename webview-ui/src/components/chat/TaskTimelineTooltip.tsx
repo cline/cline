@@ -54,6 +54,8 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 			switch (message.ask) {
 				case "followup":
 					return "User Message"
+				case "plan_mode_respond":
+					return "Planning Response"
 				case "tool":
 					return "Tool Approval"
 				case "command":
@@ -69,7 +71,14 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 
 	const getMessageContent = (message: ClineMessage): string => {
 		if (message.text) {
-			if (message.type === "say" && message.say === "tool" && message.text) {
+			if (message.type === "ask" && message.ask === "plan_mode_respond" && message.text) {
+				try {
+					const planData = JSON.parse(message.text)
+					return planData.response || message.text
+				} catch (e) {
+					return message.text
+				}
+			} else if (message.type === "say" && message.say === "tool" && message.text) {
 				try {
 					const toolData = JSON.parse(message.text)
 					return JSON.stringify(toolData, null, 2)
@@ -97,19 +106,14 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 	return (
 		<div
 			style={{
-				position: "absolute",
-				left: 0,
-				top: 0,
 				backgroundColor: "var(--vscode-editor-background)",
 				color: "var(--vscode-editor-foreground)",
 				border: "1px solid var(--vscode-widget-border)",
 				borderRadius: "3px",
 				padding: "8px",
-				zIndex: 1000,
-				width: "400px", // maybe make this relative width?
+				width: "100%", // Fill the container width
 				boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
 				fontSize: "12px",
-				pointerEvents: "none",
 			}}>
 			<div style={{ fontWeight: "bold", marginBottom: "4px" }}>
 				{getMessageDescription(message)}
