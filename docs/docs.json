@@ -64,6 +64,10 @@
 					"exploring-clines-tools/remote-browser-support",
 					"exploring-clines-tools/slash-commands"
 				]
+			},
+			{
+				"group": "More Info",
+				"pages": ["more-info/telemetry"]
 			}
 		]
 	},
