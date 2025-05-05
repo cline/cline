@@ -79,6 +79,18 @@ export class ProviderSettingsManager {
 
 				let isDirty = false
 
+				// Migrate existing installs to have per-mode API config map
+				if (!providerProfiles.modeApiConfigs) {
+					// Use the currently selected config for all modes initially
+					const currentName = providerProfiles.currentApiConfigName
+					const seedId =
+						providerProfiles.apiConfigs[currentName]?.id ??
+						Object.values(providerProfiles.apiConfigs)[0]?.id ??
+						this.defaultConfigId
+					providerProfiles.modeApiConfigs = Object.fromEntries(modes.map((m) => [m.slug, seedId]))
+					isDirty = true
+				}
+
 				// Ensure all configs have IDs.
 				for (const [_name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
 					if (!apiConfig.id) {
@@ -340,8 +352,12 @@ export class ProviderSettingsManager {
 		try {
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()
-				const { modeApiConfigs = {} } = providerProfiles
-				modeApiConfigs[mode] = configId
+				// Ensure the per-mode config map exists
+				if (!providerProfiles.modeApiConfigs) {
+					providerProfiles.modeApiConfigs = {}
+				}
+				// Assign the chosen config ID to this mode
+				providerProfiles.modeApiConfigs[mode] = configId
 				await this.store(providerProfiles)
 			})
 		} catch (error) {
