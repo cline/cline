@@ -1,5 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { SendButton } from "./SendButton"
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
@@ -49,6 +50,10 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
+	isStreaming?: boolean
+	didClickCancel?: boolean
+	setDidClickCancel?: (value: boolean) => void
+	clineAsk?: string
 }
 
 interface GitCommit {
@@ -233,6 +238,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSelectImages,
 			shouldDisableImages,
 			onHeightChange,
+			isStreaming,
+			didClickCancel,
+			setDidClickCancel,
+			clineAsk,
 		},
 		ref,
 	) => {
@@ -1268,15 +1277,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		return (
 			<div>
-				<div
-					style={{
-						padding: "10px 15px",
-						opacity: textAreaDisabled ? 0.5 : 1,
-						position: "relative",
-						display: "flex",
-						// Drag-over styles moved to DynamicTextArea
-						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
-					}}
+					<div
+						style={{
+							padding: "10px 15px",
+							opacity: textAreaDisabled ? 0.5 : 1,
+							position: "relative",
+							display: "flex",
+							// Drag-over styles moved to DynamicTextArea
+							transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
+							cursor: (isStreaming && !didClickCancel) ? "default" : undefined,
+						}}
 					onDrop={onDrop}
 					onDragOver={onDragOver}
 					onDragEnter={handleDragEnter}
@@ -1422,7 +1432,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 							borderColor: "transparent",
 							padding: "9px 28px 3px 9px",
-							cursor: textAreaDisabled ? "not-allowed" : undefined,
+							cursor: (textAreaDisabled && !isStreaming) ? "not-allowed" : undefined,
 							flex: 1,
 							zIndex: 1,
 							outline:
@@ -1453,11 +1463,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div
 						style={{
 							position: "absolute",
-							right: 23,
+							right: 20, // Changed from 23 to 20 (3 pixels to the right)
 							display: "flex",
 							alignItems: "flex-center",
 							height: 31,
-							bottom: 9.5, // should be 10 but doesn't look good on mac
+							bottom: 14.5, // Changed from 9.5 to 14.5 (5 pixels from the bottom)
 							zIndex: 2,
 						}}>
 						<div
@@ -1478,16 +1488,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									fontSize: 16.5,
 								}}
 							/> */}
-							<div
-								data-testid="send-button"
-								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
-								onClick={() => {
-									if (!textAreaDisabled) {
-										setIsTextAreaFocused(false)
-										onSend()
-									}
-								}}
-								style={{ fontSize: 15 }}></div>
+							<SendButton
+								textAreaDisabled={textAreaDisabled}
+								isStreaming={isStreaming}
+								didClickCancel={didClickCancel}
+								setDidClickCancel={setDidClickCancel}
+								setIsTextAreaFocused={setIsTextAreaFocused}
+								onSend={onSend}
+								clineAsk={clineAsk}
+							/>
 						</div>
 					</div>
 				</div>

@@ -1016,6 +1016,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						</div>
 					) : (
 						<div
+							className={clineAsk === "resume_task" ? "cline-resume-task-buttons" : ""}
 							style={{
 								opacity:
 									primaryButtonText || secondaryButtonText || isStreaming
@@ -1026,29 +1027,34 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								display: "flex",
 								padding: `${primaryButtonText || secondaryButtonText || isStreaming ? "10" : "0"}px 15px 0px 15px`,
 							}}>
-							{primaryButtonText && !isStreaming && (
-								<VSCodeButton
-									appearance="primary"
-									disabled={!enableButtons}
-									style={{
-										flex: secondaryButtonText ? 1 : 2,
-										marginRight: secondaryButtonText ? "6px" : "0",
-									}}
-									onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
-									{primaryButtonText}
-								</VSCodeButton>
-							)}
-							{(secondaryButtonText || isStreaming) && (
-								<VSCodeButton
-									appearance="secondary"
-									disabled={!enableButtons && !(isStreaming && !didClickCancel)}
-									style={{
-										flex: isStreaming ? 2 : 1,
-										marginLeft: isStreaming ? 0 : "6px",
-									}}
-									onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
-									{isStreaming ? "Cancel" : secondaryButtonText}
-								</VSCodeButton>
+							{/* Hide buttons when in resume_task state */}
+							{clineAsk !== "resume_task" && (
+								<>
+									{primaryButtonText && !isStreaming && (
+										<VSCodeButton
+											appearance="primary"
+											disabled={!enableButtons}
+											style={{
+												flex: secondaryButtonText ? 1 : 2,
+												marginRight: secondaryButtonText ? "6px" : "0",
+											}}
+											onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
+											{primaryButtonText}
+										</VSCodeButton>
+									)}
+									{(secondaryButtonText || isStreaming) && (
+										<VSCodeButton
+											appearance="secondary"
+											disabled={!enableButtons && !(isStreaming && !didClickCancel)}
+											style={{
+												flex: isStreaming ? 2 : 1,
+												marginLeft: isStreaming ? 0 : "6px",
+											}}
+											onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
+											{isStreaming ? "Cancel" : secondaryButtonText}
+										</VSCodeButton>
+									)}
+								</>
 							)}
 						</div>
 					)}
@@ -1070,6 +1076,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						scrollToBottomAuto()
 					}
 				}}
+				isStreaming={isStreaming}
+				didClickCancel={didClickCancel}
+				setDidClickCancel={setDidClickCancel}
+				clineAsk={clineAsk}
 			/>
 		</div>
 	)
