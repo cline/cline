@@ -1296,18 +1296,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							/>
 						</div>
 					)}
-					{!isTextAreaFocused && (
-						<div
-							style={{
-								position: "absolute",
-								inset: "10px 15px",
-								border: "1px solid var(--vscode-input-border)",
-								borderRadius: 2,
-								pointerEvents: "none",
-								zIndex: 5,
-							}}
-						/>
-					)}
+					{/* Removed the div that rendered the border when not focused */}
 					<div
 						ref={highlightLayerRef}
 						style={{

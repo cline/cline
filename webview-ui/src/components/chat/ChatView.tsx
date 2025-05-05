@@ -1078,14 +1078,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				</>
 			)}
 			{(() => {
+				console.log("[ChatView] Rendering - activeQuote:", activeQuote) // Log here
 				return activeQuote ? (
-					<QuotedMessagePreview
-						text={activeQuote}
-						onDismiss={() => setActiveQuote(null)}
-						isFocused={isTextAreaFocused} // Pass focus state
-					/>
+					<div style={{ marginBottom: "-12px", marginTop: "10px" }}>
+						<QuotedMessagePreview
+							text={activeQuote}
+							onDismiss={() => setActiveQuote(null)}
+							isFocused={isTextAreaFocused}
+						/>
+					</div>
 				) : null
 			})()}
+
 			<ChatTextArea
 				ref={textAreaRef}
 				onFocusChange={handleFocusChange}
