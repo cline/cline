@@ -194,9 +194,17 @@ async function parseProtoForStreamingMethods(protoFiles, scriptDir) {
 async function generateMethodRegistrations() {
 	console.log(chalk.cyan("Generating method registration files..."))
 
-	// Parse proto files for streaming methods
-	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
-	const streamingMethodsMap = await parseProtoForStreamingMethods(protoFiles, SCRIPT_DIR)
+	const serviceDirs = [
+		path.join(ROOT_DIR, "src", "core", "controller", "account"),
+		path.join(ROOT_DIR, "src", "core", "controller", "browser"),
+		path.join(ROOT_DIR, "src", "core", "controller", "checkpoints"),
+		path.join(ROOT_DIR, "src", "core", "controller", "file"),
+		path.join(ROOT_DIR, "src", "core", "controller", "mcp"),
+		path.join(ROOT_DIR, "src", "core", "controller", "models"),
+		path.join(ROOT_DIR, "src", "core", "controller", "task"),
+		path.join(ROOT_DIR, "src", "core", "controller", "web-content"),
+		// Add more service directories here as needed
+	]
 
 	for (const serviceDir of serviceDirs) {
 		try {
