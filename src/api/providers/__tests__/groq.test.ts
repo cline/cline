@@ -19,11 +19,11 @@ describe("GroqHandler", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
 		mockCreate = (OpenAI as unknown as jest.Mock)().chat.completions.create
-		handler = new GroqHandler({})
+		handler = new GroqHandler({ groqApiKey: "test-groq-api-key" })
 	})
 
 	test("should use the correct Groq base URL", () => {
-		new GroqHandler({})
+		new GroqHandler({ groqApiKey: "test-groq-api-key" })
 		expect(OpenAI).toHaveBeenCalledWith(expect.objectContaining({ baseURL: "https://api.groq.com/openai/v1" }))
 	})
 
@@ -35,17 +35,16 @@ describe("GroqHandler", () => {
 
 	test("should return default model when no model is specified", () => {
 		const model = handler.getModel()
-		expect(model.id).toBe(groqDefaultModelId) // Use groqDefaultModelId
-		expect(model.info).toEqual(groqModels[groqDefaultModelId]) // Use groqModels
+		expect(model.id).toBe(groqDefaultModelId)
+		expect(model.info).toEqual(groqModels[groqDefaultModelId])
 	})
 
 	test("should return specified model when valid model is provided", () => {
-		const testModelId: GroqModelId = "llama-3.3-70b-versatile" // Use a valid Groq model ID and type
-		const handlerWithModel = new GroqHandler({ apiModelId: testModelId }) // Instantiate GroqHandler
+		const testModelId: GroqModelId = "llama-3.3-70b-versatile"
+		const handlerWithModel = new GroqHandler({ apiModelId: testModelId, groqApiKey: "test-groq-api-key" })
 		const model = handlerWithModel.getModel()
-
 		expect(model.id).toBe(testModelId)
-		expect(model.info).toEqual(groqModels[testModelId]) // Use groqModels
+		expect(model.info).toEqual(groqModels[testModelId])
 	})
 
 	test("completePrompt method should return text from Groq API", async () => {
@@ -110,7 +109,7 @@ describe("GroqHandler", () => {
 	test("createMessage should pass correct parameters to Groq client", async () => {
 		const modelId: GroqModelId = "llama-3.1-8b-instant"
 		const modelInfo = groqModels[modelId]
-		const handlerWithModel = new GroqHandler({ apiModelId: modelId })
+		const handlerWithModel = new GroqHandler({ apiModelId: modelId, groqApiKey: "test-groq-api-key" })
 
 		mockCreate.mockImplementationOnce(() => {
 			return {

@@ -19,11 +19,11 @@ describe("ChutesHandler", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
 		mockCreate = (OpenAI as unknown as jest.Mock)().chat.completions.create
-		handler = new ChutesHandler({})
+		handler = new ChutesHandler({ chutesApiKey: "test-chutes-api-key" })
 	})
 
 	test("should use the correct Chutes base URL", () => {
-		new ChutesHandler({})
+		new ChutesHandler({ chutesApiKey: "test-chutes-api-key" })
 		expect(OpenAI).toHaveBeenCalledWith(expect.objectContaining({ baseURL: "https://llm.chutes.ai/v1" }))
 	})
 
@@ -41,9 +41,8 @@ describe("ChutesHandler", () => {
 
 	test("should return specified model when valid model is provided", () => {
 		const testModelId: ChutesModelId = "deepseek-ai/DeepSeek-R1"
-		const handlerWithModel = new ChutesHandler({ apiModelId: testModelId })
+		const handlerWithModel = new ChutesHandler({ apiModelId: testModelId, chutesApiKey: "test-chutes-api-key" })
 		const model = handlerWithModel.getModel()
-
 		expect(model.id).toBe(testModelId)
 		expect(model.info).toEqual(chutesModels[testModelId])
 	})
@@ -110,7 +109,7 @@ describe("ChutesHandler", () => {
 	test("createMessage should pass correct parameters to Chutes client", async () => {
 		const modelId: ChutesModelId = "deepseek-ai/DeepSeek-R1"
 		const modelInfo = chutesModels[modelId]
-		const handlerWithModel = new ChutesHandler({ apiModelId: modelId })
+		const handlerWithModel = new ChutesHandler({ apiModelId: modelId, chutesApiKey: "test-chutes-api-key" })
 
 		mockCreate.mockImplementationOnce(() => {
 			return {
