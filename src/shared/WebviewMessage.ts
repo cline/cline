@@ -72,6 +72,7 @@ export interface WebviewMessage {
 		| "deleteClineRule"
 		| "copyToClipboard"
 		| "updateTerminalConnectionTimeout"
+		| "setActiveQuote"
 
 	// | "relaunchChromeDebugMode"
 	text?: string
