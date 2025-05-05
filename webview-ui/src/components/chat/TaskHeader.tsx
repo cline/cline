@@ -130,8 +130,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		return (
 			apiConfiguration?.apiProvider !== "vscode-lm" &&
 			apiConfiguration?.apiProvider !== "ollama" &&
-			apiConfiguration?.apiProvider !== "lmstudio" &&
-			apiConfiguration?.apiProvider !== "gemini"
+			apiConfiguration?.apiProvider !== "lmstudio"
 		)
 	}, [apiConfiguration?.apiProvider, apiConfiguration?.openAiModelInfo])
 
@@ -670,7 +669,7 @@ const DeleteButton: React.FC<{
 }> = ({ taskSize, taskId }) => (
 	<VSCodeButton
 		appearance="icon"
-		onClick={() => vscode.postMessage({ type: "deleteTaskWithId", text: taskId })}
+		onClick={() => vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify([taskId]) })}
 		style={{ padding: "0px 0px" }}>
 		<div
 			style={{

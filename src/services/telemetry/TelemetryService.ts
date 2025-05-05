@@ -4,6 +4,7 @@ import { version as extensionVersion } from "../../../package.json"
 
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
+import { posthogConfig } from "@/shared/services/config/posthog-config"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
@@ -93,8 +94,8 @@ class PostHogClient {
 	 * Initializes PostHog client with configuration
 	 */
 	private constructor() {
-		this.client = new PostHog("phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K", {
-			host: "https://us.i.posthog.com",
+		this.client = new PostHog(posthogConfig.apiKey, {
+			host: posthogConfig.host,
 			enableExceptionAutocapture: false,
 		})
 	}
