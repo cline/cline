@@ -64,6 +64,18 @@
 					"exploring-clines-tools/remote-browser-support",
 					"exploring-clines-tools/slash-commands"
 				]
+			},
+			{
+				"group": "Model Context Protocol (MCP)",
+				"pages": [
+					"mcp/mcp-overview",
+					"mcp/adding-mcp-servers-from-github",
+					"mcp/configuring-mcp-servers",
+					"mcp/connecting-to-a-remote-server",
+					"mcp/mcp-marketplace",
+					"mcp/mcp-server-development-protocol",
+					"mcp/mcp-transport-mechanisms"
+				]
 			}
 		]
 	},
