@@ -55,6 +55,17 @@
 	"navigation": {
 		"groups": [
 			{
+				"group": "Exploring Cline's Tools",
+				"pages": [
+					"exploring-clines-tools/cline-tools-guide",
+					"exploring-clines-tools/plan-and-act-modes-a-guide-to-effective-ai-development",
+					"exploring-clines-tools/checkpoints",
+					"exploring-clines-tools/new-task-tool",
+					"exploring-clines-tools/remote-browser-support",
+					"exploring-clines-tools/slash-commands"
+				]
+			},
+			{
 				"group": "Improving Your Prompting Skills",
 				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
 			}

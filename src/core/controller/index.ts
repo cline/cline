@@ -48,7 +48,8 @@ import {
 } from "../storage/state"
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { createRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
+import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -64,7 +65,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "april-18-2025_21:15::00" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "may-02-2025_16:27:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -335,8 +336,8 @@ export class Controller {
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
 				break
-			case "deleteTaskWithId":
-				this.deleteTaskWithId(message.text!)
+			case "deleteTasksWithIds":
+				this.deleteTasksWithIds(message.text!)
 				break
 			case "exportTaskWithId":
 				this.exportTaskWithId(message.text!)
@@ -375,6 +376,7 @@ export class Controller {
 				break
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
+				await refreshExternalRulesToggles(this.context, cwd)
 				await this.postStateToWebview()
 				break
 			case "openInBrowser":
@@ -513,6 +515,32 @@ export class Controller {
 						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
 					})
+				}
+				break
+			}
+			case "toggleWindsurfRule": {
+				const { rulePath, enabled } = message
+				if (rulePath && typeof enabled === "boolean") {
+					const toggles =
+						((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+					toggles[rulePath] = enabled
+					await updateWorkspaceState(this.context, "localWindsurfRulesToggles", toggles)
+					await this.postStateToWebview()
+				} else {
+					console.error("toggleWindsurfRule: Missing or invalid parameters")
+				}
+				break
+			}
+			case "toggleCursorRule": {
+				const { rulePath, enabled } = message
+				if (rulePath && typeof enabled === "boolean") {
+					const toggles =
+						((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+					toggles[rulePath] = enabled
+					await updateWorkspaceState(this.context, "localCursorRulesToggles", toggles)
+					await this.postStateToWebview()
+				} else {
+					console.error("toggleCursorRule: Missing or invalid parameters")
 				}
 				break
 			}
@@ -1415,6 +1443,16 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 							modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
 							break
+						default:
+							if (rawModel.id.startsWith("openai/")) {
+								modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
+								if (modelInfo.cacheReadsPrice) {
+									modelInfo.supportsPromptCache = true
+									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
+									// openrouter charges no cache write pricing for openAI models
+								}
+							}
+							break
 					}
 
 					models[rawModel.id] = modelInfo
@@ -1712,6 +1750,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		this.refreshTotalTasksSize()
 	}
 
+	async deleteTasksWithIds(ids: string) {
+		for (const id of JSON.parse(ids) as string[]) {
+			await this.deleteTaskWithId(id)
+		}
+	}
+
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
 		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
@@ -1749,6 +1793,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const localClineRulesToggles =
 			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
 
+		const localWindsurfRulesToggles =
+			((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+
+		const localCursorRulesToggles =
+			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1773,6 +1823,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
+			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
+			localCursorRulesToggles: localCursorRulesToggles || {},
 			shellIntegrationTimeout,
 		}
 	}

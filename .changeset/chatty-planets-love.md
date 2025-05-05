@@ -2,4 +2,4 @@
 "claude-dev": minor
 ---
 
-add newrule slash command
+add open ai cache to ui

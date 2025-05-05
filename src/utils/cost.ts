@@ -11,51 +11,56 @@ function calculateApiCostInternal(
 ): number {
 	const usedThinkingBudget = thinkingBudgetTokens && thinkingBudgetTokens > 0
 
-	// Determine effective input price
+	// Default prices
 	let effectiveInputPrice = modelInfo.inputPrice || 0
-	if (modelInfo.inputPriceTiers && modelInfo.inputPriceTiers.length > 0 && totalInputTokensForPricing !== undefined) {
-		// Ensure tiers are sorted by tokenLimit ascending before finding
-		const sortedInputTiers = [...modelInfo.inputPriceTiers].sort((a, b) => a.tokenLimit - b.tokenLimit)
+	let effectiveOutputPrice = modelInfo.outputPrice || 0
+	let effectiveCacheReadsPrice = modelInfo.cacheReadsPrice || 0
+	let effectiveCacheWritesPrice = modelInfo.cacheWritesPrice || 0
+
+	// Handle tiered pricing if available
+	if (modelInfo.tiers && modelInfo.tiers.length > 0 && totalInputTokensForPricing !== undefined) {
+		// Ensure tiers are sorted by contextWindow ascending before finding
+		const sortedTiers = [...modelInfo.tiers].sort((a, b) => a.contextWindow - b.contextWindow)
+
 		// Find the first tier where the total input tokens are less than or equal to the limit
-		const tier = sortedInputTiers.find((t) => totalInputTokensForPricing! <= t.tokenLimit)
+		const tier = sortedTiers.find((t) => totalInputTokensForPricing <= t.contextWindow)
+
 		if (tier) {
-			effectiveInputPrice = tier.price
+			// Apply all tiered price values if they exist
+			effectiveInputPrice = tier.inputPrice ?? effectiveInputPrice
+			effectiveOutputPrice = tier.outputPrice ?? effectiveOutputPrice
+			effectiveCacheReadsPrice = tier.cacheReadsPrice ?? effectiveCacheReadsPrice
+			effectiveCacheWritesPrice = tier.cacheWritesPrice ?? effectiveCacheWritesPrice
 		} else {
 			// Should ideally not happen if Infinity is used for the last tier, but fallback just in case
-			effectiveInputPrice = sortedInputTiers[sortedInputTiers.length - 1]?.price || 0
+			const lastTier = sortedTiers[sortedTiers.length - 1]
+			if (lastTier) {
+				effectiveInputPrice = lastTier.inputPrice ?? effectiveInputPrice
+				effectiveOutputPrice = lastTier.outputPrice ?? effectiveOutputPrice
+				effectiveCacheReadsPrice = lastTier.cacheReadsPrice ?? effectiveCacheReadsPrice
+				effectiveCacheWritesPrice = lastTier.cacheWritesPrice ?? effectiveCacheWritesPrice
+			}
 		}
 	}
 
-	// Determine effective output price
-	let effectiveOutputPrice = modelInfo.outputPrice || 0
-	// Check if thinking budget was used and has a specific price
+	// Override output price for thinking mode if applicable
 	if (usedThinkingBudget && modelInfo.thinkingConfig?.outputPrice !== undefined) {
 		effectiveOutputPrice = modelInfo.thinkingConfig.outputPrice
 		// TODO: Add support for tiered thinking budget output pricing if needed in the future
-		// } else if (usedThinkingBudget && modelInfo.thinkingConfig?.outputPriceTiers) { ... }
-	} else if (modelInfo.outputPriceTiers && modelInfo.outputPriceTiers.length > 0 && totalInputTokensForPricing !== undefined) {
-		// Use standard tiered output pricing (based on total *input* tokens for pricing)
-		const sortedOutputTiers = [...modelInfo.outputPriceTiers].sort((a, b) => a.tokenLimit - b.tokenLimit)
-		const tier = sortedOutputTiers.find((t) => totalInputTokensForPricing! <= t.tokenLimit)
-		if (tier) {
-			effectiveOutputPrice = tier.price
-		} else {
-			// Should ideally not happen if Infinity is used for the last tier, but fallback just in case
-			effectiveOutputPrice = sortedOutputTiers[sortedOutputTiers.length - 1]?.price || 0
-		}
 	}
 
-	const cacheWritesCost = ((modelInfo.cacheWritesPrice || 0) / 1_000_000) * cacheCreationInputTokens
-	const cacheReadsCost = ((modelInfo.cacheReadsPrice || 0) / 1_000_000) * cacheReadInputTokens
+	const cacheWritesCost = (effectiveCacheWritesPrice / 1_000_000) * cacheCreationInputTokens
+	const cacheReadsCost = (effectiveCacheReadsPrice / 1_000_000) * cacheReadInputTokens
+
 	// Use effectiveInputPrice for baseInputCost. Note: 'inputTokens' here is the potentially adjusted count (e.g., non-cached for OpenAI)
 	const baseInputCost = (effectiveInputPrice / 1_000_000) * inputTokens
+
 	// Use effectiveOutputPrice for outputCost
 	const outputCost = (effectiveOutputPrice / 1_000_000) * outputTokens
 
 	const totalCost = cacheWritesCost + cacheReadsCost + baseInputCost + outputCost
 	return totalCost
 }
-
 // For Anthropic compliant usage, the input tokens count does NOT include the cached tokens
 export function calculateApiCostAnthropic(
 	modelInfo: ModelInfo,
