@@ -1,8 +1,8 @@
+import type { GlobalSettings } from "@roo/schemas"
+
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui"
-
-import { GlobalSettings } from "@roo/schemas"
 
 type AutoApproveToggles = Pick<
 	GlobalSettings,
@@ -105,6 +105,8 @@ export const AutoApproveToggle = ({ onToggle, ...props }: AutoApproveToggleProps
 					variant={props[key] ? "default" : "outline"}
 					onClick={() => onToggle(key, !props[key])}
 					title={t(descriptionKey || "")}
+					aria-label={t(labelKey)}
+					aria-pressed={!!props[key]}
 					data-testid={testId}
 					className={cn(" aspect-square h-[80px]", !props[key] && "opacity-50")}>
 					<span className={cn("flex flex-col items-center gap-1")}>
