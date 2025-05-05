@@ -7,7 +7,7 @@ const PreviewContainer = styled.div`
 	/* border-left: 3px solid var(--vscode-textBlockQuote-border); */ /* Remove left border */
 	/* border-top: 1px solid var(--vscode-editorGroup-border); */ /* Remove top border */
 	padding: 4px 4px 4px 4px; /* Removed bottom padding */
-	margin: 10px 15px 0 15px; /* Remove bottom margin, equal left/right */
+	margin: 0px 15px 0 15px; /* Remove bottom+top margin, equal left/right */
 	border-radius: 2px 2px 0 0; /* Only round top corners */
 	display: flex;
 	/* flex-direction: column; */ /* No longer needed as Label is removed */

@@ -234,11 +234,11 @@ export const ChatRowContent = ({
 					if (isSelectionWithin) {
 						shouldShowButton = true // Mark that we should show the button
 						const buttonHeight = 30
-						// Calculate the raw top position
-						const calculatedTop = rangeRect.top - containerRect.top - buttonHeight - 5
-						// Ensure the button doesn't go above the container's top edge
-						buttonTop = Math.max(0, calculatedTop)
-						buttonLeft = Math.max(0, rangeRect.left - containerRect.left)
+						// Calculate the raw top position relative to the container, placing it above the selection
+						const calculatedTop = rangeRect.top - containerRect.top - buttonHeight - 5 // Subtract button height and a small margin
+						// Allow the button to potentially have a negative top value
+						buttonTop = calculatedTop
+						buttonLeft = Math.max(0, rangeRect.left - containerRect.left) // Still prevent going left of container
 						textToQuote = selectedText
 					}
 				}
