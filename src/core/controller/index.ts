@@ -1949,52 +1949,74 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 					cancellable: true,
 				},
 				async (progress, token) => {
-					// Create a task to generate the commit message
-					await this.clearTask()
+					try {
+						// Format the git diff into a prompt
+						const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
 
-					// Create a promise that will resolve when the task completes
-					const messagePromise = new Promise<string | undefined>((resolve) => {
-						// Store the original task reference
-						const originalTask = this.task
+${gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff}
 
-						// Set up a listener for task completion
-						const disposable = vscode.workspace.onDidChangeTextDocument(async (e) => {
-							// Check if the task has been completed and a new message has been added
-							if (originalTask && originalTask.clineMessages && originalTask.clineMessages.length > 1) {
-								// Get the last assistant message (type 'say' with 'text')
-								const lastMessage = originalTask.clineMessages
-									.filter((m) => m.type === "say" && m.say === "text")
-									.pop()
+The commit message should:
+1. Start with a short summary (50-72 characters)
+2. Use the imperative mood (e.g., "Add feature" not "Added feature")
+3. Describe what was changed and why
+4. Be clear and descriptive
 
-								if (lastMessage && lastMessage.text) {
-									// Extract the commit message from the AI response
-									const commitMessage = extractCommitMessage(lastMessage.text)
+Commit message:`
 
-									// Clean up the listener
-									disposable.dispose()
+						// Get the current API configuration
+						const { apiConfiguration } = await getAllExtensionState(this.context)
 
-									// Resolve the promise with the commit message
-									resolve(commitMessage)
-								}
+						// Build the API handler
+						const apiHandler = buildApiHandler(apiConfiguration)
+
+						// Create a system prompt
+						const systemPrompt =
+							"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
+
+						// Create a message for the API
+						const messages = [
+							{
+								role: "user" as const,
+								content: prompt,
+							},
+						]
+
+						// Call the API directly
+						const stream = apiHandler.createMessage(systemPrompt, messages)
+
+						// Collect the response
+						let response = ""
+						for await (const chunk of stream) {
+							if (chunk.type === "text") {
+								response += chunk.text
 							}
-						})
+						}
 
-						// Set a timeout to prevent hanging if something goes wrong
-						setTimeout(() => {
-							disposable.dispose()
-							resolve(undefined)
-						}, 30000) // 30 seconds timeout
-					})
+						// Extract the commit message
+						const commitMessage = extractCommitMessage(response)
 
-					// Start the task
-					await this.initTask("Generate a git commit message based on the following changes:\n\n" + gitDiff)
-
-					// Wait for the message to be generated
-					const commitMessage = await messagePromise
-
-					// If we got a commit message, show options to the user
-					if (commitMessage) {
-						await showCommitMessageOptions(commitMessage)
+						// Apply the commit message to the Git input box
+						if (commitMessage) {
+							// Get the Git extension API
+							const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
+							if (gitExtension) {
+								const api = gitExtension.getAPI(1)
+								if (api && api.repositories.length > 0) {
+									const repo = api.repositories[0]
+									repo.inputBox.value = commitMessage
+									vscode.window.showInformationMessage("Commit message generated and applied")
+								} else {
+									vscode.window.showErrorMessage("No Git repositories found")
+								}
+							} else {
+								vscode.window.showErrorMessage("Git extension not found")
+							}
+						} else {
+							vscode.window.showErrorMessage("Failed to generate commit message")
+						}
+					} catch (innerError) {
+						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
+						vscode.window.showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
 					}
 				},
 			)

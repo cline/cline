@@ -10,6 +10,7 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { WebviewProvider } from "./core/webview"
+import { Controller } from "./core/controller"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 
@@ -425,23 +426,20 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.generateGitCommitMessage", async () => {
-			// Get the visible webview instance
-			const visibleWebview = WebviewProvider.getVisibleInstance()
-			if (!visibleWebview) {
-				// If no webview is visible, focus the sidebar first
-				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-				await setTimeoutPromise(100) // Wait for the sidebar to become visible
-			}
+			// Get the controller from any instance, without activating the view
+			const controller = WebviewProvider.getAllInstances()[0]?.controller
 
-			// Get the visible webview instance again (should be available now)
-			const activeWebview = WebviewProvider.getVisibleInstance()
-			if (!activeWebview) {
-				vscode.window.showErrorMessage("Cline is not active")
-				return
-			}
+			if (controller) {
+				// Call the controller method to generate commit message
+				await controller.generateGitCommitMessage()
+			} else {
+				// Create a temporary controller just for this operation
+				const outputChannel = vscode.window.createOutputChannel("Cline Commit Generator")
+				const tempController = new Controller(context, outputChannel, () => Promise.resolve(true))
 
-			// Call the controller method to generate commit message
-			await activeWebview.controller.generateGitCommitMessage()
+				await tempController.generateGitCommitMessage()
+				outputChannel.dispose()
+			}
 		}),
 	)
 

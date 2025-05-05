@@ -121,8 +121,9 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"title": "Generate Commit Message with Cline",
-				"category": "Cline"
+				"title": "✨ Generate Commit Message with Cline",
+				"category": "Cline",
+				"icon": "$(robot)"
 			}
 		],
 		"keybindings": [
@@ -133,6 +134,14 @@
 				"win": "ctrl+'",
 				"linux": "ctrl+'",
 				"when": "editorHasSelection"
+			},
+			{
+				"command": "cline.generateGitCommitMessage",
+				"key": "ctrl+alt+g",
+				"mac": "cmd+alt+g",
+				"win": "ctrl+alt+g",
+				"linux": "ctrl+alt+g",
+				"when": "scmProvider == git"
 			}
 		],
 		"menus": {
@@ -217,6 +226,12 @@
 				{
 					"command": "cline.generateGitCommitMessage",
 					"group": "navigation",
+					"when": "scmProvider == git"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "cline.generateGitCommitMessage",
 					"when": "scmProvider == git"
 				}
 			]
