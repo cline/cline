@@ -9,7 +9,7 @@ import { Empty, EmptyRequest } from "../../../shared/proto/common"
  */
 export async function clearTask(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	// passing in true because this is only called when the user closes the task
-	await controller.clearTask(true)
+	await controller.clearTask()
 	await controller.postStateToWebview()
 	return Empty.create()
 }

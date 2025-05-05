@@ -1792,8 +1792,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		}
 	}
 
-	async clearTask(isCloseTaskEvent: boolean = false) {
-		if (isCloseTaskEvent && this.task) {
+	async clearTask() {
+		if (this.task) {
 			await telemetryService.sendCollectedEvents(this.task.taskId)
 		}
 		this.task?.abortTask()
