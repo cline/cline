@@ -1915,7 +1915,7 @@ export class Task {
 											: "other_diff_error"
 
 									// Add telemetry for diff edit failure
-									telemetryService.captureDiffEditFailure(this.taskId, errorType)
+									telemetryService.captureDiffEditFailure(this.taskId, this.api.getModel().id, errorType)
 
 									pushToolResult(
 										formatResponse.toolError(
