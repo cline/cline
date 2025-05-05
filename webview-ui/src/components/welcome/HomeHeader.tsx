@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react"
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 
@@ -63,9 +64,15 @@ const getFirstName = (displayName: string | null | undefined) => {
 
 const HomeHeader = () => {
 	const { user } = useFirebaseAuth()
-	const timeOfDay = getTimeOfDay()
-	const firstName = getFirstName(user?.displayName)
-	const greeting = getPrimaryGreeting(timeOfDay)
+	const [timeOfDay] = useState<TimeOfDay>(getTimeOfDay())
+	const [greeting] = useState<string>(getPrimaryGreeting(timeOfDay))
+	const [secondaryMessage] = useState<string>(getSecondaryMessage(timeOfDay))
+	const [firstName, setFirstName] = useState<string>("")
+
+	// Calculate firstName only once when the component mounts or when user changes
+	useEffect(() => {
+		setFirstName(getFirstName(user?.displayName))
+	}, [user?.displayName])
 
 	return (
 		<div className="flex flex-col items-center mb-5">
@@ -77,9 +84,7 @@ const HomeHeader = () => {
 					{greeting}
 					{firstName ? `, ${firstName}` : ""}!
 				</h2>
-				<div className="text-[var(--vscode-descriptionForeground)] text-sm font-normal mt-1">
-					{getSecondaryMessage(timeOfDay)}
-				</div>
+				<div className="text-[var(--vscode-descriptionForeground)] text-sm font-normal mt-1">{secondaryMessage}</div>
 			</div>
 		</div>
 	)
