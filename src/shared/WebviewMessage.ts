@@ -21,7 +21,6 @@ export interface WebviewMessage {
 		| "deleteTasksWithIds"
 		| "exportTaskWithId"
 		| "resetState"
-		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openInBrowser"
 		| "openMention"
