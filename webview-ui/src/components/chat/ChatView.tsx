@@ -1049,16 +1049,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 											{primaryButtonText}
 										</VSCodeButton>
 									)}
-									{(secondaryButtonText || isStreaming) && (
+									{/* Cancel button commented out as requested */}
+									{(secondaryButtonText && !isStreaming) && (
 										<VSCodeButton
 											appearance="secondary"
-											disabled={!enableButtons && !(isStreaming && !didClickCancel)}
+											disabled={!enableButtons}
 											style={{
-												flex: isStreaming ? 2 : 1,
-												marginLeft: isStreaming ? 0 : "6px",
+												flex: 1,
+												marginLeft: "6px",
 											}}
 											onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
-											{isStreaming ? "Cancel" : secondaryButtonText}
+											{secondaryButtonText}
 										</VSCodeButton>
 									)}
 								</>

@@ -1277,16 +1277,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		return (
 			<div>
-					<div
-						style={{
-							padding: "10px 15px",
-							opacity: textAreaDisabled ? 0.5 : 1,
-							position: "relative",
-							display: "flex",
-							// Drag-over styles moved to DynamicTextArea
-							transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
-							cursor: (isStreaming && !didClickCancel) ? "default" : undefined,
-						}}
+				<div
+					style={{
+						padding: "10px 15px",
+						opacity: textAreaDisabled ? 0.5 : 1,
+						position: "relative",
+						display: "flex",
+						// Drag-over styles moved to DynamicTextArea
+						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
+						cursor: isStreaming && !didClickCancel ? "default" : undefined,
+					}}
 					onDrop={onDrop}
 					onDragOver={onDragOver}
 					onDragEnter={handleDragEnter}
@@ -1432,7 +1432,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 							borderColor: "transparent",
 							padding: "9px 28px 3px 9px",
-							cursor: (textAreaDisabled && !isStreaming) ? "not-allowed" : undefined,
+							cursor: textAreaDisabled && !isStreaming ? "not-allowed" : undefined,
 							flex: 1,
 							zIndex: 1,
 							outline:
