@@ -11,11 +11,10 @@ interface TaskTimelineProps {
 const getBlockColor = (message: ClineMessage): string => {
 	if (message.type === "say") {
 		switch (message.say) {
-			// TODO: Need to confirm these classifcations with design
 			case "task":
-				return "var(--vscode-editor-background)"
+				return "#FFFFFF" // White for system prompt
 			case "text":
-				return "#CCCCCC"
+				return "#AAAAAA" // Gray for assistant responses
 			case "tool":
 				if (message.text) {
 					try {
@@ -27,41 +26,43 @@ const getBlockColor = (message: ClineMessage): string => {
 							toolData.tool === "listCodeDefinitionNames" ||
 							toolData.tool === "searchFiles"
 						) {
-							return "#F5F5DC"
+							return "#F5F5DC" // Beige for file read operations
 						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
-							return "#3B82F6"
+							return "#3B82F6" // Blue for file edit/create operations
 						}
 					} catch (e) {
 						// JSON parse error here
 					}
 				}
-				return "#CCCCCC"
+				return "#F5F5DC" // Default beige for tool use
 			case "command":
 			case "command_output":
-				return "#EF4444"
+				return "#EF4444" // Red for terminal commands
 			case "browser_action":
 			case "browser_action_result":
-				return "#8B5CF6"
+				return "#8B5CF6" // Purple for browser actions
 			case "completion_result":
-				return "#10B981"
+				return "#10B981" // Green for task success
 			default:
-				return "#CCCCCC"
+				return "#9E9E9E" // Grey for unknown
 		}
 	} else if (message.type === "ask") {
 		switch (message.ask) {
 			case "followup":
-				return "#CCCCCC"
+				return "#AAAAAA" // Gray for user messages
+			case "plan_mode_respond":
+				return "#AAAAAA" // Gray for planning responses
 			case "tool":
-				return "#3B82F6"
+				return "#9E9E9E" // Gray for tool approvals
 			case "command":
-				return "#EF4444"
+				return "#9E9E9E" // Gray for command approvals
 			case "browser_action_launch":
-				return "#8B5CF6"
+				return "#9E9E9E" // Gray for browser launch approvals
 			default:
-				return "#CCCCCC"
+				return "#9E9E9E" // Grey for unknown
 		}
 	}
-	return "#CCCCCC"
+	return "#9E9E9E" // Default grey
 }
 
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
