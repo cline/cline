@@ -337,8 +337,9 @@
 		"package": "npm-run-all -l -p build:webview build:esbuild check-types lint",
 		"pretest": "npm run compile",
 		"dev": "cd webview-ui && npm run dev",
-		"test": "node scripts/run-tests.js",
+		"test": "npm-run-all test:*",
 		"test:extension": "jest -w=40%",
+		"test:extension-esm": "vitest run",
 		"test:webview": "cd webview-ui && npm run test",
 		"prepare": "husky",
 		"publish:marketplace": "vsce publish && ovsx publish",
@@ -459,6 +460,7 @@
 		"tsup": "^8.4.0",
 		"tsx": "^4.19.3",
 		"typescript": "^5.4.5",
+		"vitest": "^3.1.2",
 		"zod-to-ts": "^1.2.0"
 	},
 	"lint-staged": {

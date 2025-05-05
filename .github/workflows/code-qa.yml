@@ -78,8 +78,10 @@ jobs:
         run: npm run install:all
       - name: Compile (to build and copy WASM files)
         run: npm run compile
-      - name: Run unit tests
+      - name: Run jest unit tests
         run: npx jest --silent
+      - name: Run vitest unit tests
+        run: npx vitest run --silent
 
   test-webview:
     runs-on: ${{ matrix.os }}
