@@ -88,7 +88,8 @@ export async function createOpenRouterStream(
 				],
 			}
 
-			const GEMINI_CACHE_USER_MESSAGE_INTERVAL = 4 // add new breakpoint every 4 turns
+			// it doesn't make sense to alter breakpoints at all with the gemini cache implementation at this time
+			/*const GEMINI_CACHE_USER_MESSAGE_INTERVAL = 4 // add new breakpoint every 4 turns
 			const userMessages = openAiMessages.filter((msg) => msg.role === "user")
 
 			const userMessageCount = userMessages.length
@@ -115,7 +116,7 @@ export async function createOpenRouterStream(
 						lastTextPart["cache_control"] = { type: "ephemeral" }
 					}
 				}
-			}
+			}*/
 			break
 		default:
 			break
