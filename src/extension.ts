@@ -8,7 +8,7 @@ import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
-import { telemetryService } from "./services/telemetry/TelemetryService"
+import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
@@ -438,7 +438,7 @@ export function deactivate() {
 	// Clean up test mode
 	cleanupTestMode()
 
-	telemetryService.shutdown()
+	posthogClientProvider.shutdown()
 	Logger.log("Cline extension deactivated")
 }
 
