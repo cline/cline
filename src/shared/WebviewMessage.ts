@@ -18,7 +18,6 @@ export interface WebviewMessage {
 		| "selectImages"
 		| "showTaskWithId"
 		| "resetState"
-		| "requestLmStudioModels"
 		| "openInBrowser"
 		| "openMention"
 		| "showChatView"
