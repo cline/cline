@@ -632,7 +632,7 @@ export class Controller {
 				break
 			}
 			case "clearAllTaskHistory": {
-				const answer = await vscode.window.showInformationMessage(
+				const answer = await vscode.window.showWarningMessage(
 					"Are you sure you want to delete all history?",
 					"Delete",
 					"Cancel",
