@@ -1,6 +1,5 @@
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { DeleteTasksWithIds } from "../../../shared/proto/task"
+import { Empty, StringArrayRequest } from "../../../shared/proto/common"
 import { TaskMethodHandler } from "./index"
 
 /**
@@ -12,13 +11,13 @@ import { TaskMethodHandler } from "./index"
  */
 export const deleteTasksWithIds: TaskMethodHandler = async (
 	controller: Controller,
-	request: DeleteTasksWithIds,
+	request: StringArrayRequest,
 ): Promise<Empty> => {
-	if (!request.ids || request.ids.length === 0) {
+	if (!request.value || request.value.length === 0) {
 		throw new Error("Missing task IDs")
 	}
 
-	await Promise.all(request.ids.map((id) => controller.deleteTaskWithId(id)))
+	await Promise.all(request.value.map((value) => controller.deleteTaskWithId(value)))
 
 	return Empty.create()
 }

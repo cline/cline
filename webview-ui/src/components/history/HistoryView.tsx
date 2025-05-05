@@ -62,12 +62,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [])
 
 	const handleDeleteHistoryItem = useCallback((id: string) => {
-		TaskServiceClient.deleteTasksWithIds({ ids: [id] })
+		TaskServiceClient.deleteTasksWithIds({ value: [id] })
 	}, [])
 
 	const handleDeleteSelectedHistoryItems = useCallback((ids: string[]) => {
 		if (ids.length > 0) {
-			TaskServiceClient.deleteTasksWithIds({ ids })
+			TaskServiceClient.deleteTasksWithIds({ value: ids })
 			setSelectedItems([])
 		}
 	}, [])

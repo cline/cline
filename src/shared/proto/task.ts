@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata } from "./common"
+import { Empty, EmptyRequest, Metadata, StringArrayRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -15,12 +15,6 @@ export interface NewTaskRequest {
 	metadata?: Metadata | undefined
 	text: string
 	images: string[]
-}
-
-/** Request message for deleting multiple tasks */
-export interface DeleteTasksWithIds {
-	metadata?: Metadata | undefined
-	ids: string[]
 }
 
 function createBaseNewTaskRequest(): NewTaskRequest {
@@ -116,83 +110,6 @@ export const NewTaskRequest: MessageFns<NewTaskRequest> = {
 	},
 }
 
-function createBaseDeleteTasksWithIds(): DeleteTasksWithIds {
-	return { metadata: undefined, ids: [] }
-}
-
-export const DeleteTasksWithIds: MessageFns<DeleteTasksWithIds> = {
-	encode(message: DeleteTasksWithIds, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		for (const v of message.ids) {
-			writer.uint32(18).string(v!)
-		}
-		return writer
-	},
-
-	decode(input: BinaryReader | Uint8Array, length?: number): DeleteTasksWithIds {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseDeleteTasksWithIds()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
-
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
-
-					message.ids.push(reader.string())
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
-
-	fromJSON(object: any): DeleteTasksWithIds {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			ids: globalThis.Array.isArray(object?.ids) ? object.ids.map((e: any) => globalThis.String(e)) : [],
-		}
-	},
-
-	toJSON(message: DeleteTasksWithIds): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.ids?.length) {
-			obj.ids = message.ids
-		}
-		return obj
-	},
-
-	create<I extends Exact<DeepPartial<DeleteTasksWithIds>, I>>(base?: I): DeleteTasksWithIds {
-		return DeleteTasksWithIds.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<DeleteTasksWithIds>, I>>(object: I): DeleteTasksWithIds {
-		const message = createBaseDeleteTasksWithIds()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.ids = object.ids?.map((e) => e) || []
-		return message
-	},
-}
-
 export type TaskServiceDefinition = typeof TaskServiceDefinition
 export const TaskServiceDefinition = {
 	name: "TaskService",
@@ -219,7 +136,7 @@ export const TaskServiceDefinition = {
 		/** Deletes multiple tasks with the given IDs */
 		deleteTasksWithIds: {
 			name: "deleteTasksWithIds",
-			requestType: DeleteTasksWithIds,
+			requestType: StringArrayRequest,
 			requestStream: false,
 			responseType: Empty,
 			responseStream: false,

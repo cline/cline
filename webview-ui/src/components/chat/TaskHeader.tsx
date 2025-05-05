@@ -670,7 +670,7 @@ const DeleteButton: React.FC<{
 }> = ({ taskSize, taskId }) => (
 	<VSCodeButton
 		appearance="icon"
-		onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ ids: [taskId] })}
+		onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ value: [taskId] })}
 		style={{ padding: "0px 0px" }}>
 		<div
 			style={{
