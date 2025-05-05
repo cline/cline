@@ -1093,6 +1093,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			<ChatTextArea
 				ref={textAreaRef}
 				onFocusChange={handleFocusChange}
+				activeQuote={activeQuote}
 				inputValue={inputValue}
 				setInputValue={setInputValue}
 				textAreaDisabled={textAreaDisabled}

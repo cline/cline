@@ -41,6 +41,7 @@ import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 
 interface ChatTextAreaProps {
 	inputValue: string
+	activeQuote: string | null
 	setInputValue: (value: string) => void
 	textAreaDisabled: boolean
 	placeholderText: string
@@ -225,6 +226,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	(
 		{
 			inputValue,
+			activeQuote,
 			setInputValue,
 			textAreaDisabled,
 			placeholderText,
@@ -1296,7 +1298,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							/>
 						</div>
 					)}
-					{/* Removed the div that rendered the border when not focused */}
+					{!isTextAreaFocused && !activeQuote && (
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px",
+								border: "1px solid var(--vscode-input-border)",
+								borderRadius: 2,
+								pointerEvents: "none",
+								zIndex: 5,
+							}}
+						/>
+					)}
 					<div
 						ref={highlightLayerRef}
 						style={{
