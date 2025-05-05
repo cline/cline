@@ -344,6 +344,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return false
 	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
 
+	// Reset didClickCancel when streaming starts
+	useEffect(() => {
+		if (isStreaming && didClickCancel) {
+			setDidClickCancel(false)
+		}
+	}, [isStreaming, didClickCancel])
+
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[]) => {
 			text = text.trim()
