@@ -422,6 +422,29 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register the generateGitCommitMessage command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.generateGitCommitMessage", async () => {
+			// Get the visible webview instance
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			if (!visibleWebview) {
+				// If no webview is visible, focus the sidebar first
+				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				await setTimeoutPromise(100) // Wait for the sidebar to become visible
+			}
+
+			// Get the visible webview instance again (should be available now)
+			const activeWebview = WebviewProvider.getVisibleInstance()
+			if (!activeWebview) {
+				vscode.window.showErrorMessage("Cline is not active")
+				return
+			}
+
+			// Call the controller method to generate commit message
+			await activeWebview.controller.generateGitCommitMessage()
+		}),
+	)
+
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 

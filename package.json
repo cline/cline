@@ -118,6 +118,11 @@
 				"command": "cline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.generateGitCommitMessage",
+				"title": "Generate Commit Message with Cline",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
@@ -206,6 +211,13 @@
 				{
 					"command": "cline.addTerminalOutputToChat",
 					"group": "navigation"
+				}
+			],
+			"scm/title": [
+				{
+					"command": "cline.generateGitCommitMessage",
+					"group": "navigation",
+					"when": "scmProvider == git"
 				}
 			]
 		},

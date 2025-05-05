@@ -30,7 +30,8 @@ import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/m
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { searchCommits } from "@utils/git"
+import { searchCommits, getWorkingState } from "@utils/git"
+import { extractCommitMessage, showCommitMessageOptions } from "@integrations/git/commit-message-generator"
 import { getWorkspacePath } from "@utils/path"
 import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
@@ -1919,6 +1920,87 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				error: `Failed to fetch Open Graph data: ${error}`,
 				url: url,
 			})
+		}
+	}
+
+	// Git commit message generation
+
+	async generateGitCommitMessage() {
+		try {
+			// Check if there's a workspace folder open
+			const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+			if (!cwd) {
+				vscode.window.showErrorMessage("No workspace folder open")
+				return
+			}
+
+			// Get the git diff
+			const gitDiff = await getWorkingState(cwd)
+			if (gitDiff === "No changes in working directory") {
+				vscode.window.showInformationMessage("No changes to commit")
+				return
+			}
+
+			// Show a progress notification
+			await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: "Generating commit message...",
+					cancellable: true,
+				},
+				async (progress, token) => {
+					// Create a task to generate the commit message
+					await this.clearTask()
+
+					// Create a promise that will resolve when the task completes
+					const messagePromise = new Promise<string | undefined>((resolve) => {
+						// Store the original task reference
+						const originalTask = this.task
+
+						// Set up a listener for task completion
+						const disposable = vscode.workspace.onDidChangeTextDocument(async (e) => {
+							// Check if the task has been completed and a new message has been added
+							if (originalTask && originalTask.clineMessages && originalTask.clineMessages.length > 1) {
+								// Get the last assistant message (type 'say' with 'text')
+								const lastMessage = originalTask.clineMessages
+									.filter((m) => m.type === "say" && m.say === "text")
+									.pop()
+
+								if (lastMessage && lastMessage.text) {
+									// Extract the commit message from the AI response
+									const commitMessage = extractCommitMessage(lastMessage.text)
+
+									// Clean up the listener
+									disposable.dispose()
+
+									// Resolve the promise with the commit message
+									resolve(commitMessage)
+								}
+							}
+						})
+
+						// Set a timeout to prevent hanging if something goes wrong
+						setTimeout(() => {
+							disposable.dispose()
+							resolve(undefined)
+						}, 30000) // 30 seconds timeout
+					})
+
+					// Start the task
+					await this.initTask("Generate a git commit message based on the following changes:\n\n" + gitDiff)
+
+					// Wait for the message to be generated
+					const commitMessage = await messagePromise
+
+					// If we got a commit message, show options to the user
+					if (commitMessage) {
+						await showCommitMessageOptions(commitMessage)
+					}
+				},
+			)
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
 		}
 	}
 
