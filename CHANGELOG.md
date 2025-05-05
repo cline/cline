@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.15.5] - 2025-05-05
+
+- Update @google/genai to 0.12 (includes some streaming completion bug fixes)
+- Rendering performance improvements for code blocks in chat (thanks @KJ7LNW)
+
 ## [3.15.4] - 2025-05-04
 
 - Fix a nasty bug that would cause Roo Code to hang, particularly in orchestrator mode
