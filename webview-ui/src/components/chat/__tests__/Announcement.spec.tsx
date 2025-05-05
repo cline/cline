@@ -20,7 +20,7 @@ describe("Announcement", () => {
 
 	it("calls hideAnnouncement when close button is clicked", () => {
 		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		fireEvent.click(screen.getByRole("button"))
+		fireEvent.click(screen.getByTestId("close-button"))
 		expect(hideAnnouncement).toHaveBeenCalled()
 	})
 })
