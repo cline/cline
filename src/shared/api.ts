@@ -47,6 +47,8 @@ export interface ApiHandlerOptions {
 	awsUseProfile?: boolean
 	awsProfile?: string
 	awsBedrockEndpoint?: string
+	awsBedrockCustomSelected?: boolean
+	awsBedrockCustomModelBaseId?: BedrockModelId
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
@@ -80,6 +82,7 @@ export interface ApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
 	sambanovaApiKey?: string
+	requestTimeoutMs?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -100,9 +103,7 @@ export interface ModelInfo {
 	supportsImages?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
 	inputPrice?: number // Keep for non-tiered input models
-	inputPriceTiers?: PriceTier[] // Add for tiered input pricing
 	outputPrice?: number // Keep for non-tiered output models
-	outputPriceTiers?: PriceTier[] // Add for tiered output pricing
 	thinkingConfig?: {
 		maxBudget?: number // Max allowed thinking budget tokens
 		outputPrice?: number // Output price per million tokens when budget > 0
@@ -111,6 +112,13 @@ export interface ModelInfo {
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
+	tiers?: {
+		contextWindow: number
+		inputPrice?: number
+		outputPrice?: number
+		cacheWritesPrice?: number
+		cacheReadsPrice?: number
+	}[]
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
@@ -182,6 +190,15 @@ export const anthropicModels = {
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 export const bedrockModels = {
+	"amazon.nova-premier-v1:0": {
+		maxTokens: 10_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 12.5,
+	},
 	"amazon.nova-pro-v1:0": {
 		maxTokens: 5000,
 		contextWindow: 300_000,
@@ -309,10 +326,15 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		thinkingConfig: {
+			maxBudget: 64000,
+			outputPrice: 15.0,
+		},
 	},
 	"claude-3-5-sonnet-v2@20241022": {
 		maxTokens: 8192,
@@ -369,9 +391,19 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.025,
+	},
+	"gemini-2.0-flash-lite-001": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.4,
+		inputPrice: 0.075,
+		outputPrice: 0.3,
 	},
 	"gemini-2.0-flash-thinking-exp-1219": {
 		maxTokens: 8192,
@@ -401,16 +433,20 @@ export const vertexModels = {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		// inputPrice: 1.25, // Removed
-		// outputPrice: 10, // Removed
-		inputPriceTiers: [
-			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
-			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
-		],
-		outputPriceTiers: [
-			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
-			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15,
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 1.25,
+				outputPrice: 10,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 2.5,
+				outputPrice: 15,
+			},
 		],
 	},
 	"gemini-2.5-flash-preview-04-17": {
@@ -445,9 +481,25 @@ export const vertexModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.0375,
+		tiers: [
+			{
+				contextWindow: 128000,
+				inputPrice: 0.075,
+				outputPrice: 0.3,
+				cacheReadsPrice: 0.01875,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+				cacheReadsPrice: 0.0375,
+			},
+		],
 	},
 	"gemini-1.5-flash-exp-0827": {
 		maxTokens: 8192,
@@ -470,8 +522,8 @@ export const vertexModels = {
 		contextWindow: 2_097_152,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 1.25,
+		outputPrice: 5,
 	},
 	"gemini-1.5-pro-exp-0827": {
 		maxTokens: 8192,
@@ -511,14 +563,24 @@ export const geminiModels = {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPriceTiers: [
-			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
-			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
-		],
-		outputPriceTiers: [
-			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
-			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
+		supportsPromptCache: true,
+		inputPrice: 2.5, // Default price (highest tier)
+		outputPrice: 15, // Default price (highest tier)
+		cacheReadsPrice: 0.625,
+		cacheWritesPrice: 4.5,
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 1.25,
+				outputPrice: 10,
+				cacheReadsPrice: 0.31,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 2.5,
+				outputPrice: 15,
+				cacheReadsPrice: 0.625,
+			},
 		],
 	},
 	"gemini-2.5-flash-preview-04-17": {
@@ -537,9 +599,11 @@ export const geminiModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		supportsPromptCache: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.025,
+		cacheWritesPrice: 1.0,
 	},
 	"gemini-2.0-flash-lite-preview-02-05": {
 		maxTokens: 8192,
@@ -585,9 +649,25 @@ export const geminiModels = {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
 		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		supportsPromptCache: true,
+		inputPrice: 0.15, // Default price (highest tier)
+		outputPrice: 0.6, // Default price (highest tier)
+		cacheReadsPrice: 0.0375,
+		cacheWritesPrice: 1.0,
+		tiers: [
+			{
+				contextWindow: 128000,
+				inputPrice: 0.075,
+				outputPrice: 0.3,
+				cacheReadsPrice: 0.01875,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+				cacheReadsPrice: 0.0375,
+			},
+		],
 	},
 	"gemini-1.5-flash-exp-0827": {
 		maxTokens: 8192,

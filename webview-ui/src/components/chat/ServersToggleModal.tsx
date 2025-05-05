@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useNavigator } from "@/hooks/useNavigator"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
 import { vscode } from "@/utils/vscode"
@@ -9,6 +10,7 @@ import Tooltip from "@/components/common/Tooltip"
 
 const ServersToggleModal: React.FC = () => {
 	const { mcpServers } = useExtensionState()
+	const { navigateToMcp } = useNavigator()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
@@ -42,7 +44,7 @@ const ServersToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<Tooltip tipText="Manage MCP Servers">
+				<Tooltip tipText="Manage MCP Servers" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
 						aria-label="MCP Servers"
@@ -81,11 +83,8 @@ const ServersToggleModal: React.FC = () => {
 						<VSCodeButton
 							appearance="icon"
 							onClick={() => {
-								vscode.postMessage({
-									type: "showMcpView",
-									tab: "installed",
-								})
 								setIsVisible(false)
+								navigateToMcp("installed")
 							}}>
 							<span className="codicon codicon-gear text-[10px]"></span>
 						</VSCodeButton>

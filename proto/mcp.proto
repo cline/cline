@@ -1,12 +1,15 @@
 syntax = "proto3";
 
 package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
 
 import "common.proto";
 
 service McpService {
   rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
   rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
+  rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
 }
 
 message ToggleMcpServerRequest {
@@ -19,6 +22,12 @@ message UpdateMcpTimeoutRequest {
   Metadata metadata = 1;
   string server_name = 2;
   int32 timeout = 3;
+}
+
+message AddRemoteMcpServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  string server_url = 3;
 }
 
 message McpTool {

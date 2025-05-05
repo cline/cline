@@ -94,6 +94,13 @@ import {
 } from "../context/instructions/user-instructions/cline-rules"
 import { getGlobalState, updateGlobalState } from "../storage/state"
 
+import { ensureLocalClinerulesDirExists } from "@core/context/instructions/user-instructions/cline-rules"
+import {
+	getLocalCursorRules,
+	getLocalWindsurfRules,
+	refreshExternalRulesToggles,
+} from "@core/context/instructions/user-instructions/external-rules"
+
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -173,6 +180,7 @@ export class Task {
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
+		shellIntegrationTimeout: number,
 		customInstructions?: string,
 		task?: string,
 		images?: string[],
@@ -191,6 +199,7 @@ export class Task {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
 		this.terminalManager = new TerminalManager()
+		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.urlContentFetcher = new UrlContentFetcher(context)
 		this.browserSession = new BrowserSession(context, browserSettings)
 		this.contextManager = new ContextManager()
@@ -1262,7 +1271,7 @@ export class Task {
 				didContinue = true
 				process.continue()
 			} catch {
-				// ask promise was ignored
+				Logger.error("Error while asking for command output")
 			} finally {
 				chunkEnroute = false
 				// If more output accumulated while chunkEnroute, flush again
@@ -1276,11 +1285,11 @@ export class Task {
 			if (chunkTimer) {
 				clearTimeout(chunkTimer)
 			}
-			chunkTimer = setTimeout(() => flushBuffer(), CHUNK_DEBOUNCE_MS)
+			chunkTimer = setTimeout(async () => await flushBuffer(), CHUNK_DEBOUNCE_MS)
 		}
 
 		let result = ""
-		process.on("line", (line) => {
+		process.on("line", async (line) => {
 			result += line + "\n"
 
 			if (!didContinue) {
@@ -1288,7 +1297,7 @@ export class Task {
 				outputBufferSize += Buffer.byteLength(line, "utf8")
 				// Flush if buffer is large enough
 				if (outputBuffer.length >= CHUNK_LINE_COUNT || outputBufferSize >= CHUNK_BYTE_SIZE) {
-					flushBuffer()
+					await flushBuffer()
 				} else {
 					scheduleFlush()
 				}
@@ -1364,6 +1373,7 @@ export class Task {
 						this.autoApprovalSettings.actions.readFiles,
 						this.autoApprovalSettings.actions.readFilesExternally ?? false,
 					]
+				case "new_rule":
 				case "write_to_file":
 				case "replace_in_file":
 					return [
@@ -1443,11 +1453,17 @@ export class Task {
 				: ""
 
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), cwd)
+		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.getContext(), cwd)
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
 
 		const localClineRulesFileInstructions = await getLocalClineRules(cwd, localToggles)
+		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
+			cwd,
+			cursorLocalToggles,
+		)
+		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(cwd, windsurfLocalToggles)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -1459,17 +1475,24 @@ export class Task {
 			settingsCustomInstructions ||
 			globalClineRulesFileInstructions ||
 			localClineRulesFileInstructions ||
+			localCursorRulesFileInstructions ||
+			localCursorRulesDirInstructions ||
+			localWindsurfRulesFileInstructions ||
 			clineIgnoreInstructions ||
 			preferredLanguageInstructions
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(
+			const userInstructions = addUserInstructions(
 				settingsCustomInstructions,
 				globalClineRulesFileInstructions,
 				localClineRulesFileInstructions,
+				localCursorRulesFileInstructions,
+				localCursorRulesDirInstructions,
+				localWindsurfRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
+			systemPrompt += userInstructions
 		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
@@ -1508,6 +1531,10 @@ export class Task {
 					"quarter", // Force aggressive truncation
 				)
 				await this.saveClineMessagesAndUpdateHistory()
+				await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+					Date.now(),
+					await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+				)
 
 				this.didAutomaticallyRetryFailedApiRequest = true
 			} else if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
@@ -1518,6 +1545,10 @@ export class Task {
 						"quarter", // Force aggressive truncation
 					)
 					await this.saveClineMessagesAndUpdateHistory()
+					await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+						Date.now(),
+						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+					)
 				}
 
 				console.log("first chunk failed, waiting 1 second before retrying")
@@ -1681,6 +1712,8 @@ export class Task {
 							return `[${block.name} for creating a new task]`
 						case "condense":
 							return `[${block.name}]`
+						case "new_rule":
+							return `[${block.name} for '${block.params.path}']`
 					}
 				}
 
@@ -1822,6 +1855,7 @@ export class Task {
 				}
 
 				switch (block.name) {
+					case "new_rule":
 					case "write_to_file":
 					case "replace_in_file": {
 						const relPath: string | undefined = block.params.path
@@ -1951,7 +1985,7 @@ export class Task {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError(block.name, "path"))
 									await this.diffViewProvider.reset()
-
+									await this.saveCheckpoint()
 									break
 								}
 								if (block.name === "replace_in_file" && !diff) {
@@ -1964,6 +1998,13 @@ export class Task {
 								if (block.name === "write_to_file" && !content) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
+									await this.diffViewProvider.reset()
+									await this.saveCheckpoint()
+									break
+								}
+								if (block.name === "new_rule" && !content) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("new_rule", "content"))
 									await this.diffViewProvider.reset()
 									await this.saveCheckpoint()
 									break
@@ -2245,6 +2286,7 @@ export class Task {
 									if (!didApprove) {
 										await this.saveCheckpoint()
 										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										await this.saveCheckpoint()
 										break
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
@@ -2315,6 +2357,7 @@ export class Task {
 									if (!didApprove) {
 										await this.saveCheckpoint()
 										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										await this.saveCheckpoint()
 										break
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
@@ -2397,6 +2440,7 @@ export class Task {
 									if (!didApprove) {
 										await this.saveCheckpoint()
 										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										await this.saveCheckpoint()
 										break
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
@@ -2636,7 +2680,7 @@ export class Task {
 									pushToolResult(
 										formatResponse.toolError(formatResponse.clineIgnoreError(ignoredFileAttemptedToAccess)),
 									)
-
+									await this.saveCheckpoint()
 									break
 								}
 
@@ -3046,6 +3090,7 @@ export class Task {
 								if (!context) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("condense", "context"))
+									await this.saveCheckpoint()
 									break
 								}
 								this.consecutiveMistakeCount = 0
@@ -3088,10 +3133,12 @@ export class Task {
 										await ensureTaskDirectoryExists(this.getContext(), this.taskId),
 									)
 								}
+								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
 							await handleError("condensing context window", error)
+							await this.saveCheckpoint()
 							break
 						}
 					}
@@ -3485,9 +3532,6 @@ export class Task {
 
 		// Save checkpoint if this is the first API request
 		const isFirstRequest = this.clineMessages.filter((m) => m.say === "api_req_started").length === 0
-		if (isFirstRequest) {
-			await this.say("checkpoint_created") // no hash since we need to wait for CheckpointTracker to be initialized
-		}
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
@@ -3497,6 +3541,10 @@ export class Task {
 				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
 			}),
 		)
+
+		if (isFirstRequest) {
+			await this.say("checkpoint_created") // no hash since we need to wait for CheckpointTracker to be initialized
+		}
 
 		// use this opportunity to initialize the checkpoint tracker (can be expensive to initialize in the constructor)
 		// FIXME: right now we're letting users init checkpoints for old tasks, but this could be a problem if opening a task in the wrong workspace
@@ -3528,7 +3576,16 @@ export class Task {
 			}
 		}
 
-		const [parsedUserContent, environmentDetails] = await this.loadContext(userContent, includeFileDetails)
+		const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(userContent, includeFileDetails)
+
+		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
+		if (clinerulesError === true) {
+			await this.say(
+				"error",
+				"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
+			)
+		}
+
 		userContent = parsedUserContent
 		// add environment details as its own text block, separate from tool results
 		userContent.push({ type: "text", text: environmentDetails })
@@ -3816,11 +3873,14 @@ export class Task {
 		}
 	}
 
-	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
-		return await Promise.all([
+	async loadContext(userContent: UserContent, includeFileDetails: boolean = false): Promise<[UserContent, string, boolean]> {
+		// Track if we need to check clinerulesFile
+		let needsClinerulesFileCheck = false
+
+		const processUserContent = async () => {
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
 			// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
-			Promise.all(
+			return await Promise.all(
 				userContent.map(async (block) => {
 					if (block.type === "text") {
 						// We need to ensure any user generated content is wrapped in one of these tags so that we know to parse mentions
@@ -3831,22 +3891,45 @@ export class Task {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
-							let parsedText = await parseMentions(block.text, cwd, this.urlContentFetcher, this.fileContextTracker)
+							const parsedText = await parseMentions(
+								block.text,
+								cwd,
+								this.urlContentFetcher,
+								this.fileContextTracker,
+							)
 
 							// when parsing slash commands, we still want to allow the user to provide their desired context
-							parsedText = parseSlashCommands(parsedText)
+							const { processedText, needsClinerulesFileCheck: needsCheck } = parseSlashCommands(parsedText)
+
+							if (needsCheck) {
+								needsClinerulesFileCheck = true
+							}
 
 							return {
 								...block,
-								text: parsedText,
+								text: processedText,
 							}
 						}
 					}
 					return block
 				}),
-			),
+			)
+		}
+
+		// Run initial promises in parallel
+		const [processedUserContent, environmentDetails] = await Promise.all([
+			processUserContent(),
 			this.getEnvironmentDetails(includeFileDetails),
 		])
+
+		// After processing content, check clinerulesData if needed
+		let clinerulesError = false
+		if (needsClinerulesFileCheck) {
+			clinerulesError = await ensureLocalClinerulesDirExists(cwd)
+		}
+
+		// Return all results
+		return [processedUserContent, environmentDetails, clinerulesError]
 	}
 
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {

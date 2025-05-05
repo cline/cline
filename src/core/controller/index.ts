@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import type { AxiosRequestConfig } from "axios"
 import axios from "axios"
 import crypto from "crypto"
+
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
@@ -10,8 +11,7 @@ import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "../../integrations/misc/export-markdown"
-import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
-import { openImage } from "../../integrations/misc/open-file"
+import { fetchOpenGraphData } from "../../integrations/misc/link-preview"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
@@ -31,10 +31,9 @@ import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../sha
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
-import { searchCommits } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
 import { getTotalTasksSize } from "../../utils/storage"
-import { createRuleFile, deleteRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
 import { openMention } from "../mentions"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
@@ -66,7 +65,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "april-18-2025_21:15::00" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "may-02-2025_16:27:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -138,8 +137,14 @@ export class Controller {
 
 	async initTask(task?: string, images?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
-			await getAllExtensionState(this.context)
+		const {
+			apiConfiguration,
+			customInstructions,
+			autoApprovalSettings,
+			browserSettings,
+			chatSettings,
+			shellIntegrationTimeout,
+		} = await getAllExtensionState(this.context)
 
 		if (autoApprovalSettings) {
 			const updatedAutoApprovalSettings = {
@@ -161,6 +166,7 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			shellIntegrationTimeout,
 			customInstructions,
 			task,
 			images,
@@ -188,28 +194,6 @@ export class Controller {
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
 		switch (message.type) {
-			case "addRemoteServer": {
-				try {
-					await this.mcpHub?.addRemoteServer(message.serverName!, message.serverUrl!)
-					await this.postMessageToWebview({
-						type: "addRemoteServerResult",
-						addRemoteServerResult: {
-							success: true,
-							serverName: message.serverName!,
-						},
-					})
-				} catch (error) {
-					await this.postMessageToWebview({
-						type: "addRemoteServerResult",
-						addRemoteServerResult: {
-							success: false,
-							serverName: message.serverName!,
-							error: error.message,
-						},
-					})
-				}
-				break
-			}
 			case "authStateChanged":
 				await this.setUserInfo(message.user || undefined)
 				await this.postStateToWebview()
@@ -352,8 +336,8 @@ export class Controller {
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
 				break
-			case "deleteTaskWithId":
-				this.deleteTaskWithId(message.text!)
+			case "deleteTasksWithIds":
+				this.deleteTasksWithIds(message.text!)
 				break
 			case "exportTaskWithId":
 				this.exportTaskWithId(message.text!)
@@ -394,9 +378,6 @@ export class Controller {
 				await refreshClineRulesToggles(this.context, cwd)
 				await this.postStateToWebview()
 				break
-			case "openImage":
-				openImage(message.text!)
-				break
 			case "openInBrowser":
 				if (message.url) {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
@@ -404,39 +385,6 @@ export class Controller {
 				break
 			case "fetchOpenGraphData":
 				this.fetchOpenGraphData(message.text!)
-				break
-			case "checkIsImageUrl":
-				this.checkIsImageUrl(message.text!)
-				break
-			case "createRuleFile":
-				if (typeof message.isGlobal !== "boolean" || typeof message.filename !== "string" || !message.filename) {
-					console.error("createRuleFile: Missing or invalid parameters", {
-						isGlobal:
-							typeof message.isGlobal === "boolean" ? message.isGlobal : `Invalid: ${typeof message.isGlobal}`,
-						filename: typeof message.filename === "string" ? message.filename : `Invalid: ${typeof message.filename}`,
-					})
-					return
-				}
-				const { filePath, fileExists } = await createRuleFile(message.isGlobal, message.filename, cwd)
-				if (fileExists && filePath) {
-					vscode.window.showWarningMessage(`Rule file "${message.filename}" already exists.`)
-					// Still open it for editing
-					await handleFileServiceRequest(this, "openFile", { value: filePath })
-					return
-				} else if (filePath && !fileExists) {
-					await refreshClineRulesToggles(this.context, cwd)
-					await this.postStateToWebview()
-
-					await handleFileServiceRequest(this, "openFile", { value: filePath })
-
-					vscode.window.showInformationMessage(
-						`Created new ${message.isGlobal ? "global" : "workspace"} rule file: ${message.filename}`,
-					)
-				} else {
-					// null filePath
-					vscode.window.showErrorMessage(`Failed to create rule file.`)
-				}
-
 				break
 			case "openMention":
 				openMention(message.text)
@@ -484,10 +432,6 @@ export class Controller {
 			}
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
-				break
-			}
-			case "showMcpView": {
-				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked", tab: message.tab || undefined })
 				break
 			}
 			case "openMcpSettings": {
@@ -597,24 +541,6 @@ export class Controller {
 				}
 				break
 			}
-			case "deleteClineRule": {
-				const { isGlobal, rulePath } = message
-				if (rulePath && typeof isGlobal === "boolean") {
-					const result = await deleteRuleFile(this.context, rulePath, isGlobal)
-					if (result.success) {
-						await refreshClineRulesToggles(this.context, cwd)
-						await this.postStateToWebview()
-					} else {
-						console.error("Failed to delete rule file:", result.message)
-					}
-				} else {
-					console.error("deleteClineRule: Missing or invalid parameters", {
-						rulePath,
-						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
-					})
-				}
-				break
-			}
 			case "requestTotalTasksSize": {
 				this.refreshTotalTasksSize()
 				break
@@ -635,21 +561,6 @@ export class Controller {
 			}
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
-			case "searchCommits": {
-				const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-				if (cwd) {
-					try {
-						const commits = await searchCommits(message.text || "", cwd)
-						await this.postMessageToWebview({
-							type: "commitSearchResults",
-							commits,
-						})
-					} catch (error) {
-						console.error(`Error searching commits: ${JSON.stringify(error)}`)
-					}
-				}
 				break
 			}
 			case "openExtensionSettings": {
@@ -830,6 +741,30 @@ export class Controller {
 				}
 				break
 			}
+
+			case "copyToClipboard": {
+				try {
+					await vscode.env.clipboard.writeText(message.text || "")
+				} catch (error) {
+					console.error("Error copying to clipboard:", error)
+				}
+				break
+			}
+			case "updateTerminalConnectionTimeout": {
+				if (message.shellIntegrationTimeout !== undefined) {
+					const timeout = message.shellIntegrationTimeout
+
+					if (typeof timeout === "number" && !isNaN(timeout) && timeout > 0) {
+						await updateGlobalState(this.context, "shellIntegrationTimeout", timeout)
+						await this.postStateToWebview()
+					} else {
+						console.warn(
+							`Invalid shell integration timeout value received: ${timeout}. ` + `Expected a positive number.`,
+						)
+					}
+				}
+				break
+			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -856,6 +791,8 @@ export class Controller {
 			previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
 			previousModeReasoningEffort: newReasoningEffort,
+			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
+			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -868,7 +805,6 @@ export class Controller {
 			await updateGlobalState(this.context, "previousModeReasoningEffort", apiConfiguration.reasoningEffort)
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
-				case "bedrock":
 				case "vertex":
 				case "gemini":
 				case "asksage":
@@ -877,6 +813,19 @@ export class Controller {
 				case "deepseek":
 				case "xai":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					break
+				case "bedrock":
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateGlobalState(
+						this.context,
+						"previousModeAwsBedrockCustomSelected",
+						apiConfiguration.awsBedrockCustomSelected,
+					)
+					await updateGlobalState(
+						this.context,
+						"previousModeAwsBedrockCustomModelBaseId",
+						apiConfiguration.awsBedrockCustomModelBaseId,
+					)
 					break
 				case "openrouter":
 				case "cline":
@@ -923,7 +872,6 @@ export class Controller {
 				await updateGlobalState(this.context, "reasoningEffort", newReasoningEffort)
 				switch (newApiProvider) {
 					case "anthropic":
-					case "bedrock":
 					case "vertex":
 					case "gemini":
 					case "asksage":
@@ -932,6 +880,11 @@ export class Controller {
 					case "deepseek":
 					case "xai":
 						await updateGlobalState(this.context, "apiModelId", newModelId)
+						break
+					case "bedrock":
+						await updateGlobalState(this.context, "apiModelId", newModelId)
+						await updateGlobalState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
+						await updateGlobalState(this.context, "awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
 						break
 					case "openrouter":
 					case "cline":
@@ -1799,6 +1752,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		this.refreshTotalTasksSize()
 	}
 
+	async deleteTasksWithIds(ids: string) {
+		for (const id of JSON.parse(ids) as string[]) {
+			await this.deleteTaskWithId(id)
+		}
+	}
+
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
 		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
@@ -1830,6 +1789,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			globalClineRulesToggles,
+			shellIntegrationTimeout,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1859,6 +1819,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
+			shellIntegrationTimeout,
 		}
 	}
 
@@ -1951,29 +1912,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				type: "openGraphData",
 				error: `Failed to fetch Open Graph data: ${error}`,
 				url: url,
-			})
-		}
-	}
-
-	// Check if a URL is an image
-	async checkIsImageUrl(url: string) {
-		try {
-			// Check if the URL is an image
-			const isImage = await isImageUrl(url)
-
-			// Send the result back to the webview
-			await this.postMessageToWebview({
-				type: "isImageUrlResult",
-				isImage,
-				url,
-			})
-		} catch (error) {
-			console.error(`Error checking if URL is an image: ${url}`, error)
-			// Send an error response
-			await this.postMessageToWebview({
-				type: "isImageUrlResult",
-				isImage: false,
-				url,
 			})
 		}
 	}

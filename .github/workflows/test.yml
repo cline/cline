@@ -23,7 +23,7 @@ jobs:
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
-                  node-version: 20.15.1
+                  node-version: 22
 
             # Setup Python for coverage script
             - name: Setup Python
@@ -70,19 +70,18 @@ jobs:
               run: npm run format
 
             # Build the extension before running tests
-            - name: Build Extension
-              run: npm run compile
+            - name: Build Tests and Extension
+              run: npm run pretest
 
-            # Disabling due to compatability with test framework and ESM modules
-            # - name: Unit Tests
-            #   run: npm run test:unit
+            - name: Unit Tests
+              run: npm run test:unit
 
             # Run extension tests with coverage
             - name: Extension Tests with Coverage
               id: extension_coverage
               continue-on-error: true
               run: |
-                  xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1 || true
+                  xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1
                   PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
             # Run webview tests with coverage
@@ -106,6 +105,18 @@ jobs:
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
                   retention-period: workflow # Artifacts are automatically deleted when the workflow completes
+
+            # Set the check as failed if any of the tests failed
+            - name: Check for test failures
+              run: |
+                  # Check if any of the test steps failed
+                  # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#steps-context
+                  if [ "${{ steps.extension_coverage.outcome }}" != "success" ] || [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
+                      echo "Tests failed."
+                      cat extension_coverage.txt
+                      cat webview-ui/webview_coverage.txt
+                      exit 1
+                  fi
 
     coverage:
         needs: test
@@ -132,7 +143,7 @@ jobs:
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
-                  node-version: 20.15.1
+                  node-version: 22
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies

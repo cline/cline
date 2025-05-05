@@ -6,7 +6,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import os from "os"
-import { execa } from "execa"
+import { execa } from "@packages/execa"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -15,6 +15,9 @@ export const GlobalFileNames = {
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
+	cursorRulesDir: ".cursor/rules",
+	cursorRulesFile: ".cursorrules",
+	windsurfRules: ".windsurfrules",
 	taskMetadata: "task_metadata.json",
 }
 
