@@ -1613,6 +1613,49 @@ const ApiOptions = ({
 				</>
 			)}
 
+			{selectedProvider === "groq" && (
+				<>
+					<VSCodeTextField
+						value={apiConfiguration?.groqApiKey || ""}
+						type="password"
+						onInput={handleInputChange("groqApiKey")}
+						placeholder={t("settings:placeholders.apiKey")}
+						className="w-full">
+						<label className="block font-medium mb-1">{t("settings:providers.groqApiKey")}</label>
+					</VSCodeTextField>
+					<div className="text-sm text-vscode-descriptionForeground -mt-2">
+						{t("settings:providers.apiKeyStorageNotice")}
+					</div>
+					{!apiConfiguration?.groqApiKey && (
+						<VSCodeButtonLink href="https://console.groq.com/keys" appearance="secondary">
+							{t("settings:providers.getGroqApiKey")}
+						</VSCodeButtonLink>
+					)}
+				</>
+			)}
+
+			{selectedProvider === "chutes" && (
+				<>
+					<VSCodeTextField
+						value={apiConfiguration?.chutesApiKey || ""}
+						type="password"
+						onInput={handleInputChange("chutesApiKey")}
+						placeholder={t("settings:placeholders.apiKey")}
+						className="w-full">
+						<label className="block font-medium mb-1">{t("settings:providers.chutesApiKey")}</label>
+					</VSCodeTextField>
+					<div className="text-sm text-vscode-descriptionForeground -mt-2">
+						{t("settings:providers.apiKeyStorageNotice")}
+					</div>
+					{/* Add a link to get Chutes API key if available */}
+					{/* {!apiConfiguration?.chutesApiKey && (
+						<VSCodeButtonLink href="LINK_TO_CHUTES_API_KEYS" appearance="secondary">
+							{t("settings:providers.getChutesApiKey")}
+						</VSCodeButtonLink>
+					)} */}
+				</>
+			)}
+
 			{selectedProvider === "unbound" && (
 				<>
 					<VSCodeTextField

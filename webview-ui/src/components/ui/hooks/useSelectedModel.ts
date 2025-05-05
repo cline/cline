@@ -19,6 +19,10 @@ import {
 	vertexModels,
 	xaiDefaultModelId,
 	xaiModels,
+	groqModels,
+	groqDefaultModelId,
+	chutesModels,
+	chutesDefaultModelId,
 	vscodeLlmModels,
 	vscodeLlmDefaultModelId,
 	openRouterDefaultModelId,
@@ -84,6 +88,10 @@ function getSelectedModelInfo({
 			return routerModels.unbound[id] ?? routerModels.unbound[unboundDefaultModelId]
 		case "xai":
 			return xaiModels[id as keyof typeof xaiModels] ?? xaiModels[xaiDefaultModelId]
+		case "groq":
+			return groqModels[id as keyof typeof groqModels] ?? groqModels[groqDefaultModelId]
+		case "chutes":
+			return chutesModels[id as keyof typeof chutesModels] ?? chutesModels[chutesDefaultModelId]
 		case "bedrock":
 			// Special case for custom ARN.
 			if (id === "custom-arn") {

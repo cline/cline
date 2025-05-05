@@ -89,5 +89,11 @@
 	"input": {
 		"task_prompt": "Roo ne yapsın?",
 		"task_placeholder": "Görevini buraya yaz"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "Groq API Anahtarı",
+			"getGroqApiKey": "Groq API Anahtarı Al"
+		}
 	}
 }

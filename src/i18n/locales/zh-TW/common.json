@@ -89,5 +89,11 @@
 	"input": {
 		"task_prompt": "讓 Roo 做什麼？",
 		"task_placeholder": "在這裡輸入工作"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "Groq API 金鑰",
+			"getGroqApiKey": "取得 Groq API 金鑰"
+		}
 	}
 }

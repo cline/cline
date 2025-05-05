@@ -89,5 +89,11 @@
 	"input": {
 		"task_prompt": "Roo को क्या करना है?",
 		"task_placeholder": "अपना कार्य यहाँ लिखें"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "ग्रोक एपीआई कुंजी",
+			"getGroqApiKey": "ग्रोक एपीआई कुंजी प्राप्त करें"
+		}
 	}
 }

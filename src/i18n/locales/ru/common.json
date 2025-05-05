@@ -89,5 +89,11 @@
 	"input": {
 		"task_prompt": "Что должен сделать Roo?",
 		"task_placeholder": "Введите вашу задачу здесь"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "Ключ API Groq",
+			"getGroqApiKey": "Получить ключ API Groq"
+		}
 	}
 }

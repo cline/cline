@@ -89,5 +89,11 @@
 	"input": {
 		"task_prompt": "Rooにどんなことをさせますか？",
 		"task_placeholder": "タスクをここに入力してください"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "Groq APIキー",
+			"getGroqApiKey": "Groq APIキーを取得"
+		}
 	}
 }

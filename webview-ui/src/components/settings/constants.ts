@@ -9,6 +9,8 @@ import {
 	openAiNativeModels,
 	vertexModels,
 	xaiModels,
+	groqModels, 
+	chutesModels, 
 } from "@roo/shared/api"
 
 export { REASONING_MODELS, PROMPT_CACHING_MODELS } from "@roo/shared/api"
@@ -24,6 +26,8 @@ export const MODELS_BY_PROVIDER: Partial<Record<ApiProvider, Record<string, Mode
 	"openai-native": openAiNativeModels,
 	vertex: vertexModels,
 	xai: xaiModels,
+	groq: groqModels, 
+	chutes: chutesModels, 
 }
 
 export const PROVIDERS = [
@@ -44,6 +48,8 @@ export const PROVIDERS = [
 	{ value: "requesty", label: "Requesty" },
 	{ value: "human-relay", label: "Human Relay" },
 	{ value: "xai", label: "xAI" },
+	{ value: "groq", label: "Groq" }, 
+	{ value: "chutes", label: "Chutes AI" }, 
 ].sort((a, b) => a.label.localeCompare(b.label))
 
 export const VERTEX_REGIONS = [

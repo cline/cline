@@ -89,5 +89,11 @@
 		"path_placeholder": "D:\\RooCodeStorage",
 		"enter_absolute_path": "Introdueix una ruta completa (p. ex. D:\\RooCodeStorage o /home/user/storage)",
 		"enter_valid_path": "Introdueix una ruta vàlida"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "Clau API de Groq",
+			"getGroqApiKey": "Obté la clau API de Groq"
+		}
 	}
 }

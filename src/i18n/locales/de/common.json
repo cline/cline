@@ -89,5 +89,11 @@
 	"input": {
 		"task_prompt": "Was soll Roo tun?",
 		"task_placeholder": "Gib deine Aufgabe hier ein"
+	},
+	"settings": {
+		"providers": {
+			"groqApiKey": "Groq API-Schlüssel",
+			"getGroqApiKey": "Groq API-Schlüssel erhalten"
+		}
 	}
 }

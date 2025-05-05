@@ -22,6 +22,8 @@ type ProviderSettings = {
 				| "human-relay"
 				| "fake-ai"
 				| "xai"
+				| "groq"
+				| "chutes"
 		  )
 		| undefined
 	apiModelId?: string | undefined
@@ -121,6 +123,8 @@ type ProviderSettings = {
 	requestyApiKey?: string | undefined
 	requestyModelId?: string | undefined
 	xaiApiKey?: string | undefined
+	groqApiKey?: string | undefined
+	chutesApiKey?: string | undefined
 	modelMaxTokens?: number | undefined
 	modelMaxThinkingTokens?: number | undefined
 	includeMaxTokens?: boolean | undefined
@@ -161,6 +165,8 @@ type GlobalSettings = {
 							| "human-relay"
 							| "fake-ai"
 							| "xai"
+							| "groq"
+							| "chutes"
 					  )
 					| undefined
 		  }[]
