@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "Configurações do terminal: Básicas",
+			"description": "Configurações básicas do terminal"
+		},
+		"advanced": {
+			"label": "Configurações do terminal: Avançadas",
+			"description": "As seguintes opções podem exigir reiniciar o terminal para aplicar a configuração"
+		},
 		"outputLineLimit": {
 			"label": "Limite de saída do terminal",
 			"description": "Número máximo de linhas a incluir na saída do terminal ao executar comandos. Quando excedido, as linhas serão removidas do meio, economizando token."
@@ -349,6 +357,10 @@
 		"zshP10k": {
 			"label": "Ativar integração Powerlevel10k",
 			"description": "Quando ativado, define POWERLEVEL9K_TERM_SHELL_INTEGRATION=true para habilitar os recursos de integração do shell Powerlevel10k. (experimental)"
+		},
+		"inheritEnv": {
+			"label": "Herdar variáveis de ambiente",
+			"description": "Quando ativado, o terminal herda variáveis de ambiente do processo pai do VSCode, como configurações de integração do shell definidas no perfil do usuário. Isso alterna diretamente a configuração global do VSCode `terminal.integrated.inheritEnv`"
 		}
 	},
 	"advanced": {

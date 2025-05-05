@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "Cài đặt Terminal: Cơ bản",
+			"description": "Cài đặt cơ bản cho terminal"
+		},
+		"advanced": {
+			"label": "Cài đặt Terminal: Nâng cao",
+			"description": "Các tùy chọn sau có thể yêu cầu khởi động lại terminal để áp dụng cài đặt"
+		},
 		"outputLineLimit": {
 			"label": "Giới hạn đầu ra terminal",
 			"description": "Số dòng tối đa để đưa vào đầu ra terminal khi thực hiện lệnh. Khi vượt quá, các dòng sẽ bị xóa khỏi phần giữa, tiết kiệm token."
@@ -349,6 +357,10 @@
 		"zshP10k": {
 			"label": "Bật tích hợp Powerlevel10k",
 			"description": "Khi được bật, đặt POWERLEVEL9K_TERM_SHELL_INTEGRATION=true để kích hoạt các tính năng tích hợp shell của Powerlevel10k. (thử nghiệm)"
+		},
+		"inheritEnv": {
+			"label": "Kế thừa biến môi trường",
+			"description": "Khi được bật, terminal sẽ kế thừa các biến môi trường từ tiến trình cha của VSCode, như các cài đặt tích hợp shell được định nghĩa trong hồ sơ người dùng. Điều này trực tiếp chuyển đổi cài đặt toàn cục của VSCode `terminal.integrated.inheritEnv`"
 		}
 	},
 	"advanced": {

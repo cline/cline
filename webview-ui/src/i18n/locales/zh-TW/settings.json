@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "終端機設定：基本",
+			"description": "基本終端機設定"
+		},
+		"advanced": {
+			"label": "終端機設定：進階",
+			"description": "以下選項可能需要重新啟動終端機才能套用設定"
+		},
 		"outputLineLimit": {
 			"label": "終端機輸出行數限制",
 			"description": "執行命令時終端機輸出的最大行數。超過此限制時，會從中間移除多餘的行數，以節省 token 用量。"
@@ -349,6 +357,10 @@
 		"zshP10k": {
 			"label": "啟用 Powerlevel10k 整合",
 			"description": "啟用後，設定 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以啟用 Powerlevel10k shell 整合功能。（實驗性）"
+		},
+		"inheritEnv": {
+			"label": "繼承環境變數",
+			"description": "啟用後，終端機將從 VSCode 父程序繼承環境變數，如使用者設定檔中定義的 shell 整合設定。這直接切換 VSCode 全域設定 `terminal.integrated.inheritEnv`"
 		}
 	},
 	"advanced": {

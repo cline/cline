@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "Terminal Ayarları: Temel",
+			"description": "Temel terminal ayarları"
+		},
+		"advanced": {
+			"label": "Terminal Ayarları: Gelişmiş",
+			"description": "Aşağıdaki seçeneklerin uygulanması için terminalin yeniden başlatılması gerekebilir"
+		},
 		"outputLineLimit": {
 			"label": "Terminal çıktısı sınırı",
 			"description": "Komutları yürütürken terminal çıktısına dahil edilecek maksimum satır sayısı. Aşıldığında, token tasarrufu sağlayarak satırlar ortadan kaldırılacaktır."
@@ -349,6 +357,10 @@
 		"zshP10k": {
 			"label": "Powerlevel10k entegrasyonunu etkinleştir",
 			"description": "Etkinleştirildiğinde, Powerlevel10k kabuk entegrasyon özelliklerini etkinleştirmek için POWERLEVEL9K_TERM_SHELL_INTEGRATION=true ayarlar. (deneysel)"
+		},
+		"inheritEnv": {
+			"label": "Ortam değişkenlerini devral",
+			"description": "Etkinleştirildiğinde, terminal VSCode üst işleminden ortam değişkenlerini devralır, örneğin kullanıcı profilinde tanımlanan kabuk entegrasyon ayarları gibi. Bu, VSCode'un global ayarı olan `terminal.integrated.inheritEnv` değerini doğrudan değiştirir"
 		}
 	},
 	"advanced": {

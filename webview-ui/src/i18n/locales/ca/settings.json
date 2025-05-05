@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "Configuració del terminal: Bàsica",
+			"description": "Configuració bàsica del terminal"
+		},
+		"advanced": {
+			"label": "Configuració del terminal: Avançada",
+			"description": "Les següents opcions poden requerir reiniciar el terminal per aplicar la configuració"
+		},
 		"outputLineLimit": {
 			"label": "Límit de sortida de terminal",
 			"description": "Nombre màxim de línies a incloure a la sortida del terminal en executar comandes. Quan s'excedeix, s'eliminaran línies del mig, estalviant token."
@@ -349,6 +357,10 @@
 		"zshP10k": {
 			"label": "Habilita la integració Powerlevel10k",
 			"description": "Quan està habilitat, estableix POWERLEVEL9K_TERM_SHELL_INTEGRATION=true per habilitar les característiques d'integració del shell Powerlevel10k. (experimental)"
+		},
+		"inheritEnv": {
+			"label": "Hereta variables d'entorn",
+			"description": "Quan està habilitat, el terminal hereta les variables d'entorn del procés pare de VSCode, com ara la configuració d'integració del shell definida al perfil d'usuari. Això commuta directament la configuració global de VSCode `terminal.integrated.inheritEnv`"
 		}
 	},
 	"advanced": {

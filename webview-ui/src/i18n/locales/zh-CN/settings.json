@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "终端设置：基础",
+			"description": "基础终端设置"
+		},
+		"advanced": {
+			"label": "终端设置：高级",
+			"description": "以下选项可能需要重启终端才能应用设置"
+		},
 		"outputLineLimit": {
 			"label": "终端输出限制",
 			"description": "执行命令时在终端输出中包含的最大行数。超过时将从中间删除行，节省 token。"
@@ -349,6 +357,10 @@
 		"zshP10k": {
 			"label": "启用 Powerlevel10k 集成",
 			"description": "启用后，设置 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以启用 Powerlevel10k shell 集成功能。（实验性）"
+		},
+		"inheritEnv": {
+			"label": "继承环境变量",
+			"description": "启用后，终端将从 VSCode 父进程继承环境变量，如用户配置文件中定义的 shell 集成设置。这直接切换 VSCode 全局设置 `terminal.integrated.inheritEnv`"
 		}
 	},
 	"advanced": {

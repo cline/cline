@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "ターミナル設定：基本",
+			"description": "基本的なターミナル設定"
+		},
+		"advanced": {
+			"label": "ターミナル設定：詳細",
+			"description": "以下のオプションは設定を適用するためにターミナルの再起動が必要な場合があります"
+		},
 		"outputLineLimit": {
 			"label": "ターミナル出力制限",
 			"description": "コマンド実行時にターミナル出力に含める最大行数。超過すると中央から行が削除され、tokenを節約します。"
@@ -349,6 +357,10 @@
 		"zshP10k": {
 			"label": "Powerlevel10k 統合を有効化",
 			"description": "有効にすると、POWERLEVEL9K_TERM_SHELL_INTEGRATION=true を設定して Powerlevel10k シェル統合機能を有効にします。（実験的）"
+		},
+		"inheritEnv": {
+			"label": "環境変数を継承",
+			"description": "有効にすると、ターミナルは VSCode の親プロセスから環境変数を継承します。ユーザープロファイルで定義されたシェル統合設定などが含まれます。これは VSCode のグローバル設定 `terminal.integrated.inheritEnv` を直接切り替えます"
 		}
 	},
 	"advanced": {

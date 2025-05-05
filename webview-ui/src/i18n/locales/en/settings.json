@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "Terminal Settings: Basic",
+			"description": "Basic terminal settings"
+		},
+		"advanced": {
+			"label": "Terminal Settings: Advanced",
+			"description": "The following options may require a terminal restart to apply the setting"
+		},
 		"outputLineLimit": {
 			"label": "Terminal output limit",
 			"description": "Maximum number of lines to include in terminal output when executing commands. When exceeded lines will be removed from the middle, saving tokens."
@@ -349,6 +357,10 @@
 		"zdotdir": {
 			"label": "Enable ZDOTDIR handling",
 			"description": "When enabled, creates a temporary directory for ZDOTDIR to handle zsh shell integration properly. This ensures VSCode shell integration works correctly with zsh while preserving your zsh configuration. (experimental)"
+		},
+		"inheritEnv": {
+			"label": "Inherit environment variables",
+			"description": "When enabled, the terminal will inherit environment variables from VSCode's parent process, such as user-profile-defined shell integration settings. This directly toggles VSCode global setting `terminal.integrated.inheritEnv`"
 		}
 	},
 	"advanced": {

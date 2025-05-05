@@ -310,6 +310,14 @@
 		}
 	},
 	"terminal": {
+		"basic": {
+			"label": "터미널 설정: 기본",
+			"description": "기본 터미널 설정"
+		},
+		"advanced": {
+			"label": "터미널 설정: 고급",
+			"description": "다음 옵션들은 설정을 적용하기 위해 터미널 재시작이 필요할 수 있습니다"
+		},
 		"outputLineLimit": {
 			"label": "터미널 출력 제한",
 			"description": "명령 실행 시 터미널 출력에 포함할 최대 라인 수. 초과 시 중간에서 라인이 제거되어 token이 절약됩니다."
@@ -349,6 +357,10 @@
 		"zshP10k": {
 			"label": "Powerlevel10k 통합 활성화",
 			"description": "활성화하면 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true를 설정하여 Powerlevel10k 셸 통합 기능을 활성화합니다. (실험적)"
+		},
+		"inheritEnv": {
+			"label": "환경 변수 상속",
+			"description": "활성화하면 터미널이 VSCode 부모 프로세스로부터 환경 변수를 상속받습니다. 사용자 프로필에 정의된 셸 통합 설정 등이 포함됩니다. 이는 VSCode 전역 설정 `terminal.integrated.inheritEnv`를 직접 전환합니다"
 		}
 	},
 	"advanced": {
