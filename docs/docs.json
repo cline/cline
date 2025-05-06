@@ -76,6 +76,10 @@
 					"exploring-clines-tools/remote-browser-support",
 					"exploring-clines-tools/slash-commands"
 				]
+			},
+			{
+				"group": "Improving Your Prompting Skills",
+				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
 			}
 		]
 	},
