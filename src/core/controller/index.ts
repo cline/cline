@@ -337,9 +337,6 @@ export class Controller {
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
 				break
-			case "deleteTasksWithIds":
-				this.deleteTasksWithIds(message.text!)
-				break
 			case "exportTaskWithId":
 				this.exportTaskWithId(message.text!)
 				break
@@ -633,46 +630,17 @@ export class Controller {
 				break
 			}
 			case "clearAllTaskHistory": {
-				await this.deleteAllTaskHistory()
-				await this.postStateToWebview()
-				this.refreshTotalTasksSize()
-				this.postMessageToWebview({ type: "relinquishControl" })
-				break
-			}
-			case "getRelativePaths": {
-				if (message.uris && message.uris.length > 0) {
-					const resolvedPaths = await Promise.all(
-						message.uris.map(async (uriString) => {
-							try {
-								const fileUri = vscode.Uri.parse(uriString, true)
-								const relativePath = vscode.workspace.asRelativePath(fileUri, false)
-
-								if (path.isAbsolute(relativePath)) {
-									console.warn(`Dropped file ${relativePath} is outside the workspace. Sending original path.`)
-									return fileUri.fsPath.replace(/\\/g, "/")
-								} else {
-									let finalPath = "/" + relativePath.replace(/\\/g, "/")
-									try {
-										const stat = await vscode.workspace.fs.stat(fileUri)
-										if (stat.type === vscode.FileType.Directory) {
-											finalPath += "/"
-										}
-									} catch (statError) {
-										console.error(`Error stating file ${fileUri.fsPath}:`, statError)
-									}
-									return finalPath
-								}
-							} catch (error) {
-								console.error(`Error calculating relative path for ${uriString}:`, error)
-								return null
-							}
-						}),
-					)
-					await this.postMessageToWebview({
-						type: "relativePathsResponse",
-						paths: resolvedPaths,
-					})
+				const answer = await vscode.window.showWarningMessage(
+					"Are you sure you want to delete all history?",
+					"Delete",
+					"Cancel",
+				)
+				if (answer === "Delete") {
+					await this.deleteAllTaskHistory()
+					await this.postStateToWebview()
+					this.refreshTotalTasksSize()
 				}
+				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
 			case "searchFiles": {
@@ -1751,12 +1719,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		this.refreshTotalTasksSize()
 	}
 
-	async deleteTasksWithIds(ids: string) {
-		for (const id of JSON.parse(ids) as string[]) {
-			await this.deleteTaskWithId(id)
-		}
-	}
-
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
 		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
@@ -1831,6 +1793,9 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	}
 
 	async clearTask() {
+		if (this.task) {
+			await telemetryService.sendCollectedEvents(this.task.taskId)
+		}
 		this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
 	}

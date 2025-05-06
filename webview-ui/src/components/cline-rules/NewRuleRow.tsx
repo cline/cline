@@ -3,7 +3,7 @@ import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useClickAway } from "react-use"
 import { FileServiceClient } from "@/services/grpc-client"
-import { CreateRuleFileRequest } from "@shared/proto-conversions"
+import { CreateRuleFileRequest } from "@shared/proto-conversions/file/rule-files-conversion"
 
 interface NewRuleRowProps {
 	isGlobal: boolean
