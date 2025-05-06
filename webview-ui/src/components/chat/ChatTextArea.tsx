@@ -39,19 +39,17 @@ import { ChatSettings } from "@shared/ChatSettings"
 import ServersToggleModal from "./ServersToggleModal"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 
-// Helper function to check image dimensions
 const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
 		const img = new Image()
 		img.onload = () => {
-			if (img.naturalWidth > 200 || img.naturalHeight > 200) {
+			if (img.naturalWidth > 8000 || img.naturalHeight > 8000) {
 				reject(new Error("Image dimensions exceed maximum allowed size of 200px."))
 			} else {
 				resolve({ width: img.naturalWidth, height: img.naturalHeight })
 			}
 		}
 		img.onerror = (err) => {
-			// Added error parameter
 			console.error("Failed to load image for dimension check:", err)
 			reject(new Error("Failed to load image to check dimensions."))
 		}
@@ -291,8 +289,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
-		const [showDimensionError, setShowDimensionError] = useState(false) // New state for dimension error
-		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null) // New timer ref for dimension error
+		const [showDimensionError, setShowDimensionError] = useState(false)
+		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -803,7 +801,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 							const reader = new FileReader()
 							reader.onloadend = async () => {
-								// Make async
 								if (reader.error) {
 									console.error("Error reading file:", reader.error)
 									resolve(null)
@@ -811,12 +808,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									const result = reader.result
 									if (typeof result === "string") {
 										try {
-											await getImageDimensions(result) // Check dimensions
+											await getImageDimensions(result)
 											resolve(result)
 										} catch (error) {
 											console.warn((error as Error).message)
-											showDimensionErrorMessage() // Show error to user
-											resolve(null) // Don't add this image
+											showDimensionErrorMessage()
+											resolve(null)
 										}
 									} else {
 										resolve(null)
@@ -836,7 +833,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, showDimensionErrorMessage], // Added showDimensionErrorMessage dependency
+			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, showDimensionErrorMessage],
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -1300,7 +1297,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragOver={onDragOver}
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}>
-					{showDimensionError && ( // New JSX for dimension error
+					{showDimensionError && (
 						<div
 							style={{
 								position: "absolute",
@@ -1319,7 +1316,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									color: "var(--vscode-errorForeground)",
 									fontWeight: "bold",
 									fontSize: "12px",
-									textAlign: "center", // Center text if it wraps
+									textAlign: "center",
 								}}>
 								Image dimensions exceed 8000px
 							</span>
@@ -1443,7 +1440,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 							onHeightChange?.(height)
 						}}
-						placeholder={showUnsupportedFileError ? "" : placeholderText}
+						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
 						maxRows={10}
 						autoFocus={true}
 						style={{
