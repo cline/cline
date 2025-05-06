@@ -1,0 +1,13 @@
+{
+  "dialogTitle": "Human Relay - Help alstublieft met kopiëren/plakken",
+  "dialogDescription": "Kopieer de volgende prompt naar de web-AI en plak het antwoord van de AI in het onderstaande invoerveld.",
+  "copiedToClipboard": "Gekopieerd naar klembord",
+  "aiResponse": {
+    "label": "Voer het antwoord van de AI in:",
+    "placeholder": "Plak hier het antwoord van de AI..."
+  },
+  "actions": {
+    "cancel": "Annuleren",
+    "submit": "Verzenden"
+  }
+}

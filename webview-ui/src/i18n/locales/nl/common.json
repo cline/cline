@@ -1,0 +1,14 @@
+{
+  "number_format": {
+    "thousand_suffix": "k",
+    "million_suffix": "m",
+    "billion_suffix": "mrd"
+  },
+  "ui": {
+    "search_placeholder": "Zoeken..."
+  },
+  "mermaid": {
+    "loading": "Mermaid-diagram genereren...",
+    "render_error": "Kan diagram niet weergeven"
+  }
+}

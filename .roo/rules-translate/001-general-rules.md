@@ -1,6 +1,6 @@
 # 1. SUPPORTED LANGUAGES AND LOCATION
 
-- Localize all strings into the following locale files: ca, de, en, es, fr, hi, it, ja, ko, pl, pt-BR, ru, tr, vi, zh-CN, zh-TW
+- Localize all strings into the following locale files: ca, de, en, es, fr, hi, it, ja, ko, nl, pl, pt-BR, ru, tr, vi, zh-CN, zh-TW
 - The VSCode extension has two main areas that require localization:
     - Core Extension: src/i18n/locales/ (extension backend)
     - WebView UI: webview-ui/src/i18n/locales/ (user interface)

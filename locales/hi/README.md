@@ -1,7 +1,7 @@
 <div align="center">
 <sub>
 
-[English](../../README.md) • [Català](../../locales/ca/README.md) • [Deutsch](../../locales/de/README.md) • [Español](../../locales/es/README.md) • [Français](../../locales/fr/README.md) • हिन्दी • [Italiano](../../locales/it/README.md) • [Русский](../../locales/ru/README.md)
+[English](../../README.md) • [Català](../../locales/ca/README.md) • [Deutsch](../../locales/de/README.md) • [Español](../../locales/es/README.md) • [Français](../../locales/fr/README.md) • हिन्दी • [Italiano](../../locales/it/README.md) • [Nederlands](../../locales/nl/README.md) • [Русский](../../locales/ru/README.md)
 
 </sub>
 <sub>

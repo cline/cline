@@ -1,0 +1,519 @@
+{
+	"common": {
+		"save": "Opslaan",
+		"done": "Gereed",
+		"cancel": "Annuleren",
+		"reset": "Resetten",
+		"select": "Selecteren",
+		"add": "Header toevoegen",
+		"remove": "Verwijderen"
+	},
+	"providers": {
+		"providerDocumentation": "{{provider}} documentatie",
+		"configProfile": "Configuratieprofiel",
+		"description": "Sla verschillende API-configuraties op om snel te wisselen tussen providers en instellingen.",
+		"apiProvider": "API-provider",
+		"model": "Model",
+		"nameEmpty": "Naam mag niet leeg zijn",
+		"nameExists": "Er bestaat al een profiel met deze naam",
+		"deleteProfile": "Profiel verwijderen",
+		"invalidArnFormat": "Ongeldig ARN-formaat. Controleer de bovenstaande voorbeelden.",
+		"enterNewName": "Voer een nieuwe naam in",
+		"addProfile": "Profiel toevoegen",
+		"renameProfile": "Profiel hernoemen",
+		"newProfile": "Nieuw configuratieprofiel",
+		"enterProfileName": "Voer profielnaam in",
+		"createProfile": "Profiel aanmaken",
+		"cannotDeleteOnlyProfile": "Kan het enige profiel niet verwijderen",
+		"searchPlaceholder": "Zoek profielen",
+		"noMatchFound": "Geen overeenkomende profielen gevonden",
+		"vscodeLmDescription": "De VS Code Language Model API stelt je in staat modellen te draaien die door andere VS Code-extensies worden geleverd (waaronder GitHub Copilot). De eenvoudigste manier om te beginnen is door de Copilot- en Copilot Chat-extensies te installeren vanuit de VS Code Marketplace.",
+		"awsCustomArnUse": "Voer een geldige Amazon Bedrock ARN in voor het model dat je wilt gebruiken. Voorbeeldformaten:",
+		"awsCustomArnDesc": "Zorg ervoor dat de regio in de ARN overeenkomt met je geselecteerde AWS-regio hierboven.",
+		"openRouterApiKey": "OpenRouter API-sleutel",
+		"getOpenRouterApiKey": "OpenRouter API-sleutel ophalen",
+		"apiKeyStorageNotice": "API-sleutels worden veilig opgeslagen in de geheime opslag van VSCode",
+		"glamaApiKey": "Glama API-sleutel",
+		"getGlamaApiKey": "Glama API-sleutel ophalen",
+		"useCustomBaseUrl": "Aangepaste basis-URL gebruiken",
+		"useHostHeader": "Aangepaste Host-header gebruiken",
+		"useLegacyFormat": "Verouderd OpenAI API-formaat gebruiken",
+		"customHeaders": "Aangepaste headers",
+		"headerName": "Headernaam",
+		"headerValue": "Headerwaarde",
+		"noCustomHeaders": "Geen aangepaste headers gedefinieerd. Klik op de + knop om er een toe te voegen.",
+		"requestyApiKey": "Requesty API-sleutel",
+		"refreshModels": {
+			"label": "Modellen verversen",
+			"hint": "Open de instellingen opnieuw om de nieuwste modellen te zien."
+		},
+		"getRequestyApiKey": "Requesty API-sleutel ophalen",
+		"openRouterTransformsText": "Comprimeer prompts en berichtreeksen tot de contextgrootte (<a>OpenRouter Transforms</a>)",
+		"anthropicApiKey": "Anthropic API-sleutel",
+		"getAnthropicApiKey": "Anthropic API-sleutel ophalen",
+		"anthropicUseAuthToken": "Anthropic API-sleutel als Authorization-header doorgeven in plaats van X-Api-Key",
+		"chutesApiKey": "Chutes API-sleutel",
+		"getChutesApiKey": "Chutes API-sleutel ophalen",
+		"deepSeekApiKey": "DeepSeek API-sleutel",
+		"getDeepSeekApiKey": "DeepSeek API-sleutel ophalen",
+		"geminiApiKey": "Gemini API-sleutel",
+		"getGroqApiKey": "Groq API-sleutel ophalen",
+		"groqApiKey": "Groq API-sleutel",
+		"getGeminiApiKey": "Gemini API-sleutel ophalen",
+		"openAiApiKey": "OpenAI API-sleutel",
+		"openAiBaseUrl": "Basis-URL",
+		"getOpenAiApiKey": "OpenAI API-sleutel ophalen",
+		"mistralApiKey": "Mistral API-sleutel",
+		"getMistralApiKey": "Mistral / Codestral API-sleutel ophalen",
+		"codestralBaseUrl": "Codestral basis-URL (optioneel)",
+		"codestralBaseUrlDesc": "Stel een alternatieve URL in voor het Codestral-model.",
+		"xaiApiKey": "xAI API-sleutel",
+		"getXaiApiKey": "xAI API-sleutel ophalen",
+		"awsCredentials": "AWS-inloggegevens",
+		"awsProfile": "AWS-profiel",
+		"awsProfileName": "AWS-profielnaam",
+		"awsAccessKey": "AWS-toegangssleutel",
+		"awsSecretKey": "AWS-geheime sleutel",
+		"awsSessionToken": "AWS-sessietoken",
+		"awsRegion": "AWS-regio",
+		"awsCrossRegion": "Gebruik cross-region inference",
+		"enablePromptCaching": "Prompt caching inschakelen",
+		"enablePromptCachingTitle": "Schakel prompt caching in om de prestaties te verbeteren en de kosten te verlagen voor ondersteunde modellen.",
+		"cacheUsageNote": "Let op: als je geen cachegebruik ziet, probeer dan een ander model te selecteren en vervolgens weer je gewenste model.",
+		"vscodeLmModel": "Taalmodel",
+		"vscodeLmWarning": "Let op: dit is een zeer experimentele integratie en ondersteuning door providers kan variëren. Krijg je een foutmelding dat een model niet wordt ondersteund, dan ligt dat aan de provider.",
+		"googleCloudSetup": {
+			"title": "Om Google Cloud Vertex AI te gebruiken, moet je:",
+			"step1": "1. Maak een Google Cloud-account aan, schakel de Vertex AI API in en activeer de gewenste Claude-modellen.",
+			"step2": "2. Installeer de Google Cloud CLI en configureer standaardreferenties voor applicaties.",
+			"step3": "3. Of maak een serviceaccount met referenties."
+		},
+		"googleCloudCredentials": "Google Cloud-referenties",
+		"googleCloudKeyFile": "Google Cloud-sleutelbestandspad",
+		"googleCloudProjectId": "Google Cloud-project-ID",
+		"googleCloudRegion": "Google Cloud-regio",
+		"lmStudio": {
+			"baseUrl": "Basis-URL (optioneel)",
+			"modelId": "Model-ID",
+			"speculativeDecoding": "Speculatieve decodering inschakelen",
+			"draftModelId": "Draft Model-ID",
+			"draftModelDesc": "Draft-model moet uit dezelfde modelfamilie komen voor correcte speculatieve decodering.",
+			"selectDraftModel": "Selecteer draft-model",
+			"noModelsFound": "Geen draft-modellen gevonden. Zorg dat LM Studio draait met Server Mode ingeschakeld.",
+			"description": "LM Studio laat je modellen lokaal op je computer draaien. Zie hun <a>quickstart-gids</a> voor instructies. Je moet ook de <b>lokale server</b>-functie van LM Studio starten om het met deze extensie te gebruiken. <span>Let op:</span> Roo Code gebruikt complexe prompts en werkt het beste met Claude-modellen. Minder krachtige modellen werken mogelijk niet zoals verwacht."
+		},
+		"ollama": {
+			"baseUrl": "Basis-URL (optioneel)",
+			"modelId": "Model-ID",
+			"description": "Ollama laat je modellen lokaal op je computer draaien. Zie hun quickstart-gids voor instructies.",
+			"warning": "Let op: Roo Code gebruikt complexe prompts en werkt het beste met Claude-modellen. Minder krachtige modellen werken mogelijk niet zoals verwacht."
+		},
+		"unboundApiKey": "Unbound API-sleutel",
+		"getUnboundApiKey": "Unbound API-sleutel ophalen",
+		"humanRelay": {
+			"description": "Geen API-sleutel vereist, maar de gebruiker moet helpen met kopiëren en plakken naar de webchat-AI.",
+			"instructions": "Tijdens gebruik verschijnt een dialoogvenster en wordt het huidige bericht automatisch naar het klembord gekopieerd. Je moet deze plakken in webversies van AI (zoals ChatGPT of Claude), vervolgens het antwoord van de AI terugkopiëren naar het dialoogvenster en op bevestigen klikken."
+		},
+		"openRouter": {
+			"providerRouting": {
+				"title": "OpenRouter-providerroutering",
+				"description": "OpenRouter stuurt verzoeken naar de best beschikbare providers voor je model. Standaard worden verzoeken gebalanceerd over de beste providers voor maximale uptime. Je kunt echter een specifieke provider kiezen voor dit model.",
+				"learnMore": "Meer informatie over providerroutering"
+			}
+		},
+		"customModel": {
+			"capabilities": "Stel de mogelijkheden en prijzen in voor je aangepaste OpenAI-compatibele model. Wees voorzichtig met het opgeven van de modelmogelijkheden, want deze kunnen de prestaties van Roo Code beïnvloeden.",
+			"maxTokens": {
+				"label": "Maximaal aantal outputtokens",
+				"description": "Maximaal aantal tokens dat het model in een antwoord kan genereren. (Geef -1 op om de server het maximum te laten bepalen.)"
+			},
+			"contextWindow": {
+				"label": "Contextvenstergrootte",
+				"description": "Totaal aantal tokens (input + output) dat het model kan verwerken."
+			},
+			"imageSupport": {
+				"label": "Ondersteuning voor afbeeldingen",
+				"description": "Kan dit model afbeeldingen verwerken en begrijpen?"
+			},
+			"computerUse": {
+				"label": "Computergebruik",
+				"description": "Kan dit model met een browser werken? (bijv. Claude 3.7 Sonnet)."
+			},
+			"promptCache": {
+				"label": "Prompt caching",
+				"description": "Kan dit model prompts cachen?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Invoerprijs",
+					"description": "Kosten per miljoen tokens in de input/prompt. Dit beïnvloedt de kosten van het verzenden van context en instructies naar het model."
+				},
+				"output": {
+					"label": "Uitvoerprijs",
+					"description": "Kosten per miljoen tokens in het antwoord van het model. Dit beïnvloedt de kosten van gegenereerde inhoud en voltooiingen."
+				},
+				"cacheReads": {
+					"label": "Cache-leesprijs",
+					"description": "Kosten per miljoen tokens voor het lezen uit de cache. Dit is de prijs die wordt gerekend wanneer een gecachte reactie wordt opgehaald."
+				},
+				"cacheWrites": {
+					"label": "Cache-schrijfprijs",
+					"description": "Kosten per miljoen tokens voor het schrijven naar de cache. Dit is de prijs die wordt gerekend wanneer een prompt voor het eerst wordt gecachet."
+				}
+			},
+			"resetDefaults": "Standaardwaarden herstellen"
+		},
+		"rateLimitSeconds": {
+			"label": "Snelheidslimiet",
+			"description": "Minimale tijd tussen API-verzoeken."
+		},
+		"reasoningEffort": {
+			"label": "Model redeneervermogen",
+			"high": "Hoog",
+			"medium": "Middel",
+			"low": "Laag"
+		},
+		"setReasoningLevel": "Redeneervermogen inschakelen"
+	},
+	"header": {
+		"title": "Instellingen",
+		"saveButtonTooltip": "Wijzigingen opslaan",
+		"nothingChangedTooltip": "Niets gewijzigd",
+		"doneButtonTooltip": "Niet-opgeslagen wijzigingen negeren en instellingen sluiten"
+	},
+	"unsavedChangesDialog": {
+		"title": "Niet-opgeslagen wijzigingen",
+		"description": "Wil je de wijzigingen negeren en doorgaan?",
+		"cancelButton": "Annuleren",
+		"discardButton": "Wijzigingen negeren"
+	},
+	"sections": {
+		"providers": "Providers",
+		"autoApprove": "Auto-goedkeuren",
+		"browser": "Browser",
+		"checkpoints": "Checkpoints",
+		"notifications": "Meldingen",
+		"contextManagement": "Context",
+		"terminal": "Terminal",
+		"experimental": "Experimenteel",
+		"language": "Taal",
+		"about": "Over Roo Code"
+	},
+	"autoApprove": {
+		"description": "Sta Roo toe om automatisch handelingen uit te voeren zonder goedkeuring. Schakel deze instellingen alleen in als je de AI volledig vertrouwt en de bijbehorende beveiligingsrisico's begrijpt.",
+		"readOnly": {
+			"label": "Lezen",
+			"description": "Indien ingeschakeld, bekijkt Roo automatisch de inhoud van mappen en leest bestanden zonder dat je op de Goedkeuren-knop hoeft te klikken.",
+			"outsideWorkspace": {
+				"label": "Inclusief bestanden buiten werkruimte",
+				"description": "Sta Roo toe om bestanden buiten de huidige werkruimte te lezen zonder goedkeuring."
+			}
+		},
+		"write": {
+			"label": "Schrijven",
+			"description": "Automatisch bestanden aanmaken en bewerken zonder goedkeuring",
+			"delayLabel": "Vertraging na schrijven om diagnostiek de kans te geven mogelijke problemen te detecteren",
+			"outsideWorkspace": {
+				"label": "Inclusief bestanden buiten werkruimte",
+				"description": "Sta Roo toe om bestanden buiten de huidige werkruimte aan te maken en te bewerken zonder goedkeuring."
+			}
+		},
+		"browser": {
+			"label": "Browser",
+			"description": "Automatisch browseracties uitvoeren zonder goedkeuring. Let op: geldt alleen als het model computergebruik ondersteunt."
+		},
+		"retry": {
+			"label": "Opnieuw proberen",
+			"description": "Automatisch mislukte API-verzoeken opnieuw proberen wanneer de server een foutmelding geeft",
+			"delayLabel": "Vertraging voordat het verzoek opnieuw wordt geprobeerd"
+		},
+		"mcp": {
+			"label": "MCP",
+			"description": "Automatische goedkeuring van individuele MCP-tools in het MCP-serversoverzicht inschakelen (vereist zowel deze instelling als het selectievakje 'Altijd toestaan' bij de tool)"
+		},
+		"modeSwitch": {
+			"label": "Modus",
+			"description": "Automatisch tussen verschillende modi schakelen zonder goedkeuring"
+		},
+		"subtasks": {
+			"label": "Subtaken",
+			"description": "Subtaken aanmaken en afronden zonder goedkeuring"
+		},
+		"execute": {
+			"label": "Uitvoeren",
+			"description": "Automatisch toegestane terminalcommando's uitvoeren zonder goedkeuring",
+			"allowedCommands": "Toegestane automatisch uit te voeren commando's",
+			"allowedCommandsDescription": "Commando-prefixen die automatisch kunnen worden uitgevoerd als 'Altijd goedkeuren voor uitvoeren' is ingeschakeld. Voeg * toe om alle commando's toe te staan (gebruik met voorzichtigheid).",
+			"commandPlaceholder": "Voer commando-prefix in (bijv. 'git ')",
+			"addButton": "Toevoegen"
+		}
+	},
+	"browser": {
+		"enable": {
+			"label": "Browserhulpmiddel inschakelen",
+			"description": "Indien ingeschakeld, kan Roo een browser gebruiken om te interageren met websites wanneer modellen computergebruik ondersteunen."
+		},
+		"viewport": {
+			"label": "Viewport-grootte",
+			"description": "Selecteer de viewport-grootte voor browserinteracties. Dit beïnvloedt hoe websites worden weergegeven en gebruikt.",
+			"options": {
+				"largeDesktop": "Groot bureaublad (1280x800)",
+				"smallDesktop": "Klein bureaublad (900x600)",
+				"tablet": "Tablet (768x1024)",
+				"mobile": "Mobiel (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Screenshotkwaliteit",
+			"description": "Pas de WebP-kwaliteit van browserscreenshots aan. Hogere waarden geven duidelijkere screenshots maar verhogen het tokengebruik."
+		},
+		"remote": {
+			"label": "Gebruik externe browserverbinding",
+			"description": "Verbind met een Chrome-browser die draait met remote debugging ingeschakeld (--remote-debugging-port=9222).",
+			"urlPlaceholder": "Aangepaste URL (bijv. http://localhost:9222)",
+			"testButton": "Verbinding testen",
+			"testingButton": "Bezig met testen...",
+			"instructions": "Voer het DevTools Protocol hostadres in of laat leeg om lokale Chrome-instanties automatisch te detecteren. De knop Verbinding testen probeert de aangepaste URL als opgegeven, of detecteert automatisch als het veld leeg is."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Automatische checkpoints inschakelen",
+			"description": "Indien ingeschakeld, maakt Roo automatisch checkpoints tijdens het uitvoeren van taken, zodat je eenvoudig wijzigingen kunt bekijken of terugzetten."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Geluidseffecten inschakelen",
+			"description": "Indien ingeschakeld, speelt Roo geluidseffecten af voor meldingen en gebeurtenissen.",
+			"volumeLabel": "Volume"
+		},
+		"tts": {
+			"label": "Tekst-naar-spraak inschakelen",
+			"description": "Indien ingeschakeld, leest Roo zijn antwoorden hardop voor via tekst-naar-spraak.",
+			"speedLabel": "Snelheid"
+		}
+	},
+	"contextManagement": {
+		"description": "Bepaal welke informatie wordt opgenomen in het contextvenster van de AI, wat invloed heeft op tokengebruik en antwoordkwaliteit",
+		"openTabs": {
+			"label": "Limiet geopende tabbladen in context",
+			"description": "Maximaal aantal geopende VSCode-tabbladen dat in de context wordt opgenomen. Hogere waarden geven meer context maar verhogen het tokengebruik."
+		},
+		"workspaceFiles": {
+			"label": "Limiet werkruimtebestanden in context",
+			"description": "Maximaal aantal bestanden dat wordt opgenomen in details van de huidige werkmap. Hogere waarden geven meer context maar verhogen het tokengebruik."
+		},
+		"rooignore": {
+			"label": ".rooignore-bestanden tonen in lijsten en zoekopdrachten",
+			"description": "Indien ingeschakeld, worden bestanden die overeenkomen met patronen in .rooignore getoond in lijsten met een slotje. Indien uitgeschakeld, worden deze bestanden volledig verborgen in lijsten en zoekopdrachten."
+		},
+		"maxReadFile": {
+			"label": "Automatisch afkappen bij bestandslezen",
+			"description": "Roo leest dit aantal regels wanneer het model geen begin/eindwaarden opgeeft. Als dit aantal lager is dan het totaal, genereert Roo een index van codelijnen. Speciale gevallen: -1 laat Roo het hele bestand lezen (zonder indexering), 0 leest geen regels en geeft alleen een minimale index. Lagere waarden minimaliseren het initiële contextgebruik en maken precieze vervolg-leesopdrachten mogelijk. Expliciete begin/eind-aanvragen worden niet door deze instelling beperkt.",
+			"lines": "regels",
+			"always_full_read": "Altijd volledig bestand lezen"
+		}
+	},
+	"terminal": {
+		"basic": {
+			"label": "Terminalinstellingen: Basis",
+			"description": "Basis terminalinstellingen"
+		},
+		"advanced": {
+			"label": "Terminalinstellingen: Geavanceerd",
+			"description": "De volgende opties vereisen mogelijk een herstart van de terminal om de instelling toe te passen."
+		},
+		"outputLineLimit": {
+			"label": "Terminaluitvoerlimiet",
+			"description": "Maximaal aantal regels dat wordt opgenomen in de terminaluitvoer bij het uitvoeren van commando's. Overtollige regels worden uit het midden verwijderd om tokens te besparen."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Terminal shell-integratie timeout",
+			"description": "Maximale wachttijd voor het initialiseren van shell-integratie voordat commando's worden uitgevoerd. Voor gebruikers met lange shell-opstarttijden moet deze waarde mogelijk worden verhoogd als je 'Shell Integration Unavailable'-fouten ziet in de terminal."
+		},
+		"shellIntegrationDisabled": {
+			"label": "Terminal shell-integratie uitschakelen",
+			"description": "Schakel dit in als terminalcommando's niet correct werken of als je 'Shell Integration Unavailable'-fouten ziet. Dit gebruikt een eenvoudigere methode om commando's uit te voeren en omzeilt enkele geavanceerde terminalfuncties."
+		},
+		"commandDelay": {
+			"label": "Terminalcommando-vertraging",
+			"description": "Vertraging in milliseconden na het uitvoeren van een commando. De standaardinstelling van 0 schakelt de vertraging volledig uit. Dit kan helpen om te zorgen dat de uitvoer volledig wordt vastgelegd in terminals met timingproblemen. In de meeste terminals wordt dit geïmplementeerd door `PROMPT_COMMAND='sleep N'` te zetten en in Powershell wordt `start-sleep` toegevoegd aan het einde van elk commando. Oorspronkelijk was dit een workaround voor VSCode bug#237208 en is mogelijk niet meer nodig."
+		},
+		"compressProgressBar": {
+			"label": "Voortgangsbalk-uitvoer comprimeren",
+			"description": "Indien ingeschakeld, verwerkt Roo terminaluitvoer met carriage returns (\r) om te simuleren hoe een echte terminal inhoud weergeeft. Dit verwijdert tussenliggende voortgangsbalken en behoudt alleen de eindstatus, waardoor er meer contextruimte overblijft."
+		},
+		"powershellCounter": {
+			"label": "PowerShell-teller workaround inschakelen",
+			"description": "Indien ingeschakeld, voegt Roo een teller toe aan PowerShell-commando's om correcte uitvoering te garanderen. Dit helpt bij PowerShell-terminals die problemen hebben met het vastleggen van uitvoer."
+		},
+		"zshClearEolMark": {
+			"label": "ZSH EOL-markering wissen",
+			"description": "Indien ingeschakeld, wist Roo de ZSH end-of-line markering door PROMPT_EOL_MARK='' te zetten. Dit voorkomt problemen met de interpretatie van uitvoer die eindigt met speciale tekens zoals '%'."
+		},
+		"zshOhMy": {
+			"label": "Oh My Zsh-integratie inschakelen",
+			"description": "Indien ingeschakeld, zet Roo ITERM_SHELL_INTEGRATION_INSTALLED=Yes om Oh My Zsh shell-integratiefuncties te activeren. Het toepassen van deze instelling kan een herstart van de IDE vereisen."
+		},
+		"zshP10k": {
+			"label": "Powerlevel10k-integratie inschakelen",
+			"description": "Indien ingeschakeld, zet Roo POWERLEVEL9K_TERM_SHELL_INTEGRATION=true om Powerlevel10k shell-integratiefuncties te activeren."
+		},
+		"zdotdir": {
+			"label": "ZDOTDIR-afhandeling inschakelen",
+			"description": "Indien ingeschakeld, maakt Roo een tijdelijke map aan voor ZDOTDIR om zsh shell-integratie correct af te handelen. Dit zorgt ervoor dat VSCode shell-integratie goed werkt met zsh en je zsh-configuratie behouden blijft."
+		},
+		"inheritEnv": {
+			"label": "Omgevingsvariabelen overnemen",
+			"description": "Indien ingeschakeld, neemt de terminal omgevingsvariabelen over van het bovenliggende VSCode-proces, zoals shell-integratie-instellingen uit het gebruikersprofiel. Dit schakelt direct de VSCode-instelling `terminal.integrated.inheritEnv` om."
+		}
+	},
+	"advanced": {
+		"diff": {
+			"label": "Bewerken via diffs inschakelen",
+			"description": "Indien ingeschakeld kan Roo sneller bestanden bewerken en worden afgekorte volledige-bestandswijzigingen automatisch geweigerd. Werkt het beste met het nieuwste Claude 3.7 Sonnet-model.",
+			"strategy": {
+				"label": "Diff-strategie",
+				"options": {
+					"standard": "Standaard (één blok)",
+					"multiBlock": "Experimenteel: Multi-block diff",
+					"unified": "Experimenteel: Unified diff"
+				},
+				"descriptions": {
+					"standard": "Standaard diff-strategie past wijzigingen toe op één codeblok tegelijk.",
+					"unified": "Unified diff-strategie gebruikt meerdere methoden om diffs toe te passen en kiest de beste aanpak.",
+					"multiBlock": "Multi-block diff-strategie laat toe om meerdere codeblokken in één verzoek bij te werken."
+				}
+			},
+			"matchPrecision": {
+				"label": "Matchnauwkeurigheid",
+				"description": "Deze schuifregelaar bepaalt hoe nauwkeurig codeblokken moeten overeenkomen bij het toepassen van diffs. Lagere waarden laten flexibelere matching toe maar verhogen het risico op verkeerde vervangingen. Gebruik waarden onder 100% met uiterste voorzichtigheid."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY_UNIFIED": {
+			"name": "Experimentele unified diff-strategie gebruiken",
+			"description": "Schakel de experimentele unified diff-strategie in. Deze strategie kan het aantal herhalingen door model fouten verminderen, maar kan onverwacht gedrag of onjuiste bewerkingen veroorzaken. Alleen inschakelen als je de risico's begrijpt en wijzigingen zorgvuldig wilt controleren."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Experimentele zoek-en-vervang-tool gebruiken",
+			"description": "Schakel de experimentele zoek-en-vervang-tool in, waarmee Roo meerdere instanties van een zoekterm in één verzoek kan vervangen."
+		},
+		"INSERT_BLOCK": {
+			"name": "Experimentele inhoud-invoeg-tool gebruiken",
+			"description": "Schakel de experimentele inhoud-invoeg-tool in, waarmee Roo inhoud op specifieke regelnummers kan invoegen zonder een diff te maken."
+		},
+		"POWER_STEERING": {
+			"name": "Experimentele 'power steering'-modus gebruiken",
+			"description": "Indien ingeschakeld, herinnert Roo het model vaker aan de details van de huidige modusdefinitie. Dit leidt tot sterkere naleving van roldefinities en aangepaste instructies, maar gebruikt meer tokens per bericht."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Experimentele multi-block diff-tool gebruiken",
+			"description": "Indien ingeschakeld, gebruikt Roo de multi-block diff-tool. Hiermee wordt geprobeerd meerdere codeblokken in het bestand in één verzoek bij te werken."
+		}
+	},
+	"promptCaching": {
+		"label": "Prompt caching inschakelen",
+		"description": "Indien ingeschakeld, gebruikt Roo dit model met prompt caching om kosten te verlagen."
+	},
+	"temperature": {
+		"useCustom": "Aangepaste temperatuur gebruiken",
+		"description": "Bepaalt de willekeurigheid in de antwoorden van het model.",
+		"rangeDescription": "Hogere waarden maken de output willekeuriger, lagere waarden maken deze deterministischer."
+	},
+	"modelInfo": {
+		"supportsImages": "Ondersteunt afbeeldingen",
+		"noImages": "Ondersteunt geen afbeeldingen",
+		"supportsComputerUse": "Ondersteunt computergebruik",
+		"noComputerUse": "Ondersteunt geen computergebruik",
+		"supportsPromptCache": "Ondersteunt prompt caching",
+		"noPromptCache": "Ondersteunt geen prompt caching",
+		"maxOutput": "Maximale output",
+		"inputPrice": "Invoerprijs",
+		"outputPrice": "Uitvoerprijs",
+		"cacheReadsPrice": "Cache-leesprijs",
+		"cacheWritesPrice": "Cache-schrijfprijs",
+		"enableStreaming": "Streaming inschakelen",
+		"enableR1Format": "R1-modelparameters inschakelen",
+		"enableR1FormatTips": "Moet ingeschakeld zijn bij gebruik van R1-modellen zoals QWQ om 400-fouten te voorkomen",
+		"useAzure": "Azure gebruiken",
+		"azureApiVersion": "Azure API-versie instellen",
+		"gemini": {
+			"freeRequests": "* Gratis tot {{count}} verzoeken per minuut. Daarna is de prijs afhankelijk van de promptgrootte.",
+			"pricingDetails": "Zie prijsdetails voor meer info.",
+			"billingEstimate": "* Facturering is een schatting - de exacte kosten hangen af van de promptgrootte."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "De extensie haalt automatisch de nieuwste lijst met modellen op van <serviceLink>{{serviceName}}</serviceLink>. Weet je niet welk model je moet kiezen? Roo Code werkt het beste met <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Je kunt ook zoeken op 'free' voor gratis opties die nu beschikbaar zijn.",
+		"label": "Model",
+		"searchPlaceholder": "Zoeken",
+		"noMatchFound": "Geen overeenkomsten gevonden",
+		"useCustomModel": "Aangepast gebruiken: {{modelId}}"
+	},
+	"footer": {
+		"feedback": "Heb je vragen of feedback? Open gerust een issue op <githubLink>github.com/RooVetGit/Roo-Code</githubLink> of sluit je aan bij <redditLink>reddit.com/r/RooCode</redditLink> of <discordLink>discord.gg/roocode</discordLink>",
+		"telemetry": {
+			"label": "Anonieme fout- en gebruiksrapportage toestaan",
+			"description": "Help Roo Code te verbeteren door anonieme gebruiksgegevens en foutmeldingen te verzenden. Er worden nooit code, prompts of persoonlijke gegevens verzonden. Zie ons privacybeleid voor meer informatie."
+		},
+		"settings": {
+			"import": "Importeren",
+			"export": "Exporteren",
+			"reset": "Resetten"
+		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Max tokens",
+		"maxThinkingTokens": "Max denk-tokens"
+	},
+	"validation": {
+		"apiKey": "Je moet een geldige API-sleutel opgeven.",
+		"awsRegion": "Je moet een regio kiezen om Amazon Bedrock te gebruiken.",
+		"googleCloud": "Je moet een geldig Google Cloud Project-ID en regio opgeven.",
+		"modelId": "Je moet een geldig model-ID opgeven.",
+		"modelSelector": "Je moet een geldige modelselector opgeven.",
+		"openAi": "Je moet een geldige basis-URL, API-sleutel en model-ID opgeven.",
+		"arn": {
+			"invalidFormat": "Ongeldig ARN-formaat. Controleer de formaatvereisten.",
+			"regionMismatch": "Waarschuwing: De regio in je ARN ({{arnRegion}}) komt niet overeen met je geselecteerde regio ({{region}}). Dit kan toegangsfouten veroorzaken. De provider gebruikt de regio uit de ARN."
+		},
+		"modelAvailability": "Het opgegeven model-ID ({{modelId}}) is niet beschikbaar. Kies een ander model."
+	},
+	"placeholders": {
+		"apiKey": "Voer API-sleutel in...",
+		"profileName": "Voer profielnaam in",
+		"accessKey": "Voer toegangssleutel in...",
+		"secretKey": "Voer geheime sleutel in...",
+		"sessionToken": "Voer sessietoken in...",
+		"credentialsJson": "Voer Credentials JSON in...",
+		"keyFilePath": "Voer pad naar sleutelbestand in...",
+		"projectId": "Voer project-ID in...",
+		"customArn": "Voer ARN in (bijv. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Voer basis-URL in...",
+		"modelId": {
+			"lmStudio": "bijv. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "bijv. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "bijv. llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "bijv. 4096",
+			"contextWindow": "bijv. 128000",
+			"inputPrice": "bijv. 0.0001",
+			"outputPrice": "bijv. 0.0002",
+			"cacheWritePrice": "bijv. 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "Standaard: http://localhost:11434",
+		"lmStudioUrl": "Standaard: http://localhost:1234",
+		"geminiUrl": "Standaard: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "Aangepaste ARN",
+		"useCustomArn": "Aangepaste ARN gebruiken..."
+	}
+}

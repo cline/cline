@@ -1,0 +1,28 @@
+{
+  "greeting": "Hoi, ik ben Roo!",
+  "introduction": "<strong>Roo Code is de toonaangevende autonome programmeeragent.</strong> Maak je klaar om te ontwerpen, coderen, debuggen en je productiviteit te verhogen als nooit tevoren. Om door te gaan, heeft Roo Code een API-sleutel nodig.",
+  "notice": "Om te beginnen heeft deze extensie een API-provider nodig.",
+  "start": "Aan de slag!",
+  "chooseProvider": "Kies een API-provider om te beginnen:",
+  "routers": {
+    "requesty": {
+      "description": "Jouw geoptimaliseerde LLM-router",
+      "incentive": "$1 gratis tegoed"
+    },
+    "openrouter": {
+      "description": "Een uniforme interface voor LLM's"
+    }
+  },
+  "startRouter": "Snelle setup via een router",
+  "startCustom": "Gebruik je eigen API-sleutel",
+  "telemetry": {
+    "title": "Help Roo Code verbeteren",
+    "anonymousTelemetry": "Stuur anonieme fout- en gebruiksgegevens om ons te helpen bugs op te lossen en de extensie te verbeteren. Er worden nooit code, prompts of persoonlijke gegevens verzonden.",
+    "changeSettings": "Je kunt dit altijd wijzigen onderaan de <settingsLink>instellingen</settingsLink>",
+    "settings": "instellingen",
+    "allow": "Toestaan",
+    "deny": "Weigeren"
+  },
+  "or": "of",
+  "importSettings": "Instellingen importeren"
+}

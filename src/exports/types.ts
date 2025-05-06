@@ -250,6 +250,7 @@ type GlobalSettings = {
 				| "it"
 				| "ja"
 				| "ko"
+				| "nl"
 				| "pl"
 				| "pt-BR"
 				| "ru"

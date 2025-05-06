@@ -1,0 +1,55 @@
+{
+  "title": "MCP-servers",
+  "done": "Gereed",
+  "description": "Het <0>Model Context Protocol</0> maakt communicatie mogelijk met lokaal draaiende MCP-servers die extra tools en bronnen bieden om Roo's mogelijkheden uit te breiden. Je kunt <1>community-servers</1> gebruiken of Roo vragen om nieuwe tools te maken die specifiek zijn voor jouw workflow (bijv. 'voeg een tool toe die de nieuwste npm-documentatie ophaalt').",
+  "enableToggle": {
+    "title": "MCP-servers inschakelen",
+    "description": "Indien ingeschakeld, kan Roo communiceren met MCP-servers voor geavanceerde functionaliteit. Gebruik je geen MCP, dan kun je dit uitschakelen om het tokengebruik te verminderen."
+  },
+  "enableServerCreation": {
+    "title": "Aanmaken van MCP-server inschakelen",
+    "description": "Indien ingeschakeld, kan Roo je helpen nieuwe MCP-servers te maken via commando's zoals 'voeg een nieuwe tool toe aan...'. Heb je dit niet nodig, schakel het dan uit om het tokengebruik te verminderen."
+  },
+  "editGlobalMCP": "Globale MCP bewerken",
+  "editProjectMCP": "Project-MCP bewerken",
+  "tool": {
+    "alwaysAllow": "Altijd toestaan",
+    "parameters": "Parameters",
+    "noDescription": "Geen beschrijving"
+  },
+  "tabs": {
+    "tools": "Tools",
+    "resources": "Bronnen",
+    "errors": "Fouten"
+  },
+  "emptyState": {
+    "noTools": "Geen tools gevonden",
+    "noResources": "Geen bronnen gevonden",
+    "noLogs": "Geen logboeken gevonden",
+    "noErrors": "Geen fouten gevonden"
+  },
+  "networkTimeout": {
+    "label": "Netwerktime-out",
+    "description": "Maximale wachttijd op serverantwoorden",
+    "options": {
+      "15seconds": "15 seconden",
+      "30seconds": "30 seconden",
+      "1minute": "1 minuut",
+      "5minutes": "5 minuten",
+      "10minutes": "10 minuten",
+      "15minutes": "15 minuten",
+      "30minutes": "30 minuten",
+      "60minutes": "60 minuten"
+    }
+  },
+  "deleteDialog": {
+    "title": "MCP-server verwijderen",
+    "description": "Weet je zeker dat je de MCP-server '{{serverName}}' wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.",
+    "cancel": "Annuleren",
+    "delete": "Verwijderen"
+  },
+  "serverStatus": {
+    "retrying": "Opnieuw proberen...",
+    "retryConnection": "Verbinding opnieuw proberen"
+  }
+}

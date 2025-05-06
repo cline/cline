@@ -1,0 +1,251 @@
+{
+  "greeting": "Welkom bij Roo Code",
+  "task": {
+    "title": "Taak",
+    "seeMore": "Meer weergeven",
+    "seeLess": "Minder weergeven",
+    "tokens": "Tokens:",
+    "cache": "Cache:",
+    "apiCost": "API-kosten:",
+    "contextWindow": "Contextlengte:",
+    "closeAndStart": "Taak sluiten en een nieuwe starten",
+    "export": "Taakgeschiedenis exporteren",
+    "delete": "Taak verwijderen (Shift + Klik om bevestiging over te slaan)"
+  },
+  "unpin": "Losmaken",
+  "pin": "Vastmaken",
+  "retry": {
+    "title": "Opnieuw proberen",
+    "tooltip": "Probeer de bewerking opnieuw"
+  },
+  "startNewTask": {
+    "title": "Nieuwe taak starten",
+    "tooltip": "Begin een nieuwe taak"
+  },
+  "proceedAnyways": {
+    "title": "Toch doorgaan",
+    "tooltip": "Ga door terwijl het commando wordt uitgevoerd"
+  },
+  "save": {
+    "title": "Opslaan",
+    "tooltip": "Bestandswijzigingen opslaan"
+  },
+  "tokenProgress": {
+    "availableSpace": "Beschikbare ruimte: {{amount}} tokens",
+    "tokensUsed": "Gebruikte tokens: {{used}} van {{total}}",
+    "reservedForResponse": "Gereserveerd voor modelantwoord: {{amount}} tokens"
+  },
+  "reject": {
+    "title": "Weigeren",
+    "tooltip": "Deze actie weigeren"
+  },
+  "completeSubtaskAndReturn": "Subtaak voltooien en terugkeren",
+  "approve": {
+    "title": "Goedkeuren",
+    "tooltip": "Deze actie goedkeuren"
+  },
+  "runCommand": {
+    "title": "Commando uitvoeren",
+    "tooltip": "Voer dit commando uit"
+  },
+  "proceedWhileRunning": {
+    "title": "Doorgaan tijdens uitvoeren",
+    "tooltip": "Ga door ondanks waarschuwingen"
+  },
+  "killCommand": {
+    "title": "Commando stoppen",
+    "tooltip": "Huidig commando stoppen"
+  },
+  "resumeTask": {
+    "title": "Taak hervatten",
+    "tooltip": "Ga door met de huidige taak"
+  },
+  "terminate": {
+    "title": "Beëindigen",
+    "tooltip": "Beëindig de huidige taak"
+  },
+  "cancel": {
+    "title": "Annuleren",
+    "tooltip": "Annuleer de huidige bewerking"
+  },
+  "scrollToBottom": "Scroll naar onderaan de chat",
+  "about": "Genereer, refactor en debug code met AI-assistentie.<br />Bekijk onze <DocsLink>documentatie</DocsLink> voor meer informatie.",
+  "onboarding": "Je takenlijst in deze werkruimte is leeg.",
+  "rooTips": {
+    "boomerangTasks": {
+      "title": "Boomerang-taken",
+      "description": "Splits taken op in kleinere, beheersbare delen"
+    },
+    "stickyModels": {
+      "title": "Vastgezette modellen",
+      "description": "Elke modus onthoudt je laatst gebruikte model"
+    },
+    "tools": {
+      "title": "Tools",
+      "description": "Laat de AI problemen oplossen door te browsen, commando's uit te voeren en meer"
+    },
+    "customizableModes": {
+      "title": "Aanpasbare modi",
+      "description": "Gespecialiseerde persona's met hun eigen gedrag en toegewezen modellen"
+    }
+  },
+  "selectMode": "Selecteer modus voor interactie",
+  "selectApiConfig": "Selecteer API-configuratie",
+  "enhancePrompt": "Prompt verbeteren met extra context",
+  "enhancePromptDescription": "De knop 'Prompt verbeteren' helpt je prompt te verbeteren door extra context, verduidelijking of herformulering te bieden. Probeer hier een prompt te typen en klik opnieuw op de knop om te zien hoe het werkt.",
+  "addImages": "Afbeeldingen toevoegen aan bericht",
+  "sendMessage": "Bericht verzenden",
+  "typeMessage": "Typ een bericht...",
+  "typeTask": "Typ hier je taak...",
+  "addContext": "@ om context toe te voegen, / om van modus te wisselen",
+  "dragFiles": "houd shift ingedrukt om bestanden te slepen",
+  "dragFilesImages": "houd shift ingedrukt om bestanden/afbeeldingen te slepen",
+  "errorReadingFile": "Fout bij het lezen van bestand:",
+  "noValidImages": "Er zijn geen geldige afbeeldingen verwerkt",
+  "separator": "Scheidingsteken",
+  "edit": "Bewerken...",
+  "forNextMode": "voor volgende modus",
+  "apiRequest": {
+    "title": "API-verzoek",
+    "failed": "API-verzoek mislukt",
+    "streaming": "API-verzoek...",
+    "cancelled": "API-verzoek geannuleerd",
+    "streamingFailed": "API-streaming mislukt"
+  },
+  "checkpoint": {
+    "initial": "Initiële checkpoint",
+    "regular": "Checkpoint",
+    "initializingWarning": "Checkpoint wordt nog steeds geïnitialiseerd... Als dit te lang duurt, kun je checkpoints uitschakelen in de <settingsLink>instellingen</settingsLink> en je taak opnieuw starten.",
+    "menu": {
+      "viewDiff": "Bekijk verschil",
+      "restore": "Herstel checkpoint",
+      "restoreFiles": "Bestanden herstellen",
+      "restoreFilesDescription": "Herstelt de bestanden van je project naar een momentopname die op dit punt is gemaakt.",
+      "restoreFilesAndTask": "Bestanden & taak herstellen",
+      "confirm": "Bevestigen",
+      "cancel": "Annuleren",
+      "cannotUndo": "Deze actie kan niet ongedaan worden gemaakt.",
+      "restoreFilesAndTaskDescription": "Herstelt de bestanden van je project naar een momentopname die op dit punt is gemaakt en verwijdert alle berichten na dit punt."
+    },
+    "current": "Huidig"
+  },
+  "instructions": {
+    "wantsToFetch": "Roo wil gedetailleerde instructies ophalen om te helpen met de huidige taak"
+  },
+  "fileOperations": {
+    "wantsToRead": "Roo wil dit bestand lezen:",
+    "wantsToReadOutsideWorkspace": "Roo wil dit bestand buiten de werkruimte lezen:",
+    "didRead": "Roo heeft dit bestand gelezen:",
+    "wantsToEdit": "Roo wil dit bestand bewerken:",
+    "wantsToEditOutsideWorkspace": "Roo wil dit bestand buiten de werkruimte bewerken:",
+    "wantsToCreate": "Roo wil een nieuw bestand aanmaken:",
+    "wantsToSearchReplace": "Roo wil zoeken en vervangen in dit bestand:",
+    "didSearchReplace": "Roo heeft zoeken en vervangen uitgevoerd op dit bestand:",
+    "wantsToInsert": "Roo wil inhoud invoegen in dit bestand:",
+    "wantsToInsertWithLineNumber": "Roo wil inhoud invoegen in dit bestand op regel {{lineNumber}}:",
+    "wantsToInsertAtEnd": "Roo wil inhoud toevoegen aan het einde van dit bestand:"
+  },
+  "directoryOperations": {
+    "wantsToViewTopLevel": "Roo wil de bovenliggende bestanden in deze map bekijken:",
+    "didViewTopLevel": "Roo heeft de bovenliggende bestanden in deze map bekeken:",
+    "wantsToViewRecursive": "Roo wil alle bestanden in deze map recursief bekijken:",
+    "didViewRecursive": "Roo heeft alle bestanden in deze map recursief bekeken:",
+    "wantsToViewDefinitions": "Roo wil broncode-definitienamen bekijken die in deze map worden gebruikt:",
+    "didViewDefinitions": "Roo heeft broncode-definitienamen bekeken die in deze map worden gebruikt:",
+    "wantsToSearch": "Roo wil deze map doorzoeken op <code>{{regex}}</code>:",
+    "didSearch": "Roo heeft deze map doorzocht op <code>{{regex}}</code>:"
+  },
+  "commandOutput": "Commando-uitvoer",
+  "response": "Antwoord",
+  "arguments": "Argumenten",
+  "mcp": {
+    "wantsToUseTool": "Roo wil een tool gebruiken op de {{serverName}} MCP-server:",
+    "wantsToAccessResource": "Roo wil een bron benaderen op de {{serverName}} MCP-server:"
+  },
+  "modes": {
+    "wantsToSwitch": "Roo wil overschakelen naar {{mode}} modus",
+    "wantsToSwitchWithReason": "Roo wil overschakelen naar {{mode}} modus omdat: {{reason}}",
+    "didSwitch": "Roo is overgeschakeld naar {{mode}} modus",
+    "didSwitchWithReason": "Roo is overgeschakeld naar {{mode}} modus omdat: {{reason}}"
+  },
+  "subtasks": {
+    "wantsToCreate": "Roo wil een nieuwe subtaak aanmaken in {{mode}} modus:",
+    "wantsToFinish": "Roo wil deze subtaak voltooien",
+    "newTaskContent": "Subtaak-instructies",
+    "completionContent": "Subtaak voltooid",
+    "resultContent": "Subtaakresultaten",
+    "defaultResult": "Ga verder met de volgende taak.",
+    "completionInstructions": "Subtaak voltooid! Je kunt de resultaten bekijken en eventuele correcties of volgende stappen voorstellen. Als alles goed is, bevestig dan om het resultaat terug te sturen naar de hoofdtaak."
+  },
+  "questions": {
+    "hasQuestion": "Roo heeft een vraag:"
+  },
+  "taskCompleted": "Taak voltooid",
+  "error": "Fout",
+  "diffError": {
+    "title": "Bewerking mislukt"
+  },
+  "troubleMessage": "Roo ondervindt problemen...",
+  "powershell": {
+    "issues": "Het lijkt erop dat je problemen hebt met Windows PowerShell, zie deze"
+  },
+  "autoApprove": {
+    "title": "Automatisch goedkeuren:",
+    "none": "Geen",
+    "description": "Met automatisch goedkeuren kan Roo Code acties uitvoeren zonder om toestemming te vragen. Schakel dit alleen in voor acties die je volledig vertrouwt. Meer gedetailleerde configuratie beschikbaar in de <settingsLink>Instellingen</settingsLink>."
+  },
+  "announcement": {
+    "title": "🎉 Roo Code 3.16 uitgebracht",
+    "description": "Roo Code 3.16 brengt nieuwe functies en verbeteringen op basis van jouw feedback.",
+    "feature1": "<bold>Groq en Chutes API-providers</bold>: Ondersteuning toegevoegd voor Groq en Chutes API-providers (dank aan @shariqriazz!)",
+    "feature2": "<bold>Klikbare codeverwijzingen</bold>: Codeverwijzingen in modelantwoorden navigeren nu naar bronregels (dank aan @KJ7LNW!)",
+    "feature3": "<bold>MCP-stabiliteitsverbeteringen</bold>: Verschillende bugs opgelost om de stabiliteit van MCP-integraties te verbeteren",
+    "hideButton": "Aankondiging verbergen",
+    "detailsDiscussLinks": "Meer details en discussie in <discordLink>Discord</discordLink> en <redditLink>Reddit</redditLink> 🚀",
+    "whatsNew": "Wat is er nieuw"
+  },
+  "reasoning": {
+    "thinking": "Denkt na",
+    "seconds": "{{count}}s"
+  },
+  "followUpSuggest": {
+    "copyToInput": "Kopiëren naar invoer (zelfde als shift + klik)"
+  },
+  "browser": {
+    "rooWantsToUse": "Roo wil de browser gebruiken:",
+    "consoleLogs": "Console-logboeken",
+    "noNewLogs": "(Geen nieuwe logboeken)",
+    "screenshot": "Browserschermopname",
+    "cursor": "cursor",
+    "navigation": {
+      "step": "Stap {{current}} van {{total}}",
+      "previous": "Vorige",
+      "next": "Volgende"
+    },
+    "sessionStarted": "Browsersessie gestart",
+    "actions": {
+      "title": "Browse-actie: ",
+      "launch": "Browser starten op {{url}}",
+      "click": "Klik ({{coordinate}})",
+      "type": "Typ \"{{text}}\"",
+      "scrollDown": "Scroll naar beneden",
+      "scrollUp": "Scroll naar boven",
+      "close": "Browser sluiten"
+    }
+  },
+  "codeblock": {
+    "tooltips": {
+      "expand": "Codeblok uitvouwen",
+      "collapse": "Codeblok samenvouwen",
+      "enable_wrap": "Regelafbreking inschakelen",
+      "disable_wrap": "Regelafbreking uitschakelen",
+      "copy_code": "Code kopiëren"
+    }
+  },
+  "systemPromptWarning": "WAARSCHUWING: Aangepaste systeemprompt actief. Dit kan de functionaliteit ernstig verstoren en onvoorspelbaar gedrag veroorzaken.",
+  "shellIntegration": {
+    "title": "Waarschuwing commando-uitvoering",
+    "description": "Je commando wordt uitgevoerd zonder VSCode-terminal shell-integratie. Om deze waarschuwing te onderdrukken kun je shell-integratie uitschakelen in het gedeelte <strong>Terminal</strong> van de <settingsLink>Roo Code-instellingen</settingsLink> of de VSCode-terminalintegratie oplossen via de onderstaande link.",
+    "troubleshooting": "Klik hier voor shell-integratie documentatie."
+  }
+}
