@@ -1476,10 +1476,12 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		const appVersion = this.context.extension?.packageJSON?.version
 		const vscodeVersion = vscode.version
 		const platform = process.platform
+		const editorName = vscode.env.appName // Get the editor name (VS Code, Cursor, etc.)
 
 		const properties: Record<string, any> = {
 			vscodeVersion,
 			platform,
+			editorName,
 		}
 
 		// Add extension version
