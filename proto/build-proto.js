@@ -48,6 +48,9 @@ async function main() {
 		await fs.unlink(path.join(TS_OUT_DIR, file))
 	}
 
+	// Check for missing proto files for services in serviceNameMap
+	await ensureProtoFilesExist()
+
 	// Process all proto files
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
 	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
@@ -344,6 +347,58 @@ export const serviceHandlers: Record<string, ServiceHandlerConfig> = {${serviceC
 	const configPath = path.join(ROOT_DIR, "src", "core", "controller", "grpc-service-config.ts")
 	await fs.writeFile(configPath, content)
 	console.log(chalk.green(`Generated service configuration at ${configPath}`))
+}
+
+/**
+ * Ensure that a .proto file exists for each service in the serviceNameMap
+ * If a .proto file doesn't exist, create a template file
+ */
+async function ensureProtoFilesExist() {
+	console.log(chalk.cyan("Checking for missing proto files..."))
+	
+	// Get existing proto files
+	const existingProtoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
+	const existingProtoServices = existingProtoFiles.map(file => path.basename(file, ".proto"))
+	
+	// Check each service in serviceNameMap
+	for (const [serviceName, fullServiceName] of Object.entries(serviceNameMap)) {
+		if (!existingProtoServices.includes(serviceName)) {
+			console.log(chalk.yellow(`Creating template proto file for ${serviceName}...`))
+			
+			// Extract service class name from full name (e.g., "cline.ModelsService" -> "ModelsService")
+			const serviceClassName = fullServiceName.split(".").pop()
+			
+			// Create template proto file
+			const protoContent = `syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// ${serviceClassName} provides methods for managing ${serviceName}
+service ${serviceClassName} {
+  // Add your RPC methods here
+  // Example (String is from common.proto, responses should be generic types):
+  // rpc YourMethod(YourRequest) returns (String);
+}
+
+// Add your message definitions here
+// Example (Requests must always start with Metadata):
+// message YourRequest {
+//   Metadata metadata = 1;
+//   string stringField = 2;
+//   int32 int32Field = 3;
+// }
+`
+			
+			// Write the template proto file
+			const protoFilePath = path.join(SCRIPT_DIR, `${serviceName}.proto`)
+			await fs.writeFile(protoFilePath, protoContent)
+			console.log(chalk.green(`Created template proto file at ${protoFilePath}`))
+		}
+	}
 }
 
 // Run the main function
