@@ -1,0 +1,19 @@
+{
+	"dependencies": {
+		"@grpc/grpc-js": "^1.13.3",
+		"cspotcode": "^1.0.1",
+		"google-protobuf": "^3.21.4",
+		"grpc-health-check": "^2.0.2",
+		"grpc-reflection-js": "^0.3.0",
+		"grpc-server-reflection": "^0.1.5",
+		"module-alias": "^2.2.3",
+		"open": "^10.1.2",
+		"ts-morph": "^25.0.1"
+	},
+	"devDependencies": {
+		"grpc-tools": "^1.13.0"
+	},
+	"_moduleAliases": {
+		"vscode": "./build/vscode-stubs.js"
+	}
+}
