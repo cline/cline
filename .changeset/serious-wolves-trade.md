@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-fix cost calculation
+adding quote reply support

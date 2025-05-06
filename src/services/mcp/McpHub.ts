@@ -521,6 +521,21 @@ export class McpHub {
 		this.isConnecting = false
 	}
 
+	/**
+	 * Gets sorted MCP servers based on the order defined in settings
+	 * @param serverOrder Array of server names in the order they appear in settings
+	 * @returns Array of McpServer objects sorted according to settings order
+	 */
+	private getSortedMcpServers(serverOrder: string[]): McpServer[] {
+		return [...this.connections]
+			.sort((a, b) => {
+				const indexA = serverOrder.indexOf(a.server.name)
+				const indexB = serverOrder.indexOf(b.server.name)
+				return indexA - indexB
+			})
+			.map((connection) => connection.server)
+	}
+
 	private async notifyWebviewOfServerChanges(): Promise<void> {
 		// servers should always be sorted in the order they are defined in the settings file
 		const settingsPath = await this.getMcpSettingsFilePath()
@@ -529,13 +544,7 @@ export class McpHub {
 		const serverOrder = Object.keys(config.mcpServers || {})
 		await this.postMessageToWebview({
 			type: "mcpServers",
-			mcpServers: [...this.connections]
-				.sort((a, b) => {
-					const indexA = serverOrder.indexOf(a.server.name)
-					const indexB = serverOrder.indexOf(b.server.name)
-					return indexA - indexB
-				})
-				.map((connection) => connection.server),
+			mcpServers: this.getSortedMcpServers(serverOrder),
 		})
 	}
 
@@ -566,16 +575,7 @@ export class McpHub {
 				}
 
 				const serverOrder = Object.keys(config.mcpServers || {})
-
-				const mcpServers = [...this.connections]
-					.sort((a, b) => {
-						const indexA = serverOrder.indexOf(a.server.name)
-						const indexB = serverOrder.indexOf(b.server.name)
-						return indexA - indexB
-					})
-					.map((connection) => connection.server)
-
-				return mcpServers
+				return this.getSortedMcpServers(serverOrder)
 			}
 			console.error(`Server "${serverName}" not found in MCP configuration`)
 			throw new Error(`Server "${serverName}" not found in MCP configuration`)
@@ -691,7 +691,7 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(serverName: string, serverUrl: string) {
+	public async addRemoteServer(serverName: string, serverUrl: string): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -728,12 +728,12 @@ export class McpHub {
 				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
 			)
 
-			await this.updateServerConnections(settings.mcpServers)
+			await this.updateServerConnectionsRPC(settings.mcpServers)
 
-			vscode.window.showInformationMessage(`Added ${serverName} MCP server`)
+			const serverOrder = Object.keys(settings.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
 			console.error("Failed to add remote MCP server:", error)
-
 			throw error
 		}
 	}
@@ -791,15 +791,7 @@ export class McpHub {
 			await this.updateServerConnectionsRPC(config.mcpServers)
 
 			const serverOrder = Object.keys(config.mcpServers || {})
-			const updatedMcpServers = [...this.connections]
-				.sort((a, b) => {
-					const indexA = serverOrder.indexOf(a.server.name)
-					const indexB = serverOrder.indexOf(b.server.name)
-					return indexA - indexB
-				})
-				.map((connection) => connection.server)
-
-			return updatedMcpServers
+			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
 			console.error("Failed to update server timeout:", error)
 			if (error instanceof Error) {

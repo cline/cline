@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Add markdown copy to chat
+Moved rule file conversions

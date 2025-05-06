@@ -6,17 +6,53 @@ import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
 import * as vscode from "vscode"
+import { synchronizeRuleToggles, getRuleFilesTotalContent } from "@core/context/instructions/user-instructions/rule-helpers"
+
+/**
+ * Converts .clinerules file to directory and places old .clinerule file inside directory, renaming it
+ * Doesn't do anything if .clinerules dir already exists or doesn't exist
+ * Returns whether there are any uncaught errors
+ */
+export async function ensureLocalClinerulesDirExists(cwd: string): Promise<boolean> {
+	const clinerulePath = path.resolve(cwd, GlobalFileNames.clineRules)
+	const defaultRuleFilename = "default-rules.md"
+
+	try {
+		const exists = await fileExistsAtPath(clinerulePath)
+
+		if (exists && !(await isDirectory(clinerulePath))) {
+			// logic to convert .clinerules file into directory, and rename the rules file to {defaultRuleFilename}
+			const content = await fs.readFile(clinerulePath, "utf8")
+			const tempPath = clinerulePath + ".bak"
+			await fs.rename(clinerulePath, tempPath) // create backup
+			try {
+				await fs.mkdir(clinerulePath, { recursive: true })
+				await fs.writeFile(path.join(clinerulePath, defaultRuleFilename), content, "utf8")
+				await fs.unlink(tempPath).catch(() => {}) // delete backup
+
+				return false // conversion successful with no errors
+			} catch (conversionError) {
+				// attempt to restore backup on conversion failure
+				try {
+					await fs.rm(clinerulePath, { recursive: true, force: true }).catch(() => {})
+					await fs.rename(tempPath, clinerulePath) // restore backup
+				} catch (restoreError) {}
+				return true // in either case here we consider this an error
+			}
+		}
+		// exists and is a dir or doesn't exist, either of these cases we dont need to handle here
+		return false
+	} catch (error) {
+		return true
+	}
+}
 
 export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
 	if (await fileExistsAtPath(globalClineRulesFilePath)) {
 		if (await isDirectory(globalClineRulesFilePath)) {
 			try {
 				const rulesFilePaths = await readDirectory(globalClineRulesFilePath)
-				const rulesFilesTotalContent = await getClineRulesFilesTotalContent(
-					rulesFilePaths,
-					globalClineRulesFilePath,
-					toggles,
-				)
+				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, globalClineRulesFilePath, toggles)
 				if (rulesFilesTotalContent) {
 					const clineRulesFileInstructions = formatResponse.clineRulesGlobalDirectoryInstructions(
 						globalClineRulesFilePath,
@@ -45,7 +81,7 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 		if (await isDirectory(clineRulesFilePath)) {
 			try {
 				const rulesFilePaths = await readDirectory(clineRulesFilePath)
-				const rulesFilesTotalContent = await getClineRulesFilesTotalContent(rulesFilePaths, cwd, toggles)
+				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, cwd, toggles)
 				if (rulesFilesTotalContent) {
 					clineRulesFileInstructions = formatResponse.clineRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent)
 				}
@@ -67,86 +103,6 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 	}
 
 	return clineRulesFileInstructions
-}
-
-const getClineRulesFilesTotalContent = async (rulesFilePaths: string[], basePath: string, toggles: ClineRulesToggles) => {
-	const ruleFilesTotalContent = await Promise.all(
-		rulesFilePaths.map(async (filePath) => {
-			const ruleFilePath = path.resolve(basePath, filePath)
-			const ruleFilePathRelative = path.relative(basePath, ruleFilePath)
-
-			if (ruleFilePath in toggles && toggles[ruleFilePath] === false) {
-				return null
-			}
-
-			return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
-		}),
-	).then((contents) => contents.filter(Boolean).join("\n\n"))
-	return ruleFilesTotalContent
-}
-
-export async function synchronizeRuleToggles(
-	rulesDirectoryPath: string,
-	currentToggles: ClineRulesToggles,
-): Promise<ClineRulesToggles> {
-	// Create a copy of toggles to modify
-	const updatedToggles = { ...currentToggles }
-
-	try {
-		const pathExists = await fileExistsAtPath(rulesDirectoryPath)
-
-		if (pathExists) {
-			const isDir = await isDirectory(rulesDirectoryPath)
-
-			if (isDir) {
-				// DIRECTORY CASE
-				const filePaths = await readDirectory(rulesDirectoryPath)
-				const existingRulePaths = new Set<string>()
-
-				for (const filePath of filePaths) {
-					const ruleFilePath = path.resolve(rulesDirectoryPath, filePath)
-					existingRulePaths.add(ruleFilePath)
-
-					const pathHasToggle = ruleFilePath in updatedToggles
-					if (!pathHasToggle) {
-						updatedToggles[ruleFilePath] = true
-					}
-				}
-
-				// Clean up toggles for non-existent files
-				for (const togglePath in updatedToggles) {
-					const pathExists = existingRulePaths.has(togglePath)
-					if (!pathExists) {
-						delete updatedToggles[togglePath]
-					}
-				}
-			} else {
-				// FILE CASE
-				// Add toggle for this file
-				const pathHasToggle = rulesDirectoryPath in updatedToggles
-				if (!pathHasToggle) {
-					updatedToggles[rulesDirectoryPath] = true
-				}
-
-				// Remove toggles for any other paths
-				for (const togglePath in updatedToggles) {
-					if (togglePath !== rulesDirectoryPath) {
-						delete updatedToggles[togglePath]
-					}
-				}
-			}
-		} else {
-			// PATH DOESN'T EXIST CASE
-			// Clear all toggles since the path doesn't exist
-			for (const togglePath in updatedToggles) {
-				delete updatedToggles[togglePath]
-			}
-		}
-	} catch (error) {
-		console.error(`Failed to synchronize rule toggles for path: ${rulesDirectoryPath}`, error)
-	}
-
-	return updatedToggles
 }
 
 export async function refreshClineRulesToggles(
@@ -182,7 +138,14 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 			filePath = path.join(globalClineRulesFilePath, filename)
 		} else {
 			const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
+
+			const hasError = await ensureLocalClinerulesDirExists(cwd)
+			if (hasError === true) {
+				return { filePath: null, fileExists: false }
+			}
+
 			await fs.mkdir(localClineRulesFilePath, { recursive: true })
+
 			filePath = path.join(localClineRulesFilePath, filename)
 		}
 
