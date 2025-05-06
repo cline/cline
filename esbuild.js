@@ -125,6 +125,7 @@ const extensionConfig = {
 	define: {
 		"process.env.IS_DEV": JSON.stringify(!production),
 	},
+	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		copyWasmFiles,
 		aliasResolverPlugin,

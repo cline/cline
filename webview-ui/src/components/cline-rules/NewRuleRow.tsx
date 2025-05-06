@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react"
 import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useClickAway } from "react-use"
+import { FileServiceClient } from "@/services/grpc-client"
+import { CreateRuleFileRequest } from "@shared/proto-conversions/file/rule-files-conversion"
 
 interface NewRuleRowProps {
 	isGlobal: boolean
@@ -40,7 +42,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal }) => {
 		return ext === "" || ext === ".md" || ext === ".txt"
 	}
 
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
 
 		if (filename.trim()) {
@@ -57,11 +59,16 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal }) => {
 				finalFilename = `${trimmedFilename}.md`
 			}
 
-			vscode.postMessage({
-				type: "createRuleFile",
-				isGlobal,
-				filename: finalFilename,
-			})
+			try {
+				await FileServiceClient.createRuleFile(
+					CreateRuleFileRequest.create({
+						isGlobal,
+						filename: finalFilename,
+					}),
+				)
+			} catch (err) {
+				console.error("Error creating rule file:", err)
+			}
 
 			setFilename("")
 			setError(null)

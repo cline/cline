@@ -88,6 +88,11 @@ import {
 	refreshClineRulesToggles,
 	ensureLocalClinerulesDirExists,
 } from "@core/context/instructions/user-instructions/cline-rules"
+import {
+	refreshExternalRulesToggles,
+	getLocalWindsurfRules,
+	getLocalCursorRules,
+} from "@core/context/instructions/user-instructions/external-rules"
 import { getGlobalState } from "@core/storage/state"
 import { parseSlashCommands } from "@core/slash-commands"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
@@ -1264,7 +1269,7 @@ export class Task {
 				didContinue = true
 				process.continue()
 			} catch {
-				// ask promise was ignored
+				Logger.error("Error while asking for command output")
 			} finally {
 				chunkEnroute = false
 				// If more output accumulated while chunkEnroute, flush again
@@ -1278,11 +1283,11 @@ export class Task {
 			if (chunkTimer) {
 				clearTimeout(chunkTimer)
 			}
-			chunkTimer = setTimeout(() => flushBuffer(), CHUNK_DEBOUNCE_MS)
+			chunkTimer = setTimeout(async () => await flushBuffer(), CHUNK_DEBOUNCE_MS)
 		}
 
 		let result = ""
-		process.on("line", (line) => {
+		process.on("line", async (line) => {
 			result += line + "\n"
 
 			if (!didContinue) {
@@ -1290,7 +1295,7 @@ export class Task {
 				outputBufferSize += Buffer.byteLength(line, "utf8")
 				// Flush if buffer is large enough
 				if (outputBuffer.length >= CHUNK_LINE_COUNT || outputBufferSize >= CHUNK_BYTE_SIZE) {
-					flushBuffer()
+					await flushBuffer()
 				} else {
 					scheduleFlush()
 				}
@@ -1446,11 +1451,17 @@ export class Task {
 				: ""
 
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.getContext(), cwd)
+		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.getContext(), cwd)
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
 
 		const localClineRulesFileInstructions = await getLocalClineRules(cwd, localToggles)
+		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
+			cwd,
+			cursorLocalToggles,
+		)
+		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(cwd, windsurfLocalToggles)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -1462,17 +1473,24 @@ export class Task {
 			settingsCustomInstructions ||
 			globalClineRulesFileInstructions ||
 			localClineRulesFileInstructions ||
+			localCursorRulesFileInstructions ||
+			localCursorRulesDirInstructions ||
+			localWindsurfRulesFileInstructions ||
 			clineIgnoreInstructions ||
 			preferredLanguageInstructions
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(
+			const userInstructions = addUserInstructions(
 				settingsCustomInstructions,
 				globalClineRulesFileInstructions,
 				localClineRulesFileInstructions,
+				localCursorRulesFileInstructions,
+				localCursorRulesDirInstructions,
+				localWindsurfRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
+			systemPrompt += userInstructions
 		}
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
@@ -3543,7 +3561,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user")
+		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user", true)
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
@@ -3620,7 +3638,13 @@ export class Task {
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
 				await this.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "assistant")
+				telemetryService.captureConversationTurnEvent(
+					this.taskId,
+					currentProviderId,
+					this.api.getModel().id,
+					"assistant",
+					true,
+				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3763,7 +3787,13 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "assistant")
+				telemetryService.captureConversationTurnEvent(
+					this.taskId,
+					currentProviderId,
+					this.api.getModel().id,
+					"assistant",
+					true,
+				)
 
 				await this.addToApiConversationHistory({
 					role: "assistant",

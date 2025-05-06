@@ -4,13 +4,27 @@ import { version as extensionVersion } from "../../../package.json"
 
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
+import { posthogConfig } from "@/shared/services/config/posthog-config"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
  * Uses PostHog analytics to track user interactions and system events
  * Respects user privacy settings and VSCode's global telemetry configuration
  */
+
+interface CollectedTasks {
+	taskId: string
+	collection: Collection[]
+}
+
+interface Collection {
+	event: string
+	properties: any
+}
+
 class PostHogClient {
+	// Stores events when collect=true
+	private collectedTasks: CollectedTasks[] = []
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
@@ -49,6 +63,8 @@ class PostHogClient {
 			BROWSER_TOOL_END: "task.browser_tool_end",
 			// Tracks when browser errors occur
 			BROWSER_ERROR: "task.browser_error",
+			// Collection of all task events
+			TASK_COLLECTION: "task.collection",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -87,14 +103,16 @@ class PostHogClient {
 	private telemetryEnabled: boolean = false
 	/** Current version of the extension */
 	private readonly version: string = extensionVersion
+	/** Whether the extension is running in development mode */
+	private readonly isDev = process.env.IS_DEV
 
 	/**
 	 * Private constructor to enforce singleton pattern
 	 * Initializes PostHog client with configuration
 	 */
 	private constructor() {
-		this.client = new PostHog("phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K", {
-			host: "https://us.i.posthog.com",
+		this.client = new PostHog(posthogConfig.apiKey, {
+			host: posthogConfig.host,
 			enableExceptionAutocapture: false,
 		})
 	}
@@ -136,17 +154,36 @@ class PostHogClient {
 	}
 
 	/**
-	 * Captures a telemetry event if telemetry is enabled
+	 * Captures a telemetry event if telemetry is enabled or collects if collect=true
 	 * @param event The event to capture with its properties
+	 * @param collect If true, store the event in collectedEvents instead of sending to PostHog
 	 */
-	public capture(event: { event: string; properties?: any }): void {
-		// Only send events if telemetry is enabled
-		if (this.telemetryEnabled) {
-			// Include extension version in all event properties
-			const propertiesWithVersion = {
-				...event.properties,
-				extension_version: this.version,
+	public capture(event: { event: string; properties?: any }, collect: boolean = false): void {
+		const taskId = event.properties.taskId
+		const propertiesWithVersion = {
+			...event.properties,
+			extension_version: this.version,
+			is_dev: this.isDev,
+		}
+		if (collect) {
+			const existingTask = this.collectedTasks.find((task) => task.taskId === taskId)
+			if (existingTask) {
+				existingTask.collection.push({
+					event: event.event,
+					properties: propertiesWithVersion,
+				})
+			} else {
+				this.collectedTasks.push({
+					taskId,
+					collection: [
+						{
+							event: event.event,
+							properties: propertiesWithVersion,
+						},
+					],
+				})
 			}
+		} else if (this.telemetryEnabled) {
 			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
 		}
 	}
@@ -155,34 +192,48 @@ class PostHogClient {
 	/**
 	 * Records when a new task/conversation is started
 	 * @param taskId Unique identifier for the new task
+	 * @param apiProvider Optional API provider
+	 * @param collect If true, collect event instead of sending
 	 */
-	public captureTaskCreated(taskId: string, apiProvider?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.CREATED,
-			properties: { taskId, apiProvider },
-		})
+	public captureTaskCreated(taskId: string, apiProvider?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.CREATED,
+				properties: { taskId, apiProvider },
+			},
+			collect,
+		)
 	}
 
 	/**
 	 * Records when a task/conversation is restarted
 	 * @param taskId Unique identifier for the new task
+	 * @param apiProvider Optional API provider
+	 * @param collect If true, collect event instead of sending
 	 */
-	public captureTaskRestarted(taskId: string, apiProvider?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.RESTARTED,
-			properties: { taskId, apiProvider },
-		})
+	public captureTaskRestarted(taskId: string, apiProvider?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.RESTARTED,
+				properties: { taskId, apiProvider },
+			},
+			collect,
+		)
 	}
 
 	/**
 	 * Records when cline calls the task completion_result tool signifying that cline is done with the task
 	 * @param taskId Unique identifier for the task
+	 * @param collect If true, collect event instead of sending
 	 */
-	public captureTaskCompleted(taskId: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.COMPLETED,
-			properties: { taskId },
-		})
+	public captureTaskCompleted(taskId: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.COMPLETED,
+				properties: { taskId },
+			},
+			collect,
+		)
 	}
 
 	/**
@@ -197,6 +248,7 @@ class PostHogClient {
 		provider: string = "unknown",
 		model: string = "unknown",
 		source: "user" | "assistant",
+		collect: boolean = false,
 	) {
 		// Ensure required parameters are provided
 		if (!taskId || !provider || !model || !source) {
@@ -212,10 +264,13 @@ class PostHogClient {
 			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 		}
 
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.CONVERSATION_TURN,
-			properties,
-		})
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.CONVERSATION_TURN,
+				properties,
+			},
+			collect,
+		)
 	}
 
 	/**
@@ -226,16 +281,19 @@ class PostHogClient {
 	 * @param tokensOut Number of output tokens generated
 	 * @param model The model used for token calculation
 	 */
-	public captureTokenUsage(taskId: string, tokensIn: number, tokensOut: number, model: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.TOKEN_USAGE,
-			properties: {
-				taskId,
-				tokensIn,
-				tokensOut,
-				model,
+	public captureTokenUsage(taskId: string, tokensIn: number, tokensOut: number, model: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.TOKEN_USAGE,
+				properties: {
+					taskId,
+					tokensIn,
+					tokensOut,
+					model,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -243,14 +301,17 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param mode The mode being switched to (plan or act)
 	 */
-	public captureModeSwitch(taskId: string, mode: "plan" | "act") {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.MODE_SWITCH,
-			properties: {
-				taskId,
-				mode,
+	public captureModeSwitch(taskId: string, mode: "plan" | "act", collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.MODE_SWITCH,
+				properties: {
+					taskId,
+					mode,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -258,15 +319,18 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
 	 */
-	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType) {
+	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType, collect: boolean = false) {
 		console.info("TelemetryService: Capturing task feedback", { taskId, feedbackType })
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.FEEDBACK,
-			properties: {
-				taskId,
-				feedbackType,
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.FEEDBACK,
+				properties: {
+					taskId,
+					feedbackType,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	// Tool events
@@ -277,16 +341,19 @@ class PostHogClient {
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 */
-	public captureToolUsage(taskId: string, tool: string, autoApproved: boolean, success: boolean) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.TOOL_USED,
-			properties: {
-				taskId,
-				tool,
-				autoApproved,
-				success,
+	public captureToolUsage(taskId: string, tool: string, autoApproved: boolean, success: boolean, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.TOOL_USED,
+				properties: {
+					taskId,
+					tool,
+					autoApproved,
+					success,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -299,15 +366,19 @@ class PostHogClient {
 		taskId: string,
 		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
 		durationMs?: number,
+		collect: boolean = false,
 	) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.CHECKPOINT_USED,
-			properties: {
-				taskId,
-				action,
-				durationMs,
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.CHECKPOINT_USED,
+				properties: {
+					taskId,
+					action,
+					durationMs,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	// UI events
@@ -318,16 +389,25 @@ class PostHogClient {
 	 * @param location Where the switch occurred (settings panel or bottom bar)
 	 * @param taskId Optional task identifier if switch occurred during a task
 	 */
-	public captureProviderSwitch(from: string, to: string, location: "settings" | "bottom", taskId?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.PROVIDER_SWITCH,
-			properties: {
-				from,
-				to,
-				location,
-				taskId,
+	public captureProviderSwitch(
+		from: string,
+		to: string,
+		location: "settings" | "bottom",
+		taskId?: string,
+		collect: boolean = false,
+	) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.PROVIDER_SWITCH,
+				properties: {
+					from,
+					to,
+					location,
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -335,14 +415,17 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param imageCount Number of images attached
 	 */
-	public captureImageAttached(taskId: string, imageCount: number) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.IMAGE_ATTACHED,
-			properties: {
-				taskId,
-				imageCount,
+	public captureImageAttached(taskId: string, imageCount: number, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.IMAGE_ATTACHED,
+				properties: {
+					taskId,
+					imageCount,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -350,66 +433,81 @@ class PostHogClient {
 	 * @param button Identifier for the button that was clicked
 	 * @param taskId Optional task identifier if click occurred during a task
 	 */
-	public captureButtonClick(button: string, taskId?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.BUTTON_CLICK,
-			properties: {
-				button,
-				taskId,
+	public captureButtonClick(button: string, taskId?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.BUTTON_CLICK,
+				properties: {
+					button,
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
 	 * Records when the marketplace view is opened
 	 * @param taskId Optional task identifier if marketplace was opened during a task
 	 */
-	public captureMarketplaceOpened(taskId?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.MARKETPLACE_OPENED,
-			properties: {
-				taskId,
+	public captureMarketplaceOpened(taskId?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.MARKETPLACE_OPENED,
+				properties: {
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
 	 * Records when the settings panel is opened
 	 * @param taskId Optional task identifier if settings were opened during a task
 	 */
-	public captureSettingsOpened(taskId?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.SETTINGS_OPENED,
-			properties: {
-				taskId,
+	public captureSettingsOpened(taskId?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.SETTINGS_OPENED,
+				properties: {
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
 	 * Records when the task history view is opened
 	 * @param taskId Optional task identifier if history was opened during a task
 	 */
-	public captureHistoryOpened(taskId?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.HISTORY_OPENED,
-			properties: {
-				taskId,
+	public captureHistoryOpened(taskId?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.HISTORY_OPENED,
+				properties: {
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
 	 * Records when a task is removed from the task history
 	 * @param taskId Unique identifier for the task being removed
 	 */
-	public captureTaskPopped(taskId: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.TASK_POPPED,
-			properties: {
-				taskId,
+	public captureTaskPopped(taskId: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.TASK_POPPED,
+				properties: {
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -417,14 +515,17 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
 	 */
-	public captureDiffEditFailure(taskId: string, errorType?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.DIFF_EDIT_FAILED,
-			properties: {
-				taskId,
-				errorType,
+	public captureDiffEditFailure(taskId: string, errorType?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.DIFF_EDIT_FAILED,
+				properties: {
+					taskId,
+					errorType,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -433,41 +534,50 @@ class PostHogClient {
 	 * @param provider Provider of the selected model
 	 * @param taskId Optional task identifier if model was selected during a task
 	 */
-	public captureModelSelected(model: string, provider: string, taskId?: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.MODEL_SELECTED,
-			properties: {
-				model,
-				provider,
-				taskId,
+	public captureModelSelected(model: string, provider: string, taskId?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.MODEL_SELECTED,
+				properties: {
+					model,
+					provider,
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
 	 * Records when a historical task is loaded from storage
 	 * @param taskId Unique identifier for the historical task
 	 */
-	public captureHistoricalTaskLoaded(taskId: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.HISTORICAL_LOADED,
-			properties: {
-				taskId,
+	public captureHistoricalTaskLoaded(taskId: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.HISTORICAL_LOADED,
+				properties: {
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
 	 * Records when the retry button is clicked for failed operations
 	 * @param taskId Unique identifier for the task being retried
 	 */
-	public captureRetryClicked(taskId: string) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
-			properties: {
-				taskId,
+	public captureRetryClicked(taskId: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
+				properties: {
+					taskId,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -475,17 +585,20 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param browserSettings The browser settings being used
 	 */
-	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
-			properties: {
-				taskId,
-				viewport: browserSettings.viewport,
-				isRemote: !!browserSettings.remoteBrowserEnabled,
-				remoteBrowserHost: browserSettings.remoteBrowserHost,
-				timestamp: new Date().toISOString(),
+	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
+				properties: {
+					taskId,
+					viewport: browserSettings.viewport,
+					isRemote: !!browserSettings.remoteBrowserEnabled,
+					remoteBrowserHost: browserSettings.remoteBrowserHost,
+					timestamp: new Date().toISOString(),
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -500,17 +613,21 @@ class PostHogClient {
 			duration: number
 			actions?: string[]
 		},
+		collect: boolean = false,
 	) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_END,
-			properties: {
-				taskId,
-				actionCount: stats.actionCount,
-				duration: stats.duration,
-				actions: stats.actions,
-				timestamp: new Date().toISOString(),
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_END,
+				properties: {
+					taskId,
+					actionCount: stats.actionCount,
+					duration: stats.duration,
+					actions: stats.actions,
+					timestamp: new Date().toISOString(),
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -530,17 +647,21 @@ class PostHogClient {
 			isRemote?: boolean
 			[key: string]: any
 		},
+		collect: boolean = false,
 	) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.BROWSER_ERROR,
-			properties: {
-				taskId,
-				errorType,
-				errorMessage,
-				context,
-				timestamp: new Date().toISOString(),
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.BROWSER_ERROR,
+				properties: {
+					taskId,
+					errorType,
+					errorMessage,
+					context,
+					timestamp: new Date().toISOString(),
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -549,15 +670,18 @@ class PostHogClient {
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the option was selected ("plan" or "act")
 	 */
-	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act") {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
-			properties: {
-				taskId,
-				qty,
-				mode,
+	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act", collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
+				properties: {
+					taskId,
+					qty,
+					mode,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -566,15 +690,18 @@ class PostHogClient {
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the custom response was provided ("plan" or "act")
 	 */
-	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act") {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.OPTIONS_IGNORED,
-			properties: {
-				taskId,
-				qty,
-				mode,
+	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act", collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.OPTIONS_IGNORED,
+				properties: {
+					taskId,
+					qty,
+					mode,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	/**
@@ -582,18 +709,50 @@ class PostHogClient {
 	 * @param model The name of the model the user has interacted with
 	 * @param isFavorited Whether the model is being favorited (true) or unfavorited (false)
 	 */
-	public captureModelFavoritesUsage(model: string, isFavorited: boolean) {
-		this.capture({
-			event: PostHogClient.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
-			properties: {
-				model,
-				isFavorited,
+	public captureModelFavoritesUsage(model: string, isFavorited: boolean, collect: boolean = false) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
+				properties: {
+					model,
+					isFavorited,
+				},
 			},
-		})
+			collect,
+		)
 	}
 
 	public isTelemetryEnabled(): boolean {
 		return this.telemetryEnabled
+	}
+
+	public async sendCollectedEvents(taskId?: string): Promise<void> {
+		if (this.collectedTasks.length > 0) {
+			if (taskId) {
+				const task = this.collectedTasks.find((t) => t.taskId === taskId)
+				if (task) {
+					this.capture(
+						{
+							event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
+							properties: { taskId, events: task.collection },
+						},
+						false,
+					)
+					this.collectedTasks = this.collectedTasks.filter((t) => t.taskId !== taskId)
+				}
+			} else {
+				for (const task of this.collectedTasks) {
+					this.capture(
+						{
+							event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
+							properties: { taskId: task.taskId, events: task.collection },
+						},
+						false,
+					)
+					this.collectedTasks = this.collectedTasks.filter((t) => t.taskId !== task.taskId)
+				}
+			}
+		}
 	}
 
 	public async shutdown(): Promise<void> {

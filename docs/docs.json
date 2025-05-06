@@ -1,0 +1,99 @@
+{
+	"$schema": "https://mintlify.com/docs.json",
+	"theme": "linden",
+	"name": "Cline",
+	"description": "AI-powered coding assistant for VSCode",
+	"colors": {
+		"primary": "#9D4EDD",
+		"light": "#F0E6FF",
+		"dark": "#000000"
+	},
+	"logo": {
+		"light": "/assets/robot_panel_light.png",
+		"dark": "/assets/robot_panel_dark.png"
+	},
+	"favicon": {
+		"light": "/assets/robot_panel_light.png",
+		"dark": "/assets/robot_panel_dark.png"
+	},
+	"background": {
+		"color": {
+			"light": "#F0E6FF",
+			"dark": "#000000"
+		},
+		"decoration": "gradient"
+	},
+	"styling": {
+		"eyebrows": "breadcrumbs",
+		"codeblocks": "system"
+	},
+	"appearance": {
+		"default": "system",
+		"strict": false
+	},
+	"fonts": {
+		"family": "Roboto",
+		"weight": 400
+	},
+	"navbar": {
+		"links": [
+			{
+				"label": "GitHub",
+				"href": "https://github.com/cline/cline"
+			},
+			{
+				"label": "Discord",
+				"href": "https://discord.gg/cline"
+			}
+		],
+		"primary": {
+			"type": "button",
+			"label": "Install Cline",
+			"href": "https://cline.bot/install?utm_source=website&utm_medium=header"
+		}
+	},
+	"navigation": {
+		"groups": [
+			{
+				"group": "Getting Started",
+				"pages": [
+					"getting-started/for-new-coders",
+					"getting-started/installing-cline",
+					"getting-started/installing-dev-essentials",
+					"getting-started/model-selection-guide",
+					"getting-started/our-favorite-tech-stack",
+					"getting-started/understanding-context-management",
+					"getting-started/what-is-cline"
+				]
+			},
+			{
+				"group": "Exploring Cline's Tools",
+				"pages": [
+					"exploring-clines-tools/cline-tools-guide",
+					"exploring-clines-tools/plan-and-act-modes-a-guide-to-effective-ai-development",
+					"exploring-clines-tools/checkpoints",
+					"exploring-clines-tools/new-task-tool",
+					"exploring-clines-tools/remote-browser-support",
+					"exploring-clines-tools/slash-commands"
+				]
+			},
+			{
+				"group": "Improving Your Prompting Skills",
+				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
+			}
+		]
+	},
+	"footer": {
+		"socials": {
+			"x": "https://x.com/cline",
+			"github": "https://github.com/cline/cline",
+			"discord": "https://discord.gg/cline"
+		}
+	},
+	"search": {
+		"prompt": "Search Cline documentation..."
+	},
+	"contextual": {
+		"options": ["copy"]
+	}
+}

@@ -1,9 +1,10 @@
-import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect, useCallback } from "react"
 import Fuse, { FuseResult } from "fuse.js"
+import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber } from "@/utils/format"
 import { formatSize } from "@/utils/format"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
@@ -22,6 +23,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
+	const [selectedItems, setSelectedItems] = useState<string[]>([])
 
 	const handleMessage = useCallback((event: MessageEvent<ExtensionMessage>) => {
 		if (event.data.type === "relinquishControl") {
@@ -45,12 +47,29 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
-	const handleHistorySelect = useCallback((id: string) => {
+	const handleShowTaskWithId = useCallback((id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}, [])
 
+	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {
+		setSelectedItems((prev) => {
+			if (checked) {
+				return [...prev, itemId]
+			} else {
+				return prev.filter((id) => id !== itemId)
+			}
+		})
+	}, [])
+
 	const handleDeleteHistoryItem = useCallback((id: string) => {
-		vscode.postMessage({ type: "deleteTaskWithId", text: id })
+		TaskServiceClient.deleteTasksWithIds({ value: [id] })
+	}, [])
+
+	const handleDeleteSelectedHistoryItems = useCallback((ids: string[]) => {
+		if (ids.length > 0) {
+			TaskServiceClient.deleteTasksWithIds({ value: ids })
+			setSelectedItems([])
+		}
 	}, [])
 
 	const formatDate = useCallback((timestamp: number) => {
@@ -112,6 +131,24 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 		return results
 	}, [presentableTasks, searchQuery, fuse, sortOption])
+
+	// Calculate total size of selected items
+	const selectedItemsSize = useMemo(() => {
+		if (selectedItems.length === 0) return 0
+
+		return taskHistory.filter((item) => selectedItems.includes(item.id)).reduce((total, item) => total + (item.size || 0), 0)
+	}, [selectedItems, taskHistory])
+
+	const handleBatchHistorySelect = useCallback(
+		(selectAll: boolean) => {
+			if (selectAll) {
+				setSelectedItems(taskHistorySearchResults.map((item) => item.id))
+			} else {
+				setSelectedItems([])
+			}
+		},
+		[taskHistorySearchResults],
+	)
 
 	return (
 		<>
@@ -216,6 +253,20 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								Most Relevant
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
+						<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+							<VSCodeButton
+								onClick={() => {
+									handleBatchHistorySelect(true)
+								}}>
+								Select All
+							</VSCodeButton>
+							<VSCodeButton
+								onClick={() => {
+									handleBatchHistorySelect(false)
+								}}>
+								Select None
+							</VSCodeButton>
+						</div>
 					</div>
 				</div>
 				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
@@ -249,16 +300,28 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									cursor: "pointer",
 									borderBottom:
 										index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
-								}}
-								onClick={() => handleHistorySelect(item.id)}>
+									display: "flex",
+								}}>
+								<VSCodeCheckbox
+									className="pl-3 pr-1 py-auto"
+									checked={selectedItems.includes(item.id)}
+									onClick={(e) => {
+										const checked = (e.target as HTMLInputElement).checked
+										handleHistorySelect(item.id, checked)
+										e.stopPropagation()
+									}}
+								/>
 								<div
 									style={{
 										display: "flex",
 										flexDirection: "column",
 										gap: "8px",
 										padding: "12px 20px",
+										paddingLeft: "16px",
 										position: "relative",
-									}}>
+										flexGrow: 1,
+									}}
+									onClick={() => handleShowTaskWithId(item.id)}>
 									<div
 										style={{
 											display: "flex",
@@ -468,15 +531,26 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						padding: "10px 10px",
 						borderTop: "1px solid var(--vscode-panel-border)",
 					}}>
-					<DangerButton
-						style={{ width: "100%" }}
-						disabled={deleteAllDisabled || taskHistory.length === 0}
-						onClick={() => {
-							setDeleteAllDisabled(true)
-							vscode.postMessage({ type: "clearAllTaskHistory" })
-						}}>
-						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
-					</DangerButton>
+					{selectedItems.length > 0 ? (
+						<DangerButton
+							style={{ width: "100%" }}
+							onClick={() => {
+								handleDeleteSelectedHistoryItems(selectedItems)
+							}}>
+							Delete {selectedItems.length > 1 ? selectedItems.length : ""} Selected
+							{selectedItemsSize > 0 ? ` (${formatSize(selectedItemsSize)})` : ""}
+						</DangerButton>
+					) : (
+						<DangerButton
+							style={{ width: "100%" }}
+							disabled={deleteAllDisabled || taskHistory.length === 0}
+							onClick={() => {
+								setDeleteAllDisabled(true)
+								vscode.postMessage({ type: "clearAllTaskHistory" })
+							}}>
+							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
+						</DangerButton>
+					)}
 				</div>
 			</div>
 		</>
