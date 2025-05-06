@@ -103,7 +103,7 @@ class PostHogClient {
 	/** Current version of the extension */
 	private readonly version: string = extensionVersion
 	/** Whether the extension is running in development mode */
-	private readonly isDev = process.env.IS_DEV
+	private readonly isDev = process.env.IS_DEV === "true"
 
 	/**
 	 * Private constructor to enforce singleton pattern
