@@ -88,7 +88,30 @@ export async function createOpenRouterStream(
 				],
 			}
 
-			const GEMINI_CACHE_USER_MESSAGE_INTERVAL = 4 // add new breakpoint every 4 turns
+			// for safety, but this should always be the case
+			if (openAiMessages.length >= 2) {
+				const msg = openAiMessages[1]
+
+				if (msg) {
+					if (typeof msg.content === "string") {
+						msg.content = [{ type: "text", text: msg.content }]
+					}
+					if (Array.isArray(msg.content)) {
+						// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
+						let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+
+						if (!lastTextPart) {
+							lastTextPart = { type: "text", text: "..." }
+							msg.content.push(lastTextPart)
+						}
+						// @ts-ignore-next-line
+						lastTextPart["cache_control"] = { type: "ephemeral" }
+					}
+				}
+			}
+
+			// it doesn't make sense to alter breakpoints at all with the gemini cache implementation at this time
+			/*const GEMINI_CACHE_USER_MESSAGE_INTERVAL = 4 // add new breakpoint every 4 turns
 			const userMessages = openAiMessages.filter((msg) => msg.role === "user")
 
 			const userMessageCount = userMessages.length
@@ -115,7 +138,7 @@ export async function createOpenRouterStream(
 						lastTextPart["cache_control"] = { type: "ephemeral" }
 					}
 				}
-			}
+			}*/
 			break
 		default:
 			break
