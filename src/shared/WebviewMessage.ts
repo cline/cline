@@ -67,9 +67,12 @@ export interface WebviewMessage {
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleClineRule"
+		| "toggleCursorRule"
+		| "toggleWindsurfRule"
 		| "deleteClineRule"
 		| "copyToClipboard"
 		| "updateTerminalConnectionTimeout"
+		| "setActiveQuote"
 
 	// | "relaunchChromeDebugMode"
 	text?: string
