@@ -101,6 +101,18 @@
 					"custom-model-configs/gcp-vertex-ai",
 					"custom-model-configs/litellm-and-cline-using-codestral"
 				]
+			},
+			{
+				"group": "Model Context Protocol (MCP)",
+				"pages": [
+					"mcp/mcp-overview",
+					"mcp/adding-mcp-servers-from-github",
+					"mcp/configuring-mcp-servers",
+					"mcp/connecting-to-a-remote-server",
+					"mcp/mcp-marketplace",
+					"mcp/mcp-server-development-protocol",
+					"mcp/mcp-transport-mechanisms"
+				]
 			}
 		]
 	},
