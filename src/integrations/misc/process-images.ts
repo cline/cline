@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import fs from "fs/promises"
 import * as path from "path"
+import sizeOf from "image-size"
 
 export async function selectImages(): Promise<string[]> {
 	const options: vscode.OpenDialogOptions = {
@@ -17,16 +18,39 @@ export async function selectImages(): Promise<string[]> {
 		return []
 	}
 
-	return await Promise.all(
-		fileUris.map(async (uri) => {
-			const imagePath = uri.fsPath
-			const buffer = await fs.readFile(imagePath)
-			const base64 = buffer.toString("base64")
-			const mimeType = getMimeType(imagePath)
-			const dataUrl = `data:${mimeType};base64,${base64}`
-			return dataUrl
-		}),
-	)
+	const processedImagePromises = fileUris.map(async (uri) => {
+		const imagePath = uri.fsPath
+		let buffer: Buffer
+		try {
+			// Read the file into a buffer first
+			buffer = await fs.readFile(imagePath)
+			// Convert Node.js Buffer to Uint8Array
+			const uint8Array = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+			const dimensions = sizeOf(uint8Array) // Get dimensions from Uint8Array
+			if (dimensions.width! > 200 || dimensions.height! > 200) {
+				// Corrected to 8000px
+				console.warn(`Image dimensions exceed 8000px, skipping: ${imagePath}`)
+				// Notify user
+				vscode.window.showErrorMessage(
+					`Image too large: ${path.basename(imagePath)} was skipped (dimensions exceed 8000px).`,
+				)
+				return null // Mark for filtering
+			}
+		} catch (error) {
+			console.error(`Error reading file or getting dimensions for ${imagePath}:`, error)
+			// Notify user
+			vscode.window.showErrorMessage(`Could not read dimensions for ${path.basename(imagePath)}, skipping.`)
+			return null // Mark for filtering
+		}
+
+		// If dimensions are valid, proceed to convert the existing buffer to base64
+		const base64 = buffer.toString("base64")
+		const mimeType = getMimeType(imagePath) // Assuming getMimeType is defined in the file
+		return `data:${mimeType};base64,${base64}`
+	})
+
+	const dataUrlsWithNulls = await Promise.all(processedImagePromises)
+	return dataUrlsWithNulls.filter((url) => url !== null) as string[] // Filter out skipped images
 }
 
 function getMimeType(filePath: string): string {
