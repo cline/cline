@@ -625,10 +625,7 @@ const CodeBlock = memo(
 							<LanguageSelect
 								value={currentLanguage}
 								style={{
-									alignContent: "middle",
-									width: `${Math.max(3, (currentLanguage?.length || 5) + 1)}ch`,
-									textAlign: "right",
-									marginRight: 0,
+									width: `calc(${currentLanguage?.length || 0}ch + 9px)`,
 								}}
 								onClick={(e) => {
 									e.currentTarget.focus()
