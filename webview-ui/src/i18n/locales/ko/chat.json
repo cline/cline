@@ -233,6 +233,15 @@
 			"close": "브라우저 닫기"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "코드 블록 확장",
+			"collapse": "코드 블록 축소",
+			"enable_wrap": "자동 줄바꿈 활성화",
+			"disable_wrap": "자동 줄바꿈 비활성화",
+			"copy_code": "코드 복사"
+		}
+	},
 	"systemPromptWarning": "경고: 사용자 정의 시스템 프롬프트 재정의가 활성화되었습니다. 이로 인해 기능이 심각하게 손상되고 예측할 수 없는 동작이 발생할 수 있습니다.",
 	"shellIntegration": {
 		"title": "명령 실행 경고",

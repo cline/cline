@@ -233,6 +233,15 @@
 			"close": "Fechar navegador"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Expandir bloco de código",
+			"collapse": "Recolher bloco de código",
+			"enable_wrap": "Ativar quebra de linha",
+			"disable_wrap": "Desativar quebra de linha",
+			"copy_code": "Copiar código"
+		}
+	},
 	"systemPromptWarning": "AVISO: Substituição personalizada de instrução do sistema ativa. Isso pode comprometer gravemente a funcionalidade e causar comportamento imprevisível.",
 	"shellIntegration": {
 		"title": "Aviso de execução de comando",

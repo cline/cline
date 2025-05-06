@@ -233,6 +233,15 @@
 			"close": "Tancar navegador"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Expandir bloc de codi",
+			"collapse": "Contraure bloc de codi",
+			"enable_wrap": "Activar ajustament de línia",
+			"disable_wrap": "Desactivar ajustament de línia",
+			"copy_code": "Copiar codi"
+		}
+	},
 	"systemPromptWarning": "ADVERTÈNCIA: S'ha activat una substitució personalitzada d'instruccions del sistema. Això pot trencar greument la funcionalitat i causar un comportament impredictible.",
 	"shellIntegration": {
 		"title": "Advertència d'execució d'ordres",

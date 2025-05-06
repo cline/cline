@@ -4,6 +4,8 @@ import { useCopyToClipboard } from "@src/utils/clipboard"
 import { getHighlighter, isLanguageLoaded, normalizeLanguage, ExtendedLanguage } from "@src/utils/highlighter"
 import { bundledLanguages } from "shiki"
 import type { ShikiTransformer } from "shiki"
+import { ChevronDown, ChevronUp, WrapText, AlignJustify, Copy, Check } from "lucide-react"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
 export const WRAPPER_ALPHA = "cc" // 80% opacity
 // Configuration constants
@@ -34,13 +36,6 @@ interface CodeBlockProps {
 	onLanguageChange?: (language: string) => void
 }
 
-const ButtonIcon = styled.span`
-	display: inline-block;
-	width: 1.2em;
-	text-align: center;
-	vertical-align: middle;
-`
-
 const CodeBlockButton = styled.button`
 	background: transparent;
 	border: none;
@@ -50,15 +45,22 @@ const CodeBlockButton = styled.button`
 	margin: 0 0px;
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	opacity: 0.4;
 	border-radius: 3px;
 	pointer-events: var(--copy-button-events, none);
 	margin-left: 4px;
 	height: 24px;
+	width: 24px;
 
 	&:hover {
 		background: var(--vscode-toolbar-hoverBackground);
 		opacity: 1;
+	}
+
+	/* Style for Lucide icons to ensure consistent sizing and positioning */
+	svg {
+		display: block;
 	}
 `
 
@@ -229,6 +231,7 @@ const CodeBlock = memo(
 		const preRef = useRef<HTMLDivElement>(null)
 		const copyButtonWrapperRef = useRef<HTMLDivElement>(null)
 		const { showCopyFeedback, copyWithFeedback } = useCopyToClipboard()
+		const { t } = useAppTranslation()
 
 		// Update current language when prop changes, but only if user hasn't made a selection
 		useEffect(() => {
@@ -696,19 +699,17 @@ const CodeBlock = memo(
 										WINDOW_SHADE_SETTINGS.transitionDelayS * 1000 + 50,
 									)
 								}}
-								title={`${windowShade ? "Expand" : "Collapse"} code block`}>
-								<ButtonIcon style={{ fontSize: "16px" }}>{windowShade ? "⌄" : "⌃"}</ButtonIcon>
+								title={t(`chat:codeblock.tooltips.${windowShade ? "expand" : "collapse"}`)}>
+								{windowShade ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
 							</CodeBlockButton>
 						)}
 						<CodeBlockButton
 							onClick={() => setWordWrap(!wordWrap)}
-							title={`${wordWrap ? "Disable" : "Enable"} word wrap`}>
-							<ButtonIcon style={{ fontSize: "16px", fontWeight: 900 }}>
-								{wordWrap ? "⟼" : "⤸"}
-							</ButtonIcon>
+							title={t(`chat:codeblock.tooltips.${wordWrap ? "disable_wrap" : "enable_wrap"}`)}>
+							{wordWrap ? <AlignJustify size={16} /> : <WrapText size={16} />}
 						</CodeBlockButton>
-						<CodeBlockButton onClick={handleCopy} title="Copy code">
-							<ButtonIcon className={`codicon codicon-${showCopyFeedback ? "check" : "copy"}`} />
+						<CodeBlockButton onClick={handleCopy} title={t("chat:codeblock.tooltips.copy_code")}>
+							{showCopyFeedback ? <Check size={16} /> : <Copy size={16} />}
 						</CodeBlockButton>
 					</CodeBlockButtonWrapper>
 				)}

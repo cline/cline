@@ -2,6 +2,23 @@ import { render, screen, fireEvent, act } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import CodeBlock from "../CodeBlock"
 
+// Mock the translation context
+jest.mock("../../../i18n/TranslationContext", () => ({
+	useAppTranslation: () => ({
+		t: (key: string) => {
+			// Return fixed English strings for tests
+			const translations: { [key: string]: string } = {
+				"chat:codeblock.tooltips.copy_code": "Copy code",
+				"chat:codeblock.tooltips.expand": "Expand code block",
+				"chat:codeblock.tooltips.collapse": "Collapse code block",
+				"chat:codeblock.tooltips.enable_wrap": "Enable word wrap",
+				"chat:codeblock.tooltips.disable_wrap": "Disable word wrap",
+			}
+			return translations[key] || key
+		},
+	}),
+}))
+
 // Mock shiki module
 jest.mock("shiki", () => ({
 	bundledLanguages: {
@@ -10,6 +27,22 @@ jest.mock("shiki", () => ({
 		txt: {},
 	},
 }))
+
+// Mock all lucide-react icons with a proxy to handle any icon requested
+jest.mock("lucide-react", () => {
+	return new Proxy(
+		{},
+		{
+			get: function (obj, prop) {
+				// Return a component factory for any icon that's requested
+				if (prop === "__esModule") {
+					return true
+				}
+				return () => <div data-testid={`${String(prop)}-icon`}>{String(prop)}</div>
+			},
+		},
+	)
+})
 
 // Mock the highlighter utility
 jest.mock("../../../utils/highlighter", () => {

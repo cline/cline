@@ -233,6 +233,15 @@
 			"close": "Tarayıcıyı kapat"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Kod bloğunu genişlet",
+			"collapse": "Kod bloğunu daralt",
+			"enable_wrap": "Satır kaydırmayı etkinleştir",
+			"disable_wrap": "Satır kaydırmayı devre dışı bırak",
+			"copy_code": "Kodu kopyala"
+		}
+	},
 	"systemPromptWarning": "UYARI: Özel sistem komut geçersiz kılma aktif. Bu işlevselliği ciddi şekilde bozabilir ve öngörülemeyen davranışlara neden olabilir.",
 	"shellIntegration": {
 		"title": "Komut Çalıştırma Uyarısı",

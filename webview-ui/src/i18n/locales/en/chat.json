@@ -233,6 +233,15 @@
 			"close": "Close browser"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Expand code block",
+			"collapse": "Collapse code block",
+			"enable_wrap": "Enable word wrap",
+			"disable_wrap": "Disable word wrap",
+			"copy_code": "Copy code"
+		}
+	},
 	"systemPromptWarning": "WARNING: Custom system prompt override active. This can severely break functionality and cause unpredictable behavior.",
 	"shellIntegration": {
 		"title": "Command Execution Warning",

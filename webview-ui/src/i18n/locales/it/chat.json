@@ -233,6 +233,15 @@
 			"close": "Chiudi browser"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Espandi blocco di codice",
+			"collapse": "Comprimi blocco di codice",
+			"enable_wrap": "Attiva a capo automatico",
+			"disable_wrap": "Disattiva a capo automatico",
+			"copy_code": "Copia codice"
+		}
+	},
 	"systemPromptWarning": "ATTENZIONE: Sovrascrittura personalizzata delle istruzioni di sistema attiva. Questo può compromettere gravemente le funzionalità e causare comportamenti imprevedibili.",
 	"shellIntegration": {
 		"title": "Avviso di esecuzione comando",

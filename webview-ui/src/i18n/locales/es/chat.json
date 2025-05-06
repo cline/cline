@@ -233,6 +233,15 @@
 			"close": "Cerrar navegador"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Expandir bloque de código",
+			"collapse": "Contraer bloque de código",
+			"enable_wrap": "Activar ajuste de línea",
+			"disable_wrap": "Desactivar ajuste de línea",
+			"copy_code": "Copiar código"
+		}
+	},
 	"systemPromptWarning": "ADVERTENCIA: Anulación de instrucciones del sistema personalizada activa. Esto puede romper gravemente la funcionalidad y causar un comportamiento impredecible.",
 	"shellIntegration": {
 		"title": "Advertencia de ejecución de comandos",

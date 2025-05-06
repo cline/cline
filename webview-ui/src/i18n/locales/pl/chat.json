@@ -233,6 +233,15 @@
 			"close": "Zamknij przeglądarkę"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Rozwiń blok kodu",
+			"collapse": "Zwiń blok kodu",
+			"enable_wrap": "Włącz zawijanie wierszy",
+			"disable_wrap": "Wyłącz zawijanie wierszy",
+			"copy_code": "Kopiuj kod"
+		}
+	},
 	"systemPromptWarning": "OSTRZEŻENIE: Aktywne niestandardowe zastąpienie instrukcji systemowych. Może to poważnie zakłócić funkcjonalność i powodować nieprzewidywalne zachowanie.",
 	"shellIntegration": {
 		"title": "Ostrzeżenie wykonania polecenia",

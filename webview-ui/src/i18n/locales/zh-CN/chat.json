@@ -233,6 +233,15 @@
 			"close": "关闭浏览器"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "展开代码块",
+			"collapse": "收起代码块",
+			"enable_wrap": "启用自动换行",
+			"disable_wrap": "禁用自动换行",
+			"copy_code": "复制代码"
+		}
+	},
 	"systemPromptWarning": "警告：自定义系统提示词覆盖已激活。这可能严重破坏功能并导致不可预测的行为。",
 	"shellIntegration": {
 		"title": "命令执行警告",

@@ -233,6 +233,15 @@
 			"close": "Fermer le navigateur"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "Développer le bloc de code",
+			"collapse": "Réduire le bloc de code",
+			"enable_wrap": "Activer le retour à la ligne",
+			"disable_wrap": "Désactiver le retour à la ligne",
+			"copy_code": "Copier le code"
+		}
+	},
 	"systemPromptWarning": "AVERTISSEMENT : Remplacement d'instructions système personnalisées actif. Cela peut gravement perturber la fonctionnalité et provoquer un comportement imprévisible.",
 	"shellIntegration": {
 		"title": "Avertissement d'exécution de commande",

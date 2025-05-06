@@ -233,6 +233,15 @@
 			"close": "關閉瀏覽器"
 		}
 	},
+	"codeblock": {
+		"tooltips": {
+			"expand": "展開程式碼區塊",
+			"collapse": "摺疊程式碼區塊",
+			"enable_wrap": "啟用自動換行",
+			"disable_wrap": "停用自動換行",
+			"copy_code": "複製程式碼"
+		}
+	},
 	"systemPromptWarning": "警告：自訂系統提示詞覆蓋已啟用。這可能嚴重破壞功能並導致不可預測的行為。",
 	"shellIntegration": {
 		"title": "命令執行警告",
