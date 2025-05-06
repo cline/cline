@@ -434,11 +434,12 @@ export function activate(context: vscode.ExtensionContext) {
 const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
 
 // This method is called when your extension is deactivated
-export function deactivate() {
+export async function deactivate() {
+	await telemetryService.sendCollectedEvents()
+
 	// Clean up test mode
 	cleanupTestMode()
-
-	telemetryService.shutdown()
+	await telemetryService.shutdown()
 	Logger.log("Cline extension deactivated")
 }
 
