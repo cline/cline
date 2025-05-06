@@ -6,6 +6,7 @@ import { CheckpointsServiceDefinition } from "@shared/proto/checkpoints"
 import { EmptyRequest } from "@shared/proto/common"
 import { FileServiceDefinition } from "@shared/proto/file"
 import { McpServiceDefinition } from "@shared/proto/mcp"
+import { ModelsServiceDefinition } from "@shared/proto/models"
 import { TaskServiceDefinition } from "@shared/proto/task"
 import { WebContentServiceDefinition } from "@shared/proto/web_content"
 // Generic type for any protobuf service definition
@@ -102,6 +103,7 @@ const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
 const CheckpointsServiceClient = createGrpcClient(CheckpointsServiceDefinition)
 const FileServiceClient = createGrpcClient(FileServiceDefinition)
 const McpServiceClient = createGrpcClient(McpServiceDefinition)
+const ModelsServiceClient = createGrpcClient(ModelsServiceDefinition)
 const TaskServiceClient = createGrpcClient(TaskServiceDefinition)
 const WebContentServiceClient = createGrpcClient(WebContentServiceDefinition)
 
@@ -112,5 +114,6 @@ export {
 	FileServiceClient,
 	TaskServiceClient,
 	McpServiceClient,
+	ModelsServiceClient,
 	WebContentServiceClient,
 }

@@ -327,27 +327,11 @@ export class Controller {
 					images,
 				})
 				break
-			case "exportCurrentTask":
-				const currentTaskId = this.task?.taskId
-				if (currentTaskId) {
-					this.exportTaskWithId(currentTaskId)
-				}
-				break
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
 				break
-			case "exportTaskWithId":
-				this.exportTaskWithId(message.text!)
-				break
 			case "resetState":
 				await this.resetState()
-				break
-			case "requestOllamaModels":
-				const ollamaModels = await this.getOllamaModels(message.text)
-				this.postMessageToWebview({
-					type: "ollamaModels",
-					ollamaModels,
-				})
 				break
 			case "requestLmStudioModels":
 				const lmStudioModels = await this.getLmStudioModels(message.text)
@@ -642,49 +626,6 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
-			case "searchFiles": {
-				const workspacePath = getWorkspacePath()
-
-				if (!workspacePath) {
-					// Handle case where workspace path is not available
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results: [],
-						mentionsRequestId: message.mentionsRequestId,
-						error: "No workspace path available",
-					})
-					break
-				}
-				try {
-					// Call file search service with query from message
-					const results = await searchWorkspaceFiles(
-						message.query || "",
-						workspacePath,
-						20, // Use default limit, as filtering is now done in the backend
-					)
-
-					// debug logging to be removed
-					//console.log(`controller/index.ts: Search results: ${results.length}`)
-
-					// Send results back to webview
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results,
-						mentionsRequestId: message.mentionsRequestId,
-					})
-				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : String(error)
-
-					// Send error response to webview
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results: [],
-						error: errorMessage,
-						mentionsRequestId: message.mentionsRequestId,
-					})
-				}
-				break
-			}
 			case "toggleFavoriteModel": {
 				if (message.modelId) {
 					const { apiConfiguration } = await getAllExtensionState(this.context)
@@ -956,25 +897,6 @@ export class Controller {
 			return models || []
 		} catch (error) {
 			console.error("Error fetching VS Code LM models:", error)
-			return []
-		}
-	}
-
-	// Ollama
-
-	async getOllamaModels(baseUrl?: string) {
-		try {
-			if (!baseUrl) {
-				baseUrl = "http://localhost:11434"
-			}
-			if (!URL.canParse(baseUrl)) {
-				return []
-			}
-			const response = await axios.get(`${baseUrl}/api/tags`)
-			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
-			const models = [...new Set<string>(modelsArray)]
-			return models
-		} catch (error) {
 			return []
 		}
 	}
