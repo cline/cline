@@ -1,10 +1,10 @@
 import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
-import { version as extensionVersion } from "../../../package.json"
+import { version as extensionVersion } from "../../../../package.json"
 
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
-import { posthogConfig } from "@/shared/services/config/posthog-config"
+import { posthogClientProvider } from "../PostHogClientProvider"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
@@ -111,10 +111,7 @@ class PostHogClient {
 	 * Initializes PostHog client with configuration
 	 */
 	private constructor() {
-		this.client = new PostHog(posthogConfig.apiKey, {
-			host: posthogConfig.host,
-			enableExceptionAutocapture: false,
-		})
+		this.client = posthogClientProvider.getClient()
 	}
 
 	/**
