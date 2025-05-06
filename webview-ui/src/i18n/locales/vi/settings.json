@@ -118,6 +118,8 @@
 		"headerValue": "Giá trị tiêu đề",
 		"noCustomHeaders": "Chưa có tiêu đề tùy chỉnh nào được định nghĩa. Nhấp vào nút + để thêm.",
 		"requestyApiKey": "Khóa API Requesty",
+		"flushModelsCache": "Xóa bộ nhớ đệm mô hình",
+		"flushedModelsCache": "Đã xóa bộ nhớ đệm, vui lòng mở lại chế độ xem cài đặt",
 		"getRequestyApiKey": "Lấy khóa API Requesty",
 		"anthropicApiKey": "Khóa API Anthropic",
 		"getAnthropicApiKey": "Lấy khóa API Anthropic",

@@ -22,9 +22,9 @@ import {
 	useOpenRouterModelProviders,
 	OPENROUTER_DEFAULT_PROVIDER_NAME,
 } from "@src/components/ui/hooks/useOpenRouterModelProviders"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Button } from "@src/components/ui"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"
-import { getRequestyAuthUrl, getGlamaAuthUrl } from "@src/oauth/urls"
+import { getRequestyApiKeyUrl, getGlamaAuthUrl } from "@src/oauth/urls"
 
 // Providers
 import { Anthropic } from "./providers/Anthropic"
@@ -74,6 +74,8 @@ const ApiOptions = ({
 		const headers = apiConfiguration?.openAiHeaders || {}
 		return Object.entries(headers)
 	})
+
+	const [requestyShowRefreshHint, setRequestyShowRefreshHint] = useState<boolean>()
 
 	useEffect(() => {
 		const propHeaders = apiConfiguration?.openAiHeaders || {}
@@ -138,7 +140,7 @@ const ApiOptions = ({
 		info: selectedModelInfo,
 	} = useSelectedModel(apiConfiguration)
 
-	const { data: routerModels } = useRouterModels()
+	const { data: routerModels, refetch: refetchRouterModels } = useRouterModels()
 
 	// Update apiConfiguration.aiModelId whenever selectedModelId changes.
 	useEffect(() => {
@@ -373,12 +375,27 @@ const ApiOptions = ({
 						{t("settings:providers.apiKeyStorageNotice")}
 					</div>
 					{!apiConfiguration?.requestyApiKey && (
-						<VSCodeButtonLink
-							href={getRequestyAuthUrl(uriScheme)}
-							style={{ width: "100%" }}
-							appearance="primary">
+						<VSCodeButtonLink href={getRequestyApiKeyUrl()} style={{ width: "100%" }} appearance="primary">
 							{t("settings:providers.getRequestyApiKey")}
 						</VSCodeButtonLink>
+					)}
+					<Button
+						variant="outline"
+						title={t("settings:providers.refetchModels")}
+						onClick={() => {
+							vscode.postMessage({ type: "flushRouterModels", text: "requesty" })
+							refetchRouterModels()
+							setRequestyShowRefreshHint(true)
+						}}>
+						<div className="flex items-center gap-2">
+							<span className="codicon codicon-refresh" />
+							{t("settings:providers.flushModelsCache")}
+						</div>
+					</Button>
+					{requestyShowRefreshHint && (
+						<div className="flex items-center text-vscode-errorForeground">
+							{t("settings:providers.flushedModelsCache")}
+						</div>
 					)}
 				</>
 			)}

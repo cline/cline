@@ -106,6 +106,8 @@
 		"awsCustomArnUse": "Kullanmak istediğiniz model için geçerli bir Amazon Bedrock ARN'si girin. Format örnekleri:",
 		"awsCustomArnDesc": "ARN içindeki bölgenin yukarıda seçilen AWS Bölgesiyle eşleştiğinden emin olun.",
 		"openRouterApiKey": "OpenRouter API Anahtarı",
+		"flushModelsCache": "Model önbelleğini temizle",
+		"flushedModelsCache": "Önbellek temizlendi, lütfen ayarlar görünümünü yeniden açın",
 		"getOpenRouterApiKey": "OpenRouter API Anahtarı Al",
 		"apiKeyStorageNotice": "API anahtarları VSCode'un Gizli Depolamasında güvenli bir şekilde saklanır",
 		"glamaApiKey": "Glama API Anahtarı",

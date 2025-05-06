@@ -119,6 +119,8 @@
 		"glamaApiKey": "Clau API de Glama",
 		"getGlamaApiKey": "Obtenir clau API de Glama",
 		"requestyApiKey": "Clau API de Requesty",
+		"flushModelsCache": "Netejar memòria cau de models",
+		"flushedModelsCache": "Memòria cau netejada, si us plau torna a obrir la vista de configuració",
 		"getRequestyApiKey": "Obtenir clau API de Requesty",
 		"anthropicApiKey": "Clau API d'Anthropic",
 		"getAnthropicApiKey": "Obtenir clau API d'Anthropic",

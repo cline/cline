@@ -106,6 +106,8 @@
 		"awsCustomArnUse": "Entrez un ARN Amazon Bedrock valide pour le modèle que vous souhaitez utiliser. Exemples de format :",
 		"awsCustomArnDesc": "Assurez-vous que la région dans l'ARN correspond à la région AWS sélectionnée ci-dessus.",
 		"openRouterApiKey": "Clé API OpenRouter",
+		"flushModelsCache": "Vider le cache des modèles",
+		"flushedModelsCache": "Cache vidé, veuillez rouvrir la vue des paramètres",
 		"getOpenRouterApiKey": "Obtenir la clé API OpenRouter",
 		"apiKeyStorageNotice": "Les clés API sont stockées en toute sécurité dans le stockage sécurisé de VSCode",
 		"glamaApiKey": "Clé API Glama",

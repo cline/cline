@@ -1,11 +1,19 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-
-import { ModelInfo, ModelRecord, requestyDefaultModelId, requestyDefaultModelInfo } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	ModelRecord,
+	requestyDefaultModelId,
+	requestyDefaultModelInfo,
+} from "../../shared/api"
+import { convertToOpenAiMessages } from "../transform/openai-format"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import { OpenAiHandler, OpenAiHandlerOptions } from "./openai"
+import { SingleCompletionHandler } from "../"
+import { BaseProvider } from "./base-provider"
+import { DEFAULT_HEADERS } from "./constants"
 import { getModels } from "./fetchers/cache"
+import OpenAI from "openai"
 
 // Requesty usage includes an extra field for Anthropic use cases.
 // Safely cast the prompt token details section to the appropriate structure.
@@ -17,25 +25,28 @@ interface RequestyUsage extends OpenAI.CompletionUsage {
 	total_cost?: number
 }
 
-export class RequestyHandler extends OpenAiHandler {
+type RequestyChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {}
+
+export class RequestyHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	protected models: ModelRecord = {}
+	private client: OpenAI
 
-	constructor(options: OpenAiHandlerOptions) {
-		if (!options.requestyApiKey) {
-			throw new Error("Requesty API key is required. Please provide it in the settings.")
-		}
+	constructor(options: ApiHandlerOptions) {
+		super()
+		this.options = options
 
-		super({
-			...options,
-			openAiApiKey: options.requestyApiKey,
-			openAiModelId: options.requestyModelId ?? requestyDefaultModelId,
-			openAiBaseUrl: "https://router.requesty.ai/v1",
-		})
+		const apiKey = this.options.requestyApiKey ?? "not-provided"
+		const baseURL = "https://router.requesty.ai/v1"
+
+		const defaultHeaders = DEFAULT_HEADERS
+
+		this.client = new OpenAI({ baseURL, apiKey, defaultHeaders })
 	}
 
-	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	public async fetchModel() {
 		this.models = await getModels("requesty")
-		yield* super.createMessage(systemPrompt, messages)
+		return this.getModel()
 	}
 
 	override getModel(): { id: string; info: ModelInfo } {
@@ -44,7 +55,7 @@ export class RequestyHandler extends OpenAiHandler {
 		return { id, info }
 	}
 
-	protected override processUsageMetrics(usage: any, modelInfo?: ModelInfo): ApiStreamUsageChunk {
+	protected processUsageMetrics(usage: any, modelInfo?: ModelInfo): ApiStreamUsageChunk {
 		const requestyUsage = usage as RequestyUsage
 		const inputTokens = requestyUsage?.prompt_tokens || 0
 		const outputTokens = requestyUsage?.completion_tokens || 0
@@ -64,8 +75,74 @@ export class RequestyHandler extends OpenAiHandler {
 		}
 	}
 
-	override async completePrompt(prompt: string): Promise<string> {
-		this.models = await getModels("requesty")
-		return super.completePrompt(prompt)
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = await this.fetchModel()
+
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			{ role: "system", content: systemPrompt },
+			...convertToOpenAiMessages(messages),
+		]
+
+		let maxTokens = undefined
+		if (this.options.includeMaxTokens) {
+			maxTokens = model.info.maxTokens
+		}
+
+		const temperature = this.options.modelTemperature
+
+		const completionParams: RequestyChatCompletionParams = {
+			model: model.id,
+			max_tokens: maxTokens,
+			messages: openAiMessages,
+			temperature: temperature,
+			stream: true,
+			stream_options: { include_usage: true },
+		}
+
+		const stream = await this.client.chat.completions.create(completionParams)
+
+		for await (const chunk of stream) {
+			const delta = chunk.choices[0]?.delta
+			if (delta?.content) {
+				yield {
+					type: "text",
+					text: delta.content,
+				}
+			}
+
+			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+				yield {
+					type: "reasoning",
+					text: (delta.reasoning_content as string | undefined) || "",
+				}
+			}
+
+			if (chunk.usage) {
+				yield this.processUsageMetrics(chunk.usage, model.info)
+			}
+		}
+	}
+
+	async completePrompt(prompt: string): Promise<string> {
+		const model = await this.fetchModel()
+
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }]
+
+		let maxTokens = undefined
+		if (this.options.includeMaxTokens) {
+			maxTokens = model.info.maxTokens
+		}
+
+		const temperature = this.options.modelTemperature
+
+		const completionParams: RequestyChatCompletionParams = {
+			model: model.id,
+			max_tokens: maxTokens,
+			messages: openAiMessages,
+			temperature: temperature,
+		}
+
+		const response: OpenAI.Chat.ChatCompletion = await this.client.chat.completions.create(completionParams)
+		return response.choices[0]?.message.content || ""
 	}
 }

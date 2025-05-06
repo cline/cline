@@ -2,338 +2,227 @@
 
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
-import { RequestyHandler } from "../requesty"
-import { convertToOpenAiMessages } from "../../transform/openai-format"
-import { convertToR1Format } from "../../transform/r1-format"
 
-// Mock OpenAI and transform functions
+import { RequestyHandler } from "../requesty"
+import { ApiHandlerOptions } from "../../../shared/api"
+
 jest.mock("openai")
-jest.mock("../../transform/openai-format")
-jest.mock("../../transform/r1-format")
+jest.mock("delay", () => jest.fn(() => Promise.resolve()))
 jest.mock("../fetchers/cache", () => ({
-	getModels: jest.fn().mockResolvedValue({
-		"test-model": {
-			maxTokens: 8192,
-			contextWindow: 200_000,
-			supportsImages: true,
-			supportsComputerUse: true,
-			supportsPromptCache: true,
-			inputPrice: 3.0,
-			outputPrice: 15.0,
-			cacheWritesPrice: 3.75,
-			cacheReadsPrice: 0.3,
-			description: "Test model description",
-		},
+	getModels: jest.fn().mockImplementation(() => {
+		return Promise.resolve({
+			"coding/claude-3-7-sonnet": {
+				maxTokens: 8192,
+				contextWindow: 200000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				supportsComputerUse: true,
+				inputPrice: 3,
+				outputPrice: 15,
+				cacheWritesPrice: 3.75,
+				cacheReadsPrice: 0.3,
+				description: "Claude 3.7 Sonnet",
+			},
+		})
 	}),
 }))
 
 describe("RequestyHandler", () => {
-	let handler: RequestyHandler
-	let mockCreate: jest.Mock
-
-	const modelInfo: ModelInfo = {
-		maxTokens: 8192,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsComputerUse: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-		description:
-			"Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and extended, step-by-step processing for complex tasks. The model demonstrates notable improvements in coding, particularly in front-end development and full-stack updates, and excels in agentic workflows, where it can autonomously navigate multi-step processes. Claude 3.7 Sonnet maintains performance parity with its predecessor in standard mode while offering an extended reasoning mode for enhanced accuracy in math, coding, and instruction-following tasks. Read more at the [blog post here](https://www.anthropic.com/news/claude-3-7-sonnet)",
-	}
-
-	const defaultOptions: ApiHandlerOptions = {
+	const mockOptions: ApiHandlerOptions = {
 		requestyApiKey: "test-key",
-		requestyModelId: "test-model",
-		openAiStreamingEnabled: true,
-		includeMaxTokens: true, // Add this to match the implementation
+		requestyModelId: "coding/claude-3-7-sonnet",
 	}
 
-	beforeEach(() => {
-		// Clear mocks
-		jest.clearAllMocks()
+	beforeEach(() => jest.clearAllMocks())
 
-		// Setup mock create function that preserves params
-		mockCreate = jest.fn().mockImplementation((_params) => {
-			return {
-				[Symbol.asyncIterator]: async function* () {
-					yield {
-						choices: [{ delta: { content: "Hello" } }],
-					}
-					yield {
-						choices: [{ delta: { content: " world" } }],
-						usage: {
-							prompt_tokens: 30,
-							completion_tokens: 10,
-							prompt_tokens_details: {
-								cached_tokens: 15,
-								caching_tokens: 5,
-							},
-						},
-					}
-				},
-			}
+	it("initializes with correct options", () => {
+		const handler = new RequestyHandler(mockOptions)
+		expect(handler).toBeInstanceOf(RequestyHandler)
+
+		expect(OpenAI).toHaveBeenCalledWith({
+			baseURL: "https://router.requesty.ai/v1",
+			apiKey: mockOptions.requestyApiKey,
+			defaultHeaders: {
+				"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
+				"X-Title": "Roo Code",
+			},
 		})
-
-		// Mock OpenAI constructor
-		;(OpenAI as jest.MockedClass<typeof OpenAI>).mockImplementation(
-			() =>
-				({
-					chat: {
-						completions: {
-							create: (params: any) => {
-								// Store params for verification
-								const result = mockCreate(params)
-								// Make params available for test assertions
-								;(result as any).params = params
-								return result
-							},
-						},
-					},
-				}) as unknown as OpenAI,
-		)
-
-		// Mock transform functions
-		;(convertToOpenAiMessages as jest.Mock).mockImplementation((messages) => messages)
-		;(convertToR1Format as jest.Mock).mockImplementation((messages) => messages)
-
-		// Create handler instance
-		handler = new RequestyHandler(defaultOptions)
 	})
 
-	describe("constructor", () => {
-		it("should initialize with correct options", () => {
-			expect(OpenAI).toHaveBeenCalledWith({
-				baseURL: "https://router.requesty.ai/v1",
-				apiKey: defaultOptions.requestyApiKey,
-				defaultHeaders: {
-					"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-					"X-Title": "Roo Code",
+	describe("fetchModel", () => {
+		it("returns correct model info when options are provided", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			const result = await handler.fetchModel()
+
+			expect(result).toMatchObject({
+				id: mockOptions.requestyModelId,
+				info: {
+					maxTokens: 8192,
+					contextWindow: 200000,
+					supportsImages: true,
+					supportsPromptCache: true,
+					supportsComputerUse: true,
+					inputPrice: 3,
+					outputPrice: 15,
+					cacheWritesPrice: 3.75,
+					cacheReadsPrice: 0.3,
+					description: "Claude 3.7 Sonnet",
+				},
+			})
+		})
+
+		it("returns default model info when options are not provided", async () => {
+			const handler = new RequestyHandler({})
+			const result = await handler.fetchModel()
+
+			expect(result).toMatchObject({
+				id: mockOptions.requestyModelId,
+				info: {
+					maxTokens: 8192,
+					contextWindow: 200000,
+					supportsImages: true,
+					supportsPromptCache: true,
+					supportsComputerUse: true,
+					inputPrice: 3,
+					outputPrice: 15,
+					cacheWritesPrice: 3.75,
+					cacheReadsPrice: 0.3,
+					description: "Claude 3.7 Sonnet",
 				},
 			})
 		})
 	})
 
 	describe("createMessage", () => {
-		const systemPrompt = "You are a helpful assistant"
-		const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+		it("generates correct stream chunks", async () => {
+			const handler = new RequestyHandler(mockOptions)
 
-		describe("with streaming enabled", () => {
-			beforeEach(() => {
-				const stream = {
-					[Symbol.asyncIterator]: async function* () {
-						yield {
-							choices: [{ delta: { content: "Hello" } }],
-						}
-						yield {
-							choices: [{ delta: { content: " world" } }],
-							usage: {
-								prompt_tokens: 30,
-								completion_tokens: 10,
-								prompt_tokens_details: {
-									cached_tokens: 15,
-									caching_tokens: 5,
-								},
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield {
+						id: mockOptions.requestyModelId,
+						choices: [{ delta: { content: "test response" } }],
+					}
+					yield {
+						id: "test-id",
+						choices: [{ delta: {} }],
+						usage: {
+							prompt_tokens: 10,
+							completion_tokens: 20,
+							prompt_tokens_details: {
+								caching_tokens: 5,
+								cached_tokens: 2,
 							},
-						}
-					},
-				}
-				mockCreate.mockResolvedValue(stream)
+						},
+					}
+				},
+			}
+
+			// Mock OpenAI chat.completions.create
+			const mockCreate = jest.fn().mockResolvedValue(mockStream)
+
+			;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
+
+			const systemPrompt = "test system prompt"
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user" as const, content: "test message" }]
+
+			const generator = handler.createMessage(systemPrompt, messages)
+			const chunks = []
+
+			for await (const chunk of generator) {
+				chunks.push(chunk)
+			}
+
+			// Verify stream chunks
+			expect(chunks).toHaveLength(2) // One text chunk and one usage chunk
+			expect(chunks[0]).toEqual({ type: "text", text: "test response" })
+			expect(chunks[1]).toEqual({
+				type: "usage",
+				inputTokens: 10,
+				outputTokens: 20,
+				cacheWriteTokens: 5,
+				cacheReadTokens: 2,
+				totalCost: expect.any(Number),
 			})
 
-			it("should handle streaming response correctly", async () => {
-				const stream = handler.createMessage(systemPrompt, messages)
-				const results = []
-
-				for await (const chunk of stream) {
-					results.push(chunk)
-				}
-
-				expect(results).toEqual([
-					{ type: "text", text: "Hello" },
-					{ type: "text", text: " world" },
-					{
-						type: "usage",
-						inputTokens: 30,
-						outputTokens: 10,
-						cacheWriteTokens: 5,
-						cacheReadTokens: 15,
-						totalCost: 0.00020325000000000003, // (10 * 3 / 1,000,000) + (5 * 3.75 / 1,000,000) + (15 * 0.3 / 1,000,000) + (10 * 15 / 1,000,000) (the ...0 is a fp skew)
-					},
-				])
-
-				// Get the actual params that were passed
-				const calls = mockCreate.mock.calls
-				expect(calls.length).toBe(1)
-				const actualParams = calls[0][0]
-
-				expect(actualParams).toEqual({
-					model: defaultOptions.requestyModelId,
-					temperature: 0,
+			// Verify OpenAI client was called with correct parameters
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					max_tokens: undefined,
 					messages: [
 						{
 							role: "system",
-							content: [
-								{
-									cache_control: {
-										type: "ephemeral",
-									},
-									text: systemPrompt,
-									type: "text",
-								},
-							],
+							content: "test system prompt",
 						},
 						{
 							role: "user",
-							content: [
-								{
-									cache_control: {
-										type: "ephemeral",
-									},
-									text: "Hello",
-									type: "text",
-								},
-							],
+							content: "test message",
 						},
 					],
+					model: "coding/claude-3-7-sonnet",
 					stream: true,
 					stream_options: { include_usage: true },
-					max_tokens: modelInfo.maxTokens,
-				})
-			})
-
-			it("should not include max_tokens when includeMaxTokens is false", async () => {
-				handler = new RequestyHandler({
-					...defaultOptions,
-					includeMaxTokens: false,
-				})
-
-				await handler.createMessage(systemPrompt, messages).next()
-
-				expect(mockCreate).toHaveBeenCalledWith(
-					expect.not.objectContaining({
-						max_tokens: expect.any(Number),
-					}),
-				)
-			})
-
-			it("should handle deepseek-reasoner model format", async () => {
-				handler = new RequestyHandler({
-					...defaultOptions,
-					requestyModelId: "deepseek-reasoner",
-				})
-
-				await handler.createMessage(systemPrompt, messages).next()
-
-				expect(convertToR1Format).toHaveBeenCalledWith([{ role: "user", content: systemPrompt }, ...messages])
-			})
+					temperature: undefined,
+				}),
+			)
 		})
 
-		describe("with streaming disabled", () => {
-			beforeEach(() => {
-				handler = new RequestyHandler({
-					...defaultOptions,
-					openAiStreamingEnabled: false,
-				})
+		it("handles API errors", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			const mockError = new Error("API Error")
+			const mockCreate = jest.fn().mockRejectedValue(mockError)
+			;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
 
-				mockCreate.mockResolvedValue({
-					choices: [{ message: { content: "Hello world" } }],
-					usage: {
-						prompt_tokens: 10,
-						completion_tokens: 5,
-					},
-				})
-			})
-
-			it("should handle non-streaming response correctly", async () => {
-				const stream = handler.createMessage(systemPrompt, messages)
-				const results = []
-
-				for await (const chunk of stream) {
-					results.push(chunk)
-				}
-
-				expect(results).toEqual([
-					{ type: "text", text: "Hello world" },
-					{
-						type: "usage",
-						inputTokens: 10,
-						outputTokens: 5,
-						cacheWriteTokens: 0,
-						cacheReadTokens: 0,
-						totalCost: 0.000105, // (10 * 3 / 1,000,000) + (5 * 15 / 1,000,000)
-					},
-				])
-
-				expect(mockCreate).toHaveBeenCalledWith({
-					model: defaultOptions.requestyModelId,
-					messages: [
-						{ role: "user", content: systemPrompt },
-						{
-							role: "user",
-							content: [
-								{
-									cache_control: {
-										type: "ephemeral",
-									},
-									text: "Hello",
-									type: "text",
-								},
-							],
-						},
-					],
-				})
-			})
-		})
-	})
-
-	describe("getModel", () => {
-		it("should return correct model information", () => {
-			const result = handler.getModel()
-			expect(result).toEqual({
-				id: defaultOptions.requestyModelId,
-				info: modelInfo,
-			})
-		})
-
-		it("should use sane defaults when no model info provided", () => {
-			handler = new RequestyHandler(defaultOptions)
-			const result = handler.getModel()
-
-			expect(result).toEqual({
-				id: defaultOptions.requestyModelId,
-				info: modelInfo,
-			})
+			const generator = handler.createMessage("test", [])
+			await expect(generator.next()).rejects.toThrow("API Error")
 		})
 	})
 
 	describe("completePrompt", () => {
-		beforeEach(() => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "Completed response" } }],
-			})
-		})
+		it("returns correct response", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			const mockResponse = { choices: [{ message: { content: "test completion" } }] }
 
-		it("should complete prompt successfully", async () => {
-			const result = await handler.completePrompt("Test prompt")
-			expect(result).toBe("Completed response")
+			const mockCreate = jest.fn().mockResolvedValue(mockResponse)
+			;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
+
+			const result = await handler.completePrompt("test prompt")
+
+			expect(result).toBe("test completion")
+
 			expect(mockCreate).toHaveBeenCalledWith({
-				model: defaultOptions.requestyModelId,
-				messages: [{ role: "user", content: "Test prompt" }],
+				model: mockOptions.requestyModelId,
+				max_tokens: undefined,
+				messages: [{ role: "system", content: "test prompt" }],
+				temperature: undefined,
 			})
 		})
 
-		it("should handle errors correctly", async () => {
-			const errorMessage = "API error"
-			mockCreate.mockRejectedValue(new Error(errorMessage))
+		it("handles API errors", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			const mockError = new Error("API Error")
+			const mockCreate = jest.fn().mockRejectedValue(mockError)
+			;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
 
-			await expect(handler.completePrompt("Test prompt")).rejects.toThrow(
-				`OpenAI completion error: ${errorMessage}`,
-			)
+			await expect(handler.completePrompt("test prompt")).rejects.toThrow("API Error")
+		})
+
+		it("handles unexpected errors", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			const mockCreate = jest.fn().mockRejectedValue(new Error("Unexpected error"))
+			;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
+
+			await expect(handler.completePrompt("test prompt")).rejects.toThrow("Unexpected error")
 		})
 	})
 })

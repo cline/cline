@@ -38,9 +38,8 @@ async function readModels(router: RouterName): Promise<ModelRecord | undefined> 
  * @param router - The router to fetch models from.
  * @returns The models from the cache or the fetched models.
  */
-export const getModels = async (router: RouterName): Promise<ModelRecord> => {
+export const getModels = async (router: RouterName, apiKey: string | undefined = undefined): Promise<ModelRecord> => {
 	let models = memoryCache.get<ModelRecord>(router)
-
 	if (models) {
 		// console.log(`[getModels] NodeCache hit for ${router} -> ${Object.keys(models).length}`)
 		return models
@@ -51,7 +50,8 @@ export const getModels = async (router: RouterName): Promise<ModelRecord> => {
 			models = await getOpenRouterModels()
 			break
 		case "requesty":
-			models = await getRequestyModels()
+			// Requesty models endpoint requires an API key for per-user custom policies
+			models = await getRequestyModels(apiKey)
 			break
 		case "glama":
 			models = await getGlamaModels()
@@ -79,4 +79,12 @@ export const getModels = async (router: RouterName): Promise<ModelRecord> => {
 	} catch (error) {}
 
 	return models ?? {}
+}
+
+/**
+ * Flush models memory cache for a specific router
+ * @param router - The router to flush models for.
+ */
+export const flushModels = async (router: RouterName) => {
+	memoryCache.del(router)
 }

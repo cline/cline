@@ -118,6 +118,8 @@
 		"headerValue": "Значение заголовка",
 		"noCustomHeaders": "Пользовательские заголовки не определены. Нажмите кнопку +, чтобы добавить.",
 		"requestyApiKey": "Requesty API-ключ",
+		"flushModelsCache": "Очистить кэш моделей",
+		"flushedModelsCache": "Кэш очищен, пожалуйста, переоткройте представление настроек",
 		"getRequestyApiKey": "Получить Requesty API-ключ",
 		"openRouterTransformsText": "Сжимать подсказки и цепочки сообщений до размера контекста (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Anthropic API-ключ",

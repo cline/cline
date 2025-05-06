@@ -118,6 +118,8 @@
 		"headerValue": "Valore intestazione",
 		"noCustomHeaders": "Nessuna intestazione personalizzata definita. Fai clic sul pulsante + per aggiungerne una.",
 		"requestyApiKey": "Chiave API Requesty",
+		"flushModelsCache": "Svuota cache dei modelli",
+		"flushedModelsCache": "Cache svuotata, riapri la vista delle impostazioni",
 		"getRequestyApiKey": "Ottieni chiave API Requesty",
 		"openRouterTransformsText": "Comprimi prompt e catene di messaggi alla dimensione del contesto (<a>Trasformazioni OpenRouter</a>)",
 		"anthropicApiKey": "Chiave API Anthropic",
