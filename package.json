@@ -244,7 +244,7 @@
 						"high"
 					],
 					"default": "medium",
-					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
+					"description": "Controls the reasoning effort when using an OpenAI reasoning model. Higher values may result in more thorough but slower responses."
 				},
 				"cline.chromeExecutablePath": {
 					"type": "string",
