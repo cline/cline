@@ -22,6 +22,20 @@ service FileService {
   
   // Search git commits in the workspace
   rpc searchCommits(StringRequest) returns (GitCommits);
+  
+  // Convert URIs to workspace-relative paths
+  rpc getRelativePaths(RelativePathsRequest) returns (RelativePaths);
+}
+
+// Request to convert a list of URIs to relative paths
+message RelativePathsRequest {
+  Metadata metadata = 1;
+  repeated string uris = 2;
+}
+
+// Response containing the converted relative paths
+message RelativePaths {
+  repeated string paths = 1;
 }
 
 // Response for searchCommits
