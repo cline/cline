@@ -198,8 +198,8 @@ async function generateMethodRegistrations() {
 		try {
 			await fs.access(serviceDir)
 		} catch (error) {
-			console.log(chalk.gray(`Skipping ${serviceDir} - directory does not exist`))
-			continue
+			console.log(chalk.cyan(`Creating directory ${serviceDir} for new service`))
+			await fs.mkdir(serviceDir, { recursive: true })
 		}
 
 		const serviceName = path.basename(serviceDir)
