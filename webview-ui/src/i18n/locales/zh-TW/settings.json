@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "啟用提示快取",
-		"description": "啟用後，Roo 將使用提示快取功能以降低成本。"
+		"label": "停用提示詞快取",
+		"description": "勾選後，Roo 將不會為此模型使用提示詞快取。"
 	},
 	"temperature": {
 		"useCustom": "使用自訂溫度",

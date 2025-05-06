@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "Bật bộ nhớ đệm prompt",
-		"description": "Khi được bật, Roo sẽ sử dụng mô hình này với bộ nhớ đệm prompt được bật để giảm chi phí."
+		"label": "Tắt bộ nhớ đệm prompt",
+		"description": "Khi được chọn, Roo sẽ không sử dụng bộ nhớ đệm prompt cho mô hình này."
 	},
 	"temperature": {
 		"useCustom": "Sử dụng nhiệt độ tùy chỉnh",

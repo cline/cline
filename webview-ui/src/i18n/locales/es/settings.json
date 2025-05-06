@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "Habilitar caché de prompts",
-		"description": "Cuando está habilitado, Roo usará este modelo con el caché de prompts activado para reducir costos."
+		"label": "Desactivar caché de prompts",
+		"description": "Cuando está marcado, Roo no utilizará el caché de prompts para este modelo."
 	},
 	"temperature": {
 		"useCustom": "Usar temperatura personalizada",

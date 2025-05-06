@@ -93,7 +93,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		// https://ai.google.dev/gemini-api/docs/tokens?lang=node
 		const isCacheAvailable =
 			info.supportsPromptCache &&
-			this.options.promptCachingEnabled &&
+			!this.options.promptCachingDisabled &&
 			cacheKey &&
 			contentsLength > 4 * CONTEXT_CACHE_TOKEN_MINIMUM
 

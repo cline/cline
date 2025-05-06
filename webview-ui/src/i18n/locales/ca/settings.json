@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "Habilitar emmagatzematge en caché de prompts",
-		"description": "Quan està habilitat, Roo utilitzarà aquest model amb la memòria cau de prompts activada per reduir costos."
+		"label": "Desactivar la memòria cau de prompts",
+		"description": "Quan està marcat, Roo no utilitzarà la memòria cau de prompts per a aquest model."
 	},
 	"temperature": {
 		"useCustom": "Utilitzar temperatura personalitzada",

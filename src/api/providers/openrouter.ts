@@ -94,7 +94,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
-		const isCacheAvailable = promptCache.supported && (!promptCache.optional || this.options.promptCachingEnabled)
+		const isCacheAvailable = promptCache.supported && (!promptCache.optional || !this.options.promptCachingDisabled)
 
 		// https://openrouter.ai/docs/features/prompt-caching
 		if (isCacheAvailable) {

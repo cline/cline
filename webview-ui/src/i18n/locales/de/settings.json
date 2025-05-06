@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "Prompt-Caching aktivieren",
-		"description": "Wenn aktiviert, wird Roo dieses Modell mit aktiviertem Prompt-Caching verwenden, um Kosten zu reduzieren."
+		"label": "Prompt-Caching deaktivieren",
+		"description": "Wenn aktiviert, wird Roo für dieses Modell kein Prompt-Caching verwenden."
 	},
 	"temperature": {
 		"useCustom": "Benutzerdefinierte Temperatur verwenden",

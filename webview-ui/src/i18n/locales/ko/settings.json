@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "프롬프트 캐싱 활성화",
-		"description": "활성화하면 Roo는 비용 절감을 위해 프롬프트 캐싱을 켠 상태로 이 모델을 사용합니다."
+		"label": "프롬프트 캐싱 비활성화",
+		"description": "체크하면 Roo가 이 모델에 대해 프롬프트 캐싱을 사용하지 않습니다."
 	},
 	"temperature": {
 		"useCustom": "사용자 정의 온도 사용",

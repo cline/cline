@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "Włącz buforowanie podpowiedzi",
-		"description": "Po włączeniu, Roo będzie używać tego modelu z włączonym buforowaniem promptów w celu zmniejszenia kosztów."
+		"label": "Wyłącz buforowanie promptów",
+		"description": "Po zaznaczeniu, Roo nie będzie używać buforowania promptów dla tego modelu."
 	},
 	"temperature": {
 		"useCustom": "Użyj niestandardowej temperatury",

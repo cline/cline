@@ -291,7 +291,7 @@ describe("Caching Logic", () => {
 			apiKey: "test-key",
 			apiModelId: "gemini-1.5-flash-latest", // Use a model that supports caching
 			geminiApiKey: "test-key",
-			promptCachingEnabled: true, // Enable caching for these tests
+			promptCachingDisabled: false,
 		})
 
 		handlerWithCache["client"] = {
@@ -309,8 +309,8 @@ describe("Caching Logic", () => {
 		} as any
 	})
 
-	it("should not use cache if promptCachingEnabled is false", async () => {
-		handlerWithCache["options"].promptCachingEnabled = false
+	it("should not use cache if promptCachingDisabled is true", async () => {
+		handlerWithCache["options"].promptCachingDisabled = true
 		const stream = handlerWithCache.createMessage(systemPrompt, mockMessagesLong, cacheKey)
 
 		for await (const _ of stream) {

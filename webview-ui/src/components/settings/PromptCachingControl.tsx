@@ -16,8 +16,8 @@ export const PromptCachingControl = ({ apiConfiguration, setApiConfigurationFiel
 		<>
 			<div>
 				<VSCodeCheckbox
-					checked={apiConfiguration.promptCachingEnabled}
-					onChange={(e: any) => setApiConfigurationField("promptCachingEnabled", e.target.checked)}>
+					checked={apiConfiguration.promptCachingDisabled}
+					onChange={(e: any) => setApiConfigurationField("promptCachingDisabled", e.target.checked)}>
 					<label className="block font-medium mb-1">{t("settings:promptCaching.label")}</label>
 				</VSCodeCheckbox>
 				<div className="text-sm text-vscode-descriptionForeground mt-1">

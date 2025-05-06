@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "Activer la mise en cache des prompts",
-		"description": "Lorsque cette option est activée, Roo utilisera ce modèle avec la mise en cache des prompts activée afin de réduire les coûts."
+		"label": "Désactiver la mise en cache des prompts",
+		"description": "Lorsque cette option est cochée, Roo n'utilisera pas la mise en cache des prompts pour ce modèle."
 	},
 	"temperature": {
 		"useCustom": "Utiliser une température personnalisée",

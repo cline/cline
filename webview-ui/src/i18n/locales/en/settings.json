@@ -416,8 +416,8 @@
 		}
 	},
 	"promptCaching": {
-		"label": "Enable prompt caching",
-		"description": "When enabled, Roo will use this model with prompt caching turned on in order to reduce costs."
+		"label": "Disable prompt caching",
+		"description": "When checked, Roo will not use prompt caching for this model."
 	},
 	"temperature": {
 		"useCustom": "Use custom temperature",
