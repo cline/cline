@@ -5,6 +5,9 @@ import { getUri } from "./getUri"
 import { getTheme } from "@integrations/theme/getTheme"
 import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
+import { readFile } from "fs/promises"
+import path from "node:path"
+
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
@@ -234,6 +237,31 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	}
 
 	/**
+	 * Reads the Vite dev server port from the generated port file to avoid conflicts
+	 * Returns a Promise that resolves to the port number
+	 * If the file doesn't exist or can't be read, it resolves to the default port
+	 */
+	private getDevServerPort(): Promise<number> {
+		const DEFAULT_PORT = 25463
+
+		const portFilePath = path.join(__dirname, "..", "webview-ui", ".vite-port")
+
+		return readFile(portFilePath, "utf8")
+			.then((portFile) => {
+				const port = parseInt(portFile.trim()) || DEFAULT_PORT
+				console.info(`[getDevServerPort] Using dev server port ${port} from .vite-port file`)
+
+				return port
+			})
+			.catch((err) => {
+				console.warn(
+					`[getDevServerPort] Port file not found or couldn't be read at ${portFilePath}, using default port: ${DEFAULT_PORT}`,
+				)
+				return DEFAULT_PORT
+			})
+	}
+
+	/**
 	 * Connects to the local Vite dev server to allow HMR, with fallback to the bundled assets
 	 *
 	 * @param webview A reference to the extension webview
@@ -241,7 +269,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	 * rendered within the webview panel
 	 */
 	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
-		const localPort = 25463
+		const localPort = await this.getDevServerPort()
 		const localServerUrl = `localhost:${localPort}`
 
 		// Check if local dev server is running.

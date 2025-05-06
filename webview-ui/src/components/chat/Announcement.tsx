@@ -1,6 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { CSSProperties, memo } from "react"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
+import { Accordion, AccordionItem } from "@heroui/react"
 
 interface AnnouncementProps {
 	version: string
@@ -60,24 +61,38 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<li>Added more checkpoints across the task, allowing you to restore from more than just file changes.</li>
 				<li>Added support for rendering LaTeX in message responses. (Try asking Cline to show the quadratic formula)</li>
 			</ul>
-			{/* <h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
-			<ul style={ulStyle}>
-				<li>
-					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
-				</li>
-				<li>
-					<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files to plug
-					and play specific rules for the task
-				</li>
-				<li>
-					<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a new task
-					(more coming soon!)
-				</li>
-				<li>
-					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore
-					your project when the message was sent!
-				</li>
-			</ul> */}
+			<Accordion isCompact className="pl-0">
+				<AccordionItem
+					key="1"
+					aria-label="Previous Updates"
+					title="Previous Updates:"
+					classNames={{
+						trigger: "bg-transparent border-0 pl-0 pb-0 w-fit",
+						title: "font-bold text-[var(--vscode-foreground)]",
+						indicator:
+							"text-[var(--vscode-foreground)] mb-0.5 -rotate-180 data-[open=true]:-rotate-90 rtl:rotate-0 rtl:data-[open=true]:-rotate-90",
+					}}>
+					<ul style={ulStyle}>
+						<li>
+							<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between
+							projects.
+						</li>
+						<li>
+							<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files
+							to plug and play specific rules for the task
+						</li>
+						<li>
+							<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a
+							new task (more coming soon!)
+						</li>
+						<li>
+							<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally
+							restore your project when the message was sent!
+						</li>
+					</ul>
+				</AccordionItem>
+			</Accordion>
+
 			{/*
 			// Leave this here for an example of how to structure the announcement
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
