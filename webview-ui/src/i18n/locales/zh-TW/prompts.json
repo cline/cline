@@ -7,7 +7,8 @@
 		"editModesConfig": "編輯模式設定",
 		"editGlobalModes": "編輯全域模式",
 		"editProjectModes": "編輯專案模式 (.roomodes)",
-		"createModeHelpText": "點選 + 建立新的自訂模式，或者在聊天中直接請 Roo 為您建立！"
+		"createModeHelpText": "點選 + 建立新的自訂模式，或者在聊天中直接請 Roo 為您建立！",
+		"selectMode": "搜尋模式"
 	},
 	"apiConfiguration": {
 		"title": "API 設定",

@@ -7,7 +7,8 @@
 		"editModesConfig": "모드 구성 편집",
 		"editGlobalModes": "전역 모드 편집",
 		"editProjectModes": "프로젝트 모드 편집 (.roomodes)",
-		"createModeHelpText": "새 커스텀 모드를 만들려면 + 버튼을 클릭하거나, 채팅에서 Roo에게 만들어달라고 요청하세요!"
+		"createModeHelpText": "새 커스텀 모드를 만들려면 + 버튼을 클릭하거나, 채팅에서 Roo에게 만들어달라고 요청하세요!",
+		"selectMode": "모드 검색"
 	},
 	"apiConfiguration": {
 		"title": "API 구성",

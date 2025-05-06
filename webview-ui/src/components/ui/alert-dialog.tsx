@@ -90,7 +90,7 @@ function AlertDialogAction({ className, ...props }: React.ComponentProps<typeof 
 		<AlertDialogPrimitive.Action
 			className={cn(
 				buttonVariants(),
-				"bg-vscode-button-background text-vscode-button-foreground hover:bg-vscode-button-hoverBackground border border-transparent h-6 px-3 py-1",
+				"bg-vscode-button-background text-vscode-button-foreground hover:bg-vscode-button-hoverBackground h-6 px-3 py-1 border",
 				className,
 			)}
 			{...props}
@@ -103,7 +103,7 @@ function AlertDialogCancel({ className, ...props }: React.ComponentProps<typeof 
 		<AlertDialogPrimitive.Cancel
 			className={cn(
 				buttonVariants({ variant: "outline" }),
-				"bg-vscode-button-secondaryBackground text-vscode-button-secondaryForeground hover:bg-vscode-button-secondaryHoverBackground border border-vscode-button-border h-6 px-3 py-1",
+				"bg-vscode-button-secondaryBackground text-vscode-button-secondaryForeground hover:bg-vscode-button-secondaryHoverBackground h-6 px-3 py-1 border",
 				className,
 			)}
 			{...props}

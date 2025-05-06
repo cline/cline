@@ -4,7 +4,7 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { Database } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Slider } from "@/components/ui"
+import { Input, Slider } from "@/components/ui"
 
 import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
@@ -96,7 +96,7 @@ export const ContextManagementSettings = ({
 					<div className="flex flex-col gap-2">
 						<span className="font-medium">{t("settings:contextManagement.maxReadFile.label")}</span>
 						<div className="flex items-center gap-4">
-							<input
+							<Input
 								type="number"
 								pattern="-?[0-9]*"
 								className="w-24 bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border px-2 py-1 rounded text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:opacity-50"

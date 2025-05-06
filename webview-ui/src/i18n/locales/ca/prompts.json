@@ -7,7 +7,8 @@
 		"editModesConfig": "Editar configuració de modes",
 		"editGlobalModes": "Editar modes globals",
 		"editProjectModes": "Editar modes de projecte (.roomodes)",
-		"createModeHelpText": "Feu clic a + per crear un nou mode personalitzat, o simplement demaneu a Roo al xat que en creï un per a vostè!"
+		"createModeHelpText": "Feu clic a + per crear un nou mode personalitzat, o simplement demaneu a Roo al xat que en creï un per a vostè!",
+		"selectMode": "Cerqueu modes"
 	},
 	"apiConfiguration": {
 		"title": "Configuració d'API",

@@ -7,7 +7,8 @@
 		"editModesConfig": "Edytuj konfigurację trybów",
 		"editGlobalModes": "Edytuj tryby globalne",
 		"editProjectModes": "Edytuj tryby projektu (.roomodes)",
-		"createModeHelpText": "Kliknij +, aby utworzyć nowy niestandardowy tryb, lub po prostu poproś Roo w czacie, aby utworzył go dla Ciebie!"
+		"createModeHelpText": "Kliknij +, aby utworzyć nowy niestandardowy tryb, lub po prostu poproś Roo w czacie, aby utworzył go dla Ciebie!",
+		"selectMode": "Szukaj trybów"
 	},
 	"apiConfiguration": {
 		"title": "Konfiguracja API",

@@ -10,6 +10,22 @@ jest.mock("@src/utils/vscode", () => ({
 	},
 }))
 
+// Mock all lucide-react icons with a proxy to handle any icon requested
+jest.mock("lucide-react", () => {
+	return new Proxy(
+		{},
+		{
+			get: function (obj, prop) {
+				// Return a component factory for any icon that's requested
+				if (prop === "__esModule") {
+					return true
+				}
+				return () => <div data-testid={`${String(prop)}-icon`}>{String(prop)}</div>
+			},
+		},
+	)
+})
+
 const mockExtensionState = {
 	customModePrompts: {},
 	listApiConfigMeta: [
@@ -19,6 +35,9 @@ const mockExtensionState = {
 	enhancementApiConfigId: "",
 	setEnhancementApiConfigId: jest.fn(),
 	mode: "code",
+	customModes: [],
+	customSupportPrompts: [],
+	currentApiConfigName: "",
 	customInstructions: "Initial instructions",
 	setCustomInstructions: jest.fn(),
 }
@@ -32,69 +51,67 @@ const renderPromptsView = (props = {}) => {
 	)
 }
 
+class MockResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
+
+global.ResizeObserver = MockResizeObserver
+
+Element.prototype.scrollIntoView = jest.fn()
+
 describe("PromptsView", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
 	})
 
-	it("renders all mode tabs", () => {
+	it("displays the current mode name in the select trigger", () => {
+		renderPromptsView({ mode: "code" })
+		const selectTrigger = screen.getByTestId("mode-select-trigger")
+		expect(selectTrigger).toHaveTextContent("Code")
+	})
+
+	it("opens the mode selection popover when the trigger is clicked", async () => {
 		renderPromptsView()
-		expect(screen.getByTestId("code-tab")).toBeInTheDocument()
-		expect(screen.getByTestId("ask-tab")).toBeInTheDocument()
-		expect(screen.getByTestId("architect-tab")).toBeInTheDocument()
+		const selectTrigger = screen.getByTestId("mode-select-trigger")
+		fireEvent.click(selectTrigger)
+		await waitFor(() => {
+			expect(selectTrigger).toHaveAttribute("aria-expanded", "true")
+		})
 	})
 
-	it("defaults to current mode as active tab", () => {
-		renderPromptsView({ mode: "ask" })
+	it("filters mode options based on search input", async () => {
+		renderPromptsView()
+		const selectTrigger = screen.getByTestId("mode-select-trigger")
+		fireEvent.click(selectTrigger)
 
-		const codeTab = screen.getByTestId("code-tab")
-		const askTab = screen.getByTestId("ask-tab")
-		const architectTab = screen.getByTestId("architect-tab")
+		const searchInput = screen.getByTestId("mode-search-input")
+		fireEvent.change(searchInput, { target: { value: "ask" } })
 
-		expect(askTab).toHaveAttribute("data-active", "true")
-		expect(codeTab).toHaveAttribute("data-active", "false")
-		expect(architectTab).toHaveAttribute("data-active", "false")
+		await waitFor(() => {
+			expect(screen.getByTestId("mode-option-ask")).toBeInTheDocument()
+			expect(screen.queryByTestId("mode-option-code")).not.toBeInTheDocument()
+			expect(screen.queryByTestId("mode-option-architect")).not.toBeInTheDocument()
+		})
 	})
 
-	it("switches between tabs correctly", async () => {
-		const { rerender } = render(
-			<ExtensionStateContext.Provider value={{ ...mockExtensionState, mode: "code" } as any}>
-				<PromptsView onDone={jest.fn()} />
-			</ExtensionStateContext.Provider>,
-		)
+	it("selects a mode from the dropdown and sends update message", async () => {
+		renderPromptsView()
+		const selectTrigger = screen.getByTestId("mode-select-trigger")
+		fireEvent.click(selectTrigger)
 
-		const codeTab = screen.getByTestId("code-tab")
-		const askTab = screen.getByTestId("ask-tab")
-		const architectTab = screen.getByTestId("architect-tab")
+		const askOption = await waitFor(() => screen.getByTestId("mode-option-ask"))
+		fireEvent.click(askOption)
 
-		// Initial state matches current mode (code)
-		expect(codeTab).toHaveAttribute("data-active", "true")
-		expect(askTab).toHaveAttribute("data-active", "false")
-		expect(architectTab).toHaveAttribute("data-active", "false")
-
-		// Click Ask tab and update context
-		fireEvent.click(askTab)
-		rerender(
-			<ExtensionStateContext.Provider value={{ ...mockExtensionState, mode: "ask" } as any}>
-				<PromptsView onDone={jest.fn()} />
-			</ExtensionStateContext.Provider>,
-		)
-
-		expect(askTab).toHaveAttribute("data-active", "true")
-		expect(codeTab).toHaveAttribute("data-active", "false")
-		expect(architectTab).toHaveAttribute("data-active", "false")
-
-		// Click Architect tab and update context
-		fireEvent.click(architectTab)
-		rerender(
-			<ExtensionStateContext.Provider value={{ ...mockExtensionState, mode: "architect" } as any}>
-				<PromptsView onDone={jest.fn()} />
-			</ExtensionStateContext.Provider>,
-		)
-
-		expect(architectTab).toHaveAttribute("data-active", "true")
-		expect(askTab).toHaveAttribute("data-active", "false")
-		expect(codeTab).toHaveAttribute("data-active", "false")
+		expect(mockExtensionState.setEnhancementApiConfigId).not.toHaveBeenCalled() // Ensure this is not called by mode switch
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "mode",
+			text: "ask",
+		})
+		await waitFor(() => {
+			expect(selectTrigger).toHaveAttribute("aria-expanded", "false")
+		})
 	})
 
 	it("handles prompt changes correctly", async () => {
@@ -159,21 +176,19 @@ describe("PromptsView", () => {
 	it("handles API configuration selection", async () => {
 		renderPromptsView()
 
-		// Click the ENHANCE tab first to show the API config dropdown
-		const enhanceTab = screen.getByTestId("ENHANCE-tab")
-		fireEvent.click(enhanceTab)
+		const trigger = screen.getByTestId("support-prompt-select-trigger")
+		fireEvent.click(trigger)
 
-		// Wait for the ENHANCE tab click to take effect
-		const dropdown = await waitFor(() => screen.getByTestId("api-config-dropdown"))
-		fireEvent.change(dropdown, {
-			target: { value: "config1" },
-		})
+		const enhanceOption = await waitFor(() => screen.getByTestId("ENHANCE-option"))
+		fireEvent.click(enhanceOption)
 
-		expect(mockExtensionState.setEnhancementApiConfigId).toHaveBeenCalledWith("config1")
-		expect(vscode.postMessage).toHaveBeenCalledWith({
-			type: "enhancementApiConfigId",
-			text: "config1",
-		})
+		const apiConfig = await waitFor(() => screen.getByTestId("api-config-select"))
+		fireEvent.click(apiConfig)
+
+		const config1 = await waitFor(() => screen.getByTestId("config1-option"))
+		fireEvent.click(config1)
+
+		expect(mockExtensionState.setEnhancementApiConfigId).toHaveBeenCalledWith("config1") // Ensure this is not called by mode switch
 	})
 
 	it("handles clearing custom instructions correctly", async () => {
