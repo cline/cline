@@ -29,19 +29,23 @@ export const SendButton: React.FC<SendButtonProps> = ({
 }) => {
 	const { chatSettings } = useExtensionState()
 	const modeColor = chatSettings.mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR
+	// Only show resume task styling if we're actually in a resumable state
+	// This prevents the resume task button from showing up at the end of a task
+	const isResumeTask = clineAsk === "resume_task" && !isStreaming;
+	
 	return (
 		<div
 			data-testid="send-button"
-			title={clineAsk === "resume_task" && !(isStreaming && !didClickCancel) ? "Resume Task" : undefined}
-			className={`input-icon-button ${textAreaDisabled && !(isStreaming && !didClickCancel) && !(clineAsk === "resume_task") ? "disabled" : ""} codicon ${
+			title={isResumeTask ? "Resume Task" : undefined}
+			className={`input-icon-button ${textAreaDisabled && !(isStreaming && !didClickCancel) && !isResumeTask ? "disabled" : ""} codicon ${
 				isStreaming && !didClickCancel ? "codicon-debug-pause" : "codicon-play"
-			} ${clineAsk === "resume_task" && !(isStreaming && !didClickCancel) ? "resume-play-button" : ""}`}
+			} ${isResumeTask ? "resume-play-button" : ""}`}
 			onClick={() => {
 				if (isStreaming && !didClickCancel) {
 					// Cancel task functionality
 					TaskServiceClient.cancelTask({})
 					setDidClickCancel?.(true)
-				} else if (clineAsk === "resume_task") {
+				} else if (isResumeTask) {
 					// Resume task functionality
 					// For empty input, directly send yesButtonClicked to resume the task
 					if (!document.querySelector("textarea")?.value.trim()) {
@@ -62,14 +66,14 @@ export const SendButton: React.FC<SendButtonProps> = ({
 				}
 			}}
 			style={{
-				fontSize: clineAsk === "resume_task" && !(isStreaming && !didClickCancel) ? 25 : 22, // Reduced overall size by 3px, but resume state still 3px bigger
+				fontSize: isResumeTask ? 25 : 22, // Reduced overall size by 3px, but resume state still 3px bigger
 				display: "flex",
 				alignItems: "center",
 				justifyContent: "center",
 				cursor: isStreaming && !didClickCancel ? "pointer" : undefined,
-				color: clineAsk === "resume_task" && !(isStreaming && !didClickCancel) ? modeColor : undefined,
-				opacity: clineAsk === "resume_task" && !(isStreaming && !didClickCancel) ? 1 : undefined, // Ensure no opacity effect in resume state
-				...(clineAsk === "resume_task" && !(isStreaming && !didClickCancel)
+				color: isResumeTask ? modeColor : undefined,
+				opacity: isResumeTask ? 1 : undefined, // Ensure no opacity effect in resume state
+				...(isResumeTask
 					? {
 							backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(`<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path fill="${chatSettings.mode === "plan" ? "#955CF1" : "#0dbc79"}" d="M3.5 2.5v11l9-5.5z"/></svg>`)}")`,
 							backgroundRepeat: "no-repeat",

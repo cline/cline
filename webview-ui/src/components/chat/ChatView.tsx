@@ -64,7 +64,7 @@ async function convertHtmlToMarkdown(html: string) {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting, userInfo } = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting, userInfo, chatSettings } = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -1023,7 +1023,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						</div>
 					) : (
 						<div
-							className={clineAsk === "resume_task" ? "cline-resume-task-buttons" : ""}
+							className={clineAsk === "resume_task" && !isStreaming ? "cline-resume-task-buttons" : ""}
 							style={{
 								opacity:
 									primaryButtonText || secondaryButtonText || isStreaming
@@ -1034,10 +1034,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								display: "flex",
 								padding: `${primaryButtonText || secondaryButtonText || isStreaming ? "10" : "0"}px 15px 0px 15px`,
 							}}>
-							{/* Hide buttons when in resume_task state */}
-							{clineAsk !== "resume_task" && (
+							{/* Hide buttons when in resume_task state, when task is complete, or when in plan mode */}
+							{clineAsk !== "resume_task" && 
+							  !(clineAsk === "completion_result" && !isStreaming) && 
+							  !(primaryButtonText === "Start New Task" && !isStreaming) && 
+							  !(lastMessage?.say === "completion_result" && !isStreaming) &&
+							  !(chatSettings.mode === "plan" && !isStreaming) && (
 								<>
-									{primaryButtonText && !isStreaming && (
+									{primaryButtonText && !isStreaming && primaryButtonText !== "Start New Task" && (
 										<VSCodeButton
 											appearance="primary"
 											disabled={!enableButtons}
