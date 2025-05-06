@@ -19,6 +19,7 @@ const aliasResolverPlugin = {
 			"@services": path.resolve(__dirname, "src/services"),
 			"@shared": path.resolve(__dirname, "src/shared"),
 			"@utils": path.resolve(__dirname, "src/utils"),
+			"@packages": path.resolve(__dirname, "src/packages"),
 		}
 
 		// For each alias entry, create a resolver
@@ -124,6 +125,7 @@ const extensionConfig = {
 	define: {
 		"process.env.IS_DEV": JSON.stringify(!production),
 	},
+	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		copyWasmFiles,
 		aliasResolverPlugin,

@@ -59,9 +59,6 @@ export const BrowserSettingsSection: React.FC = () => {
 					message: message.text,
 				})
 				setDebugMode(false)
-			} else if (message.type === "detectedChromePath") {
-				setDetectedChromePath(message.text)
-				setIsBundled(message.isBundled)
 			}
 		}
 
@@ -83,9 +80,15 @@ export const BrowserSettingsSection: React.FC = () => {
 
 	// Request detected Chrome path on mount
 	useEffect(() => {
-		vscode.postMessage({
-			type: "getDetectedChromePath",
-		})
+		// Use gRPC for getDetectedChromePath
+		BrowserServiceClient.getDetectedChromePath({})
+			.then((result) => {
+				setDetectedChromePath(result.path)
+				setIsBundled(result.isBundled)
+			})
+			.catch((error) => {
+				console.error("Error getting detected Chrome path:", error)
+			})
 	}, [])
 
 	// Debounced connection check function
@@ -136,38 +139,65 @@ export const BrowserSettingsSection: React.FC = () => {
 		const target = event.target as HTMLSelectElement
 		const selectedSize = BROWSER_VIEWPORT_PRESETS[target.value as keyof typeof BROWSER_VIEWPORT_PRESETS]
 		if (selectedSize) {
-			vscode.postMessage({
-				type: "browserSettings",
-				browserSettings: {
-					...browserSettings,
-					viewport: selectedSize,
+			BrowserServiceClient.updateBrowserSettings({
+				metadata: {},
+				viewport: {
+					width: selectedSize.width,
+					height: selectedSize.height,
 				},
+				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
 			})
+				.then((response) => {
+					if (!response.value) {
+						console.error("Failed to update browser settings")
+					}
+				})
+				.catch((error) => {
+					console.error("Error updating browser settings:", error)
+				})
 		}
 	}
 
 	const updateRemoteBrowserEnabled = (enabled: boolean) => {
-		// Also update browserSettings to ensure task settings are updated
-		vscode.postMessage({
-			type: "browserSettings",
-			browserSettings: {
-				...browserSettings,
-				remoteBrowserEnabled: enabled,
-				// If disabling, also clear the host in browserSettings
-				...(enabled ? {} : { remoteBrowserHost: undefined }),
+		BrowserServiceClient.updateBrowserSettings({
+			metadata: {},
+			viewport: {
+				width: browserSettings.viewport.width,
+				height: browserSettings.viewport.height,
 			},
+			remoteBrowserEnabled: enabled,
+			// If disabling, also clear the host
+			remoteBrowserHost: enabled ? browserSettings.remoteBrowserHost : undefined,
 		})
+			.then((response) => {
+				if (!response.value) {
+					console.error("Failed to update browser settings")
+				}
+			})
+			.catch((error) => {
+				console.error("Error updating browser settings:", error)
+			})
 	}
 
 	const updateRemoteBrowserHost = (host: string | undefined) => {
-		// Also update browserSettings to ensure task settings are updated
-		vscode.postMessage({
-			type: "browserSettings",
-			browserSettings: {
-				...browserSettings,
-				remoteBrowserHost: host,
+		BrowserServiceClient.updateBrowserSettings({
+			metadata: {},
+			viewport: {
+				width: browserSettings.viewport.width,
+				height: browserSettings.viewport.height,
 			},
+			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+			remoteBrowserHost: host,
 		})
+			.then((response) => {
+				if (!response.value) {
+					console.error("Failed to update browser settings")
+				}
+			})
+			.catch((error) => {
+				console.error("Error updating browser settings:", error)
+			})
 	}
 
 	// Function to check connection once without changing UI state immediately

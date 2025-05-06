@@ -167,8 +167,12 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				output += stdout + "\n"
 			} catch (error: any) {
 				success = false
-				if (error.stdout) output += error.stdout + "\n"
-				if (error.stderr) output += error.stderr + "\n"
+				if (error.stdout) {
+					output += error.stdout + "\n"
+				}
+				if (error.stderr) {
+					output += error.stderr + "\n"
+				}
 			}
 		}
 

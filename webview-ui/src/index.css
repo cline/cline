@@ -3,6 +3,9 @@
 /* Disable Tailwind's CSS reset to preserve existing styles */
 /* @import "tailwindcss/preflight.css" layer(base); */
 @import "tailwindcss/utilities.css" layer(utilities);
+@import "katex/dist/katex.min.css";
+
+@config "../tailwind.config.js";
 
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);

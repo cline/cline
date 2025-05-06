@@ -9,7 +9,7 @@ export type CheckpointsMethodHandler = ServiceMethodHandler
 export const registerMethod = checkpointsService.registerMethod
 
 // Export the request handler
-export const handleCheckpointsDiffServiceRequest = checkpointsService.handleRequest
+export const handleCheckpointsServiceRequest = checkpointsService.handleRequest
 
 // Register all checkpoints methods
 registerAllMethods()

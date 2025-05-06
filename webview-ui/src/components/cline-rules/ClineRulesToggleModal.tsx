@@ -5,9 +5,15 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
+import Tooltip from "@/components/common/Tooltip"
 
 const ClineRulesToggleModal: React.FC = () => {
-	const { globalClineRulesToggles = {}, localClineRulesToggles = {} } = useExtensionState()
+	const {
+		globalClineRulesToggles = {},
+		localClineRulesToggles = {},
+		localCursorRulesToggles = {},
+		localWindsurfRulesToggles = {},
+	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
@@ -31,11 +37,35 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
+	const cursorRules = Object.entries(localCursorRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	const windsurfRules = Object.entries(localWindsurfRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
 	// Handle toggle rule
 	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
 		vscode.postMessage({
 			type: "toggleClineRule",
 			isGlobal,
+			rulePath,
+			enabled,
+		})
+	}
+
+	const toggleCursorRule = (rulePath: string, enabled: boolean) => {
+		vscode.postMessage({
+			type: "toggleCursorRule",
+			rulePath,
+			enabled,
+		})
+	}
+
+	const toggleWindsurfRule = (rulePath: string, enabled: boolean) => {
+		vscode.postMessage({
+			type: "toggleWindsurfRule",
 			rulePath,
 			enabled,
 		})
@@ -61,15 +91,20 @@ const ClineRulesToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<VSCodeButton
-					appearance="icon"
-					aria-label="Cline Rules"
-					onClick={() => setIsVisible(!isVisible)}
-					style={{ padding: "0px 0px", height: "20px" }}>
-					<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-						<span className="codicon codicon-law flex items-center" style={{ fontSize: "12.5px", marginBottom: 1 }} />
-					</div>
-				</VSCodeButton>
+				<Tooltip tipText="Manage Cline Rules" visible={isVisible ? false : undefined}>
+					<VSCodeButton
+						appearance="icon"
+						aria-label="Cline Rules"
+						onClick={() => setIsVisible(!isVisible)}
+						style={{ padding: "0px 0px", height: "20px" }}>
+						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
+							<span
+								className="codicon codicon-law flex items-center"
+								style={{ fontSize: "12.5px", marginBottom: 1 }}
+							/>
+						</div>
+					</VSCodeButton>
+				</Tooltip>
 			</div>
 
 			{isVisible && (
@@ -111,6 +146,9 @@ const ClineRulesToggleModal: React.FC = () => {
 							toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
 							listGap="small"
 							isGlobal={true}
+							ruleType={"cline"}
+							showNewRule={true}
+							showNoRules={true}
 						/>
 					</div>
 
@@ -122,6 +160,27 @@ const ClineRulesToggleModal: React.FC = () => {
 							toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
 							listGap="small"
 							isGlobal={false}
+							ruleType={"cline"}
+							showNewRule={false}
+							showNoRules={false}
+						/>
+						<RulesToggleList
+							rules={cursorRules}
+							toggleRule={toggleCursorRule}
+							listGap="small"
+							isGlobal={false}
+							ruleType={"cursor"}
+							showNewRule={false}
+							showNoRules={false}
+						/>
+						<RulesToggleList
+							rules={windsurfRules}
+							toggleRule={toggleWindsurfRule}
+							listGap="small"
+							isGlobal={false}
+							ruleType={"windsurf"}
+							showNewRule={true}
+							showNoRules={localRules.length === 0 && cursorRules.length === 0 && windsurfRules.length === 0}
 						/>
 					</div>
 				</div>

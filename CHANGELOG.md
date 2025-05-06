@@ -1,5 +1,60 @@
 # Changelog
 
+## [3.14.0]
+
+-   Add support for custom model ID in AWS Bedrock provider, enabling use of Application Inference Profile (Thanks @clicube!)
+-   Add more robust caching & cache tracking for gemini & vertex providers
+-   Add support for LaTeX rendering
+-   Add support for custom API request timeout. Timeouts were 15-30s, but can now be configured via settings for OpenRouter/Cline & Ollama (Thanks @WingsDrafterwork!)
+-   Add truncation notice when truncating manually
+-   Add a timeout setting for the terminal connection, allowing users to set a time to wait for terminal startup
+-   Add copy button to code blocks
+-   Add copy button to markdown blocks (Thanks @weshoke!)
+-   Add checkpoints to more messages
+-   Add slash command to create a new rules file (/newrule)
+-   Add cache ui for open router and cline provider
+-   Add Amazon Nova Premier model to Bedrock (Thanks @watany!)
+-   Add support for cursorrules and windsurfrules
+-   Add support for batch history deletion (Thanks @danix800!)
+-   Improve Drag & Drop experience
+-   Create clinerules folder when creating new rule if it's needed
+-   Enable pricing calculation for gemini and vertex providers
+-   Refactor message handling to not show the MCP View of the server modal
+-   Migrate the addRemoteServer to protobus (Thanks @DaveFres!)
+-   Update task header to be expanded by default
+-   Update Gemini cache TTL time to 15 minutes
+-   Fix race condition in terminal command usage
+-   Fix to correctly handle `import.meta.url`, avoiding leading slash in pathname for Windows (Thanks @DaveFres!)
+-   Fix @withRetry() decoration syntax error when running extension locally (Thanks @DaveFres!)
+-   Fix for git commit mentions in repos with no git commits
+-   Fix cost calculation (Thanks @BarreiroT!)
+
+## [3.13.3]
+
+-   Add download counts to MCP marketplace items
+-   Add `/compact` command
+-   Add prompt caching to gemini models in cline / openrouter providers
+-   Add tooltips to bottom row menu
+
+## [3.13.2]
+
+-   Add Gemini 2.5 Flash model to Vertex and Gemini Providers (Thanks monotykamary!)
+-   Add Caching to gemini provider (Thanks arafatkatze!)
+-   Add thinking budget support to Gemini Models (Thanks monotykamary!)
+-   Add !include .file directive support for .clineignore (Thanks watany-dev!)
+-   Improve slash command functionality
+-   Improve prompting for new task tool
+-   Fix o1 temperature being passed to the azure api (Thanks treeleaves30760!)
+-   Fix to make "add new rule file" button functional
+-   Fix Ollama provider timeout, allowing for a larger loading time (Thanks suvarchal!)
+-   Fix Non-UTF-8 File Handling: Improve Encoding Detection to Prevent Garbled Text and Binary Misclassification (Thanks yt3trees!)
+-   Fix settings to not reset by changing providers
+-   Fix terminal outputs missing commas
+-   Fix terminal errors caused by starting non-alphanumeric outputs
+-   Fix auto approve settings becoming unset
+-   Fix Mermaid syntax error in documentation (Thanks tuki0918!)
+-   Remove supportsComputerUse restriction and support browser use through any model that supports images (Thanks arafatkatze!)
+
 ## [3.13.1]
 
 -   Fix bug where task cancellation during thinking stream would result in error state

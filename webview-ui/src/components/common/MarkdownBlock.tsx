@@ -1,7 +1,9 @@
-import React, { memo, useEffect } from "react"
+import React, { memo, useEffect, useRef, useState } from "react"
 import type { ComponentProps } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
+import rehypeKatex from "rehype-katex"
+import remarkMath from "remark-math"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import type { Node } from "unist"
@@ -91,15 +93,34 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+
+const CopyButton = styled(VSCodeButton)`
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	z-index: 1;
+	opacity: 0;
+`
+
+const CodeBlockContainer = styled.div`
+	position: relative;
+
+	&:hover ${CopyButton} {
+		opacity: 1;
+	}
+`
+
 const StyledMarkdown = styled.div`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
 		border-radius: 3px;
-		margin: 13x 0;
+		margin: 13px 0;
 		padding: 10px 10px;
 		max-width: calc(100vw - 20px);
 		overflow-x: auto;
 		overflow-y: hidden;
+		padding-right: 70px;
 	}
 
 	pre > code {
@@ -136,6 +157,34 @@ const StyledMarkdown = styled.div`
 		white-space: pre-line;
 		word-break: break-word;
 		overflow-wrap: anywhere;
+	}
+
+	/* KaTeX styling */
+	.katex {
+		font-size: 1.1em;
+		color: var(--vscode-editor-foreground);
+		font-family: KaTeX_Main, "Times New Roman", serif;
+		line-height: 1.2;
+		white-space: normal;
+		text-indent: 0;
+	}
+
+	.katex-display {
+		display: block;
+		margin: 1em 0;
+		text-align: center;
+		padding: 0.5em;
+		overflow-x: auto;
+		overflow-y: hidden;
+		background-color: var(--vscode-textCodeBlock-background);
+		border-radius: 3px;
+	}
+
+	.katex-error {
+		color: var(--vscode-errorForeground);
+		border: 1px solid var(--vscode-inputValidation-errorBorder);
+		padding: 8px;
+		border-radius: 3px;
 	}
 
 	font-family:
@@ -197,12 +246,47 @@ const StyledPre = styled.pre<{ theme: any }>`
 			.join("")}
 `
 
+const PreWithCopyButton = ({
+	children,
+	theme,
+	...preProps
+}: { theme: Record<string, string> } & React.HTMLAttributes<HTMLPreElement>) => {
+	const preRef = useRef<HTMLPreElement>(null)
+	const [copied, setCopied] = useState(false)
+
+	const handleCopy = () => {
+		if (preRef.current) {
+			const codeElement = preRef.current.querySelector("code")
+			const textToCopy = codeElement ? codeElement.textContent : preRef.current.textContent
+
+			if (!textToCopy) return
+			navigator.clipboard.writeText(textToCopy).then(() => {
+				setCopied(true)
+				setTimeout(() => setCopied(false), 1500)
+			})
+		}
+	}
+
+	return (
+		<CodeBlockContainer>
+			<CopyButton appearance="icon" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy"}>
+				<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
+			</CopyButton>
+			<StyledPre {...preProps} theme={theme} ref={preRef}>
+				{children}
+			</StyledPre>
+		</CodeBlockContainer>
+	)
+}
+
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
+
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
 			remarkPreventBoldFilenames,
 			remarkUrlToLink,
+			remarkMath,
 			() => {
 				return (tree) => {
 					visit(tree, "code", (node: any) => {
@@ -220,10 +304,11 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			{
 				// languages: {},
 			} as Options,
+			rehypeKatex,
 		],
 		rehypeReactOptions: {
 			components: {
-				pre: ({ node, children, ...preProps }: any) => {
+				pre: ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
 					if (Array.isArray(children) && children.length === 1 && React.isValidElement(children[0])) {
 						const child = children[0] as React.ReactElement<{ className?: string }>
 						if (child.props?.className?.includes("language-mermaid")) {
@@ -231,9 +316,9 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 						}
 					}
 					return (
-						<StyledPre {...preProps} theme={theme}>
+						<PreWithCopyButton {...preProps} theme={theme || {}}>
 							{children}
-						</StyledPre>
+						</PreWithCopyButton>
 					)
 				},
 				code: (props: ComponentProps<"code">) => {
@@ -253,7 +338,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	}, [markdown, setMarkdown, theme])
 
 	return (
-		<div style={{}}>
+		<div>
 			<StyledMarkdown>{reactContent}</StyledMarkdown>
 		</div>
 	)
