@@ -42,7 +42,6 @@ type ProviderSettings = {
 	awsRegion?: string | undefined
 	awsUseCrossRegionInference?: boolean | undefined
 	awsUsePromptCache?: boolean | undefined
-	awspromptCacheId?: string | undefined
 	awsProfile?: string | undefined
 	awsUseProfile?: boolean | undefined
 	awsCustomArn?: string | undefined

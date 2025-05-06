@@ -118,9 +118,11 @@
 		"headerValue": "ヘッダー値",
 		"noCustomHeaders": "カスタムヘッダーが定義されていません。+ ボタンをクリックして追加してください。",
 		"requestyApiKey": "Requesty APIキー",
-		"flushModelsCache": "モデルキャッシュをクリア",
-		"flushedModelsCache": "キャッシュをクリアしました。設定ビューを再開してください",
 		"getRequestyApiKey": "Requesty APIキーを取得",
+		"refreshModels": {
+			"label": "モデルを更新",
+			"hint": "最新のモデルを表示するには設定を再度開いてください。"
+		},
 		"openRouterTransformsText": "プロンプトとメッセージチェーンをコンテキストサイズに圧縮 (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Anthropic APIキー",
 		"getAnthropicApiKey": "Anthropic APIキーを取得",

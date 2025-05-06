@@ -118,9 +118,11 @@
 		"headerValue": "हेडर मूल्य",
 		"noCustomHeaders": "कोई कस्टम हेडर परिभाषित नहीं है। एक जोड़ने के लिए + बटन पर क्लिक करें।",
 		"requestyApiKey": "Requesty API कुंजी",
-		"flushModelsCache": "मॉडल कैश साफ़ करें",
-		"flushedModelsCache": "कैश साफ़ किया गया, कृपया सेटिंग्स व्यू को फिर से खोलें",
 		"getRequestyApiKey": "Requesty API कुंजी प्राप्त करें",
+		"refreshModels": {
+			"label": "मॉडल रिफ्रेश करें",
+			"hint": "नवीनतम मॉडल देखने के लिए कृपया सेटिंग्स को फिर से खोलें।"
+		},
 		"openRouterTransformsText": "संदर्भ आकार के लिए प्रॉम्प्ट और संदेश श्रृंखलाओं को संपीड़ित करें (<a>OpenRouter ट्रांसफॉर्म</a>)",
 		"anthropicApiKey": "Anthropic API कुंजी",
 		"getAnthropicApiKey": "Anthropic API कुंजी प्राप्त करें",

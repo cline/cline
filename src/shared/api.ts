@@ -1,6 +1,6 @@
 import { ModelInfo, ProviderName, ProviderSettings } from "../schemas"
 
-export type { ModelInfo, ProviderName as ApiProvider }
+export type { ModelInfo, ProviderName }
 
 export type ApiHandlerOptions = Omit<ProviderSettings, "apiProvider" | "id">
 

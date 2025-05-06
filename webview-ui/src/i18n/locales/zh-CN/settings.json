@@ -118,9 +118,11 @@
 		"glamaApiKey": "Glama API 密钥",
 		"getGlamaApiKey": "获取 Glama API 密钥",
 		"requestyApiKey": "Requesty API 密钥",
-		"flushModelsCache": "清除模型缓存",
-		"flushedModelsCache": "缓存已清除，请重新打开设置视图",
 		"getRequestyApiKey": "获取 Requesty API 密钥",
+		"refreshModels": {
+			"label": "刷新模型",
+			"hint": "请重新打开设置以查看最新模型。"
+		},
 		"openRouterTransformsText": "自动压缩提示词和消息链到上下文长度限制内 (<a>OpenRouter转换</a>)",
 		"anthropicApiKey": "Anthropic API 密钥",
 		"getAnthropicApiKey": "获取 Anthropic API 密钥",

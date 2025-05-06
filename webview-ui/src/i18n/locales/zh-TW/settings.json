@@ -118,9 +118,11 @@
 		"headerValue": "標頭值",
 		"noCustomHeaders": "尚未定義自訂標頭。點擊 + 按鈕以新增。",
 		"requestyApiKey": "Requesty API 金鑰",
-		"flushModelsCache": "清除模型快取",
-		"flushedModelsCache": "快取已清除，請重新開啟設定視圖",
 		"getRequestyApiKey": "取得 Requesty API 金鑰",
+		"refreshModels": {
+			"label": "重新整理模型",
+			"hint": "請重新開啟設定以查看最新模型。"
+		},
 		"openRouterTransformsText": "將提示和訊息鏈壓縮到上下文大小 (<a>OpenRouter 轉換</a>)",
 		"anthropicApiKey": "Anthropic API 金鑰",
 		"getAnthropicApiKey": "取得 Anthropic API 金鑰",

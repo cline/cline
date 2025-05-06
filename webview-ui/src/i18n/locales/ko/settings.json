@@ -118,9 +118,11 @@
 		"headerValue": "헤더 값",
 		"noCustomHeaders": "정의된 사용자 정의 헤더가 없습니다. + 버튼을 클릭하여 추가하세요.",
 		"requestyApiKey": "Requesty API 키",
-		"flushModelsCache": "모델 캐시 지우기",
-		"flushedModelsCache": "캐시가 지워졌습니다. 설정 보기를 다시 열어주세요",
 		"getRequestyApiKey": "Requesty API 키 받기",
+		"refreshModels": {
+			"label": "모델 새로고침",
+			"hint": "최신 모델을 보려면 설정을 다시 열어주세요."
+		},
 		"openRouterTransformsText": "프롬프트와 메시지 체인을 컨텍스트 크기로 압축 (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Anthropic API 키",
 		"getAnthropicApiKey": "Anthropic API 키 받기",

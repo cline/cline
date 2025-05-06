@@ -118,9 +118,11 @@
 		"headerValue": "Wartość nagłówka",
 		"noCustomHeaders": "Brak zdefiniowanych niestandardowych nagłówków. Kliknij przycisk +, aby dodać.",
 		"requestyApiKey": "Klucz API Requesty",
-		"flushModelsCache": "Wyczyść pamięć podręczną modeli",
-		"flushedModelsCache": "Pamięć podręczna wyczyszczona, proszę ponownie otworzyć widok ustawień",
 		"getRequestyApiKey": "Uzyskaj klucz API Requesty",
+		"refreshModels": {
+			"label": "Odśwież modele",
+			"hint": "Proszę ponownie otworzyć ustawienia, aby zobaczyć najnowsze modele."
+		},
 		"openRouterTransformsText": "Kompresuj podpowiedzi i łańcuchy wiadomości do rozmiaru kontekstu (<a>Transformacje OpenRouter</a>)",
 		"anthropicApiKey": "Klucz API Anthropic",
 		"getAnthropicApiKey": "Uzyskaj klucz API Anthropic",

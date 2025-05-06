@@ -106,8 +106,6 @@
 		"awsCustomArnUse": "Entrez un ARN Amazon Bedrock valide pour le modèle que vous souhaitez utiliser. Exemples de format :",
 		"awsCustomArnDesc": "Assurez-vous que la région dans l'ARN correspond à la région AWS sélectionnée ci-dessus.",
 		"openRouterApiKey": "Clé API OpenRouter",
-		"flushModelsCache": "Vider le cache des modèles",
-		"flushedModelsCache": "Cache vidé, veuillez rouvrir la vue des paramètres",
 		"getOpenRouterApiKey": "Obtenir la clé API OpenRouter",
 		"apiKeyStorageNotice": "Les clés API sont stockées en toute sécurité dans le stockage sécurisé de VSCode",
 		"glamaApiKey": "Clé API Glama",
@@ -121,6 +119,10 @@
 		"noCustomHeaders": "Aucun en-tête personnalisé défini. Cliquez sur le bouton + pour en ajouter un.",
 		"requestyApiKey": "Clé API Requesty",
 		"getRequestyApiKey": "Obtenir la clé API Requesty",
+		"refreshModels": {
+			"label": "Actualiser les modèles",
+			"hint": "Veuillez rouvrir les paramètres pour voir les modèles les plus récents."
+		},
 		"openRouterTransformsText": "Compresser les prompts et chaînes de messages à la taille du contexte (<a>Transformations OpenRouter</a>)",
 		"anthropicApiKey": "Clé API Anthropic",
 		"getAnthropicApiKey": "Obtenir la clé API Anthropic",
