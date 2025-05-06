@@ -27,7 +27,8 @@ import {
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
-import { FileServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
@@ -875,7 +876,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!apiValidationResult && !modelIdValidationResult) {
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
-				vscode.postMessage({ type: "getLatestState" })
+				StateServiceClient.getLatestState(EmptyRequest.create())
+					.then(() => {
+						console.log("State refreshed")
+					})
+					.catch((error) => {
+						console.error("Error refreshing state:", error)
+					})
 			}
 		}, [apiConfiguration, openRouterModels])
 

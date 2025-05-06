@@ -5,7 +5,7 @@
 import { registerMethod } from "./index"
 import { checkIsImageUrl } from "./checkIsImageUrl"
 
-// Register all web-content service methods
+// Register all web service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("checkIsImageUrl", checkIsImageUrl)

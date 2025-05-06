@@ -105,6 +105,8 @@ export interface ExtensionMessage {
 		message?: any // JSON serialized protobuf message
 		request_id: string // Same ID as the request
 		error?: string // Optional error message
+		is_streaming?: boolean // Whether this is part of a streaming response
+		sequence_number?: number // For ordering chunks in streaming responses
 	}
 }
 
