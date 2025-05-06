@@ -355,19 +355,19 @@ export const serviceHandlers: Record<string, ServiceHandlerConfig> = {${serviceC
  */
 async function ensureProtoFilesExist() {
 	console.log(chalk.cyan("Checking for missing proto files..."))
-	
+
 	// Get existing proto files
 	const existingProtoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
-	const existingProtoServices = existingProtoFiles.map(file => path.basename(file, ".proto"))
-	
+	const existingProtoServices = existingProtoFiles.map((file) => path.basename(file, ".proto"))
+
 	// Check each service in serviceNameMap
 	for (const [serviceName, fullServiceName] of Object.entries(serviceNameMap)) {
 		if (!existingProtoServices.includes(serviceName)) {
 			console.log(chalk.yellow(`Creating template proto file for ${serviceName}...`))
-			
+
 			// Extract service class name from full name (e.g., "cline.ModelsService" -> "ModelsService")
 			const serviceClassName = fullServiceName.split(".").pop()
-			
+
 			// Create template proto file
 			const protoContent = `syntax = "proto3";
 
@@ -392,7 +392,7 @@ service ${serviceClassName} {
 //   int32 int32Field = 3;
 // }
 `
-			
+
 			// Write the template proto file
 			const protoFilePath = path.join(SCRIPT_DIR, `${serviceName}.proto`)
 			await fs.writeFile(protoFilePath, protoContent)
