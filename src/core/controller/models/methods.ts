@@ -3,10 +3,10 @@
 
 // Import all method implementations
 import { registerMethod } from "./index"
-import { checkIsImageUrl } from "./checkIsImageUrl"
+import { getOllamaModels } from "./getOllamaModels"
 
-// Register all web-content service methods
+// Register all models service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
-	registerMethod("checkIsImageUrl", checkIsImageUrl)
+	registerMethod("getOllamaModels", getOllamaModels)
 }

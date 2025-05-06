@@ -564,22 +564,18 @@ export const geminiModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 2.5, // Default price (highest tier)
-		outputPrice: 15, // Default price (highest tier)
-		cacheReadsPrice: 0.625,
-		cacheWritesPrice: 4.5,
+		inputPrice: 2.5,
+		outputPrice: 15,
 		tiers: [
 			{
 				contextWindow: 200000,
 				inputPrice: 1.25,
 				outputPrice: 10,
-				cacheReadsPrice: 0.31,
 			},
 			{
 				contextWindow: Infinity,
 				inputPrice: 2.5,
 				outputPrice: 15,
-				cacheReadsPrice: 0.625,
 			},
 		],
 	},

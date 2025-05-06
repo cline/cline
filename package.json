@@ -118,6 +118,12 @@
 				"command": "cline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.generateGitCommitMessage",
+				"title": "✨ Generate Commit Message with Cline",
+				"category": "Cline",
+				"icon": "$(robot)"
 			}
 		],
 		"keybindings": [
@@ -128,6 +134,10 @@
 				"win": "ctrl+'",
 				"linux": "ctrl+'",
 				"when": "editorHasSelection"
+			},
+			{
+				"command": "cline.generateGitCommitMessage",
+				"when": "scmProvider == git"
 			}
 		],
 		"menus": {
@@ -206,6 +216,19 @@
 				{
 					"command": "cline.addTerminalOutputToChat",
 					"group": "navigation"
+				}
+			],
+			"scm/title": [
+				{
+					"command": "cline.generateGitCommitMessage",
+					"group": "navigation",
+					"when": "scmProvider == git"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "cline.generateGitCommitMessage",
+					"when": "scmProvider == git"
 				}
 			]
 		},
