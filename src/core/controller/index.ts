@@ -342,13 +342,6 @@ export class Controller {
 			case "resetState":
 				await this.resetState()
 				break
-			case "requestOllamaModels":
-				const ollamaModels = await this.getOllamaModels(message.text)
-				this.postMessageToWebview({
-					type: "ollamaModels",
-					ollamaModels,
-				})
-				break
 			case "requestLmStudioModels":
 				const lmStudioModels = await this.getLmStudioModels(message.text)
 				this.postMessageToWebview({
@@ -956,25 +949,6 @@ export class Controller {
 			return models || []
 		} catch (error) {
 			console.error("Error fetching VS Code LM models:", error)
-			return []
-		}
-	}
-
-	// Ollama
-
-	async getOllamaModels(baseUrl?: string) {
-		try {
-			if (!baseUrl) {
-				baseUrl = "http://localhost:11434"
-			}
-			if (!URL.canParse(baseUrl)) {
-				return []
-			}
-			const response = await axios.get(`${baseUrl}/api/tags`)
-			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
-			const models = [...new Set<string>(modelsArray)]
-			return models
-		} catch (error) {
 			return []
 		}
 	}

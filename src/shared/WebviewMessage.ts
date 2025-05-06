@@ -20,7 +20,6 @@ export interface WebviewMessage {
 		| "showTaskWithId"
 		| "exportTaskWithId"
 		| "resetState"
-		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openInBrowser"
 		| "openMention"
