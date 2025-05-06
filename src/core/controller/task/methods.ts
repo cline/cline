@@ -5,6 +5,7 @@
 import { registerMethod } from "./index"
 import { cancelTask } from "./cancelTask"
 import { clearTask } from "./clearTask"
+import { deleteTasksWithIds } from "./deleteTasksWithIds"
 import { newTask } from "./newTask"
 import { showTaskWithId } from "./showTaskWithId"
 
@@ -13,6 +14,7 @@ export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("cancelTask", cancelTask)
 	registerMethod("clearTask", clearTask)
+	registerMethod("deleteTasksWithIds", deleteTasksWithIds)
 	registerMethod("newTask", newTask)
 	registerMethod("showTaskWithId", showTaskWithId)
 }
