@@ -502,6 +502,15 @@ export const vertexModels = {
 		inputPrice: 2.5,
 		outputPrice: 15,
 	},
+	"gemini-2.5-pro-preview-05-06": {
+		maxTokens: 65_535,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		isPromptCacheOptional: true,
+		inputPrice: 2.5,
+		outputPrice: 15,
+	},
 	"gemini-2.5-pro-exp-03-25": {
 		maxTokens: 65_535,
 		contextWindow: 1_048_576,
@@ -679,6 +688,31 @@ export const geminiModels = {
 		outputPrice: 0,
 	},
 	"gemini-2.5-pro-preview-03-25": {
+		maxTokens: 65_535,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		isPromptCacheOptional: true,
+		inputPrice: 2.5, // This is the pricing for prompts above 200k tokens.
+		outputPrice: 15,
+		cacheReadsPrice: 0.625,
+		cacheWritesPrice: 4.5,
+		tiers: [
+			{
+				contextWindow: 200_000,
+				inputPrice: 1.25,
+				outputPrice: 10,
+				cacheReadsPrice: 0.31,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 2.5,
+				outputPrice: 15,
+				cacheReadsPrice: 0.625,
+			},
+		],
+	},
+	"gemini-2.5-pro-preview-05-06": {
 		maxTokens: 65_535,
 		contextWindow: 1_048_576,
 		supportsImages: true,
@@ -1672,6 +1706,7 @@ export const PROMPT_CACHING_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet:beta",
 	"anthropic/claude-3.7-sonnet:thinking",
 	"google/gemini-2.5-pro-preview-03-25",
+	"google/gemini-2.5-pro-preview-05-06",
 	"google/gemini-2.0-flash-001",
 	"google/gemini-flash-1.5",
 	"google/gemini-flash-1.5-8b",
@@ -1681,6 +1716,7 @@ export const PROMPT_CACHING_MODELS = new Set([
 // in settings).
 export const OPTIONAL_PROMPT_CACHING_MODELS = new Set([
 	"google/gemini-2.5-pro-preview-03-25",
+	"google/gemini-2.5-pro-preview-05-06",
 	"google/gemini-2.0-flash-001",
 	"google/gemini-flash-1.5",
 	"google/gemini-flash-1.5-8b",
