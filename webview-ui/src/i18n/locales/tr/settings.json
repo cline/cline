@@ -22,17 +22,15 @@
 	},
 	"sections": {
 		"providers": "Sağlayıcılar",
-		"autoApprove": "Otomatik Onay",
-		"browser": "Tarayıcı / Bilgisayar Kullanımı",
+		"autoApprove": "Oto-Onay",
+		"browser": "Bilgisayar Erişimi",
 		"checkpoints": "Kontrol Noktaları",
 		"notifications": "Bildirimler",
-		"contextManagement": "Bağlam Yönetimi",
+		"contextManagement": "Bağlam",
 		"terminal": "Terminal",
-		"advanced": "Gelişmiş",
-		"experimental": "Deneysel Özellikler",
+		"experimental": "Deneysel",
 		"language": "Dil",
-		"about": "Roo Code Hakkında",
-		"interface": "Arayüz"
+		"about": "Roo Code Hakkında"
 	},
 	"autoApprove": {
 		"description": "Roo'nun onay gerektirmeden otomatik olarak işlemler gerçekleştirmesine izin verin. Bu ayarları yalnızca yapay zekaya tamamen güveniyorsanız ve ilgili güvenlik risklerini anlıyorsanız etkinleştirin.",

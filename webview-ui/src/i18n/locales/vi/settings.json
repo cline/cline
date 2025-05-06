@@ -22,17 +22,15 @@
 	},
 	"sections": {
 		"providers": "Nhà cung cấp",
-		"autoApprove": "Tự động phê duyệt",
-		"browser": "Trình duyệt / Sử dụng máy tính",
+		"autoApprove": "Phê duyệt",
+		"browser": "Trình duyệt",
 		"checkpoints": "Điểm kiểm tra",
 		"notifications": "Thông báo",
-		"contextManagement": "Quản lý ngữ cảnh",
+		"contextManagement": "Ngữ cảnh",
 		"terminal": "Terminal",
-		"advanced": "Nâng cao",
-		"experimental": "Tính năng thử nghiệm",
+		"experimental": "Thử nghiệm",
 		"language": "Ngôn ngữ",
-		"about": "Về Roo Code",
-		"interface": "Giao diện"
+		"about": "Giới thiệu"
 	},
 	"autoApprove": {
 		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",

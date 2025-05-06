@@ -22,17 +22,15 @@
 	},
 	"sections": {
 		"providers": "Anbieter",
-		"autoApprove": "Automatische Genehmigung",
-		"browser": "Browser / Computer-Nutzung",
+		"autoApprove": "Auto-Genehmigung",
+		"browser": "Computerzugriff",
 		"checkpoints": "Kontrollpunkte",
 		"notifications": "Benachrichtigungen",
-		"contextManagement": "Kontext-Management",
+		"contextManagement": "Kontext",
 		"terminal": "Terminal",
-		"advanced": "Erweitert",
-		"experimental": "Experimentelle Funktionen",
+		"experimental": "Experimentell",
 		"language": "Sprache",
-		"about": "Über Roo Code",
-		"interface": "Oberfläche"
+		"about": "Über Roo Code"
 	},
 	"autoApprove": {
 		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktiviere diese Einstellungen nur, wenn du der KI vollständig vertraust und die damit verbundenen Sicherheitsrisiken verstehst.",

@@ -23,16 +23,14 @@
 	"sections": {
 		"providers": "供應商",
 		"autoApprove": "自動核准",
-		"browser": "瀏覽器/電腦使用",
+		"browser": "電腦存取",
 		"checkpoints": "檢查點",
 		"notifications": "通知",
-		"contextManagement": "上下文管理",
+		"contextManagement": "上下文",
 		"terminal": "終端機",
-		"advanced": "進階",
-		"experimental": "實驗性功能",
+		"experimental": "實驗性",
 		"language": "語言",
-		"about": "關於 Roo Code",
-		"interface": "介面"
+		"about": "關於 Roo Code"
 	},
 	"autoApprove": {
 		"description": "允許 Roo 無需核准即執行操作。僅在您完全信任 AI 並了解相關安全風險時啟用這些設定。",

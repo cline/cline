@@ -22,17 +22,15 @@
 	},
 	"sections": {
 		"providers": "Dostawcy",
-		"autoApprove": "Automatyczne zatwierdzanie",
-		"browser": "Przeglądarka / Użycie komputera",
+		"autoApprove": "Auto-zatwierdzanie",
+		"browser": "Dostęp komputera",
 		"checkpoints": "Punkty kontrolne",
 		"notifications": "Powiadomienia",
-		"contextManagement": "Zarządzanie kontekstem",
+		"contextManagement": "Kontekst",
 		"terminal": "Terminal",
-		"advanced": "Zaawansowane",
-		"experimental": "Funkcje eksperymentalne",
+		"experimental": "Eksperymentalne",
 		"language": "Język",
-		"about": "O Roo Code",
-		"interface": "Interfejs"
+		"about": "O Roo Code"
 	},
 	"autoApprove": {
 		"description": "Pozwól Roo na automatyczne wykonywanie operacji bez wymagania zatwierdzenia. Włącz te ustawienia tylko jeśli w pełni ufasz AI i rozumiesz związane z tym zagrożenia bezpieczeństwa.",

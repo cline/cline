@@ -22,17 +22,15 @@
 	},
 	"sections": {
 		"providers": "Proveïdors",
-		"autoApprove": "Aprovació automàtica",
-		"browser": "Navegador / Ús de l'ordinador",
+		"autoApprove": "Auto-aprovació",
+		"browser": "Accés a l'ordinador",
 		"checkpoints": "Punts de control",
 		"notifications": "Notificacions",
-		"contextManagement": "Gestió de context",
+		"contextManagement": "Context",
 		"terminal": "Terminal",
-		"advanced": "Avançat",
-		"experimental": "Funcions experimentals",
+		"experimental": "Experimental",
 		"language": "Idioma",
-		"about": "Sobre Roo Code",
-		"interface": "Interfície"
+		"about": "Sobre Roo Code"
 	},
 	"autoApprove": {
 		"description": "Permet que Roo realitzi operacions automàticament sense requerir aprovació. Activeu aquesta configuració només si confieu plenament en la IA i enteneu els riscos de seguretat associats.",

@@ -23,16 +23,14 @@
 	"sections": {
 		"providers": "Providers",
 		"autoApprove": "Auto-Approve",
-		"browser": "Browser / Computer Use",
+		"browser": "Browser",
 		"checkpoints": "Checkpoints",
 		"notifications": "Notifications",
-		"contextManagement": "Context Management",
+		"contextManagement": "Context",
 		"terminal": "Terminal",
-		"advanced": "Advanced",
-		"experimental": "Experimental Features",
+		"experimental": "Experimental",
 		"language": "Language",
-		"about": "About Roo Code",
-		"interface": "Interface"
+		"about": "About Roo Code"
 	},
 	"autoApprove": {
 		"description": "Allow Roo to automatically perform operations without requiring approval. Enable these settings only if you fully trust the AI and understand the associated security risks.",

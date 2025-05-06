@@ -22,17 +22,15 @@
 	},
 	"sections": {
 		"providers": "प्रदाता",
-		"autoApprove": "स्वतः अनुमोदन",
-		"browser": "ब्राउज़र / कंप्यूटर उपयोग",
+		"autoApprove": "अनुमोदन",
+		"browser": "ब्राउज़र",
 		"checkpoints": "चेकपॉइंट",
 		"notifications": "सूचनाएँ",
-		"contextManagement": "संदर्भ प्रबंधन",
+		"contextManagement": "संदर्भ",
 		"terminal": "टर्मिनल",
-		"advanced": "उन्नत",
-		"experimental": "प्रायोगिक सुविधाएँ",
+		"experimental": "प्रायोगिक",
 		"language": "भाषा",
-		"about": "Roo Code के बारे में",
-		"interface": "इंटरफ़ेस"
+		"about": "परिचय"
 	},
 	"autoApprove": {
 		"description": "Roo को अनुमोदन की आवश्यकता के बिना स्वचालित रूप से ऑपरेशन करने की अनुमति दें। इन सेटिंग्स को केवल तभी सक्षम करें जब आप AI पर पूरी तरह से भरोसा करते हों और संबंधित सुरक्षा जोखिमों को समझते हों।",

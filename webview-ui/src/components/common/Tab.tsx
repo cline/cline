@@ -1,4 +1,4 @@
-import { HTMLAttributes, useCallback } from "react"
+import React, { HTMLAttributes, useCallback, forwardRef } from "react"
 
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 type TabProps = HTMLAttributes<HTMLDivElement>
 
 export const Tab = ({ className, children, ...props }: TabProps) => (
-	<div className={cn("fixed inset-0 flex flex-col overflow-hidden", className)} {...props}>
+	<div className={cn("fixed inset-0 flex flex-col", className)} {...props}>
 		{children}
 	</div>
 )
@@ -45,3 +45,47 @@ export const TabContent = ({ className, children, ...props }: TabProps) => {
 		</div>
 	)
 }
+
+export const TabList = forwardRef<
+	HTMLDivElement,
+	HTMLAttributes<HTMLDivElement> & {
+		value: string
+		onValueChange: (value: string) => void
+	}
+>(({ children, className, value, onValueChange, ...props }, ref) => {
+	return (
+		<div ref={ref} role="tablist" className={cn("flex", className)} {...props}>
+			{React.Children.map(children, (child) => {
+				if (React.isValidElement(child)) {
+					return React.cloneElement(child as React.ReactElement<any>, {
+						isSelected: child.props.value === value,
+						onSelect: () => onValueChange(child.props.value),
+					})
+				}
+				return child
+			})}
+		</div>
+	)
+})
+
+export const TabTrigger = forwardRef<
+	HTMLButtonElement,
+	React.ButtonHTMLAttributes<HTMLButtonElement> & {
+		value: string
+		isSelected?: boolean
+		onSelect?: () => void
+	}
+>(({ children, className, value: _value, isSelected, onSelect, ...props }, ref) => {
+	return (
+		<button
+			ref={ref}
+			role="tab"
+			aria-selected={isSelected}
+			tabIndex={isSelected ? 0 : -1}
+			className={cn("focus:outline-none focus:ring-2 focus:ring-vscode-focusBorder", className)}
+			onClick={onSelect}
+			{...props}>
+			{children}
+		</button>
+	)
+})

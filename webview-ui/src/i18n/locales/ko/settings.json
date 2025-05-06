@@ -23,16 +23,14 @@
 	"sections": {
 		"providers": "공급자",
 		"autoApprove": "자동 승인",
-		"browser": "브라우저 / 컴퓨터 사용",
+		"browser": "컴퓨터 접근",
 		"checkpoints": "체크포인트",
 		"notifications": "알림",
-		"contextManagement": "컨텍스트 관리",
+		"contextManagement": "컨텍스트",
 		"terminal": "터미널",
-		"advanced": "고급",
-		"experimental": "실험적 기능",
+		"experimental": "실험적",
 		"language": "언어",
-		"about": "Roo Code 정보",
-		"interface": "인터페이스"
+		"about": "Roo Code 정보"
 	},
 	"autoApprove": {
 		"description": "Roo가 승인 없이 자동으로 작업을 수행할 수 있도록 허용합니다. AI를 완전히 신뢰하고 관련 보안 위험을 이해하는 경우에만 이러한 설정을 활성화하세요.",

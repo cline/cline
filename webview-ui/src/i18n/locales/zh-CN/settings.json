@@ -23,14 +23,12 @@
 	"sections": {
 		"providers": "提供商",
 		"autoApprove": "自动批准",
-		"browser": "浏览器交互",
+		"browser": "计算机交互",
 		"checkpoints": "检查点",
-		"interface": "界面内容",
 		"notifications": "通知",
-		"contextManagement": "上下文管理",
+		"contextManagement": "上下文",
 		"terminal": "终端",
-		"advanced": "高级",
-		"experimental": "实验性功能",
+		"experimental": "实验性",
 		"language": "语言",
 		"about": "关于 Roo Code"
 	},
