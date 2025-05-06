@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata, StringRequest, StringArrayRequest } from "./common"
+import { Empty, EmptyRequest, Metadata, StringArrayRequest, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -154,7 +154,7 @@ export const TaskServiceDefinition = {
 		/** Shows a task with the specified ID */
 		showTaskWithId: {
 			name: "showTaskWithId",
-    	requestType: StringRequest,
+			requestType: StringRequest,
 			requestStream: false,
 			responseType: Empty,
 			responseStream: false,
