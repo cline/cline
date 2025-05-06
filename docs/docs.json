@@ -67,12 +67,8 @@
 				]
 			},
 			{
-				"group": "Running Models Locally",
-				"pages": [
-					"running-models-locally/read-me-first",
-					"running-models-locally/lm-studio",
-					"running-models-locally/ollama"
-				]
+				"group": "Improving Your Prompting Skills",
+				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
 			},
 			{
 				"group": "Exploring Cline's Tools",
@@ -95,12 +91,16 @@
 				]
 			},
 			{
-				"group": "Improving Your Prompting Skills",
-				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
-			},
-			{
-				"group": "More Info",
-				"pages": ["more-info/telemetry"]
+				"group": "MCP Servers",
+				"pages": [
+					"mcp/mcp-overview",
+					"mcp/adding-mcp-servers-from-github",
+					"mcp/configuring-mcp-servers",
+					"mcp/connecting-to-a-remote-server",
+					"mcp/mcp-marketplace",
+					"mcp/mcp-server-development-protocol",
+					"mcp/mcp-transport-mechanisms"
+				]
 			},
 			{
 				"group": "Custom Model Configurations",
@@ -112,16 +112,16 @@
 				]
 			},
 			{
-				"group": "Model Context Protocol (MCP)",
+				"group": "Running Models Locally",
 				"pages": [
-					"mcp/mcp-overview",
-					"mcp/adding-mcp-servers-from-github",
-					"mcp/configuring-mcp-servers",
-					"mcp/connecting-to-a-remote-server",
-					"mcp/mcp-marketplace",
-					"mcp/mcp-server-development-protocol",
-					"mcp/mcp-transport-mechanisms"
+					"running-models-locally/read-me-first",
+					"running-models-locally/lm-studio",
+					"running-models-locally/ollama"
 				]
+			},
+			{
+				"group": "More Info",
+				"pages": ["more-info/telemetry"]
 			}
 		]
 	},
