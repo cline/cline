@@ -626,49 +626,6 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
-			case "searchFiles": {
-				const workspacePath = getWorkspacePath()
-
-				if (!workspacePath) {
-					// Handle case where workspace path is not available
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results: [],
-						mentionsRequestId: message.mentionsRequestId,
-						error: "No workspace path available",
-					})
-					break
-				}
-				try {
-					// Call file search service with query from message
-					const results = await searchWorkspaceFiles(
-						message.query || "",
-						workspacePath,
-						20, // Use default limit, as filtering is now done in the backend
-					)
-
-					// debug logging to be removed
-					//console.log(`controller/index.ts: Search results: ${results.length}`)
-
-					// Send results back to webview
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results,
-						mentionsRequestId: message.mentionsRequestId,
-					})
-				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : String(error)
-
-					// Send error response to webview
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results: [],
-						error: errorMessage,
-						mentionsRequestId: message.mentionsRequestId,
-					})
-				}
-				break
-			}
 			case "toggleFavoriteModel": {
 				if (message.modelId) {
 					const { apiConfiguration } = await getAllExtensionState(this.context)
