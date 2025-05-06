@@ -99,8 +99,24 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 
 	const getTimestamp = (message: ClineMessage): string => {
 		if (message.ts) {
-			const date = new Date(message.ts)
-			return date.toLocaleTimeString()
+			const messageDate = new Date(message.ts)
+			const today = new Date()
+
+			const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+			const messageDateOnly = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate())
+
+			const time = messageDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
+
+			const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+			const monthName = monthNames[messageDate.getMonth()]
+
+			if (messageDateOnly.getTime() === todayDate.getTime()) {
+				return `${time}`
+			} else if (messageDate.getFullYear() === today.getFullYear()) {
+				return `${monthName} ${messageDate.getDate()} ${time}`
+			} else {
+				return `${monthName} ${messageDate.getDate()}, ${messageDate.getFullYear()} ${time}`
+			}
 		}
 		return ""
 	}

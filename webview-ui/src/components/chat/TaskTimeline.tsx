@@ -87,6 +87,9 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 			) {
 				return false
 			}
+			if (msg.type === "ask" && (msg.ask === "resume_task" || msg.ask === "resume_completed_task")) {
+				return false
+			}
 			return true
 		})
 	}, [messages])
