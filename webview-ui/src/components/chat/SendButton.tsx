@@ -31,8 +31,8 @@ export const SendButton: React.FC<SendButtonProps> = ({
 	const modeColor = chatSettings.mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR
 	// Only show resume task styling if we're actually in a resumable state
 	// This prevents the resume task button from showing up at the end of a task
-	const isResumeTask = clineAsk === "resume_task" && !isStreaming;
-	
+	const isResumeTask = clineAsk === "resume_task" && !isStreaming
+
 	return (
 		<div
 			data-testid="send-button"

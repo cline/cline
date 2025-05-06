@@ -64,7 +64,15 @@ async function convertHtmlToMarkdown(html: string) {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting, userInfo, chatSettings } = useExtensionState()
+	const {
+		version,
+		clineMessages: messages,
+		taskHistory,
+		apiConfiguration,
+		telemetrySetting,
+		userInfo,
+		chatSettings,
+	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -1035,39 +1043,39 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								padding: `${primaryButtonText || secondaryButtonText || isStreaming ? "10" : "0"}px 15px 0px 15px`,
 							}}>
 							{/* Hide buttons when in resume_task state, when task is complete, or when in plan mode */}
-							{clineAsk !== "resume_task" && 
-							  !(clineAsk === "completion_result" && !isStreaming) && 
-							  !(primaryButtonText === "Start New Task" && !isStreaming) && 
-							  !(lastMessage?.say === "completion_result" && !isStreaming) &&
-							  !(chatSettings.mode === "plan" && !isStreaming) && (
-								<>
-									{primaryButtonText && !isStreaming && primaryButtonText !== "Start New Task" && (
-										<VSCodeButton
-											appearance="primary"
-											disabled={!enableButtons}
-											style={{
-												flex: secondaryButtonText ? 1 : 2,
-												marginRight: secondaryButtonText ? "6px" : "0",
-											}}
-											onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
-											{primaryButtonText}
-										</VSCodeButton>
-									)}
-									{/* Cancel button commented out as requested */}
-									{(secondaryButtonText && !isStreaming) && (
-										<VSCodeButton
-											appearance="secondary"
-											disabled={!enableButtons}
-											style={{
-												flex: 1,
-												marginLeft: "6px",
-											}}
-											onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
-											{secondaryButtonText}
-										</VSCodeButton>
-									)}
-								</>
-							)}
+							{clineAsk !== "resume_task" &&
+								!(clineAsk === "completion_result" && !isStreaming) &&
+								!(primaryButtonText === "Start New Task" && !isStreaming) &&
+								!(lastMessage?.say === "completion_result" && !isStreaming) &&
+								!(chatSettings.mode === "plan" && !isStreaming) && (
+									<>
+										{primaryButtonText && !isStreaming && primaryButtonText !== "Start New Task" && (
+											<VSCodeButton
+												appearance="primary"
+												disabled={!enableButtons}
+												style={{
+													flex: secondaryButtonText ? 1 : 2,
+													marginRight: secondaryButtonText ? "6px" : "0",
+												}}
+												onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
+												{primaryButtonText}
+											</VSCodeButton>
+										)}
+										{/* Cancel button commented out as requested */}
+										{secondaryButtonText && !isStreaming && (
+											<VSCodeButton
+												appearance="secondary"
+												disabled={!enableButtons}
+												style={{
+													flex: 1,
+													marginLeft: "6px",
+												}}
+												onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
+												{secondaryButtonText}
+											</VSCodeButton>
+										)}
+									</>
+								)}
 						</div>
 					)}
 				</>
