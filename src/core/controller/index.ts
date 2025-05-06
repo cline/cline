@@ -327,17 +327,8 @@ export class Controller {
 					images,
 				})
 				break
-			case "exportCurrentTask":
-				const currentTaskId = this.task?.taskId
-				if (currentTaskId) {
-					this.exportTaskWithId(currentTaskId)
-				}
-				break
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
-				break
-			case "exportTaskWithId":
-				this.exportTaskWithId(message.text!)
 				break
 			case "resetState":
 				await this.resetState()
