@@ -1404,6 +1404,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 							modelInfo.cacheReadsPrice = 0.014
 							break
 						case "google/gemini-2.5-pro-preview-03-25":
+						case "google/gemini-2.5-pro-preview-05-06":
 						case "google/gemini-2.0-flash-001":
 						case "google/gemini-flash-1.5":
 						case "google/gemini-pro-1.5":
