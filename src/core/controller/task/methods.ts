@@ -5,8 +5,8 @@
 import { registerMethod } from "./index"
 import { cancelTask } from "./cancelTask"
 import { clearTask } from "./clearTask"
-import { exportTaskWithId } from "./exportTaskWithId"
 import { deleteTasksWithIds } from "./deleteTasksWithIds"
+import { exportTaskWithId } from "./exportTaskWithId"
 import { newTask } from "./newTask"
 
 // Register all task service methods
@@ -14,7 +14,7 @@ export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("cancelTask", cancelTask)
 	registerMethod("clearTask", clearTask)
-	registerMethod("exportTaskWithId", exportTaskWithId)
 	registerMethod("deleteTasksWithIds", deleteTasksWithIds)
+	registerMethod("exportTaskWithId", exportTaskWithId)
 	registerMethod("newTask", newTask)
 }

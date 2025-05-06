@@ -330,9 +330,6 @@ export class Controller {
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
 				break
-			case "deleteTasksWithIds":
-				this.deleteTasksWithIds(message.text!)
-				break
 			case "resetState":
 				await this.resetState()
 				break

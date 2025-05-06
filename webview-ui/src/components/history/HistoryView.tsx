@@ -557,8 +557,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	)
 }
 
-import { TaskServiceClient } from "@/services/grpc-client"
-
 const ExportButton = ({ itemId }: { itemId: string }) => (
 	<VSCodeButton
 		className="export-button"
