@@ -12,6 +12,7 @@ import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
+import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
