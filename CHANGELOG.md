@@ -1,5 +1,27 @@
 # Roo Code Changelog
 
+## [3.16.0] - 2025-05-06
+
+- Add vertical tab navigation to the settings (thanks @dlab-anton)
+- Add Groq and Chutes API providers (thanks @shariqriazz)
+- Clickable code references in code block (thanks @KJ7LNW)
+- Improve accessibility of ato-approve toggles (thanks @Deon588)
+- Requesty provider fixes (thanks @dtrugman)
+- Fix migration and persistence of per-mode API profiles (thanks @alasano)
+- Fix usage of `path.basename` in the extension webview (thanks @samhvw8)
+- Fix display issue of the programming language dropdown in the code block component (thanks @zhangtony239)
+- MCP server errors are now captured and shown in a new "Errors" tab (thanks @robertheadley)
+- Error logging will no longer break MCP functionality if the server is properly connected (thanks @ksze)
+- You can now toggle the `terminal.integrated.inheritEnv` VSCode setting directly for the Roo Code settings (thanks @KJ7LNW)
+- Add `gemini-2.5-pro-preview-05-06` to the Vertex and Gemini providers (thanks @zetaloop)
+- Ensure evals exercises are up-to-date before running evals (thanks @shariqriazz)
+- Lots of general UI improvements (thanks @elianiva)
+- Organize provider settings into separate components
+- Improved icons and translations for the code block component
+- Add support for tests that use ESM libraries
+- Move environment detail generation to a separate module
+- Enable prompt caching by default for supported Gemini models
+
 ## [3.15.5] - 2025-05-05
 
 - Update @google/genai to 0.12 (includes some streaming completion bug fixes)
