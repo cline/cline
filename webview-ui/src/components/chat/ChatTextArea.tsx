@@ -39,6 +39,26 @@ import { ChatSettings } from "@shared/ChatSettings"
 import ServersToggleModal from "./ServersToggleModal"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 
+// Helper function to check image dimensions
+const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
+	return new Promise((resolve, reject) => {
+		const img = new Image()
+		img.onload = () => {
+			if (img.naturalWidth > 200 || img.naturalHeight > 200) {
+				reject(new Error("Image dimensions exceed maximum allowed size of 200px."))
+			} else {
+				resolve({ width: img.naturalWidth, height: img.naturalHeight })
+			}
+		}
+		img.onerror = (err) => {
+			// Added error parameter
+			console.error("Failed to load image for dimension check:", err)
+			reject(new Error("Failed to load image to check dimensions."))
+		}
+		img.src = dataUrl
+	})
+}
+
 interface ChatTextAreaProps {
 	inputValue: string
 	setInputValue: (value: string) => void
@@ -271,6 +291,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showDimensionError, setShowDimensionError] = useState(false) // New state for dimension error
+		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null) // New timer ref for dimension error
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -724,6 +746,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setIsTextAreaFocused(false)
 		}, [isMouseDownOnMenu])
 
+		const showDimensionErrorMessage = useCallback(() => {
+			setShowDimensionError(true)
+			if (dimensionErrorTimerRef.current) {
+				clearTimeout(dimensionErrorTimerRef.current)
+			}
+			dimensionErrorTimerRef.current = setTimeout(() => {
+				setShowDimensionError(false)
+				dimensionErrorTimerRef.current = null
+			}, 3000)
+		}, [])
+
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
@@ -769,13 +802,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								return
 							}
 							const reader = new FileReader()
-							reader.onloadend = () => {
+							reader.onloadend = async () => {
+								// Make async
 								if (reader.error) {
 									console.error("Error reading file:", reader.error)
 									resolve(null)
 								} else {
 									const result = reader.result
-									resolve(typeof result === "string" ? result : null)
+									if (typeof result === "string") {
+										try {
+											await getImageDimensions(result) // Check dimensions
+											resolve(result)
+										} catch (error) {
+											console.warn((error as Error).message)
+											showDimensionErrorMessage() // Show error to user
+											resolve(null) // Don't add this image
+										}
+									} else {
+										resolve(null)
+									}
 								}
 							}
 							reader.readAsDataURL(blob)
@@ -791,7 +836,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue],
+			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, showDimensionErrorMessage], // Added showDimensionErrorMessage dependency
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -1213,13 +1258,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					(file) =>
 						new Promise<string | null>((resolve) => {
 							const reader = new FileReader()
-							reader.onloadend = () => {
+							reader.onloadend = async () => {
+								// Make async
 								if (reader.error) {
 									console.error("Error reading file:", reader.error)
 									resolve(null)
 								} else {
 									const result = reader.result
-									resolve(typeof result === "string" ? result : null)
+									if (typeof result === "string") {
+										try {
+											await getImageDimensions(result) // Check dimensions
+											resolve(result)
+										} catch (error) {
+											console.warn((error as Error).message)
+											showDimensionErrorMessage() // Show error to user
+											resolve(null) // Don't add this image
+										}
+									} else {
+										resolve(null)
+									}
 								}
 							}
 							reader.readAsDataURL(file)
@@ -1243,6 +1300,31 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragOver={onDragOver}
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}>
+					{showDimensionError && ( // New JSX for dimension error
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px",
+								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
+								border: "2px solid var(--vscode-errorForeground)",
+								borderRadius: 2,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								zIndex: 10, // Ensure it's above other elements
+								pointerEvents: "none",
+							}}>
+							<span
+								style={{
+									color: "var(--vscode-errorForeground)",
+									fontWeight: "bold",
+									fontSize: "12px",
+									textAlign: "center", // Center text if it wraps
+								}}>
+								Image dimensions exceed 8000px
+							</span>
+						</div>
+					)}
 					{showUnsupportedFileError && (
 						<div
 							style={{
