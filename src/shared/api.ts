@@ -429,26 +429,6 @@ export const vertexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-2.5-pro-preview-03-25": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 2.5,
-		outputPrice: 15,
-		tiers: [
-			{
-				contextWindow: 200000,
-				inputPrice: 1.25,
-				outputPrice: 10,
-			},
-			{
-				contextWindow: Infinity,
-				inputPrice: 2.5,
-				outputPrice: 15,
-			},
-		],
-	},
 	"gemini-2.5-pro-preview-05-06": {
 		maxTokens: 65535,
 		contextWindow: 1_048_576,
@@ -578,30 +558,6 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-	},
-	"gemini-2.5-pro-preview-03-25": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 2.5, // Default price (highest tier)
-		outputPrice: 15, // Default price (highest tier)
-		cacheReadsPrice: 0.625,
-		cacheWritesPrice: 4.5,
-		tiers: [
-			{
-				contextWindow: 200000,
-				inputPrice: 1.25,
-				outputPrice: 10,
-				cacheReadsPrice: 0.31,
-			},
-			{
-				contextWindow: Infinity,
-				inputPrice: 2.5,
-				outputPrice: 15,
-				cacheReadsPrice: 0.625,
-			},
-		],
 	},
 	"gemini-2.5-pro-preview-05-06": {
 		maxTokens: 65535,
