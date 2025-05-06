@@ -10,6 +10,7 @@ import { vscode } from "@/utils/vscode"
 import Thumbnails from "@/components/common/Thumbnails"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import { validateSlashCommand } from "@/utils/slash-commands"
+import TaskTimeline from "./TaskTimeline"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 interface TaskHeaderProps {
@@ -35,7 +36,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	onClose,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
+	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages } = useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
@@ -371,7 +372,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										gap: "4px",
 										flexWrap: "wrap",
 									}}>
-									<span style={{ fontWeight: "bold" }}>Tokens:</span>
+									<div style={{ display: "flex", alignItems: "center" }}>
+										<span style={{ fontWeight: "bold" }}>Tokens:</span>
+									</div>
 									<span
 										style={{
 											display: "flex",
@@ -409,6 +412,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 								)}
 							</div>
+
+							<TaskTimeline messages={clineMessages} />
 
 							{shouldShowPromptCacheInfoClineOR && cacheReads !== undefined && (
 								<div
