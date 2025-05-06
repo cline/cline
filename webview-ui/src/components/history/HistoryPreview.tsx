@@ -12,7 +12,7 @@ type HistoryPreviewProps = {
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
 	const handleHistorySelect = (id: string) => {
-		TaskServiceClient.showTaskWithId({ taskId: id }).catch((error) => console.error("Error showing task:", error))
+		TaskServiceClient.showTaskWithId({ value: id }).catch((error) => console.error("Error showing task:", error))
 	}
 
 	const formatDate = (timestamp: number) => {

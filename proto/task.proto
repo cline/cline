@@ -14,7 +14,7 @@ service TaskService {
   // Creates a new task with the given text and optional images
   rpc newTask(NewTaskRequest) returns (Empty);
   // Shows a task with the specified ID
-  rpc showTaskWithId(ShowTaskWithIdRequest) returns (Empty);
+  rpc showTaskWithId(StringRequest) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -24,8 +24,3 @@ message NewTaskRequest {
   repeated string images = 3;
 }
 
-// Request message for showing a task with a specific ID
-message ShowTaskWithIdRequest {
-  Metadata metadata = 1;
-  string taskId = 2;
-}

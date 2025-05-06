@@ -48,7 +48,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
 	const handleShowTaskWithId = useCallback((id: string) => {
-		TaskServiceClient.showTaskWithId({ taskId: id }).catch((error) => console.error("Error showing task:", error))
+		TaskServiceClient.showTaskWithId({ value: id }).catch((error) => console.error("Error showing task:", error))
 	}, [])
 
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {

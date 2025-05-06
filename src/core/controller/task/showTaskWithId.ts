@@ -1,6 +1,5 @@
 import { Controller } from ".."
-import { Empty } from "../../../shared/proto/common"
-import { ShowTaskWithIdRequest } from "../../../shared/proto/task"
+import { Empty, StringRequest } from "../../../shared/proto/common"
 
 /**
  * Shows a task with the specified ID
@@ -8,9 +7,9 @@ import { ShowTaskWithIdRequest } from "../../../shared/proto/task"
  * @param request The request containing the task ID
  * @returns Empty response
  */
-export async function showTaskWithId(controller: Controller, request: ShowTaskWithIdRequest): Promise<Empty> {
+export async function showTaskWithId(controller: Controller, request: StringRequest): Promise<Empty> {
 	try {
-		await controller.showTaskWithId(request.taskId)
+		await controller.showTaskWithId(request.value)
 		return Empty.create()
 	} catch (error) {
 		throw error
