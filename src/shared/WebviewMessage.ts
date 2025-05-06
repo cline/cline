@@ -18,7 +18,6 @@ export interface WebviewMessage {
 		| "selectImages"
 		| "exportCurrentTask"
 		| "showTaskWithId"
-		| "deleteTasksWithIds"
 		| "exportTaskWithId"
 		| "resetState"
 		| "requestOllamaModels"
@@ -67,9 +66,12 @@ export interface WebviewMessage {
 		| "toggleFavoriteModel"
 		| "grpc_request"
 		| "toggleClineRule"
+		| "toggleCursorRule"
+		| "toggleWindsurfRule"
 		| "deleteClineRule"
 		| "copyToClipboard"
 		| "updateTerminalConnectionTimeout"
+		| "setActiveQuote"
 
 	// | "relaunchChromeDebugMode"
 	text?: string

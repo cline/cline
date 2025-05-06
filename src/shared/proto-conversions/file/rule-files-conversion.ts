@@ -1,8 +1,4 @@
-import { RuleFileRequest } from "../proto/file"
-
-/**
- * Simplified clean interface for RuleFile requests
- */
+import { RuleFileRequest } from "../../proto/file"
 
 // Helper for creating delete requests
 export const DeleteRuleFileRequest = {
