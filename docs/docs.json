@@ -67,6 +67,14 @@
 				]
 			},
 			{
+				"group": "Running Models Locally",
+				"pages": [
+					"running-models-locally/read-me-first",
+					"running-models-locally/lm-studio",
+					"running-models-locally/ollama"
+				]
+			},
+			{
 				"group": "Exploring Cline's Tools",
 				"pages": [
 					"exploring-clines-tools/cline-tools-guide",
