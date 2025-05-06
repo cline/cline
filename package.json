@@ -137,10 +137,6 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"key": "ctrl+alt+g",
-				"mac": "cmd+alt+g",
-				"win": "ctrl+alt+g",
-				"linux": "ctrl+alt+g",
 				"when": "scmProvider == git"
 			}
 		],

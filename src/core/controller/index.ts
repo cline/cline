@@ -31,7 +31,7 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { searchCommits, getWorkingState } from "@utils/git"
-import { extractCommitMessage, showCommitMessageOptions } from "@integrations/git/commit-message-generator"
+import { extractCommitMessage } from "@integrations/git/commit-message-generator"
 import { getWorkspacePath } from "@utils/path"
 import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
@@ -1902,7 +1902,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			// Get the git diff
 			const gitDiff = await getWorkingState(cwd)
 			if (gitDiff === "No changes in working directory") {
-				vscode.window.showInformationMessage("No changes to commit")
+				vscode.window.showInformationMessage("No changes in workspace for commit message")
 				return
 			}
 
@@ -1911,7 +1911,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				{
 					location: vscode.ProgressLocation.Notification,
 					title: "Generating commit message...",
-					cancellable: true,
+					cancellable: false,
 				},
 				async (progress, token) => {
 					try {
