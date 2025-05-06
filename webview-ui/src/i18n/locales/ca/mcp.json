@@ -19,11 +19,14 @@
 	},
 	"tabs": {
 		"tools": "Eines",
-		"resources": "Recursos"
+		"resources": "Recursos",
+		"errors": "Errors"
 	},
 	"emptyState": {
 		"noTools": "No s'han trobat eines",
-		"noResources": "No s'han trobat recursos"
+		"noResources": "No s'han trobat recursos",
+		"noLogs": "No s'han trobat registres",
+		"noErrors": "No s'han trobat errors"
 	},
 	"networkTimeout": {
 		"label": "Temps d'espera de xarxa",

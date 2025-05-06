@@ -19,11 +19,14 @@
 	},
 	"tabs": {
 		"tools": "Araçlar",
-		"resources": "Kaynaklar"
+		"resources": "Kaynaklar",
+		"errors": "Hatalar"
 	},
 	"emptyState": {
 		"noTools": "Araç bulunamadı",
-		"noResources": "Kaynak bulunamadı"
+		"noResources": "Kaynak bulunamadı",
+		"noLogs": "Günlük bulunamadı",
+		"noErrors": "Hata bulunamadı"
 	},
 	"networkTimeout": {
 		"label": "Ağ Zaman Aşımı",

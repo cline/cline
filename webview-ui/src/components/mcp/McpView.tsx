@@ -29,6 +29,7 @@ import { Tab, TabContent, TabHeader } from "../common/Tab"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import McpEnabledToggle from "./McpEnabledToggle"
+import { McpErrorRow } from "./McpErrorRow"
 
 type McpViewProps = {
 	onDone: () => void
@@ -42,6 +43,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 		enableMcpServerCreation,
 		setEnableMcpServerCreation,
 	} = useExtensionState()
+
 	const { t } = useAppTranslation()
 
 	return (
@@ -330,6 +332,9 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 								{t("mcp:tabs.resources")} (
 								{[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
 							</VSCodePanelTab>
+							<VSCodePanelTab id="errors">
+								{t("mcp:tabs.errors")} ({server.errorHistory?.length || 0})
+							</VSCodePanelTab>
 
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
@@ -369,6 +374,23 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 								) : (
 									<div style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>
 										{t("mcp:emptyState.noResources")}
+									</div>
+								)}
+							</VSCodePanelView>
+
+							<VSCodePanelView id="errors-view">
+								{server.errorHistory && server.errorHistory.length > 0 ? (
+									<div
+										style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+										{[...server.errorHistory]
+											.sort((a, b) => b.timestamp - a.timestamp)
+											.map((error, index) => (
+												<McpErrorRow key={`${error.timestamp}-${index}`} error={error} />
+											))}
+									</div>
+								) : (
+									<div style={{ padding: "10px 0", color: "var(--vscode-descriptionForeground)" }}>
+										{t("mcp:emptyState.noErrors")}
 									</div>
 								)}
 							</VSCodePanelView>

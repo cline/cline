@@ -19,11 +19,14 @@
 	},
 	"tabs": {
 		"tools": "उपकरण",
-		"resources": "संसाधन"
+		"resources": "संसाधन",
+		"errors": "त्रुटियाँ"
 	},
 	"emptyState": {
 		"noTools": "कोई उपकरण नहीं मिला",
-		"noResources": "कोई संसाधन नहीं मिला"
+		"noResources": "कोई संसाधन नहीं मिला",
+		"noLogs": "कोई लॉग नहीं मिला",
+		"noErrors": "कोई त्रुटि नहीं मिली"
 	},
 	"networkTimeout": {
 		"label": "नेटवर्क टाइमआउट",

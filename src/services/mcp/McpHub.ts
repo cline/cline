@@ -541,6 +541,7 @@ export class McpHub {
 					disabled: config.disabled,
 					source,
 					projectPath: source === "project" ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined,
+					errorHistory: [],
 				},
 				client,
 				transport,
@@ -567,13 +568,31 @@ export class McpHub {
 		}
 	}
 
-	private appendErrorMessage(connection: McpConnection, error: string) {
+	private appendErrorMessage(connection: McpConnection, error: string, level: "error" | "warn" | "info" = "error") {
 		const MAX_ERROR_LENGTH = 1000
-		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
-		connection.server.error =
-			newError.length > MAX_ERROR_LENGTH
-				? `${newError.substring(0, MAX_ERROR_LENGTH)}...(error message truncated)`
-				: newError
+		const truncatedError =
+			error.length > MAX_ERROR_LENGTH
+				? `${error.substring(0, MAX_ERROR_LENGTH)}...(error message truncated)`
+				: error
+
+		// Add to error history
+		if (!connection.server.errorHistory) {
+			connection.server.errorHistory = []
+		}
+
+		connection.server.errorHistory.push({
+			message: truncatedError,
+			timestamp: Date.now(),
+			level,
+		})
+
+		// Keep only the last 100 errors
+		if (connection.server.errorHistory.length > 100) {
+			connection.server.errorHistory = connection.server.errorHistory.slice(-100)
+		}
+
+		// Update current error display
+		connection.server.error = truncatedError
 	}
 
 	/**

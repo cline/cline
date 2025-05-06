@@ -19,11 +19,14 @@
 	},
 	"tabs": {
 		"tools": "Инструменты",
-		"resources": "Ресурсы"
+		"resources": "Ресурсы",
+		"errors": "Ошибки"
 	},
 	"emptyState": {
 		"noTools": "Инструменты не найдены",
-		"noResources": "Ресурсы не найдены"
+		"noResources": "Ресурсы не найдены",
+		"noLogs": "Логи не найдены",
+		"noErrors": "Ошибки не найдены"
 	},
 	"networkTimeout": {
 		"label": "Тайм-аут сети",

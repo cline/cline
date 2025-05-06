@@ -20,11 +20,14 @@
 	},
 	"tabs": {
 		"tools": "工具",
-		"resources": "資源"
+		"resources": "資源",
+		"errors": "錯誤"
 	},
 	"emptyState": {
 		"noTools": "找不到工具",
-		"noResources": "找不到資源"
+		"noResources": "找不到資源",
+		"noLogs": "找不到日誌",
+		"noErrors": "找不到錯誤"
 	},
 	"networkTimeout": {
 		"label": "網路逾時",
