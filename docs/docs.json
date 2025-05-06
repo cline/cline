@@ -90,6 +90,10 @@
 				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
 			},
 			{
+				"group": "More Info",
+				"pages": ["more-info/telemetry"]
+			},
+			{
 				"group": "Custom Model Configurations",
 				"pages": [
 					"custom-model-configs/aws-bedrock-with-credentials-authentication",
