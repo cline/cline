@@ -202,12 +202,12 @@
 		"copyToInput": "Copier vers l'entrée (ou Shift + clic)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.15 est sortie",
-		"description": "Roo Code 3.15 apporte de nouvelles fonctionnalités et améliorations basées sur vos retours.",
+		"title": "🎉 Roo Code 3.16 est sortie",
+		"description": "Roo Code 3.16 apporte de nouvelles fonctionnalités et améliorations basées sur vos retours.",
 		"whatsNew": "Quoi de neuf",
-		"feature1": "<bold>Mise en cache des prompts pour Vertex</bold> : Ajout du support de mise en cache des prompts pour Vertex AI, améliorant les temps de réponse et réduisant les coûts API",
-		"feature2": "<bold>Solution de secours pour Terminal</bold> : Implémentation d'un mécanisme de secours lorsque l'intégration shell du terminal VSCode échoue",
-		"feature3": "<bold>Extraits de code améliorés</bold> : Rendu et interaction améliorés des extraits de code dans l'interface de chat",
+		"feature1": "<bold>Fournisseurs d'API Groq et Chutes</bold> : Ajout du support pour les fournisseurs d'API Groq et Chutes (merci @shariqriazz !)",
+		"feature2": "<bold>Références de code cliquables</bold> : Les références de code dans les réponses du modèle permettent maintenant de naviguer directement vers les lignes source (merci @KJ7LNW !)",
+		"feature3": "<bold>Améliorations de stabilité MCP</bold> : Correction de plusieurs bugs pour améliorer la stabilité des intégrations MCP",
 		"hideButton": "Masquer l'annonce",
 		"detailsDiscussLinks": "Obtenez plus de détails et participez aux discussions sur <discordLink>Discord</discordLink> et <redditLink>Reddit</redditLink> 🚀"
 	},

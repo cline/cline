@@ -202,12 +202,12 @@
 		"copyToInput": "Sao chép vào ô nhập liệu (hoặc Shift + nhấp chuột)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.15 Đã phát hành",
-		"description": "Roo Code 3.15 mang đến các tính năng và cải tiến mới dựa trên phản hồi của bạn.",
+		"title": "🎉 Roo Code 3.16 Đã phát hành",
+		"description": "Roo Code 3.16 mang đến các tính năng và cải tiến mới dựa trên phản hồi của bạn.",
 		"whatsNew": "Có gì mới",
-		"feature1": "<bold>Bộ nhớ đệm lời nhắc cho Vertex</bold>: Đã thêm hỗ trợ bộ nhớ đệm lời nhắc cho Vertex AI, cải thiện thời gian phản hồi và giảm chi phí API",
-		"feature2": "<bold>Cơ chế dự phòng cho Terminal</bold>: Đã triển khai cơ chế dự phòng khi tích hợp shell terminal VSCode gặp sự cố",
-		"feature3": "<bold>Cải thiện đoạn mã</bold>: Nâng cao hiển thị và tương tác với đoạn mã trong giao diện trò chuyện",
+		"feature1": "<bold>Nhà cung cấp API Groq và Chutes</bold>: Đã thêm hỗ trợ cho nhà cung cấp API Groq và Chutes (cảm ơn @shariqriazz!)",
+		"feature2": "<bold>Tham chiếu mã có thể nhấp</bold>: Tham chiếu mã trong phản hồi của mô hình giờ đây có thể điều hướng trực tiếp đến dòng mã nguồn (cảm ơn @KJ7LNW!)",
+		"feature3": "<bold>Cải thiện độ ổn định MCP</bold>: Đã sửa nhiều lỗi để nâng cao độ ổn định của tích hợp MCP",
 		"hideButton": "Ẩn thông báo",
 		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
 	},

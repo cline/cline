@@ -202,12 +202,12 @@
 		"copyToInput": "입력창에 복사 (또는 Shift + 클릭)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.15 출시",
-		"description": "Roo Code 3.15는 사용자 피드백을 기반으로 새로운 기능과 개선사항을 제공합니다.",
+		"title": "🎉 Roo Code 3.16 출시",
+		"description": "Roo Code 3.16은 사용자 피드백을 기반으로 새로운 기능과 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
-		"feature1": "<bold>Vertex용 프롬프트 캐싱</bold>: Vertex AI에 프롬프트 캐싱 지원이 추가되어 응답 시간 개선 및 API 비용 절감",
-		"feature2": "<bold>터미널 대체 메커니즘</bold>: VSCode 터미널 쉘 통합이 실패할 때 작동하는 대체 메커니즘 구현",
-		"feature3": "<bold>개선된 코드 스니펫</bold>: 채팅 인터페이스에서 코드 스니펫 렌더링 및 상호작용 향상",
+		"feature1": "<bold>Groq 및 Chutes API 제공자</bold>: Groq 및 Chutes API 제공자 지원 추가 (감사합니다 @shariqriazz!)",
+		"feature2": "<bold>클릭 가능한 코드 참조</bold>: 모델 응답의 코드 참조가 이제 소스 코드 라인으로 직접 이동 가능 (감사합니다 @KJ7LNW!)",
+		"feature3": "<bold>MCP 안정성 개선</bold>: MCP 통합의 안정성을 향상시키기 위한 여러 버그 수정",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
 	},

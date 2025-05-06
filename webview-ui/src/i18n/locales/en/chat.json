@@ -195,12 +195,12 @@
 		"description": "Auto-approve allows Roo Code to perform actions without asking for permission. Only enable for actions you fully trust. More detailed configuration available in <settingsLink>Settings</settingsLink>."
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.15 Released",
-		"description": "Roo Code 3.15 brings new features and improvements based on your feedback.",
+		"title": "🎉 Roo Code 3.16 Released",
+		"description": "Roo Code 3.16 brings new features and improvements based on your feedback.",
 		"whatsNew": "What's New",
-		"feature1": "<bold>Prompt Caching for Vertex</bold>: Added prompt caching support for Vertex AI, improving response times and reducing API costs",
-		"feature2": "<bold>Terminal Fallback</bold>: Implemented a fallback mechanism when VSCode terminal shell integration fails",
-		"feature3": "<bold>Improved Code Snippets</bold>: Enhanced code snippet rendering and interaction in the chat interface",
+		"feature1": "<bold>Groq and Chutes API Providers</bold>: Added support for Groq and Chutes API providers (thanks @shariqriazz!)",
+		"feature2": "<bold>Clickable Code References</bold>: Code references in model responses now navigate to source lines (thanks @KJ7LNW!)",
+		"feature3": "<bold>MCP Stability Improvements</bold>: Fixed several bugs to enhance the stability of MCP integrations",
 		"hideButton": "Hide announcement",
 		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
 	},
