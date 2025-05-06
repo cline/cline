@@ -1048,15 +1048,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 			}
 
-			// Add listeners
 			window.addEventListener("keydown", handleKeyDown)
 			window.addEventListener("keyup", handleKeyUp)
 
-			// Cleanup listeners on component unmount
 			return () => {
 				window.removeEventListener("keydown", handleKeyDown)
 				window.removeEventListener("keyup", handleKeyUp)
-				// Clear any running timer on unmount
 				if (shiftHoldTimerRef.current !== null) {
 					clearTimeout(shiftHoldTimerRef.current)
 				}
@@ -1509,7 +1506,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							minWidth: 0,
 							height: "28px", // Fixed height to prevent container shrinking
 						}}>
-						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup
 							style={{
 								opacity: showShiftDragTip ? 0 : 1,
