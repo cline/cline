@@ -893,6 +893,7 @@ export class Controller {
 						break
 					case "netmind":
 						await updateGlobalState(this.context, "netmindModelId", newModelId)
+						break
 					case "bedrock":
 						await updateGlobalState(this.context, "apiModelId", newModelId)
 						await updateGlobalState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
