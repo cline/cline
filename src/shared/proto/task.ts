@@ -154,6 +154,15 @@ export const TaskServiceDefinition = {
 		/** Shows a task with the specified ID */
 		showTaskWithId: {
 			name: "showTaskWithId",
+    	requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		/** Exports a task with the given ID to markdown */
+		exportTaskWithId: {
+			name: "exportTaskWithId",
 			requestType: StringRequest,
 			requestStream: false,
 			responseType: Empty,

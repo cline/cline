@@ -17,6 +17,8 @@ service TaskService {
   rpc newTask(NewTaskRequest) returns (Empty);
   // Shows a task with the specified ID
   rpc showTaskWithId(StringRequest) returns (Empty);
+  // Exports a task with the given ID to markdown
+  rpc exportTaskWithId(StringRequest) returns (Empty);
 }
 
 // Request message for creating a new task
