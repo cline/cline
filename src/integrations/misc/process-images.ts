@@ -27,10 +27,10 @@ export async function selectImages(): Promise<string[]> {
 			// Convert Node.js Buffer to Uint8Array
 			const uint8Array = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
 			const dimensions = sizeOf(uint8Array) // Get dimensions from Uint8Array
-			if (dimensions.width! > 8000 || dimensions.height! > 8000) {
-				console.warn(`Image dimensions exceed 8000px, skipping: ${imagePath}`)
+			if (dimensions.width! > 7500 || dimensions.height! > 7500) {
+				console.warn(`Image dimensions exceed 7500px, skipping: ${imagePath}`)
 				vscode.window.showErrorMessage(
-					`Image too large: ${path.basename(imagePath)} was skipped (dimensions exceed 8000px).`,
+					`Image too large: ${path.basename(imagePath)} was skipped (dimensions exceed 7500px).`,
 				)
 				return null
 			}

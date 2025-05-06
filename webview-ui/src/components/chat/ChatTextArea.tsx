@@ -43,8 +43,8 @@ const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: n
 	return new Promise((resolve, reject) => {
 		const img = new Image()
 		img.onload = () => {
-			if (img.naturalWidth > 8000 || img.naturalHeight > 8000) {
-				reject(new Error("Image dimensions exceed maximum allowed size of 200px."))
+			if (img.naturalWidth > 7500 || img.naturalHeight > 7500) {
+				reject(new Error("Image dimensions exceed maximum allowed size of 7500px."))
 			} else {
 				resolve({ width: img.naturalWidth, height: img.naturalHeight })
 			}
@@ -1318,7 +1318,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									fontSize: "12px",
 									textAlign: "center",
 								}}>
-								Image dimensions exceed 8000px
+								Image dimensions exceed 7500px
 							</span>
 						</div>
 					)}
