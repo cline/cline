@@ -61,7 +61,6 @@ export interface WebviewMessage {
 		| "relaunchChromeDebugMode"
 		| "taskFeedback"
 		| "scrollToSettings"
-		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
 		| "toggleFavoriteModel"
 		| "grpc_request"
@@ -75,7 +74,6 @@ export interface WebviewMessage {
 
 	// | "relaunchChromeDebugMode"
 	text?: string
-	uris?: string[] // Used for getRelativePaths
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
