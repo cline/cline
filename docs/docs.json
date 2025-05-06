@@ -88,6 +88,15 @@
 			{
 				"group": "Improving Your Prompting Skills",
 				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
+			},
+			{
+				"group": "Custom Model Configurations",
+				"pages": [
+					"custom-model-configs/aws-bedrock-with-credentials-authentication",
+					"custom-model-configs/aws-bedrock-with-profile-authentication",
+					"custom-model-configs/gcp-vertex-ai",
+					"custom-model-configs/litellm-and-cline-using-codestral"
+				]
 			}
 		]
 	},
