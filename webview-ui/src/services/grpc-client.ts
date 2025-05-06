@@ -10,6 +10,7 @@ import { McpServiceDefinition } from "@shared/proto/mcp"
 import { StateServiceDefinition } from "@shared/proto/state"
 import { TaskServiceDefinition } from "@shared/proto/task"
 import { WebServiceDefinition } from "@shared/proto/web"
+import { ModelsServiceDefinition } from "@shared/proto/models"
 
 const AccountServiceClient = createGrpcClient(AccountServiceDefinition)
 const BrowserServiceClient = createGrpcClient(BrowserServiceDefinition)
@@ -19,6 +20,7 @@ const McpServiceClient = createGrpcClient(McpServiceDefinition)
 const StateServiceClient = createGrpcClient(StateServiceDefinition)
 const TaskServiceClient = createGrpcClient(TaskServiceDefinition)
 const WebServiceClient = createGrpcClient(WebServiceDefinition)
+const ModelsServiceClient = createGrpcClient(ModelsServiceDefinition)
 
 export {
 	AccountServiceClient,
@@ -29,4 +31,5 @@ export {
 	StateServiceClient,
 	TaskServiceClient,
 	WebServiceClient,
+	ModelsServiceClient,
 }

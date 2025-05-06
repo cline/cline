@@ -11,6 +11,7 @@ import { handleMcpServiceRequest, handleMcpServiceStreamingRequest } from "./mcp
 import { handleStateServiceRequest, handleStateServiceStreamingRequest } from "./state/index"
 import { handleTaskServiceRequest, handleTaskServiceStreamingRequest } from "./task/index"
 import { handleWebServiceRequest, handleWebServiceStreamingRequest } from "./web/index"
+import { handleModelsServiceRequest, handleModelsServiceStreamingRequest } from "./models/index"
 
 /**
  * Configuration for a service handler
@@ -61,5 +62,9 @@ export const serviceHandlers: Record<string, ServiceHandlerConfig> = {
 	"cline.WebService": {
 		requestHandler: handleWebServiceRequest,
 		streamingHandler: handleWebServiceStreamingRequest,
+	},
+	"cline.ModelsService": {
+		requestHandler: handleModelsServiceRequest,
+		streamingHandler: handleModelsServiceStreamingRequest,
 	},
 }
