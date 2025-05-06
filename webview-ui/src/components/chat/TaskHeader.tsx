@@ -10,6 +10,7 @@ import { vscode } from "@/utils/vscode"
 import Thumbnails from "@/components/common/Thumbnails"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import { validateSlashCommand } from "@/utils/slash-commands"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -669,7 +670,7 @@ const DeleteButton: React.FC<{
 }> = ({ taskSize, taskId }) => (
 	<VSCodeButton
 		appearance="icon"
-		onClick={() => vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify([taskId]) })}
+		onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ value: [taskId] })}
 		style={{ padding: "0px 0px" }}>
 		<div
 			style={{

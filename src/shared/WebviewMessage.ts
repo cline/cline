@@ -18,7 +18,6 @@ export interface WebviewMessage {
 		| "selectImages"
 		| "exportCurrentTask"
 		| "showTaskWithId"
-		| "deleteTasksWithIds"
 		| "exportTaskWithId"
 		| "resetState"
 		| "requestOllamaModels"
