@@ -310,15 +310,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handleMessage = useCallback((event: MessageEvent) => {
 			const message: ExtensionMessage = event.data
 			switch (message.type) {
-				case "relativePathsResponse": {
-					// New case for batch response
-					const validPaths = message.paths?.filter((path): path is string => !!path) || []
-					if (validPaths.length > 0) {
-						setPendingInsertions((prev) => [...prev, ...validPaths])
-					}
-					break
-				}
-
 				case "fileSearchResults": {
 					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
 					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
@@ -696,11 +687,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
-							vscode.postMessage({
-								type: "searchFiles",
+							FileServiceClient.searchFiles({
 								query: query,
 								mentionsRequestId: query,
 							})
+								.then((results) => {
+									setFileSearchResults(results.results || [])
+									setSearchLoading(false)
+								})
+								.catch((error) => {
+									console.error("Error searching files:", error)
+									setFileSearchResults([])
+									setSearchLoading(false)
+								})
 						}, 200) // 200ms debounce
 					} else {
 						setSelectedMenuIndex(3) // Set to "File" option by default
@@ -1161,10 +1160,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 				setIntendedCursorPosition(initialCursorPos)
 
-				vscode.postMessage({
-					type: "getRelativePaths",
-					uris: validUris,
-				})
+				FileServiceClient.getRelativePaths({ uris: validUris })
+					.then((response) => {
+						if (response.paths.length > 0) {
+							setPendingInsertions((prev) => [...prev, ...response.paths])
+						}
+					})
+					.catch((error) => {
+						console.error("Error getting relative paths:", error)
+					})
 				return
 			}
 

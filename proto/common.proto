@@ -19,6 +19,11 @@ message StringRequest {
   string value = 2;
 }
 
+message StringArrayRequest {
+  Metadata metadata = 1;
+  repeated string value = 2;
+}
+
 message String {
   string value = 1;
 }
@@ -48,4 +53,8 @@ message BooleanRequest {
 
 message Boolean {
   bool value = 1;
+}
+
+message StringArray {
+  repeated string values = 1;
 }

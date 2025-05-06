@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata } from "./common"
+import { Empty, EmptyRequest, Metadata, StringArrayRequest, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -133,10 +133,28 @@ export const TaskServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Deletes multiple tasks with the given IDs */
+		deleteTasksWithIds: {
+			name: "deleteTasksWithIds",
+			requestType: StringArrayRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
 		/** Creates a new task with the given text and optional images */
 		newTask: {
 			name: "newTask",
 			requestType: NewTaskRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		/** Exports a task with the given ID to markdown */
+		exportTaskWithId: {
+			name: "exportTaskWithId",
+			requestType: StringRequest,
 			requestStream: false,
 			responseType: Empty,
 			responseStream: false,
