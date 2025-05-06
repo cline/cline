@@ -202,6 +202,7 @@ export class DiffViewProvider {
 
 		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
 			preview: false,
+			preserveFocus: true,
 		})
 		await this.closeAllDiffViews()
 
@@ -302,6 +303,7 @@ export class DiffViewProvider {
 			if (this.documentWasOpen) {
 				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
 					preview: false,
+					preserveFocus: true,
 				})
 			}
 			await this.closeAllDiffViews()
@@ -338,7 +340,9 @@ export class DiffViewProvider {
 					arePathsEqual(tab.input.modified.fsPath, uri.fsPath),
 			)
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
-			const editor = await vscode.window.showTextDocument(diffTab.input.modified)
+			const editor = await vscode.window.showTextDocument(diffTab.input.modified, {
+				preserveFocus: true,
+			})
 			return editor
 		}
 		// Open new diff editor
@@ -358,6 +362,9 @@ export class DiffViewProvider {
 				}),
 				uri,
 				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
+				{
+					preserveFocus: true,
+				},
 			)
 			// This may happen on very slow machines ie project idx
 			setTimeout(() => {
