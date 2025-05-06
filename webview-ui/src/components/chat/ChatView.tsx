@@ -26,6 +26,7 @@ import AutoApproveMenu from "@/components/chat/AutoApproveMenu"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
+import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
 import TaskHeader from "@/components/chat/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
 import { unified } from "unified"
@@ -86,6 +87,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages])
 
 	const [inputValue, setInputValue] = useState("")
+	const [activeQuote, setActiveQuote] = useState<string | null>(null)
+	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
@@ -345,10 +348,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[]) => {
-			text = text.trim()
-			if (text || images.length > 0) {
+			let messageToSend = text.trim()
+			const hasContent = messageToSend || images.length > 0
+
+			// Prepend the active quote if it exists
+			if (activeQuote && hasContent) {
+				const prefix = "[context] \n> "
+				const formattedQuote = activeQuote
+				const suffix = "\n[/context] \n\n"
+				messageToSend = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
+			}
+
+			if (hasContent) {
+				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask({ text, images })
+					await TaskServiceClient.newTask({ text: messageToSend, images })
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -366,7 +380,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
-								text,
+								text: messageToSend,
 								images,
 							})
 							break
@@ -374,7 +388,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
-								text,
+								text: messageToSend,
 								images,
 							})
 							break
@@ -382,6 +396,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 				}
 				setInputValue("")
+				setActiveQuote(null) // Clear quote when sending message
 				setTextAreaDisabled(true)
 				setSelectedImages([])
 				setClineAsk(undefined)
@@ -391,10 +406,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk],
+		[messages.length, clineAsk, activeQuote],
 	)
 
 	const startNewTask = useCallback(async () => {
+		setActiveQuote(null) // Clear the active quote state
 		await TaskServiceClient.clearTask({})
 	}, [])
 
@@ -429,6 +445,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
+					setActiveQuote(null) // Clear quote when using primary button
 					setSelectedImages([])
 					break
 				case "completion_result":
@@ -495,6 +512,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
+					setActiveQuote(null) // Clear quote when using secondary button
 					setSelectedImages([])
 					break
 			}
@@ -511,6 +529,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const handleTaskCloseButtonClick = useCallback(() => {
 		startNewTask()
 	}, [startNewTask])
+
+	const handleFocusChange = useCallback((isFocused: boolean) => {
+		setIsTextAreaFocused(isFocused)
+	}, [])
 
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
@@ -856,6 +878,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								[messageTs]: !prev[messageTs],
 							}))
 						}}
+						onSetQuote={setActiveQuote}
 					/>
 				)
 			}
@@ -872,10 +895,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					onHeightChange={handleRowHeightChange}
 					inputValue={inputValue}
 					sendMessageFromChatRow={handleSendMessage}
+					onSetQuote={setActiveQuote}
 				/>
 			)
 		},
-		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange, inputValue],
+		[
+			expandedRows,
+			modifiedMessages,
+			groupedMessages.length,
+			toggleRowExpansion,
+			handleRowHeightChange,
+			inputValue,
+			setActiveQuote,
+		],
 	)
 
 	return (
@@ -1045,8 +1077,23 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)}
 				</>
 			)}
+			{(() => {
+				console.log("[ChatView] Rendering - activeQuote:", activeQuote) // Log here
+				return activeQuote ? (
+					<div style={{ marginBottom: "-12px", marginTop: "10px" }}>
+						<QuotedMessagePreview
+							text={activeQuote}
+							onDismiss={() => setActiveQuote(null)}
+							isFocused={isTextAreaFocused}
+						/>
+					</div>
+				) : null
+			})()}
+
 			<ChatTextArea
 				ref={textAreaRef}
+				onFocusChange={handleFocusChange}
+				activeQuote={activeQuote}
 				inputValue={inputValue}
 				setInputValue={setInputValue}
 				textAreaDisabled={textAreaDisabled}

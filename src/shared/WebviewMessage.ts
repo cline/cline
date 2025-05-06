@@ -16,12 +16,8 @@ export interface WebviewMessage {
 		| "askResponse"
 		| "didShowAnnouncement"
 		| "selectImages"
-		| "exportCurrentTask"
 		| "showTaskWithId"
-		| "deleteTasksWithIds"
-		| "exportTaskWithId"
 		| "resetState"
-		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openInBrowser"
 		| "openMention"
@@ -62,18 +58,19 @@ export interface WebviewMessage {
 		| "relaunchChromeDebugMode"
 		| "taskFeedback"
 		| "scrollToSettings"
-		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
 		| "toggleFavoriteModel"
 		| "grpc_request"
 		| "toggleClineRule"
+		| "toggleCursorRule"
+		| "toggleWindsurfRule"
 		| "deleteClineRule"
 		| "copyToClipboard"
 		| "updateTerminalConnectionTimeout"
+		| "setActiveQuote"
 
 	// | "relaunchChromeDebugMode"
 	text?: string
-	uris?: string[] // Used for getRelativePaths
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration

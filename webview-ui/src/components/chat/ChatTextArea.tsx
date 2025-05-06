@@ -41,6 +41,7 @@ import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 
 interface ChatTextAreaProps {
 	inputValue: string
+	activeQuote: string | null
 	setInputValue: (value: string) => void
 	textAreaDisabled: boolean
 	placeholderText: string
@@ -50,6 +51,7 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
+	onFocusChange?: (isFocused: boolean) => void
 }
 
 interface GitCommit {
@@ -224,6 +226,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	(
 		{
 			inputValue,
+			activeQuote,
 			setInputValue,
 			textAreaDisabled,
 			placeholderText,
@@ -233,6 +236,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSelectImages,
 			shouldDisableImages,
 			onHeightChange,
+			onFocusChange,
 		},
 		ref,
 	) => {
@@ -305,15 +309,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handleMessage = useCallback((event: MessageEvent) => {
 			const message: ExtensionMessage = event.data
 			switch (message.type) {
-				case "relativePathsResponse": {
-					// New case for batch response
-					const validPaths = message.paths?.filter((path): path is string => !!path) || []
-					if (validPaths.length > 0) {
-						setPendingInsertions((prev) => [...prev, ...validPaths])
-					}
-					break
-				}
-
 				case "fileSearchResults": {
 					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
 					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
@@ -691,11 +686,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
-							vscode.postMessage({
-								type: "searchFiles",
+							FileServiceClient.searchFiles({
 								query: query,
 								mentionsRequestId: query,
 							})
+								.then((results) => {
+									setFileSearchResults(results.results || [])
+									setSearchLoading(false)
+								})
+								.catch((error) => {
+									console.error("Error searching files:", error)
+									setFileSearchResults([])
+									setSearchLoading(false)
+								})
 						}, 200) // 200ms debounce
 					} else {
 						setSelectedMenuIndex(3) // Set to "File" option by default
@@ -722,7 +725,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setShowSlashCommandsMenu(false)
 			}
 			setIsTextAreaFocused(false)
-		}, [isMouseDownOnMenu])
+			onFocusChange?.(false) // Call prop on blur
+		}, [isMouseDownOnMenu, onFocusChange])
 
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
@@ -1061,7 +1065,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 			}
 		}
-
 		/**
 		 * Handles the drag over event to allow dropping.
 		 * Prevents the default behavior to enable drop.
@@ -1150,10 +1153,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 				setIntendedCursorPosition(initialCursorPos)
 
-				vscode.postMessage({
-					type: "getRelativePaths",
-					uris: validUris,
-				})
+				FileServiceClient.getRelativePaths({ uris: validUris })
+					.then((response) => {
+						if (response.paths.length > 0) {
+							setPendingInsertions((prev) => [...prev, ...response.paths])
+						}
+					})
+					.catch((error) => {
+						console.error("Error getting relative paths:", error)
+					})
 				return
 			}
 
@@ -1294,7 +1302,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							/>
 						</div>
 					)}
-					{!isTextAreaFocused && (
+					{!isTextAreaFocused && !activeQuote && (
 						<div
 							style={{
 								position: "absolute",
@@ -1350,7 +1358,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onKeyDown={handleKeyDown}
 						onKeyUp={handleKeyUp}
-						onFocus={() => setIsTextAreaFocused(true)}
+						onFocus={() => {
+							setIsTextAreaFocused(true)
+							onFocusChange?.(true) // Call prop on focus
+						}}
 						onBlur={handleBlur}
 						onPaste={handlePaste}
 						onSelect={updateCursorPosition}

@@ -44,11 +44,10 @@ export interface ExtensionMessage {
 		| "browserConnectionResult"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
-		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
+		| "setActiveQuote"
 	text?: string
-	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"
@@ -142,6 +141,8 @@ export interface ExtensionState {
 	vscMachineId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
+	localCursorRulesToggles: ClineRulesToggles
+	localWindsurfRulesToggles: ClineRulesToggles
 }
 
 export interface ClineMessage {

@@ -48,7 +48,8 @@ import {
 } from "../storage/state"
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { createRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
+import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -326,30 +327,11 @@ export class Controller {
 					images,
 				})
 				break
-			case "exportCurrentTask":
-				const currentTaskId = this.task?.taskId
-				if (currentTaskId) {
-					this.exportTaskWithId(currentTaskId)
-				}
-				break
 			case "showTaskWithId":
 				this.showTaskWithId(message.text!)
 				break
-			case "deleteTasksWithIds":
-				this.deleteTasksWithIds(message.text!)
-				break
-			case "exportTaskWithId":
-				this.exportTaskWithId(message.text!)
-				break
 			case "resetState":
 				await this.resetState()
-				break
-			case "requestOllamaModels":
-				const ollamaModels = await this.getOllamaModels(message.text)
-				this.postMessageToWebview({
-					type: "ollamaModels",
-					ollamaModels,
-				})
 				break
 			case "requestLmStudioModels":
 				const lmStudioModels = await this.getLmStudioModels(message.text)
@@ -375,6 +357,7 @@ export class Controller {
 				break
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
+				await refreshExternalRulesToggles(this.context, cwd)
 				await this.postStateToWebview()
 				break
 			case "openInBrowser":
@@ -516,6 +499,32 @@ export class Controller {
 				}
 				break
 			}
+			case "toggleWindsurfRule": {
+				const { rulePath, enabled } = message
+				if (rulePath && typeof enabled === "boolean") {
+					const toggles =
+						((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+					toggles[rulePath] = enabled
+					await updateWorkspaceState(this.context, "localWindsurfRulesToggles", toggles)
+					await this.postStateToWebview()
+				} else {
+					console.error("toggleWindsurfRule: Missing or invalid parameters")
+				}
+				break
+			}
+			case "toggleCursorRule": {
+				const { rulePath, enabled } = message
+				if (rulePath && typeof enabled === "boolean") {
+					const toggles =
+						((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+					toggles[rulePath] = enabled
+					await updateWorkspaceState(this.context, "localCursorRulesToggles", toggles)
+					await this.postStateToWebview()
+				} else {
+					console.error("toggleCursorRule: Missing or invalid parameters")
+				}
+				break
+			}
 			case "requestTotalTasksSize": {
 				this.refreshTotalTasksSize()
 				break
@@ -604,89 +613,17 @@ export class Controller {
 				break
 			}
 			case "clearAllTaskHistory": {
-				await this.deleteAllTaskHistory()
-				await this.postStateToWebview()
-				this.refreshTotalTasksSize()
+				const answer = await vscode.window.showWarningMessage(
+					"Are you sure you want to delete all history?",
+					"Delete",
+					"Cancel",
+				)
+				if (answer === "Delete") {
+					await this.deleteAllTaskHistory()
+					await this.postStateToWebview()
+					this.refreshTotalTasksSize()
+				}
 				this.postMessageToWebview({ type: "relinquishControl" })
-				break
-			}
-			case "getRelativePaths": {
-				if (message.uris && message.uris.length > 0) {
-					const resolvedPaths = await Promise.all(
-						message.uris.map(async (uriString) => {
-							try {
-								const fileUri = vscode.Uri.parse(uriString, true)
-								const relativePath = vscode.workspace.asRelativePath(fileUri, false)
-
-								if (path.isAbsolute(relativePath)) {
-									console.warn(`Dropped file ${relativePath} is outside the workspace. Sending original path.`)
-									return fileUri.fsPath.replace(/\\/g, "/")
-								} else {
-									let finalPath = "/" + relativePath.replace(/\\/g, "/")
-									try {
-										const stat = await vscode.workspace.fs.stat(fileUri)
-										if (stat.type === vscode.FileType.Directory) {
-											finalPath += "/"
-										}
-									} catch (statError) {
-										console.error(`Error stating file ${fileUri.fsPath}:`, statError)
-									}
-									return finalPath
-								}
-							} catch (error) {
-								console.error(`Error calculating relative path for ${uriString}:`, error)
-								return null
-							}
-						}),
-					)
-					await this.postMessageToWebview({
-						type: "relativePathsResponse",
-						paths: resolvedPaths,
-					})
-				}
-				break
-			}
-			case "searchFiles": {
-				const workspacePath = getWorkspacePath()
-
-				if (!workspacePath) {
-					// Handle case where workspace path is not available
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results: [],
-						mentionsRequestId: message.mentionsRequestId,
-						error: "No workspace path available",
-					})
-					break
-				}
-				try {
-					// Call file search service with query from message
-					const results = await searchWorkspaceFiles(
-						message.query || "",
-						workspacePath,
-						20, // Use default limit, as filtering is now done in the backend
-					)
-
-					// debug logging to be removed
-					//console.log(`controller/index.ts: Search results: ${results.length}`)
-
-					// Send results back to webview
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results,
-						mentionsRequestId: message.mentionsRequestId,
-					})
-				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : String(error)
-
-					// Send error response to webview
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results: [],
-						error: errorMessage,
-						mentionsRequestId: message.mentionsRequestId,
-					})
-				}
 				break
 			}
 			case "toggleFavoriteModel": {
@@ -960,25 +897,6 @@ export class Controller {
 			return models || []
 		} catch (error) {
 			console.error("Error fetching VS Code LM models:", error)
-			return []
-		}
-	}
-
-	// Ollama
-
-	async getOllamaModels(baseUrl?: string) {
-		try {
-			if (!baseUrl) {
-				baseUrl = "http://localhost:11434"
-			}
-			if (!URL.canParse(baseUrl)) {
-				return []
-			}
-			const response = await axios.get(`${baseUrl}/api/tags`)
-			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
-			const models = [...new Set<string>(modelsArray)]
-			return models
-		} catch (error) {
 			return []
 		}
 	}
@@ -1722,12 +1640,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		this.refreshTotalTasksSize()
 	}
 
-	async deleteTasksWithIds(ids: string) {
-		for (const id of JSON.parse(ids) as string[]) {
-			await this.deleteTaskWithId(id)
-		}
-	}
-
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
 		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
@@ -1765,6 +1677,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const localClineRulesToggles =
 			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
 
+		const localWindsurfRulesToggles =
+			((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+
+		const localCursorRulesToggles =
+			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1789,11 +1707,16 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
+			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
+			localCursorRulesToggles: localCursorRulesToggles || {},
 			shellIntegrationTimeout,
 		}
 	}
 
 	async clearTask() {
+		if (this.task) {
+			await telemetryService.sendCollectedEvents(this.task.taskId)
+		}
 		this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
 	}

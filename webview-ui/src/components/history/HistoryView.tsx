@@ -4,6 +4,7 @@ import { vscode } from "@/utils/vscode"
 import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect, useCallback } from "react"
 import Fuse, { FuseResult } from "fuse.js"
+import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber } from "@/utils/format"
 import { formatSize } from "@/utils/format"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
@@ -61,12 +62,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [])
 
 	const handleDeleteHistoryItem = useCallback((id: string) => {
-		vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify([id]) })
+		TaskServiceClient.deleteTasksWithIds({ value: [id] })
 	}, [])
 
 	const handleDeleteSelectedHistoryItems = useCallback((ids: string[]) => {
 		if (ids.length > 0) {
-			vscode.postMessage({ type: "deleteTasksWithIds", text: JSON.stringify(ids) })
+			TaskServiceClient.deleteTasksWithIds({ value: ids })
 			setSelectedItems([])
 		}
 	}, [])
@@ -562,7 +563,7 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 		appearance="icon"
 		onClick={(e) => {
 			e.stopPropagation()
-			vscode.postMessage({ type: "exportTaskWithId", text: itemId })
+			TaskServiceClient.exportTaskWithId({ value: itemId }).catch((err) => console.error("Failed to export task:", err))
 		}}>
 		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
 	</VSCodeButton>
