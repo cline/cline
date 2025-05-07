@@ -156,18 +156,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						style={{
 							display: "flex",
 							alignItems: "center",
-							gap: "4px",
-							flexShrink: 0, // Prevents shrinking
-						}}>
-						<span style={{ fontWeight: "bold" }}>
-							{/* {windowWidth > 280 && windowWidth < 310 ? "Context:" : "Context Window:"} */}
-							Context Window:
-						</span>
-					</div>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
 							gap: "3px",
 							flex: 1,
 							whiteSpace: "nowrap",
@@ -413,8 +401,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								)}
 							</div>
 
-							<TaskTimeline messages={clineMessages} />
-
 							{shouldShowPromptCacheInfoClineOR && cacheReads !== undefined && (
 								<div
 									style={{
@@ -488,7 +474,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										</span>
 									</div>
 								)}
-							{ContextWindowComponent}
 							{isCostAvailable && (
 								<div
 									style={{
@@ -509,6 +494,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 								</div>
 							)}
+							<div className="flex flex-col gap-0">
+								<TaskTimeline messages={clineMessages} />
+								{ContextWindowComponent}
+							</div>
 							{checkpointTrackerErrorMessage && (
 								<div
 									style={{
