@@ -5,5 +5,6 @@
 		"linesFromStartTo": " (línies 1-{{end}})",
 		"definitionsOnly": " (només definicions)",
 		"maxLines": " (màxim {{max}} línies)"
-	}
+	},
+	"toolRepetitionLimitReached": "Roo sembla estar atrapat en un bucle, intentant la mateixa acció ({{toolName}}) repetidament. Això podria indicar un problema amb la seva estratègia actual. Considera reformular la tasca, proporcionar instruccions més específiques o guiar-lo cap a un enfocament diferent."
 }

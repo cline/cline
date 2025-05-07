@@ -40,6 +40,7 @@ import { ToolParamName, ToolResponse, DiffStrategy } from "../shared/tools"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { McpHub } from "../services/mcp/McpHub"
+import { ToolRepetitionDetector } from "./ToolRepetitionDetector"
 import { McpServerManager } from "../services/mcp/McpServerManager"
 import { telemetryService } from "../services/telemetry/TelemetryService"
 import { CheckpointServiceOptions, RepoPerTaskCheckpointService } from "../services/checkpoints"
@@ -165,6 +166,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 	consecutiveMistakeLimit: number
 	consecutiveMistakeCountForApplyDiff: Map<string, number> = new Map()
 
+	// For tracking identical consecutive tool calls
+	private toolRepetitionDetector: ToolRepetitionDetector
+
 	// Not private since it needs to be accessible by tools.
 	providerRef: WeakRef<ClineProvider>
 	private readonly globalStoragePath: string
@@ -263,6 +267,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		}
 
 		this.diffStrategy = new MultiSearchReplaceDiffStrategy(this.fuzzyMatchThreshold)
+		this.toolRepetitionDetector = new ToolRepetitionDetector(this.consecutiveMistakeLimit)
 
 		onCreated?.(this)
 
@@ -1855,6 +1860,46 @@ export class Cline extends EventEmitter<ClineEvents> {
 					this.consecutiveMistakeCount++
 					pushToolResult(formatResponse.toolError(error.message))
 					break
+				}
+
+				// Check for identical consecutive tool calls
+				if (!block.partial) {
+					// Use the detector to check for repetition, passing the ToolUse block directly
+					const repetitionCheck = this.toolRepetitionDetector.check(block)
+
+					// If execution is not allowed, notify user and break
+					if (!repetitionCheck.allowExecution && repetitionCheck.askUser) {
+						// Handle repetition similar to mistake_limit_reached pattern
+						const { response, text, images } = await this.ask(
+							repetitionCheck.askUser.messageKey as ClineAsk,
+							repetitionCheck.askUser.messageDetail.replace("{toolName}", block.name),
+						)
+
+						if (response === "messageResponse") {
+							// Add user feedback to userContent
+							this.userMessageContent.push(
+								{
+									type: "text" as const,
+									text: `Tool repetition limit reached. User feedback: ${text}`,
+								},
+								...formatResponse.imageBlocks(images),
+							)
+
+							// Add user feedback to chat
+							await this.say("user_feedback", text, images)
+
+							// Track tool repetition in telemetry
+							telemetryService.captureConsecutiveMistakeError(this.taskId) // Using existing telemetry method
+						}
+
+						// Return tool result message about the repetition
+						pushToolResult(
+							formatResponse.toolError(
+								`Tool call repetition limit reached for ${block.name}. Please try a different approach.`,
+							),
+						)
+						break
+					}
 				}
 
 				switch (block.name) {

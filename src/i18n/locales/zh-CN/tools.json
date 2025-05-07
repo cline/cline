@@ -5,5 +5,6 @@
 		"linesFromStartTo": " (第 1-{{end}} 行)",
 		"definitionsOnly": " (仅定义)",
 		"maxLines": " (最多 {{max}} 行)"
-	}
+	},
+	"toolRepetitionLimitReached": "Roo 似乎陷入循环，反复尝试同一操作 ({{toolName}})。这可能表明当前策略存在问题。请考虑重新描述任务、提供更具体的指示或引导其尝试不同的方法。"
 }

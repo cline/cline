@@ -5,5 +5,6 @@
 		"linesFromStartTo": " (satır 1-{{end}})",
 		"definitionsOnly": " (sadece tanımlar)",
 		"maxLines": " (maks. {{max}} satır)"
-	}
+	},
+	"toolRepetitionLimitReached": "Roo bir döngüye takılmış gibi görünüyor, aynı eylemi ({{toolName}}) tekrar tekrar deniyor. Bu, mevcut stratejisinde bir sorun olduğunu gösterebilir. Görevi yeniden ifade etmeyi, daha spesifik talimatlar vermeyi veya onu farklı bir yaklaşıma yönlendirmeyi düşünün."
 }
