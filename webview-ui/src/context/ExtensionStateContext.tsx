@@ -31,6 +31,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	// View state
 	showMcp: boolean
 	mcpTab?: McpViewTab
+	showWelcome: boolean
 
 	// Setters
 	setApiConfiguration: (config: ApiConfiguration) => void
@@ -40,6 +41,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setMcpServers: (value: McpServer[]) => void
+	setShowWelcome: (value: boolean) => void
 
 	// Navigation
 	setShowMcp: (value: boolean) => void
@@ -73,6 +75,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		localWindsurfRulesToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 	})
+	// UI state for welcome screen
+	const [showWelcome, setShowWelcome] = useState(false)
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [theme, setTheme] = useState<Record<string, string>>()
 	const [filePaths, setFilePaths] = useState<string[]>([])
@@ -167,6 +171,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				setTotalTasksSize(message.totalTasksSize ?? null)
 				break
 			}
+			case "showWelcome": {
+				setShowWelcome(true)
+				break
+			}
 		}
 	}, [])
 
@@ -189,6 +197,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		totalTasksSize,
 		showMcp,
 		mcpTab,
+		showWelcome,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
@@ -224,6 +233,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				shellIntegrationTimeout: value,
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
+		setShowWelcome,
 		setShowMcp,
 		setMcpTab,
 	}
