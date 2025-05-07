@@ -111,6 +111,7 @@ export class GeminiHandler implements ApiHandler {
 		const CONTEXT_CACHE_TOKEN_MINIMUM = 4096
 
 		let uncachedContent: Content[] | undefined = undefined
+		let potentialUncachedContent: Content[] | undefined = undefined
 		let cachedContent: string | undefined = undefined
 
 		// Check if caching is available and content is large enough to benefit from caching
@@ -128,11 +129,16 @@ export class GeminiHandler implements ApiHandler {
 
 			if (cacheEntry) {
 				// Use existing cache
-				uncachedContent = contents.slice(cacheEntry.count, contents.length)
-				cachedContent = cacheEntry.key
-				console.log(
-					`[GeminiHandler] using existing cache for task ${taskId}: ${cacheEntry.count} cached messages (${cacheEntry.key}) and ${uncachedContent.length} uncached messages`,
-				)
+				potentialUncachedContent = contents.slice(cacheEntry.count, contents.length)
+
+				if(potentialUncachedContent.length > 0) {
+					// If there are uncached messages, we need to send them along with the cached content
+					uncachedContent = potentialUncachedContent
+					cachedContent = cacheEntry.key
+					console.log(
+						`[GeminiHandler] using existing cache for task ${taskId}: ${cacheEntry.count} cached messages (${cacheEntry.key}) and ${uncachedContent.length} uncached messages`,
+					)
+				}
 			}
 
 			// Create or update cache only if there's new content to add
