@@ -399,18 +399,18 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										</span>
 									</HeroTooltip>
 								</div>
+								{!shouldShowPromptCacheInfo() && (
+									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
+								)}
 							</div>
-							<div
-								style={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									flexWrap: "wrap",
-								}}>
-								{
-									!shouldShowPromptCacheInfo() && <div /> // Placeholder for spacing}
-								}
-								{shouldShowPromptCacheInfo() && (
+							{shouldShowPromptCacheInfo() && (
+								<div
+									style={{
+										display: "flex",
+										justifyContent: "space-between",
+										alignItems: "center",
+										flexWrap: "wrap",
+									}}>
 									<div
 										style={{
 											display: "flex",
@@ -452,9 +452,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											</HeroTooltip>
 										)}
 									</div>
-								)}
-								<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
-							</div>
+									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
+								</div>
+							)}
 							<div className="flex flex-col">
 								<TaskTimeline messages={clineMessages} />
 								{ContextWindowComponent}
