@@ -48,7 +48,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
 	const handleShowTaskWithId = useCallback((id: string) => {
-		vscode.postMessage({ type: "showTaskWithId", text: id })
+		TaskServiceClient.showTaskWithId({ value: id }).catch((error) => console.error("Error showing task:", error))
 	}, [])
 
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {

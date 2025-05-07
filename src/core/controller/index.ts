@@ -329,9 +329,6 @@ export class Controller {
 					images,
 				})
 				break
-			case "showTaskWithId":
-				this.showTaskWithId(message.text!)
-				break
 			case "resetState":
 				await this.resetState()
 				break

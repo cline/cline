@@ -15,6 +15,8 @@ service TaskService {
   rpc deleteTasksWithIds(StringArrayRequest) returns (Empty);
   // Creates a new task with the given text and optional images
   rpc newTask(NewTaskRequest) returns (Empty);
+  // Shows a task with the specified ID
+  rpc showTaskWithId(StringRequest) returns (Empty);
   // Exports a task with the given ID to markdown
   rpc exportTaskWithId(StringRequest) returns (Empty);
 }
@@ -25,3 +27,4 @@ message NewTaskRequest {
   string text = 2;
   repeated string images = 3;
 }
+

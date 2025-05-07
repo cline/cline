@@ -16,7 +16,6 @@ export interface WebviewMessage {
 		| "askResponse"
 		| "didShowAnnouncement"
 		| "selectImages"
-		| "showTaskWithId"
 		| "resetState"
 		| "openInBrowser"
 		| "openMention"
