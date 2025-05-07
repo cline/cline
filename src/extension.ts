@@ -14,6 +14,7 @@ import { Controller } from "./core/controller"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
+import * as inspector from "node:inspector"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -441,6 +442,14 @@ export function activate(context: vscode.ExtensionContext) {
 				await tempController.generateGitCommitMessage()
 				outputChannel.dispose()
 			}
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.openDebugger", () => {
+			inspector.open(0, "127.0.0.1", true)
+			const url = inspector.url()
+			vscode.window.showInformationMessage(`🛠️ Debugger listening at ${url}`)
 		}),
 	)
 
