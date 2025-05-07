@@ -142,6 +142,8 @@
 		"codestralBaseUrlDesc": "設定 Codestral 模型的替代 URL。",
 		"xaiApiKey": "xAI API 金鑰",
 		"getXaiApiKey": "取得 xAI API 金鑰",
+		"litellmApiKey": "LiteLLM API 金鑰",
+		"litellmBaseUrl": "LiteLLM 基礎 URL",
 		"awsCredentials": "AWS 認證",
 		"awsProfile": "AWS Profile",
 		"awsProfileName": "AWS Profile 名稱",

@@ -50,6 +50,7 @@ export const PROVIDERS = [
 	{ value: "xai", label: "xAI (Grok)" },
 	{ value: "groq", label: "Groq" },
 	{ value: "chutes", label: "Chutes AI" },
+	{ value: "litellm", label: "LiteLLM" },
 ].sort((a, b) => a.label.localeCompare(b.label))
 
 export const VERTEX_REGIONS = [

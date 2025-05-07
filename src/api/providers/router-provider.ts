@@ -44,7 +44,7 @@ export abstract class RouterProvider extends BaseProvider {
 	}
 
 	public async fetchModel() {
-		this.models = await getModels(this.name)
+		this.models = await getModels(this.name, this.client.apiKey, this.client.baseURL)
 		return this.getModel()
 	}
 

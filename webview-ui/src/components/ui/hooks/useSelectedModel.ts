@@ -30,6 +30,7 @@ import {
 	requestyDefaultModelId,
 	glamaDefaultModelId,
 	unboundDefaultModelId,
+	litellmDefaultModelId,
 } from "@roo/shared/api"
 
 import { useRouterModels } from "./useRouterModels"
@@ -81,6 +82,13 @@ function getSelectedModel({
 			return info
 				? { id, info }
 				: { id: unboundDefaultModelId, info: routerModels.unbound[unboundDefaultModelId] }
+		}
+		case "litellm": {
+			const id = apiConfiguration.litellmModelId ?? litellmDefaultModelId
+			const info = routerModels.litellm[id]
+			return info
+				? { id, info }
+				: { id: litellmDefaultModelId, info: routerModels.litellm[litellmDefaultModelId] }
 		}
 		case "xai": {
 			const id = apiConfiguration.apiModelId ?? xaiDefaultModelId

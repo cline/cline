@@ -142,6 +142,8 @@
 		"codestralBaseUrlDesc": "Codestralモデルの代替URLを設定します。",
 		"xaiApiKey": "xAI APIキー",
 		"getXaiApiKey": "xAI APIキーを取得",
+		"litellmApiKey": "LiteLLM APIキー",
+		"litellmBaseUrl": "LiteLLM ベースURL",
 		"awsCredentials": "AWS認証情報",
 		"awsProfile": "AWSプロファイル",
 		"awsProfileName": "AWSプロファイル名",

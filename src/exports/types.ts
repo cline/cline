@@ -24,6 +24,7 @@ type ProviderSettings = {
 				| "xai"
 				| "groq"
 				| "chutes"
+				| "litellm"
 		  )
 		| undefined
 	apiModelId?: string | undefined
@@ -124,6 +125,9 @@ type ProviderSettings = {
 	xaiApiKey?: string | undefined
 	groqApiKey?: string | undefined
 	chutesApiKey?: string | undefined
+	litellmBaseUrl?: string | undefined
+	litellmApiKey?: string | undefined
+	litellmModelId?: string | undefined
 	modelMaxTokens?: number | undefined
 	modelMaxThinkingTokens?: number | undefined
 	includeMaxTokens?: boolean | undefined
@@ -166,6 +170,7 @@ type GlobalSettings = {
 							| "xai"
 							| "groq"
 							| "chutes"
+							| "litellm"
 					  )
 					| undefined
 		  }[]

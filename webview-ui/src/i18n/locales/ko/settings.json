@@ -142,6 +142,8 @@
 		"codestralBaseUrlDesc": "Codestral 모델의 대체 URL을 설정합니다.",
 		"xaiApiKey": "xAI API 키",
 		"getXaiApiKey": "xAI API 키 받기",
+		"litellmApiKey": "LiteLLM API 키",
+		"litellmBaseUrl": "LiteLLM 기본 URL",
 		"awsCredentials": "AWS 자격 증명",
 		"awsProfile": "AWS 프로필",
 		"awsProfileName": "AWS 프로필 이름",

@@ -137,6 +137,8 @@
 		"codestralBaseUrlDesc": "Đặt URL thay thế cho mô hình Codestral.",
 		"xaiApiKey": "Khóa API xAI",
 		"getXaiApiKey": "Lấy khóa API xAI",
+		"litellmApiKey": "Khóa API LiteLLM",
+		"litellmBaseUrl": "URL cơ sở LiteLLM",
 		"awsCredentials": "Thông tin xác thực AWS",
 		"awsProfile": "Hồ sơ AWS",
 		"awsProfileName": "Tên hồ sơ AWS",

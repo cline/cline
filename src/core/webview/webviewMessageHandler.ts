@@ -289,11 +289,12 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		case "requestRouterModels":
 			const { apiConfiguration } = await provider.getState()
 
-			const [openRouterModels, requestyModels, glamaModels, unboundModels] = await Promise.all([
+			const [openRouterModels, requestyModels, glamaModels, unboundModels, litellmModels] = await Promise.all([
 				getModels("openrouter", apiConfiguration.openRouterApiKey),
 				getModels("requesty", apiConfiguration.requestyApiKey),
 				getModels("glama", apiConfiguration.glamaApiKey),
 				getModels("unbound", apiConfiguration.unboundApiKey),
+				getModels("litellm", apiConfiguration.litellmApiKey, apiConfiguration.litellmBaseUrl),
 			])
 
 			provider.postMessageToWebview({
@@ -303,6 +304,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					requesty: requestyModels,
 					glama: glamaModels,
 					unbound: unboundModels,
+					litellm: litellmModels,
 				},
 			})
 			break

@@ -142,6 +142,8 @@
 		"codestralBaseUrlDesc": "Legen Sie eine alternative URL für das Codestral-Modell fest.",
 		"xaiApiKey": "xAI API-Schlüssel",
 		"getXaiApiKey": "xAI API-Schlüssel erhalten",
+		"litellmApiKey": "LiteLLM API-Schlüssel",
+		"litellmBaseUrl": "LiteLLM Basis-URL",
 		"awsCredentials": "AWS Anmeldedaten",
 		"awsProfile": "AWS Profil",
 		"awsProfileName": "AWS Profilname",
