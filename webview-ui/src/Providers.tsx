@@ -9,6 +9,7 @@ import posthog from "posthog-js"
 
 posthog.init(posthogConfig.apiKey, {
 	api_host: posthogConfig.host,
+	autocapture: false,
 })
 
 export function Providers({ children }: { children: ReactNode }) {
