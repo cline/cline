@@ -41,6 +41,8 @@ interface ChatViewProps {
 	showHistoryView: () => void
 }
 
+const MD_FMT_ESCAPE_REGEX = /\w(\\[_*])\w/g
+
 async function convertHtmlToMarkdown(html: string) {
 	// Process the HTML to Markdown
 	const result = await unified()
@@ -58,7 +60,9 @@ async function convertHtmlToMarkdown(html: string) {
 		})
 		.process(html)
 
-	return String(result)
+	const md = String(result)
+	// transform snake\_case to snake_case or b\*p to b*p
+	return md.replace(MD_FMT_ESCAPE_REGEX, (v) => v.replace("\\", ""))
 }
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -120,7 +124,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 					// Convert HTML to Markdown
 					const markdown = await convertHtmlToMarkdown(selectedHtml)
-
 					vscode.postMessage({ type: "copyToClipboard", text: markdown })
 					e.preventDefault()
 				}
