@@ -10,7 +10,7 @@ importers:
     devDependencies:
       '@dotenvx/dotenvx':
         specifier: ^1.41.0
-        version: 1.41.0
+        version: 1.43.0
       '@eslint/js':
         specifier: ^9.25.1
         version: 9.25.1
@@ -346,8 +346,8 @@ packages:
     resolution: {integrity: sha512-2WJMeRQPHKSPemqk/awGrAiuFfzBmOIPXKizAsVhWH9YJqLZ0H+HS4c8loHGgW6utJ3E/ejXQUsiGaQy2NZ9Fw==}
     engines: {node: '>=6.9.0'}
 
-  '@dotenvx/dotenvx@1.41.0':
-    resolution: {integrity: sha512-lFZOSKLM2/Jm7FXYUIvnciUhMsuEatyxCgau4lnjDD59LaSYiaNLjyjnUL/aYpH1+iaDhD37+mPOzH9kBZlUJQ==}
+  '@dotenvx/dotenvx@1.43.0':
+    resolution: {integrity: sha512-Z8XjM75aWZ/ekUzBjlr/OqQsLWtJY4nVtruxopAt+FlYHfY0/gKl85nD16aEqbTkU53kJcm5psID0L2/sQMmuw==}
     hasBin: true
 
   '@drizzle-team/brocli@0.10.2':
@@ -4567,7 +4567,7 @@ snapshots:
     dependencies:
       regenerator-runtime: 0.14.1
 
-  '@dotenvx/dotenvx@1.41.0':
+  '@dotenvx/dotenvx@1.43.0':
     dependencies:
       commander: 11.1.0
       dotenv: 16.5.0
