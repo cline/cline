@@ -286,41 +286,49 @@ fi
 # To reset VSCode:
 # rm -rvf ~/.vscode && rm -rvf ~/Library/Application\ Support/Code
 
-echo "🔌 Installing Visual Studio Code extensions..."
+echo -n "🔌 Installing Visual Studio Code extensions... "
 code --install-extension golang.go &>/dev/null || exit 1
 code --install-extension dbaeumer.vscode-eslint&>/dev/null || exit 1
 code --install-extension redhat.java &>/dev/null || exit 1
 code --install-extension ms-python.python&>/dev/null || exit 1
 code --install-extension rust-lang.rust-analyzer &>/dev/null || exit 1
-code --install-extension rooveterinaryinc.roo-cline &>/dev/null || exit 1
+
+if ! code --list-extensions 2>/dev/null | grep -q "rooveterinaryinc.roo-cline"; then
+  code --install-extension rooveterinaryinc.roo-cline &>/dev/null || exit 1
+fi
+
+echo "✅ Done"
 
 if [[ ! -d "../../evals" ]]; then
-  echo "🔗 Cloning evals repository..."
-  if gh auth status &>/dev/null; then
-    read -p "🔗 Would you like to be able to share eval results (fork repository)? (Y/n): " fork_evals
+  echo -n "🔗 Cloning evals repository... "
 
-    if [[ "$fork_evals" =~ ^[Yy]|^$ ]]; then
-      gh repo fork cte/evals --clone ../../evals || exit 1
-    else
-      gh repo clone cte/evals ../../evals || exit 1
-    fi
+  if gh auth status &>/dev/null; then
+    gh repo clone cte/evals ../../evals || exit 1
   else
     git clone https://github.com/cte/evals.git ../../evals || exit 1
   fi
+
+  echo "✅ Done"
 else
-  echo "🔄 Updating existing evals repository..."
-  # Run in a subshell to avoid changing the script's working directory
-  (cd ../../evals && git checkout main && git pull) || { echo "❌ Failed to update evals repository."; exit 1; }
-  echo "✅ Evals repository is up to date."
+  echo -n "🔄 Updating evals repository... "
+
+  (cd ../../evals && \
+    git checkout -f &>/dev/null && \
+    git clean -f -d &>/dev/null && \
+    git checkout main &>/dev/null && \
+    git pull &>/dev/null) || { echo "❌ Failed to update evals repository."; exit 1; }
+
+  echo "✅ Done"
 fi
 
 if [[ ! -s .env ]]; then
   cp .env.sample .env || exit 1
 fi
 
-echo "🗄️ Syncing Roo Code evals database..."
+echo -n "🗄️ Syncing Roo Code evals database... "
 pnpm --filter @evals/db db:push &>/dev/null || exit 1
 pnpm --filter @evals/db db:enable-wal &>/dev/null || exit 1
+echo "✅ Done"
 
 if ! grep -q "OPENROUTER_API_KEY" .env; then
   read -p "🔐 Enter your OpenRouter API key (sk-or-v1-...): " openrouter_api_key
@@ -329,14 +337,11 @@ if ! grep -q "OPENROUTER_API_KEY" .env; then
   echo "OPENROUTER_API_KEY=$openrouter_api_key" >> .env || exit 1
 fi
 
-if [[ ! -s "../bin/roo-code-latest.vsix" ]]; then
-  build_extension
-else
-  read -p "💻 Do you want to build a new version of the Roo Code extension? (y/N): " build_extension
+current_version=$(code --list-extensions --show-versions 2>/dev/null | grep roo)
+read -p "💻 Do you want to build a new version of the Roo Code extension? [currently $current_version] (y/N): " build_extension
 
-  if [[ "$build_extension" =~ ^[Yy]$ ]]; then
-    build_extension
-  fi
+if [[ "$build_extension" =~ ^[Yy]$ ]]; then
+  build_extension
 fi
 
 echo -e "\n🚀 You're ready to rock and roll! \n"

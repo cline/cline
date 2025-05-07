@@ -4,7 +4,7 @@ export const rooCodeDefaults: RooCodeSettings = {
 	apiProvider: "openrouter",
 	openRouterUseMiddleOutTransform: false,
 
-	lastShownAnnouncementId: "apr-30-2025-3-15",
+	lastShownAnnouncementId: "may-06-2025-3-16",
 
 	pinnedApiConfigs: {},
 
@@ -42,7 +42,7 @@ export const rooCodeDefaults: RooCodeSettings = {
 	terminalZshP10k: false,
 	terminalZdotdir: true,
 	terminalCompressProgressBar: true,
-	terminalShellIntegrationDisabled: true,
+	terminalShellIntegrationDisabled: false,
 
 	diffEnabled: true,
 	fuzzyMatchThreshold: 1,
@@ -53,7 +53,7 @@ export const rooCodeDefaults: RooCodeSettings = {
 	maxOpenTabsContext: 20,
 	maxWorkspaceFiles: 200,
 	showRooIgnoredFiles: true,
-	maxReadFileLine: 500,
+	maxReadFileLine: 500, // -1 to enable full file reading.
 
 	language: "en",
 	telemetrySetting: "enabled",
