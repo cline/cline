@@ -80,7 +80,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					.slice(0, 3)
 					.map((item) => (
 						<div key={item.id} className="history-preview-item" onClick={() => handleHistorySelect(item.id)}>
-							<div style={{ padding: "12px" }}>
+							<div style={{ padding: "12px", position: "relative" }}>
 								<div style={{ marginBottom: "8px" }}>
 									<span
 										style={{
@@ -92,6 +92,20 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										{formatDate(item.ts)}
 									</span>
 								</div>
+
+								{/* Show star for favorited tasks */}
+								{item.isFavorited && (
+									<div
+										style={{
+											position: "absolute",
+											top: "12px",
+											right: "12px",
+											color: "var(--vscode-button-background)",
+										}}>
+										<span className="codicon codicon-star-full" />
+									</div>
+								)}
+
 								<div
 									style={{
 										fontSize: "var(--vscode-font-size)",

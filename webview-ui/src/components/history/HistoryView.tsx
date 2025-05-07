@@ -24,6 +24,47 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
+	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+
+	// Keep track of pending favorite toggle operations
+	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
+
+	const toggleFavorite = useCallback(async (taskId: string, currentValue: boolean) => {
+		// Optimistically update UI state immediately
+		setPendingFavoriteToggles((prev) => ({
+			...prev,
+			[taskId]: !currentValue,
+		}))
+
+		try {
+			await TaskServiceClient.toggleTaskFavorite({
+				taskId,
+				isFavorited: !currentValue,
+			})
+		} catch (err: any) {
+			console.error(`[FAVORITE_TOGGLE_UI] Error toggling favorite for task ${taskId}:`, err)
+
+			// Revert optimistic update on error
+			setPendingFavoriteToggles((prev) => {
+				const updated = { ...prev }
+				delete updated[taskId]
+				return updated
+			})
+
+			// Log error to console but don't show notification
+			// The optimistic UI will be reverted, which provides enough feedback to the user
+			console.error(`Failed to update favorite status: ${err?.message || "Unknown error"}`)
+		} finally {
+			// Clean up pending state after backend confirms update (success or failure)
+			setTimeout(() => {
+				setPendingFavoriteToggles((prev) => {
+					const updated = { ...prev }
+					delete updated[taskId]
+					return updated
+				})
+			}, 1000)
+		}
+	}, [])
 
 	const handleMessage = useCallback((event: MessageEvent<ExtensionMessage>) => {
 		if (event.data.type === "relinquishControl") {
@@ -88,8 +129,18 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [])
 
 	const presentableTasks = useMemo(() => {
-		return taskHistory.filter((item) => item.ts && item.task)
-	}, [taskHistory])
+		return taskHistory.filter((item) => {
+			// Base filter: must have timestamp and task content
+			const hasRequiredFields = item.ts && item.task
+
+			// Apply favorites filter if enabled
+			if (showFavoritesOnly) {
+				return hasRequiredFields && item.isFavorited
+			}
+
+			return hasRequiredFields
+		})
+	}, [taskHistory, showFavoritesOnly])
 
 	const fuse = useMemo(() => {
 		return new Fuse(presentableTasks, {
@@ -253,6 +304,65 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								Most Relevant
 							</VSCodeRadio>
 						</VSCodeRadioGroup>
+
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								marginTop: "10px",
+								marginLeft: "3px",
+							}}>
+							{/* Custom radio-like button that can be toggled */}
+							<div
+								onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "8px",
+									cursor: "pointer",
+								}}>
+								<div
+									style={{
+										width: "16px",
+										height: "16px",
+										borderRadius: "50%",
+										border: "1px solid var(--vscode-checkbox-border)",
+										backgroundColor: showFavoritesOnly ? "var(--vscode-checkbox-background)" : "transparent",
+										position: "relative",
+										display: "flex",
+										justifyContent: "center",
+										alignItems: "center",
+									}}>
+									{showFavoritesOnly && (
+										<div
+											style={{
+												width: "8px",
+												height: "8px",
+												borderRadius: "50%",
+												backgroundColor: "var(--vscode-checkbox-foreground)",
+											}}
+										/>
+									)}
+								</div>
+								<span
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "6px",
+										userSelect: "none",
+									}}>
+									<div
+										className="codicon codicon-star-full"
+										style={{
+											color: "var(--vscode-button-background)",
+											fontSize: "14px",
+										}}
+									/>
+									Favorites Only
+								</span>
+							</div>
+						</div>
+
 						<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
 							<VSCodeButton
 								onClick={() => {
@@ -337,43 +447,97 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											}}>
 											{formatDate(item.ts)}
 										</span>
-										<VSCodeButton
-											appearance="icon"
-											onClick={(e) => {
-												e.stopPropagation()
-												handleDeleteHistoryItem(item.id)
-											}}
-											className="delete-button"
-											style={{ padding: "0px 0px" }}>
-											<div
-												style={{
-													display: "flex",
-													alignItems: "center",
-													gap: "3px",
-													fontSize: "11px",
-													// fontWeight: "bold",
-												}}>
-												<span className="codicon codicon-trash"></span>
-												{formatSize(item.size)}
-											</div>
-										</VSCodeButton>
+										<div style={{ display: "flex", gap: "4px" }}>
+											{/* Delete button - only show if not favorited (check both actual and pending state) */}
+											{!(pendingFavoriteToggles[item.id] !== undefined
+												? pendingFavoriteToggles[item.id]
+												: item.isFavorited) && (
+												<VSCodeButton
+													appearance="icon"
+													onClick={(e) => {
+														e.stopPropagation()
+														handleDeleteHistoryItem(item.id)
+													}}
+													className="delete-button"
+													style={{ padding: "0px 0px" }}>
+													<div
+														style={{
+															display: "flex",
+															alignItems: "center",
+															gap: "3px",
+															fontSize: "11px",
+														}}>
+														<span className="codicon codicon-trash"></span>
+														{formatSize(item.size)}
+													</div>
+												</VSCodeButton>
+											)}
+											{/* Star button for favorites */}
+											<VSCodeButton
+												appearance="icon"
+												onClick={(e) => {
+													e.stopPropagation()
+													toggleFavorite(item.id, item.isFavorited || false)
+												}}
+												style={{ padding: "0px" }}>
+												<div
+													className={`codicon ${
+														pendingFavoriteToggles[item.id] !== undefined
+															? pendingFavoriteToggles[item.id]
+																? "codicon-star-full"
+																: "codicon-star-empty"
+															: item.isFavorited
+																? "codicon-star-full"
+																: "codicon-star-empty"
+													}`}
+													style={{
+														color: (
+															pendingFavoriteToggles[item.id] !== undefined
+																? pendingFavoriteToggles[item.id]
+																: item.isFavorited
+														)
+															? "var(--vscode-button-background)"
+															: "inherit",
+														opacity: (
+															pendingFavoriteToggles[item.id] !== undefined
+																? pendingFavoriteToggles[item.id]
+																: item.isFavorited
+														)
+															? 1
+															: 0.7,
+														// Show the star always when favorited, only on hover when not
+														display: (
+															pendingFavoriteToggles[item.id] !== undefined
+																? pendingFavoriteToggles[item.id]
+																: item.isFavorited
+														)
+															? "block"
+															: undefined,
+													}}
+												/>
+											</VSCodeButton>
+										</div>
 									</div>
-									<div
-										style={{
-											fontSize: "var(--vscode-font-size)",
-											color: "var(--vscode-foreground)",
-											display: "-webkit-box",
-											WebkitLineClamp: 3,
-											WebkitBoxOrient: "vertical",
-											overflow: "hidden",
-											whiteSpace: "pre-wrap",
-											wordBreak: "break-word",
-											overflowWrap: "anywhere",
-										}}
-										dangerouslySetInnerHTML={{
-											__html: item.task,
-										}}
-									/>
+
+									{/* Task description (using task directly) */}
+									<div style={{ marginBottom: "8px", position: "relative" }}>
+										<div
+											style={{
+												fontSize: "var(--vscode-font-size)",
+												color: "var(--vscode-foreground)",
+												display: "-webkit-box",
+												WebkitLineClamp: 3,
+												WebkitBoxOrient: "vertical",
+												overflow: "hidden",
+												whiteSpace: "pre-wrap",
+												wordBreak: "break-word",
+												overflowWrap: "anywhere",
+											}}
+											dangerouslySetInnerHTML={{
+												__html: item.task,
+											}}
+										/>
+									</div>
 									<div
 										style={{
 											display: "flex",

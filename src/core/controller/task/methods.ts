@@ -8,7 +8,7 @@ import { clearTask } from "./clearTask"
 import { deleteTasksWithIds } from "./deleteTasksWithIds"
 import { exportTaskWithId } from "./exportTaskWithId"
 import { newTask } from "./newTask"
-import { showTaskWithId } from "./showTaskWithId"
+import { toggleTaskFavorite } from "./toggleTaskFavorite"
 
 // Register all task service methods
 export function registerAllMethods(): void {
@@ -18,5 +18,5 @@ export function registerAllMethods(): void {
 	registerMethod("deleteTasksWithIds", deleteTasksWithIds)
 	registerMethod("exportTaskWithId", exportTaskWithId)
 	registerMethod("newTask", newTask)
-	registerMethod("showTaskWithId", showTaskWithId)
+	registerMethod("toggleTaskFavorite", toggleTaskFavorite)
 }

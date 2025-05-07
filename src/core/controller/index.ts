@@ -1519,9 +1519,15 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async showTaskWithId(id: string) {
 		if (id !== this.task?.taskId) {
-			// non-current task
-			const { historyItem } = await this.getTaskWithId(id)
-			await this.initTask(undefined, undefined, historyItem) // clears existing task
+			const taskHistory = ((await this.context.globalState.get("taskHistory")) as HistoryItem[]) || []
+			const historyItem = taskHistory.find((item) => item.id === id)
+
+			if (historyItem) {
+				await this.initTask(undefined, undefined, historyItem)
+			} else {
+				const { historyItem } = await this.getTaskWithId(id)
+				await this.initTask(undefined, undefined, historyItem)
+			}
 		}
 		await this.postMessageToWebview({
 			type: "action",
@@ -1536,17 +1542,61 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async deleteAllTaskHistory() {
 		await this.clearTask()
-		await updateGlobalState(this.context, "taskHistory", undefined)
+		const startTime = Date.now()
+
+		// Get existing task history
+		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[]) || []
+
+		// Filter out non-favorited tasks
+		const favoritedTasks = taskHistory.filter((task) => task.isFavorited === true)
+		console.log(`[deleteAllTaskHistory] Found ${favoritedTasks.length} favorited tasks to preserve`)
+
+		// Only update the global state if we're preserving any favorited tasks
+		if (favoritedTasks.length > 0) {
+			await updateGlobalState(this.context, "taskHistory", favoritedTasks)
+		} else {
+			await updateGlobalState(this.context, "taskHistory", undefined)
+		}
+
 		try {
-			// Remove all contents of tasks directory
+			const preserveTaskIds = favoritedTasks.map((task) => task.id)
+
+			// Remove task files only for non-favorited tasks
 			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
 			if (await fileExistsAtPath(taskDirPath)) {
-				await fs.rm(taskDirPath, { recursive: true, force: true })
+				// If there are favorited tasks to preserve
+				if (preserveTaskIds.length > 0) {
+					const taskDirs = await fs.readdir(taskDirPath)
+					console.debug(`[deleteAllTaskHistory] Found ${taskDirs.length} task directories`)
+
+					// Delete directories for non-favorited tasks only
+					let deletedCount = 0
+					for (const taskDir of taskDirs) {
+						if (!preserveTaskIds.includes(taskDir)) {
+							const fullPath = path.join(taskDirPath, taskDir)
+							await fs.rm(fullPath, { recursive: true, force: true })
+							deletedCount++
+						}
+					}
+					console.debug(`[deleteAllTaskHistory] Deleted ${deletedCount} non-favorited task directories`)
+				} else {
+					// No favorited tasks to preserve, delete all
+					console.debug(`[deleteAllTaskHistory] No favorites to preserve, deleting all task directories`)
+					await fs.rm(taskDirPath, { recursive: true, force: true })
+				}
 			}
-			// Remove checkpoints directory contents
-			const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
-			if (await fileExistsAtPath(checkpointsDirPath)) {
-				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
+
+			// Delete checkpoints directories
+			if (favoritedTasks.length > 0) {
+				console.debug(`[deleteAllTaskHistory] Preserving checkpoints for ${favoritedTasks.length} favorited tasks`)
+				// For now, we leave all checkpoints intact when preserving favorites
+			} else {
+				// No favorited tasks to preserve, delete all checkpoints
+				const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
+				if (await fileExistsAtPath(checkpointsDirPath)) {
+					console.debug(`[deleteAllTaskHistory] No favorites to preserve, deleting all checkpoints`)
+					await fs.rm(checkpointsDirPath, { recursive: true, force: true })
+				}
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
