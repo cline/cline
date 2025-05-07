@@ -131,7 +131,7 @@ export class GeminiHandler implements ApiHandler {
 				// Use existing cache
 				potentialUncachedContent = contents.slice(cacheEntry.count, contents.length)
 
-				if(potentialUncachedContent.length > 0) {
+				if (potentialUncachedContent.length > 0) {
 					// If there are uncached messages, we need to send them along with the cached content
 					uncachedContent = potentialUncachedContent
 					cachedContent = cacheEntry.key
