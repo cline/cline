@@ -76,7 +76,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
-	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<Record<string, string>>()
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
@@ -107,7 +106,6 @@ export const ExtensionStateContextProvider: React.FC<{
 							: prevState.autoApprovalSettings,
 					}
 				})
-				setShowWelcome(true)
 				setDidHydrateState(true)
 				break
 			}
@@ -183,7 +181,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
-		showWelcome,
 		theme,
 		openRouterModels,
 		openAiModels,

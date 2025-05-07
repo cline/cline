@@ -47,6 +47,7 @@ export interface ExtensionMessage {
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 		| "setActiveQuote"
+		| "showWelcome"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -143,7 +144,6 @@ export interface ExtensionState {
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
-	showWelcome: boolean
 }
 
 export interface ClineMessage {

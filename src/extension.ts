@@ -82,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	const openClineInNewTab = async () => {
+	const openClineInNewTab = async (): Promise<WebviewProvider> => {
 		Logger.log("Opening Cline in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
@@ -113,9 +113,8 @@ export function activate(context: vscode.ExtensionContext) {
 		// Lock the editor group so clicking on files doesn't open them over the panel
 		await setTimeoutPromise(100)
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
+		return tabWebview
 	}
-
-	checkInstallationStatus(context)
 
 	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
 	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
@@ -423,6 +422,7 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 		}),
 	)
+	checkInstallationStatus(context)
 
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 
@@ -432,16 +432,12 @@ export function activate(context: vscode.ExtensionContext) {
 		const previous = context.globalState.get<string>(VERSION_KEY)
 
 		if (!previous) {
-			// ── first-ever install ──
-			WebviewProvider.getTabInstances().forEach(async (tab) => {
-				const state = await tab.controller.getStateToPostToWebview()
-				state.showWelcome = true
-				await tab.controller.postMessageToWebview({ type: "state", state })
-			})
-			openClineInNewTab()
+			const tab = await openClineInNewTab()
+			await tab.controller.postMessageToWebview({ type: "showWelcome" })
+
+			// persist for the next activation
+			await context.globalState.update(VERSION_KEY, current)
 		}
-		// persist for the next activation
-		await context.globalState.update(VERSION_KEY, current)
 	}
 }
 
