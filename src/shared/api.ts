@@ -436,16 +436,20 @@ export const vertexModels = {
 		supportsPromptCache: true,
 		inputPrice: 2.5,
 		outputPrice: 15,
+		cacheReadsPrice: 0.625,
+		cacheWritesPrice: 4.5,
 		tiers: [
 			{
 				contextWindow: 200000,
 				inputPrice: 1.25,
 				outputPrice: 10,
+				cacheReadsPrice: 0.31,
 			},
 			{
 				contextWindow: Infinity,
 				inputPrice: 2.5,
 				outputPrice: 15,
+				cacheReadsPrice: 0.625,
 			},
 		],
 	},
@@ -566,16 +570,20 @@ export const geminiModels = {
 		supportsPromptCache: true,
 		inputPrice: 2.5,
 		outputPrice: 15,
+		cacheReadsPrice: 0.625,
+		cacheWritesPrice: 4.5,
 		tiers: [
 			{
 				contextWindow: 200000,
 				inputPrice: 1.25,
 				outputPrice: 10,
+				cacheReadsPrice: 0.31,
 			},
 			{
 				contextWindow: Infinity,
 				inputPrice: 2.5,
 				outputPrice: 15,
+				cacheReadsPrice: 0.625,
 			},
 		],
 	},
