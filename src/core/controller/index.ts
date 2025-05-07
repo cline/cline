@@ -377,11 +377,7 @@ export class Controller {
 				await refreshClineRulesToggles(this.context, cwd)
 				await this.postStateToWebview()
 				break
-			case "openInBrowser":
-				if (message.url) {
-					vscode.env.openExternal(vscode.Uri.parse(message.url))
-				}
-				break
+
 			case "fetchOpenGraphData":
 				this.fetchOpenGraphData(message.text!)
 				break

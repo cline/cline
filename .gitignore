@@ -19,3 +19,7 @@ coverage
 !.github/scripts/coverage/
 
 *evals.env
+
+# For people who use bun and like to take notes
+bun.lock
+notes.md

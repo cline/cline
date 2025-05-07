@@ -1,6 +1,7 @@
 import React from "react"
 import { vscode } from "@/utils/vscode"
 import DOMPurify from "dompurify"
+import { SystemServiceClient } from "@/services/grpc-client"
 import { getSafeHostname, normalizeRelativeUrl } from "./utils/mcpRichUtil"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 
@@ -236,8 +237,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 						overflow: "auto",
 					}}
 					onClick={() => {
-						vscode.postMessage({
-							type: "openInBrowser",
+						SystemServiceClient.openUrl({
 							url: DOMPurify.sanitize(url),
 						})
 					}}>
@@ -273,8 +273,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					maxWidth: "512px",
 				}}
 				onClick={() => {
-					vscode.postMessage({
-						type: "openInBrowser",
+					SystemServiceClient.openUrl({
 						url: DOMPurify.sanitize(url),
 					})
 				}}>

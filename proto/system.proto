@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+service SystemService {
+  rpc openUrl(OpenUrlRequest) returns (Empty);
+}
+
+message OpenUrlRequest {
+  string url = 1;
+}
