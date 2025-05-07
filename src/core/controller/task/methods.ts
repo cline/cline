@@ -5,18 +5,24 @@
 import { registerMethod } from "./index"
 import { cancelTask } from "./cancelTask"
 import { clearTask } from "./clearTask"
+import { deleteNonFavoritedTasks } from "./deleteNonFavoritedTasks"
 import { deleteTasksWithIds } from "./deleteTasksWithIds"
 import { exportTaskWithId } from "./exportTaskWithId"
+import { getTaskHistory } from "./getTaskHistory"
 import { newTask } from "./newTask"
 import { showTaskWithId } from "./showTaskWithId"
+import { toggleTaskFavorite } from "./toggleTaskFavorite"
 
 // Register all task service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("cancelTask", cancelTask)
 	registerMethod("clearTask", clearTask)
+	registerMethod("deleteNonFavoritedTasks", deleteNonFavoritedTasks)
 	registerMethod("deleteTasksWithIds", deleteTasksWithIds)
 	registerMethod("exportTaskWithId", exportTaskWithId)
+	registerMethod("getTaskHistory", getTaskHistory)
 	registerMethod("newTask", newTask)
 	registerMethod("showTaskWithId", showTaskWithId)
+	registerMethod("toggleTaskFavorite", toggleTaskFavorite)
 }
