@@ -1,11 +1,7 @@
-<div align="center">
-<sub>
 [English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
-</sub>
-<sub>
+
 [日本語](../ja/CONTRIBUTING.md) • <b>한국어</b> • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • [Türkçe](../tr/CONTRIBUTING.md) • [Tiếng Việt](../vi/CONTRIBUTING.md) • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
-</sub>
-</div>
+
 # Roo Code 기여 가이드
 
 Roo Code는 커뮤니티 주도의 프로젝트이며, 모든 기여를 소중하게 생각합니다. 모두를 위한 원활하고 효과적인 프로세스를 위해 **"[Issue-First](#2-핵심-원칙-issue-first-접근법)" 원칙**을 따릅니다. 즉, 모든 작업은 Pull Request를 제출하기 _전에_ 반드시 GitHub Issue와 연결되어야 합니다(자세한 내용은 [PR 정책](#pull-request-pr-정책) 참고). 이 가이드를 꼼꼼히 읽고 기여 방법을 이해해 주세요.

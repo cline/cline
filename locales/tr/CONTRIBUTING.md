@@ -1,11 +1,7 @@
-<div align="center">
-<sub>
 [English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
-</sub>
-<sub>
+
 [日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • <b>Türkçe</b> • [Tiếng Việt](../vi/CONTRIBUTING.md) • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
-</sub>
-</div>
+
 # Roo Code'a Katkıda Bulunma
 
 Roo Code, topluluk odaklı bir projedir ve her katkıyı çok önemsiyoruz. Herkes için sorunsuz ve etkili bir süreç sağlamak için **"[Issue-First](#2-temel-ilke-issue-first-yaklaşımı)" yaklaşımıyla çalışıyoruz.** Yani, tüm çalışmalar bir Pull Request gönderilmeden _önce_ bir GitHub Issue'ya bağlı olmalı (ayrıntılar için [PR Politikamıza](#pull-request-pr-politikası) bakabilirsin). Nasıl katkı sağlayacağını anlamak için lütfen bu rehberi dikkatlice oku.

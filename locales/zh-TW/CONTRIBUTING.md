@@ -1,11 +1,7 @@
-<div align="center">
-<sub>
 [English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
-</sub>
-<sub>
+
 [日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • [Türkçe](../tr/CONTRIBUTING.md) • [Tiếng Việt](../vi/CONTRIBUTING.md) • [简体中文](../zh-CN/CONTRIBUTING.md) • <b>繁體中文</b>
-</sub>
-</div>
+
 # 參與 Roo Code 貢獻
 
 Roo Code 是一個由社群驅動的專案，我們非常重視每一位貢獻者。為了讓每個人的貢獻流程順暢且有效率，**我們採用「[Issue-First](#2-關鍵原則-issue-first-方式)」原則。** 這代表所有工作都必須在提交 Pull Request _之前_ 先關聯一個 GitHub Issue（詳情請見[PR 政策](#pull-request-pr-政策)）。請仔細閱讀本指南，了解如何參與貢獻。

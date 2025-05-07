@@ -1,11 +1,7 @@
-<div align="center">
-<sub>
 [English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
-</sub>
-<sub>
+
 [日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • [Türkçe](../tr/CONTRIBUTING.md) • <b>Tiếng Việt</b> • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
-</sub>
-</div>
+
 # Đóng góp cho Roo Code
 
 Roo Code là một dự án do cộng đồng dẫn dắt và chúng mình rất trân trọng mọi đóng góp. Để đảm bảo quy trình diễn ra suôn sẻ và hiệu quả cho tất cả mọi người, **chúng mình áp dụng nguyên tắc "[Issue-First](#2-nguyên-tắc-chính-cách-tiếp-cận-issue-first)".** Điều này có nghĩa là mọi công việc đều phải liên kết với một Issue trên GitHub _trước khi_ gửi Pull Request (xem [Chính sách PR](#chính-sách-pull-request-pr) để biết chi tiết). Hãy đọc kỹ hướng dẫn này để hiểu cách đóng góp.

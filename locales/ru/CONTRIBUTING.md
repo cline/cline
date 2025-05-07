@@ -1,11 +1,7 @@
-<div align="center">
-<sub>
 [English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • <b>Русский</b>
-</sub>
-<sub>
+
 [日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • [Türkçe](../tr/CONTRIBUTING.md) • [Tiếng Việt](../vi/CONTRIBUTING.md) • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
-</sub>
-</div>
+
 # Вклад в Roo Code
 
 Roo Code — это проект, управляемый сообществом, и мы очень ценим каждый вклад. Чтобы процесс был максимально простым и эффективным для всех, **мы работаем по принципу "[Issue-First](#2-ключевой-принцип-подход-issue-first)".** Это значит, что вся работа должна быть связана с GitHub Issue _до_ отправки Pull Request (подробности см. в нашей [PR-политике](#политика-pull-request-pr)). Пожалуйста, внимательно прочитай это руководство, чтобы понять, как внести свой вклад.

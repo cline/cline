@@ -1,11 +1,7 @@
-<div align="center">
-<sub>
 [English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • <b>हिंदी</b> • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
-</sub>
-<sub>
+
 [日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • [Türkçe](../tr/CONTRIBUTING.md) • [Tiếng Việt](../vi/CONTRIBUTING.md) • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
-</sub>
-</div>
+
 # Roo Code में योगदान करें
 
 Roo Code एक समुदाय-आधारित प्रोजेक्ट है और हम हर योगदान को बहुत महत्व देते हैं। सभी के लिए प्रक्रिया को आसान और प्रभावी बनाने के लिए, **हम "[Issue-First](#2-मुख्य-सिद्धांत-issue-first-एप्रोच)" पद्धति अपनाते हैं।** इसका मतलब है कि हर काम को Pull Request सबमिट करने से _पहले_ एक GitHub Issue से जोड़ा जाना चाहिए (विस्तार से जानने के लिए हमारी [PR नीति](#pull-request-pr-नीति) देखें)। कृपया इस गाइड को ध्यान से पढ़ें ताकि आप समझ सकें कि कैसे योगदान करें।

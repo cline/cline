@@ -1,11 +1,7 @@
-<div align="center">
-<sub>
-<b>English</b> • [Català](locales/ca/CONTRIBUTING.md) • [Deutsch](locales/de/CONTRIBUTING.md) • [Español](locales/es/CONTRIBUTING.md) • [Français](locales/fr/CONTRIBUTING.md) • [हिंदी](locales/hi/CONTRIBUTING.md) • [Italiano](locales/it/CONTRIBUTING.md) • [Nederlands](locales/nl/CONTRIBUTING.md) • [Русский](locales/ru/CONTRIBUTING.md)
-</sub>
-<sub>
+**English** • [Català](locales/ca/CONTRIBUTING.md) • [Deutsch](locales/de/CONTRIBUTING.md) • [Español](locales/es/CONTRIBUTING.md) • [Français](locales/fr/CONTRIBUTING.md) • [हिंदी](locales/hi/CONTRIBUTING.md) • [Italiano](locales/it/CONTRIBUTING.md) • [Nederlands](locales/nl/CONTRIBUTING.md) • [Русский](locales/ru/CONTRIBUTING.md)
+
 [日本語](locales/ja/CONTRIBUTING.md) • [한국어](locales/ko/CONTRIBUTING.md) • [Polski](locales/pl/CONTRIBUTING.md) • [Português (BR)](locales/pt-BR/CONTRIBUTING.md) • [Türkçe](locales/tr/CONTRIBUTING.md) • [Tiếng Việt](locales/vi/CONTRIBUTING.md) • [简体中文](locales/zh-CN/CONTRIBUTING.md) • [繁體中文](locales/zh-TW/CONTRIBUTING.md)
-</sub>
-</div>
+
 # Contributing to Roo Code
 
 Roo Code is a community-driven project, and we highly value every contribution. To ensure a smooth and effective process for everyone, **we operate on an "[Issue-First](#2-key-principle-issue-first-approach)" basis.** This means all work should be linked to a GitHub Issue _before_ a Pull Request is submitted (see our [PR Policy](#pull-request-pr-policy) for details). Please read this guide carefully to understand how to contribute.

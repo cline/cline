@@ -1,11 +1,7 @@
-<div align="center">
-<sub>
 [English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • <b>Deutsch</b> • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
-</sub>
-<sub>
+
 [日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • [Türkçe](../tr/CONTRIBUTING.md) • [Tiếng Việt](../vi/CONTRIBUTING.md) • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
-</sub>
-</div>
+
 # Beitrag zu Roo Code
 
 Roo Code ist ein Community-getriebenes Projekt und wir schätzen jeden Beitrag sehr. Damit alles reibungslos läuft, **arbeiten wir nach dem Prinzip "[Issue-First](#2-wichtiges-prinzip-issue-first-ansatz)".** Das heißt: Jede Arbeit muss mit einem GitHub-Issue verknüpft sein, _bevor_ ein Pull Request eingereicht wird (siehe unsere [PR-Richtlinie](#pull-request-pr-richtlinie) für Details). Lies diesen Leitfaden aufmerksam, um zu verstehen, wie du beitragen kannst.
