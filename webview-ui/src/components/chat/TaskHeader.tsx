@@ -353,7 +353,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							style={{
 								display: "flex",
 								flexDirection: "column",
-								gap: "4px",
+								gap: "2px",
 							}}>
 							<div
 								style={{
