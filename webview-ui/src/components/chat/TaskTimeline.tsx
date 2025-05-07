@@ -140,8 +140,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 		return null
 	}
 
-	console.log("TaskTimeline messages", { taskTimelinePropsMessages })
-
 	const handleMouseEnter = (message: ClineMessage, event: React.MouseEvent<HTMLDivElement>) => {
 		setHoveredMessage(message)
 
