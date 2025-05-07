@@ -30,7 +30,7 @@
 	"devDependencies": {
 		"@evals/eslint-config": "workspace:^",
 		"@evals/typescript-config": "workspace:^",
-		"drizzle-kit": "^0.30.5",
+		"drizzle-kit": "^0.31.0",
 		"execa": "^9.5.2",
 		"vitest": "^3.0.9"
 	}
