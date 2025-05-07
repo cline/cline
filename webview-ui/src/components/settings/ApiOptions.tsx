@@ -230,17 +230,6 @@ const ApiOptions = ({
 		selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null,
 	)
 
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message = event.data
-		if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
-			setVsCodeLmModels(message.vsCodeLmModels)
-		}
-		if (message.type === "lmStudioModels" && message.lmStudioModels) {
-			setLmStudioModels(message.lmStudioModels)
-		}
-	}, [])
-	useEvent("message", handleMessage)
-
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
 	https://github.com/microsoft/vscode-webview-ui-toolkit/issues/433
