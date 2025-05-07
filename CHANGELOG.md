@@ -1,5 +1,49 @@
 # Changelog
 
+## 3.15.0
+
+### Minor Changes
+
+-   fc5adcf: add open ai cache to ui
+-   6303a77: suggested model exists again
+-   d14345f: Add FeatureFlagProvider service for the Node.js extension side
+-   dd35bce: breakpoint just in system prompt for gemini for OR and cline provider
+-   2963aa5: fetch cache details from generation endpoint
+-   a43da8d: Add npm script for issue creation
+-   311cb3a: Migrate more info section to new docs
+-   9eaf023: updated gemini caching for OR and cline provider
+-   dbba0ef: Add ability to generate commit message via cline
+-   6ad11ba: updated OR/cline provider to automate gemini models caching
+-   311cb3a: Add enterprise section to new docs
+-   ffbafab: Migrate prompting section to new docs
+-   bc9eaee: Migrate running models locally section to new docs
+-   b8af02e: Allow the user to scroll when Cline is editing a file by disabling auto-scroll when the user scrolls up
+-   8d3cf53: Add image links to docs
+-   311cb3a: Migrate MCP section to new docs
+-   10f7b8c: Migrate custom model config section to new docs
+-   274349f: add ui for windsurf and cursor rules
+-   8516aab: Migrate getting-started section to new docs
+-   f1ed93a: Task Timeline
+
+### Patch Changes
+
+-   3e9c83b: Add the o4-mini model in the isOminiModel
+-   062bb5b: Allow option to collect events to send them in a bundle to avoid sending too many events
+-   83c4a82: disable autocapture
+-   c839576: Moved rule file conversions
+-   9eea9d0: getRelativePaths protobus migration
+-   7084e74: getOllamaModels protobus migration
+-   a953f6e: Add confirmation dialog to Delete All History button
+-   f4a9d5f: Bump ollama from 0.5.13 to 0.5.15
+-   b667224: Extend ReasoningEffort to non-o3-mini reasoning models for all providers
+-   5f4b807: Re-enable tests in workflow
+-   06fc419: searchFiles protobus migration
+-   a02bf11: getLmStudioModels protobus migration
+-   e963d2c: adding quote reply support
+-   6d24e22: Make Previous Updates in the Announcement a dropdown
+-   7cf68ff: timestamp visualization
+-   675b5e1: Batch selection and deletion of tasks in history
+
 ## [3.14.0]
 
 -   Add support for custom model ID in AWS Bedrock provider, enabling use of Application Inference Profile (Thanks @clicube!)
