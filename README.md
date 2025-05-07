@@ -184,6 +184,40 @@ To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.m
 
 </details>
 
+<details>
+<summary>Debugging the Production Build</summary>
+
+If you are using Cline on other projects and you encounter an issue, you can launch a debugger to inspect the problem right away instead of switching to the Cline repo and launching the extension host.
+
+1. Add the following to your USER settings.json:
+
+```json
+{
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "trace": true,
+        "internalConsoleOptions": "openOnSessionStart",
+        "name": "Attach to Installed Extension",
+        "type": "node",
+        "request": "attach",
+        "address": "127.0.0.1",
+        "port": 9229,
+        "autoAttachChildProcesses": true,
+        "restart": true,
+        "skipFiles": ["<node_internals>/**"],
+        "sourceMaps": true,
+        "outFiles": ["${env:HOME}/.cursor/extensions/saoudrizwan.claude-dev-*/dis/**/*.js"],
+      }
+    ]
+  }
+}
+```
+
+2. Run the `Cline: Open Debugger` command from the command palette.
+
+3. Set a breakpoint in the Cline extension code and start debugging.
 
 ## License
 

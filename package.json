@@ -124,6 +124,11 @@
 				"title": "✨ Generate Commit Message with Cline",
 				"category": "Cline",
 				"icon": "$(robot)"
+			},
+			{
+				"command": "cline.openDebugger",
+				"title": "Open Debugger",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
