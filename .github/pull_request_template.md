@@ -1,35 +1,83 @@
-## Context
-
-<!-- Brief description of WHAT you’re doing and WHY. -->
-
-## Implementation
-
 <!--
+Thank you for contributing to Roo Code!
 
-Some description of HOW you achieved it. Perhaps give a high level description of the program flow. Did you need to refactor something? What tradeoffs did you take? Are there things in here which you’d particularly like people to pay close attention to?
-
+Before submitting your PR, please ensure:
+- It's linked to an approved GitHub Issue.
+- You've reviewed our [Contributing Guidelines](https://docs.roocode.com/contributing).
 -->
 
-## Screenshots
+### Related GitHub Issue
 
-| before | after |
-| ------ | ----- |
-|        |       |
+<!-- Every PR MUST be linked to an approved issue. -->
 
-## How to Test
+Closes: # <!-- Replace with the issue number, e.g., Closes: #123 -->
+
+### Description
 
 <!--
-
-A straightforward scenario of how to test your changes will help reviewers that are not familiar with the part of the code that you are changing but want to see it in action. This section can include a description or step-by-step instructions of how to get to the state of v2 that your change affects.
-
-A "How To Test" section can look something like this:
-
-- Sign in with a user with tracks
-- Activate `show_awesome_cat_gifs` feature (add `?feature.show_awesome_cat_gifs=1` to your URL)
-- You should see a GIF with cats dancing
-
+Briefly summarize the changes in this PR and how they address the linked issue.
+The issue should cover the "what" and "why"; this section should focus on:
+- The "how": key implementation details, design choices, or trade-offs made.
+- Anything specific reviewers should pay attention to in this PR.
 -->
 
-## Get in Touch
+### Test Procedure
 
-<!-- We'd love to have a way to chat with you about your changes if necessary. If you're in the [Roo Code Discord](https://discord.gg/roocode), please share your handle here. -->
+<!--
+Detail the steps to test your changes. This helps reviewers verify your work.
+- How did you test this specific implementation? (e.g., unit tests, manual testing steps)
+- How can reviewers reproduce your tests or verify the fix/feature?
+- Include relevant testing environment details if applicable.
+-->
+
+### Type of Change
+
+<!-- Mark all applicable boxes with an 'x'. -->
+
+- [ ] 🐛 **Bug Fix**: Non-breaking change that fixes an issue.
+- [ ] ✨ **New Feature**: Non-breaking change that adds functionality.
+- [ ] 💥 **Breaking Change**: Fix or feature that would cause existing functionality to not work as expected.
+- [ ] ♻️ **Refactor**: Code change that neither fixes a bug nor adds a feature.
+- [ ] 💅 **Style**: Changes that do not affect the meaning of the code (white-space, formatting, etc.).
+- [ ] 📚 **Documentation**: Updates to documentation files.
+- [ ] ⚙️ **Build/CI**: Changes to the build process or CI configuration.
+- [ ] 🧹 **Chore**: Other changes that don't modify `src` or test files.
+
+### Pre-Submission Checklist
+
+<!-- Go through this checklist before marking your PR as ready for review. -->
+
+- [ ] **Issue Linked**: This PR is linked to an approved GitHub Issue (see "Related GitHub Issue" above).
+- [ ] **Scope**: My changes are focused on the linked issue (one major feature/fix per PR).
+- [ ] **Self-Review**: I have performed a thorough self-review of my code.
+- [ ] **Code Quality**:
+    - [ ] My code adheres to the project's style guidelines.
+    - [ ] There are no new linting errors or warnings (`npm run lint`).
+    - [ ] All debug code (e.g., `console.log`) has been removed.
+- [ ] **Testing**:
+    - [ ] New and/or updated tests have been added to cover my changes.
+    - [ ] All tests pass locally (`npm test`).
+    - [ ] The application builds successfully with my changes.
+- [ ] **Branch Hygiene**: My branch is up-to-date (rebased) with the `main` branch.
+- [ ] **Documentation Impact**: I have considered if my changes require documentation updates (see "Documentation Updates" section below).
+- [ ] **Changeset**: A changeset has been created using `npm run changeset` if this PR includes user-facing changes or dependency updates.
+- [ ] **Contribution Guidelines**: I have read and agree to the [Contributor Guidelines](https://docs.roocode.com/contributing).
+
+### Screenshots / Videos
+
+<!--
+For UI changes, please provide before-and-after screenshots or a short video of the *actual results*.
+This greatly helps in understanding the visual impact of your changes.
+-->
+
+### Documentation Updates
+
+<!--
+Does this PR necessitate updates to user-facing documentation?
+- [ ] No documentation updates are required.
+- [ ] Yes, documentation updates are required. (Please describe what needs to be updated or link to a PR in the docs repository).
+-->
+
+### Additional Notes
+
+<!-- Add any other context, questions, or information for reviewers here. -->

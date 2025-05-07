@@ -2,6 +2,12 @@ name: Bug Report
 description: Clearly report a bug with detailed repro steps
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Thank you for taking the time to fill out this bug report!**
+
+        Please ensure this bug hasn't been reported already by searching existing [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues).
   - type: input
     id: version
     attributes:
@@ -17,19 +23,25 @@ body:
       description: Choose the API provider involved
       multiple: false
       options:
-        - OpenRouter
         - Anthropic
-        - Google Gemini
+        - AWS Bedrock
+        - Chutes AI
         - DeepSeek
+        - Glama
+        - Google Gemini
+        - Groq
+        - Human Relay Provider
+        - LM Studio
+        - Mistral AI
+        - Ollama
         - OpenAI
         - OpenAI Compatible
-        - GCP Vertex AI
-        - Amazon Bedrock
+        - OpenRouter
         - Requesty
-        - Glama
-        - VS Code LM API
-        - LM Studio
-        - Ollama
+        - Unbound
+        - VS Code Language Model API
+        - xAI (Grok)
+        - Not Applicable / Other
     validations:
       required: true
 
@@ -37,7 +49,7 @@ body:
     id: model
     attributes:
       label: Model Used
-      description: Clearly specify the exact model (e.g., Claude 3.7 Sonnet)
+      description: Clearly specify the exact model (e.g., Claude 3.7 Sonnet). If not applicable, enter N/A.
     validations:
       required: true
 
@@ -69,8 +81,8 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Relevant API Request Output
-      description: Paste relevant API logs or outputs here (formatted automatically as code)
+      label: Relevant API Request Output or Error Logs
+      description: Paste relevant API logs, console outputs, or error messages here (formatted automatically as code).
       render: shell
 
   - type: textarea

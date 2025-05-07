@@ -1,84 +1,107 @@
-# Wkład w Roo Code
+<div align="center">
+<sub>
+[English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
+</sub>
+<sub>
+[日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • <b>Polski</b> • [Português (BR)](../pt-BR/CONTRIBUTING.md) • [Türkçe](../tr/CONTRIBUTING.md) • [Tiếng Việt](../vi/CONTRIBUTING.md) • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
+</sub>
+</div>
+# Współtworzenie Roo Code
 
-Cieszymy się, że jesteś zainteresowany wniesieniem wkładu do Roo Code. Czy naprawiasz błąd, dodajesz funkcję, czy ulepszasz naszą dokumentację, każdy wkład sprawia, że Roo Code staje się mądrzejszy! Aby utrzymać naszą społeczność żywą i przyjazną, wszyscy członkowie muszą przestrzegać naszego [Kodeksu Postępowania](CODE_OF_CONDUCT.md).
+Roo Code to projekt napędzany przez społeczność i bardzo cenimy każdy wkład. Aby zapewnić płynny i skuteczny proces dla wszystkich, **działamy według zasady "[Issue-First](#2-kluczowa-zasada-podejście-issue-first)".** Oznacza to, że każda praca powinna być powiązana z GitHub Issue _przed_ zgłoszeniem Pull Requesta (szczegóły w naszej [Polityce PR](#polityka-pull-request-pr)). Przeczytaj ten przewodnik uważnie, aby dowiedzieć się, jak możesz współtworzyć.
+Ten przewodnik opisuje, jak współtworzyć Roo Code – czy to naprawiając błędy, dodając funkcje, czy ulepszając dokumentację.
 
-## Dołącz do naszej społeczności
+## Spis treści
 
-Gorąco zachęcamy wszystkich współtwórców do dołączenia do naszej [społeczności Discord](https://discord.gg/roocode)! Bycie częścią naszego serwera Discord pomaga:
+- [I. Zanim zaczniesz współtworzyć](#i-zanim-zaczniesz-współtworzyć)
+    - [1. Kodeks postępowania](#1-kodeks-postępowania)
+    - [2. Zrozumienie roadmapy projektu](#2-zrozumienie-roadmapy-projektu)
+        - [Wsparcie providerów](#wsparcie-providerów)
+        - [Wsparcie modeli](#wsparcie-modeli)
+        - [Wsparcie systemów](#wsparcie-systemów)
+        - [Dokumentacja](#dokumentacja)
+        - [Stabilność](#stabilność)
+        - [Internacjonalizacja](#internacjonalizacja)
+    - [3. Dołącz do społeczności Roo Code](#3-dołącz-do-społeczności-roo-code)
+- [II. Znajdowanie i planowanie swojego wkładu](#ii-znajdowanie-i-planowanie-swojego-wkładu)
+    - [1. Typy wkładów](#1-typy-wkładów)
+    - [2. Kluczowa zasada: podejście Issue-First](#2-kluczowa-zasada-podejście-issue-first)
+    - [3. Decydowanie, nad czym pracować](#3-decydowanie-nad-czym-pracować)
+    - [4. Zgłaszanie błędów lub problemów](#4-zgłaszanie-błędów-lub-problemów)
+- [III. Proces rozwoju i zgłaszania](#iii-proces-rozwoju-i-zgłaszania)
+    - [1. Konfiguracja środowiska](#1-konfiguracja-środowiska)
+    - [2. Wytyczne dotyczące pisania kodu](#2-wytyczne-dotyczące-pisania-kodu)
+    - [3. Zgłaszanie kodu: proces Pull Request (PR)](#3-zgłaszanie-kodu-proces-pull-request-pr)
+        - [Pull Requesty w wersji roboczej](#pull-requesty-w-wersji-roboczej)
+        - [Opis Pull Requesta](#opis-pull-requesta)
+        - [Polityka Pull Request (PR)](#polityka-pull-request-pr)
+            - [Cel](#cel)
+            - [Podejście Issue-First](#podejście-issue-first)
+            - [Warunki dla otwartych PR](#warunki-dla-otwartych-pr)
+            - [Procedura](#procedura)
+            - [Odpowiedzialności](#odpowiedzialności)
+- [IV. Prawne](#iv-prawne)
+    - [Umowa współtwórcy](#umowa-współtwórcy)
 
-- Uzyskać pomoc i wskazówki w czasie rzeczywistym dotyczące Twoich wkładów
-- Połączyć się z innymi współtwórcami i członkami głównego zespołu
-- Być na bieżąco z rozwojem projektu i jego priorytetami
-- Uczestniczyć w dyskusjach, które kształtują przyszłość Roo Code
-- Znaleźć możliwości współpracy z innymi programistami
+## I. Zanim zaczniesz współtworzyć
 
-## Zgłaszanie błędów lub problemów
+Najpierw zapoznaj się ze standardami społeczności i kierunkiem projektu.
 
-Raporty o błędach pomagają ulepszyć Roo Code dla wszystkich! Przed utworzeniem nowego zgłoszenia, proszę [przeszukaj istniejące](https://github.com/RooVetGit/Roo-Code/issues), aby uniknąć duplikatów. Kiedy jesteś gotowy, aby zgłosić błąd, przejdź do naszej [strony zgłoszeń](https://github.com/RooVetGit/Roo-Code/issues/new/choose), gdzie znajdziesz szablon, który pomoże Ci wypełnić odpowiednie informacje.
+### 1. Kodeks postępowania
 
-<blockquote class='warning-note'>
-     🔐 <b>Ważne:</b> Jeśli odkryjesz lukę w zabezpieczeniach, proszę użyj <a href="https://github.com/RooVetGit/Roo-Code/security/advisories/new">narzędzia bezpieczeństwa Github, aby zgłosić ją prywatnie</a>.
-</blockquote>
+Wszyscy współtwórcy muszą przestrzegać naszego [Kodeksu postępowania](https://github.com/RooVetGit/Roo-Code/blob/main/CODE_OF_CONDUCT.md). Przeczytaj go przed rozpoczęciem współtworzenia.
 
-## Decydowanie nad czym pracować
+### 2. Zrozumienie roadmapy projektu
 
-Szukasz dobrego pierwszego wkładu? Sprawdź problemy w sekcji "Issue [Unassigned]" naszego [projektu Github Roo Code](https://github.com/orgs/RooVetGit/projects/1). Te zostały specjalnie wybrane dla nowych współtwórców i obszarów, gdzie chętnie przyjmiemy pomoc!
+Roo Code ma jasną roadmapę rozwoju, która wyznacza nasze priorytety i przyszły kierunek. Zrozumienie roadmapy pomoże ci:
 
-Cieszymy się również z wkładu do naszej [dokumentacji](https://docs.roocode.com/)! Czy to poprawianie literówek, ulepszanie istniejących przewodników, czy tworzenie nowych treści edukacyjnych - chcielibyśmy zbudować repozytorium zasobów napędzane przez społeczność, które pomaga każdemu czerpać maksimum z Roo Code. Możesz kliknąć "Edit this page" na dowolnej stronie, aby szybko przejść do odpowiedniego miejsca w Github, aby edytować plik, lub możesz przejść bezpośrednio do https://github.com/RooVetGit/Roo-Code-Docs.
+- Dopasować swój wkład do celów projektu
+- Znaleźć obszary, w których twoja wiedza będzie najbardziej wartościowa
+- Zrozumieć kontekst niektórych decyzji projektowych
+- Zainspirować się do nowych funkcji wspierających naszą wizję
 
-Jeśli planujesz pracować nad większą funkcją, proszę najpierw utwórz [prośbę o funkcję](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop), abyśmy mogli przedyskutować, czy jest ona zgodna z wizją Roo Code. Możesz również sprawdzić naszą [Mapę Drogową Projektu](#mapa-drogowa-projektu) poniżej, aby zobaczyć, czy Twój pomysł pasuje do naszego strategicznego kierunku.
+Obecna roadmapa skupia się na sześciu kluczowych filarach:
 
-## Mapa Drogowa Projektu
+#### Wsparcie providerów
 
-Roo Code posiada jasną mapę drogową rozwoju, która kieruje naszymi priorytetami i przyszłym kierunkiem. Zrozumienie naszej mapy drogowej może pomóc Ci:
+Chcemy dobrze wspierać jak najwięcej providerów:
 
-- Dostosować swoje wkłady do celów projektu
-- Zidentyfikować obszary, w których Twoja wiedza byłaby najbardziej wartościowa
-- Zrozumieć kontekst stojący za pewnymi decyzjami projektowymi
-- Znaleźć inspirację dla nowych funkcji, które wspierają naszą wizję
-
-Nasza obecna mapa drogowa koncentruje się na sześciu kluczowych filarach:
-
-### Wsparcie dla Dostawców
-
-Dążymy do wspierania jak największej liczby dostawców:
-
-- Bardziej wszechstronne wsparcie dla "OpenAI Compatible"
+- Więcej wsparcia "OpenAI Compatible"
 - xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
 - Ulepszone wsparcie dla Ollama i LM Studio
 
-### Wsparcie dla Modeli
+#### Wsparcie modeli
 
-Chcemy, aby Roo działał jak najlepiej na jak największej liczbie modeli, w tym modeli lokalnych:
+Chcemy, aby Roo działał na jak największej liczbie modeli, w tym lokalnych:
 
-- Wsparcie dla modeli lokalnych poprzez niestandardowe promptowanie systemowe i przepływy pracy
-- Benchmarki ewaluacyjne i przypadki testowe
+- Wsparcie modeli lokalnych przez niestandardowe prompty systemowe i workflowy
+- Benchmarki, ewaluacje i przypadki testowe
 
-### Wsparcie dla Systemów
+#### Wsparcie systemów
 
-Chcemy, aby Roo działał dobrze na komputerze każdego:
+Chcemy, aby Roo działał dobrze na każdym komputerze:
 
 - Integracja terminala międzyplatformowego
 - Silne i spójne wsparcie dla Mac, Windows i Linux
 
-### Dokumentacja
+#### Dokumentacja
 
 Chcemy kompleksowej, dostępnej dokumentacji dla wszystkich użytkowników i współtwórców:
 
-- Rozszerzone przewodniki użytkownika i tutoriale
+- Rozszerzone przewodniki użytkownika i samouczki
 - Jasna dokumentacja API
 - Lepsze wskazówki dla współtwórców
-- Wielojęzyczne zasoby dokumentacji
-- Interaktywne przykłady i próbki kodu
+- Wielojęzyczne zasoby dokumentacyjne
+- Interaktywne przykłady i fragmenty kodu
 
-### Stabilność
+#### Stabilność
 
-Chcemy znacznie zmniejszyć liczbę błędów i zwiększyć zautomatyzowane testowanie:
+Chcemy znacznie zmniejszyć liczbę błędów i zwiększyć automatyczne testowanie:
 
-- Przełącznik rejestrowania debugowania
-- Przycisk kopiowania "Informacji o Maszynie/Zadaniu" do wysyłania z prośbami o pomoc/zgłoszeniami błędów
+- Przełącznik debugowania logów
+- Przycisk "Kopiuj informacje o maszynie/zadaniu" do zgłoszeń błędów/wsparcia
 
-### Internacjonalizacja
+#### Internacjonalizacja
 
 Chcemy, aby Roo mówił językiem każdego:
 
@@ -87,87 +110,170 @@ Chcemy, aby Roo mówił językiem każdego:
 - हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
 - نريد أن يتحدث Roo Code لغة الجميع
 
-Szczególnie witamy wkłady, które przyspieszają realizację celów naszej mapy drogowej. Jeśli pracujesz nad czymś, co jest zgodne z tymi filarami, proszę wspomnij o tym w opisie swojego PR.
+Szczególnie mile widziane są wkłady, które realizują cele roadmapy. Jeśli pracujesz nad czymś zgodnym z tymi filarami, wspomnij o tym w opisie PR.
 
-## Konfiguracja rozwojowa
+### 3. Dołącz do społeczności Roo Code
 
-1. **Sklonuj** repozytorium:
+Nawiązanie kontaktu ze społecznością Roo Code to świetny sposób na rozpoczęcie:
 
-```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
-```
+- **Główna metoda**:
+    1.  Dołącz do [społeczności Roo Code na Discordzie](https://discord.gg/roocode).
+    2.  Po dołączeniu wyślij wiadomość prywatną (DM) do **Hannes Rudolph** (Discord: `hrudolph`), aby omówić swoje zainteresowanie i uzyskać wskazówki.
+- **Alternatywa dla doświadczonych współtwórców**: Jeśli dobrze znasz podejście Issue-First, możesz działać bezpośrednio przez GitHub, śledząc [tablicę Kanban](https://github.com/orgs/RooVetGit/projects/1) i komunikując się przez issues i pull requesty.
 
-2. **Zainstaluj zależności**:
+## II. Znajdowanie i planowanie swojego wkładu
 
-```sh
-npm run install:all
-```
+Zdecyduj, nad czym chcesz pracować i jak się za to zabierzesz.
 
-3. **Uruchom webview (aplikację Vite/React z HMR)**:
+### 1. Typy wkładów
 
-```sh
-npm run dev
-```
+Witamy różne typy wkładów:
 
-4. **Debugowanie**:
-   Naciśnij `F5` (lub **Uruchom** → **Rozpocznij debugowanie**) w VSCode, aby otworzyć nową sesję z załadowanym Roo Code.
+- **Poprawki błędów**: Naprawianie problemów w istniejącym kodzie
+- **Nowe funkcje**: Dodawanie nowych funkcjonalności
+- **Dokumentacja**: Ulepszanie przewodników, dodawanie przykładów lub poprawianie literówek
 
-Zmiany w webview pojawią się natychmiast. Zmiany w podstawowym rozszerzeniu będą wymagać ponownego uruchomienia hosta rozszerzenia.
+### 2. Kluczowa zasada: podejście Issue-First
 
-Alternatywnie możesz zbudować plik .vsix i zainstalować go bezpośrednio w VSCode:
+**Każdy wkład musi zaczynać się od GitHub Issue.** To kluczowe, by zapewnić zgodność i uniknąć niepotrzebnej pracy.
+
+- **Znajdź lub utwórz Issue**:
+    - Przed rozpoczęciem sprawdź w [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues), czy już istnieje issue dla twojego wkładu.
+    - Jeśli istnieje i nie jest przypisane, skomentuj, że chcesz się tym zająć. Maintainer ci je przypisze.
+    - Jeśli nie istnieje, utwórz nowe, korzystając z odpowiedniego szablonu na naszej [stronie issues](https://github.com/RooVetGit/Roo-Code/issues/new/choose):
+        - Dla błędów: szablon "Bug Report"
+        - Dla nowych funkcji: szablon "Detailed Feature Proposal". Poczekaj na zatwierdzenie przez maintainerów (szczególnie @hannesrudolph) przed rozpoczęciem implementacji.
+        - **Uwaga**: Ogólne pomysły lub wstępne dyskusje o funkcjach mogą zacząć się w [GitHub Discussions](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests). Gdy pomysł się sprecyzuje, należy utworzyć issue "Detailed Feature Proposal".
+- **Zgłaszanie i przypisywanie**:
+    - Wyraźnie zaznacz chęć pracy nad issue, komentując je.
+    - Poczekaj, aż maintainer oficjalnie ci je przypisze na GitHubie. Dzięki temu unikniemy dublowania pracy.
+- **Konsekwencje nieprzestrzegania**:
+    - Pull Requesty (PR) bez powiązanego, zatwierdzonego i przypisanego issue mogą zostać zamknięte bez pełnej recenzji. Ta polityka zapewnia zgodność wkładów z celami projektu i szanuje czas wszystkich.
+
+To podejście pomaga nam śledzić pracę, upewnić się, że zmiany są pożądane, i skutecznie koordynować wysiłki.
+
+### 3. Decydowanie, nad czym pracować
+
+- **Good First Issues**: Sprawdź sekcję "Issue [Unassigned]" w naszym [projekcie Roo Code Issues](https://github.com/orgs/RooVetGit/projects/1) na GitHubie.
+- **Dokumentacja**: Choć ten `CONTRIBUTING.md` to główny przewodnik dla wkładów kodowych, jeśli chcesz współtworzyć inną dokumentację (np. przewodniki użytkownika lub API), sprawdź [repozytorium Roo Code Docs](https://github.com/RooVetGit/Roo-Code-Docs) lub zapytaj na Discordzie.
+- **Proponowanie nowych funkcji**:
+    1.  **Wstępny pomysł/dyskusja**: Ogólne lub początkowe pomysły omawiaj w [GitHub Discussions](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests).
+    2.  **Formalna propozycja**: Dla konkretnych, gotowych do rozważenia propozycji utwórz issue "Detailed Feature Proposal" z szablonu na naszej [stronie issues](https://github.com/RooVetGit/Roo-Code/issues/new/choose). To kluczowy element naszego **podejścia Issue-First**.
+
+### 4. Zgłaszanie błędów lub problemów
+
+Jeśli znajdziesz błąd:
+
+1.  **Szukaj istniejących issues**: Sprawdź [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues), czy nie ma już zgłoszenia.
+2.  **Utwórz nowe issue**: Jeśli to unikalny problem, użyj szablonu "Bug Report" na naszej [stronie issues](https://github.com/RooVetGit/Roo-Code/issues/new/choose).
+
+> 🔐 **Luki bezpieczeństwa**: Jeśli odkryjesz lukę bezpieczeństwa, zgłoś ją prywatnie przez [GitHub Security Advisory Tool](https://github.com/RooVetGit/Roo-Code/security/advisories/new). Nie twórz publicznego issue dla luk bezpieczeństwa.
+
+## III. Proces rozwoju i zgłaszania
+
+Postępuj według tych kroków, aby kodować i zgłaszać swój wkład.
+
+### 1. Konfiguracja środowiska
+
+1.  **Fork & Clone**:
+    - Zrób fork repozytorium na GitHubie.
+    - Sklonuj swojego forka lokalnie: `git clone https://github.com/TWÓJ_UŻYTKOWNIK/Roo-Code.git`
+2.  **Zainstaluj zależności**: `npm run install:all`
+3.  **Uruchom Webview (Dev Mode)**: `npm run dev` (dla aplikacji Vite/React z HMR)
+4.  **Debuguj rozszerzenie**: Wciśnij `F5` w VS Code (lub **Run** → **Start Debugging**), aby otworzyć nowe okno Extension Development Host z Roo Code.
+
+Zmiany w webview (`webview-ui`) pojawią się natychmiast dzięki Hot Module Replacement. Zmiany w głównym rozszerzeniu (`src`) wymagają ponownego uruchomienia Extension Development Host.
+
+Możesz też zbudować i zainstalować paczkę `.vsix`:
 
 ```sh
 npm run build
+code --install-extension bin/roo-cline-<wersja>.vsix
 ```
 
-Plik `.vsix` pojawi się w katalogu `bin/` i można go zainstalować za pomocą:
+(Zamień `<wersja>` na faktyczny numer wersji wygenerowanego pliku).
 
-```sh
-code --install-extension bin/roo-cline-<version>.vsix
-```
+### 2. Wytyczne dotyczące pisania kodu
 
-## Pisanie i przesyłanie kodu
-
-Każdy może wnieść wkład w kod Roo Code, ale prosimy o przestrzeganie tych wytycznych, aby zapewnić płynną integrację Twoich wkładów:
-
-1. **Utrzymuj Pull Requesty skupione**
-
-    - Ogranicz PR do jednej funkcji lub naprawy błędu
-    - Podziel większe zmiany na mniejsze, powiązane PR
-    - Podziel zmiany na logiczne commity, które można przeglądać niezależnie
-
-2. **Jakość kodu**
-
-    - Wszystkie PR muszą przejść kontrole CI, które obejmują zarówno linting, jak i formatowanie
-    - Rozwiąż wszelkie ostrzeżenia lub błędy ESLint przed przesłaniem
-    - Odpowiedz na wszystkie informacje zwrotne od Ellipsis, naszego zautomatyzowanego narzędzia do przeglądu kodu
-    - Przestrzegaj najlepszych praktyk TypeScript i zachowaj bezpieczeństwo typów
-
-3. **Testowanie**
-
+- **Skoncentrowane PRy**: Jedna funkcja/poprawka na PR.
+- **Jakość kodu**:
+    - Przejdź przez CI (lint, formatowanie)
+    - Napraw ostrzeżenia lub błędy ESLint (`npm run lint`)
+    - Odpowiadaj na feedback z narzędzi automatycznej recenzji kodu
+    - Stosuj dobre praktyki TypeScript i dbaj o bezpieczeństwo typów
+- **Testowanie**:
     - Dodaj testy dla nowych funkcji
-    - Uruchom `npm test`, aby upewnić się, że wszystkie testy przechodzą
-    - Zaktualizuj istniejące testy, jeśli Twoje zmiany na nie wpływają
-    - Uwzględnij zarówno testy jednostkowe, jak i integracyjne, gdy jest to właściwe
+    - Uruchom `npm test`, by upewnić się, że wszystko przechodzi
+    - Zaktualizuj istniejące testy, jeśli twoje zmiany je dotyczą
+- **Wiadomości commitów**:
+    - Pisz jasne, opisowe wiadomości commitów
+    - Odnoś się do odpowiednich issues przez `#numer-issue` (np. `Fixes #123`)
+- **Checklist przed zgłoszeniem PR**:
+    - Zrebase'uj swoją gałąź na najnowszym `main` z upstream
+    - Upewnij się, że kod się buduje (`npm run build`)
+    - Wszystkie testy muszą przechodzić (`npm test`)
+    - Usuń kod debugowania lub `console.log`
 
-4. **Wytyczne dotyczące commitów**
+### 3. Zgłaszanie kodu: proces Pull Request (PR)
 
-    - Pisz jasne, opisowe komunikaty commitów
-    - Odwołuj się do odpowiednich problemów w commitach, używając #numer-problemu
+#### Pull Requesty w wersji roboczej
 
-5. **Przed przesłaniem**
+Używaj PRów w wersji roboczej dla pracy, która nie jest jeszcze gotowa do pełnej recenzji, ale dla której chcesz:
 
-    - Rebase swojej gałęzi na najnowszego maina
-    - Upewnij się, że Twoja gałąź buduje się pomyślnie
-    - Sprawdź ponownie, czy wszystkie testy przechodzą
-    - Przejrzyj swoje zmiany pod kątem wszelkiego kodu debugującego lub logów konsoli
+- Uruchomić automatyczne sprawdzenia (CI)
+- Otrzymać wczesny feedback od maintainerów lub innych współtwórców
+- Zasygnalizować, że praca jest w toku
 
-6. **Opis Pull Requesta**
-    - Jasno opisz, co robią Twoje zmiany
-    - Dołącz kroki do przetestowania zmian
-    - Wymień wszelkie istotne zmiany
-    - Dodaj zrzuty ekranu dla zmian UI
+Oznacz PR jako "Ready for Review" dopiero, gdy wszystkie sprawdzenia przejdą i uważasz, że spełnia kryteria "Wytycznych dotyczących pisania kodu" i "Opisu Pull Requesta".
 
-## Umowa o współpracy
+#### Opis Pull Requesta
 
-Przesyłając pull request, zgadzasz się, że Twoje wkłady będą licencjonowane na tej samej licencji co projekt ([Apache 2.0](../LICENSE)).
+Opis PRa musi być kompletny i zgodny ze strukturą naszej [Pull Request Template](.github/pull_request_template.md). Kluczowe elementy:
+
+- Link do zatwierdzonego GitHub Issue, którego dotyczy
+- Jasny opis wprowadzonych zmian i ich celu
+- Szczegółowe kroki testowania zmian
+- Lista wszelkich breaking changes
+- **Dla zmian w UI: zrzuty ekranu lub wideo przed/po**
+- **Wskaż, czy PR wymaga aktualizacji dokumentacji użytkownika i które dokumenty/sekcje są dotknięte**
+
+#### Polityka Pull Request (PR)
+
+##### Cel
+
+Utrzymanie czystego, skoncentrowanego i zarządzalnego backlogu PRów.
+
+##### Podejście Issue-First
+
+- **Wymagane**: Przed rozpoczęciem pracy musi istnieć zatwierdzone i przypisane GitHub Issue ("Bug Report" lub "Detailed Feature Proposal").
+- **Zatwierdzenie**: Issues, zwłaszcza dotyczące większych zmian, muszą być zatwierdzone przez maintainerów (szczególnie @hannesrudolph) _przed_ rozpoczęciem kodowania.
+- **Odniesienie**: PRy muszą wyraźnie odnosić się do tych zatwierdzonych issues w opisie.
+- **Konsekwencje**: Nieprzestrzeganie tego procesu może skutkować zamknięciem PRa bez pełnej recenzji.
+
+##### Warunki dla otwartych PR
+
+- **Gotowe do merge**: Przechodzi wszystkie testy CI, jest zgodny z roadmapą (jeśli dotyczy), powiązany z zatwierdzonym i przypisanym Issue, ma jasną dokumentację/komentarze, zawiera zrzuty ekranu/wideo dla zmian w UI
+- **Do zamknięcia**: Błędy CI, poważne konflikty merge, brak zgodności z celami projektu lub długotrwała bezczynność (>30 dni bez aktualizacji po feedbacku)
+
+##### Procedura
+
+1.  **Kwalifikacja i przypisanie Issue**: @hannesrudolph (lub inni maintainerzy) przeglądają i przypisują nowe i istniejące issues.
+2.  **Wstępna triage PRów (codziennie)**: Maintainerzy szybko przeglądają nowe PRy pod kątem pilności lub krytycznych problemów.
+3.  **Szczegółowa recenzja PRów (tygodniowo)**: Maintainerzy dokładnie oceniają PRy pod kątem gotowości, zgodności z zatwierdzonym Issue i ogólnej jakości.
+4.  **Szczegółowy feedback i iteracja**: Na podstawie recenzji maintainerzy udzielają feedbacku (Approve, Request Changes, Reject). Oczekuje się, że współtwórcy odpowiedzą i poprawią PR.
+5.  **Etap decyzji**: Zatwierdzone PRy są mergowane. PRy z nierozwiązywalnymi problemami lub niezgodne mogą być zamknięte z wyjaśnieniem.
+6.  **Follow-up**: Autorzy zamkniętych PRów mogą poprawić je według feedbacku i otworzyć nowe, jeśli problemy zostaną rozwiązane lub zmieni się kierunek projektu.
+
+##### Odpowiedzialności
+
+- **Kwalifikacja Issue i przestrzeganie procesu (@hannesrudolph & maintainerzy)**: Zapewnienie, że wszystkie wkłady stosują podejście Issue-First. Wskazówki dla współtwórców.
+- **Maintainerzy (zespół deweloperski)**: Przegląd PRów, udzielanie feedbacku technicznego, podejmowanie decyzji o zatwierdzeniu/odrzuceniu, mergowanie PRów.
+- **Współtwórcy**: Powiązanie PRów z zatwierdzonym i przypisanym Issue, przestrzeganie wytycznych jakości, szybka reakcja na feedback.
+
+Ta polityka zapewnia przejrzystość i efektywną integrację.
+
+## IV. Prawne
+
+### Umowa współtwórcy
+
+Zgłaszając pull request, zgadzasz się, że twój wkład będzie licencjonowany na [licencji Apache 2.0](LICENSE) (lub aktualnej licencji projektu), tak jak cały projekt.

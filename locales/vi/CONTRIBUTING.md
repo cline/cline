@@ -1,173 +1,279 @@
-# Đóng Góp cho Roo Code
+<div align="center">
+<sub>
+[English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
+</sub>
+<sub>
+[日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • [Türkçe](../tr/CONTRIBUTING.md) • <b>Tiếng Việt</b> • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
+</sub>
+</div>
+# Đóng góp cho Roo Code
 
-Chúng tôi rất vui mừng vì bạn quan tâm đến việc đóng góp cho Roo Code. Cho dù bạn đang sửa lỗi, thêm tính năng, hay cải thiện tài liệu của chúng tôi, mỗi đóng góp đều làm cho Roo Code thông minh hơn! Để giữ cho cộng đồng của chúng tôi sôi động và thân thiện, tất cả thành viên phải tuân thủ [Quy Tắc Ứng Xử](CODE_OF_CONDUCT.md) của chúng tôi.
+Roo Code là một dự án do cộng đồng dẫn dắt và chúng mình rất trân trọng mọi đóng góp. Để đảm bảo quy trình diễn ra suôn sẻ và hiệu quả cho tất cả mọi người, **chúng mình áp dụng nguyên tắc "[Issue-First](#2-nguyên-tắc-chính-cách-tiếp-cận-issue-first)".** Điều này có nghĩa là mọi công việc đều phải liên kết với một Issue trên GitHub _trước khi_ gửi Pull Request (xem [Chính sách PR](#chính-sách-pull-request-pr) để biết chi tiết). Hãy đọc kỹ hướng dẫn này để hiểu cách đóng góp.
+Hướng dẫn này giải thích cách đóng góp cho Roo Code, dù bạn sửa lỗi, thêm tính năng mới hay cải thiện tài liệu.
 
-## Tham Gia Cộng Đồng của Chúng Tôi
+## Mục lục
 
-Chúng tôi mạnh mẽ khuyến khích tất cả người đóng góp tham gia [cộng đồng Discord](https://discord.gg/roocode) của chúng tôi! Việc là một phần của máy chủ Discord của chúng tôi giúp bạn:
+- [I. Trước khi đóng góp](#i-trước-khi-đóng-góp)
+    - [1. Quy tắc ứng xử](#1-quy-tắc-ứng-xử)
+    - [2. Hiểu lộ trình phát triển dự án](#2-hiểu-lộ-trình-phát-triển-dự-án)
+        - [Hỗ trợ nhà cung cấp](#hỗ-trợ-nhà-cung-cấp)
+        - [Hỗ trợ mô hình](#hỗ-trợ-mô-hình)
+        - [Hỗ trợ hệ thống](#hỗ-trợ-hệ-thống)
+        - [Tài liệu](#tài-liệu)
+        - [Ổn định](#ổn-định)
+        - [Quốc tế hóa](#quốc-tế-hóa)
+    - [3. Tham gia cộng đồng Roo Code](#3-tham-gia-cộng-đồng-roo-code)
+- [II. Tìm kiếm & lên kế hoạch đóng góp](#ii-tìm-kiếm--lên-kế-hoạch-đóng-góp)
+    - [1. Các loại đóng góp](#1-các-loại-đóng-góp)
+    - [2. Nguyên tắc chính: Cách tiếp cận Issue-First](#2-nguyên-tắc-chính-cách-tiếp-cận-issue-first)
+    - [3. Quyết định việc cần làm](#3-quyết-định-việc-cần-làm)
+    - [4. Báo cáo lỗi hoặc vấn đề](#4-báo-cáo-lỗi-hoặc-vấn-đề)
+- [III. Quy trình phát triển & gửi bài](#iii-quy-trình-phát-triển--gửi-bài)
+    - [1. Thiết lập môi trường phát triển](#1-thiết-lập-môi-trường-phát-triển)
+    - [2. Hướng dẫn viết mã](#2-hướng-dẫn-viết-mã)
+    - [3. Gửi mã: Quy trình Pull Request (PR)](#3-gửi-mã-quy-trình-pull-request-pr)
+        - [Pull Request nháp](#pull-request-nháp)
+        - [Mô tả Pull Request](#mô-tả-pull-request)
+        - [Chính sách Pull Request (PR)](#chính-sách-pull-request-pr)
+            - [Mục tiêu](#mục-tiêu)
+            - [Cách tiếp cận Issue-First](#cách-tiếp-cận-issue-first)
+            - [Điều kiện cho PR mở](#điều-kiện-cho-pr-mở)
+            - [Quy trình](#quy-trình)
+            - [Trách nhiệm](#trách-nhiệm)
+- [IV. Pháp lý](#iv-pháp-lý)
+    - [Thỏa thuận đóng góp](#thỏa-thuận-đóng-góp)
 
-- Nhận hỗ trợ và hướng dẫn thời gian thực về đóng góp của bạn
-- Kết nối với những người đóng góp khác và các thành viên nhóm cốt lõi
-- Cập nhật về sự phát triển và ưu tiên của dự án
-- Tham gia vào các cuộc thảo luận định hình tương lai của Roo Code
-- Tìm cơ hội hợp tác với các nhà phát triển khác
+## I. Trước khi đóng góp
 
-## Báo Cáo Lỗi hoặc Vấn Đề
+Trước tiên, hãy làm quen với các tiêu chuẩn cộng đồng và định hướng dự án.
 
-Báo cáo lỗi giúp cải thiện Roo Code cho mọi người! Trước khi tạo một vấn đề mới, vui lòng [tìm kiếm những vấn đề hiện có](https://github.com/RooVetGit/Roo-Code/issues) để tránh trùng lặp. Khi bạn đã sẵn sàng báo cáo lỗi, hãy truy cập [trang vấn đề](https://github.com/RooVetGit/Roo-Code/issues/new/choose) của chúng tôi, nơi bạn sẽ tìm thấy một mẫu để giúp bạn điền thông tin liên quan.
+### 1. Quy tắc ứng xử
 
-<blockquote class='warning-note'>
-     🔐 <b>Quan trọng:</b> Nếu bạn phát hiện lỗ hổng bảo mật, vui lòng sử dụng <a href="https://github.com/RooVetGit/Roo-Code/security/advisories/new">công cụ bảo mật Github để báo cáo riêng tư</a>.
-</blockquote>
+Tất cả thành viên đóng góp phải tuân thủ [Quy tắc ứng xử](https://github.com/RooVetGit/Roo-Code/blob/main/CODE_OF_CONDUCT.md) của chúng mình. Hãy đọc kỹ trước khi đóng góp.
 
-## Quyết Định Làm Việc trên Cái Gì
+### 2. Hiểu lộ trình phát triển dự án
 
-Tìm kiếm đóng góp đầu tiên tốt? Kiểm tra các vấn đề trong phần "Issue [Unassigned]" của [Dự án Github Roo Code](https://github.com/orgs/RooVetGit/projects/1) của chúng tôi. Những vấn đề này được chọn lọc đặc biệt cho người đóng góp mới và các lĩnh vực mà chúng tôi muốn nhận được sự giúp đỡ!
+Roo Code có lộ trình phát triển rõ ràng, định hướng ưu tiên và tương lai của dự án. Hiểu lộ trình này giúp bạn:
 
-Chúng tôi cũng hoan nghênh đóng góp cho [tài liệu](https://docs.roocode.com/) của chúng tôi! Dù là sửa lỗi chính tả, cải thiện hướng dẫn hiện có, hay tạo nội dung giáo dục mới - chúng tôi muốn xây dựng một kho tài nguyên do cộng đồng thúc đẩy giúp mọi người tận dụng tối đa Roo Code. Bạn có thể nhấp vào "Edit this page" trên bất kỳ trang nào để nhanh chóng đến đúng vị trí trong Github để chỉnh sửa tệp, hoặc bạn có thể đi trực tiếp vào https://github.com/RooVetGit/Roo-Code-Docs.
+- Định hướng đóng góp phù hợp với mục tiêu dự án
+- Xác định lĩnh vực bạn có thể đóng góp tốt nhất
+- Hiểu bối cảnh đằng sau các quyết định thiết kế
+- Lấy cảm hứng cho các tính năng mới phù hợp với tầm nhìn của dự án
 
-Nếu bạn đang lên kế hoạch làm việc trên một tính năng lớn hơn, vui lòng tạo [yêu cầu tính năng](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) trước để chúng tôi có thể thảo luận xem nó có phù hợp với tầm nhìn của Roo Code không. Bạn cũng có thể kiểm tra [Lộ Trình Dự Án](#lộ-trình-dự-án) bên dưới để xem liệu ý tưởng của bạn có phù hợp với định hướng chiến lược của chúng tôi không.
+Lộ trình hiện tại tập trung vào 6 trụ cột chính:
 
-## Lộ Trình Dự Án
+#### Hỗ trợ nhà cung cấp
 
-Roo Code có một lộ trình phát triển rõ ràng hướng dẫn các ưu tiên và định hướng tương lai của chúng tôi. Hiểu lộ trình của chúng tôi có thể giúp bạn:
+Chúng mình muốn hỗ trợ càng nhiều nhà cung cấp càng tốt:
 
-- Điều chỉnh đóng góp của bạn với mục tiêu của dự án
-- Xác định các lĩnh vực mà chuyên môn của bạn sẽ có giá trị nhất
-- Hiểu bối cảnh đằng sau một số quyết định thiết kế
-- Tìm cảm hứng cho các tính năng mới hỗ trợ tầm nhìn của chúng tôi
-
-Lộ trình hiện tại của chúng tôi tập trung vào sáu trụ cột chính:
-
-### Hỗ Trợ Nhà Cung Cấp
-
-Chúng tôi hướng đến việc hỗ trợ càng nhiều nhà cung cấp càng tốt:
-
-- Hỗ trợ "OpenAI Compatible" linh hoạt hơn
+- Hỗ trợ "Tương thích OpenAI" nhiều hơn
 - xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Hỗ trợ nâng cao cho Ollama và LM Studio
+- Tăng cường hỗ trợ Ollama và LM Studio
 
-### Hỗ Trợ Mô Hình
+#### Hỗ trợ mô hình
 
-Chúng tôi muốn Roo hoạt động tốt trên càng nhiều mô hình càng tốt, bao gồm cả mô hình cục bộ:
+Chúng mình muốn Roo hoạt động tốt trên nhiều mô hình nhất có thể, kể cả mô hình cục bộ:
 
-- Hỗ trợ mô hình cục bộ thông qua prompting hệ thống tùy chỉnh và quy trình làm việc
-- Đánh giá hiệu suất và các trường hợp thử nghiệm
+- Hỗ trợ mô hình cục bộ qua prompt hệ thống và workflow tùy chỉnh
+- Đánh giá benchmark và test case
 
-### Hỗ Trợ Hệ Thống
+#### Hỗ trợ hệ thống
 
-Chúng tôi muốn Roo chạy tốt trên máy tính của mọi người:
+Chúng mình muốn Roo chạy tốt trên mọi máy tính:
 
 - Tích hợp terminal đa nền tảng
-- Hỗ trợ mạnh mẽ và nhất quán cho Mac, Windows và Linux
+- Hỗ trợ mạnh mẽ và ổn định cho Mac, Windows, Linux
 
-### Tài Liệu
+#### Tài liệu
 
-Chúng tôi muốn tài liệu toàn diện, dễ tiếp cận cho tất cả người dùng và người đóng góp:
+Chúng mình muốn có tài liệu đầy đủ, dễ tiếp cận cho mọi người dùng và cộng tác viên:
 
-- Hướng dẫn người dùng và hướng dẫn mở rộng
+- Hướng dẫn và tài liệu mở rộng
 - Tài liệu API rõ ràng
-- Hướng dẫn tốt hơn cho người đóng góp
+- Hướng dẫn tốt hơn cho cộng tác viên
 - Tài nguyên tài liệu đa ngôn ngữ
-- Ví dụ tương tác và mẫu mã
+- Ví dụ tương tác và đoạn mã mẫu
 
-### Ổn Định
+#### Ổn định
 
-Chúng tôi muốn giảm đáng kể số lượng lỗi và tăng kiểm tra tự động:
+Chúng mình muốn giảm đáng kể số lỗi và tăng cường kiểm thử tự động:
 
-- Công tắc ghi nhật ký gỡ lỗi
-- Nút sao chép "Thông Tin Máy/Nhiệm Vụ" để gửi kèm với yêu cầu hỗ trợ/lỗi
+- Công tắc bật/tắt log debug
+- Nút "Sao chép thông tin máy/tác vụ" cho yêu cầu hỗ trợ/bug
 
-### Quốc Tế Hóa
+#### Quốc tế hóa
 
-Chúng tôi muốn Roo nói ngôn ngữ của mọi người:
+Chúng mình muốn Roo nói được ngôn ngữ của mọi người:
 
 - 我们希望 Roo Code 说每个人的语言
 - Queremos que Roo Code hable el idioma de todos
 - हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
 - نريد أن يتحدث Roo Code لغة الجميع
 
-Chúng tôi đặc biệt hoan nghênh những đóng góp thúc đẩy mục tiêu lộ trình của chúng tôi. Nếu bạn đang làm việc trên điều gì đó phù hợp với những trụ cột này, vui lòng đề cập đến điều đó trong mô tả PR của bạn.
+Chúng mình đặc biệt hoan nghênh các đóng góp giúp tiến gần hơn tới mục tiêu lộ trình. Nếu bạn làm việc liên quan đến các trụ cột này, hãy đề cập trong mô tả PR.
 
-## Thiết Lập Phát Triển
+### 3. Tham gia cộng đồng Roo Code
 
-1. **Clone** kho lưu trữ:
+Kết nối với cộng đồng Roo Code là cách tuyệt vời để bắt đầu:
 
-```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
-```
+- **Cách chính**:
+    1.  Tham gia [cộng đồng Roo Code trên Discord](https://discord.gg/roocode).
+    2.  Sau khi tham gia, gửi tin nhắn trực tiếp (DM) cho **Hannes Rudolph** (Discord: `hrudolph`) để trao đổi về mong muốn đóng góp và nhận hướng dẫn.
+- **Dành cho cộng tác viên giàu kinh nghiệm**: Nếu bạn quen với cách tiếp cận issue-first, có thể tham gia trực tiếp trên GitHub bằng cách theo dõi [bảng Kanban](https://github.com/orgs/RooVetGit/projects/1) và trao đổi qua issues, pull requests.
 
-2. **Cài đặt các phụ thuộc**:
+## II. Tìm kiếm & lên kế hoạch đóng góp
 
-```sh
-npm run install:all
-```
+Xác định bạn muốn làm gì và cách thực hiện.
 
-3. **Khởi động webview (ứng dụng Vite/React với HMR)**:
+### 1. Các loại đóng góp
 
-```sh
-npm run dev
-```
+Chúng mình hoan nghênh nhiều hình thức đóng góp:
 
-4. **Gỡ lỗi**:
-   Nhấn `F5` (hoặc **Run** → **Start Debugging**) trong VSCode để mở phiên mới với Roo Code được tải.
+- **Sửa lỗi**: Khắc phục vấn đề trong mã nguồn hiện tại
+- **Tính năng mới**: Thêm chức năng mới
+- **Tài liệu**: Cải thiện hướng dẫn, ví dụ hoặc sửa lỗi chính tả
 
-Các thay đổi đối với webview sẽ xuất hiện ngay lập tức. Các thay đổi đối với phần mở rộng cốt lõi sẽ yêu cầu khởi động lại máy chủ phần mở rộng.
+### 2. Nguyên tắc chính: Cách tiếp cận Issue-First
 
-Hoặc bạn có thể xây dựng một tệp .vsix và cài đặt nó trực tiếp trong VSCode:
+**Mọi đóng góp đều phải bắt đầu bằng một Issue trên GitHub.** Đây là bước quan trọng để đảm bảo sự đồng thuận và tránh lãng phí công sức.
+
+- **Tìm hoặc tạo Issue**:
+    - Trước khi bắt đầu, hãy kiểm tra [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues) xem đã có issue cho đóng góp của bạn chưa.
+    - Nếu có và chưa được gán, hãy bình luận để nhận việc. Một maintainer sẽ gán cho bạn.
+    - Nếu chưa có, hãy tạo issue mới bằng template phù hợp trên [trang issues](https://github.com/RooVetGit/Roo-Code/issues/new/choose):
+        - Sửa lỗi: dùng template "Bug Report"
+        - Tính năng mới: dùng template "Detailed Feature Proposal". Đợi maintainer (đặc biệt là @hannesrudolph) duyệt trước khi bắt đầu làm.
+        - **Lưu ý**: Ý tưởng chung hoặc thảo luận ban đầu về tính năng có thể bắt đầu ở [GitHub Discussions](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests). Khi ý tưởng rõ ràng hơn, hãy tạo issue "Detailed Feature Proposal".
+- **Nhận việc và được gán**:
+    - Bình luận rõ ràng để nhận việc trên issue.
+    - Đợi maintainer gán chính thức trên GitHub để tránh trùng lặp công việc.
+- **Nếu không tuân thủ**:
+    - Pull Request (PR) gửi mà không có issue liên quan, được duyệt và gán trước có thể bị đóng mà không review đầy đủ. Chính sách này nhằm đảm bảo đóng góp phù hợp với ưu tiên dự án và tôn trọng thời gian của mọi người.
+
+Cách này giúp chúng mình theo dõi công việc, đảm bảo thay đổi là cần thiết và phối hợp hiệu quả.
+
+### 3. Quyết định việc cần làm
+
+- **Good First Issues**: Xem mục "Issue [Unassigned]" trên [Dự án Roo Code Issues](https://github.com/orgs/RooVetGit/projects/1) trên GitHub.
+- **Tài liệu**: Dù `CONTRIBUTING.md` là hướng dẫn chính cho đóng góp mã nguồn, nếu bạn muốn đóng góp cho tài liệu khác (hướng dẫn người dùng, API...), hãy xem [repo Roo Code Docs](https://github.com/RooVetGit/Roo-Code-Docs) hoặc hỏi trên Discord.
+- **Đề xuất tính năng mới**:
+    1.  **Ý tưởng/thảo luận ban đầu**: Với ý tưởng chung hoặc mới, hãy bắt đầu thảo luận ở [GitHub Discussions](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests).
+    2.  **Đề xuất chính thức**: Với đề xuất cụ thể, sẵn sàng thực hiện, hãy tạo issue "Detailed Feature Proposal" bằng template trên [trang issues](https://github.com/RooVetGit/Roo-Code/issues/new/choose). Đây là phần quan trọng của **cách tiếp cận Issue-First**.
+
+### 4. Báo cáo lỗi hoặc vấn đề
+
+Nếu bạn phát hiện lỗi:
+
+1.  **Tìm issue đã có**: Kiểm tra [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues) xem đã có ai báo cáo chưa.
+2.  **Tạo issue mới**: Nếu chưa có, dùng template "Bug Report" trên [trang issues](https://github.com/RooVetGit/Roo-Code/issues/new/choose).
+
+> 🔐 **Lỗ hổng bảo mật**: Nếu phát hiện lỗ hổng bảo mật, hãy báo cáo riêng qua [GitHub Security Advisory Tool](https://github.com/RooVetGit/Roo-Code/security/advisories/new). Không tạo issue công khai cho lỗ hổng bảo mật.
+
+## III. Quy trình phát triển & gửi bài
+
+Làm theo các bước sau để lập trình và gửi đóng góp.
+
+### 1. Thiết lập môi trường phát triển
+
+1.  **Fork & Clone**:
+    - Fork repo trên GitHub.
+    - Clone repo về máy: `git clone https://github.com/TEN_TAI_KHOAN/Roo-Code.git`
+2.  **Cài đặt phụ thuộc**: `npm run install:all`
+3.  **Chạy Webview (Dev Mode)**: `npm run dev` (cho app Vite/React với HMR)
+4.  **Debug extension**: Nhấn `F5` trong VS Code (hoặc **Run** → **Start Debugging**) để mở cửa sổ Extension Development Host với Roo Code đã nạp.
+
+Thay đổi ở webview (`webview-ui`) sẽ xuất hiện ngay nhờ Hot Module Replacement. Thay đổi ở extension chính (`src`) cần khởi động lại Extension Development Host.
+
+Hoặc, để build và cài đặt gói `.vsix`:
 
 ```sh
 npm run build
+code --install-extension bin/roo-cline-<phiên-bản>.vsix
 ```
 
-Một tệp `.vsix` sẽ xuất hiện trong thư mục `bin/` có thể được cài đặt bằng:
+(Thay `<phiên-bản>` bằng số phiên bản thực tế của file đã build.)
 
-```sh
-code --install-extension bin/roo-cline-<version>.vsix
-```
+### 2. Hướng dẫn viết mã
 
-## Viết và Gửi Mã
+- **PR tập trung**: Mỗi PR chỉ nên có một tính năng/sửa lỗi.
+- **Chất lượng mã**:
+    - Vượt qua các kiểm tra CI (lint, format)
+    - Sửa cảnh báo/lỗi ESLint (`npm run lint`)
+    - Phản hồi góp ý từ công cụ review mã tự động
+    - Tuân thủ best practice TypeScript và đảm bảo an toàn kiểu dữ liệu
+- **Kiểm thử**:
+    - Thêm test cho tính năng mới
+    - Chạy `npm test` để đảm bảo mọi test đều pass
+    - Cập nhật test hiện có nếu thay đổi ảnh hưởng đến chúng
+- **Thông điệp commit**:
+    - Viết rõ ràng, mô tả đầy đủ
+    - Tham chiếu issue liên quan bằng `#số-issue` (vd: `Fixes #123`)
+- **Checklist trước khi gửi PR**:
+    - Rebase branch lên `main` mới nhất từ upstream
+    - Đảm bảo mã build thành công (`npm run build`)
+    - Tất cả test phải pass (`npm test`)
+    - Xóa mã debug hoặc `console.log`
 
-Bất kỳ ai cũng có thể đóng góp mã cho Roo Code, nhưng chúng tôi yêu cầu bạn tuân theo những hướng dẫn này để đảm bảo đóng góp của bạn có thể được tích hợp suôn sẻ:
+### 3. Gửi mã: Quy trình Pull Request (PR)
 
-1. **Giữ Pull Request Tập Trung**
+#### Pull Request nháp
 
-    - Giới hạn PR vào một tính năng hoặc sửa lỗi duy nhất
-    - Chia các thay đổi lớn hơn thành các PR nhỏ hơn, có liên quan
-    - Chia các thay đổi thành các commit hợp lý có thể được xem xét độc lập
+Dùng PR nháp cho công việc chưa sẵn sàng review đầy đủ nhưng bạn muốn:
 
-2. **Chất Lượng Mã**
+- Chạy kiểm tra tự động (CI)
+- Nhận góp ý sớm từ maintainer hoặc cộng tác viên khác
+- Thể hiện công việc đang tiến hành
 
-    - Tất cả PR phải vượt qua kiểm tra CI bao gồm cả linting và định dạng
-    - Giải quyết mọi cảnh báo hoặc lỗi ESLint trước khi gửi
-    - Phản hồi tất cả phản hồi từ Ellipsis, công cụ đánh giá mã tự động của chúng tôi
-    - Tuân theo các thực hành tốt nhất của TypeScript và duy trì an toàn kiểu
+Chỉ đánh dấu PR là "Ready for Review" khi mọi kiểm tra đều pass và bạn tin rằng đã đáp ứng tiêu chí "Hướng dẫn viết mã" và "Mô tả Pull Request".
 
-3. **Kiểm Tra**
+#### Mô tả Pull Request
 
-    - Thêm kiểm tra cho các tính năng mới
-    - Chạy `npm test` để đảm bảo tất cả các kiểm tra đều vượt qua
-    - Cập nhật các bài kiểm tra hiện có nếu thay đổi của bạn ảnh hưởng đến chúng
-    - Bao gồm cả kiểm tra đơn vị và kiểm tra tích hợp khi thích hợp
+Mô tả PR phải đầy đủ và theo cấu trúc của [Template Pull Request](.github/pull_request_template.md). Các điểm chính:
 
-4. **Hướng Dẫn Commit**
+- Link đến Issue đã duyệt trên GitHub mà PR giải quyết
+- Mô tả rõ ràng thay đổi và mục đích
+- Bước kiểm thử chi tiết
+- Danh sách breaking changes (nếu có)
+- **Với thay đổi UI, cung cấp ảnh/video trước/sau**
+- **Chỉ rõ nếu PR cần cập nhật tài liệu người dùng và tài liệu/section nào bị ảnh hưởng**
 
-    - Viết thông điệp commit rõ ràng, mô tả
-    - Tham chiếu các vấn đề có liên quan trong commit bằng cách sử dụng #số-vấn-đề
+#### Chính sách Pull Request (PR)
 
-5. **Trước Khi Gửi**
+##### Mục tiêu
 
-    - Rebase nhánh của bạn trên main mới nhất
-    - Đảm bảo nhánh của bạn xây dựng thành công
-    - Kiểm tra lại rằng tất cả các bài kiểm tra đều vượt qua
-    - Xem xét các thay đổi của bạn cho bất kỳ mã gỡ lỗi hoặc bản ghi console nào
+Duy trì backlog PR sạch, tập trung và dễ quản lý.
 
-6. **Mô Tả Pull Request**
-    - Mô tả rõ ràng những gì thay đổi của bạn làm
-    - Bao gồm các bước để kiểm tra các thay đổi
-    - Liệt kê bất kỳ thay đổi đáng kể nào
-    - Thêm ảnh chụp màn hình cho các thay đổi UI
+##### Cách tiếp cận Issue-First
 
-## Thỏa Thuận Đóng Góp
+- **Bắt buộc**: Trước khi bắt đầu, phải có Issue trên GitHub đã được duyệt và gán (dù là "Bug Report" hay "Detailed Feature Proposal").
+- **Duyệt**: Issue, nhất là thay đổi lớn, phải được maintainer (đặc biệt là @hannesrudolph) duyệt _trước_ khi bắt đầu code.
+- **Tham chiếu**: PR phải tham chiếu rõ ràng đến các Issue đã duyệt trong mô tả.
+- **Hậu quả**: Không tuân thủ có thể khiến PR bị đóng mà không review đầy đủ.
 
-Bằng cách gửi một pull request, bạn đồng ý rằng đóng góp của bạn sẽ được cấp phép theo cùng giấy phép với dự án ([Apache 2.0](../LICENSE)).
+##### Điều kiện cho PR mở
+
+- **Sẵn sàng merge**: Pass mọi kiểm tra CI, phù hợp roadmap (nếu có), liên kết với Issue đã duyệt và gán, có tài liệu/bình luận rõ ràng, có ảnh/video trước/sau cho thay đổi UI
+- **Đóng**: Lỗi CI, xung đột merge lớn, không phù hợp mục tiêu dự án hoặc không cập nhật sau góp ý >30 ngày
+
+##### Quy trình
+
+1.  **Duyệt & gán Issue**: @hannesrudolph (hoặc maintainer khác) duyệt và gán Issue mới/cũ.
+2.  **Triage PR ban đầu (hàng ngày)**: Maintainer kiểm tra nhanh PR mới để lọc việc khẩn cấp hoặc vấn đề nghiêm trọng.
+3.  **Review PR chi tiết (hàng tuần)**: Maintainer review kỹ PR về độ sẵn sàng, phù hợp Issue và chất lượng tổng thể.
+4.  **Góp ý chi tiết & lặp lại**: Sau review, maintainer góp ý (Approve, Request Changes, Reject). Cộng tác viên cần phản hồi và chỉnh sửa nếu cần.
+5.  **Quyết định**: PR được duyệt sẽ merge. PR có vấn đề không giải quyết được hoặc không phù hợp sẽ bị đóng kèm giải thích.
+6.  **Theo dõi**: Tác giả PR bị đóng có thể sửa theo góp ý và mở lại nếu vấn đề được giải quyết hoặc hướng dự án thay đổi.
+
+##### Trách nhiệm
+
+- **Duyệt Issue & tuân thủ quy trình (@hannesrudolph & maintainer)**: Đảm bảo mọi đóng góp tuân thủ cách tiếp cận Issue-First. Hướng dẫn cộng tác viên.
+- **Maintainer (Dev Team)**: Review PR, góp ý kỹ thuật, quyết định duyệt/từ chối, merge PR.
+- **Cộng tác viên**: Đảm bảo PR liên kết với Issue đã duyệt và gán, tuân thủ hướng dẫn chất lượng, phản hồi nhanh góp ý.
+
+Chính sách này đảm bảo rõ ràng và tích hợp hiệu quả.
+
+## IV. Pháp lý
+
+### Thỏa thuận đóng góp
+
+Khi gửi pull request, bạn đồng ý rằng đóng góp của mình sẽ được cấp phép theo [Giấy phép Apache 2.0](LICENSE) (hoặc giấy phép hiện tại của dự án), giống như dự án.

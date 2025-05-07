@@ -1,0 +1,74 @@
+name: Detailed Feature Proposal
+description: Propose a specific, actionable feature or enhancement for implementation
+labels: ["proposal", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Thank you for proposing a detailed feature for Roo Code!**
+
+        This template is for submitting specific, actionable proposals that you or others intend to implement after discussion and approval. It's a key part of our [Issue-First Approach](https://docs.roocode.com/contributing).
+
+        - **For general ideas or less defined suggestions**, please use [GitHub Discussions](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first.
+        - **Before submitting**, please search existing [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues) and [Discussions](https://github.com/RooVetGit/Roo-Code/discussions) to avoid duplicates.
+
+        A maintainer (especially @hannesrudolph) will review this proposal. **Do not start implementation until this proposal is approved and assigned.**
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: What problem does this proposed feature solve?
+      description: Clearly describe the problem, use case, or opportunity this feature addresses. Why is this change needed?
+      placeholder: e.g., "Users currently cannot..." or "It would be beneficial if..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Describe the proposed solution in detail
+      description: Provide a clear and comprehensive description of the feature or enhancement. How should it work? What are the key functionalities?
+      placeholder: Include details on user interaction, expected behavior, and potential impact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-details
+    attributes:
+      label: Technical considerations or implementation details (optional)
+      description: If you have thoughts on how this could be implemented, or specific technical aspects to consider, please share them.
+      placeholder: e.g., "This might involve changes to X component..." or "We should consider Y library..."
+
+  - type: textarea
+    id: alternatives-considered
+    attributes:
+      label: Describe alternatives considered (if any)
+      description: What other ways could this problem be solved or this functionality be achieved? Why is your proposed solution preferred?
+      placeholder: Briefly outline any alternative approaches and why they were not chosen.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context & Mockups
+      description: Add any other context, mockups, screenshots, or links that help illustrate the proposal.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Proposal Checklist
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have searched existing Issues and Discussions to ensure this proposal is not a duplicate.
+          required: true
+        - label: This proposal is for a specific, actionable change intended for implementation (not a general idea).
+          required: true
+        - label: I understand that this proposal requires review and approval before any development work begins.
+          required: true
+
+  - type: checkboxes
+    id: willingness-to-contribute
+    attributes:
+      label: Are you interested in implementing this feature if approved?
+      description: (This is optional and does not affect the proposal's consideration)
+      options:
+        - label: Yes, I would like to contribute to implementing this feature.
+          required: false

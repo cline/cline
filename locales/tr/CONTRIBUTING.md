@@ -1,84 +1,107 @@
+<div align="center">
+<sub>
+[English](../../CONTRIBUTING.md) • [Català](../ca/CONTRIBUTING.md) • [Deutsch](../de/CONTRIBUTING.md) • [Español](../es/CONTRIBUTING.md) • [Français](../fr/CONTRIBUTING.md) • [हिंदी](../hi/CONTRIBUTING.md) • [Italiano](../it/CONTRIBUTING.md) • [Nederlands](../nl/CONTRIBUTING.md) • [Русский](../ru/CONTRIBUTING.md)
+</sub>
+<sub>
+[日本語](../ja/CONTRIBUTING.md) • [한국어](../ko/CONTRIBUTING.md) • [Polski](../pl/CONTRIBUTING.md) • [Português (BR)](../pt-BR/CONTRIBUTING.md) • <b>Türkçe</b> • [Tiếng Việt](../vi/CONTRIBUTING.md) • [简体中文](../zh-CN/CONTRIBUTING.md) • [繁體中文](../zh-TW/CONTRIBUTING.md)
+</sub>
+</div>
 # Roo Code'a Katkıda Bulunma
 
-Roo Code'a katkıda bulunmakla ilgilendiğiniz için çok mutluyuz. İster bir hatayı düzeltiyor, ister bir özellik ekliyor, ister belgelerimizi geliştiriyor olun, her katkı Roo Code'u daha akıllı hale getirir! Topluluğumuzu canlı ve misafirperver tutmak için tüm üyelerin [Davranış Kuralları](CODE_OF_CONDUCT.md)'na uyması gerekir.
+Roo Code, topluluk odaklı bir projedir ve her katkıyı çok önemsiyoruz. Herkes için sorunsuz ve etkili bir süreç sağlamak için **"[Issue-First](#2-temel-ilke-issue-first-yaklaşımı)" yaklaşımıyla çalışıyoruz.** Yani, tüm çalışmalar bir Pull Request gönderilmeden _önce_ bir GitHub Issue'ya bağlı olmalı (ayrıntılar için [PR Politikamıza](#pull-request-pr-politikası) bakabilirsin). Nasıl katkı sağlayacağını anlamak için lütfen bu rehberi dikkatlice oku.
+Bu rehber, Roo Code'a nasıl katkı sağlayabileceğini; ister hata düzelt, ister yeni özellik ekle, ister dokümantasyonu geliştir, adım adım açıklar.
 
-## Topluluğumuza Katılın
+## İçindekiler
 
-Tüm katkıda bulunanları [Discord topluluğumuza](https://discord.gg/roocode) katılmaya şiddetle teşvik ediyoruz! Discord sunucumuzun bir parçası olmak size şu konularda yardımcı olur:
+- [I. Katkıdan Önce](#i-katkıdan-önce)
+    - [1. Davranış Kuralları](#1-davranış-kuralları)
+    - [2. Proje Yol Haritasını Anlamak](#2-proje-yol-haritasını-anlamak)
+        - [Sağlayıcı Desteği](#sağlayıcı-desteği)
+        - [Model Desteği](#model-desteği)
+        - [Sistem Desteği](#sistem-desteği)
+        - [Dokümantasyon](#dokümantasyon)
+        - [Stabilite](#stabilite)
+        - [Uluslararasılaştırma](#uluslararasılaştırma)
+    - [3. Roo Code Topluluğuna Katıl](#3-roo-code-topluluğuna-katıl)
+- [II. Katkı Bulma & Planlama](#ii-katkı-bulma--planlama)
+    - [1. Katkı Türleri](#1-katkı-türleri)
+    - [2. Temel İlke: Issue-First Yaklaşımı](#2-temel-ilke-issue-first-yaklaşımı)
+    - [3. Ne Üzerinde Çalışacağına Karar Verme](#3-ne-üzerinde-çalışacağına-karar-verme)
+    - [4. Hata veya Sorun Bildirme](#4-hata-veya-sorun-bildirme)
+- [III. Geliştirme & Gönderim Süreci](#iii-geliştirme--gönderim-süreci)
+    - [1. Geliştirme Ortamı Kurulumu](#1-geliştirme-ortamı-kurulumu)
+    - [2. Kod Yazma Rehberi](#2-kod-yazma-rehberi)
+    - [3. Kod Gönderme: Pull Request (PR) Süreci](#3-kod-gönderme-pull-request-pr-süreci)
+        - [Taslak Pull Request'ler](#taslak-pull-requestler)
+        - [Pull Request Açıklaması](#pull-request-açıklaması)
+        - [Pull Request (PR) Politikası](#pull-request-pr-politikası)
+            - [Amaç](#amaç)
+            - [Issue-First Yaklaşımı](#issue-first-yaklaşımı)
+            - [Açık PR'lar için Koşullar](#açık-prlar-için-koşullar)
+            - [Prosedür](#prosedür)
+            - [Sorumluluklar](#sorumluluklar)
+- [IV. Yasal](#iv-yasal)
+    - [Katkı Anlaşması](#katkı-anlaşması)
 
-- Katkılarınız hakkında gerçek zamanlı yardım ve rehberlik alın
-- Diğer katkıda bulunanlar ve çekirdek ekip üyeleriyle bağlantı kurun
-- Proje gelişmeleri ve öncelikleri hakkında güncel kalın
-- Roo Code'un geleceğini şekillendiren tartışmalara katılın
-- Diğer geliştiricilerle işbirliği fırsatları bulun
+## I. Katkıdan Önce
 
-## Hataları veya Sorunları Bildirme
+Öncelikle topluluk standartlarımızı ve projenin yönünü öğren.
 
-Hata raporları Roo Code'u herkes için daha iyi hale getirmeye yardımcı olur! Yeni bir sorun oluşturmadan önce, lütfen yinelemeleri önlemek için [mevcut olanları arayın](https://github.com/RooVetGit/Roo-Code/issues). Bir hatayı bildirmeye hazır olduğunuzda, ilgili bilgileri doldurmanıza yardımcı olacak bir şablon bulacağınız [sorunlar sayfamıza](https://github.com/RooVetGit/Roo-Code/issues/new/choose) gidin.
+### 1. Davranış Kuralları
 
-<blockquote class='warning-note'>
-     🔐 <b>Önemli:</b> Bir güvenlik açığı keşfederseniz, lütfen <a href="https://github.com/RooVetGit/Roo-Code/security/advisories/new">özel olarak bildirmek için Github güvenlik aracını kullanın</a>.
-</blockquote>
+Tüm katkı sağlayanlar [Davranış Kuralları](https://github.com/RooVetGit/Roo-Code/blob/main/CODE_OF_CONDUCT.md)'na uymalıdır. Katkıdan önce mutlaka oku.
 
-## Ne Üzerinde Çalışacağınıza Karar Verme
+### 2. Proje Yol Haritasını Anlamak
 
-İyi bir ilk katkı mı arıyorsunuz? [Roo Code Sorunları](https://github.com/orgs/RooVetGit/projects/1) Github Projemizin "Issue [Unassigned]" bölümündeki sorunları kontrol edin. Bunlar özellikle yeni katkıda bulunanlar ve biraz yardıma ihtiyaç duyduğumuz alanlar için seçilmiştir!
+Roo Code'un önceliklerimizi ve gelecekteki yönümüzü belirleyen net bir geliştirme yol haritası var. Yol haritasını anlamak sana şunları sağlar:
 
-[Belgelerimize](https://docs.roocode.com/) katkıları da memnuniyetle karşılıyoruz! İster yazım hatalarını düzeltmek, mevcut kılavuzları geliştirmek veya yeni eğitim içeriği oluşturmak olsun - herkesin Roo Code'dan en iyi şekilde yararlanmasına yardımcı olan topluluk odaklı bir kaynak deposu oluşturmak istiyoruz. Dosyayı düzenlemek için Github'daki doğru yere hızlıca gitmek için herhangi bir sayfada "Edit this page" düğmesine tıklayabilir veya doğrudan https://github.com/RooVetGit/Roo-Code-Docs adresine dalabilirsiniz.
+- Katkılarını proje hedefleriyle uyumlu hale getirmek
+- Uzmanlığının en değerli olacağı alanları bulmak
+- Bazı tasarım kararlarının arka planını anlamak
+- Vizyonumuzu destekleyen yeni özellikler için ilham almak
 
-Daha büyük bir özellik üzerinde çalışmayı planlıyorsanız, lütfen önce bir [özellik isteği](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) oluşturun, böylece Roo Code'un vizyonuyla uyumlu olup olmadığını tartışabiliriz. Ayrıca, fikrinizin stratejik yönümüze uyup uymadığını görmek için aşağıdaki [Proje Yol Haritası](#proje-yol-haritası)'nı kontrol edebilirsiniz.
+Mevcut yol haritamız altı ana sütuna odaklanıyor:
 
-## Proje Yol Haritası
+#### Sağlayıcı Desteği
 
-Roo Code, önceliklerimizi ve gelecekteki yönümüzü yönlendiren net bir geliştirme yol haritasına sahiptir. Yol haritamızı anlamak size şu konularda yardımcı olabilir:
+Mümkün olduğunca çok sağlayıcıyı iyi desteklemek istiyoruz:
 
-- Katkılarınızı proje hedefleriyle uyumlu hale getirmek
-- Uzmanlığınızın en değerli olacağı alanları belirlemek
-- Belirli tasarım kararlarının arkasındaki bağlamı anlamak
-- Vizyonumuzu destekleyen yeni özellikler için ilham bulmak
-
-Mevcut yol haritamız altı temel sütun üzerine odaklanmaktadır:
-
-### Sağlayıcı Desteği
-
-Mümkün olduğunca çok sağlayıcıyı desteklemeyi hedefliyoruz:
-
-- Daha çok yönlü "OpenAI Uyumlu" destek
+- Daha fazla "OpenAI Compatible" desteği
 - xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
 - Ollama ve LM Studio için geliştirilmiş destek
 
-### Model Desteği
+#### Model Desteği
 
-Roo'nun yerel modeller de dahil olmak üzere mümkün olduğunca çok modelde iyi çalışmasını istiyoruz:
+Roo'nun mümkün olduğunca çok modelde (yerel modeller dahil) çalışmasını istiyoruz:
 
-- Özel sistem yönlendirmesi ve iş akışları aracılığıyla yerel model desteği
-- Kıyaslama değerlendirmeleri ve test vakaları
+- Özel sistem promptları ve iş akışlarıyla yerel model desteği
+- Benchmarking, değerlendirmeler ve test vakaları
 
-### Sistem Desteği
+#### Sistem Desteği
 
-Roo'nun herkesin bilgisayarında iyi çalışmasını istiyoruz:
+Roo'nun her bilgisayarda iyi çalışmasını istiyoruz:
 
-- Çapraz platform terminal entegrasyonu
+- Platformlar arası terminal entegrasyonu
 - Mac, Windows ve Linux için güçlü ve tutarlı destek
 
-### Dokümantasyon
+#### Dokümantasyon
 
-Tüm kullanıcılar ve katkıda bulunanlar için kapsamlı, erişilebilir dokümantasyon istiyoruz:
+Tüm kullanıcılar ve katkı sağlayanlar için kapsamlı, erişilebilir dokümantasyon istiyoruz:
 
-- Genişletilmiş kullanıcı kılavuzları ve öğreticiler
-- Net API dokümantasyonu
-- Katkıda bulunanlar için daha iyi rehberlik
+- Genişletilmiş kullanıcı rehberleri ve eğitimler
+- Açık API dokümantasyonu
+- Daha iyi katkı sağlayan rehberliği
 - Çok dilli dokümantasyon kaynakları
-- Etkileşimli örnekler ve kod örnekleri
+- Etkileşimli örnekler ve kod parçacıkları
 
-### Kararlılık
+#### Stabilite
 
 Hata sayısını önemli ölçüde azaltmak ve otomatik testleri artırmak istiyoruz:
 
-- Hata ayıklama günlüğü anahtarı
-- Hata/destek istekleriyle birlikte göndermek için "Makine/Görev Bilgisi" kopyalama düğmesi
+- Hata ayıklama log anahtarı
+- Hata/destek talepleri için "Makine/Görev Bilgisi Kopyala" butonu
 
-### Uluslararasılaştırma
+#### Uluslararasılaştırma
 
 Roo'nun herkesin dilini konuşmasını istiyoruz:
 
@@ -87,87 +110,170 @@ Roo'nun herkesin dilini konuşmasını istiyoruz:
 - हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
 - نريد أن يتحدث Roo Code لغة الجميع
 
-Özellikle yol haritamızın hedeflerini ileriye taşıyan katkıları memnuniyetle karşılıyoruz. Bu sütunlarla uyumlu bir şey üzerinde çalışıyorsanız, lütfen PR açıklamanızda bundan bahsedin.
+Yol haritası hedeflerimizi ilerleten katkılar özellikle memnuniyetle karşılanır. Bu sütunlarla uyumlu bir şey üzerinde çalışıyorsan, lütfen PR açıklamanda belirt.
 
-## Geliştirme Kurulumu
+### 3. Roo Code Topluluğuna Katıl
 
-1. Depoyu **klonlayın**:
+Roo Code topluluğuyla bağlantı kurmak başlamak için harika bir yoldur:
 
-```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
-```
+- **Ana yöntem**:
+    1.  [Roo Code Discord topluluğuna](https://discord.gg/roocode) katıl.
+    2.  Katıldıktan sonra **Hannes Rudolph**'a (Discord: `hrudolph`) DM gönder, ilgini belirt ve rehberlik al.
+- **Deneyimli katkı sağlayanlar için alternatif**: Issue-First yaklaşımına alışkınsan, doğrudan GitHub üzerinden [Kanban panosunu](https://github.com/orgs/RooVetGit/projects/1) takip ederek ve issue ile pull request'lerle iletişim kurarak katılabilirsin.
 
-2. **Bağımlılıkları yükleyin**:
+## II. Katkı Bulma & Planlama
 
-```sh
-npm run install:all
-```
+Ne üzerinde çalışmak istediğini ve nasıl yaklaşacağını belirle.
 
-3. **Webview'ı başlatın (HMR ile Vite/React uygulaması)**:
+### 1. Katkı Türleri
 
-```sh
-npm run dev
-```
+Çeşitli katkı türlerini memnuniyetle karşılıyoruz:
 
-4. **Hata ayıklama**:
-   VSCode'da `F5` tuşuna basın (veya **Run** → **Start Debugging**) Roo Code yüklenmiş yeni bir oturum açmak için.
+- **Hata düzeltmeleri**: Mevcut kodda sorunları çözmek
+- **Yeni özellikler**: Yeni işlevsellik eklemek
+- **Dokümantasyon**: Rehberleri geliştirmek, örnekler eklemek veya yazım hatalarını düzeltmek
 
-Webview'daki değişiklikler anında görünecektir. Ana uzantıdaki değişiklikler uzantı ana bilgisayarının yeniden başlatılmasını gerektirecektir.
+### 2. Temel İlke: Issue-First Yaklaşımı
 
-Alternatif olarak, bir .vsix dosyası oluşturabilir ve doğrudan VSCode'a kurabilirsiniz:
+**Tüm katkılar bir GitHub Issue ile başlamalıdır.** Bu, uyumu sağlamak ve boşa emek harcamamak için kritik bir adımdır.
+
+- **Issue bul veya oluştur**:
+    - Başlamadan önce, [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues)'da katkı yapmak istediğin konu için bir issue olup olmadığını kontrol et.
+    - Varsa ve atanmamışsa, almak istediğini belirten bir yorum bırak. Bir maintainer sana atayacaktır.
+    - Yoksa, [issue sayfamızda](https://github.com/RooVetGit/Roo-Code/issues/new/choose) uygun şablonu kullanarak yeni bir tane oluştur:
+        - Hatalar için "Bug Report" şablonu
+        - Yeni özellikler için "Detailed Feature Proposal" şablonu. Uygulamaya başlamadan önce bir maintainer'ın (özellikle @hannesrudolph) onayını bekle.
+        - **Not**: Özellikler için genel fikirler veya ilk tartışmalar [GitHub Discussions](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests)'da başlatılabilir. Fikir netleşince "Detailed Feature Proposal" issue'su oluşturulmalı.
+- **Sahiplenme ve atama**:
+    - Bir issue üzerinde çalışmak istediğini açıkça belirten bir yorum bırak.
+    - Bir maintainer'ın GitHub'da resmi olarak atamasını bekle. Böylece aynı konuda birden fazla kişi çalışmaz.
+- **Uymamanın sonuçları**:
+    - İlgili, önceden onaylanmış ve atanmış bir issue olmadan gönderilen Pull Request'ler (PR'ler) tam inceleme yapılmadan kapatılabilir. Bu politika, katkıların proje öncelikleriyle uyumlu olmasını ve herkesin zamanına saygı gösterilmesini sağlamak içindir.
+
+Bu yaklaşım, çalışmaları takip etmemize, değişikliklerin istenip istenmediğini garanti etmemize ve çabaları etkili şekilde koordine etmemize yardımcı olur.
+
+### 3. Ne Üzerinde Çalışacağına Karar Verme
+
+- **Good First Issues**: GitHub'daki [Roo Code Issues Projesi](https://github.com/orgs/RooVetGit/projects/1)'nin "Issue [Unassigned]" bölümüne bak.
+- **Dokümantasyon**: Bu `CONTRIBUTING.md` kod katkısı için ana rehberdir, ancak başka dokümantasyonlara (kullanıcı rehberleri veya API dokümanları gibi) katkı sağlamak istiyorsan [Roo Code Docs deposuna](https://github.com/RooVetGit/Roo-Code-Docs) bak veya Discord topluluğunda sor.
+- **Yeni özellikler önermek**:
+    1.  **İlk fikir/tartışma**: Genel veya ilk özellik fikirleri için [GitHub Discussions](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests)'da tartışma başlat.
+    2.  **Resmi öneri**: Spesifik, uygulanabilir öneriler için [issue sayfamızda](https://github.com/RooVetGit/Roo-Code/issues/new/choose) "Detailed Feature Proposal" şablonunu kullanarak issue oluştur. Bu, **Issue-First Yaklaşımı**'nın anahtarıdır.
+
+### 4. Hata veya Sorun Bildirme
+
+Bir hata bulursan:
+
+1.  **Mevcut issue'ları ara**: [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues)'da daha önce bildirilip bildirilmediğine bak.
+2.  **Yeni bir issue oluştur**: Eğer benzersizse, [issue sayfamızda](https://github.com/RooVetGit/Roo-Code/issues/new/choose) "Bug Report" şablonunu kullan.
+
+> 🔐 **Güvenlik açıkları**: Bir güvenlik açığı bulursan, [GitHub Security Advisory Tool](https://github.com/RooVetGit/Roo-Code/security/advisories/new) ile özel olarak bildir. Güvenlik açıkları için herkese açık issue oluşturma.
+
+## III. Geliştirme & Gönderim Süreci
+
+Kod yazarken ve gönderirken bu adımları takip et.
+
+### 1. Geliştirme Ortamı Kurulumu
+
+1.  **Fork & Clone**:
+    - GitHub'da depoyu forkla.
+    - Forkunu yerel olarak klonla: `git clone https://github.com/KULLANICI_ADIN/Roo-Code.git`
+2.  **Bağımlılıkları yükle**: `npm run install:all`
+3.  **Webview (Geliştirici Modu) çalıştır**: `npm run dev` (Vite/React uygulaması için HMR ile)
+4.  **Eklentiyi debug et**: VS Code'da `F5` tuşuna bas (veya **Run** → **Start Debugging**) ve Roo Code yüklü yeni bir Extension Development Host penceresi aç.
+
+Webview (`webview-ui`) değişiklikleri Hot Module Replacement sayesinde anında görünür. Ana eklenti (`src`) değişiklikleri için Extension Development Host'u yeniden başlatmak gerekir.
+
+Alternatif olarak, `.vsix` paketi oluşturup yüklemek için:
 
 ```sh
 npm run build
+code --install-extension bin/roo-cline-<versiyon>.vsix
 ```
 
-`bin/` dizininde bir `.vsix` dosyası görünecek ve şu komutla kurulabilir:
+(`<versiyon>` kısmını oluşturulan dosyanın gerçek sürüm numarasıyla değiştir.)
 
-```sh
-code --install-extension bin/roo-cline-<version>.vsix
-```
+### 2. Kod Yazma Rehberi
 
-## Kod Yazma ve Gönderme
+- **Odaklı PR'lar**: Her PR için bir özellik/düzeltme.
+- **Kod kalitesi**:
+    - CI kontrollerini (lint, format) geç
+    - ESLint uyarılarını veya hatalarını düzelt (`npm run lint`)
+    - Otomatik kod inceleme araçlarından gelen geri bildirimlere yanıt ver
+    - TypeScript en iyi uygulamalarını takip et ve tip güvenliğini koru
+- **Testler**:
+    - Yeni özellikler için test ekle
+    - `npm test` çalıştırarak tüm testlerin geçtiğinden emin ol
+    - Değişikliklerin mevcut testleri etkiliyorsa onları güncelle
+- **Commit mesajları**:
+    - Açık ve açıklayıcı commit mesajları yaz
+    - İlgili issue'lara `#issue-numarası` ile referans ver (ör: `Fixes #123`)
+- **PR göndermeden önce kontrol listesi**:
+    - Branch'ini upstream'deki en son `main` ile rebase et
+    - Kodun derlendiğinden emin ol (`npm run build`)
+    - Tüm testlerin geçtiğinden emin ol (`npm test`)
+    - Herhangi bir debug kodu veya `console.log` satırını kaldır
 
-Herkes Roo Code'a kod katkısında bulunabilir, ancak katkılarınızın sorunsuz bir şekilde entegre edilebilmesi için bu kurallara uymanızı rica ediyoruz:
+### 3. Kod Gönderme: Pull Request (PR) Süreci
 
-1. **Pull Request'leri Odaklı Tutun**
+#### Taslak Pull Request'ler
 
-    - PR'leri tek bir özellik veya hata düzeltmesiyle sınırlayın
-    - Daha büyük değişiklikleri daha küçük, ilgili PR'lere bölün
-    - Değişiklikleri bağımsız olarak incelenebilen mantıklı commitlere bölün
+Henüz tam incelemeye hazır olmayan işler için taslak PR'lar kullan:
 
-2. **Kod Kalitesi**
+- Otomatik kontrolleri (CI) çalıştırmak
+- Maintainer'lardan veya diğer katkı sağlayanlardan erken geri bildirim almak
+- Çalışmanın devam ettiğini göstermek
 
-    - Tüm PR'ler hem linting hem de formatlama içeren CI kontrollerini geçmelidir
-    - Göndermeden önce tüm ESLint uyarılarını veya hatalarını çözün
-    - Otomatik kod inceleme aracımız Ellipsis'ten gelen tüm geri bildirimlere yanıt verin
-    - TypeScript en iyi uygulamalarını takip edin ve tip güvenliğini koruyun
+Tüm kontroller geçtikten ve "Kod Yazma Rehberi" ile "Pull Request Açıklaması" kriterlerini karşıladığını düşündüğünde PR'ı "Ready for Review" olarak işaretle.
 
-3. **Test Etme**
+#### Pull Request Açıklaması
 
-    - Yeni özellikler için testler ekleyin
-    - Tüm testlerin geçtiğinden emin olmak için `npm test` çalıştırın
-    - Değişiklikleriniz etkiliyorsa mevcut testleri güncelleyin
-    - Uygun olduğunda hem birim testlerini hem de entegrasyon testlerini dahil edin
+PR açıklaman tam olmalı ve [Pull Request Şablonumuzun](.github/pull_request_template.md) yapısına uymalı. Temel noktalar:
 
-4. **Commit Yönergeleri**
+- İlgili, onaylanmış GitHub Issue'ya bağlantı
+- Yapılan değişikliklerin ve amacının açık açıklaması
+- Değişiklikleri test etmek için ayrıntılı adımlar
+- Herhangi bir breaking change listesi
+- **UI değişiklikleri için, önce/sonra ekran görüntüleri veya videolar**
+- **PR'ın kullanıcı dokümantasyonunu güncellemeyi gerektirip gerektirmediğini ve hangi belgelerin/alanların etkilendiğini belirt**
 
-    - Net, açıklayıcı commit mesajları yazın
-    - #issue-number kullanarak commitlerdeki ilgili sorunlara atıfta bulunun
+#### Pull Request (PR) Politikası
 
-5. **Göndermeden Önce**
+##### Amaç
 
-    - Dalınızı en son main üzerine rebase edin
-    - Dalınızın başarıyla oluşturulduğundan emin olun
-    - Tüm testlerin geçtiğini tekrar kontrol edin
-    - Değişikliklerinizi hata ayıklama kodu veya konsol günlükleri için gözden geçirin
+Temiz, odaklı ve yönetilebilir bir PR backlog'u tutmak.
 
-6. **Pull Request Açıklaması**
-    - Değişikliklerinizin ne yaptığını açıkça açıklayın
-    - Değişiklikleri test etmek için adımlar ekleyin
-    - Herhangi bir önemli değişikliği listeleyin
-    - UI değişiklikleri için ekran görüntüleri ekleyin
+##### Issue-First Yaklaşımı
 
-## Katkı Anlaşması
+- **Zorunlu**: Çalışmaya başlamadan önce mevcut, onaylanmış ve atanmış bir GitHub Issue ("Bug Report" veya "Detailed Feature Proposal") olmalı.
+- **Onay**: Özellikle büyük değişiklikler için, issue'lar maintainer'lar (özellikle @hannesrudolph) tarafından _kodlamaya başlamadan önce_ onaylanmalı.
+- **Referans**: PR'lar bu önceden onaylanmış issue'lara açıklamalarında açıkça referans vermeli.
+- **Sonuçlar**: Bu sürece uyulmazsa PR tam inceleme yapılmadan kapatılabilir.
 
-Bir pull request göndererek, katkılarınızın projeyle aynı lisans altında ([Apache 2.0](../LICENSE)) lisanslanacağını kabul edersiniz.
+##### Açık PR'lar için Koşullar
+
+- **Birleştirmeye hazır**: Tüm CI testlerinden geçer, yol haritasıyla uyumlu (varsa), onaylanmış ve atanmış issue'ya bağlı, açık dokümantasyon/yorumlar, UI değişiklikleri için önce/sonra görseller/video içerir
+- **Kapatılacaklar**: CI test hataları, büyük birleştirme çatışmaları, proje hedefleriyle uyumsuzluk veya uzun süreli (30+ gün) güncellenmeyen PR'lar
+
+##### Prosedür
+
+1.  **Issue nitelendirme & atama**: @hannesrudolph (veya diğer maintainer'lar) yeni ve mevcut issue'ları gözden geçirip atar.
+2.  **İlk PR triage'ı (günlük)**: Maintainer'lar yeni PR'ları hızlıca kontrol eder, acil veya kritik konuları ayıklar.
+3.  **Ayrıntılı PR incelemesi (haftalık)**: Maintainer'lar PR'ları hazırlık, onaylanmış issue ile uyum ve genel kalite açısından ayrıntılı inceler.
+4.  **Ayrıntılı geri bildirim & yineleme**: İnceleme sonucunda geri bildirim (Onayla, Değişiklik İste, Reddet) verilir. Katkı sağlayanlardan yanıt ve gerekirse düzeltme beklenir.
+5.  **Karar aşaması**: Onaylanan PR'lar birleştirilir. Çözülemeyen sorunlu veya uyumsuz PR'lar gerekçesiyle kapatılır.
+6.  **Takip**: Kapatılan PR sahipleri, sorunlar çözülür veya proje yönü değişirse yeni PR açabilir.
+
+##### Sorumluluklar
+
+- **Issue nitelendirme & süreç takibi (@hannesrudolph & maintainer'lar)**: Tüm katkıların Issue-First yaklaşımına uymasını sağlamak. Katkı sağlayanlara rehberlik etmek.
+- **Maintainer'lar (Geliştirici Takımı)**: PR'ları incelemek, teknik geri bildirim vermek, onay/ret kararı almak, PR'ları birleştirmek.
+- **Katkı sağlayanlar**: PR'ları onaylanmış ve atanmış issue'ya bağlamak, kalite rehberlerine uymak, geri bildirime hızlıca yanıt vermek.
+
+Bu politika, netlik ve verimli entegrasyon sağlar.
+
+## IV. Yasal
+
+### Katkı Anlaşması
+
+Bir pull request göndererek, katkılarının [Apache 2.0 Lisansı](LICENSE) (veya projenin mevcut lisansı) kapsamında olacağını kabul etmiş olursun; tıpkı projenin kendisi gibi.
