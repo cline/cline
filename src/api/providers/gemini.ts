@@ -9,8 +9,7 @@ import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
-const DEFAULT_CACHE_TTL_SECONDS = 900
-
+const DEFAULT_CACHE_TTL_SECONDS = 3600
 interface GeminiHandlerOptions extends ApiHandlerOptions {
 	isVertex?: boolean
 }
@@ -39,11 +38,10 @@ export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: GoogleGenAI
 
-	// Enhanced caching system
-	private contentCaches: NodeCache // Stores cache details (key, count, etc.)
-	private isCacheBusy = false
-	private taskCacheNames: Map<string, string> = new Map() // Maps taskId to cache name for stable lookup
-	private taskCacheTokens: Map<string, number> = new Map() // Maps taskId to total tokens in cache
+	// Internal state for caching
+	private cacheName: string | null = null
+	private cacheExpireTime: number | null = null
+	private isFirstApiCall = true
 
 	constructor(options: GeminiHandlerOptions) {
 		// Store the options
@@ -67,12 +65,6 @@ export class GeminiHandler implements ApiHandler {
 
 			this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
 		}
-
-		// Initialize cache with TTL and check period
-		this.contentCaches = new NodeCache({
-			stdTTL: DEFAULT_CACHE_TTL_SECONDS,
-			checkperiod: DEFAULT_CACHE_TTL_SECONDS,
-		})
 	}
 
 	/**
@@ -95,67 +87,45 @@ export class GeminiHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const { id: model, info } = this.getModel()
-		const contents = messages.map(convertAnthropicMessageToGemini)
 
-		// Ensure we have a stable cache key (taskId)
-		if (!this.options.taskId) {
-			console.warn("[GeminiHandler] No taskId provided, caching will be disabled")
-		}
+		// --- Cache Handling Logic ---
+		const isCacheValid = this.cacheName && this.cacheExpireTime && Date.now() < this.cacheExpireTime
+		let useCache = !this.isFirstApiCall && isCacheValid
 
-		const taskId = this.options.taskId
+		if (this.isFirstApiCall && !isCacheValid && systemPrompt) {
+			// It's the first call, no valid cache exists, and we have a system prompt. Attempt cache creation.
+			this.isFirstApiCall = false
 
-		// Calculate total content length for cache eligibility check
-		const contentsLength = systemPrompt.length + this.getMessagesLength(contents)
-
-		// Minimum token threshold for caching (approx 4096 tokens)
-		const CONTEXT_CACHE_TOKEN_MINIMUM = 4096
-
-		let uncachedContent: Content[] | undefined = undefined
-		let cachedContent: string | undefined = undefined
-
-		// Check if caching is available and content is large enough to benefit from caching
-		// We only enable caching for conversations above a certain size to avoid overhead for small requests
-		const isCacheAvailable = info.supportsPromptCache && contentsLength > 4 * CONTEXT_CACHE_TOKEN_MINIMUM && taskId
-
-		// This flag tracks whether this operation involves a cache write/update
-		// It's used to track task-level ongoing costs, not immediate costs
-		let cacheWrite = false
-
-		if (isCacheAvailable) {
-			// Check if we already have a cache for this task
-			const existingCacheName = this.taskCacheNames.get(taskId)
-			const cacheEntry = existingCacheName ? this.contentCaches.get<{ key: string; count: number }>(taskId) : undefined
-
-			if (cacheEntry) {
-				// Use existing cache
-				uncachedContent = contents.slice(cacheEntry.count, contents.length)
-				cachedContent = cacheEntry.key
-				console.log(
-					`[GeminiHandler] using existing cache for task ${taskId}: ${cacheEntry.count} cached messages (${cacheEntry.key}) and ${uncachedContent.length} uncached messages`,
-				)
+			// Minimum token check heuristic (simple length check for now, could be improved)
+			// Gemini requires minimum 4096 tokens. A simple length check isn't accurate but avoids complex token counting here.
+			// Let's assume a generous average of 4 chars/token. 4096 tokens * 4 chars/token = 16384 chars.
+			const MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE = 16384
+			if (systemPrompt.length >= MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE) {
+				// Start cache creation asynchronously, don't block the main request
+				this.createCacheInBackground(modelId, systemPrompt)
 			}
-
-			// Create or update cache only if there's new content to add
-			const shouldUpdateCache = !existingCacheName || (cacheEntry && uncachedContent && uncachedContent.length > 0)
-
-			if (shouldUpdateCache) {
-				// If we should update the cache, then there will be a cache write
-				cacheWrite = true
-			}
+			// Proceed with the first request *without* using the cache, as it's being created.
+			useCache = false
+		} else if (!isCacheValid && this.cacheName) {
+			// Cache exists but has expired
+			this.cacheName = null
+			this.cacheExpireTime = null
+			useCache = false
 		}
-		const isCacheUsed = !!cachedContent
+		// --- End Cache Handling Logic ---
 
 		// Configure thinking budget if supported
 		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const maxBudget = info.thinkingConfig?.maxBudget ?? 0
 
+		const contents: Content[] = messages.map(convertAnthropicMessageToGemini)
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
 			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
 
 			// Only include systemInstruction if NOT using the cache
-			...(isCacheUsed ? {} : { systemInstruction: systemPrompt }),
+			...(useCache ? {} : { systemInstruction: systemPrompt }),
 
 			// Set temperature (default to 0)
 			temperature: 0,
@@ -167,23 +137,17 @@ export class GeminiHandler implements ApiHandler {
 				thinkingBudget: thinkingBudget,
 			}
 		}
-
 		// Generate content using the configured parameters
 		const result = await this.client.models.generateContentStream({
 			model,
-			contents: uncachedContent ?? contents,
+			contents,
+			// Add cachedContent if using the cache
 			config: {
 				...requestConfig,
-				...(isCacheUsed ? { cachedContent } : {}),
+				...(useCache ? { cachedContent: this.cacheName! } : {}),
 			},
 		})
 
-		// Update the cache after the LLM request is already sent to avoid blocking
-		// We only update the cache if we have a taskId and the cache write flag is set
-		// This is a non-blocking operation and will not affect the response time
-		if (cacheWrite && taskId) {
-			this.updateCacheContent(taskId, model, contents, systemPrompt)
-		}
 		// Track usage metadata
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 
@@ -215,30 +179,40 @@ export class GeminiHandler implements ApiHandler {
 				cacheReadTokens,
 			})
 
-			// Store the token count for task-level ongoing cost tracking
-			// This is not included in the immediate costs returned to the user
-			const cacheWriteTokens = cacheWrite ? inputTokens : undefined
-
-			// If this is a cache write operation, update the task's ongoing costs
-			if (cacheWrite && this.options.taskId && inputTokens > 0) {
-				// Log the ongoing costs for debugging
-				const ongoingCosts = this.getTaskOngoingCosts(this.options.taskId)
-				console.log(
-					`[GeminiHandler] Task ${this.options.taskId} ongoing costs: $${ongoingCosts?.toFixed(6) ?? "unknown"}`,
-				)
-			}
-
 			yield {
 				type: "usage",
 				inputTokens,
 				outputTokens,
 				cacheReadTokens,
-				cacheWriteTokens,
+				cacheWriteTokens: 0,
 				totalCost,
 			}
 		}
 	}
+	private async createCacheInBackground(modelId: string, systemInstruction: string): Promise<void> {
+		try {
+			const cache = await this.client.caches.create({
+				model: modelId,
+				config: {
+					systemInstruction: systemInstruction,
+					ttl: `${DEFAULT_CACHE_TTL_SECONDS}s`,
+				},
+			})
 
+			if (cache?.name) {
+				this.cacheName = cache.name
+				// Calculate expiry timestamp using the default TTL, as the response object might not contain it directly.
+				this.cacheExpireTime = Date.now() + DEFAULT_CACHE_TTL_SECONDS * 1000
+			} else {
+				console.warn("Gemini cache creation call succeeded but returned no cache name.")
+			}
+		} catch (error) {
+			console.error("Failed to create Gemini cache in background:", error)
+			// Reset state if creation failed definitively
+			this.cacheName = null
+			this.cacheExpireTime = null
+		}
+	}
 	/**
 	 * Lists all caches for the current API key.
 	 *
