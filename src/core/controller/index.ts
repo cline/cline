@@ -335,13 +335,6 @@ export class Controller {
 			case "resetState":
 				await this.resetState()
 				break
-			case "requestLmStudioModels":
-				const lmStudioModels = await this.getLmStudioModels(message.text)
-				this.postMessageToWebview({
-					type: "lmStudioModels",
-					lmStudioModels,
-				})
-				break
 			case "requestVsCodeLmModels":
 				const vsCodeLmModels = await this.getVsCodeLmModels()
 				this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
@@ -902,25 +895,6 @@ export class Controller {
 			return models || []
 		} catch (error) {
 			console.error("Error fetching VS Code LM models:", error)
-			return []
-		}
-	}
-
-	// LM Studio
-
-	async getLmStudioModels(baseUrl?: string) {
-		try {
-			if (!baseUrl) {
-				baseUrl = "http://localhost:1234"
-			}
-			if (!URL.canParse(baseUrl)) {
-				return []
-			}
-			const response = await axios.get(`${baseUrl}/v1/models`)
-			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
-			const models = [...new Set<string>(modelsArray)]
-			return models
-		} catch (error) {
 			return []
 		}
 	}

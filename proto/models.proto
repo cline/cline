@@ -10,4 +10,7 @@ import "common.proto";
 service ModelsService {
   // Fetches available models from Ollama
   rpc getOllamaModels(StringRequest) returns (StringArray);
+  
+  // Fetches available models from LM Studio
+  rpc getLmStudioModels(StringRequest) returns (StringArray);
 }
