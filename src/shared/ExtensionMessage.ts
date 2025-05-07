@@ -144,6 +144,7 @@ export interface ExtensionState {
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	showWelcome?: boolean
 }
 
 export interface ClineMessage {

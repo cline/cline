@@ -118,11 +118,6 @@ const WelcomeTabView = memo(({ onToggleView, showApiOptions, setShowApiOptions }
 						<button className="primary-button" onClick={handleLogin}>
 							Let's Create your Account!
 						</button>
-						{showApiOptions !== undefined && setShowApiOptions !== undefined && !showApiOptions && (
-							<button className="secondary-button" onClick={() => setShowApiOptions(true)}>
-								Use your own API key
-							</button>
-						)}
 					</div>
 					{showApiOptions !== undefined && <ApiOptionsSection showApiOptions={showApiOptions} />}
 

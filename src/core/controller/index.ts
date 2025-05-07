@@ -1672,6 +1672,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			planActSeparateModelsSetting,
 			globalClineRulesToggles,
 			shellIntegrationTimeout,
+			showWelcome,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1704,7 +1705,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
-			showWelcome: false,
+			showWelcome,
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},

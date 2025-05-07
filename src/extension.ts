@@ -82,37 +82,46 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	const openClineInNewTab = async (): Promise<WebviewProvider> => {
+	const openClineInNewTab = async (isWelcome = false): Promise<WebviewProvider> => {
 		Logger.log("Opening Cline in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 		const tabWebview = new WebviewProvider(context, outputChannel, "tab")
-		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
-		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
+		let targetCol: vscode.ViewColumn
 
-		// Check if there are any visible text editors, otherwise open a new group to the right
-		const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
-		if (!hasVisibleEditors) {
-			await vscode.commands.executeCommand("workbench.action.newGroupRight")
+		if (!isWelcome) {
+			//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
+			const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
+
+			// Check if there are any visible text editors, otherwise open a new group to the right
+			const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
+			if (!hasVisibleEditors) {
+				await vscode.commands.executeCommand("workbench.action.newGroupRight")
+			}
+			targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
+		} else {
+			targetCol = vscode.ViewColumn.One
 		}
-		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
 		const panel = vscode.window.createWebviewPanel(WebviewProvider.tabPanelId, "Cline", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],
 		})
-		// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
 
 		panel.iconPath = {
 			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_light.png"),
 			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
 		}
-		tabWebview.resolveWebviewView(panel)
+
+		await tabWebview.resolveWebviewView(panel)
 
 		// Lock the editor group so clicking on files doesn't open them over the panel
-		await setTimeoutPromise(100)
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
+
+		if (isWelcome) {
+			panel.reveal(targetCol)
+		}
 		return tabWebview
 	}
 
@@ -432,8 +441,17 @@ export function activate(context: vscode.ExtensionContext) {
 		const previous = context.globalState.get<string>(VERSION_KEY)
 
 		if (!previous) {
-			const tab = await openClineInNewTab()
+			console.log("First time installation detected, setting showWelcome flag")
+			// Set the showWelcome flag to true in global state
+			await context.globalState.update("showWelcome", true)
+
+			// Open a single tab with the welcome screen
+			const tab = await openClineInNewTab(true)
+			console.log("Tab opened for welcome screen")
+
+			// Send the showWelcome message directly to the webview
 			await tab.controller.postMessageToWebview({ type: "showWelcome" })
+			console.log("Sent showWelcome message directly to webview")
 
 			// persist for the next activation
 			await context.globalState.update(VERSION_KEY, current)

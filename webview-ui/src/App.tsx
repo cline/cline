@@ -14,12 +14,21 @@ import { McpViewTab } from "@shared/mcp"
 import WelcomeWrapper from "./components/welcome/WelcomeWrapper"
 
 const AppContent = () => {
-	const { didHydrateState, shouldShowAnnouncement, showMcp, mcpTab, showWelcome } = useExtensionState()
+	const { didHydrateState, shouldShowAnnouncement, showMcp, mcpTab } = useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
 	const hideSettings = useCallback(() => setShowSettings(false), [])
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	// Use local state for welcome view, initialized from extension state
+	const [showWelcomeLocal, setShowWelcomeLocal] = useState(true)
+	const { setShowWelcome } = useExtensionState()
+
+	// Sync local state with extension state
+	useEffect(() => {
+		console.log("Setting showWelcome in extension state to true")
+		setShowWelcome(true)
+	}, [setShowWelcome])
 
 	const { setShowMcp, setMcpTab } = useExtensionState()
 
@@ -31,7 +40,12 @@ const AppContent = () => {
 	const handleMessage = useCallback(
 		(e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
+			console.log("Received message in App.tsx:", message)
 			switch (message.type) {
+				case "showWelcome":
+					console.log("Received showWelcome message in App.tsx")
+					setShowWelcomeLocal(true)
+					break
 				case "action":
 					switch (message.action!) {
 						case "settingsButtonClicked":
@@ -66,6 +80,7 @@ const AppContent = () => {
 							setShowHistory(false)
 							closeMcpView()
 							setShowAccount(false)
+							setShowWelcomeLocal(false) // Hide welcome view when chat button is clicked
 							break
 					}
 					break
@@ -98,7 +113,7 @@ const AppContent = () => {
 
 	return (
 		<>
-			{showWelcome ? (
+			{showWelcomeLocal ? (
 				<WelcomeWrapper />
 			) : (
 				<>

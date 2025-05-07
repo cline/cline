@@ -8,6 +8,7 @@ import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
 import { WebviewType } from "@shared/WebviewMessage"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
@@ -87,12 +88,31 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
 			// panel
 			webviewView.onDidChangeViewState(
-				() => {
+				async () => {
 					if (this.view?.visible) {
+						// Check if showWelcome flag is set in global state
+						const showWelcome = await this.controller.context.globalState.get<boolean>("showWelcome")
+
+						// Send didBecomeVisible action
 						this.controller.postMessageToWebview({
 							type: "action",
 							action: "didBecomeVisible",
 						})
+
+						// If showWelcome flag is set, send showWelcome message and clear the flag
+						// We're now sending it to all webviews to ensure it's displayed
+						if (showWelcome) {
+							console.log(`Sending showWelcome message to ${this.webviewType} webview`)
+							this.controller.postMessageToWebview({
+								type: "showWelcome",
+							})
+
+							// Add a delay before clearing the flag to ensure the webview has time to process it
+							await setTimeoutPromise(1000)
+
+							// Clear the flag after sending the message
+							await this.controller.context.globalState.update("showWelcome", undefined)
+						}
 					}
 				},
 				null,
@@ -101,12 +121,30 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
 			webviewView.onDidChangeVisibility(
-				() => {
+				async () => {
 					if (this.view?.visible) {
+						// Check if showWelcome flag is set in global state
+						const showWelcome = await this.controller.context.globalState.get<boolean>("showWelcome")
+
+						// Send didBecomeVisible action
 						this.controller.postMessageToWebview({
 							type: "action",
 							action: "didBecomeVisible",
 						})
+
+						// If showWelcome flag is set, send showWelcome message and clear the flag
+						if (showWelcome) {
+							console.log(`Sending showWelcome message to ${this.webviewType} webview`)
+							this.controller.postMessageToWebview({
+								type: "showWelcome",
+							})
+
+							// Add a delay before clearing the flag to ensure the webview has time to process it
+							await setTimeoutPromise(1000)
+
+							// Clear the flag after sending the message
+							await this.controller.context.globalState.update("showWelcome", undefined)
+						}
 					}
 				},
 				null,
@@ -222,6 +260,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				<meta charset="utf-8">
 				<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 				<meta name="theme-color" content="#000000">
+				<meta name="webview-type" content="${this.webviewType}">
 				<link rel="stylesheet" type="text/css" href="${stylesUri}">
 				<link href="${codiconsUri}" rel="stylesheet" />
 				<link href="${katexCssUri}" rel="stylesheet" />

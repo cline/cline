@@ -131,6 +131,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		globalClineRulesToggles,
 		requestTimeoutMs,
 		shellIntegrationTimeout,
+		showWelcome,
 	] = await Promise.all([
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
@@ -210,6 +211,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
 		getGlobalState(context, "requestTimeoutMs") as Promise<number | undefined>,
 		getGlobalState(context, "shellIntegrationTimeout") as Promise<number | undefined>,
+		getGlobalState(context, "showWelcome") as Promise<boolean | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -334,6 +336,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
 		shellIntegrationTimeout: shellIntegrationTimeout || 4000,
+		showWelcome,
 	}
 }
 
