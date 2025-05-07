@@ -447,7 +447,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.openDebugger", () => {
-			inspector.open(9229, "127.0.0.1", true)
+			inspector.open(9229, "127.0.0.1")
 			const url = inspector.url()
 			if (!url) {
 				vscode.window.showErrorMessage("Failed to open inspector; URL is undefined")
