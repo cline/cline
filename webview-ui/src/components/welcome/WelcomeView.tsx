@@ -4,13 +4,15 @@ import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import ApiOptionsSection from "./ApiOptionsSection"
+import { WebviewType } from "@shared/WebviewMessage"
 
 interface WelcomeViewProps {
 	showApiOptions: boolean
 	setShowApiOptions: Dispatch<SetStateAction<boolean>>
+	webviewType: WebviewType
 }
 
-const WelcomeView = memo(({ showApiOptions, setShowApiOptions }: WelcomeViewProps) => {
+const WelcomeView = memo(({ showApiOptions, setShowApiOptions, webviewType }: WelcomeViewProps) => {
 	const handleLogin = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
 			console.error("Failed to get login URL:", err),
@@ -52,7 +54,11 @@ const WelcomeView = memo(({ showApiOptions, setShowApiOptions }: WelcomeViewProp
 					</VSCodeButton>
 				)}
 
-				<ApiOptionsSection showApiOptions={showApiOptions} />
+				<ApiOptionsSection
+					showApiOptions={showApiOptions}
+					webviewType={webviewType}
+					setShowApiOptions={setShowApiOptions}
+				/>
 			</div>
 		</div>
 	)

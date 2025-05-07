@@ -12,9 +12,9 @@ const WelcomeWrapper = memo(() => {
 	return (
 		<>
 			{webviewType === "sidebar" ? (
-				<WelcomeView showApiOptions={showApiOptions} setShowApiOptions={setShowApiOptions} />
+				<WelcomeView showApiOptions={showApiOptions} setShowApiOptions={setShowApiOptions} webviewType={webviewType} />
 			) : (
-				<WelcomeTabView showApiOptions={showApiOptions} setShowApiOptions={setShowApiOptions} />
+				<WelcomeTabView showApiOptions={showApiOptions} setShowApiOptions={setShowApiOptions} webviewType={webviewType} />
 			)}
 		</>
 	)

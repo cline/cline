@@ -27,15 +27,19 @@ import featureBg from "@/assets/images/feature-bg.png"
 
 // Import CSS styles
 import "@/assets/css/styles.css"
+import { WebviewType } from "@shared/WebviewMessage"
+import { validateApiConfiguration } from "@/utils/validate" // Added import
 
 interface WelcomeTabViewProps {
 	onToggleView?: () => void
 	showApiOptions?: boolean
 	setShowApiOptions?: Dispatch<SetStateAction<boolean>>
+	webviewType: WebviewType
 }
 
-const WelcomeTabView = memo(({ onToggleView, showApiOptions, setShowApiOptions }: WelcomeTabViewProps = {}) => {
+const WelcomeTabView = memo(({ onToggleView, showApiOptions, setShowApiOptions, webviewType }: WelcomeTabViewProps) => {
 	const { apiConfiguration } = useExtensionState()
+	const isApiConfigValid = validateApiConfiguration(apiConfiguration) === undefined
 	const [activeTab, setActiveTab] = useState("Key Features")
 	const inputFieldRef = useRef<HTMLDivElement>(null)
 	const inputRef = useRef<HTMLInputElement>(null)
@@ -119,118 +123,184 @@ const WelcomeTabView = memo(({ onToggleView, showApiOptions, setShowApiOptions }
 							Let's Create your Account!
 						</button>
 					</div>
-					{showApiOptions !== undefined && <ApiOptionsSection showApiOptions={showApiOptions} />}
+					{showApiOptions !== undefined && (
+						<ApiOptionsSection
+							showApiOptions={showApiOptions}
+							webviewType={webviewType}
+							setShowApiOptions={setShowApiOptions}
+						/>
+					)}
 
-					<div className="features-container">
-						<div className="feature-row">
-							<div
-								className="feature-card"
-								style={{
-									transition: "all 0.3s ease",
-									cursor: "pointer",
-								}}>
-								<div className="feature-icon-container">
-									<div className="feature-icon feature-icon-1"></div>
-									<div className="feature-title">Snake game</div>
+					{/* Conditionally render features-container */}
+					{!isApiConfigValid && !showApiOptions && (
+						<div className="features-container">
+							<div className="feature-row">
+								<div
+									className="feature-card"
+									style={{
+										transition: "all 0.3s ease",
+										cursor: "pointer",
+									}}>
+									<div className="feature-icon-container">
+										<div className="feature-icon feature-icon-1"></div>
+										<div className="feature-title">Snake game</div>
+									</div>
+									<div className="feature-description">&gt; Build a Snake game...</div>
 								</div>
-								<div className="feature-description">&gt; Build a Snake game...</div>
+
+								<div
+									className="feature-card"
+									style={{
+										transition: "all 0.3s ease",
+										cursor: "pointer",
+									}}>
+									<div className="feature-icon-container">
+										<div className="feature-icon feature-icon-2"></div>
+										<div className="feature-title">To-do App</div>
+									</div>
+									<div className="feature-description">&gt; Generate a to-do App...</div>
+								</div>
+
+								<div
+									className="feature-card"
+									style={{
+										transition: "all 0.3s ease",
+										cursor: "pointer",
+									}}>
+									<div className="feature-icon-container">
+										<div className="feature-icon feature-icon-3"></div>
+										<div className="feature-title">Script</div>
+									</div>
+									<div className="feature-description">&gt; Write a script and then...</div>
+								</div>
+
+								<div
+									className="feature-card"
+									style={{
+										transition: "all 0.3s ease",
+										cursor: "pointer",
+									}}>
+									<div className="feature-icon-container">
+										<div className="feature-icon feature-icon-4"></div>
+										<div className="feature-title">New Feature</div>
+									</div>
+									<div className="feature-description">&gt; Read my code &amp; suggest...</div>
+								</div>
 							</div>
 
-							<div
-								className="feature-card"
-								style={{
-									transition: "all 0.3s ease",
-									cursor: "pointer",
-								}}>
-								<div className="feature-icon-container">
-									<div className="feature-icon feature-icon-2"></div>
-									<div className="feature-title">To-do App</div>
-								</div>
-								<div className="feature-description">&gt; Generate a to-do App...</div>
-							</div>
-
-							<div
-								className="feature-card"
-								style={{
-									transition: "all 0.3s ease",
-									cursor: "pointer",
-								}}>
-								<div className="feature-icon-container">
-									<div className="feature-icon feature-icon-3"></div>
-									<div className="feature-title">Script</div>
-								</div>
-								<div className="feature-description">&gt; Write a script and then...</div>
-							</div>
-
-							<div
-								className="feature-card"
-								style={{
-									transition: "all 0.3s ease",
-									cursor: "pointer",
-								}}>
-								<div className="feature-icon-container">
-									<div className="feature-icon feature-icon-4"></div>
-									<div className="feature-title">New Feature</div>
-								</div>
-								<div className="feature-description">&gt; Read my code &amp; suggest...</div>
-							</div>
-						</div>
-
-						<div className="footer">
-							<div
-								className="input-field"
-								ref={inputFieldRef}
-								onClick={handleInputFieldClick}
-								style={{
-									position: "relative",
-									cursor: "text",
-								}}>
-								{showPlaceholder && <div className="input-placeholder">Type your prompt here...</div>}
-								{!showPlaceholder && (
-									<input
-										ref={inputRef}
-										type="text"
-										value={inputValue}
-										onChange={handleInputChange}
-										onBlur={handleInputBlur}
-										style={{
-											width: "100%",
-											background: "transparent",
-											border: "none",
-											outline: "none",
-											color: "#FFFFFF",
-											fontSize: "14px",
-											fontFamily: "SF Pro, Inter, sans-serif",
-										}}
-									/>
-								)}
-
-								<div className="input-actions-container">
-									<div className="input-actions">
-										<button
-											className="action-button action-button-secondary"
+							<div className="footer">
+								<div
+									className="input-field"
+									ref={inputFieldRef}
+									onClick={handleInputFieldClick}
+									style={{
+										position: "relative",
+										cursor: "text",
+									}}>
+									{showPlaceholder && <div className="input-placeholder">Type your prompt here...</div>}
+									{!showPlaceholder && (
+										<input
+											ref={inputRef}
+											type="text"
+											value={inputValue}
+											onChange={handleInputChange}
+											onBlur={handleInputBlur}
 											style={{
-												transition: "all 0.2s ease",
-												opacity: 0.5,
-											}}>
-											<div className="action-icon action-icon-1"></div>
-											<span className="action-text">Improve prompt</span>
-										</button>
+												width: "100%",
+												background: "transparent",
+												border: "none",
+												outline: "none",
+												color: "#FFFFFF",
+												fontSize: "14px",
+												fontFamily: "SF Pro, Inter, sans-serif",
+											}}
+										/>
+									)}
 
-										<button
-											className="action-button action-button-primary"
+									<div className="input-actions-container">
+										<div className="input-actions">
+											<button
+												className="action-button action-button-secondary"
+												style={{
+													transition: "all 0.2s ease",
+													opacity: 0.5,
+												}}>
+												<div className="action-icon action-icon-1"></div>
+												<span className="action-text">Improve prompt</span>
+											</button>
+
+											<button
+												className="action-button action-button-primary"
+												style={{
+													transition: "all 0.2s ease",
+													opacity: 0.5,
+												}}>
+												<div className="action-icon action-icon-2"></div>
+												<span className="action-text">Start construction</span>
+											</button>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/* ... other content of features-container ... */}
+							{/* Ensure the footer is also inside this conditional block if it's part of features-container */}
+							<div className="footer">
+								<div
+									className="input-field"
+									ref={inputFieldRef}
+									onClick={handleInputFieldClick}
+									style={{
+										position: "relative",
+										cursor: "text",
+									}}>
+									{showPlaceholder && <div className="input-placeholder">Type your prompt here...</div>}
+									{!showPlaceholder && (
+										<input
+											ref={inputRef}
+											type="text"
+											value={inputValue}
+											onChange={handleInputChange}
+											onBlur={handleInputBlur}
 											style={{
-												transition: "all 0.2s ease",
-												opacity: 0.5,
-											}}>
-											<div className="action-icon action-icon-2"></div>
-											<span className="action-text">Start construction</span>
-										</button>
+												width: "100%",
+												background: "transparent",
+												border: "none",
+												outline: "none",
+												color: "#FFFFFF",
+												fontSize: "14px",
+												fontFamily: "SF Pro, Inter, sans-serif",
+											}}
+										/>
+									)}
+
+									<div className="input-actions-container">
+										<div className="input-actions">
+											<button
+												className="action-button action-button-secondary"
+												style={{
+													transition: "all 0.2s ease",
+													opacity: 0.5,
+												}}>
+												<div className="action-icon action-icon-1"></div>
+												<span className="action-text">Improve prompt</span>
+											</button>
+
+											<button
+												className="action-button action-button-primary"
+												style={{
+													transition: "all 0.2s ease",
+													opacity: 0.5,
+												}}>
+												<div className="action-icon action-icon-2"></div>
+												<span className="action-text">Start construction</span>
+											</button>
+										</div>
 									</div>
 								</div>
 							</div>
 						</div>
-					</div>
+					)}
+					{/* End of conditional rendering for features-container */}
 				</div>
 
 				<div className="divider"></div>
