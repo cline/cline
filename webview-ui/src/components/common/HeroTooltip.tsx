@@ -30,7 +30,7 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
       border border-[var(--vscode-widget-border)] rounded p-2 w-full shadow-md text-xs max-w-[250px] ${className}`}>
 				<div
 					className="whitespace-pre-wrap break-words max-h-[150px] overflow-y-auto text-[11px] 
-        font-[var(--vscode-editor-font-family)] bg-[var(--vscode-textBlockQuote-background)] p-1 rounded">
+        font-[var(--vscode-editor-font-family)]  p-1 rounded">
 					{content}
 				</div>
 			</div>

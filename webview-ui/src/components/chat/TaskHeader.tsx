@@ -162,7 +162,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							whiteSpace: "nowrap",
 						}}>
 						<HeroTooltip content="Current tokens used in this request">
-							<span>{formatLargeNumber(lastApiReqTotalTokens || 0)}</span>
+							<span className="cursor-pointer">{formatLargeNumber(lastApiReqTotalTokens || 0)}</span>
 						</HeroTooltip>
 						<div
 							style={{
@@ -171,25 +171,28 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								gap: "3px",
 								flex: 1,
 							}}>
-							<div
-								style={{
-									flex: 1,
-									height: "4px",
-									backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
-									borderRadius: "2px",
-									overflow: "hidden",
-								}}>
+							<HeroTooltip content="Context window usage">
 								<div
 									style={{
-										width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
-										height: "100%",
-										backgroundColor: "var(--vscode-badge-foreground)",
+										flex: 1,
+										height: "4px",
+										backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
 										borderRadius: "2px",
+										overflow: "hidden",
 									}}
-								/>
-							</div>
+									className="cursor-pointer">
+									<div
+										style={{
+											width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
+											height: "100%",
+											backgroundColor: "var(--vscode-badge-foreground)",
+											borderRadius: "2px",
+										}}
+									/>
+								</div>
+							</HeroTooltip>
 							<HeroTooltip content="Maximum context window size for this model">
-								<span>{formatLargeNumber(contextWindow)}</span>
+								<span className="cursor-pointer">{formatLargeNumber(contextWindow)}</span>
 							</HeroTooltip>
 						</div>
 					</div>
@@ -292,7 +295,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								ref={textRef}
 								style={{
 									display: "-webkit-box",
-									WebkitLineClamp: isTextExpanded ? "unset" : 3,
+									WebkitLineClamp: isTextExpanded ? "unset" : 2,
 									WebkitBoxOrient: "vertical",
 									overflow: "hidden",
 									whiteSpace: "pre-wrap",
@@ -357,7 +360,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									display: "flex",
 									justifyContent: "space-between",
 									alignItems: "center",
-									height: 17,
+									flexWrap: "wrap",
 								}}>
 								<div
 									style={{
@@ -366,6 +369,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										gap: "4px",
 										flexWrap: "wrap",
 									}}>
+									<div style={{ display: "flex", alignItems: "center" }}>
+										<span style={{ fontWeight: "bold" }}>Tokens:</span>
+									</div>
 									<HeroTooltip content="Prompt Tokens">
 										<span className="flex items-center gap-[3px] cursor-pointer">
 											<i
@@ -399,8 +405,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									display: "flex",
 									justifyContent: "space-between",
 									alignItems: "center",
-									height: 17,
+									flexWrap: "wrap",
 								}}>
+								{
+									!shouldShowPromptCacheInfo() && <div /> // Placeholder for spacing}
+								}
 								{shouldShowPromptCacheInfo() && (
 									<div
 										style={{
@@ -409,6 +418,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											gap: "4px",
 											flexWrap: "wrap",
 										}}>
+										<div style={{ display: "flex", alignItems: "center" }}>
+											<span style={{ fontWeight: "bold" }}>Cache:</span>
+										</div>
 										{cacheWrites !== undefined && cacheWrites > 0 && (
 											<HeroTooltip content="Tokens written to cache">
 												<span className="flex items-center gap-[3px] cursor-pointer">
@@ -611,23 +623,25 @@ const DeleteButton: React.FC<{
 	taskSize: string
 	taskId?: string
 }> = ({ taskSize, taskId }) => (
-	<VSCodeButton
-		appearance="icon"
-		onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ value: [taskId] })}
-		style={{ padding: "0px 0px" }}>
-		<div
-			style={{
-				display: "flex",
-				alignItems: "center",
-				gap: "3px",
-				fontSize: "10px",
-				fontWeight: "bold",
-				opacity: 0.6,
-			}}>
-			<i className={`codicon codicon-trash`} />
-			{taskSize}
-		</div>
-	</VSCodeButton>
+	<HeroTooltip content="Delete Task & Checkpoints">
+		<VSCodeButton
+			appearance="icon"
+			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ value: [taskId] })}
+			style={{ padding: "0px 0px" }}>
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: "3px",
+					fontSize: "10px",
+					fontWeight: "bold",
+					opacity: 0.6,
+				}}>
+				<i className={`codicon codicon-trash`} />
+				{taskSize}
+			</div>
+		</VSCodeButton>
+	</HeroTooltip>
 )
 
 // const ExportButton = () => (
