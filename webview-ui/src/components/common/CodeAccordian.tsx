@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react"
 import { getLanguageFromPath } from "@src/utils/getLanguageFromPath"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
+import { cn } from "@/lib/utils"
+import CodeBlock from "./CodeBlock"
 import { ToolProgressStatus } from "@roo/shared/ExtensionMessage"
 import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 
@@ -46,64 +47,31 @@ const CodeAccordian = ({
 	)
 
 	return (
-		<div
-			style={{
-				borderRadius: 3,
-				backgroundColor: CODE_BLOCK_BG_COLOR,
-				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
-				border: "1px solid var(--vscode-editorGroup-border)",
-			}}>
+		<div className="rounded-[3px] overflow-hidden border border-vscode-editorGroup-border bg-vscode-code-block-background">
 			{(path || isFeedback || isConsoleLogs) && (
 				<div
-					style={{
-						color: "var(--vscode-descriptionForeground)",
-						display: "flex",
-						alignItems: "center",
-						padding: "9px 10px",
-						cursor: isLoading ? "wait" : "pointer",
-						opacity: isLoading ? 0.7 : 1,
-						// pointerEvents: isLoading ? "none" : "auto",
-						userSelect: "none",
-						WebkitUserSelect: "none",
-						MozUserSelect: "none",
-						msUserSelect: "none",
-					}}
-					className={`${isLoading ? "animate-pulse" : ""}`}
+					className={cn(
+						"text-vscode-descriptionForeground flex items-center p-[9px_10px] select-none",
+						isLoading ? "cursor-wait opacity-70 animate-pulse" : "cursor-pointer opacity-100",
+					)}
 					onClick={isLoading ? undefined : onToggleExpand}>
 					{isLoading && <VSCodeProgressRing className="size-3 mr-2" />}
 					{isFeedback || isConsoleLogs ? (
-						<div style={{ display: "flex", alignItems: "center" }}>
-							<span
-								className={`codicon codicon-${isFeedback ? "feedback" : "output"}`}
-								style={{ marginRight: "6px" }}></span>
-							<span
-								style={{
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									marginRight: "8px",
-								}}>
+						<div className="flex items-center">
+							<span className={`codicon codicon-${isFeedback ? "feedback" : "output"} mr-[6px]`}></span>
+							<span className="whitespace-nowrap overflow-hidden text-ellipsis mr-2">
 								{isFeedback ? "User Edits" : "Console Logs"}
 							</span>
 						</div>
 					) : (
 						<>
 							{path?.startsWith(".") && <span>.</span>}
-							<span
-								style={{
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									marginRight: "8px",
-									// trick to get ellipsis at beginning of string
-									direction: "rtl",
-									textAlign: "left",
-								}}>
+							<span className="whitespace-nowrap overflow-hidden text-ellipsis mr-2 rtl text-left">
 								{removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
 							</span>
 						</>
 					)}
-					<div style={{ flexGrow: 1 }}></div>
+					<div className="flex-grow"></div>
 					{progressStatus && progressStatus.text && (
 						<>
 							{progressStatus.icon && <span className={`codicon codicon-${progressStatus.icon} mr-1`} />}
@@ -116,12 +84,7 @@ const CodeAccordian = ({
 				</div>
 			)}
 			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
-				<div
-					style={{
-						overflowX: "auto",
-						overflowY: "hidden",
-						maxWidth: "100%",
-					}}>
+				<div className="overflow-x-auto overflow-y-hidden max-w-full">
 					<CodeBlock
 						source={(code ?? diff ?? "").trim()}
 						language={diff !== undefined ? "diff" : inferredLanguage}

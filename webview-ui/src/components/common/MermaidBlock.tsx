@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
 import { useDebounceEffect } from "@src/utils/useDebounceEffect"
-import styled from "styled-components"
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useCopyToClipboard } from "@src/utils/clipboard"
 import CodeBlock from "./CodeBlock"
+import { cn } from "@/lib/utils"
 
 const MERMAID_THEME = {
 	background: "#1e1e1e", // VS Code dark theme background
@@ -152,37 +152,18 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 			{isLoading && <LoadingMessage>{t("common:mermaid.loading")}</LoadingMessage>}
 
 			{error ? (
-				<div style={{ marginTop: "0px", overflow: "hidden", marginBottom: "8px" }}>
+				<div className="mt-0 overflow-hidden mb-2">
 					<div
-						style={{
-							borderBottom: isErrorExpanded ? "1px solid var(--vscode-editorGroup-border)" : "none",
-							fontWeight: "normal",
-							fontSize: "var(--vscode-font-size)",
-							color: "var(--vscode-editor-foreground)",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "space-between",
-							cursor: "pointer",
-						}}
+						className={cn(
+							"font-normal text-vscode-font-size text-vscode-editor-foreground flex items-center justify-between cursor-pointer",
+							isErrorExpanded ? "border-b border-vscode-editorGroup-border" : "border-b-0",
+						)}
 						onClick={() => setIsErrorExpanded(!isErrorExpanded)}>
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "10px",
-								flexGrow: 1,
-							}}>
-							<span
-								className="codicon codicon-warning"
-								style={{
-									color: "var(--vscode-editorWarning-foreground)",
-									opacity: 0.8,
-									fontSize: 16,
-									marginBottom: "-1.5px",
-								}}></span>
-							<span style={{ fontWeight: "bold" }}>{t("common:mermaid.render_error")}</span>
+						<div className="flex items-center gap-2.5 flex-grow">
+							<span className="codicon codicon-warning text-vscode-editorWarning-foreground opacity-80 text-base mb-[-1.5px]"></span>
+							<span className="font-bold">{t("common:mermaid.render_error")}</span>
 						</div>
-						<div style={{ display: "flex", alignItems: "center" }}>
+						<div className="flex items-center">
 							<CopyButton
 								onClick={(e) => {
 									e.stopPropagation()
@@ -195,21 +176,14 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 						</div>
 					</div>
 					{isErrorExpanded && (
-						<div
-							style={{
-								padding: "8px",
-								backgroundColor: "var(--vscode-editor-background)",
-								borderTop: "none",
-							}}>
-							<div style={{ marginBottom: "8px", color: "var(--vscode-descriptionForeground)" }}>
-								{error}
-							</div>
+						<div className="p-2 bg-vscode-editor-background border-t-0">
+							<div className="mb-2 text-vscode-descriptionForeground">{error}</div>
 							<CodeBlock language="mermaid" source={code} />
 						</div>
 					)}
 				</div>
 			) : (
-				<SvgContainer onClick={handleClick} ref={containerRef} $isLoading={isLoading} />
+				<SvgContainer onClick={handleClick} ref={containerRef} isLoading={isLoading} />
 			)}
 		</MermaidBlockContainer>
 	)
@@ -266,44 +240,40 @@ async function svgToPng(svgEl: SVGElement): Promise<string> {
 	})
 }
 
-const MermaidBlockContainer = styled.div`
-	position: relative;
-	margin: 8px 0;
-`
-
-const LoadingMessage = styled.div`
-	padding: 8px 0;
-	color: var(--vscode-descriptionForeground);
-	font-style: italic;
-	font-size: 0.9em;
-`
-
-const CopyButton = styled.button`
-	padding: 3px;
-	height: 24px;
-	margin-right: 4px;
-	color: var(--vscode-editor-foreground);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: transparent;
-	border: none;
-	cursor: pointer;
-
-	&:hover {
-		opacity: 0.8;
-	}
-`
-
-interface SvgContainerProps {
-	$isLoading: boolean
+const MermaidBlockContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+	return <div className="relative my-2">{children}</div>
 }
 
-const SvgContainer = styled.div<SvgContainerProps>`
-	opacity: ${(props) => (props.$isLoading ? 0.3 : 1)};
-	min-height: 20px;
-	transition: opacity 0.2s ease;
-	cursor: pointer;
-	display: flex;
-	justify-content: center;
-`
+const LoadingMessage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+	return <div className="py-2 text-vscode-descriptionForeground italic text-[0.9em]">{children}</div>
+}
+
+const CopyButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ children, ...props }) => {
+	return (
+		<button
+			className="p-[3px] h-6 mr-1 text-vscode-editor-foreground flex items-center justify-center bg-transparent border-none cursor-pointer hover:opacity-80"
+			{...props}>
+			{children}
+		</button>
+	)
+}
+
+interface SvgContainerProps extends React.HTMLAttributes<HTMLDivElement> {
+	isLoading: boolean
+	children?: React.ReactNode
+}
+
+const SvgContainer = React.forwardRef<HTMLDivElement, SvgContainerProps>(({ isLoading, children, ...props }, ref) => {
+	return (
+		<div
+			ref={ref}
+			className={cn(
+				"min-h-[20px] transition-opacity duration-200 ease-in-out cursor-pointer flex justify-center",
+				isLoading ? "opacity-30" : "opacity-100",
+			)}
+			{...props}>
+			{children}
+		</div>
+	)
+})
+SvgContainer.displayName = "SvgContainer"

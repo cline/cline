@@ -1,29 +1,10 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useState } from "react"
-import styled from "styled-components"
 import { vscode } from "@src/utils/vscode"
 import { TelemetrySetting } from "@roo/shared/TelemetrySetting"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Trans } from "react-i18next"
-
-const BannerContainer = styled.div`
-	background-color: var(--vscode-banner-background);
-	padding: 12px 20px;
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	flex-shrink: 0;
-	margin-bottom: 6px;
-`
-
-const ButtonContainer = styled.div`
-	display: flex;
-	gap: 8px;
-	width: 100%;
-	& > vscode-button {
-		flex: 1;
-	}
-`
+import { cn } from "@/lib/utils"
 
 const TelemetryBanner = () => {
 	const { t } = useAppTranslation()
@@ -48,7 +29,7 @@ const TelemetryBanner = () => {
 	}
 
 	return (
-		<BannerContainer>
+		<div className={`bg-vscode-banner-background p-[12px_20px] flex flex-col gap-[10px] shrink-0 mb-[6px]`}>
 			<div>
 				<strong>{t("welcome:telemetry.title")}</strong>
 				<div className="mt-1">
@@ -64,15 +45,15 @@ const TelemetryBanner = () => {
 					</div>
 				</div>
 			</div>
-			<ButtonContainer>
-				<VSCodeButton appearance="primary" onClick={handleAllow} disabled={hasChosen}>
+			<div className={cn("flex gap-[8px] w-full")}>
+				<VSCodeButton appearance="primary" onClick={handleAllow} disabled={hasChosen} className="flex-1">
 					{t("welcome:telemetry.allow")}
 				</VSCodeButton>
-				<VSCodeButton appearance="secondary" onClick={handleDeny} disabled={hasChosen}>
+				<VSCodeButton appearance="secondary" onClick={handleDeny} disabled={hasChosen} className="flex-1">
 					{t("welcome:telemetry.deny")}
 				</VSCodeButton>
-			</ButtonContainer>
-		</BannerContainer>
+			</div>
+		</div>
 	)
 }
 

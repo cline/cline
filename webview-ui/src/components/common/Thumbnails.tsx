@@ -37,56 +37,24 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 	}
 
 	return (
-		<div
-			ref={containerRef}
-			style={{
-				display: "flex",
-				flexWrap: "wrap",
-				gap: 5,
-				rowGap: 3,
-				...style,
-			}}>
+		<div ref={containerRef} className="flex flex-wrap gap-[5px] gap-y-[3px]" style={style}>
 			{images.map((image, index) => (
 				<div
 					key={index}
-					style={{ position: "relative" }}
+					className="relative"
 					onMouseEnter={() => setHoveredIndex(index)}
 					onMouseLeave={() => setHoveredIndex(null)}>
 					<img
 						src={image}
 						alt={`Thumbnail ${index + 1}`}
-						style={{
-							width: 34,
-							height: 34,
-							objectFit: "cover",
-							borderRadius: 4,
-							cursor: "pointer",
-						}}
+						className="w-[34px] h-[34px] object-cover rounded cursor-pointer"
 						onClick={() => handleImageClick(image)}
 					/>
 					{isDeletable && hoveredIndex === index && (
 						<div
 							onClick={() => handleDelete(index)}
-							style={{
-								position: "absolute",
-								top: -4,
-								right: -4,
-								width: 13,
-								height: 13,
-								borderRadius: "50%",
-								backgroundColor: "var(--vscode-badge-background)",
-								display: "flex",
-								justifyContent: "center",
-								alignItems: "center",
-								cursor: "pointer",
-							}}>
-							<span
-								className="codicon codicon-close"
-								style={{
-									color: "var(--vscode-foreground)",
-									fontSize: 10,
-									fontWeight: "bold",
-								}}></span>
+							className="absolute -top-1 -right-1 w-[13px] h-[13px] rounded-full bg-vscode-badge-background flex justify-center items-center cursor-pointer">
+							<span className="codicon codicon-close text-vscode-foreground text-[10px] font-bold"></span>
 						</div>
 					)}
 				</div>

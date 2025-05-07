@@ -2,6 +2,7 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-u
 import { SquareMousePointer } from "lucide-react"
 import { HTMLAttributes, useEffect, useMemo, useState } from "react"
 
+import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue, Slider } from "@/components/ui"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { vscode } from "@/utils/vscode"
@@ -188,7 +189,7 @@ export const BrowserSettings = ({
 											setCachedStateField("remoteBrowserHost", e.target.value || undefined)
 										}
 										placeholder={t("settings:browser.remote.urlPlaceholder")}
-										style={{ flexGrow: 1 }}
+										className="grow"
 									/>
 									<VSCodeButton disabled={testingConnection} onClick={testConnection}>
 										{testingConnection || discovering
@@ -198,11 +199,12 @@ export const BrowserSettings = ({
 								</div>
 								{testResult && (
 									<div
-										className={`p-2 rounded-xs text-sm ${
+										className={cn(
+											"p-2 rounded-xs text-sm",
 											testResult.success
 												? "bg-green-800/20 text-green-400"
-												: "bg-red-800/20 text-red-400"
-										}`}>
+												: "bg-red-800/20 text-red-400",
+										)}>
 										{testResult.text}
 									</div>
 								)}

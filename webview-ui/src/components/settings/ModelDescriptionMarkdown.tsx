@@ -1,11 +1,32 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useRef, useState } from "react"
+import React, { memo, useEffect, useRef, useState, FC, PropsWithChildren } from "react" // Added React, FC, PropsWithChildren
 import { useRemark } from "react-remark"
 
 import { cn } from "@/lib/utils"
 import { Collapsible, CollapsibleTrigger } from "@/components/ui"
 
-import { StyledMarkdown } from "./styles"
+// Removed import { StyledMarkdown } from "./styles"
+
+// Moved StyledMarkdown component definition here
+interface StyledMarkdownProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+const StyledMarkdown: FC<PropsWithChildren<StyledMarkdownProps>> = ({ className, children, ...props }) => {
+	return (
+		<div
+			className={cn(
+				"font-vscode-font-family text-xs text-vscode-descriptionForeground",
+				"[&_p]:leading-tight [&_p]:m-0 [&_p]:whitespace-pre-wrap",
+				"[&_li]:leading-tight [&_li]:m-0",
+				"[&_ol]:leading-tight [&_ol]:m-0 [&_ol]:pl-[1.5em] [&_ol]:ml-0",
+				"[&_ul]:leading-tight [&_ul]:m-0 [&_ul]:pl-[1.5em] [&_ul]:ml-0",
+				"[&_a]:no-underline hover:[&_a]:underline",
+				className,
+			)}
+			{...props}>
+			{children}
+		</div>
+	)
+}
 
 export const ModelDescriptionMarkdown = memo(
 	({

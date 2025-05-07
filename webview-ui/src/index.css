@@ -123,6 +123,51 @@
 	--color-vscode-inputValidation-infoForeground: var(--vscode-inputValidation-infoForeground);
 	--color-vscode-inputValidation-infoBackground: var(--vscode-inputValidation-infoBackground);
 	--color-vscode-inputValidation-infoBorder: var(--vscode-inputValidation-infoBorder);
+	--color-vscode-descriptionForeground-transparent-30: color-mix(
+		in srgb,
+		var(--vscode-descriptionForeground) 30%,
+		transparent
+	);
+	--color-vscode-testing-iconPassed: var(--vscode-testing-iconPassed);
+	--color-vscode-testing-iconFailed: var(--vscode-testing-iconFailed);
+	--color-vscode-titleBar-inactiveForeground: var(--vscode-titleBar-inactiveForeground);
+	--color-vscode-titleBar-activeForeground: var(--vscode-titleBar-activeForeground);
+	--color-vscode-editor-lineHighlightBorder: var(--vscode-editor-lineHighlightBorder);
+	--color-vscode-titleBar-inactiveForeground-20: color-mix(
+		in srgb,
+		var(--vscode-titleBar-inactiveForeground) 20%,
+		transparent
+	);
+
+	/* Custom color for CodeBlock background with fallbacks */
+	--color-vscode-code-block-background: var(
+		--vscode-editor-background,
+		var(--vscode-sideBar-background, rgb(30 30 30))
+	);
+
+	/* Custom colors for Slider border */
+	--color-vscode-slider-border-light: #767676;
+	--color-vscode-slider-border-dark: #858585;
+
+	/* Fallback colors for Highlight.js (Light theme) */
+	--color-vscode-fallback-light-comment: #008000;
+	--color-vscode-fallback-light-doctag: #0000ff;
+	--color-vscode-fallback-light-keyword: #0000ff;
+	--color-vscode-fallback-light-title-class: #001080;
+	--color-vscode-fallback-light-title-function: #795e26;
+	--color-vscode-fallback-light-number: #098658;
+	--color-vscode-fallback-light-regexp: #a31515;
+	--color-vscode-fallback-light-string: #a31515;
+
+	/* Fallback colors for Highlight.js (Dark theme) */
+	--color-vscode-fallback-dark-comment: #6a9955;
+	--color-vscode-fallback-dark-doctag: #569cd6;
+	--color-vscode-fallback-dark-keyword: #569cd6;
+	--color-vscode-fallback-dark-title-class: #9cdcfe;
+	--color-vscode-fallback-dark-title-function: #dcdcaa;
+	--color-vscode-fallback-dark-number: #b5cea8;
+	--color-vscode-fallback-dark-regexp: #ce9178;
+	--color-vscode-fallback-dark-string: #ce9178;
 }
 
 @layer base {
@@ -183,6 +228,11 @@
 	/* Search result highlighting */
 	.history-item-highlight {
 		@apply underline;
+	}
+
+	/* Shiki code block inner code transparency */
+	.shiki > code {
+		background-color: transparent !important;
 	}
 }
 
@@ -412,4 +462,17 @@ input[cmdk-input]:focus {
 
 .codicon[class*="codicon-"] {
 	text-rendering: geometricPrecision !important;
+}
+
+/**
+  * Animations
+  */
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
 }

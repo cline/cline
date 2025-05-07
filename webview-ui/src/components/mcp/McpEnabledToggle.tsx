@@ -16,18 +16,11 @@ const McpEnabledToggle = () => {
 	}
 
 	return (
-		<div style={{ marginBottom: "20px" }}>
+		<div className="mb-5">
 			<VSCodeCheckbox checked={mcpEnabled} onChange={handleChange}>
-				<span style={{ fontWeight: "500" }}>{t("mcp:enableToggle.title")}</span>
+				<span className="font-medium">{t("mcp:enableToggle.title")}</span>
 			</VSCodeCheckbox>
-			<p
-				style={{
-					fontSize: "12px",
-					marginTop: "5px",
-					color: "var(--vscode-descriptionForeground)",
-				}}>
-				{t("mcp:enableToggle.description")}
-			</p>
+			<p className="text-xs mt-[5px] text-vscode-descriptionForeground">{t("mcp:enableToggle.description")}</p>
 		</div>
 	)
 }

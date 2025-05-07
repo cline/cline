@@ -68,18 +68,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 		switch (option.type) {
 			case ContextMenuOptionType.Mode:
 				return (
-					<div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-						<span style={{ lineHeight: "1.2" }}>{option.label}</span>
+					<div className="flex flex-col gap-0.5">
+						<span className="leading-tight">{option.label}</span>
 						{option.description && (
-							<span
-								style={{
-									opacity: 0.5,
-									fontSize: "0.9em",
-									lineHeight: "1.2",
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-								}}>
+							<span className="opacity-50 text-[0.9em] leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
 								{option.description}
 							</span>
 						)}
@@ -96,17 +88,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.Git:
 				if (option.value) {
 					return (
-						<div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-							<span style={{ lineHeight: "1.2" }}>{option.label}</span>
-							<span
-								style={{
-									fontSize: "0.85em",
-									opacity: 0.7,
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									lineHeight: "1.2",
-								}}>
+						<div className="flex flex-col">
+							<span className="leading-tight">{option.label}</span>
+							<span className="text-[0.85em] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
 								{option.description}
 							</span>
 						</div>
@@ -124,29 +108,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					const filename = pathList.at(-1)
 					const folderPath = pathList.slice(0, -1).join("/")
 					return (
-						<div
-							style={{
-								flex: 1,
-								overflow: "hidden",
-								display: "flex",
-								gap: "0.5em",
-								whiteSpace: "nowrap",
-								alignItems: "center",
-								justifyContent: "space-between",
-								textAlign: "left",
-							}}>
+						<div className="flex-1 overflow-hidden flex gap-[0.5em] whitespace-nowrap items-center justify-between text-left">
 							<span>{filename}</span>
-							<span
-								style={{
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									direction: "rtl",
-									textAlign: "right",
-									flex: 1,
-									opacity: 0.75,
-									fontSize: "0.75em",
-								}}>
+							<span className="whitespace-nowrap overflow-hidden text-ellipsis rtl text-right flex-1 opacity-75 text-[0.75em]">
 								{folderPath}
 							</span>
 						</div>
@@ -197,68 +161,32 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	return (
 		<div
-			style={{
-				position: "absolute",
-				bottom: "calc(100% - 10px)",
-				left: 15,
-				right: 15,
-				overflowX: "hidden",
-			}}
+			className="absolute bottom-[calc(100%-10px)] left-[15px] right-[15px] overflow-x-hidden"
 			onMouseDown={onMouseDown}>
 			<div
 				ref={menuRef}
-				style={{
-					backgroundColor: "var(--vscode-dropdown-background)",
-					border: "1px solid var(--vscode-editorGroup-border)",
-					borderRadius: "3px",
-					boxShadow: "0 4px 10px rgba(0, 0, 0, 0.25)",
-					zIndex: 1000,
-					display: "flex",
-					flexDirection: "column",
-					maxHeight: "200px",
-					overflowY: "auto",
-				}}>
+				className="bg-vscode-dropdown-background border border-vscode-editorGroup-border rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] z-[1000] flex flex-col max-h-[200px] overflow-y-auto">
 				{filteredOptions && filteredOptions.length > 0 ? (
 					filteredOptions.map((option, index) => (
 						<div
 							key={`${option.type}-${option.value || index}`}
 							onClick={() => isOptionSelectable(option) && onSelect(option.type, option.value)}
-							style={{
-								padding: "4px 6px",
-								cursor: isOptionSelectable(option) ? "pointer" : "default",
-								color: "var(--vscode-dropdown-foreground)",
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "space-between",
-								...(index === selectedIndex && isOptionSelectable(option)
-									? {
-											backgroundColor: "var(--vscode-list-activeSelectionBackground)",
-											color: "var(--vscode-list-activeSelectionForeground)",
-										}
-									: {}),
-							}}
+							className={`p-[4px_6px] text-vscode-dropdown-foreground flex items-center justify-between ${
+								isOptionSelectable(option) ? "cursor-pointer" : "cursor-default"
+							} ${
+								index === selectedIndex && isOptionSelectable(option)
+									? "bg-vscode-list-activeSelectionBackground text-vscode-list-activeSelectionForeground"
+									: ""
+							}`}
 							onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}>
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									flex: 1,
-									minWidth: 0,
-									overflow: "hidden",
-									paddingTop: 0,
-								}}>
+							<div className="flex items-center flex-1 min-w-0 overflow-hidden pt-0">
 								{(option.type === ContextMenuOptionType.File ||
 									option.type === ContextMenuOptionType.Folder ||
 									option.type === ContextMenuOptionType.OpenedFile) && (
 									<img
 										src={getMaterialIconForOption(option)}
 										alt="Mode"
-										style={{
-											marginRight: "6px",
-											flexShrink: 0,
-											width: "16px",
-											height: "16px",
-										}}
+										className="mr-[6px] flex-shrink-0 w-4 h-4"
 									/>
 								)}
 								{option.type !== ContextMenuOptionType.Mode &&
@@ -267,13 +195,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									option.type !== ContextMenuOptionType.OpenedFile &&
 									getIconForOption(option) && (
 										<i
-											className={`codicon codicon-${getIconForOption(option)}`}
-											style={{
-												marginRight: "6px",
-												flexShrink: 0,
-												fontSize: "14px",
-												marginTop: 0,
-											}}
+											className={`codicon codicon-${getIconForOption(
+												option,
+											)} mr-[6px] flex-shrink-0 text-sm mt-0`}
 										/>
 									)}
 								{renderOptionContent(option)}
@@ -282,23 +206,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 								option.type === ContextMenuOptionType.Folder ||
 								option.type === ContextMenuOptionType.Git) &&
 								!option.value && (
-									<i
-										className="codicon codicon-chevron-right"
-										style={{ fontSize: "10px", flexShrink: 0, marginLeft: 8 }}
-									/>
+									<i className="codicon codicon-chevron-right text-[10px] flex-shrink-0 ml-2" />
 								)}
 						</div>
 					))
 				) : (
-					<div
-						style={{
-							padding: "4px",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							color: "var(--vscode-foreground)",
-							opacity: 0.7,
-						}}>
+					<div className="p-1 flex items-center justify-center text-vscode-foreground opacity-70">
 						<span>No results found</span>
 					</div>
 				)}
@@ -306,5 +219,4 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 		</div>
 	)
 }
-
 export default ContextMenu

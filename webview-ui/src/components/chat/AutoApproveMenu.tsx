@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react"
 import { Trans } from "react-i18next"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
+import { cn } from "@/lib/utils"
 import { vscode } from "@src/utils/vscode"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -118,23 +119,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	return (
 		<div
-			style={{
-				padding: "0 15px",
-				userSelect: "none",
-				borderTop: isExpanded
-					? `0.5px solid color-mix(in srgb, var(--vscode-titleBar-inactiveForeground) 20%, transparent)`
-					: "none",
-				overflowY: "auto",
-				...style,
-			}}>
+			className={cn(
+				"px-[15px] select-none overflow-y-auto",
+				isExpanded && "border-t-[0.5px] border-vscode-titleBar-inactiveForeground-20",
+			)}
+			style={style}>
 			<div
-				style={{
-					display: "flex",
-					alignItems: "center",
-					gap: "8px",
-					padding: isExpanded ? "8px 0" : "8px 0 0 0",
-					cursor: "pointer",
-				}}
+				className={`flex items-center gap-2 cursor-pointer ${isExpanded ? "py-2" : "pt-2 pb-0"}`}
 				onClick={toggleExpanded}>
 				<div onClick={(e) => e.stopPropagation()}>
 					<VSCodeCheckbox
@@ -146,49 +137,22 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						}}
 					/>
 				</div>
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "4px",
-						flex: 1,
-						minWidth: 0,
-					}}>
-					<span
-						style={{
-							color: "var(--vscode-foreground)",
-							flexShrink: 0,
-						}}>
-						{t("chat:autoApprove.title")}
-					</span>
-					<span
-						style={{
-							color: "var(--vscode-descriptionForeground)",
-							overflow: "hidden",
-							textOverflow: "ellipsis",
-							whiteSpace: "nowrap",
-							flex: 1,
-							minWidth: 0,
-						}}>
+				<div className="flex items-center gap-1 flex-1 min-w-0">
+					<span className="text-vscode-foreground flex-shrink-0">{t("chat:autoApprove.title")}</span>
+					<span className="text-vscode-descriptionForeground overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0">
 						{enabledActionsList || t("chat:autoApprove.none")}
 					</span>
 					<span
-						className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
-						style={{
-							flexShrink: 0,
-							marginLeft: isExpanded ? "2px" : "-2px",
-						}}
+						className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} flex-shrink-0 ${
+							isExpanded ? "ml-0.5" : "ml-[-2px]"
+						}`}
 					/>
 				</div>
 			</div>
 
 			{isExpanded && (
 				<div className="flex flex-col gap-2">
-					<div
-						style={{
-							color: "var(--vscode-descriptionForeground)",
-							fontSize: "12px",
-						}}>
+					<div className="text-vscode-descriptionForeground text-xs">
 						<Trans
 							i18nKey="chat:autoApprove.description"
 							components={{

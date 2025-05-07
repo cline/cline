@@ -1,12 +1,12 @@
-import { memo, useEffect, useRef, useCallback, useState } from "react"
-import styled from "styled-components"
+import React, { memo, useEffect, useRef, useCallback, useState } from "react"
 import { useCopyToClipboard } from "@src/utils/clipboard"
 import { getHighlighter, isLanguageLoaded, normalizeLanguage, ExtendedLanguage } from "@src/utils/highlighter"
 import { bundledLanguages } from "shiki"
 import type { ShikiTransformer } from "shiki"
 import { ChevronDown, ChevronUp, WrapText, AlignJustify, Copy, Check } from "lucide-react"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
-export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
+import { cn } from "@/lib/utils"
+
 export const WRAPPER_ALPHA = "cc" // 80% opacity
 // Configuration constants
 export const WINDOW_SHADE_SETTINGS = {
@@ -36,179 +36,116 @@ interface CodeBlockProps {
 	onLanguageChange?: (language: string) => void
 }
 
-const CodeBlockButton = styled.button`
-	background: transparent;
-	border: none;
-	color: var(--vscode-foreground);
-	cursor: var(--copy-button-cursor, default);
-	padding: 4px;
-	margin: 0 0px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0.4;
-	border-radius: 3px;
-	pointer-events: var(--copy-button-events, none);
-	margin-left: 4px;
-	height: 24px;
-	width: 24px;
+interface CodeBlockButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+	children: React.ReactNode
+}
 
-	&:hover {
-		background: var(--vscode-toolbar-hoverBackground);
-		opacity: 1;
-	}
+const CodeBlockButton = ({ children, ...props }: CodeBlockButtonProps) => {
+	return (
+		<button
+			className="bg-transparent border-none text-vscode-foreground p-1 mx-0 flex items-center justify-center opacity-40 rounded-[3px] ml-1 h-6 w-6 hover:bg-vscode-toolbar-hoverBackground hover:opacity-100"
+			style={{
+				cursor: "var(--copy-button-cursor, default)",
+				pointerEvents: "var(--copy-button-events, none)" as any,
+			}}
+			{...props}>
+			{children}
+		</button>
+	)
+}
 
-	/* Style for Lucide icons to ensure consistent sizing and positioning */
-	svg {
-		display: block;
-	}
-`
+interface CodeBlockButtonWrapperProps extends React.HTMLAttributes<HTMLDivElement> {
+	children: React.ReactNode
+}
 
-const CodeBlockButtonWrapper = styled.div`
-	position: fixed;
-	top: var(--copy-button-top);
-	right: var(--copy-button-right, 8px);
-	height: auto;
-	z-index: 100;
-	background: ${CODE_BLOCK_BG_COLOR}${WRAPPER_ALPHA};
-	overflow: visible;
-	pointer-events: none;
-	opacity: var(--copy-button-opacity, 0);
-	padding: 4px 6px;
-	border-radius: 3px;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
+const CodeBlockButtonWrapper = React.forwardRef<HTMLDivElement, CodeBlockButtonWrapperProps>(
+	({ children, ...props }, ref) => {
+		return (
+			<div
+				ref={ref}
+				className="fixed h-auto z-[100] overflow-visible pointer-events-none p-[4px_6px] rounded-[3px] inline-flex items-center justify-center hover:bg-vscode-editor-background hover:!opacity-100 bg-vscode-editor-background/[.80]"
+				style={{
+					top: "var(--copy-button-top)",
+					right: "var(--copy-button-right, 8px)",
+					opacity: "var(--copy-button-opacity, 0)",
+				}}
+				{...props}>
+				{children}
+			</div>
+		)
+	},
+)
+CodeBlockButtonWrapper.displayName = "CodeBlockButtonWrapper"
 
-	&:hover {
-		background: var(--vscode-editor-background);
-		opacity: 1 !important;
-	}
+interface CodeBlockContainerProps extends React.HTMLAttributes<HTMLDivElement> {
+	children: React.ReactNode
+	"data-partially-visible"?: boolean
+}
 
-	${CodeBlockButton} {
-		position: relative;
-		top: 0;
-		right: 0;
-	}
-`
+const CodeBlockContainer = React.forwardRef<HTMLDivElement, CodeBlockContainerProps>(
+	({ children, "data-partially-visible": partiallyVisible, ...props }, ref) => {
+		return (
+			<div
+				ref={ref}
+				className="relative overflow-hidden border-b-4 border-vscode-sideBar-background bg-background"
+				data-partially-visible={partiallyVisible}
+				{...props}>
+				{children}
+			</div>
+		)
+	},
+)
+CodeBlockContainer.displayName = "CodeBlockContainer"
 
-const CodeBlockContainer = styled.div`
-	position: relative;
-	overflow: hidden;
-	border-bottom: 4px solid var(--vscode-sideBar-background);
-	background-color: ${CODE_BLOCK_BG_COLOR};
-
-	${CodeBlockButtonWrapper} {
-		opacity: 0;
-		pointer-events: none;
-		transition: opacity 0.2s; /* Keep opacity transition for buttons */
-	}
-
-	&[data-partially-visible="true"]:hover ${CodeBlockButtonWrapper} {
-		opacity: 1;
-		pointer-events: all;
-		cursor: pointer;
-	}
-`
-
-export const StyledPre = styled.div<{
+interface StyledPreProps extends React.HTMLAttributes<HTMLDivElement> {
 	preStyle?: React.CSSProperties
 	wordwrap?: "true" | "false" | undefined
 	windowshade?: "true" | "false"
 	collapsedHeight?: number
-}>`
-	background-color: ${CODE_BLOCK_BG_COLOR};
-	max-height: ${({ windowshade, collapsedHeight }) =>
-		windowshade === "true" ? `${collapsedHeight || WINDOW_SHADE_SETTINGS.collapsedHeight}px` : "none"};
-	overflow-y: auto;
-	padding: 10px;
-	// transition: max-height ${WINDOW_SHADE_SETTINGS.transitionDelayS} ease-out;
-	border-radius: 5px;
-	${({ preStyle }) => preStyle && { ...preStyle }}
+	children: React.ReactNode
+}
 
-	pre {
-		background-color: ${CODE_BLOCK_BG_COLOR};
-		border-radius: 5px;
-		margin: 0;
-		padding: 10px;
-		width: 100%;
-		box-sizing: border-box;
-	}
+export const StyledPre = React.forwardRef<HTMLDivElement, StyledPreProps>(
+	({ preStyle, wordwrap, windowshade, collapsedHeight, children, className, ...props }, ref) => {
+		return (
+			<div
+				ref={ref}
+				className={cn(
+					"overflow-y-auto p-[10px] rounded-[5px]",
+					"text-vscode-editor-font-size font-vscode-editor-font-family",
+					"bg-background",
+					windowshade === "true"
+						? `[max-height:${collapsedHeight || WINDOW_SHADE_SETTINGS.collapsedHeight}px]`
+						: "max-h-none",
+					wordwrap === "false" ? "whitespace-pre" : "whitespace-pre-wrap",
+					"break-normal",
+					wordwrap === "false" ? "[overflow-wrap:normal]" : "break-words",
+					className,
+				)}
+				style={preStyle}
+				{...props}>
+				{children}
+			</div>
+		)
+	},
+)
+StyledPre.displayName = "StyledPre"
 
-	pre,
-	code {
-		/* Undefined wordwrap defaults to true (pre-wrap) behavior */
-		white-space: ${({ wordwrap }) => (wordwrap === "false" ? "pre" : "pre-wrap")};
-		word-break: ${({ wordwrap }) => (wordwrap === "false" ? "normal" : "normal")};
-		overflow-wrap: ${({ wordwrap }) => (wordwrap === "false" ? "normal" : "break-word")};
-		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
-		font-family: var(--vscode-editor-font-family);
-	}
-
-	pre > code {
-		.hljs-deletion {
-			background-color: var(--vscode-diffEditor-removedTextBackground);
-			display: inline-block;
-			width: 100%;
-		}
-		.hljs-addition {
-			background-color: var(--vscode-diffEditor-insertedTextBackground);
-			display: inline-block;
-			width: 100%;
-		}
-	}
-
-	.hljs {
-		color: var(--vscode-editor-foreground, #fff);
-		background-color: ${CODE_BLOCK_BG_COLOR};
-	}
-`
-
-const LanguageSelect = styled.select`
-	font-size: 12px;
-	color: var(--vscode-foreground);
-	opacity: 0.4;
-	font-family: monospace;
-	appearance: none;
-	background: transparent;
-	border: none;
-	cursor: pointer;
-	padding: 4px;
-	margin: 0;
-	vertical-align: middle;
-	height: 24px;
-
-	& option {
-		background: var(--vscode-editor-background);
-		color: var(--vscode-foreground);
-		padding: 0;
-		margin: 0;
-	}
-
-	&::-webkit-scrollbar {
-		width: 6px;
-	}
-
-	&::-webkit-scrollbar-thumb {
-		background: var(--vscode-scrollbarSlider-background);
-	}
-
-	&::-webkit-scrollbar-track {
-		background: var(--vscode-editor-background);
-	}
-
-	&:hover {
-		opacity: 1;
-		background: var(--vscode-toolbar-hoverBackground);
-		border-radius: 3px;
-	}
-
-	&:focus {
-		opacity: 1;
-		outline: none;
-		border-radius: 3px;
-	}
-`
+interface LanguageSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+	children: React.ReactNode
+}
+const LanguageSelect = ({ children, className, ...props }: LanguageSelectProps) => {
+	return (
+		<select
+			className={cn(
+				"text-xs text-vscode-foreground opacity-40 font-mono appearance-none bg-transparent border-none cursor-pointer p-1 m-0 align-middle h-6 hover:opacity-100 hover:bg-vscode-toolbar-hoverBackground hover:rounded-[3px] focus:opacity-100 focus:outline-none focus:rounded-[3px]",
+				className,
+			)}
+			{...props}>
+			{children}
+		</select>
+	)
+}
 
 const CodeBlock = memo(
 	({
@@ -243,7 +180,7 @@ const CodeBlock = memo(
 
 		// Syntax highlighting with cached Shiki instance
 		useEffect(() => {
-			const fallback = `<pre style="padding: 0; margin: 0;"><code class="hljs language-${currentLanguage || "txt"}">${source || ""}</code></pre>`
+			const fallback = `<pre class="p-0 m-0"><code class="hljs language-${currentLanguage || "txt"}">${source || ""}</code></pre>`
 			const highlight = async () => {
 				// Show plain text if language needs to be loaded
 				if (currentLanguage && !isLanguageLoaded(currentLanguage)) {
@@ -257,7 +194,7 @@ const CodeBlock = memo(
 					transformers: [
 						{
 							pre(node) {
-								node.properties.style = "padding: 0; margin: 0;"
+								node.properties.class = "p-0 m-0"
 								return node
 							},
 							code(node) {
@@ -620,7 +557,7 @@ const CodeBlock = memo(
 					<CodeBlockButtonWrapper
 						ref={copyButtonWrapperRef}
 						onMouseOver={() => updateCodeBlockButtonPosition()}
-						style={{ gap: 0 }}>
+						className="gap-0">
 						{language && (
 							<LanguageSelect
 								value={currentLanguage}
@@ -643,7 +580,7 @@ const CodeBlock = memo(
 									language && (
 										<option
 											value={normalizeLanguage(language)}
-											style={{ fontWeight: "bold", textAlign: "left", fontSize: "1.2em" }}>
+											className="font-bold text-left text-[1.2em]">
 											{normalizeLanguage(language)}
 										</option>
 									)
@@ -658,13 +595,12 @@ const CodeBlock = memo(
 												<option
 													key={normalizedLang}
 													value={normalizedLang}
-													style={{
-														fontWeight:
-															normalizedLang === currentLanguage ? "bold" : "normal",
-														textAlign: "left",
-														fontSize:
-															normalizedLang === currentLanguage ? "1.2em" : "inherit",
-													}}>
+													className={cn(
+														"text-left",
+														normalizedLang === currentLanguage
+															? "font-bold text-[1.2em]"
+															: "font-normal",
+													)}>
 													{normalizedLang}
 												</option>
 											)

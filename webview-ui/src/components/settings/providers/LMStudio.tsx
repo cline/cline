@@ -119,13 +119,7 @@ export const LMStudio = ({ apiConfiguration, setApiConfigurationField }: LMStudi
 								))}
 							</VSCodeRadioGroup>
 							{lmStudioModels.length === 0 && (
-								<div
-									className="text-sm rounded-xs p-2"
-									style={{
-										backgroundColor: "var(--vscode-inputValidation-infoBackground)",
-										border: "1px solid var(--vscode-inputValidation-infoBorder)",
-										color: "var(--vscode-inputValidation-infoForeground)",
-									}}>
+								<div className="text-sm rounded-xs p-2 bg-vscode-inputValidation-infoBackground border border-vscode-inputValidation-infoBorder text-vscode-inputValidation-infoForeground">
 									{t("settings:providers.lmStudio.noModelsFound")}
 								</div>
 							)}

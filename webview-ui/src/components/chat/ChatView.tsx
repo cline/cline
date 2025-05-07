@@ -40,6 +40,7 @@ import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import SystemPromptWarning from "./SystemPromptWarning"
 import { CheckpointWarning } from "./CheckpointWarning"
+import { cn } from "@/lib/utils"
 
 export interface ChatViewProps {
 	isHidden: boolean
@@ -1248,17 +1249,24 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						</div>
 					)}
 					<div
-						className={` w-full flex flex-col gap-4 m-auto ${isExpanded && tasks.length > 0 ? "mt-0" : ""} px-3.5 min-[370px]:px-10 pt-5 transition-all duration-300`}>
+						className={cn(
+							"w-full flex flex-col gap-4 m-auto px-3.5 min-[370px]:px-10 pt-5 transition-all duration-300",
+							isExpanded && tasks.length > 0 ? "mt-0" : "",
+						)}>
 						<RooHero />
 						{telemetrySetting === "unset" && <TelemetryBanner />}
 						{/* Show the task history preview if expanded and tasks exist */}
 						{taskHistory.length > 0 && isExpanded && <HistoryPreview />}
-						<p className="ext-vscode-editor-foreground leading-tight font-vscode text-center">
+						<p className="text-vscode-editor-foreground leading-tight font-vscode-font-family text-center">
 							<Trans
 								i18nKey="chat:about"
 								components={{
 									DocsLink: (
-										<a href="https://docs.roocode.com/" target="_blank" rel="noopener noreferrer">
+										<a
+											href="https://docs.roocode.com/"
+											target="_blank"
+											rel="noopener noreferrer"
+											className="text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline">
 											the docs
 										</a>
 									),
@@ -1320,7 +1328,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					{showScrollToBottom ? (
 						<div className="flex px-[15px] pt-[10px]">
 							<div
-								className="bg-[color-mix(in_srgb,_var(--vscode-toolbar-hoverBackground)_55%,_transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,_var(--vscode-toolbar-hoverBackground)_90%,_transparent)] active:bg-[color-mix(in_srgb,_var(--vscode-toolbar-hoverBackground)_70%,_transparent)]"
+								className="bg-vscode-toolbar-hoverBackground/55 rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-vscode-toolbar-hoverBackground/90 active:bg-vscode-toolbar-hoverBackground/70"
 								onClick={() => {
 									scrollToBottomSmooth()
 									disableAutoScrollRef.current = false

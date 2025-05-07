@@ -414,7 +414,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 				<div className="flex gap-2">
 					<Button
 						variant={isSettingValid ? "default" : "secondary"}
-						className={!isSettingValid ? "!border-vscode-errorForeground" : ""}
+						className={cn(!isSettingValid && "!border-vscode-errorForeground")}
 						title={
 							!isSettingValid
 								? errorMessage

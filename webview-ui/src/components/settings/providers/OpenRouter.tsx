@@ -82,7 +82,7 @@ export const OpenRouter = ({
 				{t("settings:providers.apiKeyStorageNotice")}
 			</div>
 			{!apiConfiguration?.openRouterApiKey && (
-				<VSCodeButtonLink href={getOpenRouterAuthUrl(uriScheme)} style={{ width: "100%" }} appearance="primary">
+				<VSCodeButtonLink href={getOpenRouterAuthUrl(uriScheme)} className="w-full" appearance="primary">
 					{t("settings:providers.getOpenRouterApiKey")}
 				</VSCodeButtonLink>
 			)}

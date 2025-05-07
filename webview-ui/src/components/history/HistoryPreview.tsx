@@ -29,13 +29,11 @@ const HistoryPreview = () => {
 										<CopyButton itemTask={item.task} />
 									</div>
 									<div
-										className="text-vscode-foreground overflow-hidden whitespace-pre-wrap"
+										className="text-vscode-foreground overflow-hidden whitespace-pre-wrap break-words overflow-wrap-anywhere"
 										style={{
 											display: "-webkit-box",
 											WebkitLineClamp: 2,
 											WebkitBoxOrient: "vertical",
-											wordBreak: "break-word",
-											overflowWrap: "anywhere",
 										}}>
 										{item.task}
 									</div>

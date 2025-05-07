@@ -27,10 +27,7 @@ export const CommandExecutionError = () => {
 						}}
 					/>
 				</div>
-				<a
-					href="http://docs.roocode.com/troubleshooting/shell-integration/"
-					className="underline"
-					style={{ color: "inherit" }}>
+				<a href="http://docs.roocode.com/troubleshooting/shell-integration/" className="underline text-inherit">
 					{t("chat:shellIntegration.troubleshooting")}
 				</a>
 			</div>
