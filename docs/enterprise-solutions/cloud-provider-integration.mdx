@@ -6,7 +6,7 @@ Cline supports major cloud providers like AWS Bedrock and Google's Cloud Vertex;
 
 For the purpose of this document, we assume your organization will use cloud-based frontier models. Cloud inference providers offer cutting-edge capabilities and the flexibility to select models which best suit your needs.
 
-Certain scenarios may warrant using local models, including handling highly sensitive data, applications requiring consistent low-latency responses, or compliance with strict data sovereignty requirements. If your team needs to utilize local models, see [Running Local Models ](/running-local-models/read-me-first.mdx)with Cline.
+Certain scenarios may warrant using local models, including handling highly sensitive data, applications requiring consistent low-latency responses, or compliance with strict data sovereignty requirements. If your team needs to utilize local models, see [Running Local Models ](/running-models-locally/read-me-first.mdx)with Cline.
 
 ---
 
@@ -14,9 +14,9 @@ Certain scenarios may warrant using local models, including handling highly sens
 
 #### [IAM Security Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html) (For administrators)
 
-#### [AWS Bedrock setup for Legacy IAM (AWS Credentials)](/custom-model-configs/aws-bedrock.mdx)
+#### [AWS Bedrock setup for Legacy IAM (AWS Credentials)](/custom-model-configs/aws-bedrock-with-credentials-authentication.mdx)
 
-#### [AWS Bedrock setup for SSO token (AWS Profile)](/custom-model-configs/aws-bedrock-w-profile-authentication.mdx)
+#### [AWS Bedrock setup for SSO token (AWS Profile)](/custom-model-configs/aws-bedrock-with-profile-authentication.mdx)
 
 #### VPC Endpoint Setup
 
@@ -28,12 +28,12 @@ To protect your team's data, Cline supports VPC (Virtual Private Cloud) endpoint
 2. Follow the directions for [creating a VPC endpoint](https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html#create-interface-endpoint-aws) in the AWS console. The image below pertains to steps 4 and 5 of the AWS guide linked above.
 
 <Frame>
-	<img src="/assets/robot_panel_dark.png" alt="VPC Console" />
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/vpc-console.png" alt="VPC Console" />
 </Frame>
 
 3. Note the IP address of your VPC endpoint, open Cline's settings menu, and select `AWS Bedrock`from the API Provider dropdown.
 4. Click the `Use Custom VPC endpoint`checkbox and enter the IP address of your VPC endpoint
 
 <Frame>
-	<img src="/assets/robot_panel_dark.png" alt="VPC Settings Menu" />
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/vpc-settings-menu.png" alt="VPC Settings Menu" />
 </Frame>
