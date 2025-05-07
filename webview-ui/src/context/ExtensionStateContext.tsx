@@ -20,7 +20,6 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
-	showWelcome: boolean
 	theme: Record<string, string> | undefined
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
@@ -61,7 +60,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		clineMessages: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,
-		showWelcome: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,

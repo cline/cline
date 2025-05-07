@@ -14,7 +14,7 @@ import { McpViewTab } from "@shared/mcp"
 import WelcomeWrapper from "./components/welcome/WelcomeWrapper"
 
 const AppContent = () => {
-	const { didHydrateState, showWelcome, shouldShowAnnouncement, showMcp, mcpTab } = useExtensionState()
+	const { didHydrateState, shouldShowAnnouncement, showMcp, mcpTab } = useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
 	const hideSettings = useCallback(() => setShowSettings(false), [])
 	const [showHistory, setShowHistory] = useState(false)
@@ -98,7 +98,7 @@ const AppContent = () => {
 
 	return (
 		<>
-			{showWelcome ? (
+			{true ? (
 				<WelcomeWrapper />
 			) : (
 				<>
