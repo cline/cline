@@ -1301,14 +1301,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 							modelInfo.cacheWritesPrice = 0.14
 							modelInfo.cacheReadsPrice = 0.014
 							break
-						case "google/gemini-2.5-pro-preview-03-25":
-						case "google/gemini-2.0-flash-001":
-						case "google/gemini-flash-1.5":
-						case "google/gemini-pro-1.5":
-							modelInfo.supportsPromptCache = true
-							modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
-							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
-							break
 						default:
 							if (rawModel.id.startsWith("openai/")) {
 								modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
@@ -1316,6 +1308,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 									modelInfo.supportsPromptCache = true
 									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 									// openrouter charges no cache write pricing for openAI models
+								}
+							} else if (rawModel.id.startsWith("google/")) {
+								modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
+								if (modelInfo.cacheReadsPrice) {
+									modelInfo.supportsPromptCache = true
+									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 								}
 							}
 							break
