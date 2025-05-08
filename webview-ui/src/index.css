@@ -413,3 +413,11 @@ input[cmdk-input]:focus {
 .codicon[class*="codicon-"] {
 	text-rendering: geometricPrecision !important;
 }
+
+/*
+ * Fix the color of <a> in ChatView
+ */
+
+a:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
