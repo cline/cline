@@ -116,7 +116,11 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			// Only include provider if openRouterSpecificProvider is not "[default]".
 			...(this.options.openRouterSpecificProvider &&
 				this.options.openRouterSpecificProvider !== OPENROUTER_DEFAULT_PROVIDER_NAME && {
-					provider: { order: [this.options.openRouterSpecificProvider] },
+					provider: {
+						order: [this.options.openRouterSpecificProvider],
+						only: [this.options.openRouterSpecificProvider],
+						allow_fallbacks: false,
+					},
 				}),
 			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
 			...((this.options.openRouterUseMiddleOutTransform ?? true) && { transforms: ["middle-out"] }),
@@ -202,6 +206,15 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			temperature,
 			messages: [{ role: "user", content: prompt }],
 			stream: false,
+			// Only include provider if openRouterSpecificProvider is not "[default]".
+			...(this.options.openRouterSpecificProvider &&
+				this.options.openRouterSpecificProvider !== OPENROUTER_DEFAULT_PROVIDER_NAME && {
+					provider: {
+						order: [this.options.openRouterSpecificProvider],
+						only: [this.options.openRouterSpecificProvider],
+						allow_fallbacks: false,
+					},
+				}),
 		}
 
 		const response = await this.client.chat.completions.create(completionParams)
