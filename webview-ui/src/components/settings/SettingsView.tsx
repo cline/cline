@@ -10,7 +10,6 @@ import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import BrowserSettingsSection from "./BrowserSettingsSection"
 import TerminalSettingsSection from "./TerminalSettingsSection"
-import { useFeatureFlag } from "@/hooks/useFeatureFlag"
 import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
 const { IS_DEV } = process.env
 
@@ -146,8 +145,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		handleSubmit(true)
 	}
 
-	const showCustomInstructions = useFeatureFlag(FEATURE_FLAGS.CUSTOM_INSTRUCTIONS)
-
 	return (
 		<div className="fixed top-0 left-0 right-0 bottom-0 pt-[10px] pr-0 pb-0 pl-5 flex flex-col overflow-hidden">
 			<div className="flex justify-between items-center mb-[13px] pr-[17px]">
@@ -186,24 +183,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					/>
 				)}
 
-				{showCustomInstructions && (
-					<div className="mb-[5px]">
-						<VSCodeTextArea
-							value={customInstructions ?? ""}
-							className="w-full"
-							resize="vertical"
-							rows={4}
-							placeholder={
-								'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
-							}
-							onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-							<span className="font-medium">Custom Instructions</span>
-						</VSCodeTextArea>
-						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-							These instructions are added to the end of the system prompt sent with every request.
-						</p>
-					</div>
-				)}
+				<div className="mb-[5px]">
+					<VSCodeTextArea
+						value={customInstructions ?? ""}
+						className="w-full"
+						resize="vertical"
+						rows={4}
+						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
+						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
+						<span className="font-medium">Custom Instructions</span>
+					</VSCodeTextArea>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						These instructions are added to the end of the system prompt sent with every request.
+					</p>
+				</div>
 
 				<div className="mb-[5px]">
 					<VSCodeCheckbox
