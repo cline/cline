@@ -12,7 +12,7 @@ try {
 		execSync("xvfb-run -a npm run test:coverage", { stdio: "inherit" })
 	} else {
 		console.log("Non-Linux environment detected. Running tests normally.")
-		execSync("npm run test:coverage", { stdio: "inherit" })
+		execSync("npm run test:integration", { stdio: "inherit" })
 	}
 } catch (error) {
 	if (process.platform === "linux") {
