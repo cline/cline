@@ -45,12 +45,8 @@ The favorites feature allows you to mark important tasks that you want to preser
 ### How Favorites Work
 
 -   **Marking Favorites**: Click the star icon next to any task to toggle its favorite status
--   **Protection**: Favorited tasks are protected from bulk deletion operations
+-   **Protection**: Favorited tasks are protected from individual and bulk deletion operations (can be overridden)
 -   **Filtering**: Use the favorites filter to quickly access your important tasks
-
-### Implementation Note
-
-Task favorites use optimistic UI updates, meaning the interface reflects changes immediately while the actual state update happens in the background. This provides a more responsive experience as you don't need to wait for server operations to complete before seeing the change.
 
 ## Batch Operations
 
@@ -58,18 +54,8 @@ The task history view supports several batch operations:
 
 -   **Select Multiple**: Use the checkboxes to select multiple tasks
 -   **Select All/None**: Quickly select or deselect all tasks
--   **Delete Selected**: Remove all selected tasks (favorites remain protected)
--   **Delete All**: Remove all non-favorited tasks from history
-
-## Task Storage
-
-Tasks are stored in VS Code's globalStorage and typically include:
-
--   Conversation history
--   Token usage statistics
--   Cost information
--   Size information
--   Timestamps
+-   **Delete Selected**: Remove all selected tasks
+-   **Delete All**: Remove all non-favorited, or all tasks from history
 
 ## Best Practices
 
