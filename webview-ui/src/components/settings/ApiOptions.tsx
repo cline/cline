@@ -822,10 +822,7 @@ const ApiOptions = ({
 									color: "var(--vscode-descriptionForeground)",
 								}}>
 								Select "Custom" when using the Application Inference Profile in Bedrock. Enter the Application
-								Inference Profile ID in the Model ID field. However, be sure to encode the / in the ARN as %2F.
-								<br />
-								Example: arn:aws:bedrock:us-west-2:&lt;AWS Account
-								ID&gt;:application-inference-profile%2Fxxxxxxxxxxxx
+								Inference Profile ARN in the Model ID field.
 							</p>
 							<label htmlFor="bedrock-model-input">
 								<span style={{ fontWeight: 500 }}>Model ID</span>
