@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.16.3] - 2025-05-08
+
+- Revert "Tailwind migration"
+
 ## [3.16.2] - 2025-05-07
 
 - Clarify XML tool use formatting instructions
