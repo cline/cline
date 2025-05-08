@@ -100,7 +100,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											right: "12px",
 											color: "var(--vscode-button-background)",
 										}}>
-										<span className="codicon codicon-star-full" />
+										<span className="codicon codicon-star-full" aria-label="Favorited" />
 									</div>
 								)}
 
