@@ -19,7 +19,6 @@ import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { McpHub } from "@services/mcp/McpHub"
-import { searchWorkspaceFiles } from "@services/search/file-search"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
@@ -28,11 +27,10 @@ import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/Exte
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
+import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { searchCommits, getWorkingState } from "@utils/git"
+import { getWorkingState } from "@utils/git"
 import { extractCommitMessage } from "@integrations/git/commit-message-generator"
-import { getWorkspacePath } from "@utils/path"
 import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
@@ -331,10 +329,6 @@ export class Controller {
 				break
 			case "resetState":
 				await this.resetState()
-				break
-			case "requestVsCodeLmModels":
-				const vsCodeLmModels = await this.getVsCodeLmModels()
-				this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
 				break
 			case "refreshOpenRouterModels":
 				await this.refreshOpenRouterModels()
@@ -881,18 +875,6 @@ export class Controller {
 		await updateGlobalState(this.context, "customInstructions", instructions || undefined)
 		if (this.task) {
 			this.task.customInstructions = instructions || undefined
-		}
-	}
-
-	// VSCode LM API
-
-	private async getVsCodeLmModels() {
-		try {
-			const models = await vscode.lm.selectChatModels({})
-			return models || []
-		} catch (error) {
-			console.error("Error fetching VS Code LM models:", error)
-			return []
 		}
 	}
 

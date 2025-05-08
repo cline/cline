@@ -27,4 +27,3 @@ message NewTaskRequest {
   string text = 2;
   repeated string images = 3;
 }
-

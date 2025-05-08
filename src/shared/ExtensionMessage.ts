@@ -28,8 +28,6 @@ export interface ExtensionMessage {
 		| "requestyModels"
 		| "mcpServers"
 		| "relinquishControl"
-		| "vsCodeLmModels"
-		| "requestVsCodeLmModels"
 		| "authCallback"
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"

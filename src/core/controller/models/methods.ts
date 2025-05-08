@@ -5,10 +5,12 @@
 import { registerMethod } from "./index"
 import { getLmStudioModels } from "./getLmStudioModels"
 import { getOllamaModels } from "./getOllamaModels"
+import { getVsCodeLmModels } from "./getVsCodeLmModels"
 
 // Register all models service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("getLmStudioModels", getLmStudioModels)
 	registerMethod("getOllamaModels", getOllamaModels)
+	registerMethod("getVsCodeLmModels", getVsCodeLmModels)
 }
