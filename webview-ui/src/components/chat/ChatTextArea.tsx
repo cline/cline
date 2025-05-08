@@ -1,5 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { SendButton } from "./SendButton"
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
@@ -52,6 +53,10 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
+	isStreaming?: boolean
+	didClickCancel?: boolean
+	setDidClickCancel?: (value: boolean) => void
+	clineAsk?: string
 	onFocusChange?: (isFocused: boolean) => void
 }
 
@@ -62,7 +67,8 @@ interface GitCommit {
 	description: string
 }
 
-const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
+const PLAN_MODE_COLOR = "#955CF1" // Purple color for plan mode
+const ACT_MODE_COLOR = "var(--vscode-terminal-ansiGreen)"
 
 const SwitchOption = styled.div<{ isActive: boolean }>`
 	padding: 2px 8px;
@@ -97,7 +103,7 @@ const Slider = styled.div<{ isAct: boolean; isPlan?: boolean }>`
 	position: absolute;
 	height: 100%;
 	width: 50%;
-	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)")};
+	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : props.isAct ? ACT_MODE_COLOR : "var(--vscode-focusBorder)")};
 	transition: transform 0.2s ease;
 	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
@@ -237,6 +243,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSelectImages,
 			shouldDisableImages,
 			onHeightChange,
+			isStreaming,
+			didClickCancel,
+			setDidClickCancel,
+			clineAsk,
 			onFocusChange,
 		},
 		ref,
@@ -1253,6 +1263,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						display: "flex",
 						// Drag-over styles moved to DynamicTextArea
 						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
+						cursor: isStreaming && !didClickCancel ? "default" : undefined,
 					}}
 					onDrop={onDrop}
 					onDragOver={onDragOver}
@@ -1265,7 +1276,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								inset: "10px 15px",
 								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
 								border: "2px solid var(--vscode-errorForeground)",
-								borderRadius: 2,
+								borderRadius: 4,
 								display: "flex",
 								alignItems: "center",
 								justifyContent: "center",
@@ -1315,7 +1326,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								position: "absolute",
 								inset: "10px 15px",
 								border: "1px solid var(--vscode-input-border)",
-								borderRadius: 2,
+								borderRadius: 4,
 								pointerEvents: "none",
 								zIndex: 5,
 							}}
@@ -1338,7 +1349,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
-							borderRadius: 2,
+							borderRadius: 4,
 							borderLeft: 0,
 							borderRight: 0,
 							borderTop: 0,
@@ -1381,14 +1392,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						placeholder={showUnsupportedFileError ? "" : placeholderText}
 						maxRows={10}
+						minRows={3}
 						autoFocus={true}
 						style={{
 							width: "100%",
 							boxSizing: "border-box",
 							backgroundColor: "transparent",
 							color: "var(--vscode-input-foreground)",
-							//border: "1px solid var(--vscode-input-border)",
-							borderRadius: 2,
+							borderRadius: 4,
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
@@ -1396,26 +1407,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							overflowX: "hidden",
 							overflowY: "scroll",
 							scrollbarWidth: "none",
-							// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
-							// borderTop: "9px solid transparent",
 							borderLeft: 0,
 							borderRight: 0,
 							borderTop: 0,
 							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 							borderColor: "transparent",
-							// borderRight: "54px solid transparent",
-							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
-							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
-							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
 							padding: "9px 28px 3px 9px",
-							cursor: textAreaDisabled ? "not-allowed" : undefined,
+							cursor: textAreaDisabled && !isStreaming ? "not-allowed" : undefined,
 							flex: 1,
 							zIndex: 1,
 							outline:
 								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
 									? "2px dashed var(--vscode-focusBorder)"
 									: isTextAreaFocused
-										? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+										? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR}`
 										: "none",
 							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
 						}}
@@ -1439,11 +1444,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div
 						style={{
 							position: "absolute",
-							right: 23,
+							right: 20, // Changed from 23 to 20 (3 pixels to the right)
 							display: "flex",
 							alignItems: "flex-center",
-							height: textAreaBaseHeight || 31,
-							bottom: 9.5, // should be 10 but doesn't look good on mac
+							height: 31,
+							bottom: 14.5, // Changed from 9.5 to 14.5 (5 pixels from the bottom)
 							zIndex: 2,
 						}}>
 						<div
@@ -1464,16 +1469,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									fontSize: 16.5,
 								}}
 							/> */}
-							<div
-								data-testid="send-button"
-								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
-								onClick={() => {
-									if (!textAreaDisabled) {
-										setIsTextAreaFocused(false)
-										onSend()
-									}
-								}}
-								style={{ fontSize: 15 }}></div>
+							<SendButton
+								textAreaDisabled={textAreaDisabled}
+								isStreaming={isStreaming}
+								didClickCancel={didClickCancel}
+								setDidClickCancel={setDidClickCancel}
+								setIsTextAreaFocused={setIsTextAreaFocused}
+								onSend={onSend}
+								clineAsk={clineAsk}
+							/>
 						</div>
 					</div>
 				</div>

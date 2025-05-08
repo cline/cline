@@ -1,0 +1,9 @@
+.resume-play-button:hover {
+	filter: brightness(0.9); /* Makes the button slightly darker on hover */
+}
+
+/* Hide the "Resume Task" and "Cancel" buttons when in the resume task state */
+/* We're hiding these buttons because we've implemented the resume functionality in the play button */
+.cline-resume-task-buttons .vscode-button {
+	display: none !important;
+}

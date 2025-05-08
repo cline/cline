@@ -1,4 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
@@ -64,7 +65,15 @@ async function convertHtmlToMarkdown(html: string) {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
+	const {
+		version,
+		clineMessages: messages,
+		taskHistory,
+		apiConfiguration,
+		telemetrySetting,
+		userInfo,
+		chatSettings,
+	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -345,6 +354,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 		return false
 	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
+
+	// Reset didClickCancel when streaming starts
+	useEffect(() => {
+		if (isStreaming && didClickCancel) {
+			setDidClickCancel(false)
+		}
+	}, [isStreaming, didClickCancel])
 
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[]) => {
@@ -945,22 +961,30 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						paddingBottom: "10px",
 					}}>
 					{telemetrySetting === "unset" && <TelemetryBanner />}
+					<div
+						style={{
+							padding: "30px 20px",
+							flexShrink: 0,
+							display: "flex",
+							flexDirection: "column",
+							alignItems: "center",
+							textAlign: "center",
+						}}>
+						<div style={{ marginBottom: "15px" }}>
+							<ClineLogoWhite style={{ width: "50px", height: "50px", marginBottom: "15px" }} />
+						</div>
+						<div style={{ marginBottom: "5px" }}>
+							<p style={{ fontSize: "16px", fontWeight: "500", margin: "0", color: "var(--vscode-foreground)" }}>
+								{userInfo?.displayName ? `Hello ${userInfo.displayName.split(" ")[0]}!` : "Hello there!"}
+							</p>
+							<p style={{ fontSize: "14px", color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
+								Let the vibe coding begin.
+							</p>
+						</div>
+					</div>
 
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 
-					<div style={{ padding: "0 20px", flexShrink: 0 }}>
-						<h2>What can I do for you?</h2>
-						<p>
-							Thanks to{" "}
-							<VSCodeLink href="https://www.anthropic.com/claude/sonnet" style={{ display: "inline" }}>
-								Claude 3.7 Sonnet's
-							</VSCodeLink>
-							agentic coding capabilities, I can handle complex software development tasks step-by-step. With tools
-							that let me create & edit files, explore complex projects, use a browser, and execute terminal
-							commands (after you grant permission), I can assist you in ways that go beyond code completion or tech
-							support. I can even use MCP to create new tools and extend my own capabilities.
-						</p>
-					</div>
 					{taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</div>
 			)}
@@ -1039,6 +1063,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						</div>
 					) : (
 						<div
+							className={clineAsk === "resume_task" && !isStreaming ? "cline-resume-task-buttons" : ""}
 							style={{
 								opacity:
 									primaryButtonText || secondaryButtonText || isStreaming
@@ -1049,30 +1074,40 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								display: "flex",
 								padding: `${primaryButtonText || secondaryButtonText || isStreaming ? "10" : "0"}px 15px 0px 15px`,
 							}}>
-							{primaryButtonText && !isStreaming && (
-								<VSCodeButton
-									appearance="primary"
-									disabled={!enableButtons}
-									style={{
-										flex: secondaryButtonText ? 1 : 2,
-										marginRight: secondaryButtonText ? "6px" : "0",
-									}}
-									onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
-									{primaryButtonText}
-								</VSCodeButton>
-							)}
-							{(secondaryButtonText || isStreaming) && (
-								<VSCodeButton
-									appearance="secondary"
-									disabled={!enableButtons && !(isStreaming && !didClickCancel)}
-									style={{
-										flex: isStreaming ? 2 : 1,
-										marginLeft: isStreaming ? 0 : "6px",
-									}}
-									onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
-									{isStreaming ? "Cancel" : secondaryButtonText}
-								</VSCodeButton>
-							)}
+							{/* Hide buttons when in resume_task state, when task is complete, or when in plan mode */}
+							{clineAsk !== "resume_task" &&
+								!(clineAsk === "completion_result" && !isStreaming) &&
+								!(primaryButtonText === "Start New Task" && !isStreaming) &&
+								!(lastMessage?.say === "completion_result" && !isStreaming) &&
+								!(chatSettings.mode === "plan" && !isStreaming) && (
+									<>
+										{primaryButtonText && !isStreaming && primaryButtonText !== "Start New Task" && (
+											<VSCodeButton
+												appearance="primary"
+												disabled={!enableButtons}
+												style={{
+													flex: secondaryButtonText ? 1 : 2,
+													marginRight: secondaryButtonText ? "6px" : "0",
+												}}
+												onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
+												{primaryButtonText}
+											</VSCodeButton>
+										)}
+										{/* Cancel button commented out as requested */}
+										{secondaryButtonText && !isStreaming && (
+											<VSCodeButton
+												appearance="secondary"
+												disabled={!enableButtons}
+												style={{
+													flex: 1,
+													marginLeft: "6px",
+												}}
+												onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
+												{secondaryButtonText}
+											</VSCodeButton>
+										)}
+									</>
+								)}
 						</div>
 					)}
 				</>
@@ -1108,6 +1143,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						scrollToBottomAuto()
 					}
 				}}
+				isStreaming={isStreaming}
+				didClickCancel={didClickCancel}
+				setDidClickCancel={setDidClickCancel}
+				clineAsk={clineAsk}
 			/>
 		</div>
 	)
