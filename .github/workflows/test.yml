@@ -94,7 +94,8 @@ jobs:
               continue-on-error: true
               run: |
                   node ./scripts/test-ci.js > extension_coverage.txt 2>&1
-                  PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
+                  # Default the encoding to UTF-8 - It's not the default on Windows
+                  PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
             # Run webview tests with coverage
             - name: Webview Tests with Coverage
@@ -106,7 +107,8 @@ jobs:
                   npm install --no-save @vitest/coverage-v8
                   npm run test:coverage > webview_coverage.txt 2>&1 || true
                   cd ..
-                  PYTHONPATH=.github/scripts python -m coverage_check extract-coverage webview-ui/webview_coverage.txt --type=webview --github-output --verbose
+                  # Default the encoding to UTF-8 - It's not the default on Windows
+                  PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage webview-ui/webview_coverage.txt --type=webview --github-output --verbose
 
             # Save coverage reports as artifacts (workflow-scoped)
             - name: Save Coverage Reports
