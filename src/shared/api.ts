@@ -429,7 +429,7 @@ export const vertexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-2.5-pro-preview-03-25": {
+	"gemini-2.5-pro-preview-05-06": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
@@ -559,27 +559,23 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-2.5-pro-preview-03-25": {
+	"gemini-2.5-pro-preview-05-06": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		inputPrice: 2.5, // Default price (highest tier)
-		outputPrice: 15, // Default price (highest tier)
-		cacheReadsPrice: 0.625,
-		cacheWritesPrice: 4.5,
+		inputPrice: 2.5,
+		outputPrice: 15,
 		tiers: [
 			{
 				contextWindow: 200000,
 				inputPrice: 1.25,
 				outputPrice: 10,
-				cacheReadsPrice: 0.31,
 			},
 			{
 				contextWindow: Infinity,
 				inputPrice: 2.5,
 				outputPrice: 15,
-				cacheReadsPrice: 0.625,
 			},
 		],
 	},
@@ -1390,6 +1386,14 @@ export const mistralModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.1,
 		outputPrice: 0.3,
+	},
+	"mistral-medium-latest": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 2.0,
 	},
 	"mistral-small-2501": {
 		maxTokens: 32_000,

@@ -16,9 +16,7 @@ export interface WebviewMessage {
 		| "askResponse"
 		| "didShowAnnouncement"
 		| "selectImages"
-		| "showTaskWithId"
 		| "resetState"
-		| "requestLmStudioModels"
 		| "openInBrowser"
 		| "openMention"
 		| "showChatView"
@@ -36,7 +34,6 @@ export interface WebviewMessage {
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
-		| "getLatestState"
 		| "accountLogoutClicked"
 		| "showAccountViewClicked"
 		| "authStateChanged"
@@ -61,6 +58,7 @@ export interface WebviewMessage {
 		| "searchFiles"
 		| "toggleFavoriteModel"
 		| "grpc_request"
+		| "grpc_request_cancel"
 		| "toggleClineRule"
 		| "toggleCursorRule"
 		| "toggleWindsurfRule"
@@ -109,6 +107,10 @@ export interface WebviewMessage {
 		method: string
 		message: any // JSON serialized protobuf message
 		request_id: string // For correlating requests and responses
+		is_streaming?: boolean // Whether this is a streaming request
+	}
+	grpc_request_cancel?: {
+		request_id: string // ID of the request to cancel
 	}
 	// For cline rules
 	isGlobal?: boolean

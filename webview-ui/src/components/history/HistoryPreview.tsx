@@ -2,6 +2,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { memo } from "react"
+import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber } from "@/utils/format"
 
 type HistoryPreviewProps = {
@@ -11,7 +12,7 @@ type HistoryPreviewProps = {
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
 	const handleHistorySelect = (id: string) => {
-		vscode.postMessage({ type: "showTaskWithId", text: id })
+		TaskServiceClient.showTaskWithId({ value: id }).catch((error) => console.error("Error showing task:", error))
 	}
 
 	const formatDate = (timestamp: number) => {

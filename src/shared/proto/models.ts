@@ -24,5 +24,14 @@ export const ModelsServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Fetches available models from LM Studio */
+		getLmStudioModels: {
+			name: "getLmStudioModels",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: StringArray,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const

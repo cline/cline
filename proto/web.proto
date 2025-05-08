@@ -6,7 +6,7 @@ option java_multiple_files = true;
 
 import "common.proto";
 
-service WebContentService {
+service WebService {
   rpc checkIsImageUrl(StringRequest) returns (IsImageUrl);
 }
 

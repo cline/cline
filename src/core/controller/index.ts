@@ -7,7 +7,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { handleGrpcRequest } from "./grpc-handler"
+import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
@@ -20,7 +20,7 @@ import { ClineAccountService } from "@services/account/ClineAccountService"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { McpHub } from "@services/mcp/McpHub"
 import { searchWorkspaceFiles } from "@services/search/file-search"
-import { telemetryService } from "@services/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
@@ -30,7 +30,8 @@ import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/m
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { searchCommits } from "@utils/git"
+import { searchCommits, getWorkingState } from "@utils/git"
+import { extractCommitMessage } from "@integrations/git/commit-message-generator"
 import { getWorkspacePath } from "@utils/path"
 import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
@@ -48,6 +49,7 @@ import {
 } from "../storage/state"
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { sendStateUpdate } from "./state/subscribeToState"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 
@@ -327,18 +329,8 @@ export class Controller {
 					images,
 				})
 				break
-			case "showTaskWithId":
-				this.showTaskWithId(message.text!)
-				break
 			case "resetState":
 				await this.resetState()
-				break
-			case "requestLmStudioModels":
-				const lmStudioModels = await this.getLmStudioModels(message.text)
-				this.postMessageToWebview({
-					type: "lmStudioModels",
-					lmStudioModels,
-				})
 				break
 			case "requestVsCodeLmModels":
 				const vsCodeLmModels = await this.getVsCodeLmModels()
@@ -377,9 +369,6 @@ export class Controller {
 				}
 				break
 			}
-			case "getLatestState":
-				await this.postStateToWebview()
-				break
 			case "accountLogoutClicked": {
 				await this.handleSignOut()
 				break
@@ -653,6 +642,12 @@ export class Controller {
 				}
 				break
 			}
+			case "grpc_request_cancel": {
+				if (message.grpc_request_cancel) {
+					await handleGrpcRequestCancel(this, message.grpc_request_cancel)
+				}
+				break
+			}
 
 			case "copyToClipboard": {
 				try {
@@ -897,25 +892,6 @@ export class Controller {
 			return models || []
 		} catch (error) {
 			console.error("Error fetching VS Code LM models:", error)
-			return []
-		}
-	}
-
-	// LM Studio
-
-	async getLmStudioModels(baseUrl?: string) {
-		try {
-			if (!baseUrl) {
-				baseUrl = "http://localhost:1234"
-			}
-			if (!URL.canParse(baseUrl)) {
-				return []
-			}
-			const response = await axios.get(`${baseUrl}/v1/models`)
-			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
-			const models = [...new Set<string>(modelsArray)]
-			return models
-		} catch (error) {
 			return []
 		}
 	}
@@ -1325,14 +1301,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 							modelInfo.cacheWritesPrice = 0.14
 							modelInfo.cacheReadsPrice = 0.014
 							break
-						case "google/gemini-2.5-pro-preview-03-25":
-						case "google/gemini-2.0-flash-001":
-						case "google/gemini-flash-1.5":
-						case "google/gemini-pro-1.5":
-							modelInfo.supportsPromptCache = true
-							modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
-							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
-							break
 						default:
 							if (rawModel.id.startsWith("openai/")) {
 								modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
@@ -1340,6 +1308,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 									modelInfo.supportsPromptCache = true
 									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 									// openrouter charges no cache write pricing for openAI models
+								}
+							} else if (rawModel.id.startsWith("google/")) {
+								modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
+								if (modelInfo.cacheReadsPrice) {
+									modelInfo.supportsPromptCache = true
+									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 								}
 							}
 							break
@@ -1654,7 +1628,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		this.postMessageToWebview({ type: "state", state })
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -1806,6 +1780,109 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				error: `Failed to fetch Open Graph data: ${error}`,
 				url: url,
 			})
+		}
+	}
+
+	// Git commit message generation
+
+	async generateGitCommitMessage() {
+		try {
+			// Check if there's a workspace folder open
+			const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+			if (!cwd) {
+				vscode.window.showErrorMessage("No workspace folder open")
+				return
+			}
+
+			// Get the git diff
+			const gitDiff = await getWorkingState(cwd)
+			if (gitDiff === "No changes in working directory") {
+				vscode.window.showInformationMessage("No changes in workspace for commit message")
+				return
+			}
+
+			// Show a progress notification
+			await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: "Generating commit message...",
+					cancellable: false,
+				},
+				async (progress, token) => {
+					try {
+						// Format the git diff into a prompt
+						const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
+
+${gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff}
+
+The commit message should:
+1. Start with a short summary (50-72 characters)
+2. Use the imperative mood (e.g., "Add feature" not "Added feature")
+3. Describe what was changed and why
+4. Be clear and descriptive
+
+Commit message:`
+
+						// Get the current API configuration
+						const { apiConfiguration } = await getAllExtensionState(this.context)
+
+						// Build the API handler
+						const apiHandler = buildApiHandler(apiConfiguration)
+
+						// Create a system prompt
+						const systemPrompt =
+							"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
+
+						// Create a message for the API
+						const messages = [
+							{
+								role: "user" as const,
+								content: prompt,
+							},
+						]
+
+						// Call the API directly
+						const stream = apiHandler.createMessage(systemPrompt, messages)
+
+						// Collect the response
+						let response = ""
+						for await (const chunk of stream) {
+							if (chunk.type === "text") {
+								response += chunk.text
+							}
+						}
+
+						// Extract the commit message
+						const commitMessage = extractCommitMessage(response)
+
+						// Apply the commit message to the Git input box
+						if (commitMessage) {
+							// Get the Git extension API
+							const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
+							if (gitExtension) {
+								const api = gitExtension.getAPI(1)
+								if (api && api.repositories.length > 0) {
+									const repo = api.repositories[0]
+									repo.inputBox.value = commitMessage
+									vscode.window.showInformationMessage("Commit message generated and applied")
+								} else {
+									vscode.window.showErrorMessage("No Git repositories found")
+								}
+							} else {
+								vscode.window.showErrorMessage("Git extension not found")
+							}
+						} else {
+							vscode.window.showErrorMessage("Failed to generate commit message")
+						}
+					} catch (innerError) {
+						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
+						vscode.window.showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
+					}
+				},
+			)
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
 		}
 	}
 

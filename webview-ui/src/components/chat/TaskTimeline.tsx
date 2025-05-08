@@ -3,6 +3,13 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
+import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_RED, COLOR_PURPLE, COLOR_GREEN } from "./colors"
+
+// Timeline dimensions and spacing
+const TIMELINE_HEIGHT = "18px"
+const BLOCK_WIDTH = "9px"
+const BLOCK_GAP = "3px"
+const TOOLTIP_MARGIN = 32 // 32px margin on each side
 
 interface TaskTimelineProps {
 	messages: ClineMessage[]
@@ -12,9 +19,11 @@ const getBlockColor = (message: ClineMessage): string => {
 	if (message.type === "say") {
 		switch (message.say) {
 			case "task":
-				return "#FFFFFF" // White for system prompt
+				return COLOR_WHITE // White for system prompt
+			case "user_feedback":
+				return COLOR_WHITE // White for user feedback
 			case "text":
-				return "#AAAAAA" // Gray for assistant responses
+				return COLOR_GRAY // Gray for assistant responses
 			case "tool":
 				if (message.text) {
 					try {
@@ -26,43 +35,62 @@ const getBlockColor = (message: ClineMessage): string => {
 							toolData.tool === "listCodeDefinitionNames" ||
 							toolData.tool === "searchFiles"
 						) {
-							return "#F5F5DC" // Beige for file read operations
+							return COLOR_BEIGE // Beige for file read operations
 						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
-							return "#3B82F6" // Blue for file edit/create operations
+							return COLOR_BLUE // Blue for file edit/create operations
 						}
 					} catch (e) {
 						// JSON parse error here
 					}
 				}
-				return "#F5F5DC" // Default beige for tool use
+				return COLOR_BEIGE // Default beige for tool use
 			case "command":
 			case "command_output":
-				return "#EF4444" // Red for terminal commands
+				return COLOR_PURPLE // Red for terminal commands
 			case "browser_action":
 			case "browser_action_result":
-				return "#8B5CF6" // Purple for browser actions
+				return COLOR_PURPLE // Purple for browser actions
 			case "completion_result":
-				return "#10B981" // Green for task success
+				return COLOR_GREEN // Green for task success
 			default:
-				return "#9E9E9E" // Grey for unknown
+				return COLOR_DARK_GRAY // Dark gray for unknown
 		}
 	} else if (message.type === "ask") {
 		switch (message.ask) {
 			case "followup":
-				return "#AAAAAA" // Gray for user messages
+				return COLOR_GRAY // Gray for user messages
 			case "plan_mode_respond":
-				return "#AAAAAA" // Gray for planning responses
+				return COLOR_GRAY // Gray for planning responses
 			case "tool":
-				return "#9E9E9E" // Gray for tool approvals
+				// Match the color of the tool approval with the tool type
+				if (message.text) {
+					try {
+						const toolData = JSON.parse(message.text)
+						if (
+							toolData.tool === "readFile" ||
+							toolData.tool === "listFilesTopLevel" ||
+							toolData.tool === "listFilesRecursive" ||
+							toolData.tool === "listCodeDefinitionNames" ||
+							toolData.tool === "searchFiles"
+						) {
+							return COLOR_BEIGE // Beige for file read operations
+						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
+							return COLOR_BLUE // Blue for file edit/create operations
+						}
+					} catch (e) {
+						// JSON parse error here
+					}
+				}
+				return COLOR_BEIGE // Default beige for tool approvals
 			case "command":
-				return "#9E9E9E" // Gray for command approvals
+				return COLOR_PURPLE // Red for command approvals (same as terminal commands)
 			case "browser_action_launch":
-				return "#9E9E9E" // Gray for browser launch approvals
+				return COLOR_PURPLE // Purple for browser launch approvals (same as browser actions)
 			default:
-				return "#9E9E9E" // Grey for unknown
+				return COLOR_DARK_GRAY // Dark gray for unknown
 		}
 	}
-	return "#9E9E9E" // Default grey
+	return COLOR_WHITE // Default color
 }
 
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
@@ -77,16 +105,27 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
 
 		return processed.filter((msg) => {
+			// Filter out standard "say" events we don't want to show
 			if (
 				msg.type === "say" &&
 				(msg.say === "api_req_started" ||
 					msg.say === "api_req_finished" ||
 					msg.say === "api_req_retried" ||
 					msg.say === "deleted_api_reqs" ||
+					msg.say === "checkpoint_created" ||
 					(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
 			) {
 				return false
 			}
+
+			// Filter out "ask" events we don't want to show, including the duplicate completion_result
+			if (
+				msg.type === "ask" &&
+				(msg.ask === "resume_task" || msg.ask === "resume_completed_task" || msg.ask === "completion_result") // Filter out the duplicate completion_result "ask" message
+			) {
+				return false
+			}
+
 			return true
 		})
 	}, [messages])
@@ -100,8 +139,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 	if (taskTimelinePropsMessages.length === 0) {
 		return null
 	}
-
-	const TOOLTIP_MARGIN = 32 // 32px margin on each side
 
 	const handleMouseEnter = (message: ClineMessage, event: React.MouseEvent<HTMLDivElement>) => {
 		setHoveredMessage(message)
@@ -134,12 +171,13 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				ref={scrollableRef}
 				style={{
 					display: "flex",
-					height: "10px",
+					height: TIMELINE_HEIGHT,
 					overflowX: "auto",
 					scrollbarWidth: "none",
 					msOverflowStyle: "none",
 					width: "100%",
 					WebkitOverflowScrolling: "touch",
+					gap: BLOCK_GAP, // Using flexbox gap instead of marginRight
 				}}>
 				<style>
 					{`
@@ -153,10 +191,9 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 					<div
 						key={index}
 						style={{
-							width: "5px",
+							width: BLOCK_WIDTH,
 							height: "100%",
 							backgroundColor: getBlockColor(message),
-							marginRight: "1px",
 							flexShrink: 0,
 							cursor: "pointer",
 						}}

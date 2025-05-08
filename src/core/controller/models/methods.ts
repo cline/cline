@@ -3,10 +3,12 @@
 
 // Import all method implementations
 import { registerMethod } from "./index"
+import { getLmStudioModels } from "./getLmStudioModels"
 import { getOllamaModels } from "./getOllamaModels"
 
 // Register all models service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
+	registerMethod("getLmStudioModels", getLmStudioModels)
 	registerMethod("getOllamaModels", getOllamaModels)
 }

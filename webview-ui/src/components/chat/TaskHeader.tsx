@@ -12,6 +12,7 @@ import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import { validateSlashCommand } from "@/utils/slash-commands"
 import TaskTimeline from "./TaskTimeline"
 import { TaskServiceClient } from "@/services/grpc-client"
+import HeroTooltip from "@/components/common/HeroTooltip"
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -136,12 +137,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		)
 	}, [apiConfiguration?.apiProvider, apiConfiguration?.openAiModelInfo])
 
-	const shouldShowPromptCacheInfo =
-		doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter" && apiConfiguration?.apiProvider !== "cline"
-
-	const shouldShowPromptCacheInfoClineOR =
-		doesModelSupportPromptCache &&
-		(apiConfiguration?.apiProvider === "openrouter" || apiConfiguration?.apiProvider === "cline")
+	const shouldShowPromptCacheInfo = () => {
+		return (
+			doesModelSupportPromptCache &&
+			((cacheReads !== undefined && cacheReads > 0) || (cacheWrites !== undefined && cacheWrites > 0))
+		)
+	}
 
 	const ContextWindowComponent = (
 		<>
@@ -156,23 +157,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						style={{
 							display: "flex",
 							alignItems: "center",
-							gap: "4px",
-							flexShrink: 0, // Prevents shrinking
-						}}>
-						<span style={{ fontWeight: "bold" }}>
-							{/* {windowWidth > 280 && windowWidth < 310 ? "Context:" : "Context Window:"} */}
-							Context Window:
-						</span>
-					</div>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
 							gap: "3px",
 							flex: 1,
 							whiteSpace: "nowrap",
 						}}>
-						<span>{formatLargeNumber(lastApiReqTotalTokens || 0)}</span>
+						<HeroTooltip content="Current tokens used in this request">
+							<span className="cursor-pointer">{formatLargeNumber(lastApiReqTotalTokens || 0)}</span>
+						</HeroTooltip>
 						<div
 							style={{
 								display: "flex",
@@ -180,24 +171,29 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								gap: "3px",
 								flex: 1,
 							}}>
-							<div
-								style={{
-									flex: 1,
-									height: "4px",
-									backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
-									borderRadius: "2px",
-									overflow: "hidden",
-								}}>
+							<HeroTooltip content="Context window usage">
 								<div
 									style={{
-										width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
-										height: "100%",
-										backgroundColor: "var(--vscode-badge-foreground)",
+										flex: 1,
+										height: "4px",
+										backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
 										borderRadius: "2px",
+										overflow: "hidden",
 									}}
-								/>
-							</div>
-							<span>{formatLargeNumber(contextWindow)}</span>
+									className="cursor-pointer">
+									<div
+										style={{
+											width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
+											height: "100%",
+											backgroundColor: "var(--vscode-badge-foreground)",
+											borderRadius: "2px",
+										}}
+									/>
+								</div>
+							</HeroTooltip>
+							<HeroTooltip content="Maximum context window size for this model">
+								<span className="cursor-pointer">{formatLargeNumber(contextWindow)}</span>
+							</HeroTooltip>
 						</div>
 					</div>
 				</div>
@@ -263,7 +259,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightText(task.text, false)}</span>}
 						</div>
 					</div>
-					{!isTaskExpanded && isCostAvailable && (
+					{isCostAvailable && (
 						<div
 							style={{
 								marginLeft: 10,
@@ -299,7 +295,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								ref={textRef}
 								style={{
 									display: "-webkit-box",
-									WebkitLineClamp: isTextExpanded ? "unset" : 3,
+									WebkitLineClamp: isTextExpanded ? "unset" : 2,
 									WebkitBoxOrient: "vertical",
 									overflow: "hidden",
 									whiteSpace: "pre-wrap",
@@ -352,18 +348,19 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							</div>
 						)}
 						{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
+
 						<div
 							style={{
 								display: "flex",
 								flexDirection: "column",
-								gap: "4px",
+								gap: "2px",
 							}}>
 							<div
 								style={{
 									display: "flex",
 									justifyContent: "space-between",
 									alignItems: "center",
-									height: 17,
+									flexWrap: "wrap",
 								}}>
 								<div
 									style={{
@@ -375,77 +372,48 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<div style={{ display: "flex", alignItems: "center" }}>
 										<span style={{ fontWeight: "bold" }}>Tokens:</span>
 									</div>
-									<span
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "3px",
-										}}>
-										<i
-											className="codicon codicon-arrow-up"
-											style={{
-												fontSize: "12px",
-												fontWeight: "bold",
-												marginBottom: "-2px",
-											}}
-										/>
-										{formatLargeNumber(tokensIn || 0)}
-									</span>
-									<span
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "3px",
-										}}>
-										<i
-											className="codicon codicon-arrow-down"
-											style={{
-												fontSize: "12px",
-												fontWeight: "bold",
-												marginBottom: "-2px",
-											}}
-										/>
-										{formatLargeNumber(tokensOut || 0)}
-									</span>
+									<HeroTooltip content="Prompt Tokens">
+										<span className="flex items-center gap-[3px] cursor-pointer">
+											<i
+												className="codicon codicon-arrow-up"
+												style={{
+													fontSize: "12px",
+													fontWeight: "bold",
+													marginBottom: "-2px",
+												}}
+											/>
+											{formatLargeNumber(tokensIn || 0)}
+										</span>
+									</HeroTooltip>
+									<HeroTooltip content="Completion Tokens">
+										<span className="flex items-center gap-[3px] cursor-pointer">
+											<i
+												className="codicon codicon-arrow-down"
+												style={{
+													fontSize: "12px",
+													fontWeight: "bold",
+													marginBottom: "-2px",
+												}}
+											/>
+											{formatLargeNumber(tokensOut || 0)}
+										</span>
+									</HeroTooltip>
 								</div>
-								{!isCostAvailable && (
-									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
+								{!shouldShowPromptCacheInfo() && (
+									<div className="flex items-center flex-wrap">
+										<CopyButton taskText={task.text} />
+										<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
+									</div>
 								)}
 							</div>
-
-							<TaskTimeline messages={clineMessages} />
-
-							{shouldShowPromptCacheInfoClineOR && cacheReads !== undefined && (
+							{shouldShowPromptCacheInfo() && (
 								<div
 									style={{
 										display: "flex",
+										justifyContent: "space-between",
 										alignItems: "center",
-										gap: "4px",
 										flexWrap: "wrap",
 									}}>
-									<span style={{ fontWeight: "bold" }}>Cache:</span>
-									<span
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "3px",
-										}}>
-										<i
-											className="codicon codicon-arrow-right"
-											style={{
-												fontSize: "12px",
-												fontWeight: "bold",
-												marginBottom: 0,
-											}}
-										/>
-										{formatLargeNumber(cacheReads || 0)}
-									</span>
-								</div>
-							)}
-							{shouldShowPromptCacheInfo &&
-								(cacheReads !== undefined ||
-									cacheWrites !== undefined ||
-									apiConfiguration?.apiProvider === "anthropic") && (
 									<div
 										style={{
 											display: "flex",
@@ -453,62 +421,50 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											gap: "4px",
 											flexWrap: "wrap",
 										}}>
-										<span style={{ fontWeight: "bold" }}>Cache:</span>
-										<span
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "3px",
-											}}>
-											<i
-												className="codicon codicon-database"
-												style={{
-													fontSize: "12px",
-													fontWeight: "bold",
-													marginBottom: "-1px",
-												}}
-											/>
-											+{formatLargeNumber(cacheWrites || 0)}
-										</span>
-										<span
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "3px",
-											}}>
-											<i
-												className="codicon codicon-arrow-right"
-												style={{
-													fontSize: "12px",
-													fontWeight: "bold",
-													marginBottom: 0,
-												}}
-											/>
-											{formatLargeNumber(cacheReads || 0)}
-										</span>
+										<div style={{ display: "flex", alignItems: "center" }}>
+											<span style={{ fontWeight: "bold" }}>Cache:</span>
+										</div>
+										{cacheWrites !== undefined && cacheWrites > 0 && (
+											<HeroTooltip content="Tokens written to cache">
+												<span className="flex items-center gap-[3px] cursor-pointer">
+													<i
+														className="codicon codicon-database"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-1px",
+														}}
+													/>
+													+{formatLargeNumber(cacheWrites || 0)}
+												</span>
+											</HeroTooltip>
+										)}
+										{cacheReads !== undefined && cacheReads > 0 && (
+											<HeroTooltip content="Tokens read from cache">
+												<span className="flex items-center gap-[3px] cursor-pointer">
+													<i
+														className={"codicon codicon-arrow-right"}
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: 0,
+														}}
+													/>
+													{formatLargeNumber(cacheReads || 0)}
+												</span>
+											</HeroTooltip>
+										)}
 									</div>
-								)}
-							{ContextWindowComponent}
-							{isCostAvailable && (
-								<div
-									style={{
-										display: "flex",
-										justifyContent: "space-between",
-										alignItems: "center",
-										height: 17,
-									}}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "4px",
-										}}>
-										<span style={{ fontWeight: "bold" }}>API Cost:</span>
-										<span>${totalCost?.toFixed(4)}</span>
+									<div className="flex items-center flex-wrap">
+										<CopyButton taskText={task.text} />
+										<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 									</div>
-									<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 								</div>
 							)}
+							<div className="flex flex-col">
+								<TaskTimeline messages={clineMessages} />
+								{ContextWindowComponent}
+							</div>
 							{checkpointTrackerErrorMessage && (
 								<div
 									style={{
@@ -669,27 +625,59 @@ export const highlightText = (text?: string, withShadow = true) => {
 	return [text]
 }
 
+const CopyButton: React.FC<{
+	taskText?: string
+}> = ({ taskText }) => {
+	const [copied, setCopied] = useState(false)
+
+	const handleCopy = () => {
+		if (!taskText) return
+
+		navigator.clipboard.writeText(taskText).then(() => {
+			setCopied(true)
+			setTimeout(() => setCopied(false), 1500)
+		})
+	}
+
+	return (
+		<HeroTooltip content="Copy Task">
+			<VSCodeButton
+				appearance="icon"
+				onClick={handleCopy}
+				style={{ padding: "0px 0px" }}
+				className="p-0"
+				aria-label="Copy Task">
+				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
+					<i className={`codicon codicon-${copied ? "check" : "copy"}`} />
+				</div>
+			</VSCodeButton>
+		</HeroTooltip>
+	)
+}
+
 const DeleteButton: React.FC<{
 	taskSize: string
 	taskId?: string
 }> = ({ taskSize, taskId }) => (
-	<VSCodeButton
-		appearance="icon"
-		onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ value: [taskId] })}
-		style={{ padding: "0px 0px" }}>
-		<div
-			style={{
-				display: "flex",
-				alignItems: "center",
-				gap: "3px",
-				fontSize: "10px",
-				fontWeight: "bold",
-				opacity: 0.6,
-			}}>
-			<i className={`codicon codicon-trash`} />
-			{taskSize}
-		</div>
-	</VSCodeButton>
+	<HeroTooltip content="Delete Task & Checkpoints">
+		<VSCodeButton
+			appearance="icon"
+			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ value: [taskId] })}
+			style={{ padding: "0px 0px" }}>
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: "3px",
+					fontSize: "10px",
+					fontWeight: "bold",
+					opacity: 0.6,
+				}}>
+				<i className={`codicon codicon-trash`} />
+				{taskSize}
+			</div>
+		</VSCodeButton>
+	</HeroTooltip>
 )
 
 // const ExportButton = () => (

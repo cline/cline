@@ -27,7 +27,8 @@ import {
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
-import { FileServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
@@ -43,7 +44,7 @@ interface ChatTextAreaProps {
 	inputValue: string
 	activeQuote: string | null
 	setInputValue: (value: string) => void
-	textAreaDisabled: boolean
+	sendingDisabled: boolean
 	placeholderText: string
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
@@ -228,7 +229,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			inputValue,
 			activeQuote,
 			setInputValue,
-			textAreaDisabled,
+			sendingDisabled,
 			placeholderText,
 			selectedImages,
 			setSelectedImages,
@@ -518,8 +519,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const isComposing = event.nativeEvent?.isComposing ?? false
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
-					setIsTextAreaFocused(false)
-					onSend()
+
+					if (!sendingDisabled) {
+						setIsTextAreaFocused(false)
+						onSend()
+					}
 				}
 
 				if (event.key === "Backspace" && !isComposing) {
@@ -603,6 +607,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				selectedSlashCommandsIndex,
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
+				sendingDisabled,
 			],
 		)
 
@@ -875,7 +880,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!apiValidationResult && !modelIdValidationResult) {
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
-				vscode.postMessage({ type: "getLatestState" })
+				StateServiceClient.getLatestState(EmptyRequest.create())
+					.then(() => {
+						console.log("State refreshed")
+					})
+					.catch((error) => {
+						console.error("Error refreshing state:", error)
+					})
 			}
 		}, [apiConfiguration, openRouterModels])
 
@@ -909,8 +920,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
-			if (textAreaDisabled) return
-
 			// Focus the textarea first
 			textAreaRef.current?.focus()
 
@@ -949,7 +958,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			} as React.ChangeEvent<HTMLTextAreaElement>
 			handleInputChange(event)
 			updateHighlights()
-		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
+		}, [inputValue, handleInputChange, updateHighlights])
 
 		// Use an effect to detect menu close
 		useEffect(() => {
@@ -1241,7 +1250,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				<div
 					style={{
 						padding: "10px 15px",
-						opacity: textAreaDisabled ? 0.5 : 1,
+						opacity: 1,
 						position: "relative",
 						display: "flex",
 						// Drag-over styles moved to DynamicTextArea
@@ -1351,7 +1360,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							textAreaRef.current = el
 						}}
 						value={inputValue}
-						disabled={textAreaDisabled}
 						onChange={(e) => {
 							handleInputChange(e)
 							updateHighlights()
@@ -1401,7 +1409,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
 							padding: "9px 28px 3px 9px",
-							cursor: textAreaDisabled ? "not-allowed" : undefined,
+							cursor: "text",
 							flex: 1,
 							zIndex: 1,
 							outline:
@@ -1459,9 +1467,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							/> */}
 							<div
 								data-testid="send-button"
-								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
+								className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
 								onClick={() => {
-									if (!textAreaDisabled) {
+									if (!sendingDisabled) {
 										setIsTextAreaFocused(false)
 										onSend()
 									}
@@ -1497,7 +1505,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									data-testid="context-button"
 									appearance="icon"
 									aria-label="Add Context"
-									disabled={textAreaDisabled}
 									onClick={handleContextButtonClick}
 									style={{ padding: "0px 0px", height: "20px" }}>
 									<ButtonContainer>

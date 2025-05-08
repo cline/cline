@@ -23,7 +23,7 @@ jobs:
         uses: ./.github/workflows/test.yml
 
     publish:
-        # needs: test
+        needs: test
         name: Publish Extension
         runs-on: ubuntu-latest
         environment: publish

@@ -1,5 +1,6 @@
 import React from "react"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_RED, COLOR_PURPLE, COLOR_GREEN } from "./colors"
 
 // Color mapping for different message types
 
@@ -14,6 +15,8 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 				// TODO: Need to confirm these classifcations with design
 				case "task":
 					return "Task Message"
+				case "user_feedback":
+					return "User Message"
 				case "text":
 					return "Assistant Response"
 				case "tool":
@@ -49,6 +52,8 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 					return "Browser Result"
 				case "completion_result":
 					return "Task Completed"
+				case "checkpoint_created":
+					return "Checkpoint Created"
 				default:
 					return message.say || "Unknown"
 			}
@@ -59,11 +64,32 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 				case "plan_mode_respond":
 					return "Planning Response"
 				case "tool":
+					if (message.text) {
+						try {
+							const toolData = JSON.parse(message.text)
+							if (
+								toolData.tool === "readFile" ||
+								toolData.tool === "listFilesTopLevel" ||
+								toolData.tool === "listFilesRecursive" ||
+								toolData.tool === "listCodeDefinitionNames" ||
+								toolData.tool === "searchFiles"
+							) {
+								return `File Read Approval: ${toolData.tool}`
+							} else if (toolData.tool === "editedExistingFile") {
+								return `File Edit Approval: ${toolData.path || "Unknown file"}`
+							} else if (toolData.tool === "newFileCreated") {
+								return `New File Approval: ${toolData.path || "Unknown file"}`
+							}
+							return `Tool Approval: ${toolData.tool}`
+						} catch (e) {
+							return "Tool Approval"
+						}
+					}
 					return "Tool Approval"
 				case "command":
-					return "Command Approval"
+					return "Terminal Command Approval"
 				case "browser_action_launch":
-					return "Browser Launch"
+					return "Browser Action Approval"
 				default:
 					return message.ask || "Unknown"
 			}
@@ -99,8 +125,24 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 
 	const getTimestamp = (message: ClineMessage): string => {
 		if (message.ts) {
-			const date = new Date(message.ts)
-			return date.toLocaleTimeString()
+			const messageDate = new Date(message.ts)
+			const today = new Date()
+
+			const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+			const messageDateOnly = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate())
+
+			const time = messageDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
+
+			const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+			const monthName = monthNames[messageDate.getMonth()]
+
+			if (messageDateOnly.getTime() === todayDate.getTime()) {
+				return `${time}`
+			} else if (messageDate.getFullYear() === today.getFullYear()) {
+				return `${monthName} ${messageDate.getDate()} ${time}`
+			} else {
+				return `${monthName} ${messageDate.getDate()}, ${messageDate.getFullYear()} ${time}`
+			}
 		}
 		return ""
 	}
@@ -110,9 +152,11 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 		if (message.type === "say") {
 			switch (message.say) {
 				case "task":
-					return "#FFFFFF" // White for system prompt
+					return COLOR_WHITE // White for system prompt
+				case "user_feedback":
+					return COLOR_WHITE // White for user feedback
 				case "text":
-					return "#AAAAAA" // Gray for assistant responses
+					return COLOR_GRAY // Gray for assistant responses
 				case "tool":
 					if (message.text) {
 						try {
@@ -124,43 +168,62 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 								toolData.tool === "listCodeDefinitionNames" ||
 								toolData.tool === "searchFiles"
 							) {
-								return "#F5F5DC" // Beige for file read operations
+								return COLOR_BEIGE // Beige for file read operations
 							} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
-								return "#3B82F6" // Blue for file edit/create operations
+								return COLOR_BLUE // Blue for file edit/create operations
 							}
 						} catch (e) {
 							// JSON parse error here
 						}
 					}
-					return "#F5F5DC" // Default beige for tool use
+					return COLOR_BEIGE // Default beige for tool use
 				case "command":
 				case "command_output":
-					return "#EF4444" // Red for terminal commands
+					return COLOR_PURPLE // Red for terminal commands
 				case "browser_action":
 				case "browser_action_result":
-					return "#8B5CF6" // Purple for browser actions
+					return COLOR_PURPLE // Purple for browser actions
 				case "completion_result":
-					return "#10B981" // Green for task success
+					return COLOR_GREEN // Green for task success
 				default:
-					return "#9E9E9E" // Grey for unknown
+					return COLOR_DARK_GRAY // Dark gray for unknown
 			}
 		} else if (message.type === "ask") {
 			switch (message.ask) {
 				case "followup":
-					return "#AAAAAA" // Gray for user messages
+					return COLOR_GRAY // Gray for user messages
 				case "plan_mode_respond":
-					return "#AAAAAA" // Gray for planning responses
+					return COLOR_GRAY // Gray for planning responses
 				case "tool":
-					return "#9E9E9E" // Gray for tool approvals
+					// Match the color of the tool approval with the tool type
+					if (message.text) {
+						try {
+							const toolData = JSON.parse(message.text)
+							if (
+								toolData.tool === "readFile" ||
+								toolData.tool === "listFilesTopLevel" ||
+								toolData.tool === "listFilesRecursive" ||
+								toolData.tool === "listCodeDefinitionNames" ||
+								toolData.tool === "searchFiles"
+							) {
+								return COLOR_BEIGE // Beige for file read operations
+							} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
+								return COLOR_BLUE // Blue for file edit/create operations
+							}
+						} catch (e) {
+							// JSON parse error here
+						}
+					}
+					return COLOR_BEIGE // Default beige for tool approvals
 				case "command":
-					return "#9E9E9E" // Gray for command approvals
+					return COLOR_PURPLE // Red for command approvals (same as terminal commands)
 				case "browser_action_launch":
-					return "#9E9E9E" // Gray for browser launch approvals
+					return COLOR_PURPLE // Purple for browser launch approvals (same as browser actions)
 				default:
-					return "#9E9E9E" // Grey for unknown
+					return COLOR_DARK_GRAY // Dark gray for unknown
 			}
 		}
-		return "#9E9E9E" // Default grey
+		return COLOR_DARK_GRAY // Default dark gray
 	}
 
 	return (

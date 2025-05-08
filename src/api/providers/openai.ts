@@ -18,7 +18,8 @@ export class OpenAiHandler implements ApiHandler {
 		// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
 		if (
 			this.options.azureApiVersion ||
-			(this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") &&
+			((this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") ||
+				this.options.openAiBaseUrl?.toLowerCase().includes("azure.us")) &&
 				!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
 		) {
 			this.client = new AzureOpenAI({

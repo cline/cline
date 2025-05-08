@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.14.1]
+
+-   Disables autocaptures when initializing feature flags
+
 ## [3.14.0]
 
 -   Add support for custom model ID in AWS Bedrock provider, enabling use of Application Inference Profile (Thanks @clicube!)
