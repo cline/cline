@@ -2,19 +2,19 @@ import React from "react"
 import MarkdownBlock from "../common/MarkdownBlock"
 
 interface ReportBugPreviewProps {
-	context: string
+	data: string
 }
 
-const ReportBugPreview: React.FC<ReportBugPreviewProps> = ({ context }) => {
+const ReportBugPreview: React.FC<ReportBugPreviewProps> = ({ data }) => {
 	// Parse the JSON data from the context string
 	const bugData = React.useMemo(() => {
 		try {
-			return JSON.parse(context || "{}")
+			return JSON.parse(data || "{}")
 		} catch (e) {
 			console.error("Failed to parse bug report data", e)
 			return {}
 		}
-	}, [context])
+	}, [data])
 
 	return (
 		<div className="bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] rounded-[3px] p-[14px]">

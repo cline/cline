@@ -1490,7 +1490,7 @@ export const ChatRowContent = ({
 									Cline wants to create a Github issue:
 								</span>
 							</div>
-							<ReportBugPreview context={message.text || ""} />
+							<ReportBugPreview data={message.text || ""} />
 						</>
 					)
 				case "plan_mode_respond": {
