@@ -59,7 +59,10 @@ export const Requesty = ({
 				{t("settings:providers.apiKeyStorageNotice")}
 			</div>
 			{!apiConfiguration?.requestyApiKey && (
-				<VSCodeButtonLink href="https://app.requesty.ai/api-keys" className="w-full" appearance="primary">
+				<VSCodeButtonLink
+					href="https://app.requesty.ai/api-keys"
+					style={{ width: "100%" }}
+					appearance="primary">
 					{t("settings:providers.getRequestyApiKey")}
 				</VSCodeButtonLink>
 			)}

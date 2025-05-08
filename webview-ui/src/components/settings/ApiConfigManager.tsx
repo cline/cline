@@ -372,7 +372,7 @@ const ApiConfigManager = ({
 						}}
 						placeholder={t("settings:providers.enterProfileName")}
 						data-testid="new-profile-input"
-						className="w-full"
+						style={{ width: "100%" }}
 						onKeyDown={(e: unknown) => {
 							const event = e as { key: string }
 							if (event.key === "Enter" && newProfileName.trim()) {

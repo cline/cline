@@ -60,7 +60,11 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({ language, value, className,
 				size="icon"
 				className="absolute top-1 right-1 cursor-pointer bg-black/10"
 				onClick={onCopy}>
-				{isCopied ? <CheckIcon className="w-3 h-3" /> : <CopyIcon className="w-3 h-3" />}
+				{isCopied ? (
+					<CheckIcon style={{ width: 12, height: 12 }} />
+				) : (
+					<CopyIcon style={{ width: 12, height: 12 }} />
+				)}
 			</Button>
 		</div>
 	)

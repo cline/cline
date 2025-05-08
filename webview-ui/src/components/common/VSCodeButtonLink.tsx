@@ -8,7 +8,12 @@ interface VSCodeButtonLinkProps {
 }
 
 export const VSCodeButtonLink = ({ href, children, ...props }: VSCodeButtonLinkProps) => (
-	<a href={href} className="no-underline text-inherit">
+	<a
+		href={href}
+		style={{
+			textDecoration: "none",
+			color: "inherit",
+		}}>
 		<VSCodeButton {...props}>{children}</VSCodeButton>
 	</a>
 )

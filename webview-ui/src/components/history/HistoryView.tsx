@@ -99,7 +99,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				</div>
 				<div className="flex flex-col gap-2">
 					<VSCodeTextField
-						className="w-full"
+						style={{ width: "100%" }}
 						placeholder={t("history:searchPlaceholder")}
 						value={searchQuery}
 						data-testid="history-search-input"
@@ -111,18 +111,28 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								setSortOption("mostRelevant")
 							}
 						}}>
-						<div slot="start" className="codicon codicon-search text-[13px] mt-[2.5px] opacity-80" />
+						<div
+							slot="start"
+							className="codicon codicon-search"
+							style={{ fontSize: 13, marginTop: 2.5, opacity: 0.8 }}
+						/>
 						{searchQuery && (
 							<div
-								className="input-icon-button codicon codicon-close flex justify-center items-center h-full"
+								className="input-icon-button codicon codicon-close"
 								aria-label="Clear search"
 								onClick={() => setSearchQuery("")}
 								slot="end"
+								style={{
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "center",
+									height: "100%",
+								}}
 							/>
 						)}
 					</VSCodeTextField>
 					<VSCodeRadioGroup
-						className="flex flex-wrap"
+						style={{ display: "flex", flexWrap: "wrap" }}
 						value={sortOption}
 						role="radiogroup"
 						onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}>
@@ -142,7 +152,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							value="mostRelevant"
 							disabled={!searchQuery}
 							data-testid="radio-most-relevant"
-							className={searchQuery ? "opacity-100" : "opacity-50"}>
+							style={{ opacity: searchQuery ? 1 : 0.5 }}>
 							{t("history:mostRelevant")}
 						</VSCodeRadio>
 					</VSCodeRadioGroup>
@@ -187,7 +197,10 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 			<TabContent className="p-0">
 				<Virtuoso
-					className="flex-grow overflow-y-scroll"
+					style={{
+						flexGrow: 1,
+						overflowY: "scroll",
+					}}
 					data={tasks}
 					data-testid="virtuoso-container"
 					initialTopMostItemIndex={0}
@@ -261,33 +274,76 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										</div>
 									</div>
 									<div
-										className="text-vscode-font-size text-vscode-foreground overflow-hidden whitespace-pre-wrap break-words overflow-wrap-anywhere"
 										style={{
+											fontSize: "var(--vscode-font-size)",
+											color: "var(--vscode-foreground)",
 											display: "-webkit-box",
 											WebkitLineClamp: 3,
 											WebkitBoxOrient: "vertical",
+											overflow: "hidden",
+											whiteSpace: "pre-wrap",
+											wordBreak: "break-word",
+											overflowWrap: "anywhere",
 										}}
 										data-testid="task-content"
 										dangerouslySetInnerHTML={{ __html: item.task }}
 									/>
-									<div className="flex flex-col gap-1">
+									<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 										<div
 											data-testid="tokens-container"
-											className="flex justify-between items-center">
-											<div className="flex items-center gap-1 flex-wrap">
-												<span className="font-medium text-vscode-descriptionForeground">
+											style={{
+												display: "flex",
+												justifyContent: "space-between",
+												alignItems: "center",
+											}}>
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: "4px",
+													flexWrap: "wrap",
+												}}>
+												<span
+													style={{
+														fontWeight: 500,
+														color: "var(--vscode-descriptionForeground)",
+													}}>
 													{t("history:tokensLabel")}
 												</span>
 												<span
 													data-testid="tokens-in"
-													className="flex items-center gap-[3px] text-vscode-descriptionForeground">
-													<i className="codicon codicon-arrow-up text-xs font-bold mb-[-2px]" />
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-arrow-up"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-2px",
+														}}
+													/>
 													{formatLargeNumber(item.tokensIn || 0)}
 												</span>
 												<span
 													data-testid="tokens-out"
-													className="flex items-center gap-[3px] text-vscode-descriptionForeground">
-													<i className="codicon codicon-arrow-down text-xs font-bold mb-[-2px]" />
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-arrow-down"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-2px",
+														}}
+													/>
 													{formatLargeNumber(item.tokensOut || 0)}
 												</span>
 											</div>
@@ -302,32 +358,75 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										{!!item.cacheWrites && (
 											<div
 												data-testid="cache-container"
-												className="flex items-center gap-1 flex-wrap">
-												<span className="font-medium text-vscode-descriptionForeground">
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: "4px",
+													flexWrap: "wrap",
+												}}>
+												<span
+													style={{
+														fontWeight: 500,
+														color: "var(--vscode-descriptionForeground)",
+													}}>
 													{t("history:cacheLabel")}
 												</span>
 												<span
 													data-testid="cache-writes"
-													className="flex items-center gap-[3px] text-vscode-descriptionForeground">
-													<i className="codicon codicon-database text-xs font-bold mb-[-1px]" />
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-database"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: "-1px",
+														}}
+													/>
 													+{formatLargeNumber(item.cacheWrites || 0)}
 												</span>
 												<span
 													data-testid="cache-reads"
-													className="flex items-center gap-[3px] text-vscode-descriptionForeground">
-													<i className="codicon codicon-arrow-right text-xs font-bold mb-0" />
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "3px",
+														color: "var(--vscode-descriptionForeground)",
+													}}>
+													<i
+														className="codicon codicon-arrow-right"
+														style={{
+															fontSize: "12px",
+															fontWeight: "bold",
+															marginBottom: 0,
+														}}
+													/>
 													{formatLargeNumber(item.cacheReads || 0)}
 												</span>
 											</div>
 										)}
 
 										{!!item.totalCost && (
-											<div className="flex justify-between items-center mt-[-2px]">
-												<div className="flex items-center gap-1">
-													<span className="font-medium text-vscode-descriptionForeground">
+											<div
+												style={{
+													display: "flex",
+													justifyContent: "space-between",
+													alignItems: "center",
+													marginTop: -2,
+												}}>
+												<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+													<span
+														style={{
+															fontWeight: 500,
+															color: "var(--vscode-descriptionForeground)",
+														}}>
 														{t("history:apiCostLabel")}
 													</span>
-													<span className="text-vscode-descriptionForeground">
+													<span style={{ color: "var(--vscode-descriptionForeground)" }}>
 														${item.totalCost?.toFixed(4)}
 													</span>
 												</div>

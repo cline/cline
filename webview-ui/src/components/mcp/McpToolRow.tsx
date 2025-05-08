@@ -24,14 +24,18 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolR
 	}
 
 	return (
-		<div key={tool.name} className="py-[3px]">
+		<div
+			key={tool.name}
+			style={{
+				padding: "3px 0",
+			}}>
 			<div
 				data-testid="tool-row-container"
-				className="flex items-center justify-between"
+				style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
 				onClick={(e) => e.stopPropagation()}>
-				<div className="flex items-center">
-					<span className="codicon codicon-symbol-method mr-[6px]"></span>
-					<span className="font-medium">{tool.name}</span>
+				<div style={{ display: "flex", alignItems: "center" }}>
+					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px" }}></span>
+					<span style={{ fontWeight: 500 }}>{tool.name}</span>
 				</div>
 				{serverName && alwaysAllowMcp && (
 					<VSCodeCheckbox checked={tool.alwaysAllow} onChange={handleAlwaysAllowChange} data-tool={tool.name}>
@@ -39,12 +43,32 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolR
 					</VSCodeCheckbox>
 				)}
 			</div>
-			{tool.description && <div className="ml-0 mt-1 opacity-80 text-xs">{tool.description}</div>}
+			{tool.description && (
+				<div
+					style={{
+						marginLeft: "0px",
+						marginTop: "4px",
+						opacity: 0.8,
+						fontSize: "12px",
+					}}>
+					{tool.description}
+				</div>
+			)}
 			{tool.inputSchema &&
 				"properties" in tool.inputSchema &&
 				Object.keys(tool.inputSchema.properties as Record<string, any>).length > 0 && (
-					<div className="mt-2 text-xs rounded-[3px] p-2 border border-vscode-descriptionForeground-transparent-30">
-						<div className="mb-1 opacity-80 text-[11px] uppercase">{t("mcp:tool.parameters")}</div>
+					<div
+						style={{
+							marginTop: "8px",
+							fontSize: "12px",
+							border: "1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 30%, transparent)",
+							borderRadius: "3px",
+							padding: "8px",
+						}}>
+						<div
+							style={{ marginBottom: "4px", opacity: 0.8, fontSize: "11px", textTransform: "uppercase" }}>
+							{t("mcp:tool.parameters")}
+						</div>
 						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(
 							([paramName, schema]) => {
 								const isRequired =
@@ -54,12 +78,29 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolR
 									tool.inputSchema.required.includes(paramName)
 
 								return (
-									<div key={paramName} className="flex items-baseline mt-1">
-										<code className="text-vscode-textPreformat-foreground mr-2">
+									<div
+										key={paramName}
+										style={{
+											display: "flex",
+											alignItems: "baseline",
+											marginTop: "4px",
+										}}>
+										<code
+											style={{
+												color: "var(--vscode-textPreformat-foreground)",
+												marginRight: "8px",
+											}}>
 											{paramName}
-											{isRequired && <span className="text-vscode-errorForeground">*</span>}
+											{isRequired && (
+												<span style={{ color: "var(--vscode-errorForeground)" }}>*</span>
+											)}
 										</code>
-										<span className="opacity-80 break-words">
+										<span
+											style={{
+												opacity: 0.8,
+												overflowWrap: "break-word",
+												wordBreak: "break-word",
+											}}>
 											{schema.description || t("mcp:tool.noDescription")}
 										</span>
 									</div>
@@ -71,4 +112,5 @@ const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolR
 		</div>
 	)
 }
+
 export default McpToolRow

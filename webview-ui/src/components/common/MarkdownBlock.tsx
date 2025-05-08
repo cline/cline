@@ -1,5 +1,6 @@
-import React, { memo, useEffect, FC, PropsWithChildren } from "react"
+import React, { memo, useEffect } from "react"
 import { useRemark } from "react-remark"
+import styled from "styled-components"
 import { visit } from "unist-util-visit"
 
 import { vscode } from "@src/utils/vscode"
@@ -54,45 +55,71 @@ const remarkUrlToLink = () => {
 	}
 }
 
-const StyledMarkdown: FC<PropsWithChildren<unknown>> = ({ children }) => {
-	// Note: Tailwind doesn't have a direct equivalent for targeting based on body data attributes like `body[data-vscode-theme-kind="vscode-high-contrast"]`.
-	// This specific high-contrast styling might need to be handled differently, possibly via a theme-aware context or by adding a class to this component when high contrast is active.
-	// For now, the general styles are applied.
-	return (
-		<div
-			className="
-				font-vscode-font-family
-				text-vscode-font-size
-				[&_p]:leading-tight
-				[&_li]:leading-tight
-				[&_ol]:leading-tight
-				[&_ul]:leading-tight
-				[&_ol]:pl-[2.5em]
-				[&_ul]:pl-[2.5em]
-				[&_ol]:ml-0
-				[&_ul]:ml-0
-				[&_p]:whitespace-pre-wrap
-				[&_a]:text-vscode-textLink-foreground
-				[&_a]:underline
-				[&_a]:decoration-dotted
-				[&_a]:decoration-vscode-textLink-foreground
-				hover:[&_a]:text-vscode-textLink-activeForeground
-				hover:[&_a]:decoration-solid
-				hover:[&_a]:decoration-vscode-textLink-activeForeground
-				[&_code:not(pre>code)]:font-vscode-editor-font-family
-				[&_code:not(pre>code)]:saturate-[1.1]
-				[&_code:not(pre>code)]:brightness-95
-				[&_code:not(pre>code)]:text-vscode-textPreformat-foreground!
-				[&_code:not(pre>code)]:bg-vscode-textPreformat-background!
-				[&_code:not(pre>code)]:px-[2px]
-				[&_code:not(pre>code)]:whitespace-pre-line
-				[&_code:not(pre>code)]:break-words
-				[&_code:not(pre>code)]:overflow-wrap-anywhere
-			">
-			{children}
-		</div>
-	)
-}
+const StyledMarkdown = styled.div`
+	code:not(pre > code) {
+		font-family: var(--vscode-editor-font-family, monospace);
+		filter: saturation(110%) brightness(95%);
+		color: var(--vscode-textPreformat-foreground) !important;
+		background-color: var(--vscode-textPreformat-background) !important;
+		padding: 0px 2px;
+		white-space: pre-line;
+		word-break: break-word;
+		overflow-wrap: anywhere;
+	}
+
+	/* Target only Dark High Contrast theme using the data attribute VS Code adds to the body */
+	body[data-vscode-theme-kind="vscode-high-contrast"] & code:not(pre > code) {
+		color: var(
+			--vscode-editorInlayHint-foreground,
+			var(--vscode-symbolIcon-stringForeground, var(--vscode-charts-orange, #e9a700))
+		);
+	}
+
+	font-family:
+		var(--vscode-font-family),
+		system-ui,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		Roboto,
+		Oxygen,
+		Ubuntu,
+		Cantarell,
+		"Open Sans",
+		"Helvetica Neue",
+		sans-serif;
+
+	font-size: var(--vscode-font-size, 13px);
+
+	p,
+	li,
+	ol,
+	ul {
+		line-height: 1.25;
+	}
+
+	ol,
+	ul {
+		padding-left: 2.5em;
+		margin-left: 0;
+	}
+
+	p {
+		white-space: pre-wrap;
+	}
+
+	a {
+		color: var(--vscode-textLink-foreground);
+		text-decoration-line: underline;
+		text-decoration-style: dotted;
+		text-decoration-color: var(--vscode-textLink-foreground);
+		&:hover {
+			color: var(--vscode-textLink-activeForeground);
+			text-decoration-style: solid;
+			text-decoration-color: var(--vscode-textLink-activeForeground);
+		}
+	}
+`
 
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
@@ -201,7 +228,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	}, [markdown, setMarkdown, theme])
 
 	return (
-		<div>
+		<div style={{}}>
 			<StyledMarkdown>{reactContent}</StyledMarkdown>
 		</div>
 	)

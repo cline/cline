@@ -45,7 +45,7 @@ export const Glama = ({ apiConfiguration, setApiConfigurationField, routerModels
 				{t("settings:providers.apiKeyStorageNotice")}
 			</div>
 			{!apiConfiguration?.glamaApiKey && (
-				<VSCodeButtonLink href={getGlamaAuthUrl(uriScheme)} className="w-full" appearance="primary">
+				<VSCodeButtonLink href={getGlamaAuthUrl(uriScheme)} style={{ width: "100%" }} appearance="primary">
 					{t("settings:providers.getGlamaApiKey")}
 				</VSCodeButtonLink>
 			)}

@@ -9,12 +9,26 @@ const McpResourceRow = ({ item }: McpResourceRowProps) => {
 	const uri = hasUri ? item.uri : item.uriTemplate
 
 	return (
-		<div key={uri} className="py-[3px]">
-			<div className="flex items-center mb-1">
-				<span className={`codicon codicon-symbol-file mr-[6px]`} />
-				<span className="font-medium break-all">{uri}</span>
+		<div
+			key={uri}
+			style={{
+				padding: "3px 0",
+			}}>
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					marginBottom: "4px",
+				}}>
+				<span className={`codicon codicon-symbol-file`} style={{ marginRight: "6px" }} />
+				<span style={{ fontWeight: 500, wordBreak: "break-all" }}>{uri}</span>
 			</div>
-			<div className="text-xs opacity-80 my-1">
+			<div
+				style={{
+					fontSize: "12px",
+					opacity: 0.8,
+					margin: "4px 0",
+				}}>
 				{item.name && item.description
 					? `${item.name}: ${item.description}`
 					: !item.name && item.description
@@ -23,9 +37,18 @@ const McpResourceRow = ({ item }: McpResourceRowProps) => {
 							? item.name
 							: "No description"}
 			</div>
-			<div className="text-xs">
-				<span className="opacity-80">Returns </span>
-				<code className="text-vscode-textPreformat-foreground bg-vscode-textPreformat-background px-1 py-[1px] rounded-[3px]">
+			<div
+				style={{
+					fontSize: "12px",
+				}}>
+				<span style={{ opacity: 0.8 }}>Returns </span>
+				<code
+					style={{
+						color: "var(--vscode-textPreformat-foreground)",
+						background: "var(--vscode-textPreformat-background)",
+						padding: "1px 4px",
+						borderRadius: "3px",
+					}}>
 					{item.mimeType || "Unknown"}
 				</code>
 			</div>

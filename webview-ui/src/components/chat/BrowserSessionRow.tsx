@@ -9,8 +9,7 @@ import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
 
-import CodeBlock from "../common/CodeBlock"
-import { cn } from "@/lib/utils"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ChatRowContent } from "./ChatRow"
 import { ProgressIndicator } from "./ProgressIndicator"
 
@@ -234,26 +233,53 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		: displayState.mousePosition || defaultMousePosition
 
 	const [browserSessionRow, { height: rowHeight }] = useSize(
-		<div className="px-[15px] py-[10px] pr-[6px] mb-[-10px]">
-			<div className="flex items-center gap-2.5 mb-2.5">
+		<div style={{ padding: "10px 6px 10px 15px", marginBottom: -10 }}>
+			<div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
 				{isBrowsing ? (
 					<ProgressIndicator />
 				) : (
-					<span className={`codicon codicon-inspect text-vscode-foreground mb-[-1.5px]`}></span>
+					<span
+						className={`codicon codicon-inspect`}
+						style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
 				)}
-				<span className="font-bold">
+				<span style={{ fontWeight: "bold" }}>
 					<>{t("chat:browser.rooWantsToUse")}</>
 				</span>
 			</div>
-			<div className="rounded-[3px] border border-vscode-editorGroup-border overflow-hidden mb-2.5 bg-background">
+			<div
+				style={{
+					borderRadius: 3,
+					border: "1px solid var(--vscode-editorGroup-border)",
+					overflow: "hidden",
+					backgroundColor: CODE_BLOCK_BG_COLOR,
+					marginBottom: 10,
+				}}>
 				{/* URL Bar */}
 				<div
-					className={cn(
-						"my-[5px] mx-auto w-[calc(100%-10px)] box-border bg-vscode-input-background border border-vscode-input-border rounded p-[3px_5px] flex items-center justify-center text-xs",
-						// Conditional color class:
-						displayState.url ? "text-vscode-input-foreground" : "text-vscode-descriptionForeground",
-					)}>
-					<div className="text-ellipsis overflow-hidden whitespace-nowrap w-full text-center">
+					style={{
+						margin: "5px auto",
+						width: "calc(100% - 10px)",
+						boxSizing: "border-box", // includes padding in width calculation
+						backgroundColor: "var(--vscode-input-background)",
+						border: "1px solid var(--vscode-input-border)",
+						borderRadius: "4px",
+						padding: "3px 5px",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						color: displayState.url
+							? "var(--vscode-input-foreground)"
+							: "var(--vscode-descriptionForeground)",
+						fontSize: "12px",
+					}}>
+					<div
+						style={{
+							textOverflow: "ellipsis",
+							overflow: "hidden",
+							whiteSpace: "nowrap",
+							width: "100%",
+							textAlign: "center",
+						}}>
 						{displayState.url || "http"}
 					</div>
 				</div>
@@ -261,15 +287,25 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				{/* Screenshot Area */}
 				<div
 					data-testid="screenshot-container"
-					className={cn(
-						"w-full relative bg-vscode-input-background",
-						`[padding-bottom:${aspectRatio}%]`, // Converted paddingBottom to arbitrary property
-					)}>
+					style={{
+						width: "100%",
+						paddingBottom: `${aspectRatio}%`, // height/width ratio
+						position: "relative",
+						backgroundColor: "var(--vscode-input-background)",
+					}}>
 					{displayState.screenshot ? (
 						<img
 							src={displayState.screenshot}
 							alt={t("chat:browser.screenshot")}
-							className="absolute top-0 left-0 w-full h-full object-contain cursor-pointer"
+							style={{
+								position: "absolute",
+								top: 0,
+								left: 0,
+								width: "100%",
+								height: "100%",
+								objectFit: "contain",
+								cursor: "pointer",
+							}}
 							onClick={() =>
 								vscode.postMessage({
 									type: "openImage",
@@ -278,34 +314,47 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							}
 						/>
 					) : (
-						<div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-							<span className="codicon codicon-globe text-[80px] text-vscode-descriptionForeground" />
+						<div
+							style={{
+								position: "absolute",
+								top: "50%",
+								left: "50%",
+								transform: "translate(-50%, -50%)",
+							}}>
+							<span
+								className="codicon codicon-globe"
+								style={{ fontSize: "80px", color: "var(--vscode-descriptionForeground)" }}
+							/>
 						</div>
 					)}
 					{displayState.mousePosition && (
 						<BrowserCursor
-							className={cn(
-								"absolute",
-								// Dynamic position using arbitrary properties:
-								`[top:${(parseInt(mousePosition.split(",")[1]) / viewportHeight) * 100}%]`,
-								`[left:${(parseInt(mousePosition.split(",")[0]) / viewportWidth) * 100}%]`,
-								// Static transition classes:
-								"transition-[top,left] duration-300 ease-out",
-							)}
+							style={{
+								position: "absolute",
+								top: `${(parseInt(mousePosition.split(",")[1]) / viewportHeight) * 100}%`,
+								left: `${(parseInt(mousePosition.split(",")[0]) / viewportWidth) * 100}%`,
+								transition: "top 0.3s ease-out, left 0.3s ease-out",
+							}}
 						/>
 					)}
 				</div>
 
-				<div className="w-full">
+				<div style={{ width: "100%" }}>
 					<div
 						onClick={() => {
 							setConsoleLogsExpanded(!consoleLogsExpanded)
 						}}
-						className={`flex items-center gap-1 w-full justify-start cursor-pointer px-2 ${
-							consoleLogsExpanded ? "pt-[9px] pb-0" : "py-[9px]"
-						}`}>
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "4px",
+							width: "100%",
+							justifyContent: "flex-start",
+							cursor: "pointer",
+							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
+						}}>
 						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
-						<span className="text-[0.8em]">{t("chat:browser.consoleLogs")}</span>
+						<span style={{ fontSize: "0.8em" }}>{t("chat:browser.consoleLogs")}</span>
 					</div>
 					{consoleLogsExpanded && (
 						<CodeBlock source={displayState.consoleLogs || t("chat:browser.noNewLogs")} language="shell" />
@@ -314,15 +363,23 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			</div>
 
 			{/* Action content with min height */}
-			<div className={cn(maxActionHeight > 0 && `[min-height:${maxActionHeight}px]`)}>{actionContent}</div>
+			<div style={{ minHeight: maxActionHeight }}>{actionContent}</div>
 
 			{/* Pagination moved to bottom */}
 			{pages.length > 1 && (
-				<div className="flex justify-between items-center py-2 mt-[15px] border-t border-vscode-editorGroup-border">
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						padding: "8px 0px",
+						marginTop: "15px",
+						borderTop: "1px solid var(--vscode-editorGroup-border)",
+					}}>
 					<div>
 						{t("chat:browser.navigation.step", { current: currentPageIndex + 1, total: pages.length })}
 					</div>
-					<div className="flex gap-1">
+					<div style={{ display: "flex", gap: "4px" }}>
 						<VSCodeButton
 							disabled={currentPageIndex === 0 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i - 1)}>
@@ -369,7 +426,13 @@ const BrowserSessionRowContent = ({
 	isStreaming,
 }: BrowserSessionRowContentProps) => {
 	const { t } = useTranslation()
-	const headerClassNames = "flex items-center gap-2.5 mb-2.5 break-words"
+	const headerStyle: React.CSSProperties = {
+		display: "flex",
+		alignItems: "center",
+		gap: "10px",
+		marginBottom: "10px",
+		wordBreak: "break-word",
+	}
 
 	switch (message.type) {
 		case "say":
@@ -377,7 +440,7 @@ const BrowserSessionRowContent = ({
 				case "api_req_started":
 				case "text":
 					return (
-						<div className="py-2.5">
+						<div style={{ padding: "10px 0 10px 0" }}>
 							<ChatRowContent
 								message={message}
 								isExpanded={isExpanded(message.ts)}
@@ -413,10 +476,16 @@ const BrowserSessionRowContent = ({
 				case "browser_action_launch":
 					return (
 						<>
-							<div className={headerClassNames}>
-								<span className="font-bold">{t("chat:browser.sessionStarted")}</span>
+							<div style={headerStyle}>
+								<span style={{ fontWeight: "bold" }}>{t("chat:browser.sessionStarted")}</span>
 							</div>
-							<div className="rounded-[3px] border border-vscode-editorGroup-border overflow-hidden bg-background">
+							<div
+								style={{
+									borderRadius: 3,
+									border: "1px solid var(--vscode-editorGroup-border)",
+									overflow: "hidden",
+									backgroundColor: CODE_BLOCK_BG_COLOR,
+								}}>
 								<CodeBlock source={message.text} language="shell" />
 							</div>
 						</>
@@ -457,11 +526,26 @@ const BrowserActionBox = ({
 		}
 	}
 	return (
-		<div className="pt-2.5">
-			<div className="rounded-[3px] overflow-hidden border border-vscode-editorGroup-border bg-background">
-				<div className="flex items-center p-[9px_10px]">
-					<span className="whitespace-normal break-words">
-						<span className="font-medium">{t("chat:browser.actions.title")}</span>
+		<div style={{ padding: "10px 0 0 0" }}>
+			<div
+				style={{
+					borderRadius: 3,
+					backgroundColor: CODE_BLOCK_BG_COLOR,
+					overflow: "hidden",
+					border: "1px solid var(--vscode-editorGroup-border)",
+				}}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						padding: "9px 10px",
+					}}>
+					<span
+						style={{
+							whiteSpace: "normal",
+							wordBreak: "break-word",
+						}}>
+						<span style={{ fontWeight: 500 }}>{t("chat:browser.actions.title")}</span>
 						{getBrowserActionText(action, coordinate, text)}
 					</span>
 				</div>
@@ -470,12 +554,7 @@ const BrowserActionBox = ({
 	)
 }
 
-interface BrowserCursorProps {
-	style?: React.CSSProperties
-	className?: string
-}
-
-const BrowserCursor: React.FC<BrowserCursorProps> = ({ style, className }) => {
+const BrowserCursor: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
 	const { t } = useTranslation()
 	// (can't use svgs in vsc extensions)
 	const cursorBase64 =
@@ -484,16 +563,13 @@ const BrowserCursor: React.FC<BrowserCursorProps> = ({ style, className }) => {
 	return (
 		<img
 			src={cursorBase64}
+			style={{
+				width: "17px",
+				height: "22px",
+				...style,
+			}}
 			alt={t("chat:browser.cursor")}
-			title={t("chat:browser.cursor")}
-			className={cn(
-				className,
-				"w-[17px] h-[24px]",
-				"translate-x-[-2px] translate-y-[-2px]", // transform
-				"pointer-events-none",
-				"z-[1000]",
-			)}
-			style={style} // Keep passed style prop for overrides
+			aria-label={t("chat:browser.cursor")}
 		/>
 	)
 }

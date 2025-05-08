@@ -38,9 +38,9 @@ export const IconButton: React.FC<IconButtonProps> = ({
 		<button
 			aria-label={title}
 			title={title}
-			className={`${buttonClasses} text-[16.5px]`}
+			className={buttonClasses}
 			onClick={!disabled ? onClick : undefined}
-			style={style}
+			style={{ fontSize: 16.5, ...style }}
 			{...props}>
 			<span className={iconClasses} />
 		</button>

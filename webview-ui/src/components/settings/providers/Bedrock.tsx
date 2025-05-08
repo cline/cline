@@ -109,8 +109,9 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 					<div className="flex items-center gap-1">
 						<span>{t("settings:providers.enablePromptCaching")}</span>
 						<i
-							className="codicon codicon-info text-vscode-descriptionForeground text-xs"
+							className="codicon codicon-info text-vscode-descriptionForeground"
 							title={t("settings:providers.enablePromptCachingTitle")}
+							style={{ fontSize: "12px" }}
 						/>
 					</div>
 				</Checkbox>

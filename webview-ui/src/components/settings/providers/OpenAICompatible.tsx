@@ -7,7 +7,6 @@ import { ModelInfo, ReasoningEffort as ReasoningEffortType } from "@roo/schemas"
 import { ApiConfiguration, azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@roo/shared/api"
 import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
 
-import { cn } from "@/lib/utils" // Added cn import
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Button } from "@src/components/ui"
 
@@ -252,16 +251,17 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							""
 						}
 						type="text"
-						className={cn(
-							"w-full",
-							"border", // Added base border class
-							(() => {
+						style={{
+							borderColor: (() => {
 								const value = apiConfiguration?.openAiCustomModelInfo?.maxTokens
-								// Use `value === undefined || value === null` for a more robust check if 0 is a valid input but should not trigger default border
-								if (value === undefined || value === null) return "border-vscode-input-border"
-								return value > 0 ? "border-vscode-charts-green" : "border-vscode-errorForeground"
+
+								if (!value) {
+									return "var(--vscode-input-border)"
+								}
+
+								return value > 0 ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)"
 							})(),
-						)}
+						}}
 						title={t("settings:providers.customModel.maxTokens.description")}
 						onInput={handleInputChange("openAiCustomModelInfo", (e) => {
 							const value = parseInt((e.target as HTMLInputElement).value)
@@ -272,8 +272,7 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							}
 						})}
 						placeholder={t("settings:placeholders.numbers.maxTokens")}
-						/* className="w-full" */
-					>
+						className="w-full">
 						<label className="block font-medium mb-1">
 							{t("settings:providers.customModel.maxTokens.label")}
 						</label>
@@ -291,6 +290,17 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							""
 						}
 						type="text"
+						style={{
+							borderColor: (() => {
+								const value = apiConfiguration?.openAiCustomModelInfo?.contextWindow
+
+								if (!value) {
+									return "var(--vscode-input-border)"
+								}
+
+								return value > 0 ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)"
+							})(),
+						}}
 						title={t("settings:providers.customModel.contextWindow.description")}
 						onInput={handleInputChange("openAiCustomModelInfo", (e) => {
 							const value = (e.target as HTMLInputElement).value
@@ -302,14 +312,7 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							}
 						})}
 						placeholder={t("settings:placeholders.numbers.contextWindow")}
-						className={cn(
-							"w-full border", // Added base 'border' class
-							(() => {
-								const value = apiConfiguration?.openAiCustomModelInfo?.contextWindow
-								if (value === undefined || value === null) return "border-vscode-input-border" // Default border if no value
-								return value > 0 ? "border-vscode-charts-green" : "border-vscode-errorForeground"
-							})(),
-						)}>
+						className="w-full">
 						<label className="block font-medium mb-1">
 							{t("settings:providers.customModel.contextWindow.label")}
 						</label>
@@ -337,8 +340,9 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							</span>
 						</Checkbox>
 						<i
-							className="codicon codicon-info text-vscode-descriptionForeground text-xs"
+							className="codicon codicon-info text-vscode-descriptionForeground"
 							title={t("settings:providers.customModel.imageSupport.description")}
+							style={{ fontSize: "12px" }}
 						/>
 					</div>
 					<div className="text-sm text-vscode-descriptionForeground pt-1">
@@ -359,8 +363,9 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							<span className="font-medium">{t("settings:providers.customModel.computerUse.label")}</span>
 						</Checkbox>
 						<i
-							className="codicon codicon-info text-vscode-descriptionForeground text-xs"
+							className="codicon codicon-info text-vscode-descriptionForeground"
 							title={t("settings:providers.customModel.computerUse.description")}
+							style={{ fontSize: "12px" }}
 						/>
 					</div>
 					<div className="text-sm text-vscode-descriptionForeground pt-1">
@@ -381,8 +386,9 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							<span className="font-medium">{t("settings:providers.customModel.promptCache.label")}</span>
 						</Checkbox>
 						<i
-							className="codicon codicon-info text-vscode-descriptionForeground text-xs"
+							className="codicon codicon-info text-vscode-descriptionForeground"
 							title={t("settings:providers.customModel.promptCache.description")}
+							style={{ fontSize: "12px" }}
 						/>
 					</div>
 					<div className="text-sm text-vscode-descriptionForeground pt-1">
@@ -398,6 +404,17 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							""
 						}
 						type="text"
+						style={{
+							borderColor: (() => {
+								const value = apiConfiguration?.openAiCustomModelInfo?.inputPrice
+
+								if (!value && value !== 0) {
+									return "var(--vscode-input-border)"
+								}
+
+								return value >= 0 ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)"
+							})(),
+						}}
 						onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 							const value = (e.target as HTMLInputElement).value
 							const parsed = parseFloat(value)
@@ -408,21 +425,15 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							}
 						})}
 						placeholder={t("settings:placeholders.numbers.inputPrice")}
-						className={cn(
-							"w-full border", // Added base 'border' class
-							(() => {
-								const value = apiConfiguration?.openAiCustomModelInfo?.inputPrice
-								if (value === undefined || value === null) return "border-vscode-input-border"
-								return value >= 0 ? "border-vscode-charts-green" : "border-vscode-errorForeground"
-							})(),
-						)}>
+						className="w-full">
 						<div className="flex items-center gap-1">
 							<label className="block font-medium mb-1">
 								{t("settings:providers.customModel.pricing.input.label")}
 							</label>
 							<i
-								className="codicon codicon-info text-vscode-descriptionForeground text-xs"
+								className="codicon codicon-info text-vscode-descriptionForeground"
 								title={t("settings:providers.customModel.pricing.input.description")}
+								style={{ fontSize: "12px" }}
 							/>
 						</div>
 					</VSCodeTextField>
@@ -436,6 +447,17 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							""
 						}
 						type="text"
+						style={{
+							borderColor: (() => {
+								const value = apiConfiguration?.openAiCustomModelInfo?.outputPrice
+
+								if (!value && value !== 0) {
+									return "var(--vscode-input-border)"
+								}
+
+								return value >= 0 ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)"
+							})(),
+						}}
 						onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 							const value = (e.target as HTMLInputElement).value
 							const parsed = parseFloat(value)
@@ -446,21 +468,15 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							}
 						})}
 						placeholder={t("settings:placeholders.numbers.outputPrice")}
-						className={cn(
-							"w-full border", // Added base 'border' class
-							(() => {
-								const value = apiConfiguration?.openAiCustomModelInfo?.outputPrice
-								if (value === undefined || value === null) return "border-vscode-input-border"
-								return value >= 0 ? "border-vscode-charts-green" : "border-vscode-errorForeground"
-							})(),
-						)}>
+						className="w-full">
 						<div className="flex items-center gap-1">
 							<label className="block font-medium mb-1">
 								{t("settings:providers.customModel.pricing.output.label")}
 							</label>
 							<i
-								className="codicon codicon-info text-vscode-descriptionForeground text-xs"
+								className="codicon codicon-info text-vscode-descriptionForeground"
 								title={t("settings:providers.customModel.pricing.output.description")}
+								style={{ fontSize: "12px" }}
 							/>
 						</div>
 					</VSCodeTextField>
@@ -472,16 +488,19 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							<VSCodeTextField
 								value={apiConfiguration?.openAiCustomModelInfo?.cacheReadsPrice?.toString() ?? "0"}
 								type="text"
-								className={cn(
-									"w-full border", // Added base 'border' class
-									(() => {
+								style={{
+									borderColor: (() => {
 										const value = apiConfiguration?.openAiCustomModelInfo?.cacheReadsPrice
-										if (value === undefined || value === null) return "border-vscode-input-border"
+
+										if (!value && value !== 0) {
+											return "var(--vscode-input-border)"
+										}
+
 										return value >= 0
-											? "border-vscode-charts-green"
-											: "border-vscode-errorForeground"
+											? "var(--vscode-charts-green)"
+											: "var(--vscode-errorForeground)"
 									})(),
-								)}
+								}}
 								onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 									const value = (e.target as HTMLInputElement).value
 									const parsed = parseFloat(value)
@@ -491,14 +510,16 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 										cacheReadsPrice: isNaN(parsed) ? 0 : parsed,
 									}
 								})}
-								placeholder={t("settings:placeholders.numbers.inputPrice")}>
+								placeholder={t("settings:placeholders.numbers.inputPrice")}
+								className="w-full">
 								<div className="flex items-center gap-1">
 									<span className="font-medium">
 										{t("settings:providers.customModel.pricing.cacheReads.label")}
 									</span>
 									<i
-										className="codicon codicon-info text-vscode-descriptionForeground text-xs"
+										className="codicon codicon-info text-vscode-descriptionForeground"
 										title={t("settings:providers.customModel.pricing.cacheReads.description")}
+										style={{ fontSize: "12px" }}
 									/>
 								</div>
 							</VSCodeTextField>
@@ -507,6 +528,19 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 							<VSCodeTextField
 								value={apiConfiguration?.openAiCustomModelInfo?.cacheWritesPrice?.toString() ?? "0"}
 								type="text"
+								style={{
+									borderColor: (() => {
+										const value = apiConfiguration?.openAiCustomModelInfo?.cacheWritesPrice
+
+										if (!value && value !== 0) {
+											return "var(--vscode-input-border)"
+										}
+
+										return value >= 0
+											? "var(--vscode-charts-green)"
+											: "var(--vscode-errorForeground)"
+									})(),
+								}}
 								onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 									const value = (e.target as HTMLInputElement).value
 									const parsed = parseFloat(value)
@@ -517,23 +551,15 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 									}
 								})}
 								placeholder={t("settings:placeholders.numbers.cacheWritePrice")}
-								className={cn(
-									"w-full border",
-									(() => {
-										const value = apiConfiguration?.openAiCustomModelInfo?.cacheWritesPrice
-										if (value === undefined || value === null) return "border-vscode-input-border"
-										return value >= 0
-											? "border-vscode-charts-green"
-											: "border-vscode-errorForeground"
-									})(),
-								)}>
+								className="w-full">
 								<div className="flex items-center gap-1">
 									<label className="block font-medium mb-1">
 										{t("settings:providers.customModel.pricing.cacheWrites.label")}
 									</label>
 									<i
-										className="codicon codicon-info text-vscode-descriptionForeground text-xs"
+										className="codicon codicon-info text-vscode-descriptionForeground"
 										title={t("settings:providers.customModel.pricing.cacheWrites.description")}
+										style={{ fontSize: "12px" }}
 									/>
 								</div>
 							</VSCodeTextField>
