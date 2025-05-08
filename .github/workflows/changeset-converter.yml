@@ -34,7 +34,7 @@ jobs:
               with:
                   username: ${{ github.actor }}
                   org: ${{ github.repo_owner }}
-                  team: "deployer"
+                  team: "Deployer"
                   github_token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Check if user is authorized
