@@ -40,7 +40,7 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			return extractTextFromIPYNB(filePath)
 		default:
 			const fileBuffer = await fs.readFile(filePath)
-			if (fileBuffer.byteLength > 300 * 1024) {
+			if (fileBuffer.byteLength > 20 * 1000 * 1024) {
 				throw new Error(`File is too large to read into context.`)
 			}
 			const encoding = await detectEncoding(fileBuffer, fileExtension)
