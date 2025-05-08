@@ -1,8 +1,10 @@
 import * as vscode from "vscode"
 
-import { COMMAND_IDS } from "../core/CodeActionProvider"
 import { ClineProvider } from "../core/webview/ClineProvider"
+
 import { t } from "../i18n"
+
+import { COMMAND_IDS } from "./CodeActionProvider"
 
 export const handleNewTask = async (params: { prompt?: string } | null | undefined) => {
 	let prompt = params?.prompt

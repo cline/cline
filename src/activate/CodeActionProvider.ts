@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 
-import { EditorUtils } from "./EditorUtils"
+import { EditorUtils } from "../integrations/editor/EditorUtils"
 
 export type CodeActionName = "EXPLAIN" | "FIX" | "IMPROVE" | "ADD_TO_CONTEXT" | "NEW_TASK"
 

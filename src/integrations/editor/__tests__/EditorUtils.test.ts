@@ -1,4 +1,4 @@
-// npx jest src/core/__tests__/EditorUtils.test.ts
+// npx jest src/integrations/editor/__tests__/EditorUtils.test.ts
 
 import * as vscode from "vscode"
 

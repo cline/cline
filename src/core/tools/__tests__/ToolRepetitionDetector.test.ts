@@ -1,11 +1,13 @@
-import { ToolRepetitionDetector } from "../ToolRepetitionDetector"
-import { ToolUse } from "../../shared/tools"
-import { ToolName } from "../../schemas"
+// npx jest src/core/tools/__tests__/ToolRepetitionDetector.test.ts
 
-// Mock the i18n system
-jest.mock("../../i18n", () => ({
+import type { ToolName } from "../../../schemas"
+import type { ToolUse } from "../../../shared/tools"
+
+import { ToolRepetitionDetector } from "../ToolRepetitionDetector"
+
+jest.mock("../../../i18n", () => ({
 	t: jest.fn((key, options) => {
-		// For toolRepetitionLimitReached key, return a message with the tool name
+		// For toolRepetitionLimitReached key, return a message with the tool name.
 		if (key === "tools:toolRepetitionLimitReached" && options?.toolName) {
 			return `Roo appears to be stuck in a loop, attempting the same action (${options.toolName}) repeatedly. This might indicate a problem with its current strategy.`
 		}
@@ -13,7 +15,6 @@ jest.mock("../../i18n", () => ({
 	}),
 }))
 
-// Helper function to create a mock ToolUse
 function createToolUse(name: string, displayName?: string, params: Record<string, string> = {}): ToolUse {
 	return {
 		type: "tool_use",

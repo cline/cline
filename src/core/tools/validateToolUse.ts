@@ -1,5 +1,5 @@
-import { ToolName } from "../schemas"
-import { Mode, isToolAllowedForMode, ModeConfig } from "../shared/modes"
+import { ToolName } from "../../schemas"
+import { Mode, isToolAllowedForMode, ModeConfig } from "../../shared/modes"
 
 export function validateToolUse(
 	toolName: ToolName,

@@ -1,12 +1,11 @@
-// npx jest src/core/__tests__/CodeActionProvider.test.ts
+// npx jest src/activate/__tests__/CodeActionProvider.test.ts
 
 import * as vscode from "vscode"
 
-import { EditorUtils } from "../EditorUtils"
+import { EditorUtils } from "../../integrations/editor/EditorUtils"
 
 import { CodeActionProvider, ACTION_TITLES } from "../CodeActionProvider"
 
-// Mock VSCode API
 jest.mock("vscode", () => ({
 	CodeAction: jest.fn().mockImplementation((title, kind) => ({
 		title,
@@ -29,8 +28,7 @@ jest.mock("vscode", () => ({
 	},
 }))
 
-// Mock EditorUtils
-jest.mock("../EditorUtils", () => ({
+jest.mock("../../integrations/editor/EditorUtils", () => ({
 	EditorUtils: {
 		getEffectiveRange: jest.fn(),
 		getFilePath: jest.fn(),
@@ -48,7 +46,6 @@ describe("CodeActionProvider", () => {
 	beforeEach(() => {
 		provider = new CodeActionProvider()
 
-		// Mock document
 		mockDocument = {
 			getText: jest.fn(),
 			lineAt: jest.fn(),
@@ -56,15 +53,9 @@ describe("CodeActionProvider", () => {
 			uri: { fsPath: "/test/file.ts" },
 		}
 
-		// Mock range
 		mockRange = new vscode.Range(0, 0, 0, 10)
 
-		// Mock context
-		mockContext = {
-			diagnostics: [],
-		}
-
-		// Setup default EditorUtils mocks
+		mockContext = { diagnostics: [] }
 		;(EditorUtils.getEffectiveRange as jest.Mock).mockReturnValue({
 			range: mockRange,
 			text: "test code",
@@ -106,6 +97,7 @@ describe("CodeActionProvider", () => {
 
 		it("should handle errors gracefully", () => {
 			const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {})
+
 			;(EditorUtils.getEffectiveRange as jest.Mock).mockImplementation(() => {
 				throw new Error("Test error")
 			})

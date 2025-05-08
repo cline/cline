@@ -1,21 +1,21 @@
-// npx jest src/core/__tests__/read-file-tool.test.ts
+// npx jest src/integrations/misc/__tests__/read-file-tool.test.ts
 
 import * as path from "path"
-import { countFileLines } from "../../integrations/misc/line-counter"
-import { readLines } from "../../integrations/misc/read-lines"
-import { extractTextFromFile, addLineNumbers } from "../../integrations/misc/extract-text"
+import { countFileLines } from "../line-counter"
+import { readLines } from "../read-lines"
+import { extractTextFromFile, addLineNumbers } from "../extract-text"
 
 // Mock the required functions
-jest.mock("../../integrations/misc/line-counter")
-jest.mock("../../integrations/misc/read-lines")
-jest.mock("../../integrations/misc/extract-text")
+jest.mock("../line-counter")
+jest.mock("../read-lines")
+jest.mock("../extract-text")
 
 describe("read_file tool with maxReadFileLine setting", () => {
 	// Mock original implementation first to use in tests
-	const originalCountFileLines = jest.requireActual("../../integrations/misc/line-counter").countFileLines
-	const originalReadLines = jest.requireActual("../../integrations/misc/read-lines").readLines
-	const originalExtractTextFromFile = jest.requireActual("../../integrations/misc/extract-text").extractTextFromFile
-	const originalAddLineNumbers = jest.requireActual("../../integrations/misc/extract-text").addLineNumbers
+	const originalCountFileLines = jest.requireActual("../line-counter").countFileLines
+	const originalReadLines = jest.requireActual("../read-lines").readLines
+	const originalExtractTextFromFile = jest.requireActual("../extract-text").extractTextFromFile
+	const originalAddLineNumbers = jest.requireActual("../extract-text").addLineNumbers
 
 	beforeEach(() => {
 		jest.resetAllMocks()

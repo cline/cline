@@ -1,8 +1,9 @@
 import * as vscode from "vscode"
 
-import { type CodeActionName, type CodeActionId, COMMAND_IDS } from "../core/CodeActionProvider"
-import { EditorUtils } from "../core/EditorUtils"
+import { EditorUtils } from "../integrations/editor/EditorUtils"
 import { ClineProvider } from "../core/webview/ClineProvider"
+
+import { type CodeActionName, type CodeActionId, COMMAND_IDS } from "./CodeActionProvider"
 
 export const registerCodeActions = (context: vscode.ExtensionContext) => {
 	registerCodeAction(context, COMMAND_IDS.EXPLAIN, "EXPLAIN")
