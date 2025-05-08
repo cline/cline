@@ -273,13 +273,13 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	/**
 	 * Gets the appropriate model ID, accounting for cross-region inference if enabled.
-	 * If an ARN is specified to model ID, the URL encoded ARN is retrieved.
+	 * If the model ID is an ARN that contains a slash, you will get the URL encoded ARN.
 	 */
 	async getModelId(): Promise<string> {
-		if (this.options.awsBedrockCustomSelected && this.getModel().id.startsWith("arn:")) {
+		if (this.options.awsBedrockCustomSelected && this.getModel().id.includes("/")) {
 			return encodeURIComponent(this.getModel().id)
 		}
-		if (this.options.awsUseCrossRegionInference) {
+		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
