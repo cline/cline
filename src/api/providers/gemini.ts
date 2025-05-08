@@ -85,10 +85,7 @@ export class GeminiHandler implements ApiHandler {
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
 			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
-
-			// Only include systemInstruction if NOT using the cache
-			...(false ? {} : { systemInstruction: systemPrompt }),
-
+			...{ systemInstruction: systemPrompt },
 			// Set temperature (default to 0)
 			temperature: 0,
 		}
@@ -133,7 +130,7 @@ export class GeminiHandler implements ApiHandler {
 			const outputTokens = lastUsageMetadata.candidatesTokenCount ?? 0
 			const cacheReadTokens = lastUsageMetadata.cachedContentTokenCount
 
-			// Calculate immediate costs only (excluding cache write/storage costs)
+			// Calculate immediate costs
 			const totalCost = this.calculateCost({
 				info,
 				inputTokens,
@@ -161,8 +158,6 @@ export class GeminiHandler implements ApiHandler {
 	 * - Cache read costs
 	 * - Gemini implicit caching has no write costs
 	 *
-	 * It does NOT include ongoing costs like cache storage, which are tracked separately
-	 * at the task level through getTaskOngoingCosts().
 	 */
 	public calculateCost({
 		info,
