@@ -184,15 +184,15 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 
 const toolUseInstructionsReminder = `# Reminder: Instructions for Tool Use
 
-Tool uses are formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
+Tool uses are formatted using XML-style tags. The tool name itself becomes the XML tag name. Each parameter is enclosed within its own set of tags. Here's the structure:
 
-<tool_name>
+<actual_tool_name>
 <parameter1_name>value1</parameter1_name>
 <parameter2_name>value2</parameter2_name>
 ...
-</tool_name>
+</actual_tool_name>
 
-For example:
+For example, to use the attempt_completion tool:
 
 <attempt_completion>
 <result>
@@ -200,4 +200,4 @@ I have completed the task...
 </result>
 </attempt_completion>
 
-Always adhere to this format for all tool uses to ensure proper parsing and execution.`
+Always use the actual tool name as the XML tag name for proper parsing and execution.`

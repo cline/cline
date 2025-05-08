@@ -7,19 +7,19 @@ You have access to a set of tools that are executed upon the user's approval. Yo
 
 # Tool Use Formatting
 
-Tool use is formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
+Tool uses are formatted using XML-style tags. The tool name itself becomes the XML tag name. Each parameter is enclosed within its own set of tags. Here's the structure:
 
-<tool_name>
+<actual_tool_name>
 <parameter1_name>value1</parameter1_name>
 <parameter2_name>value2</parameter2_name>
 ...
-</tool_name>
+</actual_tool_name>
 
-For example:
+For example, to use the read_file tool:
 
 <read_file>
 <path>src/main.js</path>
 </read_file>
 
-Always adhere to this format for the tool use to ensure proper parsing and execution.`
+Always use the actual tool name as the XML tag name for proper parsing and execution.`
 }
