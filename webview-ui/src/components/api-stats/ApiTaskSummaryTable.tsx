@@ -1,4 +1,4 @@
-import { VSCodeDataGrid, VSCodeDataGridCell, VSCodeDataGridRow } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDataGrid, VSCodeDataGridCell, VSCodeDataGridRow } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 
 export type TaskSummaryEntry = {
@@ -13,9 +13,18 @@ export type TaskSummaryEntry = {
 type ApiTaskSummaryTableProps = {
 	isLoading: boolean
 	taskSummaryData: TaskSummaryEntry[]
+	currentPage: number
+	itemsPerPage: number
+	onPageChange: (newPage: number) => void
 }
 
-const ApiTaskSummaryTable = ({ isLoading, taskSummaryData }: ApiTaskSummaryTableProps) => {
+const ApiTaskSummaryTable = ({
+	isLoading,
+	taskSummaryData,
+	currentPage,
+	itemsPerPage,
+	onPageChange,
+}: ApiTaskSummaryTableProps) => {
 	if (isLoading) {
 		return <div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
 	}
@@ -26,6 +35,24 @@ const ApiTaskSummaryTable = ({ isLoading, taskSummaryData }: ApiTaskSummaryTable
 
 	// Sort by timestamp descending (most recent task first)
 	const sortedTasks = [...taskSummaryData].sort((a, b) => b.firstTimestamp - a.firstTimestamp)
+
+	const totalItems = sortedTasks.length
+	const totalPages = Math.ceil(totalItems / itemsPerPage)
+	const startIndex = (currentPage - 1) * itemsPerPage
+	const endIndex = startIndex + itemsPerPage
+	const paginatedTasks = sortedTasks.slice(startIndex, endIndex)
+
+	const handlePreviousPage = () => {
+		if (currentPage > 1) {
+			onPageChange(currentPage - 1)
+		}
+	}
+
+	const handleNextPage = () => {
+		if (currentPage < totalPages) {
+			onPageChange(currentPage + 1)
+		}
+	}
 
 	return (
 		<div className="flex flex-col flex-grow min-h-0 mb-4">
@@ -51,7 +78,7 @@ const ApiTaskSummaryTable = ({ isLoading, taskSummaryData }: ApiTaskSummaryTable
 						Cost
 					</VSCodeDataGridCell>
 				</VSCodeDataGridRow>
-				{sortedTasks.map((task) => (
+				{paginatedTasks.map((task) => (
 					<VSCodeDataGridRow key={task.taskId}>
 						<VSCodeDataGridCell gridColumn="1">{new Date(task.firstTimestamp).toLocaleString()}</VSCodeDataGridCell>
 						<VSCodeDataGridCell gridColumn="2" title={task.taskId}>
@@ -66,6 +93,19 @@ const ApiTaskSummaryTable = ({ isLoading, taskSummaryData }: ApiTaskSummaryTable
 					</VSCodeDataGridRow>
 				))}
 			</VSCodeDataGrid>
+			{totalPages > 1 && (
+				<div className="flex justify-center items-center mt-2 gap-2">
+					<VSCodeButton appearance="secondary" onClick={handlePreviousPage} disabled={currentPage === 1}>
+						Previous
+					</VSCodeButton>
+					<span className="text-xs text-[var(--vscode-descriptionForeground)]">
+						Page {currentPage} of {totalPages}
+					</span>
+					<VSCodeButton appearance="secondary" onClick={handleNextPage} disabled={currentPage === totalPages}>
+						Next
+					</VSCodeButton>
+				</div>
+			)}
 		</div>
 	)
 }

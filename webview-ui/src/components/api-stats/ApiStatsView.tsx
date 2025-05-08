@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react"
-import { VSCodeProgressRing, VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { ApiRequestHistoryEntry } from "@shared/ClineAccount" // Corrected import path
+import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import React, { useEffect, useMemo, useState } from "react"
+import { calculateTaskSummaries, TaskSummaryEntry } from "../../utils/apiHistoryUtils" // Corrected import path and added TaskSummaryEntry
 import { vscode } from "../../utils/vscode"
-import ApiUsageChart from "./ApiUsageChart"
 import ApiRequestHistoryTable from "./ApiRequestHistoryTable"
 import ApiTaskSummaryTable from "./ApiTaskSummaryTable"
-import { calculateTaskSummaries, TaskSummaryEntry } from "../../utils/apiHistoryUtils" // Corrected import path and added TaskSummaryEntry
+import ApiUsageChart from "./ApiUsageChart"
 
 interface ApiStatsViewProps {
 	onDone: () => void
@@ -15,6 +15,9 @@ const ApiStatsView: React.FC<ApiStatsViewProps> = ({ onDone }) => {
 	const [history, setHistory] = useState<ApiRequestHistoryEntry[] | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [selectedWorkspace, setSelectedWorkspace] = useState<string>("all")
+	const [taskSummaryCurrentPage, setTaskSummaryCurrentPage] = useState(1)
+	const [requestHistoryCurrentPage, setRequestHistoryCurrentPage] = useState(1)
+	const ITEMS_PER_PAGE = 10 // Or any other default you prefer
 
 	useEffect(() => {
 		vscode.postMessage({ type: "getApiRequestHistory" })
@@ -51,6 +54,16 @@ const ApiStatsView: React.FC<ApiStatsViewProps> = ({ onDone }) => {
 	// Recalculate task summaries based on filtered history
 	const taskSummaries: TaskSummaryEntry[] = useMemo(() => {
 		return calculateTaskSummaries(filteredHistory)
+	}, [filteredHistory])
+
+	useEffect(() => {
+		// Reset to first page when task summaries change (e.g., due to workspace filter)
+		setTaskSummaryCurrentPage(1)
+	}, [taskSummaries])
+
+	useEffect(() => {
+		// Reset to first page when filtered history changes for request history table
+		setRequestHistoryCurrentPage(1)
 	}, [filteredHistory])
 
 	// Export Function
@@ -170,8 +183,20 @@ const ApiStatsView: React.FC<ApiStatsViewProps> = ({ onDone }) => {
 				<div style={{ flexGrow: 1, overflowY: "auto", padding: "1rem" }}>
 					{/* Pass filtered data to child components */}
 					<ApiUsageChart historyData={filteredHistory} />
-					<ApiTaskSummaryTable isLoading={loading} taskSummaryData={taskSummaries} /> {/* Already uses filtered data */}
-					<ApiRequestHistoryTable isLoading={loading} historyData={filteredHistory} />
+					<ApiTaskSummaryTable
+						isLoading={loading}
+						taskSummaryData={taskSummaries}
+						currentPage={taskSummaryCurrentPage}
+						itemsPerPage={ITEMS_PER_PAGE}
+						onPageChange={setTaskSummaryCurrentPage}
+					/>
+					<ApiRequestHistoryTable
+						isLoading={loading}
+						historyData={filteredHistory}
+						currentPage={requestHistoryCurrentPage}
+						itemsPerPage={ITEMS_PER_PAGE}
+						onPageChange={setRequestHistoryCurrentPage}
+					/>
 				</div>
 			) : (
 				<div style={{ display: "flex", justifyContent: "center", alignItems: "center", flexGrow: 1, padding: "1rem" }}>

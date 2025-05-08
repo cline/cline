@@ -1,13 +1,22 @@
 import { ApiRequestHistoryEntry } from "@shared/ClineAccount"
-import { VSCodeDataGrid, VSCodeDataGridCell, VSCodeDataGridRow } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDataGrid, VSCodeDataGridCell, VSCodeDataGridRow } from "@vscode/webview-ui-toolkit/react"
 import { memo, useMemo } from "react"
 
 type ApiRequestHistoryTableProps = {
 	isLoading: boolean
 	historyData: ApiRequestHistoryEntry[]
+	currentPage: number
+	itemsPerPage: number
+	onPageChange: (newPage: number) => void
 }
 
-const ApiRequestHistoryTable = ({ isLoading, historyData }: ApiRequestHistoryTableProps) => {
+const ApiRequestHistoryTable = ({
+	isLoading,
+	historyData,
+	currentPage,
+	itemsPerPage,
+	onPageChange,
+}: ApiRequestHistoryTableProps) => {
 	const sortedHistory = useMemo(() => {
 		// Sort by taskId, then by timestamp descending
 		return [...historyData].sort((a, b) => {
@@ -23,6 +32,24 @@ const ApiRequestHistoryTable = ({ isLoading, historyData }: ApiRequestHistoryTab
 		const totalCost = sortedHistory.reduce((sum, entry) => sum + (entry.cost || 0), 0)
 		return { totalRequests, totalTokens, totalCost }
 	}, [sortedHistory])
+
+	const totalItems = sortedHistory.length
+	const totalPages = Math.ceil(totalItems / itemsPerPage)
+	const startIndex = (currentPage - 1) * itemsPerPage
+	const endIndex = startIndex + itemsPerPage
+	const paginatedHistory = sortedHistory.slice(startIndex, endIndex)
+
+	const handlePreviousPage = () => {
+		if (currentPage > 1) {
+			onPageChange(currentPage - 1)
+		}
+	}
+
+	const handleNextPage = () => {
+		if (currentPage < totalPages) {
+			onPageChange(currentPage + 1)
+		}
+	}
 
 	if (isLoading) {
 		return <div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
@@ -57,8 +84,9 @@ const ApiRequestHistoryTable = ({ isLoading, historyData }: ApiRequestHistoryTab
 						Cost
 					</VSCodeDataGridCell>
 				</VSCodeDataGridRow>
-				{sortedHistory.map((entry) => (
-					<VSCodeDataGridRow key={entry.timestamp}>
+				{paginatedHistory.map((entry, index) => (
+					// Using index in key for cases where timestamp might not be unique enough if entries are very close
+					<VSCodeDataGridRow key={`${entry.timestamp}-${index}`}>
 						<VSCodeDataGridCell gridColumn="1">
 							{new Date(entry.timestamp).toLocaleString()} {/* Updated format */}
 						</VSCodeDataGridCell>
@@ -79,6 +107,19 @@ const ApiRequestHistoryTable = ({ isLoading, historyData }: ApiRequestHistoryTab
 					</VSCodeDataGridRow>
 				))}
 			</VSCodeDataGrid>
+			{totalPages > 1 && (
+				<div className="flex justify-center items-center mt-2 gap-2">
+					<VSCodeButton appearance="secondary" onClick={handlePreviousPage} disabled={currentPage === 1}>
+						Previous
+					</VSCodeButton>
+					<span className="text-xs text-[var(--vscode-descriptionForeground)]">
+						Page {currentPage} of {totalPages}
+					</span>
+					<VSCodeButton appearance="secondary" onClick={handleNextPage} disabled={currentPage === totalPages}>
+						Next
+					</VSCodeButton>
+				</div>
+			)}
 		</div>
 	)
 }
