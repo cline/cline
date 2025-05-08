@@ -16,6 +16,10 @@ export const SUPPORTED_SLASH_COMMANDS: SlashCommand[] = [
 		name: "newrule",
 		description: "Create a new Cline rule based on your conversation",
 	},
+	{
+		name: "reportbug",
+		description: "Report a bug with Cline using browser control",
+	},
 ]
 
 // Regex for detecting slash commands in text

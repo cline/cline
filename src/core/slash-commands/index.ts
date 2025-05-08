@@ -1,11 +1,17 @@
-import { newTaskToolResponse, condenseToolResponse, newRuleToolResponse } from "../prompts/commands"
+import { newTaskToolResponse, condenseToolResponse, newRuleToolResponse, reportBugToolResponse } from "../prompts/commands"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { BrowserSettings } from "@shared/BrowserSettings"
 
 /**
  * Processes text for slash commands and transforms them with appropriate instructions
  * This is called after parseMentions() to process any slash commands in the user's message
  */
-export function parseSlashCommands(text: string): { processedText: string; needsClinerulesFileCheck: boolean } {
-	const SUPPORTED_COMMANDS = ["newtask", "smol", "compact", "newrule"]
+export async function parseSlashCommands(
+	text: string,
+	browserSettings: BrowserSettings,
+	browserSession: BrowserSession,
+): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
+	const SUPPORTED_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug"]
 
 	const commandReplacements: Record<string, string> = {
 		newtask: newTaskToolResponse(),
@@ -46,9 +52,26 @@ export function parseSlashCommands(text: string): { processedText: string; needs
 
 				// remove the slash command and add custom instructions at the top of this message
 				const textWithoutSlashCommand = text.substring(0, slashCommandStartIndex) + text.substring(slashCommandEndIndex)
-				const processedText = commandReplacements[commandName] + textWithoutSlashCommand
 
-				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" ? true : false }
+				let processedText
+				if (commandName !== "reportbug") {
+					processedText = commandReplacements[commandName] + textWithoutSlashCommand
+				} else {
+					// we require special handling for /reportbug, specifically checking if remote browser connection is on
+					let remoteBrowserEnabled = false
+					try {
+						if (browserSettings.remoteBrowserEnabled && browserSettings.remoteBrowserHost) {
+							const browserConnectionCheck = await browserSession.testConnection(browserSettings.remoteBrowserHost)
+							remoteBrowserEnabled = browserConnectionCheck.success
+						}
+					} catch (error) {
+						console.error("Error testing browser connection for /reportbug:", error)
+					}
+
+					processedText = reportBugToolResponse(remoteBrowserEnabled) + textWithoutSlashCommand
+				}
+
+				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" }
 			}
 		}
 	}

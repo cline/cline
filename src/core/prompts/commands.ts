@@ -145,3 +145,41 @@ Example:
 Below is the user's input when they indicated that they wanted to create a new Cline rule file.
 </explicit_instructions>\n
 `
+
+export const reportBugToolResponse = (remoteBrowserEnabled: boolean) => {
+	// remote browser being enabled is required to use the user's github account to submit the bug
+	if (remoteBrowserEnabled === false) {
+		return `<explicit_instructions type="report_bug_no_remote_browser">
+The user asked you to help them submit a bug using the browser_action tool. However the user has not enabled remote browser connection, meaning this is NOT possible.
+You MUST respond to the user by telling them that you require them to have remote browser connection enabled and also be logged in to github in order for you to help them submit a bug to the Cline github page. You should also mention that they can visit "https://github.com/cline/cline/issues" if they want to submit a bug manually, or otherwise don't want to enable remote browser connection. Also mention that if they enable the remote browser connection, they must use the '/reportbug' command again.
+
+Below is the user's input when they indicated that they wanted to report a bug.
+</explicit_instructions>\n
+`
+	} else {
+		return `<explicit_instructions type="report_bug">
+The user has explicitly asked you to help them submit a bug to the Cline github page by using the browser_action tool at this link: "https://github.com/cline/cline/issues/new?template=bug_report.yml". You MUST follow the below flow to create the issue, regardless of what the previous conversation was up to this point in time.
+
+Prior to initializing the browser session and starting to submit an issue on github using the browser_action tool, you MUST finalize the below information, unless its optional. If any of the the below information is apparent through your conversation with the user, you can suggest how to fill in some of the entries. Otherwise, you should converse with the user until you are able to gather all the required details. Once you have all the information you can start the browser session to submit the bug.
+
+Information to finalize:
+1. Title: Concise description of the issue.
+2. What happened: What happened and also what the user expected to happen instead.
+3. Steps to reproduce: What steps are required to reproduce the bug.
+4. Provider/Model: What provider and model were used when the issue occurred.
+5. Operating system: What operating system is the user using.
+6. System Info: Other system information of the user, such as the specs of their computer/device.
+7. Cline version: The current version of Cline.
+8. Additional context (optional): Any other context about this bug.
+
+Additional Instructions:
+1. You must NEVER copy/paste ANY user code or sensitive information into the bug report unless the user EXPLICITLY asks you or authorizes you to do so.
+2. As mentioned earlier, you must first gather all of the required information mentioned above prior to initiating the browser session. Once you start the session using browser_action and visiting "https://github.com/cline/cline/issues/new?template=bug_report.yml", you should fill in each entry with the information gathered from the user. You must fill in all required fields, which will have an astrix next to the field's title. Then you should click the "Create" button to submit the bug. Once the bug submission is successful, you are done.
+3. If you see that the user is not logged into github when you start the browser session, you should stop the session and tell them that you are only able to help them submit a bug if they have remote browser connection enabled and are logged into github. You should also mention that they can visit "https://github.com/cline/cline/issues" if they want to submit a bug manually.
+4. If the user indicates they are unclear about some of the fields, you are allowed to write in "N/A", "all", or whatever makes sense as the default value for that field. For optional fields, you do not need to enter any text if there is no meaningful information to add and the user didn't ask you to fill in that field.
+
+Below is the user's input when they indicated that they wanted to report a bug.
+</explicit_instructions>\n
+`
+	}
+}

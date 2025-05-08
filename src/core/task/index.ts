@@ -3875,7 +3875,12 @@ export class Task {
 							)
 
 							// when parsing slash commands, we still want to allow the user to provide their desired context
-							const { processedText, needsClinerulesFileCheck: needsCheck } = parseSlashCommands(parsedText)
+							// when the user attempts to trigger the /reportbug command, we need to determine if they have a remote browser connection
+							const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
+								parsedText,
+								this.browserSettings,
+								this.browserSession,
+							)
 
 							if (needsCheck) {
 								needsClinerulesFileCheck = true
