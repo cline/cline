@@ -121,7 +121,7 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"title": "✨ Generate Commit Message with Cline",
+				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
 				"icon": "$(robot)"
 			}
