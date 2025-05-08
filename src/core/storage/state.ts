@@ -126,6 +126,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		thinkingBudgetTokens,
 		reasoningEffort,
 		sambanovaApiKey,
+		nebulaBlockApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
 		globalClineRulesToggles,
@@ -205,6 +206,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
 		getGlobalState(context, "reasoningEffort") as Promise<string | undefined>,
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
+		getSecret(context, "nebulaBlockApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
@@ -310,6 +312,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			asksageApiUrl,
 			xaiApiKey,
 			sambanovaApiKey,
+			nebulaBlockApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
 		},
@@ -396,6 +399,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		reasoningEffort,
 		clineApiKey,
 		sambanovaApiKey,
+		nebulaBlockApiKey,
 		favoritedModelIds,
 	} = apiConfiguration
 	await updateGlobalState(context, "apiProvider", apiProvider)
@@ -455,6 +459,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "reasoningEffort", reasoningEffort)
 	await storeSecret(context, "clineApiKey", clineApiKey)
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
+	await storeSecret(context, "nebulaBlockApiKey", nebulaBlockApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 }
@@ -483,6 +488,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"asksageApiKey",
 		"xaiApiKey",
 		"sambanovaApiKey",
+		"nebulaBlockApiKey",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
