@@ -276,34 +276,34 @@ function createBaseTaskResponse(): TaskResponse {
 export const TaskResponse: MessageFns<TaskResponse> = {
 	encode(message: TaskResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		if (message.id !== "") {
-			writer.uint32(18).string(message.id)
+			writer.uint32(10).string(message.id)
 		}
 		if (message.task !== "") {
-			writer.uint32(26).string(message.task)
+			writer.uint32(18).string(message.task)
 		}
 		if (message.ts !== 0) {
-			writer.uint32(32).int64(message.ts)
+			writer.uint32(24).int64(message.ts)
 		}
 		if (message.isFavorited !== false) {
-			writer.uint32(40).bool(message.isFavorited)
+			writer.uint32(32).bool(message.isFavorited)
 		}
 		if (message.size !== 0) {
-			writer.uint32(48).int64(message.size)
+			writer.uint32(40).int64(message.size)
 		}
 		if (message.totalCost !== 0) {
-			writer.uint32(57).double(message.totalCost)
+			writer.uint32(49).double(message.totalCost)
 		}
 		if (message.tokensIn !== 0) {
-			writer.uint32(64).int32(message.tokensIn)
+			writer.uint32(56).int32(message.tokensIn)
 		}
 		if (message.tokensOut !== 0) {
-			writer.uint32(72).int32(message.tokensOut)
+			writer.uint32(64).int32(message.tokensOut)
 		}
 		if (message.cacheWrites !== 0) {
-			writer.uint32(80).int32(message.cacheWrites)
+			writer.uint32(72).int32(message.cacheWrites)
 		}
 		if (message.cacheReads !== 0) {
-			writer.uint32(88).int32(message.cacheReads)
+			writer.uint32(80).int32(message.cacheReads)
 		}
 		return writer
 	},
@@ -315,20 +315,28 @@ export const TaskResponse: MessageFns<TaskResponse> = {
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
-				case 2: {
-					if (tag !== 18) {
+				case 1: {
+					if (tag !== 10) {
 						break
 					}
 
 					message.id = reader.string()
 					continue
 				}
-				case 3: {
-					if (tag !== 26) {
+				case 2: {
+					if (tag !== 18) {
 						break
 					}
 
 					message.task = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.ts = longToNumber(reader.int64())
 					continue
 				}
 				case 4: {
@@ -336,7 +344,7 @@ export const TaskResponse: MessageFns<TaskResponse> = {
 						break
 					}
 
-					message.ts = longToNumber(reader.int64())
+					message.isFavorited = reader.bool()
 					continue
 				}
 				case 5: {
@@ -344,23 +352,23 @@ export const TaskResponse: MessageFns<TaskResponse> = {
 						break
 					}
 
-					message.isFavorited = reader.bool()
-					continue
-				}
-				case 6: {
-					if (tag !== 48) {
-						break
-					}
-
 					message.size = longToNumber(reader.int64())
 					continue
 				}
-				case 7: {
-					if (tag !== 57) {
+				case 6: {
+					if (tag !== 49) {
 						break
 					}
 
 					message.totalCost = reader.double()
+					continue
+				}
+				case 7: {
+					if (tag !== 56) {
+						break
+					}
+
+					message.tokensIn = reader.int32()
 					continue
 				}
 				case 8: {
@@ -368,7 +376,7 @@ export const TaskResponse: MessageFns<TaskResponse> = {
 						break
 					}
 
-					message.tokensIn = reader.int32()
+					message.tokensOut = reader.int32()
 					continue
 				}
 				case 9: {
@@ -376,19 +384,11 @@ export const TaskResponse: MessageFns<TaskResponse> = {
 						break
 					}
 
-					message.tokensOut = reader.int32()
+					message.cacheWrites = reader.int32()
 					continue
 				}
 				case 10: {
 					if (tag !== 80) {
-						break
-					}
-
-					message.cacheWrites = reader.int32()
-					continue
-				}
-				case 11: {
-					if (tag !== 88) {
 						break
 					}
 
@@ -480,10 +480,10 @@ function createBaseDeleteNonFavoritedTasksResults(): DeleteNonFavoritedTasksResu
 export const DeleteNonFavoritedTasksResults: MessageFns<DeleteNonFavoritedTasksResults> = {
 	encode(message: DeleteNonFavoritedTasksResults, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		if (message.tasksPreserved !== 0) {
-			writer.uint32(16).int32(message.tasksPreserved)
+			writer.uint32(8).int32(message.tasksPreserved)
 		}
 		if (message.tasksDeleted !== 0) {
-			writer.uint32(24).int32(message.tasksDeleted)
+			writer.uint32(16).int32(message.tasksDeleted)
 		}
 		return writer
 	},
@@ -495,16 +495,16 @@ export const DeleteNonFavoritedTasksResults: MessageFns<DeleteNonFavoritedTasksR
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
-				case 2: {
-					if (tag !== 16) {
+				case 1: {
+					if (tag !== 8) {
 						break
 					}
 
 					message.tasksPreserved = reader.int32()
 					continue
 				}
-				case 3: {
-					if (tag !== 24) {
+				case 2: {
+					if (tag !== 16) {
 						break
 					}
 
@@ -665,10 +665,10 @@ function createBaseTaskHistoryArray(): TaskHistoryArray {
 export const TaskHistoryArray: MessageFns<TaskHistoryArray> = {
 	encode(message: TaskHistoryArray, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		for (const v of message.tasks) {
-			TaskItem.encode(v!, writer.uint32(18).fork()).join()
+			TaskItem.encode(v!, writer.uint32(10).fork()).join()
 		}
 		if (message.totalCount !== 0) {
-			writer.uint32(24).int32(message.totalCount)
+			writer.uint32(16).int32(message.totalCount)
 		}
 		return writer
 	},
@@ -680,16 +680,16 @@ export const TaskHistoryArray: MessageFns<TaskHistoryArray> = {
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
-				case 2: {
-					if (tag !== 18) {
+				case 1: {
+					if (tag !== 10) {
 						break
 					}
 
 					message.tasks.push(TaskItem.decode(reader, reader.uint32()))
 					continue
 				}
-				case 3: {
-					if (tag !== 24) {
+				case 2: {
+					if (tag !== 16) {
 						break
 					}
 
