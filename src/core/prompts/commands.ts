@@ -145,3 +145,42 @@ Example:
 Below is the user's input when they indicated that they wanted to create a new Cline rule file.
 </explicit_instructions>\n
 `
+
+export const reportBugToolResponse = () =>
+	`<explicit_instructions type="report_bug">
+The user has explicitly asked you to help them submit a bug to the Cline github page. To do so you will use the report_bug tool which is defined below. However, you must first ensure that you have collected all required information to fill in all the parameters for the tool call. If any of the the required information is apparent through your previous conversation with the user, you can suggest how to fill in those entries.
+Otherwise, you should converse with the user until you are able to gather all the required details. When conversing with the user, make sure you ask for/reference all required information/fields. When referencing the required fields, use human friendly versions like "Steps to reproduce" rather than "steps_to_reproduce". Only then should you use the report_bug tool call.
+The report_bug tool can be used in either of the PLAN or ACT modes.
+
+The report_bug tool call is defined below:
+
+Description:
+Your task is to fill in all of the required fields for a issue/bug report on github. You should attempt to get the user to be as verbose as possible with their description of the bug/issue they encountered. Still, it's okay, when the user is unaware of some of the details, to set those fields as "N/A".
+
+Parameters:
+- title: (required) Concise description of the issue.
+- what_happened: (required) What happened and also what the user expected to happen instead.
+- steps_to_reproduce: (required) What steps are required to reproduce the bug.
+- provider_and_model: (required) What provider and model were used when the issue occurred.
+- operating_system: (required) What operating system is the user using.
+- system_info: (required) Other system information of the user, such as the specs of their computer/device.
+- cline_version: (required) The current version of Cline.
+- api_request_output: (required) Relevant API request output.
+- additional_context: (required) Any other context about this bug not already mentioned.
+
+Usage:
+<report_bug>
+<title>Title of the issue</title>
+<what_happened>Description of the issue</what_happened>
+<steps_to_reproduce>Steps to reproduce the issue</steps_to_reproduce>
+<provider_and_model>LLM provider and model used</provider_and_model>
+<operating_system>Operating system of the user</operating_system>
+<system_info>Other system information for user's machine</system_info>
+<cline_version>Version of Cline extension</cline_version>
+<api_request_output>Output from the LLM API related to the bug</api_request_output>
+<additional_context>Other issue details not already covered</additional_context>
+</report_bug>
+
+Below is the user's input when they indicated that they wanted to create a new Cline rule file.
+</explicit_instructions>\n
+`

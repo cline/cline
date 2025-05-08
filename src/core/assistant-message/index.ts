@@ -25,6 +25,7 @@ export const toolUseNames = [
 	"attempt_completion",
 	"new_task",
 	"condense",
+	"report_bug",
 	"new_rule",
 ] as const
 
@@ -53,6 +54,15 @@ export const toolParamNames = [
 	"response",
 	"result",
 	"context",
+	"title",
+	"what_happened",
+	"steps_to_reproduce",
+	"provider_and_model",
+	"operating_system",
+	"system_info",
+	"cline_version",
+	"api_request_output",
+	"additional_context",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

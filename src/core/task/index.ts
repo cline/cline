@@ -1711,6 +1711,8 @@ export class Task {
 							return `[${block.name} for creating a new task]`
 						case "condense":
 							return `[${block.name}]`
+						case "report_bug":
+							return `[${block.name}]`
 						case "new_rule":
 							return `[${block.name} for '${block.params.path}']`
 					}
@@ -3134,6 +3136,163 @@ export class Task {
 							}
 						} catch (error) {
 							await handleError("condensing context window", error)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+					case "report_bug": {
+						const title = block.params.title
+						const what_happened = block.params.what_happened
+						const steps_to_reproduce = block.params.steps_to_reproduce
+						const provider_and_model = block.params.provider_and_model
+						const operating_system = block.params.operating_system
+						const system_info = block.params.system_info
+						const cline_version = block.params.cline_version
+						const api_request_output = block.params.api_request_output
+						const additional_context = block.params.additional_context
+
+						try {
+							if (block.partial) {
+								await this.ask(
+									"report_bug",
+									JSON.stringify({
+										title: removeClosingTag("title", title),
+										what_happened: removeClosingTag("what_happened", what_happened),
+										steps_to_reproduce: removeClosingTag("steps_to_reproduce", steps_to_reproduce),
+										provider_and_model: removeClosingTag("provider_and_model", provider_and_model),
+										operating_system: removeClosingTag("operating_system", operating_system),
+										system_info: removeClosingTag("system_info", system_info),
+										cline_version: removeClosingTag("cline_version", cline_version),
+										api_request_output: removeClosingTag("api_request_output", api_request_output),
+										additional_context: removeClosingTag("additional_context", additional_context),
+									}),
+									block.partial,
+								).catch(() => {})
+								break
+							} else {
+								if (!title) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "title"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!what_happened) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "what_happened"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!steps_to_reproduce) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "steps_to_reproduce"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!provider_and_model) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "provider_and_model"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!operating_system) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "operating_system"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!system_info) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "system_info"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!cline_version) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "cline_version"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!api_request_output) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "api_request_output"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!additional_context) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "additional_context"))
+									await this.saveCheckpoint()
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle: "Cline wants to create a github issue...",
+										message: `Cline is suggesting to create a github issue with the title: ${title}`,
+									})
+								}
+
+								// Ask user for confirmation
+								const bugReportData = JSON.stringify({
+									title,
+									what_happened,
+									steps_to_reproduce,
+									provider_and_model,
+									operating_system,
+									system_info,
+									cline_version,
+									api_request_output,
+									additional_context,
+								})
+
+								const { text, images } = await this.ask("report_bug", bugReportData, false)
+
+								// If the user provided a response, treat it as feedback
+								if (text || images?.length) {
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										formatResponse.toolResult(
+											`The user provided feedback on the Github issue generated:\n<feedback>\n${text}\n</feedback>`,
+											images,
+										),
+									)
+								} else {
+									// If no response, the user accepted the condensed version
+									pushToolResult(
+										formatResponse.toolResult(`The user accepted the creation of the Github issue.`),
+									)
+
+									const processString = (str: string) => {
+										return str
+									}
+
+									try {
+										const baseUrl = "https://github.com/cline/cline/issues/new?template=bug_report.yml"
+										const params = new URLSearchParams()
+										params.append("title", processString(title))
+										params.append("operating-system", processString(operating_system))
+										params.append("cline-version", processString(cline_version))
+										params.append("system-info", processString(system_info))
+										params.append("additional-context", processString(additional_context))
+										params.append("what-happened", processString(what_happened))
+										params.append("steps", processString(steps_to_reproduce))
+										params.append("provider-model", processString(provider_and_model))
+										params.append("logs", processString(api_request_output))
+										const issueUrl = `${baseUrl}&${params.toString()}`
+
+										// Open URL in browser
+										await vscode.env.openExternal(vscode.Uri.parse(issueUrl))
+									} catch (error) {
+										console.error(`An error occurred while attempting to report the bug: ${error}`)
+									}
+								}
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("reporting bug", error)
 							await this.saveCheckpoint()
 							break
 						}
