@@ -103,7 +103,6 @@ export class GeminiHandler implements ApiHandler {
 			contents: contents,
 			config: {
 				...requestConfig,
-				...{},
 			},
 		})
 
