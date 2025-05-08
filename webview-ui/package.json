@@ -97,6 +97,6 @@
 		"storybook-dark-mode": "^4.0.2",
 		"ts-jest": "^29.2.5",
 		"typescript": "^5.4.5",
-		"vite": "6.0.11"
+		"vite": "6.3.5"
 	}
 }
