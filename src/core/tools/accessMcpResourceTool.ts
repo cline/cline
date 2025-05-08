@@ -1,10 +1,10 @@
 import { ClineAskUseMcpServer } from "../../shared/ExtensionMessage"
 import { ToolUse, RemoveClosingTag, AskApproval, HandleError, PushToolResult } from "../../shared/tools"
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 import { formatResponse } from "../prompts/responses"
 
 export async function accessMcpResourceTool(
-	cline: Cline,
+	cline: Task,
 	block: ToolUse,
 	askApproval: AskApproval,
 	handleError: HandleError,

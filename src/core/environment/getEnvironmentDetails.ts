@@ -15,9 +15,9 @@ import { Terminal } from "../../integrations/terminal/Terminal"
 import { arePathsEqual } from "../../utils/path"
 import { formatResponse } from "../prompts/responses"
 
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 
-export async function getEnvironmentDetails(cline: Cline, includeFileDetails: boolean = false) {
+export async function getEnvironmentDetails(cline: Task, includeFileDetails: boolean = false) {
 	let details = ""
 
 	const clineProvider = cline.providerRef.deref()

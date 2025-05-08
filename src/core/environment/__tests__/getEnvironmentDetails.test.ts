@@ -16,7 +16,7 @@ import { ApiHandler } from "../../../api/index"
 import { ClineProvider } from "../../webview/ClineProvider"
 import { RooIgnoreController } from "../../ignore/RooIgnoreController"
 import { formatResponse } from "../../prompts/responses"
-import { Cline } from "../../Cline"
+import { Task } from "../../task/Task"
 
 jest.mock("vscode", () => ({
 	window: {
@@ -56,7 +56,7 @@ describe("getEnvironmentDetails", () => {
 		cleanCompletedProcessQueue?: jest.Mock
 	}
 
-	let mockCline: Partial<Cline>
+	let mockCline: Partial<Task>
 	let mockProvider: any
 	let mockState: any
 
@@ -134,7 +134,7 @@ describe("getEnvironmentDetails", () => {
 	})
 
 	it("should return basic environment details", async () => {
-		const result = await getEnvironmentDetails(mockCline as Cline)
+		const result = await getEnvironmentDetails(mockCline as Task)
 
 		expect(result).toContain("<environment_details>")
 		expect(result).toContain("</environment_details>")
@@ -157,7 +157,7 @@ describe("getEnvironmentDetails", () => {
 	})
 
 	it("should include file details when includeFileDetails is true", async () => {
-		const result = await getEnvironmentDetails(mockCline as Cline, true)
+		const result = await getEnvironmentDetails(mockCline as Task, true)
 		expect(result).toContain("# Current Workspace Directory")
 		expect(result).toContain("Files")
 
@@ -173,14 +173,14 @@ describe("getEnvironmentDetails", () => {
 	})
 
 	it("should not include file details when includeFileDetails is false", async () => {
-		await getEnvironmentDetails(mockCline as Cline, false)
+		await getEnvironmentDetails(mockCline as Task, false)
 		expect(listFiles).not.toHaveBeenCalled()
 		expect(formatResponse.formatFilesList).not.toHaveBeenCalled()
 	})
 
 	it("should handle desktop directory specially", async () => {
 		;(arePathsEqual as jest.Mock).mockReturnValue(true)
-		const result = await getEnvironmentDetails(mockCline as Cline, true)
+		const result = await getEnvironmentDetails(mockCline as Task, true)
 		expect(result).toContain("Desktop files not shown automatically")
 		expect(listFiles).not.toHaveBeenCalled()
 	})
@@ -191,7 +191,7 @@ describe("getEnvironmentDetails", () => {
 			"modified2.ts",
 		])
 
-		const result = await getEnvironmentDetails(mockCline as Cline)
+		const result = await getEnvironmentDetails(mockCline as Task)
 
 		expect(result).toContain("# Recently Modified Files")
 		expect(result).toContain("modified1.ts")
@@ -208,14 +208,14 @@ describe("getEnvironmentDetails", () => {
 		;(TerminalRegistry.getTerminals as jest.Mock).mockReturnValue([mockActiveTerminal])
 		;(TerminalRegistry.getUnretrievedOutput as jest.Mock).mockReturnValue("Test output")
 
-		const result = await getEnvironmentDetails(mockCline as Cline)
+		const result = await getEnvironmentDetails(mockCline as Task)
 
 		expect(result).toContain("# Actively Running Terminals")
 		expect(result).toContain("Original command: `npm test`")
 		expect(result).toContain("Test output")
 
 		mockCline.didEditFile = true
-		await getEnvironmentDetails(mockCline as Cline)
+		await getEnvironmentDetails(mockCline as Task)
 		expect(delay).toHaveBeenCalledWith(300)
 
 		expect(pWaitFor).toHaveBeenCalled()
@@ -237,7 +237,7 @@ describe("getEnvironmentDetails", () => {
 			active ? [] : [mockInactiveTerminal],
 		)
 
-		const result = await getEnvironmentDetails(mockCline as Cline)
+		const result = await getEnvironmentDetails(mockCline as Task)
 
 		expect(result).toContain("# Inactive Terminals with Completed Process Output")
 		expect(result).toContain("Terminal terminal-2")
@@ -261,7 +261,7 @@ describe("getEnvironmentDetails", () => {
 			return null
 		})
 
-		const result = await getEnvironmentDetails(mockCline as Cline)
+		const result = await getEnvironmentDetails(mockCline as Task)
 
 		expect(result).toContain("NOTE: You are currently in '💻 Code' mode, which does not allow write operations")
 	})
@@ -270,7 +270,7 @@ describe("getEnvironmentDetails", () => {
 		mockState.experiments = { [EXPERIMENT_IDS.POWER_STEERING]: true }
 		;(experiments.isEnabled as jest.Mock).mockReturnValue(true)
 
-		const result = await getEnvironmentDetails(mockCline as Cline)
+		const result = await getEnvironmentDetails(mockCline as Task)
 
 		expect(result).toContain("<role>You are a code assistant</role>")
 		expect(result).toContain("<custom_instructions>Custom instructions</custom_instructions>")
@@ -280,7 +280,7 @@ describe("getEnvironmentDetails", () => {
 		// Mock provider to return null.
 		mockCline.providerRef!.deref = jest.fn().mockReturnValue(null)
 
-		const result = await getEnvironmentDetails(mockCline as Cline)
+		const result = await getEnvironmentDetails(mockCline as Task)
 
 		// Verify the function still returns a result.
 		expect(result).toContain("<environment_details>")
@@ -291,7 +291,7 @@ describe("getEnvironmentDetails", () => {
 			getState: jest.fn().mockResolvedValue(null),
 		})
 
-		const result2 = await getEnvironmentDetails(mockCline as Cline)
+		const result2 = await getEnvironmentDetails(mockCline as Task)
 
 		// Verify the function still returns a result.
 		expect(result2).toContain("<environment_details>")
@@ -311,6 +311,6 @@ describe("getEnvironmentDetails", () => {
 		;(TerminalRegistry.getBackgroundTerminals as jest.Mock).mockReturnValue([])
 		;(mockCline.fileContextTracker!.getAndClearRecentlyModifiedFiles as jest.Mock).mockReturnValue([])
 
-		await expect(getEnvironmentDetails(mockCline as Cline)).resolves.not.toThrow()
+		await expect(getEnvironmentDetails(mockCline as Task)).resolves.not.toThrow()
 	})
 })

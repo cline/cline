@@ -1,11 +1,11 @@
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 import { fetchInstructions } from "../prompts/instructions/instructions"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { formatResponse } from "../prompts/responses"
 import { ToolUse, AskApproval, HandleError, PushToolResult } from "../../shared/tools"
 
 export async function fetchInstructionsTool(
-	cline: Cline,
+	cline: Task,
 	block: ToolUse,
 	askApproval: AskApproval,
 	handleError: HandleError,

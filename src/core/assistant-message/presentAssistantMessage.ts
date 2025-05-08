@@ -31,7 +31,7 @@ import { checkpointSave } from "../checkpoints"
 
 import { formatResponse } from "../prompts/responses"
 import { validateToolUse } from "../tools/validateToolUse"
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 
 /**
  * Processes and presents assistant message content to the user interface.
@@ -50,7 +50,7 @@ import { Cline } from "../Cline"
  * as it becomes available.
  */
 
-export async function presentAssistantMessage(cline: Cline) {
+export async function presentAssistantMessage(cline: Task) {
 	if (cline.abort) {
 		throw new Error(`[Cline#presentAssistantMessage] task ${cline.taskId}.${cline.instanceId} aborted`)
 	}

@@ -9,17 +9,17 @@ import pWaitFor from "p-wait-for"
 import { serializeError } from "serialize-error"
 
 // schemas
-import { TokenUsage, ToolUsage, ToolName } from "../schemas"
+import { TokenUsage, ToolUsage, ToolName } from "../../schemas"
 
 // api
-import { ApiHandler, buildApiHandler } from "../api"
-import { ApiStream } from "../api/transform/stream"
+import { ApiHandler, buildApiHandler } from "../../api"
+import { ApiStream } from "../../api/transform/stream"
 
 // shared
-import { ApiConfiguration } from "../shared/api"
-import { findLastIndex } from "../shared/array"
-import { combineApiRequests } from "../shared/combineApiRequests"
-import { combineCommandSequences } from "../shared/combineCommandSequences"
+import { ApiConfiguration } from "../../shared/api"
+import { findLastIndex } from "../../shared/array"
+import { combineApiRequests } from "../../shared/combineApiRequests"
+import { combineCommandSequences } from "../../shared/combineCommandSequences"
 import {
 	ClineApiReqCancelReason,
 	ClineApiReqInfo,
@@ -27,45 +27,45 @@ import {
 	ClineMessage,
 	ClineSay,
 	ToolProgressStatus,
-} from "../shared/ExtensionMessage"
-import { getApiMetrics } from "../shared/getApiMetrics"
-import { HistoryItem } from "../shared/HistoryItem"
-import { ClineAskResponse } from "../shared/WebviewMessage"
-import { defaultModeSlug } from "../shared/modes"
-import { DiffStrategy } from "../shared/tools"
+} from "../../shared/ExtensionMessage"
+import { getApiMetrics } from "../../shared/getApiMetrics"
+import { HistoryItem } from "../../shared/HistoryItem"
+import { ClineAskResponse } from "../../shared/WebviewMessage"
+import { defaultModeSlug } from "../../shared/modes"
+import { DiffStrategy } from "../../shared/tools"
 
 // services
-import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
-import { BrowserSession } from "../services/browser/BrowserSession"
-import { McpHub } from "../services/mcp/McpHub"
-import { McpServerManager } from "../services/mcp/McpServerManager"
-import { telemetryService } from "../services/telemetry/TelemetryService"
-import { RepoPerTaskCheckpointService } from "../services/checkpoints"
+import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
+import { BrowserSession } from "../../services/browser/BrowserSession"
+import { McpHub } from "../../services/mcp/McpHub"
+import { McpServerManager } from "../../services/mcp/McpServerManager"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { RepoPerTaskCheckpointService } from "../../services/checkpoints"
 
 // integrations
-import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
-import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { RooTerminalProcess } from "../integrations/terminal/types"
-import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
+import { DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
+import { findToolName, formatContentBlockToMarkdown } from "../../integrations/misc/export-markdown"
+import { RooTerminalProcess } from "../../integrations/terminal/types"
+import { TerminalRegistry } from "../../integrations/terminal/TerminalRegistry"
 
 // utils
-import { calculateApiCostAnthropic } from "../utils/cost"
-import { getWorkspacePath } from "../utils/path"
+import { calculateApiCostAnthropic } from "../../utils/cost"
+import { getWorkspacePath } from "../../utils/path"
 
 // prompts
-import { formatResponse } from "./prompts/responses"
-import { SYSTEM_PROMPT } from "./prompts/system"
+import { formatResponse } from "../prompts/responses"
+import { SYSTEM_PROMPT } from "../prompts/system"
 
 // core modules
-import { ToolRepetitionDetector } from "./tools/ToolRepetitionDetector"
-import { FileContextTracker } from "./context-tracking/FileContextTracker"
-import { RooIgnoreController } from "./ignore/RooIgnoreController"
-import { type AssistantMessageContent, parseAssistantMessage, presentAssistantMessage } from "./assistant-message"
-import { truncateConversationIfNeeded } from "./sliding-window"
-import { ClineProvider } from "./webview/ClineProvider"
-import { MultiSearchReplaceDiffStrategy } from "./diff/strategies/multi-search-replace"
-import { readApiMessages, saveApiMessages, readTaskMessages, saveTaskMessages, taskMetadata } from "./task-persistence"
-import { getEnvironmentDetails } from "./environment/getEnvironmentDetails"
+import { ToolRepetitionDetector } from "../tools/ToolRepetitionDetector"
+import { FileContextTracker } from "../context-tracking/FileContextTracker"
+import { RooIgnoreController } from "../ignore/RooIgnoreController"
+import { type AssistantMessageContent, parseAssistantMessage, presentAssistantMessage } from "../assistant-message"
+import { truncateConversationIfNeeded } from "../sliding-window"
+import { ClineProvider } from "../webview/ClineProvider"
+import { MultiSearchReplaceDiffStrategy } from "../diff/strategies/multi-search-replace"
+import { readApiMessages, saveApiMessages, readTaskMessages, saveTaskMessages, taskMetadata } from "../task-persistence"
+import { getEnvironmentDetails } from "../environment/getEnvironmentDetails"
 import {
 	type CheckpointDiffOptions,
 	type CheckpointRestoreOptions,
@@ -73,8 +73,8 @@ import {
 	checkpointSave,
 	checkpointRestore,
 	checkpointDiff,
-} from "./checkpoints"
-import { processUserContentMentions } from "./mentions/processUserContentMentions"
+} from "../checkpoints"
+import { processUserContentMentions } from "../mentions/processUserContentMentions"
 
 export type ClineEvents = {
 	message: [{ action: "created" | "updated"; message: ClineMessage }]
@@ -90,7 +90,7 @@ export type ClineEvents = {
 	taskToolFailed: [taskId: string, tool: ToolName, error: string]
 }
 
-export type ClineOptions = {
+export type TaskOptions = {
 	provider: ClineProvider
 	apiConfiguration: ApiConfiguration
 	customInstructions?: string
@@ -103,18 +103,18 @@ export type ClineOptions = {
 	historyItem?: HistoryItem
 	experiments?: Record<string, boolean>
 	startTask?: boolean
-	rootTask?: Cline
-	parentTask?: Cline
+	rootTask?: Task
+	parentTask?: Task
 	taskNumber?: number
-	onCreated?: (cline: Cline) => void
+	onCreated?: (cline: Task) => void
 }
 
-export class Cline extends EventEmitter<ClineEvents> {
+export class Task extends EventEmitter<ClineEvents> {
 	readonly taskId: string
 	readonly instanceId: string
 
-	readonly rootTask: Cline | undefined = undefined
-	readonly parentTask: Cline | undefined = undefined
+	readonly rootTask: Task | undefined = undefined
+	readonly parentTask: Task | undefined = undefined
 	readonly taskNumber: number
 	readonly workspacePath: string
 
@@ -201,7 +201,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		parentTask,
 		taskNumber = -1,
 		onCreated,
-	}: ClineOptions) {
+	}: TaskOptions) {
 		super()
 
 		if (startTask && !task && !images && !historyItem) {
@@ -264,8 +264,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 		}
 	}
 
-	static create(options: ClineOptions): [Cline, Promise<void>] {
-		const instance = new Cline({ ...options, startTask: false })
+	static create(options: TaskOptions): [Task, Promise<void>] {
+		const instance = new Task({ ...options, startTask: false })
 		const { images, task, historyItem } = options
 		let promise
 

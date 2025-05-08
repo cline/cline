@@ -1,6 +1,6 @@
 import * as path from "path"
 
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { formatResponse } from "../prompts/responses"
 import { listFiles } from "../../services/glob/list-files"
@@ -23,7 +23,7 @@ import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } f
  */
 
 export async function listFilesTool(
-	cline: Cline,
+	cline: Task,
 	block: ToolUse,
 	askApproval: AskApproval,
 	handleError: HandleError,

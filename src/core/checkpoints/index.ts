@@ -1,7 +1,7 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 
 import { getWorkspacePath } from "../../utils/path"
 
@@ -13,7 +13,7 @@ import { DIFF_VIEW_URI_SCHEME } from "../../integrations/editor/DiffViewProvider
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { CheckpointServiceOptions, RepoPerTaskCheckpointService } from "../../services/checkpoints"
 
-export function getCheckpointService(cline: Cline) {
+export function getCheckpointService(cline: Task) {
 	if (!cline.enableCheckpoints) {
 		return undefined
 	}
@@ -124,7 +124,7 @@ export function getCheckpointService(cline: Cline) {
 }
 
 async function getInitializedCheckpointService(
-	cline: Cline,
+	cline: Task,
 	{ interval = 250, timeout = 15_000 }: { interval?: number; timeout?: number } = {},
 ) {
 	const service = getCheckpointService(cline)
@@ -148,7 +148,7 @@ async function getInitializedCheckpointService(
 	}
 }
 
-export async function checkpointSave(cline: Cline) {
+export async function checkpointSave(cline: Task) {
 	const service = getCheckpointService(cline)
 
 	if (!service) {
@@ -177,7 +177,7 @@ export type CheckpointRestoreOptions = {
 	mode: "preview" | "restore"
 }
 
-export async function checkpointRestore(cline: Cline, { ts, commitHash, mode }: CheckpointRestoreOptions) {
+export async function checkpointRestore(cline: Task, { ts, commitHash, mode }: CheckpointRestoreOptions) {
 	const service = await getInitializedCheckpointService(cline)
 
 	if (!service) {
@@ -245,10 +245,7 @@ export type CheckpointDiffOptions = {
 	mode: "full" | "checkpoint"
 }
 
-export async function checkpointDiff(
-	cline: Cline,
-	{ ts, previousCommitHash, commitHash, mode }: CheckpointDiffOptions,
-) {
+export async function checkpointDiff(cline: Task, { ts, previousCommitHash, commitHash, mode }: CheckpointDiffOptions) {
 	const service = await getInitializedCheckpointService(cline)
 
 	if (!service) {

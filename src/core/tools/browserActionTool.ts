@@ -1,4 +1,4 @@
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../shared/tools"
 import {
 	BrowserAction,
@@ -9,7 +9,7 @@ import {
 import { formatResponse } from "../prompts/responses"
 
 export async function browserActionTool(
-	cline: Cline,
+	cline: Task,
 	block: ToolUse,
 	askApproval: AskApproval,
 	handleError: HandleError,

@@ -42,7 +42,7 @@ import { ProviderSettingsManager } from "../config/ProviderSettingsManager"
 import { CustomModesManager } from "../config/CustomModesManager"
 import { buildApiHandler } from "../../api"
 import { CodeActionName } from "../../activate/CodeActionProvider"
-import { Cline, ClineOptions } from "../Cline"
+import { Task, TaskOptions } from "../task/Task"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { getSystemPromptFilePath } from "../prompts/sections/custom-system-prompt"
@@ -57,7 +57,7 @@ import { WebviewMessage } from "../../shared/WebviewMessage"
  */
 
 export type ClineProviderEvents = {
-	clineCreated: [cline: Cline]
+	clineCreated: [cline: Task]
 }
 
 export class ClineProvider extends EventEmitter<ClineProviderEvents> implements vscode.WebviewViewProvider {
@@ -66,7 +66,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
-	private clineStack: Cline[] = []
+	private clineStack: Task[] = []
 	private _workspaceTracker?: WorkspaceTracker // workSpaceTracker read-only for access outside this class
 	public get workspaceTracker(): WorkspaceTracker | undefined {
 		return this._workspaceTracker
@@ -116,7 +116,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	// Adds a new Cline instance to clineStack, marking the start of a new task.
 	// The instance is pushed to the top of the stack (LIFO order).
 	// When the task is completed, the top instance is removed, reactivating the previous task.
-	async addClineToStack(cline: Cline) {
+	async addClineToStack(cline: Task) {
 		console.log(`[subtasks] adding task ${cline.taskId}.${cline.instanceId} to stack`)
 
 		// Add this cline instance into the stack that represents the order of all the called tasks.
@@ -161,7 +161,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 	// returns the current cline object in the stack (the top one)
 	// if the stack is empty, returns undefined
-	getCurrentCline(): Cline | undefined {
+	getCurrentCline(): Task | undefined {
 		if (this.clineStack.length === 0) {
 			return undefined
 		}
@@ -438,7 +438,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		this.log("Webview view resolved")
 	}
 
-	public async initClineWithSubTask(parent: Cline, task?: string, images?: string[]) {
+	public async initClineWithSubTask(parent: Task, task?: string, images?: string[]) {
 		return this.initClineWithTask(task, images, parent)
 	}
 
@@ -451,10 +451,10 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	public async initClineWithTask(
 		task?: string,
 		images?: string[],
-		parentTask?: Cline,
+		parentTask?: Task,
 		options: Partial<
 			Pick<
-				ClineOptions,
+				TaskOptions,
 				| "customInstructions"
 				| "enableDiff"
 				| "enableCheckpoints"
@@ -478,7 +478,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
-		const cline = new Cline({
+		const cline = new Task({
 			provider: this,
 			apiConfiguration,
 			customInstructions: effectiveInstructions,
@@ -504,7 +504,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		return cline
 	}
 
-	public async initClineWithHistoryItem(historyItem: HistoryItem & { rootTask?: Cline; parentTask?: Cline }) {
+	public async initClineWithHistoryItem(historyItem: HistoryItem & { rootTask?: Task; parentTask?: Task }) {
 		await this.removeClineFromStack()
 
 		const {
@@ -521,7 +521,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
-		const cline = new Cline({
+		const cline = new Task({
 			provider: this,
 			apiConfiguration,
 			customInstructions: effectiveInstructions,

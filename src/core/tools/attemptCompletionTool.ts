@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 import {
 	ToolResponse,
 	ToolUse,
@@ -16,7 +16,7 @@ import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { type ExecuteCommandOptions, executeCommand } from "./executeCommandTool"
 
 export async function attemptCompletionTool(
-	cline: Cline,
+	cline: Task,
 	block: ToolUse,
 	askApproval: AskApproval,
 	handleError: HandleError,

@@ -2,7 +2,7 @@
 
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
 
-import { Cline } from "../../Cline"
+import { Task } from "../../task/Task"
 import { formatResponse } from "../../prompts/responses"
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../../shared/tools"
 import { ToolUsage } from "../../../schemas"
@@ -13,7 +13,7 @@ jest.mock("execa", () => ({
 	execa: jest.fn(),
 }))
 
-jest.mock("../../Cline")
+jest.mock("../../task/Task")
 jest.mock("../../prompts/responses")
 
 // Create a mock for the executeCommand function
@@ -74,7 +74,7 @@ beforeEach(() => {
 
 describe("executeCommandTool", () => {
 	// Setup common test variables
-	let mockCline: jest.Mocked<Partial<Cline>> & { consecutiveMistakeCount: number; didRejectTool: boolean }
+	let mockCline: jest.Mocked<Partial<Task>> & { consecutiveMistakeCount: number; didRejectTool: boolean }
 	let mockAskApproval: jest.Mock
 	let mockHandleError: jest.Mock
 	let mockPushToolResult: jest.Mock
@@ -160,7 +160,7 @@ describe("executeCommandTool", () => {
 
 			// Execute
 			await executeCommandTool(
-				mockCline as unknown as Cline,
+				mockCline as unknown as Task,
 				mockToolUse,
 				mockAskApproval as unknown as AskApproval,
 				mockHandleError as unknown as HandleError,
@@ -181,7 +181,7 @@ describe("executeCommandTool", () => {
 
 			// Execute
 			await executeCommandTool(
-				mockCline as unknown as Cline,
+				mockCline as unknown as Task,
 				mockToolUse,
 				mockAskApproval as unknown as AskApproval,
 				mockHandleError as unknown as HandleError,
@@ -204,7 +204,7 @@ describe("executeCommandTool", () => {
 
 			// Execute
 			await executeCommandTool(
-				mockCline as unknown as Cline,
+				mockCline as unknown as Task,
 				mockToolUse,
 				mockAskApproval as unknown as AskApproval,
 				mockHandleError as unknown as HandleError,
@@ -228,7 +228,7 @@ describe("executeCommandTool", () => {
 
 			// Execute
 			await executeCommandTool(
-				mockCline as unknown as Cline,
+				mockCline as unknown as Task,
 				mockToolUse,
 				mockAskApproval as unknown as AskApproval,
 				mockHandleError as unknown as HandleError,
@@ -258,7 +258,7 @@ describe("executeCommandTool", () => {
 
 			// Execute
 			await executeCommandTool(
-				mockCline as unknown as Cline,
+				mockCline as unknown as Task,
 				mockToolUse,
 				mockAskApproval as unknown as AskApproval,
 				mockHandleError as unknown as HandleError,

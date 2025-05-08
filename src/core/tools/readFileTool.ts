@@ -1,7 +1,7 @@
 import path from "path"
 import { isBinaryFile } from "isbinaryfile"
 
-import { Cline } from "../Cline"
+import { Task } from "../task/Task"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { formatResponse } from "../prompts/responses"
 import { t } from "../../i18n"
@@ -15,7 +15,7 @@ import { extractTextFromFile, addLineNumbers } from "../../integrations/misc/ext
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 
 export async function readFileTool(
-	cline: Cline,
+	cline: Task,
 	block: ToolUse,
 	askApproval: AskApproval,
 	handleError: HandleError,
