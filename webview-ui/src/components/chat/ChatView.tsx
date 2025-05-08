@@ -41,6 +41,27 @@ interface ChatViewProps {
 	showHistoryView: () => void
 }
 
+// Function to clean up markdown escape characters
+function cleanupMarkdownEscapes(markdown: string): string {
+	return (
+		markdown
+			// Handle underscores and asterisks (single or multiple)
+			.replace(/\\([_*]+)/g, "$1")
+
+			// Handle angle brackets (for generics and XML)
+			.replace(/\\([<>])/g, "$1")
+
+			// Handle backticks (for code)
+			.replace(/\\(`)/g, "$1")
+
+			// Handle other common markdown special characters
+			.replace(/\\([[\]()#.!])/g, "$1")
+
+			// Fix multiple consecutive backslashes
+			.replace(/\\{2,}([_*`<>[\]()#.!])/g, "$1")
+	)
+}
+
 async function convertHtmlToMarkdown(html: string) {
 	// Process the HTML to Markdown
 	const result = await unified()
@@ -55,10 +76,14 @@ async function convertHtmlToMarkdown(html: string) {
 			rule: "-", // Use - for horizontal rules
 			ruleSpaces: false, // No spaces in horizontal rules
 			fences: true,
+			escape: false,
+			entities: false,
 		})
 		.process(html)
 
-	return String(result)
+	const md = String(result)
+	// Apply comprehensive cleanup of escape characters
+	return cleanupMarkdownEscapes(md)
 }
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
@@ -120,7 +145,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 					// Convert HTML to Markdown
 					const markdown = await convertHtmlToMarkdown(selectedHtml)
-
 					vscode.postMessage({ type: "copyToClipboard", text: markdown })
 					e.preventDefault()
 				}
