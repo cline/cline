@@ -10,7 +10,7 @@ import "common.proto";
 service ModelsService {
   // Fetches available models from Ollama
   rpc getOllamaModels(StringRequest) returns (StringArray);
-  // Fetches available models from LM Studio√
+  // Fetches available models from LM Studio
   rpc getLmStudioModels(StringRequest) returns (StringArray);
   // Fetches available models from VS Code LM API
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
@@ -29,7 +29,6 @@ message VsCodeLmModel {
   string family = 2;
   string version = 3;
   string id = 4;
-
 }
 
 // For ModelInfo structure in OpenRouterModels
