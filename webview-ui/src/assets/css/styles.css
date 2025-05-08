@@ -142,42 +142,42 @@
 }
 
 .feature-icon-1 {
-	background-image: url("../images/feature-icon-1.svg");
+	background-image: url("../images/rocket.svg");
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
 }
 
 .feature-icon-2 {
-	background-image: url("../images/feature-icon-2.svg");
+	background-image: url("../images/rocket.svg");
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
 }
 
 .feature-icon-3 {
-	background-image: url("../images/feature-icon-3.svg");
+	background-image: url("../images/play.svg");
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
 }
 
 .feature-icon-4 {
-	background-image: url("../images/feature-icon-4.svg");
+	background-image: url("../images/rules.svg");
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
 }
 
 .action-icon-1 {
-	background-image: url("../images/action-icon-1.svg");
+	background-image: url("../images/star-check.svg");
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
 }
 
 .action-icon-2 {
-	background-image: url("../images/action-icon-2.svg");
+	background-image: url("../images/rocket.svg");
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;

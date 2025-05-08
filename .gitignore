@@ -19,3 +19,4 @@ coverage
 !.github/scripts/coverage/
 
 *evals.env
+*.zip

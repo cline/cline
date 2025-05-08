@@ -114,7 +114,7 @@ const AppContent = () => {
 	return (
 		<>
 			{showWelcomeLocal ? (
-				<WelcomeWrapper />
+				<WelcomeWrapper showWelcome={showWelcomeLocal} />
 			) : (
 				<>
 					{showSettings && <SettingsView onDone={hideSettings} />}

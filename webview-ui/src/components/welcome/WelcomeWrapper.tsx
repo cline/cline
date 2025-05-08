@@ -3,7 +3,7 @@ import { WebviewType } from "@shared/WebviewMessage"
 import WelcomeView from "./WelcomeView"
 import WelcomeTabView from "./WelcomeTabView"
 
-const WelcomeWrapper = memo(() => {
+const WelcomeWrapper = memo(({ showWelcome }: { showWelcome: boolean }) => {
 	const [showApiOptions, setShowApiOptions] = useState(false)
 
 	// Determine which welcome view to show based on webview type
@@ -14,7 +14,7 @@ const WelcomeWrapper = memo(() => {
 			{webviewType === "sidebar" ? (
 				<WelcomeView showApiOptions={showApiOptions} setShowApiOptions={setShowApiOptions} webviewType={webviewType} />
 			) : (
-				<WelcomeTabView showApiOptions={showApiOptions} setShowApiOptions={setShowApiOptions} webviewType={webviewType} />
+				<WelcomeTabView showWelcome={showWelcome} />
 			)}
 		</>
 	)
