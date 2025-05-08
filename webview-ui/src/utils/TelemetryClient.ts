@@ -17,6 +17,7 @@ class TelemetryClient {
 				loaded: () => posthog.identify(distinctId),
 				capture_pageview: false,
 				capture_pageleave: false,
+				autocapture: false,
 			})
 		} else {
 			TelemetryClient.telemetryEnabled = false
