@@ -118,6 +118,7 @@ export class Task {
 	private cancelTask: () => Promise<void>
 
 	readonly taskId: string
+	private taskIsFavorited?: boolean
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
@@ -211,6 +212,7 @@ export class Task {
 		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
+			this.taskIsFavorited = historyItem.isFavorited
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 		} else if (task || images) {
 			this.taskId = Date.now().toString()
@@ -314,6 +316,7 @@ export class Task {
 				size: taskDirSize,
 				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
 				conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+				isFavorited: this.taskIsFavorited,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)

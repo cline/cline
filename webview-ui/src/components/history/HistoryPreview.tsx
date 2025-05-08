@@ -92,6 +92,18 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										{formatDate(item.ts)}
 									</span>
 								</div>
+								{item.isFavorited && (
+									<div
+										style={{
+											position: "absolute",
+											top: "12px",
+											right: "12px",
+											color: "var(--vscode-button-background)",
+										}}>
+										<span className="codicon codicon-star-full" aria-label="Favorited" />
+									</div>
+								)}
+
 								<div
 									style={{
 										fontSize: "var(--vscode-font-size)",
