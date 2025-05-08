@@ -4,14 +4,17 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { isBinaryFile } from "isbinaryfile"
 
-import { openFile } from "../../integrations/misc/open-file"
-import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
 import { mentionRegexGlobal, unescapeSpaces } from "../../shared/context-mentions"
 
-import { extractTextFromFile } from "../../integrations/misc/extract-text"
-import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
 import { getCommitInfo, getWorkingState } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
+
+import { openFile } from "../../integrations/misc/open-file"
+import { extractTextFromFile } from "../../integrations/misc/extract-text"
+import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
+
+import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
+
 import { FileContextTracker } from "../context-tracking/FileContextTracker"
 
 export async function openMention(mention?: string): Promise<void> {
@@ -273,3 +276,6 @@ export async function getLatestTerminalOutput(): Promise<string> {
 		await vscode.env.clipboard.writeText(originalClipboard)
 	}
 }
+
+// Export processUserContentMentions from its own file
+export { processUserContentMentions } from "./processUserContentMentions"

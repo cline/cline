@@ -12,6 +12,19 @@ import { ClineProvider } from "../webview/ClineProvider"
 import { ApiConfiguration, ModelInfo } from "../../shared/api"
 import { ApiStreamChunk } from "../../api/transform/stream"
 import { ContextProxy } from "../config/ContextProxy"
+import { processUserContentMentions } from "../mentions/processUserContentMentions"
+
+jest.mock("../mentions", () => ({
+	parseMentions: jest.fn().mockImplementation((text) => {
+		return Promise.resolve(`processed: ${text}`)
+	}),
+	openMention: jest.fn(),
+	getLatestTerminalOutput: jest.fn(),
+}))
+
+jest.mock("../../integrations/misc/extract-text", () => ({
+	extractTextFromFile: jest.fn().mockResolvedValue("Mock file content"),
+}))
 
 jest.mock("../environment/getEnvironmentDetails", () => ({
 	getEnvironmentDetails: jest.fn().mockResolvedValue(""),
@@ -791,17 +804,13 @@ describe("Cline", () => {
 				await task.catch(() => {})
 			})
 
-			describe("parseUserContent", () => {
+			describe("processUserContentMentions", () => {
 				it("should process mentions in task and feedback tags", async () => {
 					const [cline, task] = Cline.create({
 						provider: mockProvider,
 						apiConfiguration: mockApiConfig,
 						task: "test task",
 					})
-
-					// Mock parseMentions to track calls
-					const mockParseMentions = jest.fn().mockImplementation((text) => `processed: ${text}`)
-					jest.spyOn(require("../../core/mentions"), "parseMentions").mockImplementation(mockParseMentions)
 
 					const userContent = [
 						{
@@ -834,30 +843,28 @@ describe("Cline", () => {
 						} as Anthropic.ToolResultBlockParam,
 					]
 
-					// Process the content
-					const processedContent = await cline.parseUserContent(userContent)
+					const processedContent = await processUserContentMentions({
+						userContent,
+						cwd: cline.cwd,
+						urlContentFetcher: cline.urlContentFetcher,
+						fileContextTracker: cline.fileContextTracker,
+					})
 
 					// Regular text should not be processed
 					expect((processedContent[0] as Anthropic.TextBlockParam).text).toBe("Regular text with @/some/path")
 
 					// Text within task tags should be processed
 					expect((processedContent[1] as Anthropic.TextBlockParam).text).toContain("processed:")
-					expect(mockParseMentions).toHaveBeenCalledWith(
+					expect((processedContent[1] as Anthropic.TextBlockParam).text).toContain(
 						"<task>Text with @/some/path in task tags</task>",
-						expect.any(String),
-						expect.any(Object),
-						expect.any(Object),
 					)
 
 					// Feedback tag content should be processed
 					const toolResult1 = processedContent[2] as Anthropic.ToolResultBlockParam
 					const content1 = Array.isArray(toolResult1.content) ? toolResult1.content[0] : toolResult1.content
 					expect((content1 as Anthropic.TextBlockParam).text).toContain("processed:")
-					expect(mockParseMentions).toHaveBeenCalledWith(
+					expect((content1 as Anthropic.TextBlockParam).text).toContain(
 						"<feedback>Check @/some/path</feedback>",
-						expect.any(String),
-						expect.any(Object),
-						expect.any(Object),
 					)
 
 					// Regular tool result should not be processed
