@@ -43,22 +43,22 @@ message TaskFavoriteRequest {
 
 // Response for task details
 message TaskResponse {
-  string id = 2;
-  string task = 3;
-  int64 ts = 4;
-  bool is_favorited = 5;
-  int64 size = 6;
-  double total_cost = 7;
-  int32 tokens_in = 8;
-  int32 tokens_out = 9;
-  int32 cache_writes = 10;
-  int32 cache_reads = 11;
+  string id = 1;
+  string task = 2;
+  int64 ts = 3;
+  bool is_favorited = 4;
+  int64 size = 5;
+  double total_cost = 6;
+  int32 tokens_in = 7;
+  int32 tokens_out = 8;
+  int32 cache_writes = 9;
+  int32 cache_reads = 10;
 }
 
 // Results returned when deleting non-favorited tasks
 message DeleteNonFavoritedTasksResults {
-  int32 tasks_preserved = 2;
-  int32 tasks_deleted = 3;
+  int32 tasks_preserved = 1;
+  int32 tasks_deleted = 2;
 }
 
 // Request for getting task history with filtering
@@ -71,8 +71,8 @@ message GetTaskHistoryRequest {
 
 // Response for task history
 message TaskHistoryArray {
-  repeated TaskItem tasks = 2;
-  int32 total_count = 3;
+  repeated TaskItem tasks = 1;
+  int32 total_count = 2;
 }
 
 // Task item details for history list

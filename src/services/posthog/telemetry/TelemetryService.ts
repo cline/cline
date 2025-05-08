@@ -512,13 +512,14 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
 	 */
-	public captureDiffEditFailure(taskId: string, errorType?: string, collect: boolean = false) {
+	public captureDiffEditFailure(taskId: string, modelId: string, errorType?: string, collect: boolean = false) {
 		this.capture(
 			{
 				event: PostHogClient.EVENTS.TASK.DIFF_EDIT_FAILED,
 				properties: {
 					taskId,
 					errorType,
+					modelId,
 				},
 			},
 			collect,
