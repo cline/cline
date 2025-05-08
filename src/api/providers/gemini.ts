@@ -86,7 +86,7 @@ export class GeminiHandler implements ApiHandler {
 	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const { id: model, info } = this.getModel()
+		const { id: modelId, info } = this.getModel()
 
 		// --- Cache Handling Logic ---
 		const isCacheValid = this.cacheName && this.cacheExpireTime && Date.now() < this.cacheExpireTime
@@ -139,7 +139,7 @@ export class GeminiHandler implements ApiHandler {
 		}
 		// Generate content using the configured parameters
 		const result = await this.client.models.generateContentStream({
-			model,
+			model: modelId,
 			contents,
 			// Add cachedContent if using the cache
 			config: {
@@ -244,157 +244,6 @@ export class GeminiHandler implements ApiHandler {
 			console.error(`[GeminiHandler] Failed to list caches:`, error)
 			return []
 		}
-	}
-
-	/**
-	 * Updates the content of a cache for a specific task.
-	 *
-	 * Since the Gemini API doesn't support incremental updates to cache content,
-	 * this method:
-	 * 1. Creates a new cache with the full content (old + new)
-	 * 2. Deletes the old cache if it exists
-	 * 3. Updates our local tracking to point to the new cache
-	 *
-	 * @param taskId The ID of the task whose cache should be updated
-	 * @param model The model to use for the cache
-	 * @param contents The full content to cache (including both old and new messages)
-	 * @param systemInstruction The system instruction to include in the cache
-	 */
-	private async updateCacheContent(
-		taskId: string,
-		model: string,
-		contents: Content[],
-		systemInstruction: string,
-	): Promise<void> {
-		if (this.isCacheBusy) {
-			console.log(`[GeminiHandler] Cache is busy, skipping update for task ${taskId}`)
-			return
-		}
-
-		this.isCacheBusy = true
-		const timestamp = Date.now()
-		const existingCacheName = this.taskCacheNames.get(taskId)
-
-		try {
-			// 1. Create a new cache with the full content
-			const result = await this.client.caches.create({
-				model,
-				config: {
-					contents,
-					systemInstruction,
-					ttl: `${DEFAULT_CACHE_TTL_SECONDS}s`,
-					httpOptions: { timeout: 120_000 },
-				},
-			})
-
-			const { name, usageMetadata } = result
-
-			if (name) {
-				// 2. Delete the old cache if it exists (non-blocking)
-				// We don't await this operation to avoid blocking the main flow if deletion fails
-				if (existingCacheName) {
-					// Schedule cache deletion in the background
-					setTimeout(() => {
-						this.client.caches
-							.delete({ name: existingCacheName })
-							.then(() => {
-								console.log(`[GeminiHandler] Deleted old cache ${existingCacheName} for task ${taskId}`)
-							})
-							.catch((error) => {
-								console.error(`[GeminiHandler] Failed to delete old cache ${existingCacheName}:`, error)
-								console.log(`[GeminiHandler] Continuing without deleting old cache. It will expire after TTL.`)
-							})
-					}, 1000)
-				}
-
-				// 3. Update our local tracking
-				this.contentCaches.set<{ key: string; count: number }>(taskId, {
-					key: name,
-					count: contents.length,
-				})
-				this.taskCacheNames.set(taskId, name)
-
-				// Track total tokens in cache for ongoing cost calculation
-				const totalTokens = usageMetadata?.totalTokenCount ?? 0
-				this.taskCacheTokens.set(taskId, totalTokens)
-
-				const operation = existingCacheName ? "Updated" : "Created new"
-				console.log(
-					`[GeminiHandler] ${operation} cache for task ${taskId}: ${contents.length} messages (${totalTokens} tokens) in ${Date.now() - timestamp}ms`,
-				)
-
-				return // Indicate that a cache write occurred
-			}
-
-			return
-		} catch (error) {
-			console.error(`[GeminiHandler] Failed to update cache for task ${taskId}:`, error)
-			return
-		} finally {
-			this.isCacheBusy = false
-		}
-	}
-
-	/**
-	 * Updates the TTL of an existing cache.
-	 *
-	 * According to the Gemini API documentation, you can update the TTL of a cache
-	 * using the caches.update() method. This is useful for extending the lifetime
-	 * of a cache that's still being used.
-	 *
-	 * @param taskId The ID of the task whose cache TTL should be updated
-	 * @param ttlSeconds The new TTL in seconds
-	 * @returns A promise that resolves to the updated cache, or undefined if the update fails
-	 */
-	public async updateCacheTTL(taskId: string, ttlSeconds: number = DEFAULT_CACHE_TTL_SECONDS): Promise<any> {
-		const cacheName = this.taskCacheNames.get(taskId)
-		if (!cacheName) {
-			console.warn(`[GeminiHandler] No cache found for task ${taskId}, cannot update TTL`)
-			return
-		}
-
-		try {
-			const updatedCache = await this.client.caches.update({
-				name: cacheName,
-				config: { ttl: `${ttlSeconds}s` },
-			})
-
-			console.log(`[GeminiHandler] Updated TTL for cache ${cacheName} to ${ttlSeconds}s`)
-			return updatedCache
-		} catch (error) {
-			console.error(`[GeminiHandler] Failed to update TTL for cache ${cacheName}:`, error)
-		}
-	}
-
-	/**
-	 * Calculate the ongoing costs for a task based on cache storage.
-	 *
-	 * This method calculates the cost of holding tokens in cache for the TTL period.
-	 * These costs are separate from the immediate costs of API calls and should be
-	 * tracked at the task level rather than the message level.
-	 *
-	 * TODO: Surface these ongoing costs to the user in the UI, possibly in:
-	 * - The task header/summary
-	 * - A dedicated "costs" panel or tooltip
-	 * - As part of the total cost calculation for the task
-	 *
-	 * @param taskId The ID of the task to calculate ongoing costs for
-	 * @returns The ongoing cost in dollars, or undefined if no cache exists for the task
-	 */
-	public getTaskOngoingCosts(taskId: string): number | undefined {
-		const tokens = this.taskCacheTokens.get(taskId)
-		if (!tokens) {
-			return undefined
-		}
-
-		const { info } = this.getModel()
-		if (!info.cacheWritesPrice) {
-			return undefined
-		}
-
-		// Calculate the cost of holding tokens in cache for the TTL period
-		// (tokens / 1M) * (price per 1M tokens) * (cache TTL in hours)
-		return info.cacheWritesPrice * (tokens / 1_000_000) * (DEFAULT_CACHE_TTL_SECONDS / 3600)
 	}
 
 	/**
