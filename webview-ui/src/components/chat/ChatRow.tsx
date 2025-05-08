@@ -1044,6 +1044,7 @@ export const ChatRowContent = ({
 														)?.alwaysAllow || false,
 												}}
 												serverName={useMcpServer.serverName}
+												serverSource={server?.source}
 												alwaysAllowMcp={alwaysAllowMcp}
 											/>
 										</div>
