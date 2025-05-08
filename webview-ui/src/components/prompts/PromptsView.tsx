@@ -571,8 +571,30 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 														}}
 														data-testid={`mode-option-${modeConfig.slug}`}>
 														<div className="flex items-center justify-between w-full">
-															<span>{modeConfig.name}</span>
-															<span className="text-foreground">{modeConfig.slug}</span>
+															<span
+																style={{
+																	whiteSpace: "nowrap",
+																	overflow: "hidden",
+																	textOverflow: "ellipsis",
+																	flex: 2,
+																	minWidth: 0,
+																}}>
+																{modeConfig.name}
+															</span>
+															<span
+																className="text-foreground"
+																style={{
+																	whiteSpace: "nowrap",
+																	overflow: "hidden",
+																	textOverflow: "ellipsis",
+																	direction: "rtl",
+																	textAlign: "right",
+																	flex: 1,
+																	minWidth: 0,
+																	marginLeft: "0.5em",
+																}}>
+																{modeConfig.slug}
+															</span>
 														</div>
 													</CommandItem>
 												))}
