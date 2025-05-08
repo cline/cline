@@ -27,6 +27,7 @@ import {
 	zigQuery,
 	embeddedTemplateQuery,
 	elispQuery,
+	elixirQuery,
 } from "./queries"
 
 export interface LanguageParser {
@@ -195,6 +196,11 @@ export async function loadRequiredLanguageParsers(filesToParse: string[]): Promi
 			case "el":
 				language = await loadLanguage("elisp")
 				query = language.query(elispQuery)
+				break
+			case "ex":
+			case "exs":
+				language = await loadLanguage("elixir")
+				query = language.query(elixirQuery)
 				break
 			default:
 				throw new Error(`Unsupported language: ${ext}`)
