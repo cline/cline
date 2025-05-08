@@ -14,7 +14,6 @@ interface AutoApproveMenuItemProps {
 	isChecked: boolean
 	isFavorited: boolean
 	isSubOption?: boolean
-	showSubOptionChevron?: boolean
 	isSubOptionExpanded?: boolean
 	onToggle: (actionId: keyof AutoApprovalSettings["actions"], checked: boolean) => void
 	onToggleFavorite: (actionId: string) => void
@@ -40,7 +39,6 @@ const AutoApproveMenuItem = ({
 	isChecked,
 	isFavorited,
 	isSubOption,
-	showSubOptionChevron,
 	isSubOptionExpanded,
 	onToggle,
 	onToggleFavorite,
@@ -60,21 +58,6 @@ const AutoApproveMenuItem = ({
 						{action.label}
 					</VSCodeCheckbox>
 				</HeroTooltip>
-				{showSubOptionChevron && (
-					<span
-						className={`codicon codicon-chevron-right`}
-						style={{
-							cursor: "pointer",
-							transition: "transform 0.2s ease",
-							transform: isSubOptionExpanded ? "rotate(90deg)" : "rotate(0deg)",
-						}}
-						onClick={() => {
-							if (onToggleSubOption) {
-								onToggleSubOption(action.id)
-							}
-						}}
-					/>
-				)}
 			</div>
 			<span
 				className={`codicon codicon-${isFavorited ? "star-full" : "star-empty"}`}

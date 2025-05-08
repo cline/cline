@@ -420,9 +420,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 											? "readFiles"
 											: undefined
 
-							const showSubOptionChevron =
-								action.id === "readFiles" || action.id === "editFiles" || action.id === "executeSafeCommands"
-
 							return (
 								<AutoApproveMenuItem
 									key={action.id}
@@ -430,7 +427,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 									isChecked={Boolean(autoApprovalSettings.actions[action.id])}
 									isFavorited={favorites.includes(action.id)}
 									isSubOption={isSubOption}
-									showSubOptionChevron={showSubOptionChevron}
 									isSubOptionExpanded={Boolean(
 										parentActionId
 											? autoApprovalSettings.actions[parentActionId]
@@ -438,11 +434,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 									)}
 									onToggle={updateAction}
 									onToggleFavorite={toggleFavorite}
-									onToggleSubOption={
-										showSubOptionChevron
-											? (currentActionId) =>
-													updateAction(currentActionId, !autoApprovalSettings.actions[currentActionId])
-											: undefined
+									onToggleSubOption={(currentActionId) =>
+										updateAction(currentActionId, !autoApprovalSettings.actions[currentActionId])
 									}
 								/>
 							)
