@@ -3145,10 +3145,6 @@ export class Task {
 						const title = block.params.title
 						const what_happened = block.params.what_happened
 						const steps_to_reproduce = block.params.steps_to_reproduce
-						const provider_and_model = block.params.provider_and_model
-						const operating_system = block.params.operating_system
-						const system_info = block.params.system_info
-						const cline_version = block.params.cline_version
 						const api_request_output = block.params.api_request_output
 						const additional_context = block.params.additional_context
 
@@ -3160,10 +3156,6 @@ export class Task {
 										title: removeClosingTag("title", title),
 										what_happened: removeClosingTag("what_happened", what_happened),
 										steps_to_reproduce: removeClosingTag("steps_to_reproduce", steps_to_reproduce),
-										provider_and_model: removeClosingTag("provider_and_model", provider_and_model),
-										operating_system: removeClosingTag("operating_system", operating_system),
-										system_info: removeClosingTag("system_info", system_info),
-										cline_version: removeClosingTag("cline_version", cline_version),
 										api_request_output: removeClosingTag("api_request_output", api_request_output),
 										additional_context: removeClosingTag("additional_context", additional_context),
 									}),
@@ -3189,30 +3181,6 @@ export class Task {
 									await this.saveCheckpoint()
 									break
 								}
-								if (!provider_and_model) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "provider_and_model"))
-									await this.saveCheckpoint()
-									break
-								}
-								if (!operating_system) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "operating_system"))
-									await this.saveCheckpoint()
-									break
-								}
-								if (!system_info) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "system_info"))
-									await this.saveCheckpoint()
-									break
-								}
-								if (!cline_version) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "cline_version"))
-									await this.saveCheckpoint()
-									break
-								}
 								if (!api_request_output) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "api_request_output"))
@@ -3235,17 +3203,25 @@ export class Task {
 									})
 								}
 
+								// Derive system information values algorithmically
+								const operatingSystem = os.platform() + " " + os.release()
+								const clineVersion =
+									vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
+								const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
+								const providerAndModel = `${(await getGlobalState(this.getContext(), "apiProvider")) as string} / ${this.api.getModel().id}`
+
 								// Ask user for confirmation
 								const bugReportData = JSON.stringify({
 									title,
 									what_happened,
 									steps_to_reproduce,
-									provider_and_model,
-									operating_system,
-									system_info,
-									cline_version,
 									api_request_output,
 									additional_context,
+									// Include derived values in the JSON for display purposes
+									provider_and_model: providerAndModel,
+									operating_system: operatingSystem,
+									system_info: systemInfo,
+									cline_version: clineVersion,
 								})
 
 								const { text, images } = await this.ask("report_bug", bugReportData, false)
@@ -3269,13 +3245,13 @@ export class Task {
 										// Create a Map of parameters for the GitHub issue
 										const params = new Map<string, string>()
 										params.set("title", title)
-										params.set("operating-system", operating_system)
-										params.set("cline-version", cline_version)
-										params.set("system-info", system_info)
+										params.set("operating-system", operatingSystem)
+										params.set("cline-version", clineVersion)
+										params.set("system-info", systemInfo)
 										params.set("additional-context", additional_context)
 										params.set("what-happened", what_happened)
 										params.set("steps", steps_to_reproduce)
-										params.set("provider-model", provider_and_model)
+										params.set("provider-model", providerAndModel)
 										params.set("logs", api_request_output)
 
 										// Use our utility function to create and open the GitHub issue URL

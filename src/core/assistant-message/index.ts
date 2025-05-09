@@ -57,10 +57,6 @@ export const toolParamNames = [
 	"title",
 	"what_happened",
 	"steps_to_reproduce",
-	"provider_and_model",
-	"operating_system",
-	"system_info",
-	"cline_version",
 	"api_request_output",
 	"additional_context",
 ] as const
