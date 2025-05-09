@@ -1054,8 +1054,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 									return (
 										<div className="flex justify-between gap-2 w-full h-5">
-											<div className={cn({ "font-medium": isCurrentConfig })}>{label}</div>
-											<div className="flex justify-end w-10">
+											<div
+												className={cn("truncate min-w-0 overflow-hidden", {
+													"font-medium": isCurrentConfig,
+												})}
+												title={label}>
+												{label}
+											</div>
+											<div className="flex justify-end w-10 flex-shrink-0">
 												<div
 													className={cn("size-5 p-1", {
 														"block group-hover:hidden": !pinned,
