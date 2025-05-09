@@ -54,3 +54,7 @@ message BooleanRequest {
 message Boolean {
   bool value = 1;
 }
+
+message StringArray {
+  repeated string values = 1;
+}

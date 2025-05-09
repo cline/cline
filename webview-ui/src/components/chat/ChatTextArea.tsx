@@ -27,7 +27,8 @@ import {
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
-import { FileServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
@@ -39,11 +40,29 @@ import { ChatSettings } from "@shared/ChatSettings"
 import ServersToggleModal from "./ServersToggleModal"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 
+const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
+	return new Promise((resolve, reject) => {
+		const img = new Image()
+		img.onload = () => {
+			if (img.naturalWidth > 7500 || img.naturalHeight > 7500) {
+				reject(new Error("Image dimensions exceed maximum allowed size of 7500px."))
+			} else {
+				resolve({ width: img.naturalWidth, height: img.naturalHeight })
+			}
+		}
+		img.onerror = (err) => {
+			console.error("Failed to load image for dimension check:", err)
+			reject(new Error("Failed to load image to check dimensions."))
+		}
+		img.src = dataUrl
+	})
+}
+
 interface ChatTextAreaProps {
 	inputValue: string
 	activeQuote: string | null
 	setInputValue: (value: string) => void
-	textAreaDisabled: boolean
+	sendingDisabled: boolean
 	placeholderText: string
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
@@ -228,7 +247,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			inputValue,
 			activeQuote,
 			setInputValue,
-			textAreaDisabled,
+			sendingDisabled,
 			placeholderText,
 			selectedImages,
 			setSelectedImages,
@@ -275,6 +294,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showDimensionError, setShowDimensionError] = useState(false)
+		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -309,15 +330,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const handleMessage = useCallback((event: MessageEvent) => {
 			const message: ExtensionMessage = event.data
 			switch (message.type) {
-				case "relativePathsResponse": {
-					// New case for batch response
-					const validPaths = message.paths?.filter((path): path is string => !!path) || []
-					if (validPaths.length > 0) {
-						setPendingInsertions((prev) => [...prev, ...validPaths])
-					}
-					break
-				}
-
 				case "fileSearchResults": {
 					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
 					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
@@ -527,8 +539,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const isComposing = event.nativeEvent?.isComposing ?? false
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
-					setIsTextAreaFocused(false)
-					onSend()
+
+					if (!sendingDisabled) {
+						setIsTextAreaFocused(false)
+						onSend()
+					}
 				}
 
 				if (event.key === "Backspace" && !isComposing) {
@@ -612,6 +627,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				selectedSlashCommandsIndex,
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
+				sendingDisabled,
 			],
 		)
 
@@ -695,11 +711,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
-							vscode.postMessage({
-								type: "searchFiles",
+							FileServiceClient.searchFiles({
 								query: query,
 								mentionsRequestId: query,
 							})
+								.then((results) => {
+									setFileSearchResults(results.results || [])
+									setSearchLoading(false)
+								})
+								.catch((error) => {
+									console.error("Error searching files:", error)
+									setFileSearchResults([])
+									setSearchLoading(false)
+								})
 						}, 200) // 200ms debounce
 					} else {
 						setSelectedMenuIndex(3) // Set to "File" option by default
@@ -728,6 +752,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setIsTextAreaFocused(false)
 			onFocusChange?.(false) // Call prop on blur
 		}, [isMouseDownOnMenu, onFocusChange])
+
+		const showDimensionErrorMessage = useCallback(() => {
+			setShowDimensionError(true)
+			if (dimensionErrorTimerRef.current) {
+				clearTimeout(dimensionErrorTimerRef.current)
+			}
+			dimensionErrorTimerRef.current = setTimeout(() => {
+				setShowDimensionError(false)
+				dimensionErrorTimerRef.current = null
+			}, 3000)
+		}, [])
 
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
@@ -774,13 +809,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								return
 							}
 							const reader = new FileReader()
-							reader.onloadend = () => {
+							reader.onloadend = async () => {
 								if (reader.error) {
 									console.error("Error reading file:", reader.error)
 									resolve(null)
 								} else {
 									const result = reader.result
-									resolve(typeof result === "string" ? result : null)
+									if (typeof result === "string") {
+										try {
+											await getImageDimensions(result)
+											resolve(result)
+										} catch (error) {
+											console.warn((error as Error).message)
+											showDimensionErrorMessage()
+											resolve(null)
+										}
+									} else {
+										resolve(null)
+									}
 								}
 							}
 							reader.readAsDataURL(blob)
@@ -796,7 +842,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue],
+			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, showDimensionErrorMessage],
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -876,7 +922,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!apiValidationResult && !modelIdValidationResult) {
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
-				vscode.postMessage({ type: "getLatestState" })
+				StateServiceClient.getLatestState(EmptyRequest.create())
+					.then(() => {
+						console.log("State refreshed")
+					})
+					.catch((error) => {
+						console.error("Error refreshing state:", error)
+					})
 			}
 		}, [apiConfiguration, openRouterModels])
 
@@ -910,8 +962,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
-			if (textAreaDisabled) return
-
 			// Focus the textarea first
 			textAreaRef.current?.focus()
 
@@ -950,7 +1000,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			} as React.ChangeEvent<HTMLTextAreaElement>
 			handleInputChange(event)
 			updateHighlights()
-		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
+		}, [inputValue, handleInputChange, updateHighlights])
 
 		// Use an effect to detect menu close
 		useEffect(() => {
@@ -1156,10 +1206,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 				setIntendedCursorPosition(initialCursorPos)
 
-				vscode.postMessage({
-					type: "getRelativePaths",
-					uris: validUris,
-				})
+				FileServiceClient.getRelativePaths({ uris: validUris })
+					.then((response) => {
+						if (response.paths.length > 0) {
+							setPendingInsertions((prev) => [...prev, ...response.paths])
+						}
+					})
+					.catch((error) => {
+						console.error("Error getting relative paths:", error)
+					})
 				return
 			}
 
@@ -1219,13 +1274,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					(file) =>
 						new Promise<string | null>((resolve) => {
 							const reader = new FileReader()
-							reader.onloadend = () => {
+							reader.onloadend = async () => {
+								// Make async
 								if (reader.error) {
 									console.error("Error reading file:", reader.error)
 									resolve(null)
 								} else {
 									const result = reader.result
-									resolve(typeof result === "string" ? result : null)
+									if (typeof result === "string") {
+										try {
+											await getImageDimensions(result) // Check dimensions
+											resolve(result)
+										} catch (error) {
+											console.warn((error as Error).message)
+											showDimensionErrorMessage() // Show error to user
+											resolve(null) // Don't add this image
+										}
+									} else {
+										resolve(null)
+									}
 								}
 							}
 							reader.readAsDataURL(file)
@@ -1239,7 +1306,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				<div
 					style={{
 						padding: "10px 15px",
-						opacity: textAreaDisabled ? 0.5 : 1,
+						opacity: 1,
 						position: "relative",
 						display: "flex",
 						// Drag-over styles moved to DynamicTextArea
@@ -1249,6 +1316,31 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragOver={onDragOver}
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}>
+					{showDimensionError && (
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px",
+								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
+								border: "2px solid var(--vscode-errorForeground)",
+								borderRadius: 2,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								zIndex: 10, // Ensure it's above other elements
+								pointerEvents: "none",
+							}}>
+							<span
+								style={{
+									color: "var(--vscode-errorForeground)",
+									fontWeight: "bold",
+									fontSize: "12px",
+									textAlign: "center",
+								}}>
+								Image dimensions exceed 7500px
+							</span>
+						</div>
+					)}
 					{showUnsupportedFileError && (
 						<div
 							style={{
@@ -1349,7 +1441,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							textAreaRef.current = el
 						}}
 						value={inputValue}
-						disabled={textAreaDisabled}
 						onChange={(e) => {
 							handleInputChange(e)
 							updateHighlights()
@@ -1370,7 +1461,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 							onHeightChange?.(height)
 						}}
-						placeholder={showUnsupportedFileError ? "" : placeholderText}
+						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
 						maxRows={10}
 						autoFocus={true}
 						style={{
@@ -1399,7 +1490,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
 							padding: "9px 28px 3px 9px",
-							cursor: textAreaDisabled ? "not-allowed" : undefined,
+							cursor: "text",
 							flex: 1,
 							zIndex: 1,
 							outline:
@@ -1457,9 +1548,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							/> */}
 							<div
 								data-testid="send-button"
-								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
+								className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
 								onClick={() => {
-									if (!textAreaDisabled) {
+									if (!sendingDisabled) {
 										setIsTextAreaFocused(false)
 										onSend()
 									}
@@ -1495,7 +1586,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									data-testid="context-button"
 									appearance="icon"
 									aria-label="Add Context"
-									disabled={textAreaDisabled}
 									onClick={handleContextButtonClick}
 									style={{ padding: "0px 0px", height: "20px" }}>
 									<ButtonContainer>

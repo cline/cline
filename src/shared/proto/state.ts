@@ -2,55 +2,43 @@
 // versions:
 //   protoc-gen-ts_proto  v2.7.0
 //   protoc               v3.19.1
-// source: web_content.proto
+// source: state.proto
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { StringRequest } from "./common"
+import { EmptyRequest } from "./common"
 
 export const protobufPackage = "cline"
 
-export interface IsImageUrl {
-	isImage: boolean
-	url: string
+export interface State {
+	stateJson: string
 }
 
-function createBaseIsImageUrl(): IsImageUrl {
-	return { isImage: false, url: "" }
+function createBaseState(): State {
+	return { stateJson: "" }
 }
 
-export const IsImageUrl: MessageFns<IsImageUrl> = {
-	encode(message: IsImageUrl, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.isImage !== false) {
-			writer.uint32(8).bool(message.isImage)
-		}
-		if (message.url !== "") {
-			writer.uint32(18).string(message.url)
+export const State: MessageFns<State> = {
+	encode(message: State, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.stateJson !== "") {
+			writer.uint32(10).string(message.stateJson)
 		}
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): IsImageUrl {
+	decode(input: BinaryReader | Uint8Array, length?: number): State {
 		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseIsImageUrl()
+		const message = createBaseState()
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
 				case 1: {
-					if (tag !== 8) {
+					if (tag !== 10) {
 						break
 					}
 
-					message.isImage = reader.bool()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
-
-					message.url = reader.string()
+					message.stateJson = reader.string()
 					continue
 				}
 			}
@@ -62,46 +50,47 @@ export const IsImageUrl: MessageFns<IsImageUrl> = {
 		return message
 	},
 
-	fromJSON(object: any): IsImageUrl {
-		return {
-			isImage: isSet(object.isImage) ? globalThis.Boolean(object.isImage) : false,
-			url: isSet(object.url) ? globalThis.String(object.url) : "",
-		}
+	fromJSON(object: any): State {
+		return { stateJson: isSet(object.stateJson) ? globalThis.String(object.stateJson) : "" }
 	},
 
-	toJSON(message: IsImageUrl): unknown {
+	toJSON(message: State): unknown {
 		const obj: any = {}
-		if (message.isImage !== false) {
-			obj.isImage = message.isImage
-		}
-		if (message.url !== "") {
-			obj.url = message.url
+		if (message.stateJson !== "") {
+			obj.stateJson = message.stateJson
 		}
 		return obj
 	},
 
-	create<I extends Exact<DeepPartial<IsImageUrl>, I>>(base?: I): IsImageUrl {
-		return IsImageUrl.fromPartial(base ?? ({} as any))
+	create<I extends Exact<DeepPartial<State>, I>>(base?: I): State {
+		return State.fromPartial(base ?? ({} as any))
 	},
-	fromPartial<I extends Exact<DeepPartial<IsImageUrl>, I>>(object: I): IsImageUrl {
-		const message = createBaseIsImageUrl()
-		message.isImage = object.isImage ?? false
-		message.url = object.url ?? ""
+	fromPartial<I extends Exact<DeepPartial<State>, I>>(object: I): State {
+		const message = createBaseState()
+		message.stateJson = object.stateJson ?? ""
 		return message
 	},
 }
 
-export type WebContentServiceDefinition = typeof WebContentServiceDefinition
-export const WebContentServiceDefinition = {
-	name: "WebContentService",
-	fullName: "cline.WebContentService",
+export type StateServiceDefinition = typeof StateServiceDefinition
+export const StateServiceDefinition = {
+	name: "StateService",
+	fullName: "cline.StateService",
 	methods: {
-		checkIsImageUrl: {
-			name: "checkIsImageUrl",
-			requestType: StringRequest,
+		getLatestState: {
+			name: "getLatestState",
+			requestType: EmptyRequest,
 			requestStream: false,
-			responseType: IsImageUrl,
+			responseType: State,
 			responseStream: false,
+			options: {},
+		},
+		subscribeToState: {
+			name: "subscribeToState",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: State,
+			responseStream: true,
 			options: {},
 		},
 	},

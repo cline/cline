@@ -1,4 +1,4 @@
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeProgressRing, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, MouseEvent } from "react"
 
@@ -20,6 +20,62 @@ import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils
 import { vscode } from "@/utils/vscode"
 import { FileServiceClient } from "@/services/grpc-client"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
+
+interface CopyButtonProps {
+	textToCopy: string | undefined
+}
+
+const CopyButtonStyled = styled(VSCodeButton)`
+	position: absolute;
+	bottom: 2px;
+	right: 2px;
+	z-index: 1;
+	opacity: 0;
+`
+
+interface WithCopyButtonProps {
+	children: React.ReactNode
+	textToCopy?: string
+	style?: React.CSSProperties
+	ref?: React.Ref<HTMLDivElement>
+	onMouseUp?: (event: MouseEvent<HTMLDivElement>) => void
+}
+
+const StyledContainer = styled.div`
+	position: relative;
+
+	&:hover ${CopyButtonStyled} {
+		opacity: 1;
+	}
+`
+
+const WithCopyButton = React.forwardRef<HTMLDivElement, WithCopyButtonProps>(
+	({ children, textToCopy, style, onMouseUp, ...props }, ref) => {
+		const [copied, setCopied] = useState(false)
+
+		const handleCopy = () => {
+			if (!textToCopy) return
+
+			navigator.clipboard.writeText(textToCopy).then(() => {
+				setCopied(true)
+				setTimeout(() => {
+					setCopied(false)
+				}, 1500)
+			})
+		}
+
+		return (
+			<StyledContainer ref={ref} onMouseUp={onMouseUp} style={style} {...props}>
+				{children}
+				{textToCopy && (
+					<CopyButtonStyled appearance="icon" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy"}>
+						<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
+					</CopyButtonStyled>
+				)}
+			</StyledContainer>
+		)
+	},
+)
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -90,6 +146,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 				overflowWrap: "anywhere",
 				marginBottom: -15,
 				marginTop: -15,
+				overflow: "hidden", // contain child margins so that parent diff matches height of children
 			}}>
 			<MarkdownBlock markdown={markdown} />
 		</div>
@@ -901,7 +958,7 @@ export const ChatRowContent = ({
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
-						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
+						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={message.text}>
 							<Markdown markdown={message.text} />
 							{quoteButtonState.visible && (
 								<QuoteButton
@@ -912,7 +969,7 @@ export const ChatRowContent = ({
 									}}
 								/>
 							)}
-						</div>
+						</WithCopyButton>
 					)
 				case "reasoning":
 					return (
@@ -1132,13 +1189,13 @@ export const ChatRowContent = ({
 									}}
 								/>
 							</div>
-							<div
-								ref={contentRef} // Added ref
-								onMouseUp={handleMouseUp} // Added handler
+							<WithCopyButton
+								ref={contentRef}
+								onMouseUp={handleMouseUp}
+								textToCopy={text}
 								style={{
 									color: "var(--vscode-charts-green)",
 									paddingTop: 10,
-									position: "relative", // Added position
 								}}>
 								<Markdown markdown={text} />
 								{quoteButtonState.visible && (
@@ -1148,7 +1205,7 @@ export const ChatRowContent = ({
 										onClick={handleQuoteClick}
 									/>
 								)}
-							</div>
+							</WithCopyButton>
 							{message.partial !== true && hasChanges && (
 								<div style={{ paddingTop: 17 }}>
 									<SuccessButton
@@ -1295,13 +1352,13 @@ export const ChatRowContent = ({
 										}}
 									/>
 								</div>
-								<div
-									ref={contentRef} // Added ref
-									onMouseUp={handleMouseUp} // Added handler
+								<WithCopyButton
+									ref={contentRef}
+									onMouseUp={handleMouseUp}
+									textToCopy={text}
 									style={{
 										color: "var(--vscode-charts-green)",
 										paddingTop: 10,
-										position: "relative", // Added position
 									}}>
 									<Markdown markdown={text} />
 									{quoteButtonState.visible && (
@@ -1311,30 +1368,30 @@ export const ChatRowContent = ({
 											onClick={handleQuoteClick}
 										/>
 									)}
-									{message.partial !== true && hasChanges && (
-										<div style={{ marginTop: 15 }}>
-											<SuccessButton
-												appearance="secondary"
-												disabled={seeNewChangesDisabled}
-												onClick={() => {
-													setSeeNewChangesDisabled(true)
-													vscode.postMessage({
-														type: "taskCompletionViewChanges",
-														number: message.ts,
-													})
-												}}>
-												<i
-													className="codicon codicon-new-file"
-													style={{
-														marginRight: 6,
-														cursor: seeNewChangesDisabled ? "wait" : "pointer",
-													}}
-												/>
-												See new changes
-											</SuccessButton>
-										</div>
-									)}
-								</div>
+								</WithCopyButton>
+								{message.partial !== true && hasChanges && (
+									<div style={{ marginTop: 15 }}>
+										<SuccessButton
+											appearance="secondary"
+											disabled={seeNewChangesDisabled}
+											onClick={() => {
+												setSeeNewChangesDisabled(true)
+												vscode.postMessage({
+													type: "taskCompletionViewChanges",
+													number: message.ts,
+												})
+											}}>
+											<i
+												className="codicon codicon-new-file"
+												style={{
+													marginRight: 6,
+													cursor: seeNewChangesDisabled ? "wait" : "pointer",
+												}}
+											/>
+											See new changes
+										</SuccessButton>
+									</div>
+								)}
 							</div>
 						)
 					} else {
@@ -1362,7 +1419,11 @@ export const ChatRowContent = ({
 									{title}
 								</div>
 							)}
-							<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative", paddingTop: 10 }}>
+							<WithCopyButton
+								ref={contentRef}
+								onMouseUp={handleMouseUp}
+								textToCopy={question}
+								style={{ paddingTop: 10 }}>
 								<Markdown markdown={question} />
 								<OptionsButtons
 									options={options}
@@ -1379,7 +1440,7 @@ export const ChatRowContent = ({
 										}}
 									/>
 								)}
-							</div>
+							</WithCopyButton>
 						</>
 					)
 				case "new_task":
@@ -1428,7 +1489,7 @@ export const ChatRowContent = ({
 						response = message.text
 					}
 					return (
-						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
+						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={response}>
 							<Markdown markdown={response} />
 							<OptionsButtons
 								options={options}
@@ -1445,7 +1506,7 @@ export const ChatRowContent = ({
 									}}
 								/>
 							)}
-						</div>
+						</WithCopyButton>
 					)
 				}
 				default:
