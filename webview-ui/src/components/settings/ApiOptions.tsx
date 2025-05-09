@@ -999,7 +999,20 @@ const ApiOptions = ({
 						value={apiConfiguration?.openAiBaseUrl || ""}
 						style={{ width: "100%", marginBottom: 10 }}
 						type="url"
-						onInput={handleInputChange("openAiBaseUrl")}
+						onInput={(e: any) => {
+							const baseUrl = e.target.value
+							handleInputChange("openAiBaseUrl")({ target: { value: baseUrl } })
+
+							// Refresh models when baseUrl or apiKey changes and both have values
+							if (baseUrl && apiConfiguration?.openAiApiKey) {
+								ModelsServiceClient.refreshOpenAiModels({
+									baseUrl,
+									apiKey: apiConfiguration.openAiApiKey,
+								}).catch((error) => {
+									console.error("Failed to refresh OpenAI models:", error)
+								})
+							}
+						}}
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
@@ -1007,7 +1020,20 @@ const ApiOptions = ({
 						value={apiConfiguration?.openAiApiKey || ""}
 						style={{ width: "100%", marginBottom: 10 }}
 						type="password"
-						onInput={handleInputChange("openAiApiKey")}
+						onInput={(e: any) => {
+							const apiKey = e.target.value
+							handleInputChange("openAiApiKey")({ target: { value: apiKey } })
+
+							// Refresh models when baseUrl or apiKey changes and both have values
+							if (apiConfiguration?.openAiBaseUrl && apiKey) {
+								ModelsServiceClient.refreshOpenAiModels({
+									baseUrl: apiConfiguration.openAiBaseUrl,
+									apiKey,
+								}).catch((error) => {
+									console.error("Failed to refresh OpenAI models:", error)
+								})
+							}
+						}}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>

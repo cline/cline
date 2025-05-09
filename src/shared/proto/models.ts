@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { EmptyRequest, StringArray, StringRequest } from "./common"
+import { EmptyRequest, Metadata, StringArray, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -44,6 +44,13 @@ export interface OpenRouterModels {
 export interface OpenRouterModels_ModelsEntry {
 	key: string
 	value?: OpenRouterModelInfo | undefined
+}
+
+/** Request for fetching OpenAI models */
+export interface OpenAiModelsRequest {
+	metadata?: Metadata | undefined
+	baseUrl: string
+	apiKey: string
 }
 
 function createBaseVsCodeLmModelsArray(): VsCodeLmModelsArray {
@@ -571,6 +578,99 @@ export const OpenRouterModels_ModelsEntry: MessageFns<OpenRouterModels_ModelsEnt
 	},
 }
 
+function createBaseOpenAiModelsRequest(): OpenAiModelsRequest {
+	return { metadata: undefined, baseUrl: "", apiKey: "" }
+}
+
+export const OpenAiModelsRequest: MessageFns<OpenAiModelsRequest> = {
+	encode(message: OpenAiModelsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.baseUrl !== "") {
+			writer.uint32(18).string(message.baseUrl)
+		}
+		if (message.apiKey !== "") {
+			writer.uint32(26).string(message.apiKey)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): OpenAiModelsRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseOpenAiModelsRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.baseUrl = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.apiKey = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): OpenAiModelsRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			baseUrl: isSet(object.baseUrl) ? globalThis.String(object.baseUrl) : "",
+			apiKey: isSet(object.apiKey) ? globalThis.String(object.apiKey) : "",
+		}
+	},
+
+	toJSON(message: OpenAiModelsRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.baseUrl !== "") {
+			obj.baseUrl = message.baseUrl
+		}
+		if (message.apiKey !== "") {
+			obj.apiKey = message.apiKey
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<OpenAiModelsRequest>, I>>(base?: I): OpenAiModelsRequest {
+		return OpenAiModelsRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<OpenAiModelsRequest>, I>>(object: I): OpenAiModelsRequest {
+		const message = createBaseOpenAiModelsRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.baseUrl = object.baseUrl ?? ""
+		message.apiKey = object.apiKey ?? ""
+		return message
+	},
+}
+
 /** Service for model-related operations */
 export type ModelsServiceDefinition = typeof ModelsServiceDefinition
 export const ModelsServiceDefinition = {
@@ -610,6 +710,15 @@ export const ModelsServiceDefinition = {
 			requestType: EmptyRequest,
 			requestStream: false,
 			responseType: OpenRouterModels,
+			responseStream: false,
+			options: {},
+		},
+		/** Refreshes and returns OpenAI models */
+		refreshOpenAiModels: {
+			name: "refreshOpenAiModels",
+			requestType: OpenAiModelsRequest,
+			requestStream: false,
+			responseType: StringArray,
 			responseStream: false,
 			options: {},
 		},

@@ -21,7 +21,6 @@ export interface WebviewMessage {
 		| "openMention"
 		| "showChatView"
 		| "refreshRequestyModels"
-		| "refreshOpenAiModels"
 		| "refreshClineRules"
 		| "openMcpSettings"
 		| "restartMcpServer"
