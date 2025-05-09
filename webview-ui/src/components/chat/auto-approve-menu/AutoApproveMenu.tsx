@@ -60,7 +60,7 @@ const ACTION_METADATA: ActionMetadata[] = [
 		label: "Execute safe commands",
 		shortName: "Safe Commands",
 		description:
-			"Allows Cline to execute of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
+			"Allows Cline to execute safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
 		icon: "codicon-terminal",
 		subAction: {
 			id: "executeAllCommands",
