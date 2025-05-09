@@ -1,10 +1,68 @@
 import { newTaskToolResponse, condenseToolResponse, newRuleToolResponse, reportBugToolResponse } from "../prompts/commands"
+import * as vscode from "vscode"
+import os from "os"
+import { ApiHandler } from "@api/index"
+
+/**
+ * Collects system and extension information
+ */
+function collectReportData(context: vscode.ExtensionContext, api: ApiHandler): string {
+	// 1. Get Cline version
+	let clineVersionString = ""
+	try {
+		const clineVersion = context.extension?.packageJSON?.version || "unknown"
+		clineVersionString = `Cline Version:\n- Version: ${clineVersion}`
+	} catch (error) {}
+
+	// 2. Get OS information
+	let operatingSystemString = ""
+	try {
+		operatingSystemString = `Operating System:\n- Platform: ${process.platform}\n- Release: ${os.release()}\n- Version: ${os.version()}`
+	} catch (error) {}
+
+	// 3. Get detailed system info
+	let systemInfoString = ""
+	try {
+		const systemInfo = JSON.stringify(
+			{
+				arch: process.arch,
+				nodeVersion: process.version,
+				vscodeVersion: vscode.version,
+				totalmem: (os.totalmem() / (1024 * 1024 * 1024)).toFixed(1) + "GB",
+				freemem: (os.freemem() / (1024 * 1024 * 1024)).toFixed(1) + "GB",
+				cpus: os.cpus().length,
+				cpuModel: os.cpus()[0]?.model || "unknown",
+			},
+			null,
+			2,
+		)
+		systemInfoString = `System info:\n- Info: ${systemInfo}`
+	} catch (error) {}
+
+	// 4. Get Provider and Model info
+	let providerAndModelString = ""
+	try {
+		const apiProvider = (context.globalState.get("apiProvider") as string) || "unknown"
+		const modelId = api.getModel().id || "unknown"
+		providerAndModelString = `Provider/Model:\n- Provider: ${apiProvider}\n- Model: ${modelId}`
+	} catch (error) {}
+
+	let reportDataString = ""
+	if (clineVersionString || operatingSystemString || systemInfoString || providerAndModelString) {
+		reportDataString = `${clineVersionString}\n\n${operatingSystemString}\n\n${systemInfoString}\n\n${providerAndModelString}`
+	}
+	return reportDataString
+}
 
 /**
  * Processes text for slash commands and transforms them with appropriate instructions
  * This is called after parseMentions() to process any slash commands in the user's message
  */
-export function parseSlashCommands(text: string): { processedText: string; needsClinerulesFileCheck: boolean } {
+export function parseSlashCommands(
+	text: string,
+	context: vscode.ExtensionContext,
+	api: ApiHandler,
+): { processedText: string; needsClinerulesFileCheck: boolean } {
 	const SUPPORTED_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug"]
 
 	const commandReplacements: Record<string, string> = {
@@ -12,7 +70,6 @@ export function parseSlashCommands(text: string): { processedText: string; needs
 		smol: condenseToolResponse(),
 		compact: condenseToolResponse(),
 		newrule: newRuleToolResponse(),
-		reportbug: reportBugToolResponse(),
 	}
 
 	// this currently allows matching prepended whitespace prior to /slash-command
@@ -47,7 +104,14 @@ export function parseSlashCommands(text: string): { processedText: string; needs
 
 				// remove the slash command and add custom instructions at the top of this message
 				const textWithoutSlashCommand = text.substring(0, slashCommandStartIndex) + text.substring(slashCommandEndIndex)
-				const processedText = commandReplacements[commandName] + textWithoutSlashCommand
+
+				let processedText = ""
+				if (commandName !== "reportbug") {
+					processedText = commandReplacements[commandName] + textWithoutSlashCommand
+				} else {
+					const systemData = collectReportData(context, api)
+					processedText = reportBugToolResponse(systemData) + textWithoutSlashCommand
+				}
 
 				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" ? true : false }
 			}
