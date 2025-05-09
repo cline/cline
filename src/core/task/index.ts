@@ -57,6 +57,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import { fileExistsAtPath } from "@utils/fs"
+import { createAndOpenGitHubIssue } from "@utils/github-url-utils"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "@core/assistant-message"
@@ -3264,26 +3265,22 @@ export class Task {
 										formatResponse.toolResult(`The user accepted the creation of the Github issue.`),
 									)
 
-									const processString = (str: string) => {
-										return str
-									}
-
 									try {
-										const baseUrl = "https://github.com/cline/cline/issues/new?template=bug_report.yml"
-										const params = new URLSearchParams()
-										params.append("title", processString(title))
-										params.append("operating-system", processString(operating_system))
-										params.append("cline-version", processString(cline_version))
-										params.append("system-info", processString(system_info))
-										params.append("additional-context", processString(additional_context))
-										params.append("what-happened", processString(what_happened))
-										params.append("steps", processString(steps_to_reproduce))
-										params.append("provider-model", processString(provider_and_model))
-										params.append("logs", processString(api_request_output))
-										const issueUrl = `${baseUrl}&${params.toString()}`
+										// Create a Map of parameters for the GitHub issue
+										const params = new Map<string, string>()
+										params.set("title", title)
+										params.set("operating-system", operating_system)
+										params.set("cline-version", cline_version)
+										params.set("system-info", system_info)
+										params.set("additional-context", additional_context)
+										params.set("what-happened", what_happened)
+										params.set("steps", steps_to_reproduce)
+										params.set("provider-model", provider_and_model)
+										params.set("logs", api_request_output)
 
-										// Open URL in browser
-										await vscode.env.openExternal(vscode.Uri.parse(issueUrl))
+										// Use our utility function to create and open the GitHub issue URL
+										// This bypasses VS Code's URI handling issues with special characters
+										await createAndOpenGitHubIssue("cline", "cline", "bug_report.yml", params)
 									} catch (error) {
 										console.error(`An error occurred while attempting to report the bug: ${error}`)
 									}

@@ -1122,7 +1122,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				</>
 			)}
 			{(() => {
-				console.log("[ChatView] Rendering - activeQuote:", activeQuote) // Log here
 				return activeQuote ? (
 					<div style={{ marginBottom: "-12px", marginTop: "10px" }}>
 						<QuotedMessagePreview
