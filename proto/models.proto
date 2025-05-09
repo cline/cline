@@ -16,6 +16,8 @@ service ModelsService {
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
   // Refreshes and returns OpenRouter models
   rpc refreshOpenRouterModels(EmptyRequest) returns (OpenRouterModels);
+  // Refreshes and returns OpenAI models
+  rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
 }
 
 // List of VS Code LM models
@@ -47,5 +49,12 @@ message OpenRouterModelInfo {
 // Response message for OpenRouter models
 message OpenRouterModels {
   map<string, OpenRouterModelInfo> models = 1;
+}
+
+// Request for fetching OpenAI models
+message OpenAiModelsRequest {
+  Metadata metadata = 1;
+  string baseUrl = 2;
+  string apiKey = 3;
 }
 
