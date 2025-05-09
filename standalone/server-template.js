@@ -1,13 +1,13 @@
 const grpc = require("@grpc/grpc-js")
-const protoLoader = require('@grpc/proto-loader')
-const { ReflectionService } = require('@grpc/reflection')
-const health = require('grpc-health-check')
+const protoLoader = require("@grpc/proto-loader")
+const { ReflectionService } = require("@grpc/reflection")
+const health = require("grpc-health-check")
 // __IMPORTS__
 const extension = require("./extension.js")
 
 const packageDef = protoLoader.loadSync([
-  health.protoPath,
-  // __PROTO_FILES__
+	health.protoPath,
+	// __PROTO_FILES__
 ])
 
 const log = (...args) => {
@@ -41,7 +41,7 @@ extension.activate(vscode.ExtensionContext)
 const controller = new extension.Controller(vscode.ExtensionContext, vscode.OutputChannel, postMessage)
 const server = new grpc.Server()
 
-const healthImpl = new health.HealthImplementation({'': 'SERVING'})
+const healthImpl = new health.HealthImplementation({ "": "SERVING" })
 healthImpl.addToServer(server)
 
 // __HANDLERS__
