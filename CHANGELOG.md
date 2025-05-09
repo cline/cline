@@ -2,8 +2,6 @@
 
 ## 3.15.0
 
-### Minor Changes
-
 -   fc5adcf: add open ai cache to ui
 -   6303a77: suggested model exists again
 -   961400f: fixed bug where certain terminal commands would lock you out of a task
@@ -30,9 +28,6 @@
 -   274349f: add ui for windsurf and cursor rules
 -   8516aab: Migrate getting-started section to new docs
 -   f1ed93a: Task Timeline
-
-### Patch Changes
-
 -   3e9c83b: Add the o4-mini model in the isOminiModel
 -   062bb5b: Allow option to collect events to send them in a bundle to avoid sending too many events
 -   83c4a82: disable autocapture
