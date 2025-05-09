@@ -83,7 +83,7 @@ export const ProgressIndicator = () => (
 	</div>
 )
 
-const Markdown = memo(({ markdown }: { markdown?: string }) => {
+const Markdown = memo(({ markdown, searchQuery }: { markdown?: string; searchQuery?: string }) => {
 	return (
 		<div
 			style={{
@@ -92,7 +92,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 				marginBottom: -15,
 				marginTop: -15,
 			}}>
-			<MarkdownBlock markdown={markdown} />
+			<MarkdownBlock markdown={markdown} searchQuery={searchQuery} />
 		</div>
 	)
 })
@@ -937,7 +937,7 @@ export const ChatRowContent = ({
 							{/* <div style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>{highlightedTextContent}</div> */}
 
 							{/* Option 2: Pass potentially modified string to Markdown (safer for Markdown structure) */}
-							<Markdown markdown={message.text} />
+							<Markdown markdown={message.text} searchQuery={searchQuery} />
 							{/* We'll refine highlighting within MarkdownBlock later if needed */}
 
 							{quoteButtonState.visible && (
@@ -1177,7 +1177,7 @@ export const ChatRowContent = ({
 									paddingTop: 10,
 									position: "relative", // Added position
 								}}>
-								<Markdown markdown={text} />
+								<Markdown markdown={text} searchQuery={searchQuery} />
 								{quoteButtonState.visible && (
 									<QuoteButton
 										top={quoteButtonState.top}
@@ -1268,7 +1268,7 @@ export const ChatRowContent = ({
 								</div>
 							)}
 							<div style={{ paddingTop: 10 }}>
-								<Markdown markdown={message.text} />
+								<Markdown markdown={message.text} searchQuery={searchQuery} />
 							</div>
 						</>
 					)
@@ -1341,7 +1341,7 @@ export const ChatRowContent = ({
 										position: "relative", // Added position
 									}}>
 									{/* Apply highlighting similarly if needed */}
-									<Markdown markdown={text} />
+									<Markdown markdown={text} searchQuery={searchQuery} />
 									{quoteButtonState.visible && (
 										<QuoteButton
 											top={quoteButtonState.top}
@@ -1402,7 +1402,7 @@ export const ChatRowContent = ({
 							)}
 							<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative", paddingTop: 10 }}>
 								{/* Apply highlighting similarly if needed */}
-								<Markdown markdown={question} />
+								<Markdown markdown={question} searchQuery={searchQuery} />
 								<OptionsButtons
 									options={options}
 									selected={selected}
@@ -1469,7 +1469,7 @@ export const ChatRowContent = ({
 					return (
 						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
 							{/* Apply highlighting similarly if needed */}
-							<Markdown markdown={response} />
+							<Markdown markdown={response} searchQuery={searchQuery} />
 							<OptionsButtons
 								options={options}
 								selected={selected}

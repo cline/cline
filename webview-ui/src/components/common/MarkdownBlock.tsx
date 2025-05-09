@@ -13,6 +13,7 @@ import MermaidBlock from "@/components/common/MermaidBlock"
 
 interface MarkdownBlockProps {
 	markdown?: string
+	searchQuery?: string // Added for search highlighting
 }
 
 /**
@@ -202,6 +203,13 @@ const StyledMarkdown = styled.div`
 		sans-serif;
 	font-size: var(--vscode-font-size, 13px);
 
+	mark.search-highlight {
+		background-color: var(--vscode-editor-findMatchHighlightBackground, yellow);
+		color: var(--vscode-editor-foreground, black);
+		padding: 0.1em;
+		border-radius: 2px;
+	}
+
 	p,
 	li,
 	ol,
@@ -279,7 +287,60 @@ const PreWithCopyButton = ({
 	)
 }
 
-const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
+// Rehype plugin for search highlighting
+const rehypeSearchHighlight = (options: { searchQuery?: string }) => {
+	return (tree: Node) => {
+		if (!options.searchQuery?.trim()) {
+			return
+		}
+		const query = options.searchQuery
+		// Escape regex special characters in the query
+		const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+		const regex = new RegExp(`(${escapedQuery})`, "gi")
+
+		visit(tree, "text", (node: any, index, parent: any) => {
+			// Ensure we are not inside a <pre> or <code> tag to avoid messing with code syntax highlighting
+			let inCodeBlock = false
+			let current = parent
+			while (current) {
+				if (current.type === "element" && (current.tagName === "pre" || current.tagName === "code")) {
+					inCodeBlock = true
+					break
+				}
+				current = current.parent // Assuming parent pointers are set by unist-util-visit or similar
+			}
+			if (inCodeBlock || !parent || typeof index === "undefined" || !node.value?.match(regex)) {
+				return
+			}
+
+			const parts = node.value.split(regex)
+			const newNodes: any[] = []
+
+			parts.forEach((part: string) => {
+				if (part) {
+					// Check if this part is the search query (case-insensitive)
+					if (part.toLowerCase() === query.toLowerCase()) {
+						newNodes.push({
+							type: "element",
+							tagName: "mark",
+							properties: { className: ["search-highlight"] },
+							children: [{ type: "text", value: part }],
+						})
+					} else {
+						newNodes.push({ type: "text", value: part })
+					}
+				}
+			})
+
+			if (newNodes.length > 0 && (newNodes.length > 1 || newNodes[0].type !== "text")) {
+				parent.children.splice(index, 1, ...newNodes)
+				return ["skip", index + newNodes.length - 1] // Adjust index and skip new nodes
+			}
+		})
+	}
+}
+
+const MarkdownBlock = memo(({ markdown, searchQuery }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
 
 	const [reactContent, setMarkdown] = useRemark({
@@ -300,11 +361,12 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			},
 		],
 		rehypePlugins: [
-			rehypeHighlight as any,
+			rehypeHighlight as any, // For code syntax highlighting
 			{
 				// languages: {},
 			} as Options,
-			rehypeKatex,
+			[rehypeSearchHighlight, { searchQuery }], // Add search highlighting plugin
+			rehypeKatex, // For math
 		],
 		rehypeReactOptions: {
 			components: {
@@ -335,7 +397,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 
 	useEffect(() => {
 		setMarkdown(markdown || "")
-	}, [markdown, setMarkdown, theme])
+	}, [markdown, searchQuery, setMarkdown, theme]) // Added searchQuery to dependencies
 
 	return (
 		<div>
