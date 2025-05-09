@@ -194,7 +194,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const toggleAll = useCallback(
 		(action: ActionMetadata, checked: boolean) => {
-			let actions = autoApprovalSettings.actions
+			let actions = { ...autoApprovalSettings.actions }
 
 			for (const action of Object.keys(actions)) {
 				actions[action as keyof AutoApprovalSettings["actions"]] = checked
