@@ -6,12 +6,34 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { EmptyRequest } from "./common"
+import { Empty, EmptyRequest, Metadata } from "./common"
 
 export const protobufPackage = "cline"
 
 export interface State {
 	stateJson: string
+}
+
+/** Message for auto approval settings */
+export interface AutoApprovalSettingsRequest {
+	metadata?: Metadata | undefined
+	version: number
+	enabled: boolean
+	actions?: AutoApprovalSettingsRequest_Actions | undefined
+	maxRequests: number
+	enableNotifications: boolean
+	favorites: string[]
+}
+
+export interface AutoApprovalSettingsRequest_Actions {
+	readFiles: boolean
+	readFilesExternally: boolean
+	editFiles: boolean
+	editFilesExternally: boolean
+	executeSafeCommands: boolean
+	executeAllCommands: boolean
+	useBrowser: boolean
+	useMcp: boolean
 }
 
 function createBaseState(): State {
@@ -72,6 +94,357 @@ export const State: MessageFns<State> = {
 	},
 }
 
+function createBaseAutoApprovalSettingsRequest(): AutoApprovalSettingsRequest {
+	return {
+		metadata: undefined,
+		version: 0,
+		enabled: false,
+		actions: undefined,
+		maxRequests: 0,
+		enableNotifications: false,
+		favorites: [],
+	}
+}
+
+export const AutoApprovalSettingsRequest: MessageFns<AutoApprovalSettingsRequest> = {
+	encode(message: AutoApprovalSettingsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.version !== 0) {
+			writer.uint32(16).int32(message.version)
+		}
+		if (message.enabled !== false) {
+			writer.uint32(24).bool(message.enabled)
+		}
+		if (message.actions !== undefined) {
+			AutoApprovalSettingsRequest_Actions.encode(message.actions, writer.uint32(34).fork()).join()
+		}
+		if (message.maxRequests !== 0) {
+			writer.uint32(40).int32(message.maxRequests)
+		}
+		if (message.enableNotifications !== false) {
+			writer.uint32(48).bool(message.enableNotifications)
+		}
+		for (const v of message.favorites) {
+			writer.uint32(58).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): AutoApprovalSettingsRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseAutoApprovalSettingsRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.version = reader.int32()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.enabled = reader.bool()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.actions = AutoApprovalSettingsRequest_Actions.decode(reader, reader.uint32())
+					continue
+				}
+				case 5: {
+					if (tag !== 40) {
+						break
+					}
+
+					message.maxRequests = reader.int32()
+					continue
+				}
+				case 6: {
+					if (tag !== 48) {
+						break
+					}
+
+					message.enableNotifications = reader.bool()
+					continue
+				}
+				case 7: {
+					if (tag !== 58) {
+						break
+					}
+
+					message.favorites.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): AutoApprovalSettingsRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			version: isSet(object.version) ? globalThis.Number(object.version) : 0,
+			enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+			actions: isSet(object.actions) ? AutoApprovalSettingsRequest_Actions.fromJSON(object.actions) : undefined,
+			maxRequests: isSet(object.maxRequests) ? globalThis.Number(object.maxRequests) : 0,
+			enableNotifications: isSet(object.enableNotifications) ? globalThis.Boolean(object.enableNotifications) : false,
+			favorites: globalThis.Array.isArray(object?.favorites) ? object.favorites.map((e: any) => globalThis.String(e)) : [],
+		}
+	},
+
+	toJSON(message: AutoApprovalSettingsRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.version !== 0) {
+			obj.version = Math.round(message.version)
+		}
+		if (message.enabled !== false) {
+			obj.enabled = message.enabled
+		}
+		if (message.actions !== undefined) {
+			obj.actions = AutoApprovalSettingsRequest_Actions.toJSON(message.actions)
+		}
+		if (message.maxRequests !== 0) {
+			obj.maxRequests = Math.round(message.maxRequests)
+		}
+		if (message.enableNotifications !== false) {
+			obj.enableNotifications = message.enableNotifications
+		}
+		if (message.favorites?.length) {
+			obj.favorites = message.favorites
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<AutoApprovalSettingsRequest>, I>>(base?: I): AutoApprovalSettingsRequest {
+		return AutoApprovalSettingsRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<AutoApprovalSettingsRequest>, I>>(object: I): AutoApprovalSettingsRequest {
+		const message = createBaseAutoApprovalSettingsRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.version = object.version ?? 0
+		message.enabled = object.enabled ?? false
+		message.actions =
+			object.actions !== undefined && object.actions !== null
+				? AutoApprovalSettingsRequest_Actions.fromPartial(object.actions)
+				: undefined
+		message.maxRequests = object.maxRequests ?? 0
+		message.enableNotifications = object.enableNotifications ?? false
+		message.favorites = object.favorites?.map((e) => e) || []
+		return message
+	},
+}
+
+function createBaseAutoApprovalSettingsRequest_Actions(): AutoApprovalSettingsRequest_Actions {
+	return {
+		readFiles: false,
+		readFilesExternally: false,
+		editFiles: false,
+		editFilesExternally: false,
+		executeSafeCommands: false,
+		executeAllCommands: false,
+		useBrowser: false,
+		useMcp: false,
+	}
+}
+
+export const AutoApprovalSettingsRequest_Actions: MessageFns<AutoApprovalSettingsRequest_Actions> = {
+	encode(message: AutoApprovalSettingsRequest_Actions, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.readFiles !== false) {
+			writer.uint32(8).bool(message.readFiles)
+		}
+		if (message.readFilesExternally !== false) {
+			writer.uint32(16).bool(message.readFilesExternally)
+		}
+		if (message.editFiles !== false) {
+			writer.uint32(24).bool(message.editFiles)
+		}
+		if (message.editFilesExternally !== false) {
+			writer.uint32(32).bool(message.editFilesExternally)
+		}
+		if (message.executeSafeCommands !== false) {
+			writer.uint32(40).bool(message.executeSafeCommands)
+		}
+		if (message.executeAllCommands !== false) {
+			writer.uint32(48).bool(message.executeAllCommands)
+		}
+		if (message.useBrowser !== false) {
+			writer.uint32(56).bool(message.useBrowser)
+		}
+		if (message.useMcp !== false) {
+			writer.uint32(64).bool(message.useMcp)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): AutoApprovalSettingsRequest_Actions {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseAutoApprovalSettingsRequest_Actions()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.readFiles = reader.bool()
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.readFilesExternally = reader.bool()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.editFiles = reader.bool()
+					continue
+				}
+				case 4: {
+					if (tag !== 32) {
+						break
+					}
+
+					message.editFilesExternally = reader.bool()
+					continue
+				}
+				case 5: {
+					if (tag !== 40) {
+						break
+					}
+
+					message.executeSafeCommands = reader.bool()
+					continue
+				}
+				case 6: {
+					if (tag !== 48) {
+						break
+					}
+
+					message.executeAllCommands = reader.bool()
+					continue
+				}
+				case 7: {
+					if (tag !== 56) {
+						break
+					}
+
+					message.useBrowser = reader.bool()
+					continue
+				}
+				case 8: {
+					if (tag !== 64) {
+						break
+					}
+
+					message.useMcp = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): AutoApprovalSettingsRequest_Actions {
+		return {
+			readFiles: isSet(object.readFiles) ? globalThis.Boolean(object.readFiles) : false,
+			readFilesExternally: isSet(object.readFilesExternally) ? globalThis.Boolean(object.readFilesExternally) : false,
+			editFiles: isSet(object.editFiles) ? globalThis.Boolean(object.editFiles) : false,
+			editFilesExternally: isSet(object.editFilesExternally) ? globalThis.Boolean(object.editFilesExternally) : false,
+			executeSafeCommands: isSet(object.executeSafeCommands) ? globalThis.Boolean(object.executeSafeCommands) : false,
+			executeAllCommands: isSet(object.executeAllCommands) ? globalThis.Boolean(object.executeAllCommands) : false,
+			useBrowser: isSet(object.useBrowser) ? globalThis.Boolean(object.useBrowser) : false,
+			useMcp: isSet(object.useMcp) ? globalThis.Boolean(object.useMcp) : false,
+		}
+	},
+
+	toJSON(message: AutoApprovalSettingsRequest_Actions): unknown {
+		const obj: any = {}
+		if (message.readFiles !== false) {
+			obj.readFiles = message.readFiles
+		}
+		if (message.readFilesExternally !== false) {
+			obj.readFilesExternally = message.readFilesExternally
+		}
+		if (message.editFiles !== false) {
+			obj.editFiles = message.editFiles
+		}
+		if (message.editFilesExternally !== false) {
+			obj.editFilesExternally = message.editFilesExternally
+		}
+		if (message.executeSafeCommands !== false) {
+			obj.executeSafeCommands = message.executeSafeCommands
+		}
+		if (message.executeAllCommands !== false) {
+			obj.executeAllCommands = message.executeAllCommands
+		}
+		if (message.useBrowser !== false) {
+			obj.useBrowser = message.useBrowser
+		}
+		if (message.useMcp !== false) {
+			obj.useMcp = message.useMcp
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<AutoApprovalSettingsRequest_Actions>, I>>(base?: I): AutoApprovalSettingsRequest_Actions {
+		return AutoApprovalSettingsRequest_Actions.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<AutoApprovalSettingsRequest_Actions>, I>>(
+		object: I,
+	): AutoApprovalSettingsRequest_Actions {
+		const message = createBaseAutoApprovalSettingsRequest_Actions()
+		message.readFiles = object.readFiles ?? false
+		message.readFilesExternally = object.readFilesExternally ?? false
+		message.editFiles = object.editFiles ?? false
+		message.editFilesExternally = object.editFilesExternally ?? false
+		message.executeSafeCommands = object.executeSafeCommands ?? false
+		message.executeAllCommands = object.executeAllCommands ?? false
+		message.useBrowser = object.useBrowser ?? false
+		message.useMcp = object.useMcp ?? false
+		return message
+	},
+}
+
 export type StateServiceDefinition = typeof StateServiceDefinition
 export const StateServiceDefinition = {
 	name: "StateService",
@@ -91,6 +464,14 @@ export const StateServiceDefinition = {
 			requestStream: false,
 			responseType: State,
 			responseStream: true,
+			options: {},
+		},
+		updateAutoApprovalSettings: {
+			name: "updateAutoApprovalSettings",
+			requestType: AutoApprovalSettingsRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
 			options: {},
 		},
 	},

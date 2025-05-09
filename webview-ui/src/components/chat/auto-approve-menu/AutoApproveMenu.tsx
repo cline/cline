@@ -4,7 +4,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
-import { vscode } from "@/utils/vscode"
+import { updateAutoApproveSettings } from "./AutoApproveSettingsAPI"
 import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { useClickAway } from "react-use"
 import HeroTooltip from "@/components/common/HeroTooltip"
@@ -138,7 +138,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	}, [isExpanded])
 
 	const toggleFavorite = useCallback(
-		(actionId: string) => {
+		async (actionId: string) => {
 			const currentFavorites = autoApprovalSettings.favorites || []
 			let newFavorites: string[]
 
@@ -148,20 +148,17 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				newFavorites = [...currentFavorites, actionId]
 			}
 
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					favorites: newFavorites,
-				},
+			await updateAutoApproveSettings({
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+				favorites: newFavorites,
 			})
 		},
 		[autoApprovalSettings],
 	)
 
 	const updateAction = useCallback(
-		(action: ActionMetadata, value: boolean) => {
+		async (action: ActionMetadata, value: boolean) => {
 			const actionId = action.id
 			const subActionId = action.subAction?.id
 
@@ -191,45 +188,36 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			// Check if this will result in any enabled actions
 			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
 
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					actions: newActions,
-					enabled: willHaveEnabledActions,
-				},
+			await updateAutoApproveSettings({
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+				actions: newActions,
+				enabled: willHaveEnabledActions,
 			})
 		},
 		[autoApprovalSettings],
 	)
 
 	const updateMaxRequests = useCallback(
-		(maxRequests: number) => {
+		async (maxRequests: number) => {
 			const currentSettings = autoApprovalSettings
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...currentSettings,
-					version: (currentSettings.version ?? 1) + 1,
-					maxRequests,
-				},
+			await updateAutoApproveSettings({
+				...currentSettings,
+				version: (currentSettings.version ?? 1) + 1,
+				maxRequests,
 			})
 		},
 		[autoApprovalSettings],
 	)
 
 	const updateNotifications = useCallback(
-		(action: ActionMetadata, checked: boolean) => {
+		async (action: ActionMetadata, checked: boolean) => {
 			if (action.id === "enableNotifications") {
 				const currentSettings = autoApprovalSettings
-				vscode.postMessage({
-					type: "autoApprovalSettings",
-					autoApprovalSettings: {
-						...currentSettings,
-						version: (currentSettings.version ?? 1) + 1,
-						enableNotifications: checked,
-					},
+				await updateAutoApproveSettings({
+					...currentSettings,
+					version: (currentSettings.version ?? 1) + 1,
+					enableNotifications: checked,
 				})
 			}
 		},
@@ -237,20 +225,17 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	)
 
 	const toggleAll = useCallback(
-		(action: ActionMetadata, checked: boolean) => {
+		async (action: ActionMetadata, checked: boolean) => {
 			let actions = { ...autoApprovalSettings.actions }
 
 			for (const action of Object.keys(actions)) {
 				actions[action as keyof AutoApprovalSettings["actions"]] = checked
 			}
 
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					actions,
-				},
+			await updateAutoApproveSettings({
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+				actions,
 			})
 		},
 		[autoApprovalSettings],

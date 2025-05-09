@@ -286,20 +286,6 @@ export class Controller {
 				}
 				await this.postStateToWebview()
 				break
-			case "autoApprovalSettings":
-				if (message.autoApprovalSettings) {
-					const currentSettings = (await getAllExtensionState(this.context)).autoApprovalSettings
-					const incomingVersion = message.autoApprovalSettings.version ?? 1
-					const currentVersion = currentSettings?.version ?? 1
-					if (incomingVersion > currentVersion) {
-						await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
-						if (this.task) {
-							this.task.autoApprovalSettings = message.autoApprovalSettings
-						}
-						await this.postStateToWebview()
-					}
-				}
-				break
 			case "togglePlanActMode":
 				if (message.chatSettings) {
 					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
