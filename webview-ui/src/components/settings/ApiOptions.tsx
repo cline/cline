@@ -8,7 +8,7 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useEvent, useInterval } from "react-use"
 import styled from "styled-components"
@@ -261,6 +261,25 @@ const ApiOptions = ({
 			</VSCodeDropdown>
 		)
 	}
+
+	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
+	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current)
+		}
+
+		if (baseUrl && apiKey) {
+			debounceTimerRef.current = setTimeout(() => {
+				ModelsServiceClient.refreshOpenAiModels({
+					baseUrl,
+					apiKey,
+				}).catch((error) => {
+					console.error("Failed to refresh OpenAI models:", error)
+				})
+			}, 500)
+		}
+	}, [])
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
@@ -1003,15 +1022,7 @@ const ApiOptions = ({
 							const baseUrl = e.target.value
 							handleInputChange("openAiBaseUrl")({ target: { value: baseUrl } })
 
-							// Refresh models when baseUrl or apiKey changes and both have values
-							if (baseUrl && apiConfiguration?.openAiApiKey) {
-								ModelsServiceClient.refreshOpenAiModels({
-									baseUrl,
-									apiKey: apiConfiguration.openAiApiKey,
-								}).catch((error) => {
-									console.error("Failed to refresh OpenAI models:", error)
-								})
-							}
+							debouncedRefreshOpenAiModels(baseUrl, apiConfiguration?.openAiApiKey)
 						}}
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
@@ -1024,15 +1035,7 @@ const ApiOptions = ({
 							const apiKey = e.target.value
 							handleInputChange("openAiApiKey")({ target: { value: apiKey } })
 
-							// Refresh models when baseUrl or apiKey changes and both have values
-							if (apiConfiguration?.openAiBaseUrl && apiKey) {
-								ModelsServiceClient.refreshOpenAiModels({
-									baseUrl: apiConfiguration.openAiBaseUrl,
-									apiKey,
-								}).catch((error) => {
-									console.error("Failed to refresh OpenAI models:", error)
-								})
-							}
+							debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, apiKey)
 						}}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
