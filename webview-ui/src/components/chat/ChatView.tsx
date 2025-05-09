@@ -27,6 +27,8 @@ import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
 import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
+import SearchResultsPanel from "@/components/chat/SearchResultsPanel" // Added
+import { SearchResultItem } from "@/components/chat/SearchResultItem" // Added
 import TaskHeader from "@/components/chat/TaskHeader"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
 import { unified } from "unified"
@@ -86,7 +88,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return getTotalTokensFromApiReqMessage(lastApiReqMessage)
 	}, [modifiedMessages])
 
-	const [searchQuery, setSearchQuery] = useState("") // Added for search functionality
+	const [searchQuery, setSearchQuery] = useState("")
+	const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]) // Added for search results
+	const [isResultsPanelVisible, setIsResultsPanelVisible] = useState(false) // Added for panel visibility
 	const [inputValue, setInputValue] = useState("")
 	const [activeQuote, setActiveQuote] = useState<string | null>(null)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
@@ -670,6 +674,51 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 	}, [visibleMessages, searchQuery])
 
+	// Effect to generate search results when searchQuery or messages change
+	useEffect(() => {
+		if (!searchQuery.trim()) {
+			setSearchResults([])
+			setIsResultsPanelVisible(false)
+			return
+		}
+
+		const query = searchQuery.toLowerCase()
+		const results: SearchResultItem[] = []
+		const SNIPPET_CONTEXT_LENGTH = 50 // Characters before and after the match
+
+		visibleMessages.forEach((message) => {
+			const messageText = message.text || ""
+			let matchIndex = messageText.toLowerCase().indexOf(query)
+			let occurrenceIndex = 0
+
+			// For simplicity, we'll take the first match in each message.
+			// Could be extended to find all matches and create multiple SearchResultItems per message.
+			if (matchIndex !== -1) {
+				const start = Math.max(0, matchIndex - SNIPPET_CONTEXT_LENGTH)
+				const end = Math.min(messageText.length, matchIndex + query.length + SNIPPET_CONTEXT_LENGTH)
+
+				let snippet = messageText.substring(start, end)
+				if (start > 0) {
+					snippet = `...${snippet}`
+				}
+				if (end < messageText.length) {
+					snippet = `${snippet}...`
+				}
+
+				results.push({
+					id: `${message.ts}-${occurrenceIndex}`,
+					messageTs: message.ts,
+					snippet: snippet,
+				})
+				occurrenceIndex++ // Increment if we were to find multiple matches per message
+			}
+		})
+
+		setSearchResults(results)
+		setIsResultsPanelVisible(results.length > 0)
+	}, [searchQuery, visibleMessages])
+
+	// const isBrowserSessionMessage must be defined before groupedMessages
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above
 
@@ -691,6 +740,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 		return false
 	}
+
+	// Helper function to determine if a message is part of a browser session
+	// This needs to be defined before `groupedMessages` if `groupedMessages` depends on it.
+	// However, `isBrowserSessionMessage` is passed as a dependency to `groupedMessages`'s `useMemo`,
+	// so its definition order relative to `groupedMessages` itself is fine as long as it's in scope.
+	// The main issue is `handleSearchResultClick` using `groupedMessages`.
 
 	const groupedMessages = useMemo(() => {
 		const result: (ClineMessage | ClineMessage[])[] = []
@@ -757,6 +812,30 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 		return result
 	}, [searchedAndVisibleMessages, isBrowserSessionMessage]) // <-- Update dependencies
+
+	const handleSearchResultClick = useCallback(
+		(messageTs: number) => {
+			const messageIndex = groupedMessages.findIndex((msgOrGroup) => {
+				if (Array.isArray(msgOrGroup)) {
+					// For browser session groups, check if any message in the group matches
+					return msgOrGroup.some((msg) => msg.ts === messageTs)
+				}
+				return msgOrGroup.ts === messageTs
+			})
+
+			if (messageIndex !== -1 && virtuosoRef.current) {
+				virtuosoRef.current.scrollToIndex({
+					index: messageIndex,
+					align: "center", // Or 'start'
+					behavior: "smooth",
+				})
+				// Optional: Hide panel or clear search after clicking
+				// setIsResultsPanelVisible(false);
+				// setSearchQuery("");
+			}
+		},
+		[groupedMessages], // groupedMessages is now defined before this callback
+	)
 
 	// scrolling
 
@@ -1031,6 +1110,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						/>
 					</div>
 					{/* Search Input Field END */}
+					<SearchResultsPanel
+						results={searchResults}
+						searchQuery={searchQuery}
+						onResultClick={handleSearchResultClick}
+						isVisible={isResultsPanelVisible && searchQuery.trim().length > 0}
+					/>
 					<div style={{ flexGrow: 1, display: "flex" }} ref={scrollContainerRef}>
 						<Virtuoso
 							ref={virtuosoRef}
