@@ -1,6 +1,5 @@
-import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useMemo, useRef, useState, useEffect } from "react"
-// import styled from "styled-components" // No longer needed here
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -14,37 +13,43 @@ interface AutoApproveMenuProps {
 	style?: React.CSSProperties
 }
 
-// SubOptionAnimateIn is now in AutoApproveMenuItem.tsx
-
-const ACTION_METADATA: {
-	id: keyof AutoApprovalSettings["actions"]
+export interface ActionMetadata {
+	id: keyof AutoApprovalSettings["actions"] | "enableNotifications"
 	label: string
 	shortName: string
 	description: string
-}[] = [
+	icon: string
+	subAction?: ActionMetadata
+}
+
+const ACTION_METADATA: ActionMetadata[] = [
 	{
 		id: "readFiles",
 		label: "Read project files",
-		shortName: "Read Local",
+		shortName: "Read",
 		description: "Allows Cline to read files within your workspace.",
-	},
-	{
-		id: "readFilesExternally",
-		label: "Read all files",
-		shortName: "Read (all)",
-		description: "Allows Cline to read any file on your computer.",
+		icon: "codicon-search",
+		subAction: {
+			id: "readFilesExternally",
+			label: "Read all files",
+			shortName: "Read (all)",
+			description: "Allows Cline to read any file on your computer.",
+			icon: "codicon-folder-opened",
+		},
 	},
 	{
 		id: "editFiles",
 		label: "Edit project files",
 		shortName: "Edit",
 		description: "Allows Cline to modify files within your workspace.",
-	},
-	{
-		id: "editFilesExternally",
-		label: "Edit all files",
-		shortName: "Edit (all)",
-		description: "Allows Cline to modify any file on your computer.",
+		icon: "codicon-edit",
+		subAction: {
+			id: "editFilesExternally",
+			label: "Edit all files",
+			shortName: "Edit (all)",
+			description: "Allows Cline to modify any file on your computer.",
+			icon: "codicon-files",
+		},
 	},
 	{
 		id: "executeSafeCommands",
@@ -52,32 +57,33 @@ const ACTION_METADATA: {
 		shortName: "Safe Commands",
 		description:
 			"Allows Cline to execute of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
-	},
-	{
-		id: "executeAllCommands",
-		label: "Execute all commands",
-		shortName: "All Commands",
-		description: "Allows Cline to execute all terminal commands. Use at your own risk.",
+		icon: "codicon-terminal",
+		subAction: {
+			id: "executeAllCommands",
+			label: "Execute all commands",
+			shortName: "All Commands",
+			description: "Allows Cline to execute all terminal commands. Use at your own risk.",
+			icon: "codicon-terminal-bash",
+		},
 	},
 	{
 		id: "useBrowser",
 		label: "Use the browser",
 		shortName: "Browser",
 		description: "Allows Cline to launch and interact with any website in a browser.",
+		icon: "codicon-globe",
 	},
 	{
 		id: "useMcp",
 		label: "Use MCP servers",
 		shortName: "MCP",
 		description: "Allows Cline to use configured MCP servers which may modify filesystem or interact with APIs.",
+		icon: "codicon-server",
 	},
 ]
 
-// const FAVORITES_STORAGE_KEY = "cline-auto-approve-favorites" // No longer needed
-
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
-	const extensionState = useExtensionState()
-	const { autoApprovalSettings } = extensionState
+	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	// Favorites are now derived from autoApprovalSettings
 	const favorites = useMemo(() => autoApprovalSettings.favorites || [], [autoApprovalSettings.favorites])
@@ -85,7 +91,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const toggleFavorite = useCallback(
 		(actionId: string) => {
-			const currentSettings = extensionState.autoApprovalSettings
+			const currentSettings = autoApprovalSettings
 			const currentFavorites = currentSettings.favorites || []
 			let newFavorites: string[]
 
@@ -104,109 +110,25 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				},
 			})
 		},
-		[extensionState.autoApprovalSettings],
-	)
-
-	// Careful not to use partials to mutate since spread operator only does shallow copy
-	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
-	const enabledActionsList = useMemo(() => {
-		// When nested auto-approve options are used, display the more permissive one (file reads, edits, and commands)
-		const readFilesEnabled = enabledActions.some((action) => action.id === "readFiles")
-		const readFilesExternallyEnabled = enabledActions.some((action) => action.id === "readFilesExternally")
-
-		const editFilesEnabled = enabledActions.some((action) => action.id === "editFiles")
-		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally") ?? false
-
-		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
-		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands") ?? false
-		// Filter out the potentially nested options so we don't display them twice
-		const otherActions = enabledActions
-			.filter(
-				(action) =>
-					action.id !== "readFiles" &&
-					action.id !== "readFilesExternally" &&
-					action.id !== "editFiles" &&
-					action.id !== "editFilesExternally" &&
-					action.id !== "executeSafeCommands" &&
-					action.id !== "executeAllCommands",
-			)
-			.map((action) => action.shortName)
-
-		const labels = []
-
-		// Handle read editing labels
-		if (readFilesExternallyEnabled && readFilesEnabled) {
-			labels.push("Read (All)")
-		} else if (readFilesEnabled) {
-			labels.push("Read")
-		}
-
-		// Handle file editing labels
-		if (editFilesExternallyEnabled && editFilesEnabled) {
-			labels.push("Edit (All)")
-		} else if (editFilesEnabled) {
-			labels.push("Edit")
-		}
-
-		// Handle command execution labels
-		if (allCommandsEnabled && safeCommandsEnabled) {
-			labels.push("All Commands")
-		} else if (safeCommandsEnabled) {
-			labels.push("Safe Commands")
-		}
-
-		// Add remaining actions
-		return [...labels, ...otherActions].join(", ")
-	}, [enabledActions])
-
-	// This value is used to determine if the auto-approve menu should show 'Auto-approve: None'
-	// Note: we should use better logic to determine the state where no auto approve actions are in effect, regardless of the state of sub-auto-approve options
-	const hasEnabledActions = useMemo(() => {
-		// Count actions that are truly enabled, considering parent/child relationships
-		let count = 0
-		ACTION_METADATA.forEach((actionMeta) => {
-			if (autoApprovalSettings.actions[actionMeta.id]) {
-				// If it's a child option, only count if its parent is also enabled
-				if (actionMeta.id === "readFilesExternally" && !autoApprovalSettings.actions.readFiles) {
-					return
-				}
-				if (actionMeta.id === "editFilesExternally" && !autoApprovalSettings.actions.editFiles) {
-					return
-				}
-				if (actionMeta.id === "executeAllCommands" && !autoApprovalSettings.actions.executeSafeCommands) {
-					return
-				}
-				count++
-			}
-		})
-		return count > 0
-	}, [autoApprovalSettings.actions])
-
-	// Get the full extension state to ensure we have the most up-to-date settings
-	// const extensionState = useExtensionState() // Already declared at the top
-
-	const updateEnabled = useCallback(
-		(enabled: boolean) => {
-			const currentSettings = extensionState.autoApprovalSettings
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...currentSettings,
-					version: (currentSettings.version ?? 1) + 1,
-					enabled,
-				},
-			})
-		},
-		[extensionState.autoApprovalSettings],
+		[autoApprovalSettings],
 	)
 
 	const updateAction = useCallback(
-		(actionId: keyof AutoApprovalSettings["actions"], value: boolean) => {
-			const currentSettings = extensionState.autoApprovalSettings
-			// Calculate what the new actions state will be
-			const newActions = {
-				...currentSettings.actions,
+		(action: ActionMetadata, value: boolean) => {
+			const actionId = action.id
+			const subActionId = action.subAction?.id
+
+			if (actionId === "enableNotifications" || subActionId === "enableNotifications") {
+				return
+			}
+
+			let newActions = {
+				...autoApprovalSettings.actions,
 				[actionId]: value,
+			}
+
+			if (value === false && subActionId) {
+				newActions[subActionId] = false
 			}
 
 			// Check if this will result in any enabled actions
@@ -215,20 +137,19 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...currentSettings,
-					version: (currentSettings.version ?? 1) + 1,
+					...autoApprovalSettings,
+					version: (autoApprovalSettings.version ?? 1) + 1,
 					actions: newActions,
-					// If no actions will be enabled, ensure the main toggle is off
-					enabled: willHaveEnabledActions ? currentSettings.enabled : false,
+					enabled: willHaveEnabledActions,
 				},
 			})
 		},
-		[extensionState.autoApprovalSettings],
+		[autoApprovalSettings],
 	)
 
 	const updateMaxRequests = useCallback(
 		(maxRequests: number) => {
-			const currentSettings = extensionState.autoApprovalSettings
+			const currentSettings = autoApprovalSettings
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
@@ -238,22 +159,24 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				},
 			})
 		},
-		[extensionState.autoApprovalSettings],
+		[autoApprovalSettings],
 	)
 
 	const updateNotifications = useCallback(
-		(enableNotifications: boolean) => {
-			const currentSettings = extensionState.autoApprovalSettings
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...currentSettings,
-					version: (currentSettings.version ?? 1) + 1,
-					enableNotifications,
-				},
-			})
+		(action: ActionMetadata, checked: boolean) => {
+			if (action.id === "enableNotifications") {
+				const currentSettings = autoApprovalSettings
+				vscode.postMessage({
+					type: "autoApprovalSettings",
+					autoApprovalSettings: {
+						...currentSettings,
+						version: (currentSettings.version ?? 1) + 1,
+						enableNotifications: checked,
+					},
+				})
+			}
 		},
-		[extensionState.autoApprovalSettings],
+		[autoApprovalSettings],
 	)
 
 	// Handle clicks outside the menu to close it
@@ -272,57 +195,28 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			borderRadius: "4px",
 		}
 
-		// Handle different types of favorited items
-		if (favId === "maxRequests") {
-			return (
-				<div key={favId} style={containerStyle}>
-					<span className="codicon codicon-star-full" style={{ color: "#FFCC00", fontSize: "12px" }} />
-					<span style={{ fontSize: "12px" }}>Max:</span>
-					<VSCodeTextField
-						value={autoApprovalSettings.maxRequests.toString()}
-						onInput={(e) => {
-							const input = e.target as HTMLInputElement
-							input.value = input.value.replace(/[^0-9]/g, "")
-							const value = parseInt(input.value)
-							if (!isNaN(value) && value > 0) {
-								updateMaxRequests(value)
-							}
-						}}
-						style={{ width: "40px" }}
-					/>
-				</div>
-			)
-		} else if (favId === "enableNotifications") {
-			return (
-				<div key={favId} style={containerStyle}>
-					<VSCodeCheckbox
-						checked={autoApprovalSettings.enableNotifications}
-						onChange={(e) => {
-							const checked = (e.target as HTMLInputElement).checked
-							updateNotifications(checked)
-						}}>
-						<span style={{ fontSize: "12px" }}>Notifications</span>
-					</VSCodeCheckbox>
-				</div>
-			)
-		} else {
-			// Regular action item
-			const action = ACTION_METADATA.find((a) => a.id === favId)
-			if (!action) return null
+		// Regular action item
+		const action = ACTION_METADATA.flatMap((a) => [a, a.subAction]).find((a) => a?.id === favId)
+		if (!action) return null
 
-			return (
-				<div key={favId} style={containerStyle} onClick={(e) => e.stopPropagation()}>
-					<VSCodeCheckbox
-						checked={autoApprovalSettings.actions[action.id]}
-						onChange={(e) => {
-							const checked = (e.target as HTMLInputElement).checked
-							updateAction(action.id, checked)
-						}}>
-						<span style={{ fontSize: "12px" }}>{action.shortName}</span>
-					</VSCodeCheckbox>
-				</div>
-			)
+		const isActive =
+			action.id === "enableNotifications"
+				? autoApprovalSettings.enableNotifications
+				: autoApprovalSettings.actions[action.id]
+		const isFavorited = favorites.includes(action.id)
+
+		return <AutoApproveMenuItem action={action} isChecked={isChecked} onToggle={updateAction} condensed={true} />
+	}
+
+	const isChecked = (action: ActionMetadata): boolean => {
+		if (action.id === "enableNotifications") {
+			return autoApprovalSettings.enableNotifications
 		}
+		return autoApprovalSettings.actions[action.id] ?? false
+	}
+
+	const isFavorited = (action: ActionMetadata): boolean => {
+		return favorites.includes(action.id)
 	}
 
 	return (
@@ -366,11 +260,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								cursor: "pointer",
 							}}
 							onClick={() => setIsExpanded(true)}>
-							<HeroTooltip
-								content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
-								placement="top">
-								<span style={{ color: getAsVar(VSC_FOREGROUND), left: "0" }}>Auto-approve</span>
-							</HeroTooltip>
+							<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+								<HeroTooltip
+									content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
+									placement="top">
+									<span style={{ color: getAsVar(VSC_FOREGROUND), left: "0" }}>Auto-approve</span>
+								</HeroTooltip>
+							</div>
 							<span className="codicon codicon-chevron-right" />
 						</div>
 					)}
@@ -405,73 +301,58 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							<span className="codicon codicon-chevron-down" />
 						</div>
 
-						{ACTION_METADATA.map((action) => {
-							const isSubOption =
-								action.id === "executeAllCommands" ||
-								action.id === "editFilesExternally" ||
-								action.id === "readFilesExternally"
-
-							const parentActionId =
-								action.id === "executeAllCommands"
-									? "executeSafeCommands"
-									: action.id === "editFilesExternally"
-										? "editFiles"
-										: action.id === "readFilesExternally"
-											? "readFiles"
-											: undefined
-
-							return (
+						<div style={{ display: "flex", flexWrap: "wrap", gap: "4px", margin: "8px 0" }}>
+							{[
+								...ACTION_METADATA.map((action) => {
+									return (
+										<AutoApproveMenuItem
+											key={action.id}
+											action={action}
+											isChecked={isChecked}
+											isFavorited={isFavorited}
+											onToggle={updateAction}
+											onToggleFavorite={toggleFavorite}
+										/>
+									)
+								}),
 								<AutoApproveMenuItem
-									key={action.id}
-									action={action}
-									isChecked={Boolean(autoApprovalSettings.actions[action.id])}
-									isFavorited={favorites.includes(action.id)}
-									isSubOption={isSubOption}
-									isSubOptionExpanded={Boolean(
-										parentActionId
-											? autoApprovalSettings.actions[parentActionId]
-											: autoApprovalSettings.actions[action.id],
-									)}
-									onToggle={updateAction}
-									onToggleFavorite={toggleFavorite}
-									onToggleSubOption={(currentActionId) =>
-										updateAction(currentActionId, !autoApprovalSettings.actions[currentActionId])
-									}
-								/>
-							)
-						})}
+									key="enableNotifications"
+									action={{
+										id: "enableNotifications",
+										label: "Enable notifications",
+										shortName: "Notifications",
+										description:
+											"Receive system notifications when Cline requires approval to proceed or when a task is completed.",
+										icon: "codicon-bell",
+									}}
+									isChecked={isChecked}
+									onToggle={updateNotifications}
+								/>,
+							]}
+						</div>
 						<div
 							style={{
 								height: "0.5px",
 								background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
-								margin: "15px 0",
+								margin: "10px 0",
 								opacity: 0.2,
 							}}
 						/>
-						<div
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								alignItems: "center",
-								width: "100%",
-							}}>
+						<HeroTooltip
+							content="Cline will automatically make this many API requests before asking for approval to proceed with the task."
+							placement="top">
 							<div
 								style={{
 									display: "flex",
 									alignItems: "center",
 									gap: "8px",
-									marginTop: "10px",
-									marginBottom: "8px",
-									color: getAsVar(VSC_FOREGROUND),
-									flex: 1,
-									position: "relative", // Added for tooltip positioning
+									width: "100%",
+									paddingBottom: "10px",
 								}}>
-								<HeroTooltip
-									content="Cline will automatically make this many API requests before asking for approval to proceed with the task."
-									placement="top">
-									<span style={{ color: getAsVar(VSC_FOREGROUND) }}>Max Requests:</span>
-								</HeroTooltip>
+								<span className="codicon codicon-settings" style={{ color: "#CCCCCC", fontSize: "14px" }} />
+								<span style={{ color: "#CCCCCC", fontSize: "12px", fontWeight: 500 }}>Max Requests:</span>
 								<VSCodeTextField
+									style={{ flex: "1", width: "100%" }}
 									value={autoApprovalSettings.maxRequests.toString()}
 									onInput={(e) => {
 										const input = e.target as HTMLInputElement
@@ -491,78 +372,14 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 											e.preventDefault()
 										}
 									}}
-									style={{ flex: 1, marginRight: "10px" }}
 								/>
 							</div>
-							<span
-								className={`codicon codicon-${favorites.includes("maxRequests") ? "star-full" : "star-empty"}`}
-								style={{
-									cursor: "pointer",
-									color: favorites.includes("maxRequests") ? "#FFCC00" : getAsVar(VSC_DESCRIPTION_FOREGROUND),
-									opacity: favorites.includes("maxRequests") ? 1 : 0.6,
-									marginRight: "4px",
-								}}
-								onClick={(e) => {
-									e.stopPropagation()
-									toggleFavorite("maxRequests")
-								}}
-							/>
-						</div>
-						<div
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								alignItems: "center",
-								width: "100%",
-								margin: "6px 0",
-							}}>
-							<HeroTooltip
-								content="Receive system notifications when Cline requires approval to proceed or when a task is completed."
-								placement="top">
-								<VSCodeCheckbox
-									checked={autoApprovalSettings.enableNotifications}
-									onChange={(e) => {
-										const checked = (e.target as HTMLInputElement).checked
-										updateNotifications(checked)
-									}}>
-									Enable Notifications
-								</VSCodeCheckbox>
-							</HeroTooltip>
-							<span
-								className={`codicon codicon-${favorites.includes("enableNotifications") ? "star-full" : "star-empty"}`}
-								style={{
-									cursor: "pointer",
-									color: favorites.includes("enableNotifications")
-										? "#FFCC00"
-										: getAsVar(VSC_DESCRIPTION_FOREGROUND),
-									opacity: favorites.includes("enableNotifications") ? 1 : 0.6,
-									marginRight: "4px",
-								}}
-								onClick={(e) => {
-									e.stopPropagation()
-									toggleFavorite("enableNotifications")
-								}}
-							/>
-						</div>
+						</HeroTooltip>
 					</>
 				)}
 			</div>
 		</div>
 	)
 }
-
-// CollapsibleSection is no longer used
-// const CollapsibleSection = styled.div<{ isHovered?: boolean }>`
-// 	display: flex;
-// 	align-items: center;
-// 	gap: 4px;
-// 	color: ${(props) => (props.isHovered ? getAsVar(VSC_FOREGROUND) : getAsVar(VSC_DESCRIPTION_FOREGROUND))};
-// 	flex: 1;
-// 	min-width: 0;
-//
-// 	&:hover {
-// 		color: ${getAsVar(VSC_FOREGROUND)};
-// 	}
-// `
 
 export default AutoApproveMenu

@@ -1,24 +1,52 @@
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { ActionMetadata } from "./AutoApproveMenu"
+import { useState } from "react"
 
 interface AutoApproveMenuItemProps {
-	action: {
-		id: keyof AutoApprovalSettings["actions"]
-		label: string
-		description: string
-		shortName: string
-	}
-	isChecked: boolean
-	isFavorited: boolean
-	isSubOption?: boolean
-	isSubOptionExpanded?: boolean
-	onToggle: (actionId: keyof AutoApprovalSettings["actions"], checked: boolean) => void
-	onToggleFavorite: (actionId: string) => void
-	onToggleSubOption?: (actionId: keyof AutoApprovalSettings["actions"]) => void
+	action: ActionMetadata
+	isChecked: (action: ActionMetadata) => boolean
+	isFavorited?: (action: ActionMetadata) => boolean
+	onToggle: (action: ActionMetadata, checked: boolean) => void
+	onToggleFavorite?: (actionId: string) => void
+	condensed?: boolean
 }
+
+const ActionButton = styled.div<{ isActive: boolean; isFavorited?: boolean }>`
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	border-radius: 99px;
+	cursor: pointer;
+	background-color: ${(props) => (props.isActive ? "#0078D4" : "#2B2B2B")};
+	border: 1px solid ${(props) => (props.isActive ? "#0078D4" : "#3c3c3c")};
+	transition: all 0.2s ease;
+
+	&:hover {
+		background-color: ${(props) => (props.isActive ? "#0078D4" : "#252525")};
+	}
+
+	.icon {
+		color: ${(props) => (props.isActive ? "#FFFFFF" : "#CCCCCC")};
+		font-size: 14px;
+	}
+
+	.label {
+		color: ${(props) => (props.isActive ? "#FFFFFF" : "#CCCCCC")};
+		font-size: 12px;
+		font-weight: 500;
+	}
+
+	.star {
+		color: ${(props) => (props.isFavorited ? "#FFCC00" : "#CCCCCC")};
+		opacity: ${(props) => (props.isFavorited ? 1 : 0.6)};
+		margin-left: 4px;
+		font-size: 12px;
+	}
+`
 
 const SubOptionAnimateIn = styled.div<{ show: boolean }>`
 	position: relative;
@@ -34,63 +62,60 @@ const SubOptionAnimateIn = styled.div<{ show: boolean }>`
 	/* Delay height transition on hide to allow transform/opacity to finish */
 `
 
+const ActionButtonContainer = styled.div`
+	margin: 4px;
+`
+
 const AutoApproveMenuItem = ({
 	action,
 	isChecked,
 	isFavorited,
-	isSubOption,
-	isSubOptionExpanded,
 	onToggle,
 	onToggleFavorite,
-	onToggleSubOption,
+	condensed = false,
 }: AutoApproveMenuItemProps) => {
+	const [isSubOptionOpen, setIsSubOptionOpen] = useState(isChecked(action))
 	const content = (
-		<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-			{/* Added position: relative to this div */}
-			<div style={{ display: "flex", alignItems: "center", position: "relative" }}>
+		<div>
+			<ActionButtonContainer>
 				<HeroTooltip content={action.description} placement="top">
-					<VSCodeCheckbox
-						checked={isChecked}
-						onChange={(e) => {
-							const checked = (e.target as HTMLInputElement).checked
-							onToggle(action.id, checked)
+					<ActionButton
+						isActive={isChecked(action)}
+						isFavorited={isFavorited?.(action)}
+						onClick={(e) => {
+							e.stopPropagation()
+							setIsSubOptionOpen(!isSubOptionOpen)
+							onToggle(action, !isChecked(action))
 						}}>
-						{action.label}
-					</VSCodeCheckbox>
+						<span className={`codicon ${action.icon} icon`}></span>
+						<span className="label">{condensed ? action.shortName : action.label}</span>
+						{onToggleFavorite && !condensed && (
+							<span
+								className={`codicon codicon-${isFavorited?.(action) ? "star-full" : "star-empty"} star`}
+								onClick={(e) => {
+									e.stopPropagation()
+									onToggleFavorite?.(action.id)
+								}}
+							/>
+						)}
+					</ActionButton>
 				</HeroTooltip>
-			</div>
-			<span
-				className={`codicon codicon-${isFavorited ? "star-full" : "star-empty"}`}
-				style={{
-					cursor: "pointer",
-					color: isFavorited ? "#FFCC00" : getAsVar(VSC_DESCRIPTION_FOREGROUND),
-					opacity: isFavorited ? 1 : 0.6,
-					marginRight: "4px",
-				}}
-				onClick={(e) => {
-					e.stopPropagation()
-					onToggleFavorite(action.id)
-				}}
-			/>
+			</ActionButtonContainer>
+			{action.subAction && (
+				<SubOptionAnimateIn show={isSubOptionOpen}>
+					<AutoApproveMenuItem
+						action={action.subAction}
+						isChecked={isChecked}
+						isFavorited={isFavorited}
+						onToggle={onToggle}
+						onToggleFavorite={onToggleFavorite}
+					/>
+				</SubOptionAnimateIn>
+			)}
 		</div>
 	)
 
-	if (isSubOption) {
-		return (
-			<SubOptionAnimateIn show={isSubOptionExpanded ?? false}>
-				<div style={{ margin: "3px 0 6px 28px" }}>{content}</div>
-			</SubOptionAnimateIn>
-		)
-	}
-
-	return (
-		<div
-			style={{
-				margin: "6px 0",
-			}}>
-			{content}
-		</div>
-	)
+	return content
 }
 
 export default AutoApproveMenuItem
