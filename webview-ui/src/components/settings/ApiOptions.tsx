@@ -264,6 +264,15 @@ const ApiOptions = ({
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+	useEffect(() => {
+		return () => {
+			if (debounceTimerRef.current) {
+				clearTimeout(debounceTimerRef.current)
+			}
+		}
+	}, [])
+
 	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
 		if (debounceTimerRef.current) {
 			clearTimeout(debounceTimerRef.current)
