@@ -22,16 +22,22 @@ npx grpc_tools_node_protoc \
   --proto_path=$PROTO_DIR --proto_path=$HEALTH_PROTO_DIR \
   ${PROTO_DIR}/*.proto $HEALTH_PROTO
 
-cp ../dist/extension.js build/
+# Copy pre-built extension
+cp ../dist/extension.js $BUILD_DIR
 echo 'module.exports.Controller = Controller' >> build/extension.js
+
+# Generate gRPC server for the service protos.
 node generate-server.js
 
+# Install npm modules used by the extension at runtime.
 cd $BUILD_DIR
 npm install
+
 if find node_modules -name '*.node' | grep .; then
   echo Native node modules are being used. Build cannot proceed.
   exit 1
 fi
 
-zip -r standalone.zip . -x standalone.zip
+# Zip all the files needed for the standalone extension.
+# zip -r standalone.zip . -x standalone.zip
 

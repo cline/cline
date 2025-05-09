@@ -1,7 +1,7 @@
 console.log("Loading stub impls...")
 
 const { createStub, stubUri, createMemento } = require("stub-utils")
-const open = require("open")
+const open = require("open").default
 
 vscode.ExtensionContext = {
 	extensionPath: "/tmp/vscode/extension",

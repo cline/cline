@@ -7,6 +7,21 @@ const log = (...args) => {
 	console.log(`[${timestamp}]`, "#bot.cline.server.js", ...args)
 }
 
+function wrapHandler(fn) {
+	return async (call, callback) => {
+		try {
+			const result = await fn(controller)
+			callback(null, result)
+		} catch (err) {
+			log("Handler error:", err)
+			callback({
+				code: grpc.status.UNKNOWN,
+				message: err.message || "Internal error",
+			})
+		}
+	}
+}
+
 function postMessage(message) {
 	log("postMessage called:", message)
 	return Promise.resolve(true)
