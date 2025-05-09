@@ -126,12 +126,6 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			// task. This essentially creates a fresh slate for the new task.
 			await provider.initClineWithTask(message.text, message.images)
 			break
-		case "apiConfiguration":
-			if (message.apiConfiguration) {
-				await provider.updateApiConfiguration(message.apiConfiguration)
-			}
-			await provider.postStateToWebview()
-			break
 		case "customInstructions":
 			await provider.updateCustomInstructions(message.text)
 			break
@@ -1068,7 +1062,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			break
 		case "upsertApiConfiguration":
 			if (message.text && message.apiConfiguration) {
-				await provider.upsertApiConfiguration(message.text, message.apiConfiguration)
+				await provider.upsertProviderProfile(message.text, message.apiConfiguration)
 			}
 			break
 		case "renameApiConfiguration":
