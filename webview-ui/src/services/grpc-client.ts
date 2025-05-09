@@ -31,5 +31,5 @@ export {
 	StateServiceClient,
 	TaskServiceClient,
 	WebServiceClient,
-	ModelsServiceClient
+	ModelsServiceClient,
 }

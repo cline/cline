@@ -14,7 +14,7 @@ interface AutoApproveMenuProps {
 }
 
 export interface ActionMetadata {
-	id: keyof AutoApprovalSettings["actions"] | "enableNotifications"
+	id: keyof AutoApprovalSettings["actions"] | "enableNotifications" | "enableAll"
 	label: string
 	shortName: string
 	description: string
@@ -91,8 +91,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const toggleFavorite = useCallback(
 		(actionId: string) => {
-			const currentSettings = autoApprovalSettings
-			const currentFavorites = currentSettings.favorites || []
+			const currentFavorites = autoApprovalSettings.favorites || []
 			let newFavorites: string[]
 
 			if (currentFavorites.includes(actionId)) {
@@ -104,8 +103,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			vscode.postMessage({
 				type: "autoApprovalSettings",
 				autoApprovalSettings: {
-					...currentSettings,
-					version: (currentSettings.version ?? 1) + 1,
+					...autoApprovalSettings,
+					version: (autoApprovalSettings.version ?? 1) + 1,
 					favorites: newFavorites,
 				},
 			})
@@ -118,7 +117,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			const actionId = action.id
 			const subActionId = action.subAction?.id
 
-			if (actionId === "enableNotifications" || subActionId === "enableNotifications") {
+			if (
+				actionId === "enableNotifications" ||
+				actionId === "enableAll" ||
+				subActionId === "enableNotifications" ||
+				subActionId === "enableAll"
+			) {
 				return
 			}
 
@@ -179,6 +183,26 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		[autoApprovalSettings],
 	)
 
+	const toggleAll = useCallback(
+		(action: ActionMetadata, checked: boolean) => {
+			let actions = autoApprovalSettings.actions
+
+			for (const action of Object.keys(actions)) {
+				actions[action as keyof AutoApprovalSettings["actions"]] = checked
+			}
+
+			vscode.postMessage({
+				type: "autoApprovalSettings",
+				autoApprovalSettings: {
+					...autoApprovalSettings,
+					version: (autoApprovalSettings.version ?? 1) + 1,
+					actions,
+				},
+			})
+		},
+		[autoApprovalSettings],
+	)
+
 	// Handle clicks outside the menu to close it
 	useClickAway(menuRef, () => {
 		if (isExpanded) {
@@ -188,29 +212,27 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	// Render a favorited item with a checkbox
 	const renderFavoritedItem = (favId: string) => {
-		// Common styles for all favorited items
-		const containerStyle = {
-			display: "flex",
-			alignItems: "center",
-			borderRadius: "4px",
-		}
-
 		// Regular action item
 		const action = ACTION_METADATA.flatMap((a) => [a, a.subAction]).find((a) => a?.id === favId)
 		if (!action) return null
 
-		const isActive =
-			action.id === "enableNotifications"
-				? autoApprovalSettings.enableNotifications
-				: autoApprovalSettings.actions[action.id]
-		const isFavorited = favorites.includes(action.id)
-
-		return <AutoApproveMenuItem action={action} isChecked={isChecked} onToggle={updateAction} condensed={true} />
+		return (
+			<AutoApproveMenuItem
+				action={action}
+				isChecked={isChecked}
+				isFavorited={isFavorited}
+				onToggle={updateAction}
+				condensed={true}
+			/>
+		)
 	}
 
 	const isChecked = (action: ActionMetadata): boolean => {
 		if (action.id === "enableNotifications") {
 			return autoApprovalSettings.enableNotifications
+		}
+		if (action.id === "enableAll") {
+			return Object.values(autoApprovalSettings.actions).every(Boolean)
 		}
 		return autoApprovalSettings.actions[action.id] ?? false
 	}
@@ -233,23 +255,30 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			}}>
 			{/* Collapsed view with favorited items */}
 			{!isExpanded && (
-				<div onClick={() => setIsExpanded(true)} style={{ cursor: "pointer", paddingTop: "10px" }}>
+				<div
+					onClick={() => setIsExpanded(true)}
+					style={{
+						cursor: "pointer",
+						paddingTop: "6px",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "space-between",
+						gap: "8px",
+					}}>
 					{favorites.length > 0 ? (
 						<div
 							style={{
 								display: "flex",
-								flexWrap: "wrap",
-								gap: "8px",
+								flexWrap: "nowrap",
 								alignItems: "center",
+								overflowX: "auto",
+								msOverflowStyle: "none",
+								scrollbarWidth: "none",
+								WebkitOverflowScrolling: "touch",
+								gap: "4px",
+								whiteSpace: "nowrap", // Prevent text wrapping
 							}}>
 							{favorites.map((favId) => renderFavoritedItem(favId))}
-							<span
-								className="codicon codicon-chevron-right"
-								style={{
-									marginLeft: "auto",
-									color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
-								}}
-							/>
 						</div>
 					) : (
 						<div
@@ -258,8 +287,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								justifyContent: "space-between",
 								alignItems: "center",
 								cursor: "pointer",
-							}}
-							onClick={() => setIsExpanded(true)}>
+							}}>
 							<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
 								<HeroTooltip
 									content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
@@ -267,9 +295,9 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 									<span style={{ color: getAsVar(VSC_FOREGROUND), left: "0" }}>Auto-approve</span>
 								</HeroTooltip>
 							</div>
-							<span className="codicon codicon-chevron-right" />
 						</div>
 					)}
+					<span className="codicon codicon-chevron-right" />
 				</div>
 			)}
 
@@ -315,6 +343,18 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 										/>
 									)
 								}),
+								<AutoApproveMenuItem
+									key="enableAll"
+									action={{
+										id: "enableAll",
+										label: "Enable all",
+										shortName: "All",
+										description: "Enable all actions.",
+										icon: "codicon-checklist",
+									}}
+									isChecked={isChecked}
+									onToggle={toggleAll}
+								/>,
 								<AutoApproveMenuItem
 									key="enableNotifications"
 									action={{
