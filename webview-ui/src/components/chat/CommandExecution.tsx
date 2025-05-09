@@ -12,6 +12,7 @@ import { vscode } from "@src/utils/vscode"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { cn } from "@src/lib/utils"
 import { Button } from "@src/components/ui"
+import CodeBlock from "../common/CodeBlock"
 
 interface CommandExecutionProps {
 	executionId: string
@@ -86,8 +87,8 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 
 	return (
 		<div className="w-full bg-vscode-editor-background border border-vscode-border rounded-xs p-2">
+			<CodeBlock source={command} language="shell" />
 			<div className="flex flex-row items-center justify-between gap-2 px-1">
-				<Line className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">{command}</Line>
 				<div className="flex flex-row items-center gap-1">
 					{status?.status === "started" && (
 						<div className="flex flex-row items-center gap-2 font-mono text-xs">
