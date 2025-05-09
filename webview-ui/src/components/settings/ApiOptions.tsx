@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { convertHeadersToObject } from "./utils/headers"
 import { useDebounce } from "react-use"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
@@ -86,25 +87,6 @@ const ApiOptions = ({
 	}, [apiConfiguration?.openAiHeaders, customHeaders])
 
 	// Helper to convert array of tuples to object (filtering out empty keys).
-	const convertHeadersToObject = (headers: [string, string][]): Record<string, string> => {
-		const result: Record<string, string> = {}
-
-		// Process each header tuple.
-		for (const [key, value] of headers) {
-			const trimmedKey = key.trim()
-
-			// Skip empty keys.
-			if (!trimmedKey) {
-				continue
-			}
-
-			// For duplicates, the last one in the array wins.
-			// This matches how HTTP headers work in general.
-			result[trimmedKey] = value.trim()
-		}
-
-		return result
-	}
 
 	// Debounced effect to update the main configuration when local
 	// customHeaders state stabilizes.
