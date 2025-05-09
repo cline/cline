@@ -247,7 +247,7 @@ export class ProviderSettingsManager {
 	 * Preserves the ID from the input 'config' object if it exists,
 	 * otherwise generates a new one (for creation scenarios).
 	 */
-	public async saveConfig(name: string, config: ProviderSettingsWithId) {
+	public async saveConfig(name: string, config: ProviderSettingsWithId): Promise<string> {
 		try {
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()
@@ -259,13 +259,16 @@ export class ProviderSettingsManager {
 				const filteredConfig = providerSettingsSchemaDiscriminated.parse(config)
 				providerProfiles.apiConfigs[name] = { ...filteredConfig, id }
 				await this.store(providerProfiles)
+				return id
 			})
 		} catch (error) {
 			throw new Error(`Failed to save config: ${error}`)
 		}
 	}
 
-	public async getProfile(params: { name: string } | { id: string }) {
+	public async getProfile(
+		params: { name: string } | { id: string },
+	): Promise<ProviderSettingsWithId & { name: string }> {
 		try {
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()

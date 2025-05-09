@@ -178,90 +178,6 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await this.sidebarProvider.postMessageToWebview({ type: "invoke", invoke: "secondaryButtonClick" })
 	}
 
-	public getConfiguration() {
-		return this.sidebarProvider.getValues()
-	}
-
-	public async setConfiguration(values: RooCodeSettings) {
-		await this.sidebarProvider.setValues(values)
-		await this.sidebarProvider.providerSettingsManager.saveConfig(values.currentApiConfigName || "default", values)
-		await this.sidebarProvider.postStateToWebview()
-	}
-
-	public async createProfile(name: string) {
-		if (!name || !name.trim()) {
-			throw new Error("Profile name cannot be empty")
-		}
-
-		const currentSettings = this.getConfiguration()
-		const profiles = currentSettings.listApiConfigMeta || []
-
-		if (profiles.some((profile) => profile.name === name)) {
-			throw new Error(`A profile with the name "${name}" already exists`)
-		}
-
-		const id = this.sidebarProvider.providerSettingsManager.generateId()
-
-		await this.setConfiguration({
-			...currentSettings,
-			listApiConfigMeta: [
-				...profiles,
-				{
-					id,
-					name: name.trim(),
-					apiProvider: "openai" as const,
-				},
-			],
-		})
-
-		return id
-	}
-
-	private getProfilesMeta() {
-		return this.getConfiguration().listApiConfigMeta || []
-	}
-
-	public getProfiles() {
-		return this.getProfilesMeta().map((profile) => profile.name)
-	}
-
-	public hasProfile(name: string): boolean {
-		return !!(this.getConfiguration().listApiConfigMeta || []).find((profile) => profile.name === name)
-	}
-
-	public async setActiveProfile(name: string) {
-		if (!this.hasProfile(name)) {
-			throw new Error(`Profile with name "${name}" does not exist`)
-		}
-
-		await this.sidebarProvider.activateProviderProfile({ name })
-	}
-
-	public getActiveProfile() {
-		return this.getConfiguration().currentApiConfigName
-	}
-
-	public async deleteProfile(name: string) {
-		const currentSettings = this.getConfiguration()
-		const listApiConfigMeta = this.getProfilesMeta()
-		const targetIndex = listApiConfigMeta.findIndex((p) => p.name === name)
-
-		if (targetIndex === -1) {
-			throw new Error(`Profile with name "${name}" does not exist`)
-		}
-
-		const profileToDelete = listApiConfigMeta[targetIndex]
-		listApiConfigMeta.splice(targetIndex, 1)
-
-		// If we're deleting the active profile, clear the currentApiConfigName.
-		const currentApiConfigName =
-			currentSettings.currentApiConfigName === profileToDelete.name
-				? undefined
-				: currentSettings.currentApiConfigName
-
-		await this.setConfiguration({ ...currentSettings, listApiConfigMeta, currentApiConfigName })
-	}
-
 	public isReady() {
 		return this.sidebarProvider.viewLaunched
 	}
@@ -326,5 +242,93 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		} catch (_) {
 			this.logfile = undefined
 		}
+	}
+
+	// Global Settings Management
+
+	public getConfiguration() {
+		return this.sidebarProvider.getValues()
+	}
+
+	public async setConfiguration(values: RooCodeSettings) {
+		await this.sidebarProvider.contextProxy.setValues(values)
+		await this.sidebarProvider.providerSettingsManager.saveConfig(values.currentApiConfigName || "default", values)
+		await this.sidebarProvider.postStateToWebview()
+	}
+
+	// Provider Profile Management
+
+	private getProfilesMeta() {
+		return this.getConfiguration().listApiConfigMeta || []
+	}
+
+	public getProfiles() {
+		return this.getProfilesMeta().map((profile) => profile.name)
+	}
+
+	public hasProfile(name: string): boolean {
+		return !!(this.getConfiguration().listApiConfigMeta || []).find((profile) => profile.name === name)
+	}
+
+	public async createProfile(name: string) {
+		if (!name || !name.trim()) {
+			throw new Error("Profile name cannot be empty")
+		}
+
+		const currentSettings = this.getConfiguration()
+		const profiles = currentSettings.listApiConfigMeta || []
+
+		if (profiles.some((profile) => profile.name === name)) {
+			throw new Error(`A profile with the name "${name}" already exists`)
+		}
+
+		const id = this.sidebarProvider.providerSettingsManager.generateId()
+
+		await this.setConfiguration({
+			...currentSettings,
+			listApiConfigMeta: [
+				...profiles,
+				{
+					id,
+					name: name.trim(),
+					apiProvider: "openai" as const,
+				},
+			],
+		})
+
+		return id
+	}
+
+	public async deleteProfile(name: string) {
+		const currentSettings = this.getConfiguration()
+		const listApiConfigMeta = this.getProfilesMeta()
+		const targetIndex = listApiConfigMeta.findIndex((p) => p.name === name)
+
+		if (targetIndex === -1) {
+			throw new Error(`Profile with name "${name}" does not exist`)
+		}
+
+		const profileToDelete = listApiConfigMeta[targetIndex]
+		listApiConfigMeta.splice(targetIndex, 1)
+
+		// If we're deleting the active profile, clear the currentApiConfigName.
+		const currentApiConfigName =
+			currentSettings.currentApiConfigName === profileToDelete.name
+				? undefined
+				: currentSettings.currentApiConfigName
+
+		await this.setConfiguration({ ...currentSettings, listApiConfigMeta, currentApiConfigName })
+	}
+
+	public getActiveProfile(): string | undefined {
+		return this.getConfiguration().currentApiConfigName
+	}
+
+	public async setActiveProfile(name: string) {
+		if (!this.hasProfile(name)) {
+			throw new Error(`Profile with name "${name}" does not exist`)
+		}
+
+		await this.sidebarProvider.activateProviderProfile({ name })
 	}
 }
