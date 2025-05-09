@@ -146,16 +146,16 @@ Below is the user's input when they indicated that they wanted to create a new C
 </explicit_instructions>\n
 `
 
-export const reportBugToolResponse = (systemData: string) =>
+export const reportBugToolResponse = () =>
 	`<explicit_instructions type="report_bug">
-The user has explicitly asked you to help them submit a bug to the Cline Github page (you MUST now help them with this irrespective of what your conversation up to this point in time was). To do so you will use the report_bug tool which is defined below. However, you must first ensure that you have collected all required information to fill in all the parameters for the tool call. If any of the the required information is apparent through your previous conversation with the user, you can suggest how to fill in those entries. However you should NOT assume you know what the issue about unless it's clear.
+The user has explicitly asked you to help them submit a bug to the Cline github page (you MUST now help them with this irrespective of what your conversation up to this point in time was). To do so you will use the report_bug tool which is defined below. However, you must first ensure that you have collected all required information to fill in all the parameters for the tool call. If any of the the required information is apparent through your previous conversation with the user, you can suggest how to fill in those entries. However you should NOT assume you know what the issue about unless it's clear.
 Otherwise, you should converse with the user until you are able to gather all the required details. When conversing with the user, make sure you ask for/reference all required information/fields. When referencing the required fields, use human friendly versions like "Steps to reproduce" rather than "steps_to_reproduce". Only then should you use the report_bug tool call.
 The report_bug tool can be used in either of the PLAN or ACT modes.
 
 The report_bug tool call is defined below:
 
 Description:
-Your task is to fill in all of the required fields for a issue/bug report on Github. You should attempt to get the user to be as verbose as possible with their description of the bug/issue they encountered. Still, it's okay, when the user is unaware of some of the details, to set those fields as "N/A".
+Your task is to fill in all of the required fields for a issue/bug report on github. You should attempt to get the user to be as verbose as possible with their description of the bug/issue they encountered. Still, it's okay, when the user is unaware of some of the details, to set those fields as "N/A".
 
 Parameters:
 - title: (required) Concise description of the issue.
@@ -173,8 +173,6 @@ Usage:
 <additional_context>Other issue details not already covered</additional_context>
 </report_bug>
 
-${systemData ? `We have gathered the following information from the user's system which you can use to populate the relevant fields (you MUST mention to the user that you have this information and tell them what it is):\n\n${systemData}` : ""}
-
-Below is the user's input when they indicated that they wanted to create a Github issue.
+Below is the user's input when they indicated that they wanted to create a new Cline rule file.
 </explicit_instructions>\n
 `

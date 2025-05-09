@@ -100,7 +100,6 @@ import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { isInTestMode } from "../../services/test/TestMode"
 import { featureFlagsService } from "@/services/posthog/feature-flags/FeatureFlagsService"
-import { report } from "node:process"
 
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -4008,11 +4007,7 @@ export class Task {
 							)
 
 							// when parsing slash commands, we still want to allow the user to provide their desired context
-							const { processedText, needsClinerulesFileCheck: needsCheck } = parseSlashCommands(
-								parsedText,
-								this.context,
-								this.api,
-							)
+							const { processedText, needsClinerulesFileCheck: needsCheck } = parseSlashCommands(parsedText)
 
 							if (needsCheck) {
 								needsClinerulesFileCheck = true
