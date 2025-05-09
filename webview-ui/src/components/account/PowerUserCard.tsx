@@ -2,13 +2,6 @@ import React, { useRef } from "react"
 import html2canvas from "html2canvas"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
-// Define icon components or import them if they are separate SVGs/components
-// For simplicity, using Codicon class names directly in spans for now.
-// In a real scenario, these might be actual SVG components.
-// const HubotIcon = () => <span className="codicon codicon-hubot text-2xl mr-3"></span>;
-// const FlameIcon = () => <span className="codicon codicon-flame text-2xl mr-3"></span>;
-// const CloseIcon = () => <span className="codicon codicon-close"></span>;
-
 type PowerUserCardProps = {
 	stats: {
 		userHandle: string | null
@@ -33,49 +26,92 @@ const PowerUserCard: React.FC<PowerUserCardProps> = ({ stats, isLoadingStats, on
 	const handleDownloadImage = () => {
 		if (cardRef.current) {
 			html2canvas(cardRef.current, {
-				backgroundColor: "#1E1E1E", // A common dark theme background
-				useCORS: true, // Important if user profile images are from external sources
-				scale: 2, // Increase scale for better resolution
+				backgroundColor: "#1A1D21", // Match card's dark background for screenshot
+				useCORS: true,
+				scale: 2,
 			})
 				.then((canvas) => {
 					const image = canvas.toDataURL("image/png")
 					const link = document.createElement("a")
 					link.href = image
-					link.download = "cline-power-user-card.png"
+					link.download = "cline-ai-power-user-card.png"
 					document.body.appendChild(link)
 					link.click()
 					document.body.removeChild(link)
 				})
 				.catch((err) => {
 					console.error("Error generating card image:", err)
-					// Optionally, inform the user via a toast or message
 				})
 		}
 	}
 
 	const handleShareToTwitter = () => {
-		const shareText = `Check out my #ClineAI Power User stats! @cline_ai Proud to be part of the community. #AI #DevTools\n\nDownload your card in the Cline VSCode extension!`
+		const shareText = `Check out my #ClineAI Power User stats! @cline_ai Proud to be part of the community. #AI #DevTools\n\nGenerate your own card in the Cline VSCode extension!`
 		const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
 		window.open(twitterUrl, "_blank")
 	}
 
+	const cardContent = (
+		<div ref={cardRef} className="relative bg-[#1A1D21] p-8 rounded-xl shadow-2xl text-white w-full max-w-md mx-auto">
+			{onClose && (
+				<VSCodeButton
+					appearance="icon"
+					onClick={onClose}
+					title="Close"
+					className="absolute top-4 right-4 text-gray-400 hover:text-white">
+					<span className="codicon codicon-close"></span>
+				</VSCodeButton>
+			)}
+			<div className="text-center mb-8">
+				<h2 className="text-3xl font-bold">AI Power User</h2>
+				{stats?.userHandle && <p className="text-sm text-gray-400 mt-1">{stats.userHandle}</p>}
+			</div>
+
+			<div className="space-y-6">
+				<div>
+					<p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Most used model</p>
+					<div className="flex items-center">
+						<span className="codicon codicon-hubot text-3xl mr-4 text-purple-400"></span>
+						<p className="text-2xl font-semibold">{stats?.mostUsedModel || "N/A"}</p>
+					</div>
+				</div>
+
+				<div>
+					<p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Total Tokens Processed</p>
+					<div className="flex items-center">
+						<span className="codicon codicon-flame text-3xl mr-4 text-orange-400"></span>
+						<p className="text-2xl font-semibold">{formatTokens(stats?.totalTokensProcessed ?? 0)}</p>
+					</div>
+				</div>
+			</div>
+
+			{/* Placeholder for the subtle background wave - would typically be an SVG */}
+			{/* <div className="absolute bottom-0 left-0 w-full h-24 overflow-hidden">
+                <svg viewBox="0 0 500 150" preserveAspectRatio="none" style={{height: "100%", width: "100%;"}}>
+                    <path d="M-0.00,49.98 C149.99,150.00 349.20,-49.98 500.00,49.98 L500.00,150.00 L-0.00,150.00 Z" style={{stroke: "none", fill: "rgba(255,255,255,0.05);" }}></path>
+                </svg>
+            </div> */}
+		</div>
+	)
+
 	if (isLoadingStats) {
 		return (
-			<div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[100]">
-				<div className="bg-[var(--vscode-sideBar-background)] p-6 rounded-lg shadow-xl text-center">
+			<div className="fixed inset-0 bg-[var(--vscode-editor-background)] bg-opacity-80 flex items-center justify-center p-4 z-[100]">
+				<div className="bg-[var(--vscode-notifications-background)] p-8 rounded-lg shadow-xl text-center text-[var(--vscode-notifications-foreground)]">
 					Loading Power User Stats...
 				</div>
 			</div>
 		)
 	}
 
-	if (!stats) {
+	if (!stats && !isLoadingStats) {
+		// Show error only if not loading and no stats
 		return (
-			<div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[100]">
-				<div className="bg-[var(--vscode-sideBar-background)] p-6 rounded-lg shadow-xl text-center">
-					Could not load stats. Please try again.
+			<div className="fixed inset-0 bg-[var(--vscode-editor-background)] bg-opacity-80 flex items-center justify-center p-4 z-[100]">
+				<div className="bg-[var(--vscode-notifications-background)] p-8 rounded-lg shadow-xl text-center text-[var(--vscode-notifications-foreground)]">
+					Could not load your stats. Please try again later.
 					{onClose && (
-						<VSCodeButton appearance="secondary" onClick={onClose} className="mt-4">
+						<VSCodeButton appearance="secondary" onClick={onClose} className="mt-6">
 							Close
 						</VSCodeButton>
 					)}
@@ -84,72 +120,30 @@ const PowerUserCard: React.FC<PowerUserCardProps> = ({ stats, isLoadingStats, on
 		)
 	}
 
-	return (
-		<div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[100]">
-			{" "}
-			{/* Increased z-index */}
-			<div className="bg-[var(--vscode-sideBar-background)] p-6 rounded-lg shadow-xl max-w-xs w-full">
-				{" "}
-				{/* max-w-xs for a more compact card */}
-				{onClose && (
-					<div className="text-right mb-2 -mr-2 -mt-2">
-						{" "}
-						{/* Adjust positioning for close button */}
-						<VSCodeButton appearance="icon" onClick={onClose} title="Close">
-							<span className="codicon codicon-close"></span>
-						</VSCodeButton>
-					</div>
-				)}
-				<div
-					ref={cardRef}
-					className="bg-[var(--vscode-editorWidget-background)] p-6 rounded-md text-[var(--vscode-editorWidget-foreground)]">
-					<div className="flex justify-between items-start mb-4">
-						{" "}
-						{/* Reduced margin */}
-						<h2 className="text-xl font-bold">AI Power User</h2> {/* Slightly smaller title */}
-						<span className="text-xs text-[var(--vscode-descriptionForeground)] pt-1">
-							{" "}
-							{/* Adjusted alignment and size */}
-							{stats.userHandle || "cline_user"}
-						</span>
-					</div>
+	const handleOverlayClick = (event: React.MouseEvent<HTMLDivElement>) => {
+		// Close only if the overlay itself (not its children) is clicked
+		if (event.target === event.currentTarget && onClose) {
+			onClose()
+		}
+	}
 
-					<div className="space-y-4">
-						{" "}
-						{/* Reduced spacing */}
-						<div>
-							<p className="text-[10px] text-[var(--vscode-descriptionForeground)] uppercase tracking-wider mb-0.5">
-								{" "}
-								{/* Smaller text */}
-								Most used model
-							</p>
-							<div className="flex items-center">
-								<span className="codicon codicon-hubot text-xl mr-2"></span> {/* Smaller icon */}
-								<p className="text-lg font-semibold">{stats.mostUsedModel || "N/A"}</p>{" "}
-								{/* Slightly smaller text */}
-							</div>
-						</div>
-						<div>
-							<p className="text-[10px] text-[var(--vscode-descriptionForeground)] uppercase tracking-wider mb-0.5">
-								Total Tokens Processed
-							</p>
-							<div className="flex items-center">
-								<span className="codicon codicon-flame text-xl mr-2"></span> {/* Smaller icon */}
-								<p className="text-lg font-semibold">{formatTokens(stats.totalTokensProcessed)}</p>
-							</div>
-						</div>
-					</div>
-				</div>
-				<div className="mt-5 flex flex-col space-y-2.5">
-					{" "}
-					{/* Reduced margin and spacing */}
-					<VSCodeButton appearance="primary" onClick={handleDownloadImage} className="w-full">
-						Download Card
-					</VSCodeButton>
-					<VSCodeButton appearance="secondary" onClick={handleShareToTwitter} className="w-full">
-						Share on X
-					</VSCodeButton>
-				</div>
+	return (
+		<div
+			className="fixed inset-0 bg-[var(--vscode-editor-background)] bg-opacity-80 flex flex-col items-center justify-center p-4 z-[100]"
+			onClick={handleOverlayClick} // Add click handler to the overlay
+		>
+			{/* Stop propagation for clicks on the card content itself and buttons, so they don't trigger overlay click */}
+			<div onClick={(e) => e.stopPropagation()}>{cardContent}</div>
+			<div
+				className="mt-6 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 w-full max-w-md"
+				onClick={(e) => e.stopPropagation()} // Stop propagation for button container as well
+			>
+				<VSCodeButton appearance="primary" onClick={handleDownloadImage} className="w-full">
+					Download Card
+				</VSCodeButton>
+				<VSCodeButton appearance="secondary" onClick={handleShareToTwitter} className="w-full">
+					Share on X
+				</VSCodeButton>
 			</div>
 		</div>
 	)
