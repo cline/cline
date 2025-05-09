@@ -20,6 +20,8 @@ export interface ActionMetadata {
 	description: string
 	icon: string
 	subAction?: ActionMetadata
+	sub?: boolean
+	parentActionId?: string
 }
 
 const ACTION_METADATA: ActionMetadata[] = [
@@ -35,6 +37,7 @@ const ACTION_METADATA: ActionMetadata[] = [
 			shortName: "Read (all)",
 			description: "Allows Cline to read any file on your computer.",
 			icon: "codicon-folder-opened",
+			parentActionId: "readFiles",
 		},
 	},
 	{
@@ -49,6 +52,7 @@ const ACTION_METADATA: ActionMetadata[] = [
 			shortName: "Edit (all)",
 			description: "Allows Cline to modify any file on your computer.",
 			icon: "codicon-files",
+			parentActionId: "editFiles",
 		},
 	},
 	{
@@ -64,6 +68,7 @@ const ACTION_METADATA: ActionMetadata[] = [
 			shortName: "All Commands",
 			description: "Allows Cline to execute all terminal commands. Use at your own risk.",
 			icon: "codicon-terminal-bash",
+			parentActionId: "executeSafeCommands",
 		},
 	},
 	{
@@ -133,6 +138,10 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 			if (value === false && subActionId) {
 				newActions[subActionId] = false
+			}
+
+			if (value === true && action.parentActionId) {
+				newActions[action.parentActionId as keyof AutoApprovalSettings["actions"]] = true
 			}
 
 			// Check if this will result in any enabled actions
