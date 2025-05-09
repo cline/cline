@@ -173,6 +173,6 @@ Usage:
 <additional_context>Other issue details not already covered</additional_context>
 </report_bug>
 
-Below is the user's input when they indicated that they wanted to create a new Cline rule file.
+Below is the user's input when they indicated that they wanted to submit a Github issue.
 </explicit_instructions>\n
 `
