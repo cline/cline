@@ -7,7 +7,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { handleGrpcRequest } from "./grpc-handler"
+import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
@@ -19,8 +19,7 @@ import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { McpHub } from "@services/mcp/McpHub"
-import { searchWorkspaceFiles } from "@services/search/file-search"
-import { telemetryService } from "@services/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
@@ -28,10 +27,10 @@ import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/Exte
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { ClineCheckpointRestore, WebviewMessage } from "@shared/WebviewMessage"
+import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { searchCommits } from "@utils/git"
-import { getWorkspacePath } from "@utils/path"
+import { getWorkingState } from "@utils/git"
+import { extractCommitMessage } from "@integrations/git/commit-message-generator"
 import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
@@ -48,7 +47,9 @@ import {
 } from "../storage/state"
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { createRuleFile, refreshClineRulesToggles } from "../context/instructions/user-instructions/cline-rules"
+import { sendStateUpdate } from "./state/subscribeToState"
+import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
+import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -326,41 +327,8 @@ export class Controller {
 					images,
 				})
 				break
-			case "exportCurrentTask":
-				const currentTaskId = this.task?.taskId
-				if (currentTaskId) {
-					this.exportTaskWithId(currentTaskId)
-				}
-				break
-			case "showTaskWithId":
-				this.showTaskWithId(message.text!)
-				break
-			case "deleteTasksWithIds":
-				this.deleteTasksWithIds(message.text!)
-				break
-			case "exportTaskWithId":
-				this.exportTaskWithId(message.text!)
-				break
 			case "resetState":
 				await this.resetState()
-				break
-			case "requestOllamaModels":
-				const ollamaModels = await this.getOllamaModels(message.text)
-				this.postMessageToWebview({
-					type: "ollamaModels",
-					ollamaModels,
-				})
-				break
-			case "requestLmStudioModels":
-				const lmStudioModels = await this.getLmStudioModels(message.text)
-				this.postMessageToWebview({
-					type: "lmStudioModels",
-					lmStudioModels,
-				})
-				break
-			case "requestVsCodeLmModels":
-				const vsCodeLmModels = await this.getVsCodeLmModels()
-				this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
 				break
 			case "refreshOpenRouterModels":
 				await this.refreshOpenRouterModels()
@@ -375,6 +343,7 @@ export class Controller {
 				break
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
+				await refreshExternalRulesToggles(this.context, cwd)
 				await this.postStateToWebview()
 				break
 			case "openInBrowser":
@@ -394,9 +363,6 @@ export class Controller {
 				}
 				break
 			}
-			case "getLatestState":
-				await this.postStateToWebview()
-				break
 			case "accountLogoutClicked": {
 				await this.handleSignOut()
 				break
@@ -516,6 +482,32 @@ export class Controller {
 				}
 				break
 			}
+			case "toggleWindsurfRule": {
+				const { rulePath, enabled } = message
+				if (rulePath && typeof enabled === "boolean") {
+					const toggles =
+						((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+					toggles[rulePath] = enabled
+					await updateWorkspaceState(this.context, "localWindsurfRulesToggles", toggles)
+					await this.postStateToWebview()
+				} else {
+					console.error("toggleWindsurfRule: Missing or invalid parameters")
+				}
+				break
+			}
+			case "toggleCursorRule": {
+				const { rulePath, enabled } = message
+				if (rulePath && typeof enabled === "boolean") {
+					const toggles =
+						((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+					toggles[rulePath] = enabled
+					await updateWorkspaceState(this.context, "localCursorRulesToggles", toggles)
+					await this.postStateToWebview()
+				} else {
+					console.error("toggleCursorRule: Missing or invalid parameters")
+				}
+				break
+			}
 			case "requestTotalTasksSize": {
 				this.refreshTotalTasksSize()
 				break
@@ -604,89 +596,24 @@ export class Controller {
 				break
 			}
 			case "clearAllTaskHistory": {
-				await this.deleteAllTaskHistory()
-				await this.postStateToWebview()
-				this.refreshTotalTasksSize()
+				const answer = await vscode.window.showWarningMessage(
+					"What would you like to delete?",
+					{ modal: true },
+					"Delete All Except Favorites",
+					"Delete Everything",
+					"Cancel",
+				)
+
+				if (answer === "Delete All Except Favorites") {
+					await this.deleteNonFavoriteTaskHistory()
+					await this.postStateToWebview()
+					this.refreshTotalTasksSize()
+				} else if (answer === "Delete Everything") {
+					await this.deleteAllTaskHistory()
+					await this.postStateToWebview()
+					this.refreshTotalTasksSize()
+				}
 				this.postMessageToWebview({ type: "relinquishControl" })
-				break
-			}
-			case "getRelativePaths": {
-				if (message.uris && message.uris.length > 0) {
-					const resolvedPaths = await Promise.all(
-						message.uris.map(async (uriString) => {
-							try {
-								const fileUri = vscode.Uri.parse(uriString, true)
-								const relativePath = vscode.workspace.asRelativePath(fileUri, false)
-
-								if (path.isAbsolute(relativePath)) {
-									console.warn(`Dropped file ${relativePath} is outside the workspace. Sending original path.`)
-									return fileUri.fsPath.replace(/\\/g, "/")
-								} else {
-									let finalPath = "/" + relativePath.replace(/\\/g, "/")
-									try {
-										const stat = await vscode.workspace.fs.stat(fileUri)
-										if (stat.type === vscode.FileType.Directory) {
-											finalPath += "/"
-										}
-									} catch (statError) {
-										console.error(`Error stating file ${fileUri.fsPath}:`, statError)
-									}
-									return finalPath
-								}
-							} catch (error) {
-								console.error(`Error calculating relative path for ${uriString}:`, error)
-								return null
-							}
-						}),
-					)
-					await this.postMessageToWebview({
-						type: "relativePathsResponse",
-						paths: resolvedPaths,
-					})
-				}
-				break
-			}
-			case "searchFiles": {
-				const workspacePath = getWorkspacePath()
-
-				if (!workspacePath) {
-					// Handle case where workspace path is not available
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results: [],
-						mentionsRequestId: message.mentionsRequestId,
-						error: "No workspace path available",
-					})
-					break
-				}
-				try {
-					// Call file search service with query from message
-					const results = await searchWorkspaceFiles(
-						message.query || "",
-						workspacePath,
-						20, // Use default limit, as filtering is now done in the backend
-					)
-
-					// debug logging to be removed
-					//console.log(`controller/index.ts: Search results: ${results.length}`)
-
-					// Send results back to webview
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results,
-						mentionsRequestId: message.mentionsRequestId,
-					})
-				} catch (error) {
-					const errorMessage = error instanceof Error ? error.message : String(error)
-
-					// Send error response to webview
-					await this.postMessageToWebview({
-						type: "fileSearchResults",
-						results: [],
-						error: errorMessage,
-						mentionsRequestId: message.mentionsRequestId,
-					})
-				}
 				break
 			}
 			case "toggleFavoriteModel": {
@@ -713,6 +640,12 @@ export class Controller {
 			case "grpc_request": {
 				if (message.grpc_request) {
 					await handleGrpcRequest(this, message.grpc_request)
+				}
+				break
+			}
+			case "grpc_request_cancel": {
+				if (message.grpc_request_cancel) {
+					await handleGrpcRequestCancel(this, message.grpc_request_cancel)
 				}
 				break
 			}
@@ -949,56 +882,6 @@ export class Controller {
 		await updateGlobalState(this.context, "customInstructions", instructions || undefined)
 		if (this.task) {
 			this.task.customInstructions = instructions || undefined
-		}
-	}
-
-	// VSCode LM API
-
-	private async getVsCodeLmModels() {
-		try {
-			const models = await vscode.lm.selectChatModels({})
-			return models || []
-		} catch (error) {
-			console.error("Error fetching VS Code LM models:", error)
-			return []
-		}
-	}
-
-	// Ollama
-
-	async getOllamaModels(baseUrl?: string) {
-		try {
-			if (!baseUrl) {
-				baseUrl = "http://localhost:11434"
-			}
-			if (!URL.canParse(baseUrl)) {
-				return []
-			}
-			const response = await axios.get(`${baseUrl}/api/tags`)
-			const modelsArray = response.data?.models?.map((model: any) => model.name) || []
-			const models = [...new Set<string>(modelsArray)]
-			return models
-		} catch (error) {
-			return []
-		}
-	}
-
-	// LM Studio
-
-	async getLmStudioModels(baseUrl?: string) {
-		try {
-			if (!baseUrl) {
-				baseUrl = "http://localhost:1234"
-			}
-			if (!URL.canParse(baseUrl)) {
-				return []
-			}
-			const response = await axios.get(`${baseUrl}/v1/models`)
-			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
-			const models = [...new Set<string>(modelsArray)]
-			return models
-		} catch (error) {
-			return []
 		}
 	}
 
@@ -1407,13 +1290,21 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 							modelInfo.cacheWritesPrice = 0.14
 							modelInfo.cacheReadsPrice = 0.014
 							break
-						case "google/gemini-2.5-pro-preview-03-25":
-						case "google/gemini-2.0-flash-001":
-						case "google/gemini-flash-1.5":
-						case "google/gemini-pro-1.5":
-							modelInfo.supportsPromptCache = true
-							modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
-							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
+						default:
+							if (rawModel.id.startsWith("openai/")) {
+								modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
+								if (modelInfo.cacheReadsPrice) {
+									modelInfo.supportsPromptCache = true
+									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
+									// openrouter charges no cache write pricing for openAI models
+								}
+							} else if (rawModel.id.startsWith("google/")) {
+								modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
+								if (modelInfo.cacheReadsPrice) {
+									modelInfo.supportsPromptCache = true
+									modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
+								}
+							}
 							break
 					}
 
@@ -1654,6 +1545,43 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		// await this.postStateToWebview()
 	}
 
+	async deleteNonFavoriteTaskHistory() {
+		await this.clearTask()
+
+		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[]) || []
+		const favoritedTasks = taskHistory.filter((task) => task.isFavorited === true)
+
+		// If user has no favorited tasks, show a warning message
+		if (favoritedTasks.length === 0) {
+			vscode.window.showWarningMessage("No favorited tasks found. Please favorite tasks before using this option.")
+			await this.postStateToWebview()
+			return
+		}
+
+		await updateGlobalState(this.context, "taskHistory", favoritedTasks)
+
+		// Delete non-favorited task directories
+		try {
+			const preserveTaskIds = favoritedTasks.map((task) => task.id)
+			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
+
+			if (await fileExistsAtPath(taskDirPath)) {
+				const taskDirs = await fs.readdir(taskDirPath)
+				for (const taskDir of taskDirs) {
+					if (!preserveTaskIds.includes(taskDir)) {
+						await fs.rm(path.join(taskDirPath, taskDir), { recursive: true, force: true })
+					}
+				}
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(
+				`Error deleting task history: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+
+		await this.postStateToWebview()
+	}
+
 	async refreshTotalTasksSize() {
 		getTotalTasksSize(this.context.globalStorageUri.fsPath)
 			.then((newTotalSize) => {
@@ -1712,12 +1640,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		this.refreshTotalTasksSize()
 	}
 
-	async deleteTasksWithIds(ids: string) {
-		for (const id of JSON.parse(ids) as string[]) {
-			await this.deleteTaskWithId(id)
-		}
-	}
-
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
 		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
@@ -1732,7 +1654,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		this.postMessageToWebview({ type: "state", state })
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -1754,6 +1676,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		const localClineRulesToggles =
 			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
+
+		const localWindsurfRulesToggles =
+			((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
+
+		const localCursorRulesToggles =
+			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1779,11 +1707,16 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
+			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
+			localCursorRulesToggles: localCursorRulesToggles || {},
 			shellIntegrationTimeout,
 		}
 	}
 
 	async clearTask() {
+		if (this.task) {
+			await telemetryService.sendCollectedEvents(this.task.taskId)
+		}
 		this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
 	}
@@ -1873,6 +1806,109 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				error: `Failed to fetch Open Graph data: ${error}`,
 				url: url,
 			})
+		}
+	}
+
+	// Git commit message generation
+
+	async generateGitCommitMessage() {
+		try {
+			// Check if there's a workspace folder open
+			const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+			if (!cwd) {
+				vscode.window.showErrorMessage("No workspace folder open")
+				return
+			}
+
+			// Get the git diff
+			const gitDiff = await getWorkingState(cwd)
+			if (gitDiff === "No changes in working directory") {
+				vscode.window.showInformationMessage("No changes in workspace for commit message")
+				return
+			}
+
+			// Show a progress notification
+			await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: "Generating commit message...",
+					cancellable: false,
+				},
+				async (progress, token) => {
+					try {
+						// Format the git diff into a prompt
+						const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
+
+${gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff}
+
+The commit message should:
+1. Start with a short summary (50-72 characters)
+2. Use the imperative mood (e.g., "Add feature" not "Added feature")
+3. Describe what was changed and why
+4. Be clear and descriptive
+
+Commit message:`
+
+						// Get the current API configuration
+						const { apiConfiguration } = await getAllExtensionState(this.context)
+
+						// Build the API handler
+						const apiHandler = buildApiHandler(apiConfiguration)
+
+						// Create a system prompt
+						const systemPrompt =
+							"You are a helpful assistant that generates concise and descriptive git commit messages based on git diffs."
+
+						// Create a message for the API
+						const messages = [
+							{
+								role: "user" as const,
+								content: prompt,
+							},
+						]
+
+						// Call the API directly
+						const stream = apiHandler.createMessage(systemPrompt, messages)
+
+						// Collect the response
+						let response = ""
+						for await (const chunk of stream) {
+							if (chunk.type === "text") {
+								response += chunk.text
+							}
+						}
+
+						// Extract the commit message
+						const commitMessage = extractCommitMessage(response)
+
+						// Apply the commit message to the Git input box
+						if (commitMessage) {
+							// Get the Git extension API
+							const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
+							if (gitExtension) {
+								const api = gitExtension.getAPI(1)
+								if (api && api.repositories.length > 0) {
+									const repo = api.repositories[0]
+									repo.inputBox.value = commitMessage
+									vscode.window.showInformationMessage("Commit message generated and applied")
+								} else {
+									vscode.window.showErrorMessage("No Git repositories found")
+								}
+							} else {
+								vscode.window.showErrorMessage("Git extension not found")
+							}
+						} else {
+							vscode.window.showErrorMessage("Failed to generate commit message")
+						}
+					} catch (innerError) {
+						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
+						vscode.window.showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
+					}
+				},
+			)
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
 		}
 	}
 

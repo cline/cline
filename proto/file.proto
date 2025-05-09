@@ -22,6 +22,44 @@ service FileService {
   
   // Search git commits in the workspace
   rpc searchCommits(StringRequest) returns (GitCommits);
+  
+  // Convert URIs to workspace-relative paths
+  rpc getRelativePaths(RelativePathsRequest) returns (RelativePaths);
+
+  // Search for files in the workspace with fuzzy matching
+  rpc searchFiles(FileSearchRequest) returns (FileSearchResults);
+}
+
+// Request to convert a list of URIs to relative paths
+message RelativePathsRequest {
+  Metadata metadata = 1;
+  repeated string uris = 2;
+}
+
+// Response containing the converted relative paths
+message RelativePaths {
+  repeated string paths = 1;
+}
+
+// Request for file search operations
+message FileSearchRequest {
+  Metadata metadata = 1;
+  string query = 2;                  // Search query string
+  optional string mentions_request_id = 3;  // Optional request ID for tracking requests
+  optional int32 limit = 4;          // Optional limit for results (default: 20)
+}
+
+// Result for file search operations
+message FileSearchResults {
+  repeated FileInfo results = 1;     // Array of file/folder results
+  optional string mentions_request_id = 2;  // Echo of the request ID for tracking
+}
+
+// File information structure for search results
+message FileInfo {
+  string path = 1;                   // Relative path from workspace root
+  string type = 2;                   // "file" or "folder"
+  optional string label = 3;         // Display name (usually basename)
 }
 
 // Response for searchCommits
@@ -52,4 +90,3 @@ message RuleFile {
   string display_name = 2;  // Filename for display purposes
   bool already_exists = 3;  // For createRuleFile, indicates if file already existed
 }
-

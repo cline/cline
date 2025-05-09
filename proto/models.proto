@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Service for model-related operations
+service ModelsService {
+  // Fetches available models from Ollama
+  rpc getOllamaModels(StringRequest) returns (StringArray);
+  // Fetches available models from LM Studio
+  rpc getLmStudioModels(StringRequest) returns (StringArray);
+  // Fetches available models from VS Code LM API
+  rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
+}
+
+// List of VS Code LM models
+message VsCodeLmModelsArray {
+  repeated VsCodeLmModel models = 1;
+}
+
+// Structure representing a VS Code LM model
+message VsCodeLmModel {
+  string vendor = 1;
+  string family = 2;
+  string version = 3;
+  string id = 4;
+}

@@ -55,6 +55,23 @@
 	"navigation": {
 		"groups": [
 			{
+				"group": "Getting Started",
+				"pages": [
+					"getting-started/for-new-coders",
+					"getting-started/installing-cline",
+					"getting-started/installing-dev-essentials",
+					"getting-started/model-selection-guide",
+					"getting-started/our-favorite-tech-stack",
+					"getting-started/task-management",
+					"getting-started/understanding-context-management",
+					"getting-started/what-is-cline"
+				]
+			},
+			{
+				"group": "Improving Your Prompting Skills",
+				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
+			},
+			{
 				"group": "Exploring Cline's Tools",
 				"pages": [
 					"exploring-clines-tools/cline-tools-guide",
@@ -64,6 +81,48 @@
 					"exploring-clines-tools/remote-browser-support",
 					"exploring-clines-tools/slash-commands"
 				]
+			},
+			{
+				"group": "Enterprise Solutions",
+				"pages": [
+					"enterprise-solutions/cloud-provider-integration",
+					"enterprise-solutions/custom-instructions",
+					"enterprise-solutions/mcp-servers",
+					"enterprise-solutions/security-concerns"
+				]
+			},
+			{
+				"group": "MCP Servers",
+				"pages": [
+					"mcp/mcp-overview",
+					"mcp/adding-mcp-servers-from-github",
+					"mcp/configuring-mcp-servers",
+					"mcp/connecting-to-a-remote-server",
+					"mcp/mcp-marketplace",
+					"mcp/mcp-server-development-protocol",
+					"mcp/mcp-transport-mechanisms"
+				]
+			},
+			{
+				"group": "Custom Model Configurations",
+				"pages": [
+					"custom-model-configs/aws-bedrock-with-credentials-authentication",
+					"custom-model-configs/aws-bedrock-with-profile-authentication",
+					"custom-model-configs/gcp-vertex-ai",
+					"custom-model-configs/litellm-and-cline-using-codestral"
+				]
+			},
+			{
+				"group": "Running Models Locally",
+				"pages": [
+					"running-models-locally/read-me-first",
+					"running-models-locally/lm-studio",
+					"running-models-locally/ollama"
+				]
+			},
+			{
+				"group": "More Info",
+				"pages": ["more-info/telemetry"]
 			}
 		]
 	},
