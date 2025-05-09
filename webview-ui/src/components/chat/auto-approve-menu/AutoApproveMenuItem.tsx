@@ -28,22 +28,22 @@ const CheckboxContainer = styled.div<{
 	transition: all 0.2s ease;
 
 	&:hover {
-		background-color: rgba(255, 255, 255, 0.05);
+		background-color: var(--vscode-textBlockQuote-background);
 	}
 
 	.icon {
-		color: #cccccc;
+		color: var(--vscode-foreground);
 		font-size: 14px;
 	}
 
 	.label {
-		color: #cccccc;
+		color: var(--vscode-foreground);
 		font-size: 12px;
 		font-weight: 500;
 	}
 
 	.star {
-		color: ${(props) => (props.isFavorited ? "#FFCC00" : "#CCCCCC")};
+		color: ${(props) => (props.isFavorited ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)")};
 		opacity: ${(props) => (props.isFavorited ? 1 : 0.6)};
 		margin-left: 4px;
 		font-size: 12px;

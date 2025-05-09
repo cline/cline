@@ -254,7 +254,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		<div
 			ref={menuRef}
 			style={{
-				padding: "0 15px",
+				padding: "0 10px",
+				margin: "0 5px",
 				userSelect: "none",
 				borderTop: `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`,
 				overflowY: "auto",
