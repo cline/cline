@@ -4,6 +4,7 @@ out
 out-*
 node_modules
 coverage/
+mock/
 
 .DS_Store
 
