@@ -121,14 +121,13 @@ type ProviderSettings = {
 	unboundModelId?: string | undefined
 	requestyApiKey?: string | undefined
 	requestyModelId?: string | undefined
+	fakeAi?: unknown | undefined
 	xaiApiKey?: string | undefined
 	groqApiKey?: string | undefined
 	chutesApiKey?: string | undefined
 	litellmBaseUrl?: string | undefined
 	litellmApiKey?: string | undefined
 	litellmModelId?: string | undefined
-	modelMaxTokens?: number | undefined
-	modelMaxThinkingTokens?: number | undefined
 	includeMaxTokens?: boolean | undefined
 	reasoningEffort?: ("low" | "medium" | "high") | undefined
 	promptCachingDisabled?: boolean | undefined
@@ -136,7 +135,8 @@ type ProviderSettings = {
 	fuzzyMatchThreshold?: number | undefined
 	modelTemperature?: (number | null) | undefined
 	rateLimitSeconds?: number | undefined
-	fakeAi?: unknown | undefined
+	modelMaxTokens?: number | undefined
+	modelMaxThinkingTokens?: number | undefined
 }
 
 type GlobalSettings = {
