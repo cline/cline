@@ -7,6 +7,9 @@ const OUT_FILE = `${BUILD_DIR}/index.js`
 const EXTENSION_FILE = `${BUILD_DIR}/extension.js`
 
 const grpcFiles = fs.readdirSync(BUILD_DIR).filter((f) => f.endsWith("_grpc_pb.js"))
+const protoFiles = fs.readdirSync(BUILD_DIR).filter((f) => f.endsWith(".proto"))
+  .map((f) => "'" + f + "'")
+  .join(',\n  ')
 
 const imports = grpcFiles
 	.map((f) => {
@@ -15,7 +18,7 @@ const imports = grpcFiles
 	})
 	.join("\n")
 
-function generateHandlers(grpcFiles) {
+function generateHandlersAndExports(grpcFiles) {
 	let handlers = []
 	let exports_ = []
 	for (const f of grpcFiles) {
@@ -42,13 +45,15 @@ function capitalize(s) {
 	return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-const { handlers, exports_ } = generateHandlers(grpcFiles)
+const { handlers, exports_ } = generateHandlersAndExports(grpcFiles)
 
 let output = "// GENERATED CODE -- DO NOT EDIT!\n"
 const template = fs.readFileSync(SERVER_TEMPLATE, "utf8")
 // The template vars look like comments because the presubmit needs js files to be
 // valid and formatted correctly.
-output += template.replace("// __IMPORTS__", imports).replace("// __HANDLERS__", handlers)
+output += template.replace("// __IMPORTS__", imports)
+  .replace("// __HANDLERS__", handlers)
+  .replace('// __PROTO_FILES__', protoFiles)
 fs.writeFileSync(OUT_FILE, output)
 
 fs.writeFileSync(EXTENSION_FILE, exports_, { flag: "a" })

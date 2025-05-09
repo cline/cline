@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eux
+set -ux
 
 BUILD_DIR=build/
 
@@ -9,18 +9,18 @@ if [ ! -f ../dist/extension.js ]; then
 fi
 
 mkdir -p $BUILD_DIR 2>/dev/null || true
-cp -av files/* $BUILD_DIR
+cp -av files/. $BUILD_DIR
 
 # Generate gRPC service definition protos
 PROTO_DIR=../proto
-HEALTH_PROTO=$(node -p 'require("grpc-health-check").protoPath')
-HEALTH_PROTO_DIR=$(dirname $HEALTH_PROTO)
 
 npx grpc_tools_node_protoc \
   --js_out=import_style=commonjs,binary:$BUILD_DIR \
   --grpc_out=grpc_js:$BUILD_DIR \
-  --proto_path=$PROTO_DIR --proto_path=$HEALTH_PROTO_DIR \
-  ${PROTO_DIR}/*.proto $HEALTH_PROTO
+  --proto_path=$PROTO_DIR \
+  ${PROTO_DIR}/*.proto
+
+cp -av $PROTO_DIR/*.proto $BUILD_DIR
 
 # Copy pre-built extension
 cp ../dist/extension.js $BUILD_DIR
