@@ -63,11 +63,7 @@ const SubOptionAnimateIn = styled.div<{ show: boolean }>`
 	opacity: ${(props) => (props.show ? "1" : "0")};
 	height: ${(props) => (props.show ? "auto" : "0")}; /* Manage height for layout */
 	overflow: visible; /* Allow tooltips to escape */
-	transition:
-		transform 0.2s ease-in-out,
-		opacity 0.2s ease-in-out,
-		height 0s linear ${(props) => (props.show ? "0s" : "0.2s")};
-	/* Delay height transition on hide to allow transform/opacity to finish */
+	transition: transform 0.2s ease-in-out;
 `
 
 const ActionButtonContainer = styled.div`
