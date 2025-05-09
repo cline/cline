@@ -297,6 +297,7 @@ const rehypeSearchHighlight = (options: { searchQuery?: string }) => {
 		// Escape regex special characters in the query
 		const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 		const regex = new RegExp(`(${escapedQuery})`, "gi")
+		let matchOccurenceCounter = 0 // Counter for occurrences within this MarkdownBlock instance
 
 		visit(tree, "text", (node: any, index, parent: any) => {
 			// Ensure we are not inside a <pre> or <code> tag to avoid messing with code syntax highlighting
@@ -323,16 +324,21 @@ const rehypeSearchHighlight = (options: { searchQuery?: string }) => {
 						newNodes.push({
 							type: "element",
 							tagName: "mark",
-							properties: { className: ["search-highlight"] },
+							properties: {
+								className: ["search-highlight"],
+								"data-match-index": String(matchOccurenceCounter),
+							},
 							children: [{ type: "text", value: part }],
 						})
+						matchOccurenceCounter++
 					} else {
 						newNodes.push({ type: "text", value: part })
 					}
 				}
 			})
 
-			if (newNodes.length > 0 && (newNodes.length > 1 || newNodes[0].type !== "text")) {
+			if (newNodes.length > 0 && (newNodes.length > 1 || newNodes.some((n) => n.type === "element"))) {
+				// Ensure replacement happens if a mark was added
 				parent.children.splice(index, 1, ...newNodes)
 				return ["skip", index + newNodes.length - 1] // Adjust index and skip new nodes
 			}

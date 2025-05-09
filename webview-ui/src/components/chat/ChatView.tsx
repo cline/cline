@@ -91,6 +91,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [searchQuery, setSearchQuery] = useState("")
 	const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]) // Added for search results
 	const [isResultsPanelVisible, setIsResultsPanelVisible] = useState(false) // Added for panel visibility
+	const [activePreciseMatch, setActivePreciseMatch] = useState<{ messageTs: number; occurrenceInMessage: number } | null>(null) // For precise scrolling
 	const [inputValue, setInputValue] = useState("")
 	const [activeQuote, setActiveQuote] = useState<string | null>(null)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
@@ -709,6 +710,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					id: `${message.ts}-${occurrenceIndex}`,
 					messageTs: message.ts,
 					snippet: snippet,
+					occurrenceInMessage: 0, // For now, snippets from panel point to the first occurrence
 				})
 				occurrenceIndex++ // Increment if we were to find multiple matches per message
 			}
@@ -717,6 +719,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setSearchResults(results)
 		setIsResultsPanelVisible(results.length > 0)
 	}, [searchQuery, visibleMessages])
+
+	// Effect to clear activePreciseMatch after a short delay
+	useEffect(() => {
+		if (activePreciseMatch) {
+			const timer = setTimeout(() => {
+				setActivePreciseMatch(null)
+			}, 750) // Delay to allow ChatRow to scroll, adjust as needed
+			return () => clearTimeout(timer)
+		}
+	}, [activePreciseMatch])
 
 	// const isBrowserSessionMessage must be defined before groupedMessages
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
@@ -814,10 +826,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [searchedAndVisibleMessages, isBrowserSessionMessage]) // <-- Update dependencies
 
 	const handleSearchResultClick = useCallback(
-		(messageTs: number) => {
+		(messageTs: number, occurrenceInMessage: number) => {
+			// Updated signature
 			const messageIndex = groupedMessages.findIndex((msgOrGroup) => {
 				if (Array.isArray(msgOrGroup)) {
-					// For browser session groups, check if any message in the group matches
 					return msgOrGroup.some((msg) => msg.ts === messageTs)
 				}
 				return msgOrGroup.ts === messageTs
@@ -826,15 +838,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			if (messageIndex !== -1 && virtuosoRef.current) {
 				virtuosoRef.current.scrollToIndex({
 					index: messageIndex,
-					align: "center", // Or 'start'
-					behavior: "smooth",
+					align: "start", // Changed to 'start'
+					behavior: "auto",
 				})
-				// Optional: Hide panel or clear search after clicking
-				// setIsResultsPanelVisible(false);
-				// setSearchQuery("");
+				setActivePreciseMatch({ messageTs, occurrenceInMessage })
 			}
 		},
-		[groupedMessages], // groupedMessages is now defined before this callback
+		[groupedMessages, setActivePreciseMatch],
 	)
 
 	// scrolling
@@ -958,6 +968,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const itemContent = useCallback(
 		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {
+			const currentItemTs = Array.isArray(messageOrGroup) ? messageOrGroup[0]?.ts : messageOrGroup.ts // Get TS for group or single message
+			const isTargetForPreciseScroll = activePreciseMatch?.messageTs === currentItemTs
+			const occurrenceIndexForTarget = isTargetForPreciseScroll ? activePreciseMatch.occurrenceInMessage : -1
+
 			// browser session group
 			if (Array.isArray(messageOrGroup)) {
 				return (
@@ -966,7 +980,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						isLast={index === groupedMessages.length - 1}
 						lastModifiedMessage={modifiedMessages.at(-1)}
 						onHeightChange={handleRowHeightChange}
-						// Pass handlers for each message in the group
 						isExpanded={(messageTs: number) => expandedRows[messageTs] ?? false}
 						onToggleExpand={(messageTs: number) => {
 							setExpandedRows((prev) => ({
@@ -975,7 +988,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}))
 						}}
 						onSetQuote={setActiveQuote}
-						searchQuery={searchQuery} // Pass searchQuery
+						searchQuery={searchQuery}
+						// For BrowserSessionRow, precise scrolling within its sub-messages is more complex
+						// and not handled by this top-level activePreciseMatch directly.
+						// It would need its own internal logic if sub-messages are individually scrollable targets.
+						// For now, we pass undefined or a generic value.
+						isActivePreciseMatch={false} // Or determine if the *group* is the target
+						activeOccurrenceIndex={-1}
 					/>
 				)
 			}
@@ -993,7 +1012,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					inputValue={inputValue}
 					sendMessageFromChatRow={handleSendMessage}
 					onSetQuote={setActiveQuote}
-					searchQuery={searchQuery} // Pass searchQuery
+					searchQuery={searchQuery}
+					isActivePreciseMatch={isTargetForPreciseScroll}
+					activeOccurrenceIndex={occurrenceIndexForTarget}
 				/>
 			)
 		},
@@ -1005,7 +1026,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			handleRowHeightChange,
 			inputValue,
 			setActiveQuote,
-			searchQuery, // Add searchQuery to dependencies
+			searchQuery,
+			activePreciseMatch, // Added activePreciseMatch to dependencies
 		],
 	)
 

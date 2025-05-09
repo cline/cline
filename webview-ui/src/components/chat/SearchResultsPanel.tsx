@@ -5,7 +5,7 @@ import { SearchResultItem } from "./SearchResultItem" // Assuming SearchResultIt
 interface SearchResultsPanelProps {
 	results: SearchResultItem[]
 	searchQuery: string
-	onResultClick: (messageTs: number) => void
+	onResultClick: (messageTs: number, occurrenceInMessage: number) => void // Updated signature
 	isVisible: boolean
 }
 
@@ -81,7 +81,7 @@ const SearchResultsPanel: React.FC<SearchResultsPanelProps> = ({ results, search
 				<NoResultsMessage>No results found for "{searchQuery}"</NoResultsMessage>
 			)}
 			{results.map((item) => (
-				<ResultItemContainer key={item.id} onClick={() => onResultClick(item.messageTs)}>
+				<ResultItemContainer key={item.id} onClick={() => onResultClick(item.messageTs, item.occurrenceInMessage)}>
 					{highlightSnippet(item.snippet, searchQuery)}
 				</ResultItemContainer>
 			))}

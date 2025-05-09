@@ -56,7 +56,9 @@ interface ChatRowProps {
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
 	onSetQuote: (text: string) => void
-	searchQuery?: string // Added for search highlighting
+	searchQuery?: string
+	isActivePreciseMatch?: boolean // For precise scrolling
+	activeOccurrenceIndex?: number // Index of the match within this message to scroll to
 }
 
 interface QuoteButtonState {
@@ -165,7 +167,9 @@ export const ChatRowContent = ({
 	inputValue,
 	sendMessageFromChatRow,
 	onSetQuote,
-	searchQuery, // Destructure searchQuery
+	searchQuery,
+	isActivePreciseMatch,
+	activeOccurrenceIndex,
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
@@ -286,6 +290,37 @@ export const ChatRowContent = ({
 			// Scenario C (Click WAS on button): Do nothing here, handleQuoteClick takes over.
 		}, 0) // Delay of 0ms pushes execution after current event cycle
 	}, []) // Dependencies remain empty
+
+	// Effect for precise scrolling
+	useEffect(() => {
+		if (
+			isActivePreciseMatch &&
+			typeof activeOccurrenceIndex === "number" &&
+			activeOccurrenceIndex !== -1 &&
+			contentRef.current
+		) {
+			// Using a small timeout to ensure DOM updates from MarkdownBlock (adding data-match-index) have occurred.
+			const timerId = setTimeout(() => {
+				if (contentRef.current) {
+					// Re-check ref inside timeout
+					const targetMarkElement = contentRef.current.querySelector(
+						`mark.search-highlight[data-match-index="${activeOccurrenceIndex}"]`,
+					)
+					if (targetMarkElement) {
+						targetMarkElement.scrollIntoView({
+							behavior: "smooth",
+							block: "center",
+							inline: "nearest",
+						})
+						// Optional: Add a temporary class for more prominent highlighting of the active precise match
+						// targetMarkElement.classList.add('current-active-search-hit');
+						// setTimeout(() => targetMarkElement.classList.remove('current-active-search-hit'), 2000);
+					}
+				}
+			}, 100) // Adjust delay if necessary, 0ms might also work with requestAnimationFrame
+			return () => clearTimeout(timerId)
+		}
+	}, [isActivePreciseMatch, activeOccurrenceIndex, searchQuery, contentRef]) // searchQuery ensures re-run if highlights change
 
 	const [icon, title] = useMemo(() => {
 		switch (type) {
