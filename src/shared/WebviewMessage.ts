@@ -20,7 +20,6 @@ export interface WebviewMessage {
 		| "openInBrowser"
 		| "openMention"
 		| "showChatView"
-		| "refreshOpenRouterModels"
 		| "refreshRequestyModels"
 		| "refreshOpenAiModels"
 		| "refreshClineRules"

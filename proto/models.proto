@@ -14,6 +14,8 @@ service ModelsService {
   rpc getLmStudioModels(StringRequest) returns (StringArray);
   // Fetches available models from VS Code LM API
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
+  // Refreshes and returns OpenRouter models
+  rpc refreshOpenRouterModels(EmptyRequest) returns (OpenRouterModels);
 }
 
 // List of VS Code LM models
@@ -28,3 +30,22 @@ message VsCodeLmModel {
   string version = 3;
   string id = 4;
 }
+
+// For ModelInfo structure in OpenRouterModels
+message OpenRouterModelInfo {
+  int32 max_tokens = 1;
+  int32 context_window = 2;
+  bool supports_images = 3;
+  bool supports_prompt_cache = 4;
+  double input_price = 5;
+  double output_price = 6;
+  double cache_writes_price = 7;
+  double cache_reads_price = 8;
+  string description = 9;
+}
+
+// Response message for OpenRouter models
+message OpenRouterModels {
+  map<string, OpenRouterModelInfo> models = 1;
+}
+

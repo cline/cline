@@ -23,6 +23,29 @@ export interface VsCodeLmModel {
 	id: string
 }
 
+/** For ModelInfo structure in OpenRouterModels */
+export interface OpenRouterModelInfo {
+	maxTokens: number
+	contextWindow: number
+	supportsImages: boolean
+	supportsPromptCache: boolean
+	inputPrice: number
+	outputPrice: number
+	cacheWritesPrice: number
+	cacheReadsPrice: number
+	description: string
+}
+
+/** Response message for OpenRouter models */
+export interface OpenRouterModels {
+	models: { [key: string]: OpenRouterModelInfo }
+}
+
+export interface OpenRouterModels_ModelsEntry {
+	key: string
+	value?: OpenRouterModelInfo | undefined
+}
+
 function createBaseVsCodeLmModelsArray(): VsCodeLmModelsArray {
 	return { models: [] }
 }
@@ -191,6 +214,363 @@ export const VsCodeLmModel: MessageFns<VsCodeLmModel> = {
 	},
 }
 
+function createBaseOpenRouterModelInfo(): OpenRouterModelInfo {
+	return {
+		maxTokens: 0,
+		contextWindow: 0,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "",
+	}
+}
+
+export const OpenRouterModelInfo: MessageFns<OpenRouterModelInfo> = {
+	encode(message: OpenRouterModelInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.maxTokens !== 0) {
+			writer.uint32(8).int32(message.maxTokens)
+		}
+		if (message.contextWindow !== 0) {
+			writer.uint32(16).int32(message.contextWindow)
+		}
+		if (message.supportsImages !== false) {
+			writer.uint32(24).bool(message.supportsImages)
+		}
+		if (message.supportsPromptCache !== false) {
+			writer.uint32(32).bool(message.supportsPromptCache)
+		}
+		if (message.inputPrice !== 0) {
+			writer.uint32(41).double(message.inputPrice)
+		}
+		if (message.outputPrice !== 0) {
+			writer.uint32(49).double(message.outputPrice)
+		}
+		if (message.cacheWritesPrice !== 0) {
+			writer.uint32(57).double(message.cacheWritesPrice)
+		}
+		if (message.cacheReadsPrice !== 0) {
+			writer.uint32(65).double(message.cacheReadsPrice)
+		}
+		if (message.description !== "") {
+			writer.uint32(74).string(message.description)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): OpenRouterModelInfo {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseOpenRouterModelInfo()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.maxTokens = reader.int32()
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.contextWindow = reader.int32()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.supportsImages = reader.bool()
+					continue
+				}
+				case 4: {
+					if (tag !== 32) {
+						break
+					}
+
+					message.supportsPromptCache = reader.bool()
+					continue
+				}
+				case 5: {
+					if (tag !== 41) {
+						break
+					}
+
+					message.inputPrice = reader.double()
+					continue
+				}
+				case 6: {
+					if (tag !== 49) {
+						break
+					}
+
+					message.outputPrice = reader.double()
+					continue
+				}
+				case 7: {
+					if (tag !== 57) {
+						break
+					}
+
+					message.cacheWritesPrice = reader.double()
+					continue
+				}
+				case 8: {
+					if (tag !== 65) {
+						break
+					}
+
+					message.cacheReadsPrice = reader.double()
+					continue
+				}
+				case 9: {
+					if (tag !== 74) {
+						break
+					}
+
+					message.description = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): OpenRouterModelInfo {
+		return {
+			maxTokens: isSet(object.maxTokens) ? globalThis.Number(object.maxTokens) : 0,
+			contextWindow: isSet(object.contextWindow) ? globalThis.Number(object.contextWindow) : 0,
+			supportsImages: isSet(object.supportsImages) ? globalThis.Boolean(object.supportsImages) : false,
+			supportsPromptCache: isSet(object.supportsPromptCache) ? globalThis.Boolean(object.supportsPromptCache) : false,
+			inputPrice: isSet(object.inputPrice) ? globalThis.Number(object.inputPrice) : 0,
+			outputPrice: isSet(object.outputPrice) ? globalThis.Number(object.outputPrice) : 0,
+			cacheWritesPrice: isSet(object.cacheWritesPrice) ? globalThis.Number(object.cacheWritesPrice) : 0,
+			cacheReadsPrice: isSet(object.cacheReadsPrice) ? globalThis.Number(object.cacheReadsPrice) : 0,
+			description: isSet(object.description) ? globalThis.String(object.description) : "",
+		}
+	},
+
+	toJSON(message: OpenRouterModelInfo): unknown {
+		const obj: any = {}
+		if (message.maxTokens !== 0) {
+			obj.maxTokens = Math.round(message.maxTokens)
+		}
+		if (message.contextWindow !== 0) {
+			obj.contextWindow = Math.round(message.contextWindow)
+		}
+		if (message.supportsImages !== false) {
+			obj.supportsImages = message.supportsImages
+		}
+		if (message.supportsPromptCache !== false) {
+			obj.supportsPromptCache = message.supportsPromptCache
+		}
+		if (message.inputPrice !== 0) {
+			obj.inputPrice = message.inputPrice
+		}
+		if (message.outputPrice !== 0) {
+			obj.outputPrice = message.outputPrice
+		}
+		if (message.cacheWritesPrice !== 0) {
+			obj.cacheWritesPrice = message.cacheWritesPrice
+		}
+		if (message.cacheReadsPrice !== 0) {
+			obj.cacheReadsPrice = message.cacheReadsPrice
+		}
+		if (message.description !== "") {
+			obj.description = message.description
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<OpenRouterModelInfo>, I>>(base?: I): OpenRouterModelInfo {
+		return OpenRouterModelInfo.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<OpenRouterModelInfo>, I>>(object: I): OpenRouterModelInfo {
+		const message = createBaseOpenRouterModelInfo()
+		message.maxTokens = object.maxTokens ?? 0
+		message.contextWindow = object.contextWindow ?? 0
+		message.supportsImages = object.supportsImages ?? false
+		message.supportsPromptCache = object.supportsPromptCache ?? false
+		message.inputPrice = object.inputPrice ?? 0
+		message.outputPrice = object.outputPrice ?? 0
+		message.cacheWritesPrice = object.cacheWritesPrice ?? 0
+		message.cacheReadsPrice = object.cacheReadsPrice ?? 0
+		message.description = object.description ?? ""
+		return message
+	},
+}
+
+function createBaseOpenRouterModels(): OpenRouterModels {
+	return { models: {} }
+}
+
+export const OpenRouterModels: MessageFns<OpenRouterModels> = {
+	encode(message: OpenRouterModels, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		Object.entries(message.models).forEach(([key, value]) => {
+			OpenRouterModels_ModelsEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join()
+		})
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): OpenRouterModels {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseOpenRouterModels()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					const entry1 = OpenRouterModels_ModelsEntry.decode(reader, reader.uint32())
+					if (entry1.value !== undefined) {
+						message.models[entry1.key] = entry1.value
+					}
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): OpenRouterModels {
+		return {
+			models: isObject(object.models)
+				? Object.entries(object.models).reduce<{ [key: string]: OpenRouterModelInfo }>((acc, [key, value]) => {
+						acc[key] = OpenRouterModelInfo.fromJSON(value)
+						return acc
+					}, {})
+				: {},
+		}
+	},
+
+	toJSON(message: OpenRouterModels): unknown {
+		const obj: any = {}
+		if (message.models) {
+			const entries = Object.entries(message.models)
+			if (entries.length > 0) {
+				obj.models = {}
+				entries.forEach(([k, v]) => {
+					obj.models[k] = OpenRouterModelInfo.toJSON(v)
+				})
+			}
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<OpenRouterModels>, I>>(base?: I): OpenRouterModels {
+		return OpenRouterModels.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<OpenRouterModels>, I>>(object: I): OpenRouterModels {
+		const message = createBaseOpenRouterModels()
+		message.models = Object.entries(object.models ?? {}).reduce<{ [key: string]: OpenRouterModelInfo }>(
+			(acc, [key, value]) => {
+				if (value !== undefined) {
+					acc[key] = OpenRouterModelInfo.fromPartial(value)
+				}
+				return acc
+			},
+			{},
+		)
+		return message
+	},
+}
+
+function createBaseOpenRouterModels_ModelsEntry(): OpenRouterModels_ModelsEntry {
+	return { key: "", value: undefined }
+}
+
+export const OpenRouterModels_ModelsEntry: MessageFns<OpenRouterModels_ModelsEntry> = {
+	encode(message: OpenRouterModels_ModelsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.key !== "") {
+			writer.uint32(10).string(message.key)
+		}
+		if (message.value !== undefined) {
+			OpenRouterModelInfo.encode(message.value, writer.uint32(18).fork()).join()
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): OpenRouterModels_ModelsEntry {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseOpenRouterModels_ModelsEntry()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.key = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.value = OpenRouterModelInfo.decode(reader, reader.uint32())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): OpenRouterModels_ModelsEntry {
+		return {
+			key: isSet(object.key) ? globalThis.String(object.key) : "",
+			value: isSet(object.value) ? OpenRouterModelInfo.fromJSON(object.value) : undefined,
+		}
+	},
+
+	toJSON(message: OpenRouterModels_ModelsEntry): unknown {
+		const obj: any = {}
+		if (message.key !== "") {
+			obj.key = message.key
+		}
+		if (message.value !== undefined) {
+			obj.value = OpenRouterModelInfo.toJSON(message.value)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<OpenRouterModels_ModelsEntry>, I>>(base?: I): OpenRouterModels_ModelsEntry {
+		return OpenRouterModels_ModelsEntry.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<OpenRouterModels_ModelsEntry>, I>>(object: I): OpenRouterModels_ModelsEntry {
+		const message = createBaseOpenRouterModels_ModelsEntry()
+		message.key = object.key ?? ""
+		message.value =
+			object.value !== undefined && object.value !== null ? OpenRouterModelInfo.fromPartial(object.value) : undefined
+		return message
+	},
+}
+
 /** Service for model-related operations */
 export type ModelsServiceDefinition = typeof ModelsServiceDefinition
 export const ModelsServiceDefinition = {
@@ -224,6 +604,15 @@ export const ModelsServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Refreshes and returns OpenRouter models */
+		refreshOpenRouterModels: {
+			name: "refreshOpenRouterModels",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: OpenRouterModels,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
 
@@ -243,6 +632,10 @@ type KeysOfUnion<T> = T extends T ? keyof T : never
 export type Exact<P, I extends P> = P extends Builtin
 	? P
 	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+
+function isObject(value: any): boolean {
+	return typeof value === "object" && value !== null
+}
 
 function isSet(value: any): boolean {
 	return value !== null && value !== undefined
