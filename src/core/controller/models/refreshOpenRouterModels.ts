@@ -30,13 +30,13 @@ export async function refreshOpenRouterModels(controller: Controller, request: E
 			}
 			for (const rawModel of rawModels) {
 				const modelInfo: Partial<OpenRouterModelInfo> = {
-					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
-					contextWindow: rawModel.context_length ?? 0,
-					supportsImages: rawModel.architecture?.modality?.includes("image") ?? false,
+					maxTokens: rawModel.top_provider?.max_completion_tokens,
+					contextWindow: rawModel.context_length,
+					supportsImages: rawModel.architecture?.modality?.includes("image"),
 					supportsPromptCache: false,
-					inputPrice: parsePrice(rawModel.pricing?.prompt) ?? 0,
-					outputPrice: parsePrice(rawModel.pricing?.completion) ?? 0,
-					description: rawModel.description ?? "",
+					inputPrice: parsePrice(rawModel.pricing?.prompt),
+					outputPrice: parsePrice(rawModel.pricing?.completion),
+					description: rawModel.description,
 				}
 
 				switch (rawModel.id) {
@@ -91,17 +91,17 @@ export async function refreshOpenRouterModels(controller: Controller, request: E
 						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
-							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read) ?? 0
+							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
 							if (modelInfo.cacheReadsPrice) {
 								modelInfo.supportsPromptCache = true
-								modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write) ?? 0
+								modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 								// openrouter charges no cache write pricing for openAI models
 							}
 						} else if (rawModel.id.startsWith("google/")) {
-							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read) ?? 0
+							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
 							if (modelInfo.cacheReadsPrice) {
 								modelInfo.supportsPromptCache = true
-								modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write) ?? 0
+								modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 							}
 						}
 						break

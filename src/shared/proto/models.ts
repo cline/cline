@@ -586,7 +586,7 @@ export const ModelsServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
-		/** Fetches available models from LM Studio√ */
+		/** Fetches available models from LM Studio */
 		getLmStudioModels: {
 			name: "getLmStudioModels",
 			requestType: StringRequest,
