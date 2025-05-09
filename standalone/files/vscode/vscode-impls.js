@@ -1,8 +1,7 @@
-require("module-alias/register")
-const { createStub, stubUri, createMemento } = require("./stub-utils.js")
-var vscode = require("vscode")
-
 console.log("Loading stub impls...")
+
+const { createStub, stubUri, createMemento } = require("stub-utils")
+const open = require("open")
 
 vscode.ExtensionContext = {
 	extensionPath: "/tmp/vscode/extension",
@@ -58,35 +57,35 @@ vscode.ExtensionContext = {
 
 vscode.window = {
 	showInformationMessage: (...args) => {
-		console.log("FFFF showInformationMessage:", ...args)
+		console.log("Stubbed showInformationMessage:", ...args)
 		return Promise.resolve(undefined)
 	},
 	showWarningMessage: (...args) => {
-		console.log("FFFF showWarningMessage:", ...args)
+		console.log("Stubbed showWarningMessage:", ...args)
 		return Promise.resolve(undefined)
 	},
 	showErrorMessage: (...args) => {
-		console.log("FFFF showErrorMessage:", ...args)
+		console.log("Stubbed showErrorMessage:", ...args)
 		return Promise.resolve(undefined)
 	},
 	showInputBox: async (options) => {
-		console.log("FFFF showInputBox:", options)
+		console.log("Stubbed showInputBox:", options)
 		return ""
 	},
 	showOpenDialog: async (options) => {
-		console.log("FFFF showOpenDialog:", options)
+		console.log("Stubbed showOpenDialog:", options)
 		return []
 	},
 	showSaveDialog: async (options) => {
-		console.log("FFFF showSaveDialog:", options)
+		console.log("Stubbed showSaveDialog:", options)
 		return undefined
 	},
 	showTextDocument: async (...args) => {
-		console.log("FFFF showTextDocument:", ...args)
+		console.log("Stubbed showTextDocument:", ...args)
 		return {}
 	},
 	createOutputChannel: (name) => {
-		console.log("FFFF createOutputChannel:", name)
+		console.log("Stubbed createOutputChannel:", name)
 		return {
 			appendLine: console.log,
 			show: () => {},
@@ -94,7 +93,7 @@ vscode.window = {
 		}
 	},
 	createTerminal: (...args) => {
-		console.log("FFFF createTerminal:", ...args)
+		console.log("Stubbed createTerminal:", ...args)
 		return {
 			sendText: console.log,
 			show: () => {},
@@ -108,7 +107,7 @@ vscode.window = {
 		close: async () => {},
 	},
 	withProgress: async (_options, task) => {
-		console.log("FFFF withProgress")
+		console.log("Stubbed withProgress")
 		return task({ report: () => {} })
 	},
 	registerUriHandler: () => ({ dispose: () => {} }),
@@ -116,7 +115,7 @@ vscode.window = {
 	onDidChangeActiveTextEditor: () => ({ dispose: () => {} }),
 	createTextEditorDecorationType: () => ({ dispose: () => {} }),
 	createWebviewPanel: (...args) => {
-		console.log("FFFF createWebviewPanel:", ...args)
+		console.log("Stubbed createWebviewPanel:", ...args)
 		return {
 			webview: {},
 			reveal: () => {},
@@ -199,18 +198,11 @@ vscode.Uri = {
 	},
 }
 
-const open = require("open").default
-
 vscode.env.openExternal = async (uri) => {
 	const url = typeof uri === "string" ? uri : (uri.toString?.() ?? "")
 	console.log("Opening browser:", url)
 	await open(url)
 	return true
-}
-
-function postMessage(message) {
-	console.log("postMessage called:", message)
-	return Promise.resolve(true)
 }
 
 console.log("Finished loading stub impls...")

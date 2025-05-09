@@ -3,9 +3,8 @@
 		"@grpc/grpc-js": "^1.13.3",
 		"google-protobuf": "^3.21.4",
 		"grpc-health-check": "^2.0.2",
-		"ts-morph": "^25.0.1"
-	},
-	"devDependencies": {
-		"grpc-tools": "^1.13.0"
+		"open": "^10.1.2",
+		"stub-utils": "file:./stub-utils",
+		"vscode": "file:./vscode"
 	}
 }

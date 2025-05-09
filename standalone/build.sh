@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu
+set -eux
 
 BUILD_DIR=build/
 
@@ -9,13 +9,7 @@ if [ ! -f ../dist/extension.js ]; then
 fi
 
 mkdir -p $BUILD_DIR 2>/dev/null || true
-
-./get-usages.sh
-
-node prune-types.js
-
-node generate-stubs.js
-cp stub-utils.js $BUILD_DIR
+cp -av files/* $BUILD_DIR
 
 # Generate gRPC service definition protos
 PROTO_DIR=../proto
@@ -28,6 +22,16 @@ npx grpc_tools_node_protoc \
   --proto_path=$PROTO_DIR --proto_path=$HEALTH_PROTO_DIR \
   ${PROTO_DIR}/*.proto $HEALTH_PROTO
 
+cp ../dist/extension.js build/
+echo 'module.exports.Controller = Controller' >> build/extension.js
 node generate-server.js
 
-node assemble-standalone.js
+cd $BUILD_DIR
+npm install
+if find node_modules -name '*.node' | grep .; then
+  echo Native node modules are being used. Build cannot proceed.
+  exit 1
+fi
+
+zip -r standalone.zip . -x standalone.zip
+

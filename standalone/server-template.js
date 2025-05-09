@@ -1,15 +1,21 @@
 const grpc = require("@grpc/grpc-js")
 // __IMPORTS__
+const extension = require("./extension.js")
 
 const log = (...args) => {
 	const timestamp = new Date().toISOString()
 	console.log(`[${timestamp}]`, "#bot.cline.server.js", ...args)
 }
 
+function postMessage(message) {
+	log("postMessage called:", message)
+	return Promise.resolve(true)
+}
+
 log("Starting service...")
 
-activate(vscode.ExtensionContext)
-const controller = new Controller(vscode.ExtensionContext, vscode.OutputChannel, postMessage)
+extension.activate(vscode.ExtensionContext)
+const controller = new extension.Controller(vscode.ExtensionContext, vscode.OutputChannel, postMessage)
 const server = new grpc.Server()
 
 // __HANDLERS__
