@@ -292,7 +292,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSendingDisabled(isPartial)
 							setClineAsk("report_bug")
 							setEnableButtons(!isPartial)
-							setPrimaryButtonText("Report Github issue")
+							setPrimaryButtonText("Report GitHub issue")
 							setSecondaryButtonText(undefined)
 							break
 					}
