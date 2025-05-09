@@ -133,11 +133,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
+			const targetElement = e.target as HTMLElement | null
+			// If the copy event originated from an input or textarea,
+			// let the default browser behavior handle it.
+			if (targetElement && (targetElement.tagName === 'INPUT' || targetElement.tagName === 'TEXTAREA' || targetElement.isContentEditable)) {
+				return
+			}
+
 			if (window.getSelection) {
 				const selection = window.getSelection()
-				if (selection && selection.rangeCount > 0) {
+				if (selection && selection.rangeCount > 0 && selection.toString().trim() !== "") {
 					// Get the selected HTML content
 					const range = selection.getRangeAt(0)
+
+					// Check if the selection is purely within a pre/code block that has its own copy button
+					// This is a heuristic: if the common ancestor is a PRE or CODE, and that element
+					// is inside something that might have a dedicated copy button (like our CodeBlockContainer)
+					// we might want to let that specific copy button's logic (if any) or default browser copy handle it.
+					// For now, we'll proceed with copy-as-markdown for any non-input/textarea selection.
+					// A more sophisticated check could be added here if needed.
+
 					const clonedSelection = range.cloneContents()
 					const div = document.createElement("div")
 					div.appendChild(clonedSelection)
