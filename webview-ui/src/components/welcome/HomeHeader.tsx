@@ -11,7 +11,7 @@ const HomeHeader = () => {
 				<h2 className="m-0 text-[var(--vscode-font-size)]">{"What can I do for you?"}</h2>
 				<HeroTooltip
 					placement="bottom"
-					className="max-w-\[300px]"
+					className="max-w-[300px]"
 					content={
 						"I can develop software step-by-step by editing files, exploring projects, running commands, and using browsers. I can even extend my capabilities with MCP tools to assist beyond basic code completion."
 					}>
