@@ -1,5 +1,5 @@
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -8,6 +8,8 @@ import { vscode } from "@/utils/vscode"
 import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { useClickAway } from "react-use"
 import HeroTooltip from "@/components/common/HeroTooltip"
+
+const breakpoint = 500
 
 interface AutoApproveMenuProps {
 	style?: React.CSSProperties
@@ -85,14 +87,55 @@ const ACTION_METADATA: ActionMetadata[] = [
 		description: "Allows Cline to use configured MCP servers which may modify filesystem or interact with APIs.",
 		icon: "codicon-server",
 	},
+	{
+		id: "enableAll",
+		label: "Enable all",
+		shortName: "All",
+		description: "Enable all actions.",
+		icon: "codicon-checklist",
+	},
+	{
+		id: "enableNotifications",
+		label: "Enable notifications",
+		shortName: "Notifications",
+		description: "Receive system notifications when Cline requires approval to proceed or when a task is completed.",
+		icon: "codicon-bell",
+	},
 ]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
+	const [containerWidth, setContainerWidth] = useState(0)
 	// Favorites are now derived from autoApprovalSettings
 	const favorites = useMemo(() => autoApprovalSettings.favorites || [], [autoApprovalSettings.favorites])
 	const menuRef = useRef<HTMLDivElement>(null)
+	const itemsContainerRef = useRef<HTMLDivElement>(null)
+
+	// Track container width for responsive layout
+	useEffect(() => {
+		if (!isExpanded) return
+
+		const updateWidth = () => {
+			if (itemsContainerRef.current) {
+				setContainerWidth(itemsContainerRef.current.offsetWidth)
+			}
+		}
+
+		// Initial measurement
+		updateWidth()
+
+		// Set up resize observer
+		const resizeObserver = new ResizeObserver(updateWidth)
+		if (itemsContainerRef.current) {
+			resizeObserver.observe(itemsContainerRef.current)
+		}
+
+		// Clean up
+		return () => {
+			resizeObserver.disconnect()
+		}
+	}, [isExpanded])
 
 	const toggleFavorite = useCallback(
 		(actionId: string) => {
@@ -122,12 +165,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			const actionId = action.id
 			const subActionId = action.subAction?.id
 
-			if (
-				actionId === "enableNotifications" ||
-				actionId === "enableAll" ||
-				subActionId === "enableNotifications" ||
-				subActionId === "enableAll"
-			) {
+			if (actionId === "enableAll" || subActionId === "enableAll") {
+				toggleAll(action, value)
+				return
+			}
+
+			if (actionId === "enableNotifications" || subActionId === "enableNotifications") {
+				updateNotifications(action, value)
 				return
 			}
 
@@ -314,7 +358,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			{/* Expanded view */}
 			<div
 				style={{
-					maxHeight: isExpanded ? "1000px" : "0px", // Large enough to fit content
+					maxHeight: isExpanded ? "1000px" : favorites.length > 0 ? "40px" : "22px", // Large enough to fit content
 					opacity: isExpanded ? 1 : 0,
 					overflow: "hidden",
 					transition: "max-height 0.3s ease-in-out, opacity 0.3s ease-in-out", // Removed padding to transition
@@ -339,46 +383,45 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							<span className="codicon codicon-chevron-down" />
 						</div>
 
-						<div style={{ display: "flex", flexWrap: "wrap", gap: "4px", margin: "8px 0" }}>
-							{[
-								...ACTION_METADATA.map((action) => {
-									return (
-										<AutoApproveMenuItem
-											key={action.id}
-											action={action}
-											isChecked={isChecked}
-											isFavorited={isFavorited}
-											onToggle={updateAction}
-											onToggleFavorite={toggleFavorite}
-										/>
-									)
-								}),
-								<AutoApproveMenuItem
-									key="enableAll"
-									action={{
-										id: "enableAll",
-										label: "Enable all",
-										shortName: "All",
-										description: "Enable all actions.",
-										icon: "codicon-checklist",
+						<div
+							ref={itemsContainerRef}
+							style={{
+								display: containerWidth > breakpoint ? "grid" : "flex",
+								gridTemplateColumns: containerWidth > breakpoint ? "1fr 1fr" : "1fr",
+								gridAutoRows: "min-content",
+								flexDirection: "column",
+								gap: "4px",
+								margin: "8px 0",
+								position: "relative", // For absolute positioning of the separator
+							}}>
+							{/* Vertical separator line - only visible in two-column mode */}
+							{containerWidth > breakpoint && (
+								<div
+									style={{
+										position: "absolute",
+										left: "50%",
+										top: "0",
+										bottom: "0",
+										width: "0.5px",
+										background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
+										opacity: 0.2,
+										transform: "translateX(-50%)", // Center the line
 									}}
-									isChecked={isChecked}
-									onToggle={toggleAll}
-								/>,
-								<AutoApproveMenuItem
-									key="enableNotifications"
-									action={{
-										id: "enableNotifications",
-										label: "Enable notifications",
-										shortName: "Notifications",
-										description:
-											"Receive system notifications when Cline requires approval to proceed or when a task is completed.",
-										icon: "codicon-bell",
-									}}
-									isChecked={isChecked}
-									onToggle={updateNotifications}
-								/>,
-							]}
+								/>
+							)}
+
+							{/* All items in a single list - CSS Grid will handle the column distribution */}
+							{ACTION_METADATA.map((action) => (
+								<div key={action.id} style={{ breakInside: "avoid" }}>
+									<AutoApproveMenuItem
+										action={action}
+										isChecked={isChecked}
+										isFavorited={isFavorited}
+										onToggle={updateAction}
+										onToggleFavorite={toggleFavorite}
+									/>
+								</div>
+							))}
 						</div>
 						<div
 							style={{

@@ -21,7 +21,7 @@ const CheckboxContainer = styled.div<{
 }>`
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	justify-content: space-between; /* Push content to edges */
 	padding: 0 4px;
 	border-radius: 4px;
 	cursor: pointer;
@@ -29,6 +29,12 @@ const CheckboxContainer = styled.div<{
 
 	&:hover {
 		background-color: var(--vscode-textBlockQuote-background);
+	}
+
+	.left-content {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 	}
 
 	.icon {
@@ -45,7 +51,6 @@ const CheckboxContainer = styled.div<{
 	.star {
 		color: ${(props) => (props.isFavorited ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)")};
 		opacity: ${(props) => (props.isFavorited ? 1 : 0.6)};
-		margin-left: 4px;
 		font-size: 12px;
 	}
 `
@@ -93,9 +98,11 @@ const AutoApproveMenuItem = ({
 			<ActionButtonContainer>
 				<HeroTooltip content={action.description} delay={200}>
 					<CheckboxContainer isFavorited={favorited} onClick={onChange}>
-						<VSCodeCheckbox checked={checked} />
-						<span className={`codicon ${action.icon} icon`}></span>
-						<span className="label">{condensed ? action.shortName : action.label}</span>
+						<div className="left-content">
+							<VSCodeCheckbox checked={checked} />
+							<span className={`codicon ${action.icon} icon`}></span>
+							<span className="label">{condensed ? action.shortName : action.label}</span>
+						</div>
 						{onToggleFavorite && !condensed && (
 							<span
 								className={`codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
