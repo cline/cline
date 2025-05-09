@@ -8,8 +8,8 @@ interface AutoApproveMenuItemProps {
 	action: ActionMetadata
 	isChecked: (action: ActionMetadata) => boolean
 	isFavorited?: (action: ActionMetadata) => boolean
-	onToggle: (action: ActionMetadata, checked: boolean) => void
-	onToggleFavorite?: (actionId: string) => void
+	onToggle: (action: ActionMetadata, checked: boolean) => Promise<void>
+	onToggleFavorite?: (actionId: string) => Promise<void>
 	condensed?: boolean
 }
 
@@ -81,7 +81,7 @@ const AutoApproveMenuItem = ({
 	const checked = isChecked(action)
 	const favorited = isFavorited?.(action)
 
-	const onChange = (e: Event) => {
+	const onChange = async (e: Event) => {
 		e.stopPropagation()
 		onToggle(action, !checked)
 	}

@@ -6,6 +6,7 @@ import { registerMethod } from "./index"
 import { getLatestState } from "./getLatestState"
 import { subscribeToState } from "./subscribeToState"
 import { toggleFavoriteModel } from "./toggleFavoriteModel"
+import { updateAutoApprovalSettings } from "./updateAutoApprovalSettings"
 
 // Streaming methods for this service
 export const streamingMethods = ["subscribeToState"]
@@ -16,4 +17,5 @@ export function registerAllMethods(): void {
 	registerMethod("getLatestState", getLatestState)
 	registerMethod("subscribeToState", subscribeToState, { isStreaming: true })
 	registerMethod("toggleFavoriteModel", toggleFavoriteModel)
+	registerMethod("updateAutoApprovalSettings", updateAutoApprovalSettings)
 }
