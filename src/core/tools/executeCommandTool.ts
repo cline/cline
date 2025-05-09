@@ -195,7 +195,7 @@ export async function executeCommand(
 	const terminal = await TerminalRegistry.getOrCreateTerminal(workingDir, !!customCwd, cline.taskId, terminalProvider)
 
 	if (terminal instanceof Terminal) {
-		terminal.terminal.show()
+		terminal.terminal.show(true)
 
 		// Update the working directory in case the terminal we asked for has
 		// a different working directory so that the model will know where the
