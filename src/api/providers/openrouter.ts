@@ -106,7 +106,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		// https://openrouter.ai/docs/transforms
 		const completionParams: OpenRouterChatCompletionParams = {
 			model: modelId,
-			max_tokens: maxTokens,
+			...(maxTokens && maxTokens > 0 && { max_tokens: maxTokens }),
 			temperature,
 			thinking, // OpenRouter is temporarily supporting this.
 			top_p: topP,

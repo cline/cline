@@ -72,7 +72,7 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 				typeof cacheWritesPrice !== "undefined" && typeof cacheReadsPrice !== "undefined"
 
 			const modelInfo: ModelInfo = {
-				maxTokens: rawModel.top_provider?.max_completion_tokens,
+				maxTokens: 0,
 				contextWindow: rawModel.context_length,
 				supportsImages: rawModel.architecture?.modality?.includes("image"),
 				supportsPromptCache,
