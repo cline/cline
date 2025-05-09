@@ -5,7 +5,7 @@ import * as vscode from "vscode"
 import axios from "axios"
 
 import { ClineProvider } from "../ClineProvider"
-import { ApiConfigMeta, ClineMessage, ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessage"
+import { ProviderSettingsEntry, ClineMessage, ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessage"
 import { setSoundEnabled } from "../../../utils/sound"
 import { setTtsEnabled } from "../../../utils/tts"
 import { defaultModeSlug } from "../../../shared/modes"
@@ -594,7 +594,7 @@ describe("ClineProvider", () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
-		const profile: ApiConfigMeta = { name: "test-config", id: "test-id", apiProvider: "anthropic" }
+		const profile: ProviderSettingsEntry = { name: "test-config", id: "test-id", apiProvider: "anthropic" }
 
 		;(provider as any).providerSettingsManager = {
 			getModeConfigId: jest.fn().mockResolvedValue("test-id"),
@@ -1538,7 +1538,11 @@ describe("ClineProvider", () => {
 		})
 
 		it("loads saved API config when switching modes", async () => {
-			const profile: ApiConfigMeta = { name: "saved-config", id: "saved-config-id", apiProvider: "anthropic" }
+			const profile: ProviderSettingsEntry = {
+				name: "saved-config",
+				id: "saved-config-id",
+				apiProvider: "anthropic",
+			}
 
 			;(provider as any).providerSettingsManager = {
 				getModeConfigId: jest.fn().mockResolvedValue("saved-config-id"),

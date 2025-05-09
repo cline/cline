@@ -4,7 +4,7 @@ import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 import {
 	type ProviderName,
-	type ApiConfiguration,
+	type ProviderSettings,
 	openRouterDefaultModelId,
 	requestyDefaultModelId,
 	glamaDefaultModelId,
@@ -55,8 +55,8 @@ import { BedrockCustomArn } from "./providers/BedrockCustomArn"
 
 export interface ApiOptionsProps {
 	uriScheme: string | undefined
-	apiConfiguration: ApiConfiguration
-	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
+	apiConfiguration: ProviderSettings
+	setApiConfigurationField: <K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => void
 	fromWelcomeView?: boolean
 	errorMessage: string | undefined
 	setErrorMessage: React.Dispatch<React.SetStateAction<string | undefined>>
@@ -125,9 +125,9 @@ const ApiOptions = ({
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const handleInputChange = useCallback(
-		<K extends keyof ApiConfiguration, E>(
+		<K extends keyof ProviderSettings, E>(
 			field: K,
-			transform: (event: E) => ApiConfiguration[K] = inputEventTransform,
+			transform: (event: E) => ProviderSettings[K] = inputEventTransform,
 		) =>
 			(event: E | Event) => {
 				setApiConfigurationField(field, transform(event as E))

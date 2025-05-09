@@ -4,7 +4,7 @@ import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 
 import { ClineProvider } from "./ClineProvider"
-import { Language, ApiConfigMeta, ProviderSettings } from "../../schemas"
+import { Language, ProviderSettings } from "../../schemas"
 import { changeLanguage, t } from "../../i18n"
 import { RouterName, toRouterName } from "../../shared/api"
 import { supportPrompt } from "../../shared/support-prompt"
@@ -935,10 +935,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					// Try to get enhancement config first, fall back to current config.
 					let configToUse: ProviderSettings = apiConfiguration
 
-					if (
-						enhancementApiConfigId &&
-						!!listApiConfigMeta.find((c: ApiConfigMeta) => c.id === enhancementApiConfigId)
-					) {
+					if (enhancementApiConfigId && !!listApiConfigMeta.find(({ id }) => id === enhancementApiConfigId)) {
 						const { name: _, ...providerSettings } = await provider.providerSettingsManager.getProfile({
 							id: enhancementApiConfigId,
 						})

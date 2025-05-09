@@ -9,16 +9,10 @@ import axios from "axios"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 
-import { GlobalState, ProviderSettings, RooCodeSettings } from "../../schemas"
+import type { GlobalState, ProviderName, ProviderSettings, RooCodeSettings } from "../../schemas"
 import { t } from "../../i18n"
 import { setPanel } from "../../activate/registerCommands"
-import {
-	ProviderName,
-	ApiConfiguration,
-	requestyDefaultModelId,
-	openRouterDefaultModelId,
-	glamaDefaultModelId,
-} from "../../shared/api"
+import { requestyDefaultModelId, openRouterDefaultModelId, glamaDefaultModelId } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
@@ -942,7 +936,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			throw error
 		}
 
-		const newConfiguration: ApiConfiguration = {
+		const newConfiguration: ProviderSettings = {
 			...apiConfiguration,
 			apiProvider: "openrouter",
 			openRouterApiKey: apiKey,
@@ -972,7 +966,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 		const { apiConfiguration, currentApiConfigName } = await this.getState()
 
-		const newConfiguration: ApiConfiguration = {
+		const newConfiguration: ProviderSettings = {
 			...apiConfiguration,
 			apiProvider: "glama",
 			glamaApiKey: apiKey,
@@ -987,7 +981,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	async handleRequestyCallback(code: string) {
 		let { apiConfiguration, currentApiConfigName } = await this.getState()
 
-		const newConfiguration: ApiConfiguration = {
+		const newConfiguration: ProviderSettings = {
 			...apiConfiguration,
 			apiProvider: "requesty",
 			requestyApiKey: code,
@@ -999,7 +993,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 	// Save configuration
 
-	async upsertApiConfiguration(configName: string, apiConfiguration: ApiConfiguration) {
+	async upsertApiConfiguration(configName: string, apiConfiguration: ProviderSettings) {
 		try {
 			await this.providerSettingsManager.saveConfig(configName, apiConfiguration)
 			const listApiConfig = await this.providerSettingsManager.listConfig()

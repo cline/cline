@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { ApiConfiguration, RouterModels, requestyDefaultModelId } from "@roo/shared/api"
+import { ProviderSettings, RouterModels, requestyDefaultModelId } from "@roo/shared/api"
 
 import { vscode } from "@src/utils/vscode"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -13,8 +13,8 @@ import { ModelPicker } from "../ModelPicker"
 import { RequestyBalanceDisplay } from "./RequestyBalanceDisplay"
 
 type RequestyProps = {
-	apiConfiguration: ApiConfiguration
-	setApiConfigurationField: (field: keyof ApiConfiguration, value: ApiConfiguration[keyof ApiConfiguration]) => void
+	apiConfiguration: ProviderSettings
+	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
 	routerModels?: RouterModels
 	refetchRouterModels: () => void
 }
@@ -30,9 +30,9 @@ export const Requesty = ({
 	const [didRefetch, setDidRefetch] = useState<boolean>()
 
 	const handleInputChange = useCallback(
-		<K extends keyof ApiConfiguration, E>(
+		<K extends keyof ProviderSettings, E>(
 			field: K,
-			transform: (event: E) => ApiConfiguration[K] = inputEventTransform,
+			transform: (event: E) => ProviderSettings[K] = inputEventTransform,
 		) =>
 			(event: E | Event) => {
 				setApiConfigurationField(field, transform(event as E))

@@ -421,7 +421,7 @@
 		"vscode-material-icons": "^0.1.1",
 		"web-tree-sitter": "^0.22.6",
 		"workerpool": "^9.2.0",
-		"zod": "^3.23.8"
+		"zod": "^3.24.2"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.10",
@@ -459,7 +459,7 @@
 		"ts-jest": "^29.2.5",
 		"tsup": "^8.4.0",
 		"tsx": "^4.19.3",
-		"typescript": "^5.4.5",
+		"typescript": "5.8.3",
 		"vitest": "^3.1.3",
 		"zod-to-ts": "^1.2.0"
 	},

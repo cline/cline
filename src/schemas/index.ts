@@ -136,18 +136,6 @@ export const modelInfoSchema = z.object({
 export type ModelInfo = z.infer<typeof modelInfoSchema>
 
 /**
- * ApiConfigMeta
- */
-
-export const apiConfigMetaSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	apiProvider: providerNamesSchema.optional(),
-})
-
-export type ApiConfigMeta = z.infer<typeof apiConfigMetaSchema>
-
-/**
  * HistoryItem
  */
 
@@ -342,10 +330,21 @@ export type Experiments = z.infer<typeof experimentsSchema>
 type _AssertExperiments = AssertEqual<Equals<ExperimentId, Keys<Experiments>>>
 
 /**
+ * ProviderSettingsEntry
+ */
+
+export const providerSettingsEntrySchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	apiProvider: providerNamesSchema.optional(),
+})
+
+export type ProviderSettingsEntry = z.infer<typeof providerSettingsEntrySchema>
+
+/**
  * ProviderSettings
  */
 
-// Generic settings that apply to all providers
 const genericProviderSettingsSchema = z.object({
 	includeMaxTokens: z.boolean().optional(),
 	reasoningEffort: reasoningEffortsSchema.optional(),
@@ -359,7 +358,6 @@ const genericProviderSettingsSchema = z.object({
 	modelMaxThinkingTokens: z.number().optional(),
 })
 
-// Provider-specific schemas
 const anthropicSchema = z.object({
 	apiModelId: z.string().optional(),
 	apiKey: z.string().optional(),
@@ -410,7 +408,7 @@ const openAiSchema = z.object({
 	azureApiVersion: z.string().optional(),
 	openAiStreamingEnabled: z.boolean().optional(),
 	enableReasoningEffort: z.boolean().optional(),
-	openAiHostHeader: z.string().optional(), // Keep temporarily for backward compatibility during migration
+	openAiHostHeader: z.string().optional(), // Keep temporarily for backward compatibility during migration.
 	openAiHeaders: z.record(z.string(), z.string()).optional(),
 })
 
@@ -491,119 +489,33 @@ const litellmSchema = z.object({
 	litellmModelId: z.string().optional(),
 })
 
-// Default schema for when apiProvider is not specified
 const defaultSchema = z.object({
 	apiProvider: z.undefined(),
 })
 
-// Create the discriminated union
 export const providerSettingsSchemaDiscriminated = z
 	.discriminatedUnion("apiProvider", [
-		anthropicSchema.merge(
-			z.object({
-				apiProvider: z.literal("anthropic"),
-			}),
-		),
-		glamaSchema.merge(
-			z.object({
-				apiProvider: z.literal("glama"),
-			}),
-		),
-		openRouterSchema.merge(
-			z.object({
-				apiProvider: z.literal("openrouter"),
-			}),
-		),
-		bedrockSchema.merge(
-			z.object({
-				apiProvider: z.literal("bedrock"),
-			}),
-		),
-		vertexSchema.merge(
-			z.object({
-				apiProvider: z.literal("vertex"),
-			}),
-		),
-		openAiSchema.merge(
-			z.object({
-				apiProvider: z.literal("openai"),
-			}),
-		),
-		ollamaSchema.merge(
-			z.object({
-				apiProvider: z.literal("ollama"),
-			}),
-		),
-		vsCodeLmSchema.merge(
-			z.object({
-				apiProvider: z.literal("vscode-lm"),
-			}),
-		),
-		lmStudioSchema.merge(
-			z.object({
-				apiProvider: z.literal("lmstudio"),
-			}),
-		),
-		geminiSchema.merge(
-			z.object({
-				apiProvider: z.literal("gemini"),
-			}),
-		),
-		openAiNativeSchema.merge(
-			z.object({
-				apiProvider: z.literal("openai-native"),
-			}),
-		),
-		mistralSchema.merge(
-			z.object({
-				apiProvider: z.literal("mistral"),
-			}),
-		),
-		deepSeekSchema.merge(
-			z.object({
-				apiProvider: z.literal("deepseek"),
-			}),
-		),
-		unboundSchema.merge(
-			z.object({
-				apiProvider: z.literal("unbound"),
-			}),
-		),
-		requestySchema.merge(
-			z.object({
-				apiProvider: z.literal("requesty"),
-			}),
-		),
-		humanRelaySchema.merge(
-			z.object({
-				apiProvider: z.literal("human-relay"),
-			}),
-		),
-		fakeAiSchema.merge(
-			z.object({
-				apiProvider: z.literal("fake-ai"),
-			}),
-		),
-		xaiSchema.merge(
-			z.object({
-				apiProvider: z.literal("xai"),
-			}),
-		),
-		groqSchema.merge(
-			z.object({
-				apiProvider: z.literal("groq"),
-			}),
-		),
-		chutesSchema.merge(
-			z.object({
-				apiProvider: z.literal("chutes"),
-			}),
-		),
-		litellmSchema.merge(
-			z.object({
-				apiProvider: z.literal("litellm"),
-			}),
-		),
+		anthropicSchema.merge(z.object({ apiProvider: z.literal("anthropic") })),
+		glamaSchema.merge(z.object({ apiProvider: z.literal("glama") })),
+		openRouterSchema.merge(z.object({ apiProvider: z.literal("openrouter") })),
+		bedrockSchema.merge(z.object({ apiProvider: z.literal("bedrock") })),
+		vertexSchema.merge(z.object({ apiProvider: z.literal("vertex") })),
+		openAiSchema.merge(z.object({ apiProvider: z.literal("openai") })),
+		ollamaSchema.merge(z.object({ apiProvider: z.literal("ollama") })),
+		vsCodeLmSchema.merge(z.object({ apiProvider: z.literal("vscode-lm") })),
+		lmStudioSchema.merge(z.object({ apiProvider: z.literal("lmstudio") })),
+		geminiSchema.merge(z.object({ apiProvider: z.literal("gemini") })),
+		openAiNativeSchema.merge(z.object({ apiProvider: z.literal("openai-native") })),
+		mistralSchema.merge(z.object({ apiProvider: z.literal("mistral") })),
+		deepSeekSchema.merge(z.object({ apiProvider: z.literal("deepseek") })),
+		unboundSchema.merge(z.object({ apiProvider: z.literal("unbound") })),
+		requestySchema.merge(z.object({ apiProvider: z.literal("requesty") })),
+		humanRelaySchema.merge(z.object({ apiProvider: z.literal("human-relay") })),
+		fakeAiSchema.merge(z.object({ apiProvider: z.literal("fake-ai") })),
+		xaiSchema.merge(z.object({ apiProvider: z.literal("xai") })),
+		groqSchema.merge(z.object({ apiProvider: z.literal("groq") })),
+		chutesSchema.merge(z.object({ apiProvider: z.literal("chutes") })),
+		litellmSchema.merge(z.object({ apiProvider: z.literal("litellm") })),
 		defaultSchema,
 	])
 	.and(genericProviderSettingsSchema)
@@ -743,7 +655,7 @@ export const PROVIDER_SETTINGS_KEYS = Object.keys(providerSettingsRecord) as Key
 
 export const globalSettingsSchema = z.object({
 	currentApiConfigName: z.string().optional(),
-	listApiConfigMeta: z.array(apiConfigMetaSchema).optional(),
+	listApiConfigMeta: z.array(providerSettingsEntrySchema).optional(),
 	pinnedApiConfigs: z.record(z.string(), z.boolean()).optional(),
 
 	lastShownAnnouncementId: z.string().optional(),

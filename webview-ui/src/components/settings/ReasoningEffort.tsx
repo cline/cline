@@ -2,12 +2,12 @@ import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui"
 
-import { ApiConfiguration } from "@roo/shared/api"
+import { ProviderSettings } from "@roo/shared/api"
 import { reasoningEfforts, ReasoningEffort as ReasoningEffortType } from "@roo/schemas"
 
 interface ReasoningEffortProps {
-	apiConfiguration: ApiConfiguration
-	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
+	apiConfiguration: ProviderSettings
+	setApiConfigurationField: <K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => void
 }
 
 export const ReasoningEffort = ({ apiConfiguration, setApiConfigurationField }: ReasoningEffortProps) => {

@@ -2,7 +2,7 @@ import { useCallback } from "react"
 import { Checkbox } from "vscrui"
 import { VSCodeTextField, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 
-import { ApiConfiguration, ModelInfo } from "@roo/shared/api"
+import { ProviderSettings, ModelInfo } from "@roo/shared/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
@@ -11,8 +11,8 @@ import { AWS_REGIONS } from "../constants"
 import { inputEventTransform, noTransform } from "../transforms"
 
 type BedrockProps = {
-	apiConfiguration: ApiConfiguration
-	setApiConfigurationField: (field: keyof ApiConfiguration, value: ApiConfiguration[keyof ApiConfiguration]) => void
+	apiConfiguration: ProviderSettings
+	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
 	selectedModelInfo?: ModelInfo
 }
 
@@ -20,9 +20,9 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 	const { t } = useAppTranslation()
 
 	const handleInputChange = useCallback(
-		<K extends keyof ApiConfiguration, E>(
+		<K extends keyof ProviderSettings, E>(
 			field: K,
-			transform: (event: E) => ApiConfiguration[K] = inputEventTransform,
+			transform: (event: E) => ProviderSettings[K] = inputEventTransform,
 		) =>
 			(event: E | Event) => {
 				setApiConfigurationField(field, transform(event as E))
