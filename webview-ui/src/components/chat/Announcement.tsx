@@ -44,16 +44,19 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Task Timeline:</b> See the history of your coding journey with a visual timeline of checkpoints, letting you understand what Cline did at a glance.
+					<b>Task Timeline:</b> See the history of your coding journey with a visual timeline of checkpoints, letting
+					you understand what Cline did at a glance.
 				</li>
 				<li>
-					<b>UX Improvements:</b> Type while Cline works, smarter auto-scrolling, new copy buttons for task headers and messages, and a simplified home interface for a smoother experience.
+					<b>UX Improvements:</b> Type while Cline works, smarter auto-scrolling, new copy buttons for task headers and
+					messages, and a simplified home interface for a smoother experience.
 				</li>
 				<li>
 					<b>Commit Message Generation:</b> Let Cline help craft meaningful commit messages based on your changes.
 				</li>
 				<li>
-					<b>Quote Replies:</b> Easily reference previous messages with new quote reply support for clearer conversations.
+					<b>Quote Replies:</b> Easily reference previous messages with new quote reply support for clearer
+					conversations.
 				</li>
 				<li>
 					<b>Auto Caching for Gemini:</b> Native support for Gemini's recently released Implicit Caching.
@@ -72,12 +75,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					}}>
 					<ul style={ulStyle}>
 						<li>
-							<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price tracking for
-							Gemini models.
+							<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price
+							tracking for Gemini models.
 						</li>
 						<li>
-							<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their contents
-							easily.
+							<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their
+							contents easily.
 						</li>
 						<li>
 							<b>Global Cline Rules:</b> Store multiple rules files in Documents/Cline/Rules to share between
