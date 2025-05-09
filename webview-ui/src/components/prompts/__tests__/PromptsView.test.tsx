@@ -1,3 +1,5 @@
+// npx jest src/components/prompts/__tests__/PromptsView.test.tsx
+
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import PromptsView from "../PromptsView"
 import { ExtensionStateContext } from "@src/context/ExtensionStateContext"
