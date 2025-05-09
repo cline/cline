@@ -22,7 +22,7 @@ import { TaskServiceClient } from "@/services/grpc-client"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import Announcement from "@/components/chat/Announcement"
-import AutoApproveMenu from "@/components/chat/AutoApproveMenu"
+import AutoApproveMenu from "@/components/chat/auto-approve-menu/AutoApproveMenu"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
@@ -1009,30 +1009,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				</div>
 			)}
 
-			{/* 
-			// Flex layout explanation:
-			// 1. Content div above uses flex: "1 1 0" to:
-			//    - Grow to fill available space (flex-grow: 1) 
-			//    - Shrink when AutoApproveMenu needs space (flex-shrink: 1)
-			//    - Start from zero size (flex-basis: 0) to ensure proper distribution
-			//    minHeight: 0 allows it to shrink below its content height
-			//
-			// 2. AutoApproveMenu uses flex: "0 1 auto" to:
-			//    - Not grow beyond its content (flex-grow: 0)
-			//    - Shrink when viewport is small (flex-shrink: 1) 
-			//    - Use its content size as basis (flex-basis: auto)
-			//    This ensures it takes its natural height when there's space
-			//    but becomes scrollable when the viewport is too small
-			*/}
-			{!task && (
-				<AutoApproveMenu
-					style={{
-						marginBottom: -2,
-						flex: "0 1 auto", // flex-grow: 0, flex-shrink: 1, flex-basis: auto
-						minHeight: 0,
-					}}
-				/>
-			)}
+			{!task && <AutoApproveMenu />}
 
 			{task && (
 				<>
