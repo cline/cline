@@ -1736,7 +1736,7 @@ const ApiOptions = ({
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.sambanovaApiKey && (
 							<VSCodeLink
-								href="https://docs.sambanova.ai/cloud/docs/get-started/overview"
+								href="http://cloud.sambanova.ai?utm_source=dynamiq&utm_medium=external&utm_campaign=cloud_signup"
 								style={{
 									display: "inline",
 									fontSize: "inherit",
