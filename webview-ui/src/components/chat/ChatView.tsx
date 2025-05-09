@@ -288,6 +288,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setPrimaryButtonText("Condense Conversation")
 							setSecondaryButtonText(undefined)
 							break
+						case "report_bug":
+							setSendingDisabled(isPartial)
+							setClineAsk("report_bug")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Report GitHub issue")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -416,6 +423,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								images,
 							})
 							break
+						case "report_bug":
+							vscode.postMessage({
+								type: "askResponse",
+								askResponse: "messageResponse",
+								text: messageToSend,
+								images,
+							})
+							break
 						// there is no other case that a textfield should be enabled
 					}
 				}
@@ -487,6 +502,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "condense":
 					vscode.postMessage({
 						type: "condense",
+						text: lastMessage?.text,
+					})
+					break
+				case "report_bug":
+					vscode.postMessage({
+						type: "reportBug",
 						text: lastMessage?.text,
 					})
 					break
@@ -1101,7 +1122,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				</>
 			)}
 			{(() => {
-				console.log("[ChatView] Rendering - activeQuote:", activeQuote) // Log here
 				return activeQuote ? (
 					<div style={{ marginBottom: "-12px", marginTop: "10px" }}>
 						<QuotedMessagePreview

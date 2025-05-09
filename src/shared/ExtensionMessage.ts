@@ -177,6 +177,7 @@ export type ClineAsk =
 	| "use_mcp_server"
 	| "new_task"
 	| "condense"
+	| "report_bug"
 
 export type ClineSay =
 	| "task"

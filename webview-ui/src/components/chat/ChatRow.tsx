@@ -89,6 +89,7 @@ import { highlightText } from "./TaskHeader"
 import SuccessButton from "@/components/common/SuccessButton"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import NewTaskPreview from "./NewTaskPreview"
+import ReportBugPreview from "./ReportBugPreview"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
@@ -1473,6 +1474,23 @@ export const ChatRowContent = ({
 								</span>
 							</div>
 							<NewTaskPreview context={message.text || ""} />
+						</>
+					)
+				case "report_bug":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-new-file"
+									style={{
+										color: normalColor,
+										marginBottom: "-1.5px",
+									}}></span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>
+									Cline wants to create a Github issue:
+								</span>
+							</div>
+							<ReportBugPreview data={message.text || ""} />
 						</>
 					)
 				case "plan_mode_respond": {
