@@ -13,7 +13,7 @@ export interface WebviewMessage {
 		| "webviewDidLaunch"
 		| "newTask"
 		| "condense"
-		| "report_bug"
+		| "reportBug"
 		| "askResponse"
 		| "didShowAnnouncement"
 		| "selectImages"

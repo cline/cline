@@ -507,7 +507,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					break
 				case "report_bug":
 					vscode.postMessage({
-						type: "report_bug",
+						type: "reportBug",
 						text: lastMessage?.text,
 					})
 					break

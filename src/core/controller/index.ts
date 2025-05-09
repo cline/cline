@@ -275,7 +275,7 @@ export class Controller {
 			case "condense":
 				this.task?.handleWebviewAskResponse("yesButtonClicked")
 				break
-			case "report_bug":
+			case "reportBug":
 				this.task?.handleWebviewAskResponse("yesButtonClicked")
 				break
 			case "apiConfiguration":
