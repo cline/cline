@@ -56,6 +56,7 @@ interface ChatRowProps {
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
 	onSetQuote: (text: string) => void
+	searchQuery?: string // Added for search highlighting
 }
 
 interface QuoteButtonState {
@@ -95,6 +96,30 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 		</div>
 	)
 })
+
+// Helper function for highlighting text
+const getHighlightedJsx = (text: string | undefined, highlight: string | undefined): React.ReactNode => {
+	if (!text) return null
+	if (!highlight?.trim()) {
+		return text // Return plain text if no highlight query
+	}
+	// Escape regex special characters in the highlight string
+	const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+	const parts = text.split(new RegExp(`(${escapedHighlight})`, "gi"))
+	return (
+		<>
+			{parts.map((part, i) =>
+				part.toLowerCase() === highlight.toLowerCase() ? (
+					<mark key={i} style={{ backgroundColor: "yellow", color: "black" }}>
+						{part}
+					</mark>
+				) : (
+					part // Render non-matching parts as plain text
+				),
+			)}
+		</>
+	)
+}
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -140,6 +165,7 @@ export const ChatRowContent = ({
 	inputValue,
 	sendMessageFromChatRow,
 	onSetQuote,
+	searchQuery, // Destructure searchQuery
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
@@ -900,9 +926,20 @@ export const ChatRowContent = ({
 				case "mcp_server_response":
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
+					// Apply highlighting to the text before passing to Markdown
+					// Note: This simple approach might interfere with complex Markdown rendering.
+					// A more robust solution would integrate highlighting within MarkdownBlock.
+					const highlightedTextContent = getHighlightedJsx(message.text, searchQuery)
 					return (
 						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
+							{/* Render the highlighted JSX directly or pass pre-highlighted string to Markdown */}
+							{/* Option 1: Render JSX directly (might bypass Markdown processing for highlighted parts) */}
+							{/* <div style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>{highlightedTextContent}</div> */}
+
+							{/* Option 2: Pass potentially modified string to Markdown (safer for Markdown structure) */}
 							<Markdown markdown={message.text} />
+							{/* We'll refine highlighting within MarkdownBlock later if needed */}
+
 							{quoteButtonState.visible && (
 								<QuoteButton
 									top={quoteButtonState.top}
@@ -1303,6 +1340,7 @@ export const ChatRowContent = ({
 										paddingTop: 10,
 										position: "relative", // Added position
 									}}>
+									{/* Apply highlighting similarly if needed */}
 									<Markdown markdown={text} />
 									{quoteButtonState.visible && (
 										<QuoteButton
@@ -1363,6 +1401,7 @@ export const ChatRowContent = ({
 								</div>
 							)}
 							<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative", paddingTop: 10 }}>
+								{/* Apply highlighting similarly if needed */}
 								<Markdown markdown={question} />
 								<OptionsButtons
 									options={options}
@@ -1429,6 +1468,7 @@ export const ChatRowContent = ({
 					}
 					return (
 						<div ref={contentRef} onMouseUp={handleMouseUp} style={{ position: "relative" }}>
+							{/* Apply highlighting similarly if needed */}
 							<Markdown markdown={response} />
 							<OptionsButtons
 								options={options}

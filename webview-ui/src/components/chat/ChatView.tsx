@@ -86,6 +86,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return getTotalTokensFromApiReqMessage(lastApiReqMessage)
 	}, [modifiedMessages])
 
+	const [searchQuery, setSearchQuery] = useState("") // Added for search functionality
 	const [inputValue, setInputValue] = useState("")
 	const [activeQuote, setActiveQuote] = useState<string | null>(null)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
@@ -654,6 +655,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 	}, [modifiedMessages])
 
+	const searchedAndVisibleMessages = useMemo(() => {
+		if (!searchQuery.trim()) {
+			return visibleMessages
+		}
+		const query = searchQuery.toLowerCase()
+		return visibleMessages.filter((message) => {
+			let contentToSearch = ""
+			if (message.text) {
+				contentToSearch += message.text.toLowerCase()
+			}
+			// We can add message.reasoning here later if needed
+			return contentToSearch.includes(query)
+		})
+	}, [visibleMessages, searchQuery])
+
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above
 
@@ -689,7 +705,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 		}
 
-		visibleMessages.forEach((message) => {
+		searchedAndVisibleMessages.forEach((message) => {
+			// <-- Use searchedAndVisibleMessages
 			if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 				// complete existing browser session if any
 				endBrowserSession()
@@ -739,7 +756,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 
 		return result
-	}, [visibleMessages])
+	}, [searchedAndVisibleMessages, isBrowserSessionMessage]) // <-- Update dependencies
 
 	// scrolling
 
@@ -879,6 +896,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							}))
 						}}
 						onSetQuote={setActiveQuote}
+						searchQuery={searchQuery} // Pass searchQuery
 					/>
 				)
 			}
@@ -896,6 +914,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					inputValue={inputValue}
 					sendMessageFromChatRow={handleSendMessage}
 					onSetQuote={setActiveQuote}
+					searchQuery={searchQuery} // Pass searchQuery
 				/>
 			)
 		},
@@ -907,6 +926,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			handleRowHeightChange,
 			inputValue,
 			setActiveQuote,
+			searchQuery, // Add searchQuery to dependencies
 		],
 	)
 
@@ -992,6 +1012,25 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			{task && (
 				<>
+					{/* Search Input Field START */}
+					<div style={{ padding: "10px 15px" }}>
+						<input
+							type="text"
+							placeholder="Search messages..."
+							value={searchQuery} // Connected to state
+							onChange={(e) => setSearchQuery(e.target.value)} // Connected to state
+							style={{
+								width: "100%",
+								padding: "8px",
+								boxSizing: "border-box",
+								backgroundColor: "var(--vscode-input-background)",
+								color: "var(--vscode-input-foreground)",
+								border: "1px solid var(--vscode-input-border)",
+								borderRadius: "3px",
+							}}
+						/>
+					</div>
+					{/* Search Input Field END */}
 					<div style={{ flexGrow: 1, display: "flex" }} ref={scrollContainerRef}>
 						<Virtuoso
 							ref={virtuosoRef}

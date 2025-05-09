@@ -20,6 +20,7 @@ interface BrowserSessionRowProps {
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
 	onSetQuote: (text: string) => void
+	searchQuery?: string // Added for search highlighting
 }
 
 const browserSessionRowContainerInnerStyle: CSSProperties = {
@@ -495,6 +496,7 @@ interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "me
 	message: ClineMessage
 	setMaxActionHeight: (height: number) => void
 	onSetQuote: (text: string) => void
+	searchQuery?: string // Added for search highlighting
 }
 
 const BrowserSessionRowContent = ({
@@ -505,6 +507,7 @@ const BrowserSessionRowContent = ({
 	isLast,
 	setMaxActionHeight,
 	onSetQuote,
+	searchQuery, // Destructure searchQuery
 }: BrowserSessionRowContentProps) => {
 	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 		return (
@@ -539,6 +542,7 @@ const BrowserSessionRowContent = ({
 								lastModifiedMessage={lastModifiedMessage}
 								isLast={isLast}
 								onSetQuote={onSetQuote}
+								searchQuery={searchQuery} // Pass searchQuery down
 							/>
 						</div>
 					)
