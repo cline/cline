@@ -23,7 +23,7 @@ function wrapHandler(fn) {
 		} catch (err) {
 			log("Handler error:", err)
 			callback({
-				code: grpc.status.UNKNOWN,
+				code: grpc.status.INTERNAL,
 				message: err.message || "Internal error",
 			})
 		}
@@ -52,6 +52,7 @@ reflection.addToServer(server)
 server.bindAsync("127.0.0.1:50051", grpc.ServerCredentials.createInsecure(), (err) => {
 	if (err) {
 		log("Error: Failed to bind to port 50051, port may be unavailable", err.message)
+    process.exit(1)
 	} else {
 		log("gRPC server listening on", "127.0.0.1:50051")
 	}
