@@ -5,6 +5,7 @@
 import { registerMethod } from "./index"
 import { getLatestState } from "./getLatestState"
 import { subscribeToState } from "./subscribeToState"
+import { updateAutoApprovalSettings } from "./updateAutoApprovalSettings"
 
 // Streaming methods for this service
 export const streamingMethods = ["subscribeToState"]
@@ -14,4 +15,5 @@ export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("getLatestState", getLatestState)
 	registerMethod("subscribeToState", subscribeToState, { isStreaming: true })
+	registerMethod("updateAutoApprovalSettings", updateAutoApprovalSettings)
 }
