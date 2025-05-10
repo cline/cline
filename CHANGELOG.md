@@ -1,5 +1,41 @@
 # Changelog
 
+## [3.15.0]
+
+-   Add Task Timeline visualization to tasks (Thanks eomcaleb!)
+-   Add cache to ui for OpenAi provider
+-   Add FeatureFlagProvider service for the Node.js extension side
+-   Add copy buttons to task header and assistant messages
+-   Add a more simplified home header was added
+-   Add ability to favorite a task, allowing it to be kept when clearing all tasks
+-   Add npm script for issue creation (Thanks DaveFres!)
+-   Add confirmation dialog to Delete All History button
+-   Add ability to allow the user to type their next message into the chat while Cline is taking action
+-   Add ability to generate commit message via cline (Thanks zapp88!)
+-   Add improvements to caching for gemini models on OpenRouter and Cline providers
+-   Add improvements to allow scrolling the file being edited.
+-   Add ui for windsurf and cursor rules
+-   Add mistral medium-3 model
+-   Add option to collect events to send them in a bundle to avoid sending too many events
+-   Add support to quote a previous message in chat
+-   Add support for Gemini Implicit Caching
+-   Add support for batch selection and deletion of tasks in history (Thanks danix800!)
+-   Update change suggested models
+-   Update fetch cache details from generation endpoint
+-   Update converted docs to Mintlify
+-   Update the isOminiModel to include o4-mini model (Thanks PeterDaveHello!)
+-   Update file size that can be read by Cline, allowing larger files
+-   Update defaults for bedrock API models (Thanks Watany!)
+-   Update to extend ReasoningEffort to non-o3-mini reasoning models for all providers (Thanks PeterDaveHello!)
+-   Update to give error when a user tries to upload an image larger than 7500x7500 pixels
+-   Update announcement so that previous updates are in a dropdown
+-   Update UI for auto approve with favorited settings
+-   Fix bug where certain terminal commands would lock you out of a task
+-   Fix only initialize posthog in the webview if the user has opted into telemetry
+-   Fix bug where autocapture was on for front-end telemetry
+-   Fix for markdown copy excessively escaping characters (Thanks weshoke!)
+-   Fix an issue where loading never finished when using an application inference profile for the model ID (Thanks WinterYukky!)
+
 ## [3.14.1]
 
 -   Disables autocaptures when initializing feature flags
