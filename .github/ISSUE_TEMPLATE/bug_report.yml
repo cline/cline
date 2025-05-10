@@ -5,14 +5,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Thank you for taking the time to fill out this bug report!**
+        **Thanks for your report!** Please check existing issues first:  
+        👉 https://github.com/RooVetGit/Roo-Code/issues
 
-        Please ensure this bug hasn't been reported already by searching existing [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues).
   - type: input
     id: version
     attributes:
       label: App Version
-      description: Specify exactly which version you're using (e.g., v3.3.1)
+      description: What version of Roo Code are you using? (e.g., v3.3.1)
     validations:
       required: true
 
@@ -20,8 +20,6 @@ body:
     id: provider
     attributes:
       label: API Provider
-      description: Choose the API provider involved
-      multiple: false
       options:
         - Anthropic
         - AWS Bedrock
@@ -29,8 +27,10 @@ body:
         - DeepSeek
         - Glama
         - Google Gemini
+        - Google Vertex AI
         - Groq
         - Human Relay Provider
+        - LiteLLM
         - LM Studio
         - Mistral AI
         - Ollama
@@ -49,44 +49,40 @@ body:
     id: model
     attributes:
       label: Model Used
-      description: Clearly specify the exact model (e.g., Claude 3.7 Sonnet). If not applicable, enter N/A.
-    validations:
-      required: true
-
-  - type: textarea
-    id: what-happened
-    attributes:
-      label: Actual vs. Expected Behavior
-      description: Clearly state what actually happened and what you expected instead.
-      placeholder: Provide precise details of the issue here.
+      description: Exact model name (e.g., Claude 3.7 Sonnet). Use N/A if irrelevant.
     validations:
       required: true
 
   - type: textarea
     id: steps
     attributes:
-      label: Detailed Steps to Reproduce
+      label: 🔁 Steps to Reproduce
       description: |
-        List the exact steps someone must follow to reproduce this bug:
-        1. Starting conditions (software state, settings, environment)
-        2. Precise actions taken (every click, selection, input)
-        3. Clearly observe and report outcomes
-      value: |
-        1.
-        2.
-        3.
+        Help us see what you saw. Give clear, numbered steps:
+
+        1. Setup (OS, extension version, settings)
+        2. Exact actions (clicks, input, files, commands)
+        3. What happened after each step
+
+        Think like you're writing a recipe. Without this, we can't reproduce the issue.
+      validations:
+        required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 💥 Outcome Summary (Optional)
+      description: |
+        Recap what went wrong in one or two lines. Use this if the bug is weird, unexpected, or needs extra context.
+
+        Example: "Expected code to run, but got an empty response and no error."
+      placeholder: Expected ___, but got ___.
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: logs
     attributes:
-      label: Relevant API Request Output or Error Logs
-      description: Paste relevant API logs, console outputs, or error messages here (formatted automatically as code).
+      label: 📄 Relevant Logs or Errors
+      description: Paste API logs, terminal output, or errors here. Use triple backticks (```) for code formatting.
       render: shell
-
-  - type: textarea
-    id: additional-context
-    attributes:
-      label: Additional Context
-      description: Include extra details, screenshots, or related issues.
