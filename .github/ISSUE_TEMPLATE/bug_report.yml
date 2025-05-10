@@ -65,8 +65,8 @@ body:
         3. What happened after each step
 
         Think like you're writing a recipe. Without this, we can't reproduce the issue.
-      validations:
-        required: true
+    validations:
+      required: true
 
   - type: textarea
     id: what-happened
@@ -77,8 +77,6 @@ body:
 
         Example: "Expected code to run, but got an empty response and no error."
       placeholder: Expected ___, but got ___.
-    validations:
-      required: false
 
   - type: textarea
     id: logs
