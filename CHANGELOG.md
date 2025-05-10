@@ -1,63 +1,40 @@
 # Changelog
 
-## 3.15.0
+## [3.15.0]
 
--   fc5adcf: add open ai cache to ui
--   6303a77: suggested model exists again
--   961400f: fixed bug where certain terminal commands would lock you out of a task
--   d14345f: Add FeatureFlagProvider service for the Node.js extension side
--   4622ad7: added copy buttons to task header and assistant messages
--   dd35bce: breakpoint just in system prompt for gemini for OR and cline provider
--   2963aa5: fetch cache details from generation endpoint
--   248871d: Add a simplified home header
--   a43da8d: Add npm script for issue creation
--   311cb3a: Migrate more info section to new docs
--   e1a0b24: Only initialize posthog in the webview if the user has opted into telemetry
--   7e5cd52: Allow the user to form their next message while Cline is taking action
--   9eaf023: updated gemini caching for OR and cline provider
--   dbba0ef: Add ability to generate commit message via cline
--   6ad11ba: updated OR/cline provider to automate gemini models caching
--   7b416cc: Add Task Favorites and several proto messages related to tasks
--   311cb3a: Add enterprise section to new docs
--   ffbafab: Migrate prompting section to new docs
--   bc9eaee: Migrate running models locally section to new docs
--   b8af02e: Allow the user to scroll when Cline is editing a file by disabling auto-scroll when the user scrolls up
--   8d3cf53: Add image links to docs
--   311cb3a: Migrate MCP section to new docs
--   10f7b8c: Migrate custom model config section to new docs
--   274349f: add ui for windsurf and cursor rules
--   8516aab: Migrate getting-started section to new docs
--   f1ed93a: Task Timeline
--   3e9c83b: Add the o4-mini model in the isOminiModel
--   062bb5b: Allow option to collect events to send them in a bundle to avoid sending too many events
--   83c4a82: disable autocapture
--   96048d5: Update deployer team name
--   c839576: Moved rule file conversions
--   c20a513: wording
--   9eea9d0: getRelativePaths protobus migration
--   7084e74: getOllamaModels protobus migration
--   489a051: Increasing file size that can be read by cline
--   20f1991: Add org to team affiliation check
--   bddc1b5: fix-bedrock-api
--   a953f6e: Add confirmation dialog to Delete All History button
--   d02e5a8: Fix for markdown copy excessive escape characters
--   f4a9d5f: Bump ollama from 0.5.13 to 0.5.15
--   8827b16: refreshOpenRouterModels protobus migration
--   b667224: Extend ReasoningEffort to non-o3-mini reasoning models for all providers
--   5f4b807: Re-enable tests in workflow
--   445e252: requestVsCodeLmModels protobus migration
--   facec93: Adding mistral medium-3 model
--   06fc419: searchFiles protobus migration
--   a02bf11: getLmStudioModels protobus migration
--   e963d2c: adding quote reply support
--   2792e76: Raise Errors when users try to upload images larger than 7500x7500 pixels
--   6d24e22: Make Previous Updates in the Announcement a dropdown
--   7cf68ff: timestamp visualization
--   e8a68c4: refreshOpenAiModels protobus migration
--   e572ee4: Fixed an issue where loading never finished when using an application inference profile for the model ID
--   aa4d97f: Updated auto approve with favorited settings
--   978f34e: Add support for Gemini Implicit Caching
--   675b5e1: Batch selection and deletion of tasks in history
+-   Add Task Timeline visualization to tasks (Thanks eomcaleb!)
+-   Add cache to ui for OpenAi provider
+-   Add FeatureFlagProvider service for the Node.js extension side
+-   Add copy buttons to task header and assistant messages
+-   Add a more simplified home header was added
+-   Add ability to favorite a task, allowing it to be kept when clearing all tasks
+-   Add npm script for issue creation (Thanks DaveFres!)
+-   Add confirmation dialog to Delete All History button
+-   Add ability to allow the user to type their next message into the chat while Cline is taking action
+-   Add ability to generate commit message via cline (Thanks zapp88!)
+-   Add improvements to caching for gemini models on OpenRouter and Cline providers
+-   Add improvements to allow scrolling the file being edited.
+-   Add ui for windsurf and cursor rules
+-   Add mistral medium-3 model
+-   Add option to collect events to send them in a bundle to avoid sending too many events
+-   Add support to quote a previous message in chat
+-   Add support for Gemini Implicit Caching
+-   Add support for batch selection and deletion of tasks in history (Thanks danix800!)
+-   Update change suggested models
+-   Update fetch cache details from generation endpoint
+-   Update converted docs to Mintlify
+-   Update the isOminiModel to include o4-mini model (Thanks PeterDaveHello!)
+-   Update file size that can be read by Cline, allowing larger files
+-   Update defaults for bedrock API models (Thanks Watany!)
+-   Update to extend ReasoningEffort to non-o3-mini reasoning models for all providers (Thanks PeterDaveHello!)
+-   Update to give error when a user tries to upload an image larger than 7500x7500 pixels
+-   Update announcement so that previous updates are in a dropdown
+-   Update UI for auto approve with favorited settings
+-   Fix bug where certain terminal commands would lock you out of a task
+-   Fix only initialize posthog in the webview if the user has opted into telemetry
+-   Fix bug where autocapture was on for front-end telemetry
+-   Fix for markdown copy excessively escaping characters (Thanks weshoke!)
+-   Fix an issue where loading never finished when using an application inference profile for the model ID (Thanks WinterYukky!)
 
 ## [3.14.1]
 
