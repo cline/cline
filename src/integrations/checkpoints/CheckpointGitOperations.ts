@@ -147,6 +147,7 @@ export class GitOperations {
 			dot: true,
 			markDirectories: false,
 			suppressErrors: true,
+			deep: 10,
 		})
 
 		// For each nested .git directory, rename it based on operation
