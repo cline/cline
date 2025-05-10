@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { ProviderSettings, RouterModels, glamaDefaultModelId } from "@roo/shared/api"
+import { ApiConfiguration, RouterModels, glamaDefaultModelId } from "@roo/shared/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { getGlamaAuthUrl } from "@src/oauth/urls"
@@ -11,8 +11,8 @@ import { inputEventTransform } from "../transforms"
 import { ModelPicker } from "../ModelPicker"
 
 type GlamaProps = {
-	apiConfiguration: ProviderSettings
-	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
+	apiConfiguration: ApiConfiguration
+	setApiConfigurationField: (field: keyof ApiConfiguration, value: ApiConfiguration[keyof ApiConfiguration]) => void
 	routerModels?: RouterModels
 	uriScheme?: string
 }
@@ -21,9 +21,9 @@ export const Glama = ({ apiConfiguration, setApiConfigurationField, routerModels
 	const { t } = useAppTranslation()
 
 	const handleInputChange = useCallback(
-		<K extends keyof ProviderSettings, E>(
+		<K extends keyof ApiConfiguration, E>(
 			field: K,
-			transform: (event: E) => ProviderSettings[K] = inputEventTransform,
+			transform: (event: E) => ApiConfiguration[K] = inputEventTransform,
 		) =>
 			(event: E | Event) => {
 				setApiConfigurationField(field, transform(event as E))

@@ -16,7 +16,7 @@ import { ApiHandler, buildApiHandler } from "../../api"
 import { ApiStream } from "../../api/transform/stream"
 
 // shared
-import { ProviderSettings } from "../../shared/api"
+import { ApiConfiguration } from "../../shared/api"
 import { findLastIndex } from "../../shared/array"
 import { combineApiRequests } from "../../shared/combineApiRequests"
 import { combineCommandSequences } from "../../shared/combineCommandSequences"
@@ -92,7 +92,7 @@ export type ClineEvents = {
 
 export type TaskOptions = {
 	provider: ClineProvider
-	apiConfiguration: ProviderSettings
+	apiConfiguration: ApiConfiguration
 	customInstructions?: string
 	enableDiff?: boolean
 	enableCheckpoints?: boolean
@@ -130,7 +130,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	customInstructions?: string
 
 	// API
-	readonly apiConfiguration: ProviderSettings
+	readonly apiConfiguration: ApiConfiguration
 	api: ApiHandler
 	private promptCacheKey: string
 	private lastApiRequestTime?: number

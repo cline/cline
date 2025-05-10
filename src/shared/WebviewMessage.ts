@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { ProviderSettings } from "./api"
+import { ApiConfiguration } from "./api"
 import { Mode, PromptComponent, ModeConfig } from "./modes"
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
@@ -11,6 +11,7 @@ export type AudioType = "notification" | "celebration" | "progress_loop"
 
 export interface WebviewMessage {
 	type:
+		| "apiConfiguration"
 		| "deleteMultipleTasksWithIds"
 		| "currentApiConfigName"
 		| "saveApiConfiguration"
@@ -133,7 +134,7 @@ export interface WebviewMessage {
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
-	apiConfiguration?: ProviderSettings
+	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
 	value?: number

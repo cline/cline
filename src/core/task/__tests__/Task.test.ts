@@ -9,7 +9,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { GlobalState } from "../../../schemas"
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
-import { ProviderSettings, ModelInfo } from "../../../shared/api"
+import { ApiConfiguration, ModelInfo } from "../../../shared/api"
 import { ApiStreamChunk } from "../../../api/transform/stream"
 import { ContextProxy } from "../../config/ContextProxy"
 import { processUserContentMentions } from "../../mentions/processUserContentMentions"
@@ -156,7 +156,7 @@ const mockMessages = [
 
 describe("Cline", () => {
 	let mockProvider: jest.Mocked<ClineProvider>
-	let mockApiConfig: ProviderSettings
+	let mockApiConfig: ApiConfiguration
 	let mockOutputChannel: any
 	let mockExtensionContext: vscode.ExtensionContext
 

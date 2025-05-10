@@ -2,7 +2,7 @@ import { useState, useCallback } from "react"
 import { useEvent } from "react-use"
 import { VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 
-import { ProviderSettings } from "@roo/shared/api"
+import { ApiConfiguration } from "@roo/shared/api"
 import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -10,8 +10,8 @@ import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { inputEventTransform } from "../transforms"
 
 type OllamaProps = {
-	apiConfiguration: ProviderSettings
-	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
+	apiConfiguration: ApiConfiguration
+	setApiConfigurationField: (field: keyof ApiConfiguration, value: ApiConfiguration[keyof ApiConfiguration]) => void
 }
 
 export const Ollama = ({ apiConfiguration, setApiConfigurationField }: OllamaProps) => {
@@ -20,9 +20,9 @@ export const Ollama = ({ apiConfiguration, setApiConfigurationField }: OllamaPro
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
 	const handleInputChange = useCallback(
-		<K extends keyof ProviderSettings, E>(
+		<K extends keyof ApiConfiguration, E>(
 			field: K,
-			transform: (event: E) => ProviderSettings[K] = inputEventTransform,
+			transform: (event: E) => ApiConfiguration[K] = inputEventTransform,
 		) =>
 			(event: E | Event) => {
 				setApiConfigurationField(field, transform(event as E))

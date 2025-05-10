@@ -5,7 +5,7 @@ import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { convertHeadersToObject } from "../utils/headers"
 
 import { ModelInfo, ReasoningEffort as ReasoningEffortType } from "@roo/schemas"
-import { ProviderSettings, azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@roo/shared/api"
+import { ApiConfiguration, azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@roo/shared/api"
 import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -17,8 +17,8 @@ import { R1FormatSetting } from "../R1FormatSetting"
 import { ReasoningEffort } from "../ReasoningEffort"
 
 type OpenAICompatibleProps = {
-	apiConfiguration: ProviderSettings
-	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
+	apiConfiguration: ApiConfiguration
+	setApiConfigurationField: (field: keyof ApiConfiguration, value: ApiConfiguration[keyof ApiConfiguration]) => void
 }
 
 export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }: OpenAICompatibleProps) => {
@@ -81,9 +81,9 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 	}, [customHeaders, setApiConfigurationField])
 
 	const handleInputChange = useCallback(
-		<K extends keyof ProviderSettings, E>(
+		<K extends keyof ApiConfiguration, E>(
 			field: K,
-			transform: (event: E) => ProviderSettings[K] = inputEventTransform,
+			transform: (event: E) => ApiConfiguration[K] = inputEventTransform,
 		) =>
 			(event: E | Event) => {
 				setApiConfigurationField(field, transform(event as E))

@@ -3,7 +3,7 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { ProviderSettings } from "@roo/shared/api"
+import { ApiConfiguration } from "@roo/shared/api"
 
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 import { openAiModelInfoSaneDefaults } from "@roo/shared/api"
@@ -148,7 +148,7 @@ jest.mock("../DiffSettingsControl", () => ({
 }))
 
 jest.mock("@src/components/ui/hooks/useSelectedModel", () => ({
-	useSelectedModel: jest.fn((apiConfiguration: ProviderSettings) => {
+	useSelectedModel: jest.fn((apiConfiguration: ApiConfiguration) => {
 		if (apiConfiguration.apiModelId?.includes("thinking")) {
 			return {
 				provider: apiConfiguration.apiProvider,

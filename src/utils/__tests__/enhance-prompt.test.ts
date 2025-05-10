@@ -1,5 +1,5 @@
 import { singleCompletionHandler } from "../single-completion-handler"
-import { ProviderSettings } from "../../shared/api"
+import { ApiConfiguration } from "../../shared/api"
 import { buildApiHandler, SingleCompletionHandler } from "../../api"
 import { supportPrompt } from "../../shared/support-prompt"
 
@@ -9,7 +9,7 @@ jest.mock("../../api", () => ({
 }))
 
 describe("enhancePrompt", () => {
-	const mockApiConfig: ProviderSettings = {
+	const mockApiConfig: ApiConfiguration = {
 		apiProvider: "openai",
 		openAiApiKey: "test-key",
 		openAiBaseUrl: "https://api.openai.com/v1",
@@ -69,7 +69,7 @@ describe("enhancePrompt", () => {
 	})
 
 	it("throws error for missing API configuration", async () => {
-		await expect(singleCompletionHandler({} as ProviderSettings, "Test prompt")).rejects.toThrow(
+		await expect(singleCompletionHandler({} as ApiConfiguration, "Test prompt")).rejects.toThrow(
 			"No valid API configuration provided",
 		)
 	})
@@ -94,7 +94,7 @@ describe("enhancePrompt", () => {
 	})
 
 	it("uses appropriate model based on provider", async () => {
-		const openRouterConfig: ProviderSettings = {
+		const openRouterConfig: ApiConfiguration = {
 			apiProvider: "openrouter",
 			openRouterApiKey: "test-key",
 			openRouterModelId: "test-model",

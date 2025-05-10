@@ -1,16 +1,16 @@
-// npx jest src/context/__tests__/ExtensionStateContext.test.tsx
+// cd webview-ui && npx jest src/context/__tests__/ExtensionStateContext.test.tsx
 
 import { render, screen, act } from "@testing-library/react"
 
 import { ExtensionState } from "@roo/shared/ExtensionMessage"
 import { ExtensionStateContextProvider, useExtensionState, mergeExtensionState } from "../ExtensionStateContext"
 import { ExperimentId } from "@roo/shared/experiments"
-import { ProviderSettings } from "@roo/shared/api"
+import { ApiConfiguration } from "@roo/shared/api"
 
+// Test component that consumes the context
 const TestComponent = () => {
 	const { allowedCommands, setAllowedCommands, soundEnabled, showRooIgnoredFiles, setShowRooIgnoredFiles } =
 		useExtensionState()
-
 	return (
 		<div>
 			<div data-testid="allowed-commands">{JSON.stringify(allowedCommands)}</div>
@@ -26,9 +26,9 @@ const TestComponent = () => {
 	)
 }
 
+// Test component for API configuration
 const ApiConfigTestComponent = () => {
 	const { apiConfiguration, setApiConfiguration } = useExtensionState()
-
 	return (
 		<div>
 			<div data-testid="api-configuration">{JSON.stringify(apiConfiguration)}</div>
@@ -197,7 +197,7 @@ describe("mergeExtensionState", () => {
 			customModes: [],
 			maxOpenTabsContext: 20,
 			maxWorkspaceFiles: 100,
-			apiConfiguration: { providerId: "openrouter" } as ProviderSettings,
+			apiConfiguration: { providerId: "openrouter" } as ApiConfiguration,
 			telemetrySetting: "unset",
 			showRooIgnoredFiles: true,
 			renderContext: "sidebar",

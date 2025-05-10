@@ -1,6 +1,6 @@
 import {
 	type ProviderName,
-	type ProviderSettings,
+	type ApiConfiguration,
 	type RouterModels,
 	type ModelInfo,
 	anthropicDefaultModelId,
@@ -35,7 +35,7 @@ import {
 
 import { useRouterModels } from "./useRouterModels"
 
-export const useSelectedModel = (apiConfiguration?: ProviderSettings) => {
+export const useSelectedModel = (apiConfiguration?: ApiConfiguration) => {
 	const { data: routerModels, isLoading, isError } = useRouterModels()
 	const provider = apiConfiguration?.apiProvider || "anthropic"
 
@@ -53,7 +53,7 @@ function getSelectedModel({
 	routerModels,
 }: {
 	provider: ProviderName
-	apiConfiguration: ProviderSettings
+	apiConfiguration: ApiConfiguration
 	routerModels: RouterModels
 }): { id: string; info: ModelInfo } {
 	switch (provider) {

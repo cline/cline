@@ -1,12 +1,12 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
-import { ProviderSettings } from "@roo/shared/api"
+import { ApiConfiguration } from "@roo/shared/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 interface PromptCachingControlProps {
-	apiConfiguration: ProviderSettings
-	setApiConfigurationField: <K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => void
+	apiConfiguration: ApiConfiguration
+	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
 }
 
 export const PromptCachingControl = ({ apiConfiguration, setApiConfigurationField }: PromptCachingControlProps) => {
