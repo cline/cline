@@ -84,18 +84,60 @@ const OS_GENERATED_FILES = [
 
 /**
  * Recursively reads a directory and returns an array of absolute file paths.
+ * Handles symlinks to both files and directories with cycle detection to prevent infinite recursion.
  *
  * @param directoryPath - The path to the directory to read.
+ * @param visitedPaths - Set of already visited symlink targets to detect cycles (internal use).
  * @returns A promise that resolves to an array of absolute file paths.
  * @throws Error if the directory cannot be read.
  */
-export const readDirectory = async (directoryPath: string) => {
+export const readDirectory = async (directoryPath: string, visitedPaths: Set<string> = new Set()) => {
 	try {
-		const filePaths = await fs
-			.readdir(directoryPath, { withFileTypes: true, recursive: true })
-			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
-			.then((entries) => entries.filter((entry) => entry.isFile()))
-			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
+		const entries = await fs.readdir(directoryPath, { withFileTypes: true, recursive: true })
+
+		const filteredEntries = entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name))
+
+		const filePaths: string[] = []
+
+		for (const entry of filteredEntries) {
+			const fullPath = path.resolve(entry.parentPath, entry.name)
+
+			if (entry.isFile()) {
+				filePaths.push(fullPath)
+			} else if (entry.isSymbolicLink()) {
+				const targetPath = await fs.readlink(fullPath)
+				const resolvedPath = path.resolve(path.dirname(fullPath), targetPath)
+
+				// Check for symlink cycles
+				if (visitedPaths.has(resolvedPath)) {
+					// Skip this symlink as it would create a cycle
+					continue
+				}
+
+				try {
+					const stats = await fs.stat(resolvedPath)
+
+					if (stats.isFile()) {
+						filePaths.push(fullPath)
+					} else if (stats.isDirectory()) {
+						// Add this path to the visited set before recursing
+						const newVisitedPaths = new Set(visitedPaths)
+						newVisitedPaths.add(resolvedPath)
+
+						const nestedFiles = await readDirectory(resolvedPath, newVisitedPaths)
+
+						for (const nestedFile of nestedFiles) {
+							const relativePath = path.relative(resolvedPath, nestedFile)
+							filePaths.push(path.join(fullPath, relativePath))
+						}
+					}
+				} catch (error) {
+					// Handle broken symlinks or permission issues gracefully
+					continue
+				}
+			}
+		}
+
 		return filePaths
 	} catch {
 		throw new Error(`Error reading directory at ${directoryPath}`)
