@@ -1,134 +1,130 @@
 import { AssistantMessageContent, TextContent, ToolUse, ToolParamName, toolParamNames, toolUseNames, ToolUseName } from "."
 
-export function parseAssistantMessage(assistantMessage: string) {
+export function parseAssistantMessage(assistantMessage: string): AssistantMessageContent[] {
 	const contentBlocks: AssistantMessageContent[] = []
+
+	let currentTextContentStart = 0
 	let currentTextContent: TextContent | undefined = undefined
-	let currentTextContentStartIndex = 0
+
+	let currentToolUseStart = 0
 	let currentToolUse: ToolUse | undefined = undefined
-	let currentToolUseStartIndex = 0
+
+	let currentParamValueStart = 0
 	let currentParamName: ToolParamName | undefined = undefined
-	let currentParamValueStartIndex = 0
-	let accumulator = ""
 
-	for (let i = 0; i < assistantMessage.length; i++) {
-		const char = assistantMessage[i]
-		accumulator += char
+	const toolUseOpenTags = new Map<string, ToolUseName>()
+	const toolParamOpenTags = new Map<string, ToolParamName>()
 
-		// there should not be a param without a tool use
+	for (const name of toolUseNames) {
+		toolUseOpenTags.set(`<${name}>`, name)
+	}
+
+	for (const name of toolParamNames) {
+		toolParamOpenTags.set(`<${name}>`, name)
+	}
+
+	const len = assistantMessage.length
+
+	for (let i = 0; i < len; i++) {
+		// If parsing a tool param
 		if (currentToolUse && currentParamName) {
-			const currentParamValue = accumulator.slice(currentParamValueStartIndex)
-			const paramClosingTag = `</${currentParamName}>`
-			if (currentParamValue.endsWith(paramClosingTag)) {
-				// end of param value
-				currentToolUse.params[currentParamName] = currentParamValue.slice(0, -paramClosingTag.length).trim()
+			const closeTag = `</${currentParamName}>`
+			if (i >= closeTag.length - 1 && assistantMessage.startsWith(closeTag, i - closeTag.length + 1)) {
+				const value = assistantMessage.slice(currentParamValueStart, i - closeTag.length + 1).trim()
+				currentToolUse.params[currentParamName] = value
 				currentParamName = undefined
 				continue
-			} else {
-				// partial param value is accumulating
-				continue
 			}
+			continue
 		}
 
-		// no currentParamName
-
+		// If parsing a tool
 		if (currentToolUse) {
-			const currentToolValue = accumulator.slice(currentToolUseStartIndex)
-			const toolUseClosingTag = `</${currentToolUse.name}>`
-			if (currentToolValue.endsWith(toolUseClosingTag)) {
-				// end of a tool use
+			for (const [tag, paramName] of toolParamOpenTags.entries()) {
+				if (i >= tag.length - 1 && assistantMessage.startsWith(tag, i - tag.length + 1)) {
+					currentParamName = paramName
+					currentParamValueStart = i + 1
+					break
+				}
+			}
+
+			const toolCloseTag = `</${currentToolUse.name}>`
+			if (i >= toolCloseTag.length - 1 && assistantMessage.startsWith(toolCloseTag, i - toolCloseTag.length + 1)) {
+				const toolContent = assistantMessage.slice(currentToolUseStart, i - toolCloseTag.length + 1)
+
+				// Special handling for embedded content
+				if (
+					(currentToolUse.name === "write_to_file" || currentToolUse.name === "new_rule") &&
+					toolContent.includes(`<content>`)
+				) {
+					const contentStartTag = `<content>`
+					const contentEndTag = `</content>`
+					const contentStart = toolContent.indexOf(contentStartTag)
+					const contentEnd = toolContent.lastIndexOf(contentEndTag)
+
+					if (contentStart !== -1 && contentEnd !== -1 && contentEnd > contentStart) {
+						const contentValue = toolContent.slice(contentStart + contentStartTag.length, contentEnd).trim()
+						currentToolUse.params["content"] = contentValue
+					}
+				}
+
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)
 				currentToolUse = undefined
 				continue
-			} else {
-				const possibleParamOpeningTags = toolParamNames.map((name) => `<${name}>`)
-				for (const paramOpeningTag of possibleParamOpeningTags) {
-					if (accumulator.endsWith(paramOpeningTag)) {
-						// start of a new parameter
-						currentParamName = paramOpeningTag.slice(1, -1) as ToolParamName
-						currentParamValueStartIndex = accumulator.length
-						break
-					}
-				}
-
-				// there's no current param, and not starting a new param
-
-				// special case for write_to_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting content tag and the LAST content tag.
-				const contentParamName: ToolParamName = "content"
-				if (
-					(currentToolUse.name === "write_to_file" || currentToolUse.name === "new_rule") &&
-					accumulator.endsWith(`</${contentParamName}>`)
-				) {
-					const toolContent = accumulator.slice(currentToolUseStartIndex)
-					const contentStartTag = `<${contentParamName}>`
-					const contentEndTag = `</${contentParamName}>`
-					const contentStartIndex = toolContent.indexOf(contentStartTag) + contentStartTag.length
-					const contentEndIndex = toolContent.lastIndexOf(contentEndTag)
-					if (contentStartIndex !== -1 && contentEndIndex !== -1 && contentEndIndex > contentStartIndex) {
-						currentToolUse.params[contentParamName] = toolContent.slice(contentStartIndex, contentEndIndex).trim()
-					}
-				}
-
-				// partial tool value is accumulating
-				continue
 			}
+
+			continue
 		}
 
-		// no currentToolUse
-
-		let didStartToolUse = false
-		const possibleToolUseOpeningTags = toolUseNames.map((name) => `<${name}>`)
-		for (const toolUseOpeningTag of possibleToolUseOpeningTags) {
-			if (accumulator.endsWith(toolUseOpeningTag)) {
-				// start of a new tool use
-				currentToolUse = {
-					type: "tool_use",
-					name: toolUseOpeningTag.slice(1, -1) as ToolUseName,
-					params: {},
-					partial: true,
-				}
-				currentToolUseStartIndex = accumulator.length
-				// this also indicates the end of the current text content
+		// Look for tool opening tags
+		for (const [tag, toolName] of toolUseOpenTags.entries()) {
+			if (i >= tag.length - 1 && assistantMessage.startsWith(tag, i - tag.length + 1)) {
+				// End current text block if any
 				if (currentTextContent) {
+					currentTextContent.content = assistantMessage.slice(currentTextContentStart, i - tag.length + 1).trim()
 					currentTextContent.partial = false
-					// remove the partially accumulated tool use tag from the end of text (<tool)
-					currentTextContent.content = currentTextContent.content
-						.slice(0, -toolUseOpeningTag.slice(0, -1).length)
-						.trim()
 					contentBlocks.push(currentTextContent)
 					currentTextContent = undefined
 				}
 
-				didStartToolUse = true
+				currentToolUse = {
+					type: "tool_use",
+					name: toolName,
+					params: {},
+					partial: true,
+				}
+				currentToolUseStart = i + 1
 				break
 			}
 		}
 
-		if (!didStartToolUse) {
-			// no tool use, so it must be text either at the beginning or between tools
-			if (currentTextContent === undefined) {
-				currentTextContentStartIndex = i
-			}
-			currentTextContent = {
-				type: "text",
-				content: accumulator.slice(currentTextContentStartIndex).trim(),
-				partial: true,
+		// If not a tool tag, accumulate text
+		if (!currentToolUse) {
+			if (!currentTextContent) {
+				currentTextContentStart = i
+				currentTextContent = {
+					type: "text",
+					content: "",
+					partial: true,
+				}
 			}
 		}
 	}
 
+	// Finalize partial param if any
+	if (currentToolUse && currentParamName) {
+		currentToolUse.params[currentParamName] = assistantMessage.slice(currentParamValueStart).trim()
+	}
+
+	// Finalize any open tool use
 	if (currentToolUse) {
-		// stream did not complete tool call, add it as partial
-		if (currentParamName) {
-			// tool call has a parameter that was not completed
-			currentToolUse.params[currentParamName] = accumulator.slice(currentParamValueStartIndex).trim()
-		}
 		contentBlocks.push(currentToolUse)
 	}
 
-	// Note: it doesn't matter if check for currentToolUse or currentTextContent, only one of them will be defined since only one can be partial at a time
+	// Finalize any trailing text
 	if (currentTextContent) {
-		// stream did not complete text content, add it as partial
+		currentTextContent.content = assistantMessage.slice(currentTextContentStart).trim()
 		contentBlocks.push(currentTextContent)
 	}
 
