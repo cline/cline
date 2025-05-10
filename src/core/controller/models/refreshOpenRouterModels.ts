@@ -1,6 +1,6 @@
 import { Controller } from ".."
 import { EmptyRequest } from "../../../shared/proto/common"
-import { OpenRouterModels, OpenRouterModelInfo } from "../../../shared/proto/models"
+import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "../../../shared/proto/models"
 import axios from "axios"
 import path from "path"
 import fs from "fs/promises"
@@ -13,7 +13,10 @@ import { GlobalFileNames } from "@core/storage/disk"
  * @param request Empty request object
  * @returns Response containing the OpenRouter models
  */
-export async function refreshOpenRouterModels(controller: Controller, request: EmptyRequest): Promise<OpenRouterModels> {
+export async function refreshOpenRouterModels(
+	controller: Controller,
+	request: EmptyRequest,
+): Promise<OpenRouterCompatibleModelInfo> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
 
 	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
@@ -141,13 +144,7 @@ export async function refreshOpenRouterModels(controller: Controller, request: E
 		}
 	}
 
-	// Send models to webview
-	await controller.postMessageToWebview({
-		type: "openRouterModels",
-		openRouterModels: typedModels,
-	})
-
-	return OpenRouterModels.create({ models: typedModels })
+	return OpenRouterCompatibleModelInfo.create({ models: typedModels })
 }
 
 /**
