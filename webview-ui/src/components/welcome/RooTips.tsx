@@ -74,7 +74,10 @@ const RooTips = ({ cycle = false }: RooTipsProps) => {
 						className="flex items-center gap-2 text-vscode-editor-foreground font-vscode max-w-[250px]">
 						<span className={`codicon ${tip.icon}`}></span>
 						<span>
-							<VSCodeLink href={tip.href}>{t(tip.titleKey)}</VSCodeLink>: {t(tip.descriptionKey)}
+							<VSCodeLink className="forced-color-adjust-none" href={tip.href}>
+								{t(tip.titleKey)}
+							</VSCodeLink>
+							: {t(tip.descriptionKey)}
 						</span>
 					</div>
 				))

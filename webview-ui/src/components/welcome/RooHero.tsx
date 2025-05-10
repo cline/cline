@@ -7,7 +7,7 @@ const RooHero = () => {
 	})
 
 	return (
-		<div className="flex flex-col items-center justify-center pb-4">
+		<div className="flex flex-col items-center justify-center pb-4 forced-color-adjust-none">
 			<div
 				style={{
 					backgroundColor: "var(--vscode-foreground)",

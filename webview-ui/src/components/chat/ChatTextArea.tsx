@@ -824,6 +824,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									"py-2",
 									"px-[9px]",
 									"z-10",
+									"forced-color-adjust-none",
 								)}
 								style={{
 									color: "transparent",
