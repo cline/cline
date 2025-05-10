@@ -136,14 +136,14 @@ export class Controller {
 		await updateGlobalState(this.context, "userInfo", info)
 	}
 
-	async initTask(task?: string, images?: string[], historyItem?: HistoryItem) {
+	async initTask(task?: string, images?: string[], historyItem?: HistoryItem, overrideChatSettings?: ChatSettings) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
 			apiConfiguration,
 			customInstructions,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			chatSettings: extensionChatSettings,
 			shellIntegrationTimeout,
 		} = await getAllExtensionState(this.context)
 
@@ -166,7 +166,7 @@ export class Controller {
 			apiConfiguration,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			overrideChatSettings || extensionChatSettings,
 			shellIntegrationTimeout,
 			customInstructions,
 			task,
@@ -847,6 +847,7 @@ export class Controller {
 	async cancelTask() {
 		if (this.task) {
 			const { historyItem } = await this.getTaskWithId(this.task.taskId)
+			const currentChatSettings = this.task.chatSettings
 			try {
 				await this.task.abortTask()
 			} catch (error) {
@@ -868,7 +869,7 @@ export class Controller {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.abandoned = true
 			}
-			await this.initTask(undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
+			await this.initTask(undefined, undefined, historyItem, currentChatSettings) // Pass current chat settings to new task
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
 	}
@@ -1267,7 +1268,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		const fileMention = this.getFileMentionFromPath(filePath)
 		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
-		await this.initTask(`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`)
+		await this.initTask(
+			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`,
+			undefined,
+			undefined,
+			undefined,
+		)
 
 		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
 	}
