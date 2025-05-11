@@ -254,11 +254,6 @@
 					"default": true,
 					"description": "Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not work well with large workspaces."
 				},
-				"cline.chromeExecutablePath": {
-					"type": "string",
-					"default": null,
-					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
-				},
 				"cline.preferredLanguage": {
 					"type": "string",
 					"enum": [
