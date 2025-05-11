@@ -724,6 +724,31 @@ const ApiOptions = ({
 						)}
 
 						<VSCodeCheckbox
+							checked={awsAppInfProfileSelected}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setAwsAppInfProfileSelected(isChecked)
+								if (!isChecked) {
+									setApiConfiguration({
+										...apiConfiguration,
+										awsBedrockAppInfProfile: "",
+									})
+								}
+							}}>
+							Use an Application Inference Profile
+						</VSCodeCheckbox>
+
+						{awsAppInfProfileSelected && (
+							<VSCodeTextField
+								value={apiConfiguration?.awsBedrockAppInfProfile || ""}
+								style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
+								type="url"
+								onInput={handleInputChange("awsBedrockAppInfProfile")}
+								placeholder="Enter Application Inference Profile (optional)"
+							/>
+						)}
+
+						<VSCodeCheckbox
 							checked={apiConfiguration?.awsUseCrossRegionInference || false}
 							onChange={(e: any) => {
 								const isChecked = e.target.checked === true
@@ -749,31 +774,6 @@ const ApiOptions = ({
 									Use prompt caching
 								</VSCodeCheckbox>
 							</>
-						)}
-
-						<VSCodeCheckbox
-							checked={awsAppInfProfileSelected}
-							onChange={(e: any) => {
-								const isChecked = e.target.checked === true
-								setAwsAppInfProfileSelected(isChecked)
-								if (!isChecked) {
-									setApiConfiguration({
-										...apiConfiguration,
-										awsBedrockAppInfProfile: "",
-									})
-								}
-							}}>
-							Use an Application Inference Profile
-						</VSCodeCheckbox>
-
-						{awsEndpointSelected && (
-							<VSCodeTextField
-								value={apiConfiguration?.awsBedrockAppInfProfile || ""}
-								style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
-								type="url"
-								onInput={handleInputChange("awsBedrockAppInfProfile")}
-								placeholder="Enter Application Inference Profile (optional)"
-							/>
 						)}
 					</div>
 					<p
