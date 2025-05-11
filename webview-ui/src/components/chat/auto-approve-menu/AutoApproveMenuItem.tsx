@@ -67,7 +67,7 @@ const SubOptionAnimateIn = styled.div<{ show: boolean }>`
 `
 
 const ActionButtonContainer = styled.div`
-	margin: 4px;
+	padding: 2px;
 `
 
 const AutoApproveMenuItem = ({
@@ -89,7 +89,7 @@ const AutoApproveMenuItem = ({
 	const content = (
 		<>
 			<ActionButtonContainer>
-				<HeroTooltip content={action.description} delay={200}>
+				<HeroTooltip content={action.description} delay={500}>
 					<CheckboxContainer isFavorited={favorited} onClick={onChange}>
 						<div className="left-content">
 							<VSCodeCheckbox checked={checked} />
