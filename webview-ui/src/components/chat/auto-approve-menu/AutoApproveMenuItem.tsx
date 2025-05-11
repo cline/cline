@@ -87,7 +87,7 @@ const AutoApproveMenuItem = ({
 	}
 
 	const content = (
-		<div>
+		<>
 			<ActionButtonContainer>
 				<HeroTooltip content={action.description} delay={200}>
 					<CheckboxContainer isFavorited={favorited} onClick={onChange}>
@@ -97,13 +97,15 @@ const AutoApproveMenuItem = ({
 							<span className="label">{condensed ? action.shortName : action.label}</span>
 						</div>
 						{onToggleFavorite && !condensed && (
-							<span
-								className={`codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
-								onClick={(e) => {
-									e.stopPropagation()
-									onToggleFavorite?.(action.id)
-								}}
-							/>
+							<HeroTooltip content={favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}>
+								<span
+									className={`codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
+									onClick={(e) => {
+										e.stopPropagation()
+										onToggleFavorite?.(action.id)
+									}}
+								/>
+							</HeroTooltip>
 						)}
 					</CheckboxContainer>
 				</HeroTooltip>
@@ -119,7 +121,7 @@ const AutoApproveMenuItem = ({
 					/>
 				</SubOptionAnimateIn>
 			)}
-		</div>
+		</>
 	)
 
 	return content
