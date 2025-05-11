@@ -2,7 +2,7 @@
 
 ## 3.15.1
 
--   b04810c: Update terminal error timeout from 500 -> 5000
+-   Fix bug where PowerShell commands weren't given enough time before giving up and showing an error
 
 ## [3.15.0]
 
