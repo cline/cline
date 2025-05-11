@@ -1448,7 +1448,7 @@ export class Task {
 			console.error("MCP servers failed to connect in time")
 		})
 
-		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
+		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
 		const modelSupportsBrowserUse = this.api.getModel().info.supportsImages ?? false
 
