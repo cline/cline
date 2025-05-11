@@ -32,9 +32,9 @@ export async function updateBrowserSettings(controller: Controller, request: Upd
 			remoteBrowserHost:
 				request.remoteBrowserHost === undefined ? mergedWithDefaults.remoteBrowserHost : request.remoteBrowserHost,
 			chromeExecutablePath:
-				request.chromeExecutablePath === undefined
-					? mergedWithDefaults.chromeExecutablePath
-					: request.chromeExecutablePath,
+				// If chromeExecutablePath is explicitly in the request (even as ""), use it.
+				// Otherwise, fall back to mergedWithDefaults.
+				"chromeExecutablePath" in request ? request.chromeExecutablePath : mergedWithDefaults.chromeExecutablePath,
 			disableToolUse: request.disableToolUse === undefined ? mergedWithDefaults.disableToolUse : request.disableToolUse,
 		}
 

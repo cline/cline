@@ -449,30 +449,7 @@ export const BrowserSettingsSection: React.FC = () => {
 							"."
 						)}
 					</p>
-					<div style={{ marginBottom: 8, marginTop: 8 }}>
-						<label htmlFor="chrome-executable-path" style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
-							Chrome Executable Path (Optional)
-						</label>
-						<VSCodeTextField
-							id="chrome-executable-path"
-							value={localChromePath}
-							placeholder="e.g., /usr/bin/google-chrome or C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-							style={{ width: "100%" }}
-							onChange={(e: any) => {
-								const newValue = e.target.value || ""
-								setLocalChromePath(newValue)
-								debouncedUpdateChromePath(newValue || undefined)
-							}}
-						/>
-						<p
-							style={{
-								fontSize: "12px",
-								color: "var(--vscode-descriptionForeground)",
-								margin: "4px 0 0 0",
-							}}>
-							Leave blank to auto-detect.
-						</p>
-					</div>
+					{/* Moved remote-specific settings to appear directly after enabling remote connection */}
 					{browserSettings.remoteBrowserEnabled && (
 						<div style={{ marginLeft: 0, marginTop: 8 }}>
 							<VSCodeTextField
@@ -516,6 +493,31 @@ export const BrowserSettingsSection: React.FC = () => {
 								}}></p>
 						</div>
 					)}
+					{/* Chrome Executable Path section now follows remote-specific settings */}
+					<div style={{ marginBottom: 8, marginTop: 8 }}>
+						<label htmlFor="chrome-executable-path" style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
+							Chrome Executable Path (Optional)
+						</label>
+						<VSCodeTextField
+							id="chrome-executable-path"
+							value={localChromePath}
+							placeholder="e.g., /usr/bin/google-chrome or C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+							style={{ width: "100%" }}
+							onChange={(e: any) => {
+								const newValue = e.target.value || ""
+								setLocalChromePath(newValue)
+								debouncedUpdateChromePath(newValue) // Send "" if empty, not undefined
+							}}
+						/>
+						<p
+							style={{
+								fontSize: "12px",
+								color: "var(--vscode-descriptionForeground)",
+								margin: "4px 0 0 0",
+							}}>
+							Leave blank to auto-detect.
+						</p>
+					</div>
 				</div>
 			</CollapsibleContent>
 		</div>
