@@ -15,13 +15,14 @@ const log = (...args) => {
 	console.log(`[${timestamp}]`, "#bot.cline.server.js", ...args)
 }
 
-function wrapHandler(fn) {
+function wrapHandler(handler) {
 	return async (call, callback) => {
 		try {
-			const result = await fn(controller)
+			log("gRPC request:", call.path)
+			const result = await handler(controller)
 			callback(null, result)
 		} catch (err) {
-			log("Handler error:", err)
+			log(`gRPC handler error: ${call.path}\n${err.stack}`)
 			callback({
 				code: grpc.status.INTERNAL,
 				message: err.message || "Internal error",
