@@ -28,6 +28,13 @@ export interface ActionMetadata {
 
 const ACTION_METADATA: ActionMetadata[] = [
 	{
+		id: "enableAll",
+		label: "Enable all",
+		shortName: "All",
+		description: "Enable all actions.",
+		icon: "codicon-checklist",
+	},
+	{
 		id: "readFiles",
 		label: "Read project files",
 		shortName: "Read",
@@ -87,21 +94,15 @@ const ACTION_METADATA: ActionMetadata[] = [
 		description: "Allows Cline to use configured MCP servers which may modify filesystem or interact with APIs.",
 		icon: "codicon-server",
 	},
-	{
-		id: "enableAll",
-		label: "Enable all",
-		shortName: "All",
-		description: "Enable all actions.",
-		icon: "codicon-checklist",
-	},
-	{
-		id: "enableNotifications",
-		label: "Enable notifications",
-		shortName: "Notifications",
-		description: "Receive system notifications when Cline requires approval to proceed or when a task is completed.",
-		icon: "codicon-bell",
-	},
 ]
+
+const NOTIFICATIONS_SETTING: ActionMetadata = {
+	id: "enableNotifications",
+	label: "Enable notifications",
+	shortName: "Notifications",
+	description: "Receive system notifications when Cline requires approval to proceed or when a task is completed.",
+	icon: "codicon-bell",
+}
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
@@ -265,8 +266,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	// Render a favorited item with a checkbox
 	const renderFavoritedItem = (favId: string) => {
-		// Regular action item
-		const action = ACTION_METADATA.flatMap((a) => [a, a.subAction]).find((a) => a?.id === favId)
+		const actions = [...ACTION_METADATA.flatMap((a) => [a, a.subAction]), NOTIFICATIONS_SETTING]
+		const action = actions.find((a) => a?.id === favId)
 		if (!action) return null
 
 		return (
@@ -380,18 +381,15 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								placement="top">
 								<span style={{ color: getAsVar(VSC_FOREGROUND) }}>Auto-approve</span>
 							</HeroTooltip>
-							<span className="codicon codicon-chevron-down" />
+							<span className="codicon codicon-chevron-down" style={{ paddingRight: "4px" }} />
 						</div>
 
 						<div
 							ref={itemsContainerRef}
 							style={{
-								display: containerWidth > breakpoint ? "grid" : "flex",
-								gridTemplateColumns: containerWidth > breakpoint ? "1fr 1fr" : "1fr",
-								gridAutoRows: "min-content",
-								flexDirection: "column",
-								gap: "4px",
-								margin: "8px 0",
+								columnCount: containerWidth > breakpoint ? 2 : 1,
+								columnGap: "4px",
+								margin: "4px 0 8px 0",
 								position: "relative", // For absolute positioning of the separator
 							}}>
 							{/* Vertical separator line - only visible in two-column mode */}
@@ -412,35 +410,42 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 							{/* All items in a single list - CSS Grid will handle the column distribution */}
 							{ACTION_METADATA.map((action) => (
-								<div key={action.id} style={{ breakInside: "avoid" }}>
-									<AutoApproveMenuItem
-										action={action}
-										isChecked={isChecked}
-										isFavorited={isFavorited}
-										onToggle={updateAction}
-										onToggleFavorite={toggleFavorite}
-									/>
-								</div>
+								<AutoApproveMenuItem
+									key={action.id}
+									action={action}
+									isChecked={isChecked}
+									isFavorited={isFavorited}
+									onToggle={updateAction}
+									onToggleFavorite={toggleFavorite}
+								/>
 							))}
 						</div>
 						<div
 							style={{
 								height: "0.5px",
 								background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
-								margin: "10px 0",
+								margin: "8px 0",
 								opacity: 0.2,
 							}}
+						/>
+						<AutoApproveMenuItem
+							key={NOTIFICATIONS_SETTING.id}
+							action={NOTIFICATIONS_SETTING}
+							isChecked={isChecked}
+							isFavorited={isFavorited}
+							onToggle={updateAction}
+							onToggleFavorite={toggleFavorite}
 						/>
 						<HeroTooltip
 							content="Cline will automatically make this many API requests before asking for approval to proceed with the task."
 							placement="top">
 							<div
 								style={{
+									margin: "2px 10px 10px 5px",
 									display: "flex",
 									alignItems: "center",
 									gap: "8px",
 									width: "100%",
-									paddingBottom: "10px",
 								}}>
 								<span className="codicon codicon-settings" style={{ color: "#CCCCCC", fontSize: "14px" }} />
 								<span style={{ color: "#CCCCCC", fontSize: "12px", fontWeight: 500 }}>Max Requests:</span>

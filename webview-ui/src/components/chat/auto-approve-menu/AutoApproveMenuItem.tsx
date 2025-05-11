@@ -67,7 +67,7 @@ const SubOptionAnimateIn = styled.div<{ show: boolean }>`
 `
 
 const ActionButtonContainer = styled.div`
-	margin: 4px;
+	padding: 2px;
 `
 
 const AutoApproveMenuItem = ({
@@ -78,21 +78,18 @@ const AutoApproveMenuItem = ({
 	onToggleFavorite,
 	condensed = false,
 }: AutoApproveMenuItemProps) => {
-	const [isSubOptionOpen, setIsSubOptionOpen] = useState(isChecked(action))
 	const checked = isChecked(action)
 	const favorited = isFavorited?.(action)
 
 	const onChange = (e: Event) => {
 		e.stopPropagation()
-		const newChecked = !checked
-		setIsSubOptionOpen(newChecked)
-		onToggle(action, newChecked)
+		onToggle(action, !checked)
 	}
 
 	const content = (
-		<div>
+		<>
 			<ActionButtonContainer>
-				<HeroTooltip content={action.description} delay={200}>
+				<HeroTooltip content={action.description} delay={500}>
 					<CheckboxContainer isFavorited={favorited} onClick={onChange}>
 						<div className="left-content">
 							<VSCodeCheckbox checked={checked} />
@@ -100,19 +97,21 @@ const AutoApproveMenuItem = ({
 							<span className="label">{condensed ? action.shortName : action.label}</span>
 						</div>
 						{onToggleFavorite && !condensed && (
-							<span
-								className={`codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
-								onClick={(e) => {
-									e.stopPropagation()
-									onToggleFavorite?.(action.id)
-								}}
-							/>
+							<HeroTooltip content={favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}>
+								<span
+									className={`codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
+									onClick={(e) => {
+										e.stopPropagation()
+										onToggleFavorite?.(action.id)
+									}}
+								/>
+							</HeroTooltip>
 						)}
 					</CheckboxContainer>
 				</HeroTooltip>
 			</ActionButtonContainer>
 			{action.subAction && !condensed && (
-				<SubOptionAnimateIn show={isSubOptionOpen}>
+				<SubOptionAnimateIn show={checked}>
 					<AutoApproveMenuItem
 						action={action.subAction}
 						isChecked={isChecked}
@@ -122,7 +121,7 @@ const AutoApproveMenuItem = ({
 					/>
 				</SubOptionAnimateIn>
 			)}
-		</div>
+		</>
 	)
 
 	return content
