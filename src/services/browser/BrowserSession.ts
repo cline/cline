@@ -73,12 +73,6 @@ export class BrowserSession {
 			return { path: this.browserSettings.chromeExecutablePath, isBundled: false }
 		}
 
-		// Second check VSCode config
-		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
-		if (configPath && (await fileExistsAtPath(configPath))) {
-			return { path: configPath, isBundled: false }
-		}
-
 		// Then try to find system Chrome
 		try {
 			const systemPath = chromeLauncher.Launcher.getFirstInstallation()
