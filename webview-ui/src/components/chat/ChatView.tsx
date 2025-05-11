@@ -147,17 +147,52 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			if (window.getSelection) {
 				const selection = window.getSelection()
 				if (selection && selection.rangeCount > 0) {
-					// Get the selected HTML content
 					const range = selection.getRangeAt(0)
-					const clonedSelection = range.cloneContents()
-					const div = document.createElement("div")
-					div.appendChild(clonedSelection)
-					const selectedHtml = div.innerHTML
+					const commonAncestor = range.commonAncestorContainer
+					let textToCopy: string | null = null
 
-					// Convert HTML to Markdown
-					const markdown = await convertHtmlToMarkdown(selectedHtml)
-					vscode.postMessage({ type: "copyToClipboard", text: markdown })
-					e.preventDefault()
+					// Check if the selection is inside a code block (<pre><code>...</code>)
+					let currentElement =
+						commonAncestor.nodeType === Node.ELEMENT_NODE
+							? (commonAncestor as HTMLElement)
+							: commonAncestor.parentElement
+					let inCodeBlock = false
+					while (currentElement) {
+						if (currentElement.tagName === "PRE" && currentElement.querySelector("code")) {
+							// This <pre> could be from MarkdownBlock.tsx (via StyledPre)
+							// or potentially other sources if <pre><code> is used elsewhere.
+							inCodeBlock = true
+							break
+						}
+						// Stop searching if we reach a known chat message boundary or body,
+						// to avoid accidentally misinterpreting non-chat content.
+						if (
+							currentElement.classList.contains("chat-row-assistant-message-container") || // From ChatRow.tsx
+							currentElement.classList.contains("chat-row-user-message-container") || // From ChatRow.tsx
+							currentElement.tagName === "BODY"
+						) {
+							break
+						}
+						currentElement = currentElement.parentElement
+					}
+
+					if (inCodeBlock) {
+						// For code blocks, get the plain text of the selection.
+						// selection.toString() generally preserves newlines from <pre> content.
+						textToCopy = selection.toString()
+					} else {
+						// For other content, use the existing HTML-to-Markdown conversion
+						const clonedSelection = range.cloneContents()
+						const div = document.createElement("div")
+						div.appendChild(clonedSelection)
+						const selectedHtml = div.innerHTML
+						textToCopy = await convertHtmlToMarkdown(selectedHtml)
+					}
+
+					if (textToCopy !== null) {
+						vscode.postMessage({ type: "copyToClipboard", text: textToCopy })
+						e.preventDefault()
+					}
 				}
 			}
 		}
