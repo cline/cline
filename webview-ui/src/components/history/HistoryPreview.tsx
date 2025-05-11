@@ -105,6 +105,8 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								)}
 
 								<div
+									id={`history-preview-task-${item.id}`}
+									className="history-preview-task"
 									style={{
 										fontSize: "var(--vscode-font-size)",
 										color: "var(--vscode-descriptionForeground)",
@@ -117,7 +119,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										wordBreak: "break-word",
 										overflowWrap: "anywhere",
 									}}>
-									{item.task}
+									<span className="ph-no-capture">{item.task}</span>
 								</div>
 								<div
 									style={{

@@ -12,6 +12,26 @@ const BannerContainer = styled.div`
 	gap: 10px;
 	flex-shrink: 0;
 	margin-bottom: 6px;
+	position: relative;
+`
+
+const CloseButton = styled.button`
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	background: none;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px;
+	opacity: 0.7;
+	&:hover {
+		opacity: 1;
+	}
 `
 
 const ButtonContainer = styled.div`
@@ -26,11 +46,19 @@ const ButtonContainer = styled.div`
 
 const TelemetryBanner = () => {
 	const handleOpenSettings = () => {
+		handleClose()
 		vscode.postMessage({ type: "openSettings" })
+	}
+
+	const handleClose = () => {
+		vscode.postMessage({ type: "telemetrySetting", telemetrySetting: "enabled" satisfies TelemetrySetting })
 	}
 
 	return (
 		<BannerContainer>
+			<CloseButton onClick={handleClose} aria-label="Close banner and enable telemetry">
+				✕
+			</CloseButton>
 			<div>
 				<strong>Help Improve Cline</strong>
 				<div style={{ marginTop: 4 }}>
