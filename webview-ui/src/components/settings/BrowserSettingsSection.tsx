@@ -39,6 +39,7 @@ const ConnectionStatusIndicator = ({
 
 export const BrowserSettingsSection: React.FC = () => {
 	const { browserSettings } = useExtensionState()
+	const [localChromePath, setLocalChromePath] = useState(browserSettings.chromeExecutablePath || "")
 	const [isCheckingConnection, setIsCheckingConnection] = useState(false)
 	const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null)
 	const [relaunchResult, setRelaunchResult] = useState<{ success: boolean; message: string } | null>(null)
@@ -90,6 +91,13 @@ export const BrowserSettingsSection: React.FC = () => {
 				console.error("Error getting detected Chrome path:", error)
 			})
 	}, [])
+
+	// Sync localChromePath with global state
+	useEffect(() => {
+		if (browserSettings.chromeExecutablePath !== localChromePath) {
+			setLocalChromePath(browserSettings.chromeExecutablePath || "")
+		}
+	}, [browserSettings.chromeExecutablePath])
 
 	// Debounced connection check function
 	const debouncedCheckConnection = useCallback(
@@ -202,6 +210,30 @@ export const BrowserSettingsSection: React.FC = () => {
 				console.error("Error updating browser settings:", error)
 			})
 	}
+
+	const debouncedUpdateChromePath = useCallback(
+		debounce((newPath: string | undefined) => {
+			BrowserServiceClient.updateBrowserSettings({
+				metadata: {},
+				viewport: {
+					width: browserSettings.viewport.width,
+					height: browserSettings.viewport.height,
+				},
+				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				chromeExecutablePath: newPath,
+			})
+				.then((response) => {
+					if (!response.value) {
+						console.error("Failed to update browser settings for chromeExecutablePath")
+					}
+				})
+				.catch((error) => {
+					console.error("Error updating browser settings for chromeExecutablePath:", error)
+				})
+		}, 500),
+		[browserSettings],
+	)
 
 	const updateChromeExecutablePath = (path: string | undefined) => {
 		BrowserServiceClient.updateBrowserSettings({
@@ -361,10 +393,14 @@ export const BrowserSettingsSection: React.FC = () => {
 					</label>
 					<VSCodeTextField
 						id="chrome-executable-path"
-						value={browserSettings.chromeExecutablePath || ""}
+						value={localChromePath}
 						placeholder="e.g., /usr/bin/google-chrome or C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
 						style={{ width: "100%" }}
-						onChange={(e: any) => updateChromeExecutablePath(e.target.value || undefined)}
+						onChange={(e: any) => {
+							const newValue = e.target.value || ""
+							setLocalChromePath(newValue)
+							debouncedUpdateChromePath(newValue || undefined)
+						}}
 					/>
 					<p
 						style={{
