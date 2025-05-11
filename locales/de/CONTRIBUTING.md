@@ -12,12 +12,9 @@ Dieser Leitfaden erklärt, wie du zu Roo Code beitragen kannst – egal ob du Bu
 - [I. Bevor du beiträgst](#i-bevor-du-beiträgst)
     - [1. Verhaltenskodex](#1-verhaltenskodex)
     - [2. Projekt-Roadmap verstehen](#2-projekt-roadmap-verstehen)
-        - [Provider-Support](#provider-support)
-        - [Modell-Support](#modell-support)
-        - [System-Support](#system-support)
-        - [Dokumentation](#dokumentation)
-        - [Stabilität](#stabilität)
-        - [Internationalisierung](#internationalisierung)
+        - [Zuverlässigkeit an erster Stelle](#zuverlässigkeit-an-erster-stelle)
+        - [Verbesserte Benutzererfahrung](#verbesserte-benutzererfahrung)
+        - [Führend bei der Agentenleistung](#führend-bei-der-agentenleistung)
     - [3. Werde Teil der Roo Code Community](#3-werde-teil-der-roo-code-community)
 - [II. Beitrag finden & planen](#ii-beitrag-finden--planen)
     - [1. Beitragsarten](#1-beitragsarten)
@@ -56,55 +53,25 @@ Roo Code hat eine klare Entwicklungs-Roadmap, die unsere Prioritäten und die Zu
 - Den Kontext hinter bestimmten Design-Entscheidungen verstehen
 - Inspiration für neue Features bekommen, die unsere Vision unterstützen
 
-Unsere aktuelle Roadmap hat sechs Hauptsäulen:
+Wir konzentrieren uns darauf, Roo Code zur ersten Wahl für Entwickler zu machen, die mit KI-gestützten Coding-Tools arbeiten. So werden wir das erreichen:
 
-#### Provider-Support
+#### Zuverlässigkeit an erster Stelle
 
-Wir wollen möglichst viele Provider gut unterstützen:
+- Sicherstellen, dass Diff-Bearbeitung und Befehlsausführung durchgängig zuverlässig sind.
+- Reibungspunkte reduzieren, die von der regelmäßigen Nutzung abhalten.
+- Reibungslosen Betrieb in allen Sprachen und auf allen Plattformen garantieren.
+- Robuste Unterstützung für eine Vielzahl von KI-Anbietern und -Modellen ausbauen.
 
-- Mehr "OpenAI Compatible"-Support
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Verbesserter Support für Ollama und LM Studio
+#### Verbesserte Benutzererfahrung
 
-#### Modell-Support
+- Die Benutzeroberfläche für mehr Klarheit und Intuitivität optimieren.
+- Den Workflow kontinuierlich verbessern, um den hohen Erwartungen gerecht zu werden, die Entwickler an täglich genutzte Tools stellen.
 
-Roo soll mit möglichst vielen Modellen funktionieren, auch mit lokalen Modellen:
+#### Führend bei der Agentenleistung
 
-- Lokale Modelle durch Custom System Prompting und Workflows
-- Benchmarking, Evals und Testfälle
-
-#### System-Support
-
-Roo soll auf jedem Rechner gut laufen:
-
-- Cross-Plattform-Terminal-Integration
-- Starker und konsistenter Support für Mac, Windows und Linux
-
-#### Dokumentation
-
-Wir wollen umfassende, zugängliche Doku für alle User und Mitwirkenden:
-
-- Erweiterte User-Guides und Tutorials
-- Klare API-Dokumentation
-- Bessere Contributor-Guides
-- Mehrsprachige Doku-Ressourcen
-- Interaktive Beispiele und Code-Snippets
-
-#### Stabilität
-
-Wir wollen deutlich weniger Bugs und mehr automatisierte Tests:
-
-- Debug-Logging-Schalter
-- "Maschinen-/Task-Info"-Kopier-Button für Bug-/Support-Anfragen
-
-#### Internationalisierung
-
-Roo soll jede Sprache sprechen:
-
-- Wir wollen, dass Roo Code jede Sprache spricht
-- Queremos que Roo Code hable el idioma de todos
-- Wir wollen, dass Roo Code jede Sprache spricht
-- نريد أن يتحدث Roo Code لغة الجميع
+- Umfassende Evaluierungsmaßstäbe (Evals) etablieren, um die Produktivität in der realen Welt zu messen.
+- Es für jeden einfach machen, diese Evals durchzuführen und zu interpretieren.
+- Verbesserungen für Roo Code liefern, die klare Steigerungen der Eval-Ergebnisse zeigen.
 
 Beiträge, die unsere Roadmap-Ziele voranbringen, sind besonders willkommen. Wenn du an etwas arbeitest, das zu diesen Säulen passt, erwähne das bitte in deiner PR-Beschreibung.
 

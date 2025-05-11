@@ -12,12 +12,9 @@ Ce guide explique comment contribuer à Roo Code, que ce soit pour corriger des 
 - [I. Avant de contribuer](#i-avant-de-contribuer)
     - [1. Code de conduite](#1-code-de-conduite)
     - [2. Comprendre la feuille de route du projet](#2-comprendre-la-feuille-de-route-du-projet)
-        - [Support des fournisseurs](#support-des-fournisseurs)
-        - [Support des modèles](#support-des-modèles)
-        - [Support des systèmes](#support-des-systèmes)
-        - [Documentation](#documentation)
-        - [Stabilité](#stabilité)
-        - [Internationalisation](#internationalisation)
+        - [Fiabilité avant tout](#fiabilité-avant-tout)
+        - [Expérience utilisateur améliorée](#expérience-utilisateur-améliorée)
+        - [Leadership en performance des agents](#leadership-en-performance-des-agents)
     - [3. Rejoindre la communauté Roo Code](#3-rejoindre-la-communauté-roo-code)
 - [II. Trouver et planifier ta contribution](#ii-trouver-et-planifier-ta-contribution)
     - [1. Types de contributions](#1-types-de-contributions)
@@ -56,55 +53,25 @@ Roo Code a une feuille de route claire qui guide nos priorités et notre directi
 - Comprendre le contexte de certaines décisions de conception
 - Trouver l’inspiration pour de nouvelles fonctionnalités qui soutiennent notre vision
 
-Notre feuille de route actuelle se concentre sur six piliers principaux :
+Nous nous concentrons sur l'objectif de faire de Roo Code le meilleur choix pour les développeurs utilisant des outils de codage basés sur l'IA. Voici comment nous comptons y parvenir :
 
-#### Support des fournisseurs
+#### Fiabilité avant tout
 
-Nous voulons prendre en charge autant de fournisseurs que possible :
+- Garantir que l'édition des différences et l'exécution des commandes soient toujours fiables
+- Réduire les points de friction qui découragent l'utilisation régulière
+- Assurer un fonctionnement fluide dans toutes les langues et sur toutes les plateformes
+- Étendre le support robuste pour une grande variété de fournisseurs et de modèles d'IA
 
-- Plus de support "Compatible OpenAI"
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Meilleur support pour Ollama et LM Studio
+#### Expérience utilisateur améliorée
 
-#### Support des modèles
+- Simplifier l'interface utilisateur pour plus de clarté et d'intuitivité
+- Améliorer continuellement le flux de travail pour répondre aux attentes élevées des développeurs concernant les outils d'usage quotidien
 
-Nous voulons que Roo fonctionne avec le plus de modèles possible, y compris les modèles locaux :
+#### Leadership en performance des agents
 
-- Support des modèles locaux via des prompts système personnalisés et des workflows
-- Benchmarks, évaluations et cas de test
-
-#### Support des systèmes
-
-Nous voulons que Roo fonctionne bien sur tous les ordinateurs :
-
-- Intégration du terminal multiplateforme
-- Support fort et cohérent pour Mac, Windows et Linux
-
-#### Documentation
-
-Nous voulons une documentation complète et accessible pour tous les utilisateurs et contributeurs :
-
-- Guides et tutoriels étendus
-- Documentation API claire
-- Meilleur accompagnement des contributeurs
-- Ressources de documentation multilingues
-- Exemples interactifs et extraits de code
-
-#### Stabilité
-
-Nous voulons réduire significativement les bugs et augmenter les tests automatisés :
-
-- Interrupteur de logs de debug
-- Bouton "Informations machine/tâche" à copier pour les demandes de support ou de bug
-
-#### Internationalisation
-
-Nous voulons que Roo parle la langue de tout le monde :
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Établir des référentiels d'évaluation (evals) complets pour mesurer la productivité réelle
+- Permettre à chacun d'exécuter et d'interpréter facilement ces évaluations
+- Fournir des améliorations à Roo Code qui démontrent des augmentations claires dans les scores d'évaluation
 
 Nous accueillons particulièrement les contributions qui font avancer les objectifs de notre feuille de route. Si tu travailles sur quelque chose qui s’aligne avec ces piliers, mentionne-le dans la description de ta PR.
 

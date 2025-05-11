@@ -12,12 +12,9 @@ Deze gids beschrijft hoe je kunt bijdragen aan Roo Code, of je nu bugs oplost, f
 - [I. Voordat je bijdraagt](#i-voordat-je-bijdraagt)
     - [1. Gedragscode](#1-gedragscode)
     - [2. De project-roadmap begrijpen](#2-de-project-roadmap-begrijpen)
-        - [Provider-ondersteuning](#provider-ondersteuning)
-        - [Modelondersteuning](#modelondersteuning)
-        - [Systeemondersteuning](#systeemondersteuning)
-        - [Documentatie](#documentatie)
-        - [Stabiliteit](#stabiliteit)
-        - [Internationalisatie](#internationalisatie)
+        - [Betrouwbaarheid eerst](#betrouwbaarheid-eerst)
+        - [Verbeterde gebruikerservaring](#verbeterde-gebruikerservaring)
+        - [Voorop lopen in agent-prestaties](#voorop-lopen-in-agent-prestaties)
     - [3. Word lid van de Roo Code-community](#3-word-lid-van-de-roo-code-community)
 - [II. Je bijdrage vinden & plannen](#ii-je-bijdrage-vinden--plannen)
     - [1. Soorten bijdragen](#1-soorten-bijdragen)
@@ -56,55 +53,25 @@ Roo Code heeft een duidelijke ontwikkel-roadmap die onze prioriteiten en toekoms
 - De context achter bepaalde ontwerpbeslissingen begrijpen
 - Inspiratie opdoen voor nieuwe functies die onze visie ondersteunen
 
-Onze huidige roadmap richt zich op zes belangrijke pijlers:
+We richten ons erop om Roo Code de beste keuze te maken voor ontwikkelaars die met AI-gestuurde codeertools werken. Zo gaan we dit bereiken:
 
-#### Provider-ondersteuning
+#### Betrouwbaarheid eerst
 
-We willen zoveel mogelijk providers goed ondersteunen:
+- Zorgen dat diff-bewerking en opdrachtuitvoering consistent betrouwbaar zijn
+- Verminderen van wrijvingspunten die regelmatig gebruik ontmoedigen
+- Garanderen van soepele werking in alle talen en op alle platforms
+- Uitbreiden van robuuste ondersteuning voor een breed scala aan AI-providers en -modellen
 
-- Meer "OpenAI Compatible"-ondersteuning
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Verbeterde ondersteuning voor Ollama en LM Studio
+#### Verbeterde gebruikerservaring
 
-#### Modelondersteuning
+- Vereenvoudigen van de gebruikersinterface voor meer duidelijkheid en intuïtiviteit
+- Continu verbeteren van de workflow om te voldoen aan de hoge verwachtingen die ontwikkelaars hebben voor dagelijks gebruikte tools
 
-We willen dat Roo op zoveel mogelijk modellen werkt, inclusief lokale modellen:
+#### Voorop lopen in agent-prestaties
 
-- Lokale modelondersteuning via aangepaste systeem-prompts en workflows
-- Benchmarking, evaluaties en testcases
-
-#### Systeemondersteuning
-
-We willen dat Roo goed werkt op elke computer:
-
-- Cross-platform terminalintegratie
-- Sterke en consistente ondersteuning voor Mac, Windows en Linux
-
-#### Documentatie
-
-We willen uitgebreide, toegankelijke documentatie voor alle gebruikers en bijdragers:
-
-- Uitgebreide gebruikershandleidingen en tutorials
-- Duidelijke API-documentatie
-- Betere begeleiding voor bijdragers
-- Meertalige documentatieresources
-- Interactieve voorbeelden en codevoorbeelden
-
-#### Stabiliteit
-
-We willen het aantal bugs aanzienlijk verminderen en geautomatiseerd testen vergroten:
-
-- Debug-logging-schakelaar
-- "Machine/Taak-informatie kopiëren"-knop voor bug-/supportverzoeken
-
-#### Internationalisatie
-
-We willen dat Roo ieders taal spreekt:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Opstellen van uitgebreide evaluatiebenchmarks (evals) om productiviteit in de echte wereld te meten
+- Het voor iedereen gemakkelijk maken om deze evaluaties uit te voeren en te interpreteren
+- Verbeteringen aan Roo Code leveren die duidelijke stijgingen in evaluatiescores aantonen
 
 We verwelkomen vooral bijdragen die onze roadmap-doelen bevorderen. Als je werkt aan iets dat aansluit bij deze pijlers, vermeld dit dan in je PR-beschrijving.
 

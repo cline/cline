@@ -12,12 +12,9 @@ This guide outlines how to contribute to Roo Code, whether you're fixing bugs, a
 - [I. Before You Contribute](#i-before-you-contribute)
     - [1. Code of Conduct](#1-code-of-conduct)
     - [2. Understand the Project Roadmap](#2-understand-the-project-roadmap)
-        - [Provider Support](#provider-support)
-        - [Model Support](#model-support)
-        - [System Support](#system-support)
-        - [Documentation](#documentation)
-        - [Stability](#stability)
-        - [Internationalization](#internationalization)
+        - [Reliability First](#reliability-first)
+        - [Enhanced User Experience](#enhanced-user-experience)
+        - [Leading on Agent Performance](#leading-on-agent-performance)
     - [3. Join the Roo Code Community](#3-join-the-roo-code-community)
 - [II. Finding & Planning Your Contribution](#ii-finding--planning-your-contribution)
     - [1. Types of Contributions](#1-types-of-contributions)
@@ -56,55 +53,25 @@ Roo Code has a clear development roadmap that guides our priorities and future d
 - Understand the context behind certain design decisions
 - Find inspiration for new features that support our vision
 
-Our current roadmap focuses on six key pillars:
+We're focused on making Roo Code the top choice for developers building with AI-driven coding tools. Here's how we'll get there:
 
-#### Provider Support
+#### Reliability First
 
-We aim to support as many providers well as we can:
+- Ensure diff editing and command execution are consistently reliable.
+- Reduce friction points that deter regular usage.
+- Guarantee smooth operation across all locales and platforms.
+- Expand robust support for a wide variety of AI providers and models.
 
-- More versatile "OpenAI Compatible" support
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Enhanced support for Ollama and LM Studio
+#### Enhanced User Experience
 
-#### Model Support
+- Streamline the UI/UX for clarity and intuitiveness.
+- Continuously improve the workflow to meet the high expectations developers have for daily-use tools.
 
-We want Roo to work as well on as many models as possible, including local models:
+#### Leading on Agent Performance
 
-- Local model support through custom system prompting and workflows
-- Benchmarking evals and test cases
-
-#### System Support
-
-We want Roo to run well on everyone's computer:
-
-- Cross platform terminal integration
-- Strong and consistent support for Mac, Windows, and Linux
-
-#### Documentation
-
-We want comprehensive, accessible documentation for all users and contributors:
-
-- Expanded user guides and tutorials
-- Clear API documentation
-- Better contributor guidance
-- Multilingual documentation resources
-- Interactive examples and code samples
-
-#### Stability
-
-We want to significantly decrease the number of bugs and increase automated testing:
-
-- Debug logging switch
-- "Machine/Task Information" copy button for sending in with bug/support requests
-
-#### Internationalization
-
-We want Roo to speak everyone's language:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Establish comprehensive evaluation benchmarks (evals) to measure real-world productivity.
+- Make it easy for everyone to easily run and interpret these evals.
+- Ship improvements to Roo Code that demonstrate clear increases in eval scores.
 
 We especially welcome contributions that advance our roadmap goals. If you're working on something that aligns with these pillars, please mention it in your PR description.
 

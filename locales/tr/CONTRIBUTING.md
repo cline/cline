@@ -12,12 +12,9 @@ Bu rehber, Roo Code'a nasıl katkı sağlayabileceğini; ister hata düzelt, ist
 - [I. Katkıdan Önce](#i-katkıdan-önce)
     - [1. Davranış Kuralları](#1-davranış-kuralları)
     - [2. Proje Yol Haritasını Anlamak](#2-proje-yol-haritasını-anlamak)
-        - [Sağlayıcı Desteği](#sağlayıcı-desteği)
-        - [Model Desteği](#model-desteği)
-        - [Sistem Desteği](#sistem-desteği)
-        - [Dokümantasyon](#dokümantasyon)
-        - [Stabilite](#stabilite)
-        - [Uluslararasılaştırma](#uluslararasılaştırma)
+        - [Güvenilirlik Öncelikli](#güvenilirlik-öncelikli)
+        - [Geliştirilmiş Kullanıcı Deneyimi](#geliştirilmiş-kullanıcı-deneyimi)
+        - [Ajan Performansında Liderlik](#ajan-performansında-liderlik)
     - [3. Roo Code Topluluğuna Katıl](#3-roo-code-topluluğuna-katıl)
 - [II. Katkı Bulma & Planlama](#ii-katkı-bulma--planlama)
     - [1. Katkı Türleri](#1-katkı-türleri)
@@ -56,55 +53,25 @@ Roo Code'un önceliklerimizi ve gelecekteki yönümüzü belirleyen net bir geli
 - Bazı tasarım kararlarının arka planını anlamak
 - Vizyonumuzu destekleyen yeni özellikler için ilham almak
 
-Mevcut yol haritamız altı ana sütuna odaklanıyor:
+Roo Code'u, yapay zeka destekli kodlama araçlarıyla çalışan geliştiriciler için en iyi seçenek haline getirmeye odaklanıyoruz. İşte bunu nasıl başaracağız:
 
-#### Sağlayıcı Desteği
+#### Güvenilirlik Öncelikli
 
-Mümkün olduğunca çok sağlayıcıyı iyi desteklemek istiyoruz:
+- Diff düzenleme ve komut yürütme işlemlerinin sürekli olarak güvenilir olmasını sağlamak
+- Düzenli kullanımı engelleyen sürtünme noktalarını azaltmak
+- Tüm dillerde ve platformlarda sorunsuz çalışmayı garanti etmek
+- Çok çeşitli yapay zeka sağlayıcıları ve modelleri için güçlü desteği genişletmek
 
-- Daha fazla "OpenAI Compatible" desteği
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Ollama ve LM Studio için geliştirilmiş destek
+#### Geliştirilmiş Kullanıcı Deneyimi
 
-#### Model Desteği
+- Daha fazla netlik ve sezgisellik için kullanıcı arayüzünü basitleştirmek
+- Geliştiricilerin günlük kullanım araçları için beklediği yüksek standartları karşılamak üzere iş akışını sürekli iyileştirmek
 
-Roo'nun mümkün olduğunca çok modelde (yerel modeller dahil) çalışmasını istiyoruz:
+#### Ajan Performansında Liderlik
 
-- Özel sistem promptları ve iş akışlarıyla yerel model desteği
-- Benchmarking, değerlendirmeler ve test vakaları
-
-#### Sistem Desteği
-
-Roo'nun her bilgisayarda iyi çalışmasını istiyoruz:
-
-- Platformlar arası terminal entegrasyonu
-- Mac, Windows ve Linux için güçlü ve tutarlı destek
-
-#### Dokümantasyon
-
-Tüm kullanıcılar ve katkı sağlayanlar için kapsamlı, erişilebilir dokümantasyon istiyoruz:
-
-- Genişletilmiş kullanıcı rehberleri ve eğitimler
-- Açık API dokümantasyonu
-- Daha iyi katkı sağlayan rehberliği
-- Çok dilli dokümantasyon kaynakları
-- Etkileşimli örnekler ve kod parçacıkları
-
-#### Stabilite
-
-Hata sayısını önemli ölçüde azaltmak ve otomatik testleri artırmak istiyoruz:
-
-- Hata ayıklama log anahtarı
-- Hata/destek talepleri için "Makine/Görev Bilgisi Kopyala" butonu
-
-#### Uluslararasılaştırma
-
-Roo'nun herkesin dilini konuşmasını istiyoruz:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Gerçek dünyadaki üretkenliği ölçmek için kapsamlı değerlendirme kriterleri (evals) oluşturmak
+- Herkesin bu değerlendirmeleri kolayca çalıştırıp yorumlamasını sağlamak
+- Değerlendirme puanlarında net artışlar gösteren Roo Code iyileştirmeleri sunmak
 
 Yol haritası hedeflerimizi ilerleten katkılar özellikle memnuniyetle karşılanır. Bu sütunlarla uyumlu bir şey üzerinde çalışıyorsan, lütfen PR açıklamanda belirt.
 

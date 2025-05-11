@@ -12,12 +12,9 @@ Ten przewodnik opisuje, jak współtworzyć Roo Code – czy to naprawiając bł
 - [I. Zanim zaczniesz współtworzyć](#i-zanim-zaczniesz-współtworzyć)
     - [1. Kodeks postępowania](#1-kodeks-postępowania)
     - [2. Zrozumienie roadmapy projektu](#2-zrozumienie-roadmapy-projektu)
-        - [Wsparcie providerów](#wsparcie-providerów)
-        - [Wsparcie modeli](#wsparcie-modeli)
-        - [Wsparcie systemów](#wsparcie-systemów)
-        - [Dokumentacja](#dokumentacja)
-        - [Stabilność](#stabilność)
-        - [Internacjonalizacja](#internacjonalizacja)
+        - [Niezawodność przede wszystkim](#niezawodność-przede-wszystkim)
+        - [Ulepszone doświadczenie użytkownika](#ulepszone-doświadczenie-użytkownika)
+        - [Wiodąca pozycja w wydajności agentów](#wiodąca-pozycja-w-wydajności-agentów)
     - [3. Dołącz do społeczności Roo Code](#3-dołącz-do-społeczności-roo-code)
 - [II. Znajdowanie i planowanie swojego wkładu](#ii-znajdowanie-i-planowanie-swojego-wkładu)
     - [1. Typy wkładów](#1-typy-wkładów)
@@ -56,55 +53,25 @@ Roo Code ma jasną roadmapę rozwoju, która wyznacza nasze priorytety i przysz�
 - Zrozumieć kontekst niektórych decyzji projektowych
 - Zainspirować się do nowych funkcji wspierających naszą wizję
 
-Obecna roadmapa skupia się na sześciu kluczowych filarach:
+Skupiamy się na tym, aby Roo Code stało się najlepszym wyborem dla programistów pracujących z narzędziami programistycznymi opartymi na AI. Oto jak to osiągniemy:
 
-#### Wsparcie providerów
+#### Niezawodność przede wszystkim
 
-Chcemy dobrze wspierać jak najwięcej providerów:
+- Zapewnienie, że edycja różnic i wykonywanie poleceń są konsekwentnie niezawodne
+- Zmniejszenie punktów tarcia, które zniechęcają do regularnego użytkowania
+- Gwarancja płynnego działania we wszystkich językach i na wszystkich platformach
+- Rozszerzenie solidnego wsparcia dla szerokiej gamy dostawców i modeli AI
 
-- Więcej wsparcia "OpenAI Compatible"
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Ulepszone wsparcie dla Ollama i LM Studio
+#### Ulepszone doświadczenie użytkownika
 
-#### Wsparcie modeli
+- Uproszczenie interfejsu użytkownika dla większej przejrzystości i intuicyjności
+- Ciągłe doskonalenie przepływu pracy, aby spełnić wysokie oczekiwania, jakie programiści mają wobec codziennie używanych narzędzi
 
-Chcemy, aby Roo działał na jak największej liczbie modeli, w tym lokalnych:
+#### Wiodąca pozycja w wydajności agentów
 
-- Wsparcie modeli lokalnych przez niestandardowe prompty systemowe i workflowy
-- Benchmarki, ewaluacje i przypadki testowe
-
-#### Wsparcie systemów
-
-Chcemy, aby Roo działał dobrze na każdym komputerze:
-
-- Integracja terminala międzyplatformowego
-- Silne i spójne wsparcie dla Mac, Windows i Linux
-
-#### Dokumentacja
-
-Chcemy kompleksowej, dostępnej dokumentacji dla wszystkich użytkowników i współtwórców:
-
-- Rozszerzone przewodniki użytkownika i samouczki
-- Jasna dokumentacja API
-- Lepsze wskazówki dla współtwórców
-- Wielojęzyczne zasoby dokumentacyjne
-- Interaktywne przykłady i fragmenty kodu
-
-#### Stabilność
-
-Chcemy znacznie zmniejszyć liczbę błędów i zwiększyć automatyczne testowanie:
-
-- Przełącznik debugowania logów
-- Przycisk "Kopiuj informacje o maszynie/zadaniu" do zgłoszeń błędów/wsparcia
-
-#### Internacjonalizacja
-
-Chcemy, aby Roo mówił językiem każdego:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Ustanowienie kompleksowych punktów odniesienia (evals) do mierzenia produktywności w rzeczywistym świecie
+- Ułatwienie wszystkim łatwego uruchamiania i interpretowania tych ocen
+- Dostarczanie ulepszeń Roo Code, które wykazują wyraźny wzrost wyników ocen
 
 Szczególnie mile widziane są wkłady, które realizują cele roadmapy. Jeśli pracujesz nad czymś zgodnym z tymi filarami, wspomnij o tym w opisie PR.
 

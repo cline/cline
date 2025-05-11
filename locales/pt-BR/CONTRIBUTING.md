@@ -12,12 +12,9 @@ Este guia explica como contribuir para o Roo Code, seja corrigindo bugs, adicion
 - [I. Antes de Contribuir](#i-antes-de-contribuir)
     - [1. Código de Conduta](#1-código-de-conduta)
     - [2. Entenda o Roadmap do Projeto](#2-entenda-o-roadmap-do-projeto)
-        - [Suporte a Provedores](#suporte-a-provedores)
-        - [Suporte a Modelos](#suporte-a-modelos)
-        - [Suporte a Sistemas](#suporte-a-sistemas)
-        - [Documentação](#documentação)
-        - [Estabilidade](#estabilidade)
-        - [Internacionalização](#internacionalização)
+        - [Confiabilidade em Primeiro Lugar](#confiabilidade-em-primeiro-lugar)
+        - [Experiência de Usuário Aprimorada](#experiência-de-usuário-aprimorada)
+        - [Liderança em Desempenho de Agentes](#liderança-em-desempenho-de-agentes)
     - [3. Junte-se à Comunidade Roo Code](#3-junte-se-à-comunidade-roo-code)
 - [II. Encontrando & Planejando sua Contribuição](#ii-encontrando--planejando-sua-contribuição)
     - [1. Tipos de Contribuição](#1-tipos-de-contribuição)
@@ -56,55 +53,25 @@ O Roo Code possui um roadmap de desenvolvimento claro que orienta nossas priorid
 - Compreender o contexto por trás de certas decisões de design
 - Se inspirar para novos recursos que apoiem nossa visão
 
-Nosso roadmap atual foca em seis pilares principais:
+Estamos focados em tornar o Roo Code a principal escolha para desenvolvedores que trabalham com ferramentas de codificação baseadas em IA. Veja como faremos isso:
 
-#### Suporte a Provedores
+#### Confiabilidade em Primeiro Lugar
 
-Queremos dar suporte ao maior número possível de provedores:
+- Garantir que a edição de diferenças e a execução de comandos sejam consistentemente confiáveis
+- Reduzir pontos de atrito que desencorajam o uso regular
+- Garantir operação suave em todos os idiomas e plataformas
+- Expandir o suporte robusto para uma ampla variedade de provedores e modelos de IA
 
-- Mais suporte "Compatível com OpenAI"
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Suporte aprimorado para Ollama e LM Studio
+#### Experiência de Usuário Aprimorada
 
-#### Suporte a Modelos
+- Simplificar a interface do usuário para maior clareza e intuitividade
+- Melhorar continuamente o fluxo de trabalho para atender às altas expectativas que os desenvolvedores têm para ferramentas de uso diário
 
-Queremos que o Roo funcione com o maior número possível de modelos, incluindo modelos locais:
+#### Liderança em Desempenho de Agentes
 
-- Suporte a modelos locais por meio de prompts de sistema personalizados e fluxos de trabalho
-- Benchmarks, avaliações e casos de teste
-
-#### Suporte a Sistemas
-
-Queremos que o Roo funcione bem em qualquer computador:
-
-- Integração de terminal multiplataforma
-- Suporte forte e consistente para Mac, Windows e Linux
-
-#### Documentação
-
-Queremos documentação abrangente e acessível para todos os usuários e colaboradores:
-
-- Guias e tutoriais expandidos
-- Documentação clara da API
-- Melhor orientação para colaboradores
-- Recursos de documentação multilíngue
-- Exemplos interativos e trechos de código
-
-#### Estabilidade
-
-Queremos reduzir significativamente o número de bugs e aumentar os testes automatizados:
-
-- Chave de ativação de logs de depuração
-- Botão "Copiar informações da máquina/tarefa" para solicitações de bug/suporte
-
-#### Internacionalização
-
-Queremos que o Roo fale a língua de todos:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Estabelecer benchmarks de avaliação abrangentes (evals) para medir a produtividade no mundo real
+- Facilitar para que todos possam executar e interpretar essas avaliações
+- Fornecer melhorias ao Roo Code que demonstrem aumentos claros nas pontuações de avaliação
 
 Contribuições que avançam os objetivos do nosso roadmap são especialmente bem-vindas. Se você estiver trabalhando em algo alinhado com esses pilares, mencione isso na descrição do seu PR.
 

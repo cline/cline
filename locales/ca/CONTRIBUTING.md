@@ -12,12 +12,9 @@ Aquesta guia explica com contribuir a Roo Code, ja sigui corregint errors, afegi
 - [I. Abans de contribuir](#i-abans-de-contribuir)
     - [1. Codi de conducta](#1-codi-de-conducta)
     - [2. Entendre la fulla de ruta del projecte](#2-entendre-la-fulla-de-ruta-del-projecte)
-        - [Suport de proveïdors](#suport-de-proveïdors)
-        - [Suport de models](#suport-de-models)
-        - [Suport de sistemes](#suport-de-sistemes)
-        - [Documentació](#documentació)
-        - [Estabilitat](#estabilitat)
-        - [Internacionalització](#internacionalització)
+        - [Fiabilitat primer](#fiabilitat-primer)
+        - [Experiència d'usuari millorada](#experiència-dusuari-millorada)
+        - [Lideratge en rendiment dels agents](#lideratge-en-rendiment-dels-agents)
     - [3. Uneix-te a la comunitat Roo Code](#3-uneix-te-a-la-comunitat-roo-code)
 - [II. Trobar i planificar la teva contribució](#ii-trobar-i-planificar-la-teva-contribució)
     - [1. Tipus de contribucions](#1-tipus-de-contribucions)
@@ -56,55 +53,25 @@ Roo Code té una fulla de ruta clara que guia les nostres prioritats i direcció
 - Comprendre el context darrere de certes decisions de disseny
 - Inspirar-te per a noves funcionalitats que donin suport a la nostra visió
 
-La nostra fulla de ruta actual se centra en sis pilars clau:
+Ens centrem a fer de Roo Code la millor opció per als desenvolupadors que treballen amb eines de codificació impulsades per IA. Així és com ho aconseguirem:
 
-#### Suport de proveïdors
+#### Fiabilitat primer
 
-Volem donar suport al màxim nombre de proveïdors possible:
+- Garantir que l'edició de diferències i l'execució de comandes siguin consistentment fiables
+- Reduir els punts de fricció que desanimen l'ús regular
+- Garantir un funcionament fluid en tots els idiomes i plataformes
+- Ampliar el suport robust per a una àmplia varietat de proveïdors i models d'IA
 
-- Més suport "Compatible amb OpenAI"
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Millor suport per a Ollama i LM Studio
+#### Experiència d'usuari millorada
 
-#### Suport de models
+- Simplificar la interfície d'usuari per a més claredat i intuïció
+- Millorar contínuament el flux de treball per satisfer les altes expectatives que els desenvolupadors tenen per a eines d'ús diari
 
-Volem que Roo funcioni amb el màxim nombre de models possible, inclosos models locals:
+#### Lideratge en rendiment dels agents
 
-- Suport de models locals mitjançant prompts i fluxos de treball personalitzats
-- Avaluacions i casos de prova de benchmarking
-
-#### Suport de sistemes
-
-Volem que Roo funcioni bé a qualsevol ordinador:
-
-- Integració de terminal multiplataforma
-- Suport fort i coherent per a Mac, Windows i Linux
-
-#### Documentació
-
-Volem documentació completa i accessible per a tots els usuaris i col·laboradors:
-
-- Guies i tutorials ampliats
-- Documentació clara de l'API
-- Millor orientació per a col·laboradors
-- Recursos de documentació multilingüe
-- Exemples interactius i fragments de codi
-
-#### Estabilitat
-
-Volem reduir significativament els errors i augmentar les proves automatitzades:
-
-- Interruptor de registre de depuració
-- Botó per copiar "Informació de màquina/tasca" per a sol·licituds de suport o errors
-
-#### Internacionalització
-
-Volem que Roo parli l'idioma de tothom:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Establir punts de referència d'avaluació (evals) complets per mesurar la productivitat real
+- Facilitar que tothom pugui executar i interpretar aquestes avaluacions fàcilment
+- Proporcionar millores a Roo Code que demostrin increments clars en les puntuacions d'avaluació
 
 Agraïm especialment les contribucions que avancin els objectius de la nostra fulla de ruta. Si treballes en alguna cosa alineada amb aquests pilars, esmenta-ho a la descripció del teu PR.
 

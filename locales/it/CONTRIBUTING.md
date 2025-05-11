@@ -12,12 +12,9 @@ Questa guida spiega come contribuire a Roo Code, che tu stia correggendo bug, ag
 - [I. Prima di contribuire](#i-prima-di-contribuire)
     - [1. Codice di condotta](#1-codice-di-condotta)
     - [2. Comprendere la roadmap del progetto](#2-comprendere-la-roadmap-del-progetto)
-        - [Supporto provider](#supporto-provider)
-        - [Supporto modelli](#supporto-modelli)
-        - [Supporto sistemi](#supporto-sistemi)
-        - [Documentazione](#documentazione)
-        - [Stabilità](#stabilità)
-        - [Internazionalizzazione](#internazionalizzazione)
+        - [Affidabilità prima di tutto](#affidabilità-prima-di-tutto)
+        - [Esperienza utente migliorata](#esperienza-utente-migliorata)
+        - [Leadership nelle prestazioni degli agenti](#leadership-nelle-prestazioni-degli-agenti)
     - [3. Unisciti alla community Roo Code](#3-unisciti-alla-community-roo-code)
 - [II. Trovare e pianificare il tuo contributo](#ii-trovare-e-pianificare-il-tuo-contributo)
     - [1. Tipi di contributi](#1-tipi-di-contributi)
@@ -56,55 +53,25 @@ Roo Code ha una roadmap di sviluppo chiara che guida le nostre priorità e la di
 - Capire il contesto dietro alcune decisioni di design
 - Trovare ispirazione per nuove funzionalità che supportano la nostra visione
 
-La nostra roadmap attuale si concentra su sei pilastri chiave:
+Ci concentriamo nel rendere Roo Code la scelta migliore per gli sviluppatori che lavorano con strumenti di codifica basati sull'IA. Ecco come lo faremo:
 
-#### Supporto provider
+#### Affidabilità prima di tutto
 
-Vogliamo supportare il maggior numero possibile di provider:
+- Garantire che l'editing delle differenze e l'esecuzione dei comandi siano costantemente affidabili
+- Ridurre i punti di attrito che scoraggiano l'uso regolare
+- Garantire un funzionamento fluido in tutte le lingue e su tutte le piattaforme
+- Ampliare il supporto robusto per una vasta gamma di provider e modelli di IA
 
-- Più supporto "OpenAI Compatible"
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Supporto migliorato per Ollama e LM Studio
+#### Esperienza utente migliorata
 
-#### Supporto modelli
+- Semplificare l'interfaccia utente per maggiore chiarezza e intuitività
+- Migliorare continuamente il flusso di lavoro per soddisfare le elevate aspettative che gli sviluppatori hanno per gli strumenti di uso quotidiano
 
-Vogliamo che Roo funzioni con il maggior numero possibile di modelli, inclusi quelli locali:
+#### Leadership nelle prestazioni degli agenti
 
-- Supporto modelli locali tramite prompt di sistema personalizzati e workflow
-- Benchmarking, valutazioni e casi di test
-
-#### Supporto sistemi
-
-Vogliamo che Roo funzioni bene su ogni computer:
-
-- Integrazione terminale multipiattaforma
-- Supporto forte e coerente per Mac, Windows e Linux
-
-#### Documentazione
-
-Vogliamo una documentazione completa e accessibile per tutti gli utenti e collaboratori:
-
-- Guide utente e tutorial ampliati
-- Documentazione API chiara
-- Migliore guida per i collaboratori
-- Risorse di documentazione multilingue
-- Esempi interattivi e frammenti di codice
-
-#### Stabilità
-
-Vogliamo ridurre significativamente i bug e aumentare i test automatizzati:
-
-- Interruttore per il debug logging
-- Pulsante "Informazioni macchina/task" per richieste di bug/supporto
-
-#### Internazionalizzazione
-
-Vogliamo che Roo parli la lingua di tutti:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Stabilire parametri di valutazione completi (evals) per misurare la produttività nel mondo reale
+- Rendere facile per tutti eseguire e interpretare queste valutazioni
+- Fornire miglioramenti a Roo Code che dimostrino chiari aumenti nei punteggi di valutazione
 
 Accogliamo con particolare favore i contributi che fanno avanzare gli obiettivi della nostra roadmap. Se stai lavorando su qualcosa che si allinea con questi pilastri, menzionalo nella descrizione della tua PR.
 

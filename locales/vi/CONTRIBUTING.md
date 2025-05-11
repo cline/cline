@@ -12,12 +12,9 @@ Hướng dẫn này giải thích cách đóng góp cho Roo Code, dù bạn sử
 - [I. Trước khi đóng góp](#i-trước-khi-đóng-góp)
     - [1. Quy tắc ứng xử](#1-quy-tắc-ứng-xử)
     - [2. Hiểu lộ trình phát triển dự án](#2-hiểu-lộ-trình-phát-triển-dự-án)
-        - [Hỗ trợ nhà cung cấp](#hỗ-trợ-nhà-cung-cấp)
-        - [Hỗ trợ mô hình](#hỗ-trợ-mô-hình)
-        - [Hỗ trợ hệ thống](#hỗ-trợ-hệ-thống)
-        - [Tài liệu](#tài-liệu)
-        - [Ổn định](#ổn-định)
-        - [Quốc tế hóa](#quốc-tế-hóa)
+        - [Độ tin cậy là ưu tiên hàng đầu](#độ-tin-cậy-là-ưu-tiên-hàng-đầu)
+        - [Nâng cao trải nghiệm người dùng](#nâng-cao-trải-nghiệm-người-dùng)
+        - [Dẫn đầu về hiệu suất agent](#dẫn-đầu-về-hiệu-suất-agent)
     - [3. Tham gia cộng đồng Roo Code](#3-tham-gia-cộng-đồng-roo-code)
 - [II. Tìm kiếm & lên kế hoạch đóng góp](#ii-tìm-kiếm--lên-kế-hoạch-đóng-góp)
     - [1. Các loại đóng góp](#1-các-loại-đóng-góp)
@@ -56,55 +53,25 @@ Roo Code có lộ trình phát triển rõ ràng, định hướng ưu tiên và
 - Hiểu bối cảnh đằng sau các quyết định thiết kế
 - Lấy cảm hứng cho các tính năng mới phù hợp với tầm nhìn của dự án
 
-Lộ trình hiện tại tập trung vào 6 trụ cột chính:
+Chúng mình tập trung vào việc biến Roo Code thành lựa chọn hàng đầu cho các nhà phát triển làm việc với công cụ lập trình dựa trên AI. Dưới đây là cách chúng mình sẽ thực hiện:
 
-#### Hỗ trợ nhà cung cấp
+#### Độ tin cậy là ưu tiên hàng đầu
 
-Chúng mình muốn hỗ trợ càng nhiều nhà cung cấp càng tốt:
+- Đảm bảo việc chỉnh sửa diff và thực thi lệnh luôn đáng tin cậy
+- Giảm thiểu các điểm cản trở khiến người dùng ngại sử dụng thường xuyên
+- Đảm bảo hoạt động mượt mà trên mọi ngôn ngữ và nền tảng
+- Mở rộng hỗ trợ mạnh mẽ cho nhiều nhà cung cấp và mô hình AI đa dạng
 
-- Hỗ trợ "Tương thích OpenAI" nhiều hơn
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Tăng cường hỗ trợ Ollama và LM Studio
+#### Nâng cao trải nghiệm người dùng
 
-#### Hỗ trợ mô hình
+- Đơn giản hóa giao diện người dùng để tăng tính rõ ràng và trực quan
+- Liên tục cải thiện quy trình làm việc để đáp ứng kỳ vọng cao của các nhà phát triển đối với công cụ sử dụng hàng ngày
 
-Chúng mình muốn Roo hoạt động tốt trên nhiều mô hình nhất có thể, kể cả mô hình cục bộ:
+#### Dẫn đầu về hiệu suất agent
 
-- Hỗ trợ mô hình cục bộ qua prompt hệ thống và workflow tùy chỉnh
-- Đánh giá benchmark và test case
-
-#### Hỗ trợ hệ thống
-
-Chúng mình muốn Roo chạy tốt trên mọi máy tính:
-
-- Tích hợp terminal đa nền tảng
-- Hỗ trợ mạnh mẽ và ổn định cho Mac, Windows, Linux
-
-#### Tài liệu
-
-Chúng mình muốn có tài liệu đầy đủ, dễ tiếp cận cho mọi người dùng và cộng tác viên:
-
-- Hướng dẫn và tài liệu mở rộng
-- Tài liệu API rõ ràng
-- Hướng dẫn tốt hơn cho cộng tác viên
-- Tài nguyên tài liệu đa ngôn ngữ
-- Ví dụ tương tác và đoạn mã mẫu
-
-#### Ổn định
-
-Chúng mình muốn giảm đáng kể số lỗi và tăng cường kiểm thử tự động:
-
-- Công tắc bật/tắt log debug
-- Nút "Sao chép thông tin máy/tác vụ" cho yêu cầu hỗ trợ/bug
-
-#### Quốc tế hóa
-
-Chúng mình muốn Roo nói được ngôn ngữ của mọi người:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Thiết lập các tiêu chuẩn đánh giá toàn diện (evals) để đo lường năng suất trong thực tế
+- Giúp mọi người dễ dàng chạy và hiểu các đánh giá này
+- Cung cấp các cải tiến cho Roo Code thể hiện rõ sự tăng trưởng trong điểm đánh giá
 
 Chúng mình đặc biệt hoan nghênh các đóng góp giúp tiến gần hơn tới mục tiêu lộ trình. Nếu bạn làm việc liên quan đến các trụ cột này, hãy đề cập trong mô tả PR.
 

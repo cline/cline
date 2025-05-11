@@ -12,12 +12,9 @@ Esta guía explica cómo contribuir a Roo Code, ya sea corrigiendo errores, agre
 - [I. Antes de Contribuir](#i-antes-de-contribuir)
     - [1. Código de Conducta](#1-código-de-conducta)
     - [2. Entender la Hoja de Ruta del Proyecto](#2-entender-la-hoja-de-ruta-del-proyecto)
-        - [Soporte de Proveedores](#soporte-de-proveedores)
-        - [Soporte de Modelos](#soporte-de-modelos)
-        - [Soporte de Sistemas](#soporte-de-sistemas)
-        - [Documentación](#documentación)
-        - [Estabilidad](#estabilidad)
-        - [Internacionalización](#internacionalización)
+        - [Confiabilidad Primero](#confiabilidad-primero)
+        - [Experiencia de Usuario Mejorada](#experiencia-de-usuario-mejorada)
+        - [Liderazgo en Rendimiento de Agentes](#liderazgo-en-rendimiento-de-agentes)
     - [3. Únete a la Comunidad Roo Code](#3-únete-a-la-comunidad-roo-code)
 - [II. Encontrar y Planificar tu Contribución](#ii-encontrar-y-planificar-tu-contribución)
     - [1. Tipos de Contribuciones](#1-tipos-de-contribuciones)
@@ -56,55 +53,25 @@ Roo Code tiene una hoja de ruta clara que guía nuestras prioridades y direcció
 - Comprender el contexto detrás de ciertas decisiones de diseño
 - Inspirarte para nuevas funciones que apoyen nuestra visión
 
-Nuestra hoja de ruta actual se centra en seis pilares clave:
+Nos enfocamos en hacer de Roo Code la mejor opción para desarrolladores que construyen con herramientas de codificación impulsadas por IA. Así es como lo lograremos:
 
-#### Soporte de Proveedores
+#### Confiabilidad Primero
 
-Queremos soportar la mayor cantidad de proveedores posible:
+- Garantizar que la edición de diferencias y la ejecución de comandos sean consistentemente confiables.
+- Reducir los puntos de fricción que disuaden el uso regular.
+- Garantizar un funcionamiento fluido en todos los idiomas y plataformas.
+- Ampliar el soporte sólido para una amplia variedad de proveedores y modelos de IA.
 
-- Más soporte "Compatible con OpenAI"
-- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
-- Mejor soporte para Ollama y LM Studio
+#### Experiencia de Usuario Mejorada
 
-#### Soporte de Modelos
+- Simplificar la interfaz de usuario para mayor claridad e intuitividad.
+- Mejorar continuamente el flujo de trabajo para satisfacer las altas expectativas que los desarrolladores tienen para herramientas de uso diario.
 
-Queremos que Roo funcione con la mayor cantidad de modelos posible, incluidos modelos locales:
+#### Liderazgo en Rendimiento de Agentes
 
-- Soporte de modelos locales mediante prompts y flujos de trabajo personalizados
-- Evaluaciones y casos de prueba de benchmarking
-
-#### Soporte de Sistemas
-
-Queremos que Roo funcione bien en cualquier ordenador:
-
-- Integración de terminal multiplataforma
-- Soporte fuerte y consistente para Mac, Windows y Linux
-
-#### Documentación
-
-Queremos documentación completa y accesible para todos los usuarios y colaboradores:
-
-- Guías y tutoriales ampliados
-- Documentación clara de la API
-- Mejor orientación para colaboradores
-- Recursos de documentación multilingüe
-- Ejemplos interactivos y fragmentos de código
-
-#### Estabilidad
-
-Queremos reducir significativamente los errores y aumentar las pruebas automatizadas:
-
-- Interruptor de registro de depuración
-- Botón para copiar "Información de máquina/tarea" para solicitudes de soporte o errores
-
-#### Internacionalización
-
-Queremos que Roo hable el idioma de todos:
-
-- 我们希望 Roo Code 说每个人的语言
-- Queremos que Roo Code hable el idioma de todos
-- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
-- نريد أن يتحدث Roo Code لغة الجميع
+- Establecer evaluaciones comparativas completas (evals) para medir la productividad en el mundo real.
+- Facilitar que todos puedan ejecutar e interpretar estas evaluaciones fácilmente.
+- Ofrecer mejoras a Roo Code que demuestren aumentos claros en las puntuaciones de evaluación.
 
 Agradecemos especialmente las contribuciones que avancen los objetivos de nuestra hoja de ruta. Si trabajas en algo alineado con estos pilares, menciónalo en la descripción de tu PR.
 
