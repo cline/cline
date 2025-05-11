@@ -46,6 +46,7 @@ export const BrowserSettingsSection: React.FC = () => {
 	const [debugMode, setDebugMode] = useState(false)
 	const [isBundled, setIsBundled] = useState(false)
 	const [detectedChromePath, setDetectedChromePath] = useState<string | null>(null)
+	// Removed local state for disableToolUse, will use browserSettings.disableToolUse directly
 
 	// Listen for browser connection test results and relaunch results
 	useEffect(() => {
@@ -97,7 +98,8 @@ export const BrowserSettingsSection: React.FC = () => {
 		if (browserSettings.chromeExecutablePath !== localChromePath) {
 			setLocalChromePath(browserSettings.chromeExecutablePath || "")
 		}
-	}, [browserSettings.chromeExecutablePath])
+		// Removed sync for local disableToolUse state
+	}, [browserSettings.chromeExecutablePath, browserSettings.disableToolUse]) // Keep browserSettings.disableToolUse in deps if other logic depends on it, or remove if not. For now, keeping it to be safe, but it no longer drives local state.
 
 	// Debounced connection check function
 	const debouncedCheckConnection = useCallback(
@@ -156,6 +158,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
 				remoteBrowserHost: browserSettings.remoteBrowserHost,
 				chromeExecutablePath: browserSettings.chromeExecutablePath,
+				disableToolUse: browserSettings.disableToolUse,
 			})
 				.then((response) => {
 					if (!response.value) {
@@ -179,6 +182,7 @@ export const BrowserSettingsSection: React.FC = () => {
 			// If disabling, also clear the host
 			remoteBrowserHost: enabled ? browserSettings.remoteBrowserHost : undefined,
 			chromeExecutablePath: browserSettings.chromeExecutablePath,
+			disableToolUse: browserSettings.disableToolUse,
 		})
 			.then((response) => {
 				if (!response.value) {
@@ -200,6 +204,7 @@ export const BrowserSettingsSection: React.FC = () => {
 			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
 			remoteBrowserHost: host,
 			chromeExecutablePath: browserSettings.chromeExecutablePath,
+			disableToolUse: browserSettings.disableToolUse,
 		})
 			.then((response) => {
 				if (!response.value) {
@@ -222,6 +227,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
 				remoteBrowserHost: browserSettings.remoteBrowserHost,
 				chromeExecutablePath: newPath,
+				disableToolUse: browserSettings.disableToolUse,
 			})
 				.then((response) => {
 					if (!response.value) {
@@ -245,6 +251,7 @@ export const BrowserSettingsSection: React.FC = () => {
 			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
 			remoteBrowserHost: browserSettings.remoteBrowserHost,
 			chromeExecutablePath: path,
+			disableToolUse: browserSettings.disableToolUse,
 		})
 			.then((response) => {
 				if (!response.value) {
@@ -303,6 +310,28 @@ export const BrowserSettingsSection: React.FC = () => {
 		return () => clearInterval(pollInterval)
 	}, [browserSettings.remoteBrowserEnabled, checkConnectionOnce])
 
+	const updateDisableToolUse = (disabled: boolean) => {
+		BrowserServiceClient.updateBrowserSettings({
+			metadata: {},
+			viewport: {
+				width: browserSettings.viewport.width,
+				height: browserSettings.viewport.height,
+			},
+			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+			remoteBrowserHost: browserSettings.remoteBrowserHost,
+			chromeExecutablePath: browserSettings.chromeExecutablePath,
+			disableToolUse: disabled,
+		})
+			.then((response) => {
+				if (!response.value) {
+					console.error("Failed to update disableToolUse setting")
+				}
+			})
+			.catch((error) => {
+				console.error("Error updating disableToolUse setting:", error)
+			})
+	}
+
 	const relaunchChromeDebugMode = () => {
 		setDebugMode(true)
 		setRelaunchResult(null)
@@ -351,6 +380,22 @@ export const BrowserSettingsSection: React.FC = () => {
 						margin: 0,
 					}}>
 					Set the size of the browser viewport for screenshots and interactions.
+				</p>
+			</div>
+
+			<div style={{ marginBottom: 15 }}>
+				<VSCodeCheckbox
+					checked={browserSettings.disableToolUse || false}
+					onChange={(e) => updateDisableToolUse((e.target as HTMLInputElement).checked)}>
+					Disable browser tool usage
+				</VSCodeCheckbox>
+				<p
+					style={{
+						fontSize: "12px",
+						color: "var(--vscode-descriptionForeground)",
+						margin: "4px 0 0 0px",
+					}}>
+					Prevent Cline from using browser actions (e.g. launch, click, type).
 				</p>
 			</div>
 

@@ -448,6 +448,9 @@ export class BrowserSession {
 	}
 
 	async doAction(action: (page: Page) => Promise<void>): Promise<BrowserActionResult> {
+		if (this.browserSettings.disableToolUse) {
+			throw new Error("Browser tool usage is disabled in settings.")
+		}
 		if (!this.page) {
 			throw new Error(
 				"Browser is not launched. This may occur if the browser was automatically closed by a non-`browser_action` tool.",

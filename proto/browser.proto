@@ -41,6 +41,7 @@ message BrowserSettings {
   optional string remote_browser_host = 2;
   optional bool remote_browser_enabled = 3;
   optional string chrome_executable_path = 4;
+  optional bool disable_tool_use = 5;
 }
 
 message UpdateBrowserSettingsRequest {
@@ -49,4 +50,5 @@ message UpdateBrowserSettingsRequest {
   optional string remote_browser_host = 3;
   optional bool remote_browser_enabled = 4;
   optional string chrome_executable_path = 5;
+  optional bool disable_tool_use = 6;
 }
