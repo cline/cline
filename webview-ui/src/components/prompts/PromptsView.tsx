@@ -1002,7 +1002,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						})}
 					</div>
 					<VSCodeTextArea
-						value={customInstructions}
+						value={customInstructions || ""}
 						onChange={(e) => {
 							const value =
 								(e as unknown as CustomEvent)?.detail?.target?.value ||
