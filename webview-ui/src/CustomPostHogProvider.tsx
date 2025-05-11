@@ -11,6 +11,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		posthog.init(posthogConfig.apiKey, {
 			api_host: posthogConfig.host,
+			ui_host: posthogConfig.uiHost,
 			opt_out_capturing_by_default: true,
 			disable_session_recording: true,
 			capture_pageview: false,
