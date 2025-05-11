@@ -22,7 +22,19 @@ interface Collection {
 	properties: any
 }
 
+/**
+ * Represents telemetry event categories that can be individually enabled or disabled
+ * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
+ * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
+ */
+type TelemetryCategory = "checkpoints"
+
 class PostHogClient {
+	// Map to control specific telemetry categories (event types)
+	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
+		["checkpoints", false], // Checkpoints telemetry disabled
+	])
+
 	// Stores events when collect=true
 	private collectedTasks: CollectedTasks[] = []
 	// Event constants for tracking user interactions and system events
@@ -271,7 +283,6 @@ class PostHogClient {
 	}
 
 	/**
-	 * TODO
 	 * Records token usage metrics for cost tracking and usage analysis
 	 * @param taskId Unique identifier for the task
 	 * @param tokensIn Number of input tokens consumed
@@ -365,6 +376,10 @@ class PostHogClient {
 		durationMs?: number,
 		collect: boolean = false,
 	) {
+		if (!this.isCategoryEnabled("checkpoints")) {
+			return
+		}
+
 		this.capture(
 			{
 				event: PostHogClient.EVENTS.TASK.CHECKPOINT_USED,
@@ -720,8 +735,22 @@ class PostHogClient {
 		)
 	}
 
+	/**
+	 * Checks if telemetry is enabled
+	 * @returns Boolean indicating whether telemetry is enabled
+	 */
 	public isTelemetryEnabled(): boolean {
 		return this.telemetryEnabled
+	}
+
+	/**
+	 * Checks if a specific telemetry category is enabled
+	 * @param category The telemetry category to check
+	 * @returns Boolean indicating whether the specified telemetry category is enabled
+	 */
+	public isCategoryEnabled(category: TelemetryCategory): boolean {
+		// Default to true if category has not been explicitly configured
+		return this.telemetryCategoryEnabled.get(category) ?? true
 	}
 
 	public async sendCollectedEvents(taskId?: string): Promise<void> {
