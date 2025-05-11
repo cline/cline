@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.15.1
+## [3.15.1]
 
 -   Fix bug where PowerShell commands weren't given enough time before giving up and showing an error
 
