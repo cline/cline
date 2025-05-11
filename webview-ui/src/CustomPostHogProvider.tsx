@@ -14,6 +14,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 				api_host: posthogConfig.host,
 				autocapture: false,
 				disable_session_recording: true,
+				capture_pageview: false,
 			})
 		} else {
 			posthog.opt_out_capturing()
