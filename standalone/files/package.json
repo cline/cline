@@ -2,7 +2,6 @@
 	"dependencies": {
 		"@grpc/grpc-js": "^1.13.3",
 		"@grpc/reflection": "^1.0.4",
-		"google-protobuf": "^3.21.4",
 		"grpc-health-check": "^2.0.2",
 		"open": "^10.1.2",
 		"stub-utils": "file:./stub-utils",

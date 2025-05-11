@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ux
 
-BUILD_DIR=build/
+BUILD_DIR=build
 
 if [ ! -f ../dist/extension.js ]; then
   echo You need to build the cline extension before running this script.
@@ -9,24 +9,19 @@ if [ ! -f ../dist/extension.js ]; then
 fi
 
 mkdir -p $BUILD_DIR 2>/dev/null || true
+
+# Copy the standalone files into the buld dir.
 cp -av files/. $BUILD_DIR
 
-# Generate gRPC service definition protos
 PROTO_DIR=../proto
-
-npx grpc_tools_node_protoc \
-  --js_out=import_style=commonjs,binary:$BUILD_DIR \
-  --grpc_out=grpc_js:$BUILD_DIR \
-  --proto_path=$PROTO_DIR \
-  ${PROTO_DIR}/*.proto
-
+# The proto files are needed when using protoLoader and gRPC reflection.
 cp -av $PROTO_DIR/*.proto $BUILD_DIR
 
-# Copy pre-built extension
+# Copy the pre-built extension
 cp ../dist/extension.js $BUILD_DIR
 echo 'module.exports.Controller = Controller' >> build/extension.js
 
-# Generate gRPC server for the service protos.
+# Generate gRPC server for the services and handlers.
 node generate-server.js
 
 # Install npm modules used by the extension at runtime.
@@ -39,5 +34,5 @@ if find node_modules -name '*.node' | grep .; then
 fi
 
 # Zip all the files needed for the standalone extension.
-# zip -r standalone.zip . -x standalone.zip
+zip -q -r standalone.zip . -x standalone.zip
 
