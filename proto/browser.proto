@@ -40,6 +40,7 @@ message BrowserSettings {
   Viewport viewport = 1;
   optional string remote_browser_host = 2;
   optional bool remote_browser_enabled = 3;
+  optional string chrome_executable_path = 4;
 }
 
 message UpdateBrowserSettingsRequest {
@@ -47,4 +48,5 @@ message UpdateBrowserSettingsRequest {
   Viewport viewport = 2;
   optional string remote_browser_host = 3;
   optional bool remote_browser_enabled = 4;
+  optional string chrome_executable_path = 5;
 }

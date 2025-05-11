@@ -8,6 +8,7 @@ export interface BrowserSettings {
 	// chromeType: "chromium" | "system"
 	remoteBrowserHost?: string
 	remoteBrowserEnabled?: boolean
+	chromeExecutablePath?: string // User-defined path for Chrome executable
 	disableBrowserTool: boolean // Added new setting
 }
 
@@ -18,6 +19,7 @@ export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
 	},
 	remoteBrowserEnabled: false,
 	remoteBrowserHost: "http://localhost:9222",
+	chromeExecutablePath: undefined, // Default value for user-defined Chrome executable path
 	// chromeType: "chromium",
 	disableBrowserTool: false, // Default value for the new setting
 }

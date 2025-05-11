@@ -68,7 +68,12 @@ export class BrowserSession {
 	}
 
 	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
-		// First check VSCode config
+		// First check browserSettings (from UI, stored in global state)
+		if (this.browserSettings.chromeExecutablePath && (await fileExistsAtPath(this.browserSettings.chromeExecutablePath))) {
+			return { path: this.browserSettings.chromeExecutablePath, isBundled: false }
+		}
+
+		// Second check VSCode config
 		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
 		if (configPath && (await fileExistsAtPath(configPath))) {
 			return { path: configPath, isBundled: false }

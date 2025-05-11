@@ -147,6 +147,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				},
 				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
 				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				chromeExecutablePath: browserSettings.chromeExecutablePath,
 			})
 				.then((response) => {
 					if (!response.value) {
@@ -169,6 +170,7 @@ export const BrowserSettingsSection: React.FC = () => {
 			remoteBrowserEnabled: enabled,
 			// If disabling, also clear the host
 			remoteBrowserHost: enabled ? browserSettings.remoteBrowserHost : undefined,
+			chromeExecutablePath: browserSettings.chromeExecutablePath,
 		})
 			.then((response) => {
 				if (!response.value) {
@@ -189,6 +191,28 @@ export const BrowserSettingsSection: React.FC = () => {
 			},
 			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
 			remoteBrowserHost: host,
+			chromeExecutablePath: browserSettings.chromeExecutablePath,
+		})
+			.then((response) => {
+				if (!response.value) {
+					console.error("Failed to update browser settings")
+				}
+			})
+			.catch((error) => {
+				console.error("Error updating browser settings:", error)
+			})
+	}
+
+	const updateChromeExecutablePath = (path: string | undefined) => {
+		BrowserServiceClient.updateBrowserSettings({
+			metadata: {},
+			viewport: {
+				width: browserSettings.viewport.width,
+				height: browserSettings.viewport.height,
+			},
+			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+			remoteBrowserHost: browserSettings.remoteBrowserHost,
+			chromeExecutablePath: path,
 		})
 			.then((response) => {
 				if (!response.value) {
@@ -318,8 +342,8 @@ export const BrowserSettingsSection: React.FC = () => {
 						margin: "0 0 6px 0px",
 					}}>
 					Enable Cline to use your Chrome
-					{isBundled ? "(not detected on your machine)" : detectedChromePath ? ` (${detectedChromePath})` : ""}. This
-					requires starting Chrome in debug mode
+					{isBundled ? "(not detected on your machine)" : detectedChromePath ? ` (${detectedChromePath})` : ""}. You can
+					specify a custom path below. Using a remote browser connection requires starting Chrome in debug mode
 					{browserSettings.remoteBrowserEnabled ? (
 						<>
 							{" "}
@@ -331,8 +355,29 @@ export const BrowserSettingsSection: React.FC = () => {
 					)}
 				</p>
 
+				<div style={{ marginBottom: 8, marginTop: 8 }}>
+					<label htmlFor="chrome-executable-path" style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
+						Chrome Executable Path (Optional)
+					</label>
+					<VSCodeTextField
+						id="chrome-executable-path"
+						value={browserSettings.chromeExecutablePath || ""}
+						placeholder="e.g., /usr/bin/google-chrome or C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+						style={{ width: "100%" }}
+						onChange={(e: any) => updateChromeExecutablePath(e.target.value || undefined)}
+					/>
+					<p
+						style={{
+							fontSize: "12px",
+							color: "var(--vscode-descriptionForeground)",
+							margin: "4px 0 0 0",
+						}}>
+						Leave blank to auto-detect.
+					</p>
+				</div>
+
 				{browserSettings.remoteBrowserEnabled && (
-					<div style={{ marginLeft: 0 }}>
+					<div style={{ marginLeft: 0, marginTop: 8 }}>
 						<VSCodeTextField
 							value={browserSettings.remoteBrowserHost || ""}
 							placeholder="http://localhost:9222"
