@@ -37,7 +37,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didEmitEmptyLine = false
 			let firstChunkTimeout: NodeJS.Timeout
 
-			const timeoutMs = 500
+			const timeoutMs = 5000
 
 			const onTimeout = () => {
 				// In rare cases (e.g. running the same command twice like `npm run build`),
