@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.15.1
+
+### Patch Changes
+
+-   b04810c: Update terminal error timeout from 500 -> 5000
+
 ## [3.15.0]
 
 -   Add Task Timeline visualization to tasks (Thanks eomcaleb!)
