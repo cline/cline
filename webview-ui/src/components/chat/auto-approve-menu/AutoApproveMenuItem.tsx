@@ -78,15 +78,12 @@ const AutoApproveMenuItem = ({
 	onToggleFavorite,
 	condensed = false,
 }: AutoApproveMenuItemProps) => {
-	const [isSubOptionOpen, setIsSubOptionOpen] = useState(isChecked(action))
 	const checked = isChecked(action)
 	const favorited = isFavorited?.(action)
 
 	const onChange = (e: Event) => {
 		e.stopPropagation()
-		const newChecked = !checked
-		setIsSubOptionOpen(newChecked)
-		onToggle(action, newChecked)
+		onToggle(action, !checked)
 	}
 
 	const content = (
@@ -112,7 +109,7 @@ const AutoApproveMenuItem = ({
 				</HeroTooltip>
 			</ActionButtonContainer>
 			{action.subAction && !condensed && (
-				<SubOptionAnimateIn show={isSubOptionOpen}>
+				<SubOptionAnimateIn show={checked}>
 					<AutoApproveMenuItem
 						action={action.subAction}
 						isChecked={isChecked}

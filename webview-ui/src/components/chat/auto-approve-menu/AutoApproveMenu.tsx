@@ -28,6 +28,13 @@ export interface ActionMetadata {
 
 const ACTION_METADATA: ActionMetadata[] = [
 	{
+		id: "enableAll",
+		label: "Enable all",
+		shortName: "All",
+		description: "Enable all actions.",
+		icon: "codicon-checklist",
+	},
+	{
 		id: "readFiles",
 		label: "Read project files",
 		shortName: "Read",
@@ -86,13 +93,6 @@ const ACTION_METADATA: ActionMetadata[] = [
 		shortName: "MCP",
 		description: "Allows Cline to use configured MCP servers which may modify filesystem or interact with APIs.",
 		icon: "codicon-server",
-	},
-	{
-		id: "enableAll",
-		label: "Enable all",
-		shortName: "All",
-		description: "Enable all actions.",
-		icon: "codicon-checklist",
 	},
 	{
 		id: "enableNotifications",
