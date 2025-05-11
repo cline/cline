@@ -235,20 +235,6 @@
 		"configuration": {
 			"title": "Cline",
 			"properties": {
-				"cline.vsCodeLmModelSelector": {
-					"type": "object",
-					"properties": {
-						"vendor": {
-							"type": "string",
-							"description": "The vendor of the language model (e.g. copilot)"
-						},
-						"family": {
-							"type": "string",
-							"description": "The family of the language model (e.g. gpt-4)"
-						}
-					},
-					"description": "Settings for VSCode Language Model API"
-				},
 				"cline.enableCheckpoints": {
 					"type": "boolean",
 					"default": true,
