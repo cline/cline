@@ -59,7 +59,6 @@ export const BrowserSettingsSection: React.FC = () => {
 	const [debugMode, setDebugMode] = useState(false)
 	const [isBundled, setIsBundled] = useState(false)
 	const [detectedChromePath, setDetectedChromePath] = useState<string | null>(null)
-	// Removed local state for disableToolUse, will use browserSettings.disableToolUse directly
 
 	// Listen for browser connection test results and relaunch results
 	useEffect(() => {
@@ -112,7 +111,7 @@ export const BrowserSettingsSection: React.FC = () => {
 			setLocalChromePath(browserSettings.chromeExecutablePath || "")
 		}
 		// Removed sync for local disableToolUse state
-	}, [browserSettings.chromeExecutablePath, browserSettings.disableToolUse]) // Keep browserSettings.disableToolUse in deps if other logic depends on it, or remove if not. For now, keeping it to be safe, but it no longer drives local state.
+	}, [browserSettings.chromeExecutablePath, browserSettings.disableToolUse])
 
 	// Debounced connection check function
 	const debouncedCheckConnection = useCallback(
