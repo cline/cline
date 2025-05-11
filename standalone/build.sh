@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ux
+set -uxe
 
 BUILD_DIR=build
 
@@ -15,6 +15,7 @@ cp -av files/. $BUILD_DIR
 
 PROTO_DIR=../proto
 # The proto files are needed when using protoLoader and gRPC reflection.
+rm -f $BUILD_DIR/*.proto
 cp -av $PROTO_DIR/*.proto $BUILD_DIR
 
 # Copy the pre-built extension
@@ -36,3 +37,4 @@ fi
 # Zip all the files needed for the standalone extension.
 zip -q -r standalone.zip . -x standalone.zip
 
+echo Built standalone cline: $(realpath standalone.zip)
