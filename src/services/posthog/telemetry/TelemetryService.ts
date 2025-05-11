@@ -27,12 +27,13 @@ interface Collection {
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints"
+type TelemetryCategory = "checkpoints" | "browser"
 
 class PostHogClient {
 	// Map to control specific telemetry categories (event types)
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", false], // Checkpoints telemetry disabled
+		["browser", true], // Browser telemetry enabled
 	])
 
 	// Stores events when collect=true
@@ -599,6 +600,10 @@ class PostHogClient {
 	 * @param browserSettings The browser settings being used
 	 */
 	public captureBrowserToolStart(taskId: string, browserSettings: BrowserSettings, collect: boolean = false) {
+		if (!this.isCategoryEnabled("browser")) {
+			return
+		}
+
 		this.capture(
 			{
 				event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
@@ -628,6 +633,10 @@ class PostHogClient {
 		},
 		collect: boolean = false,
 	) {
+		if (!this.isCategoryEnabled("browser")) {
+			return
+		}
+
 		this.capture(
 			{
 				event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_END,
@@ -662,6 +671,10 @@ class PostHogClient {
 		},
 		collect: boolean = false,
 	) {
+		if (!this.isCategoryEnabled("browser")) {
+			return
+		}
+
 		this.capture(
 			{
 				event: PostHogClient.EVENTS.TASK.BROWSER_ERROR,
