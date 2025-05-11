@@ -67,6 +67,7 @@ message GetTaskHistoryRequest {
   bool favorites_only = 2;
   string search_query = 3;
   string sort_by = 4;
+  bool current_workspace_only = 5;
 }
 
 // Response for task history

@@ -314,6 +314,7 @@ export class Task {
 				totalCost: apiMetrics.totalCost,
 				size: taskDirSize,
 				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
+				cwdOnTaskInitialization: cwd,
 				conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
 				isFavorited: this.taskIsFavorited,
 			})
