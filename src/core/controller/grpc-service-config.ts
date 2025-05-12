@@ -12,6 +12,7 @@ import { handleStateServiceRequest, handleStateServiceStreamingRequest } from ".
 import { handleTaskServiceRequest, handleTaskServiceStreamingRequest } from "./task/index"
 import { handleWebServiceRequest, handleWebServiceStreamingRequest } from "./web/index"
 import { handleModelsServiceRequest, handleModelsServiceStreamingRequest } from "./models/index"
+import { handleSlashServiceRequest, handleSlashServiceStreamingRequest } from "./slash/index"
 
 /**
  * Configuration for a service handler
@@ -66,5 +67,9 @@ export const serviceHandlers: Record<string, ServiceHandlerConfig> = {
 	"cline.ModelsService": {
 		requestHandler: handleModelsServiceRequest,
 		streamingHandler: handleModelsServiceStreamingRequest,
+	},
+	"cline.SlashService": {
+		requestHandler: handleSlashServiceRequest,
+		streamingHandler: handleSlashServiceStreamingRequest,
 	},
 }

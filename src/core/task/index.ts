@@ -3259,7 +3259,7 @@ export class Task {
 									await this.say("user_feedback", text ?? "", images)
 									pushToolResult(
 										formatResponse.toolResult(
-											`The user provided feedback on the Github issue generated:\n<feedback>\n${text}\n</feedback>`,
+											`The user did not submit the bug, and provided feedback on the Github issue generated instead:\n<feedback>\n${text}\n</feedback>`,
 											images,
 										),
 									)
