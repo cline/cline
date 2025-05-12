@@ -98,6 +98,7 @@ const AutoApproveMenuItem = ({
 						</div>
 						{onToggleFavorite && !condensed && (
 							<HeroTooltip
+								delay={500}
 								content={
 									action.id === "enableAll"
 										? "Required"
