@@ -97,11 +97,23 @@ const AutoApproveMenuItem = ({
 							<span className="label">{condensed ? action.shortName : action.label}</span>
 						</div>
 						{onToggleFavorite && !condensed && (
-							<HeroTooltip content={favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}>
+							<HeroTooltip
+								delay={500}
+								content={
+									action.id === "enableAll"
+										? "Required"
+										: favorited
+											? "Remove from quick-access menu"
+											: "Add to quick-access menu"
+								}>
 								<span
 									className={`codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
+									style={{
+										cursor: action.id === "enableAll" ? "not-allowed" : "pointer",
+									}}
 									onClick={(e) => {
 										e.stopPropagation()
+										if (action.id === "enableAll") return
 										onToggleFavorite?.(action.id)
 									}}
 								/>
