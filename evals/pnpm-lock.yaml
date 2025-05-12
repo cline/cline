@@ -250,11 +250,11 @@ importers:
         specifier: ^0.15.0
         version: 0.15.4
       drizzle-orm:
-        specifier: ^0.40.0
-        version: 0.40.1(@libsql/client@0.15.4)(gel@2.0.1)
+        specifier: ^0.43.0
+        version: 0.43.1(@libsql/client@0.15.4)(gel@2.0.1)
       drizzle-zod:
         specifier: ^0.7.0
-        version: 0.7.0(drizzle-orm@0.40.1(@libsql/client@0.15.4)(gel@2.0.1))(zod@3.24.2)
+        version: 0.7.0(drizzle-orm@0.43.1(@libsql/client@0.15.4)(gel@2.0.1))(zod@3.24.2)
       p-map:
         specifier: ^7.0.3
         version: 7.0.3
@@ -2548,8 +2548,8 @@ packages:
     resolution: {integrity: sha512-PUjYKWtzOzPtdtQlTHQG3qfv4Y0XT8+Eas6UbxCmxTj7qgMf+39dDujf1BP1I+qqZtw9uzwTh8jYtkMuCq+B0Q==}
     hasBin: true
 
-  drizzle-orm@0.40.1:
-    resolution: {integrity: sha512-aPNhtiJiPfm3qxz1czrnIDkfvkSdKGXYeZkpG55NPTVI186LmK2fBLMi4dsHpPHlJrZeQ92D322YFPHADBALew==}
+  drizzle-orm@0.43.1:
+    resolution: {integrity: sha512-dUcDaZtE/zN4RV/xqGrVSMpnEczxd5cIaoDeor7Zst9wOe/HzC/7eAaulywWGYXdDEc9oBPMjayVEDg0ziTLJA==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -2559,7 +2559,7 @@ packages:
       '@neondatabase/serverless': '>=0.10.0'
       '@op-engineering/op-sqlite': '>=2'
       '@opentelemetry/api': ^1.4.1
-      '@planetscale/database': '>=1'
+      '@planetscale/database': '>=1.13'
       '@prisma/client': '*'
       '@tidbcloud/serverless': '*'
       '@types/better-sqlite3': '*'
@@ -6625,14 +6625,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.40.1(@libsql/client@0.15.4)(gel@2.0.1):
+  drizzle-orm@0.43.1(@libsql/client@0.15.4)(gel@2.0.1):
     optionalDependencies:
       '@libsql/client': 0.15.4
       gel: 2.0.1
 
-  drizzle-zod@0.7.0(drizzle-orm@0.40.1(@libsql/client@0.15.4)(gel@2.0.1))(zod@3.24.2):
+  drizzle-zod@0.7.0(drizzle-orm@0.43.1(@libsql/client@0.15.4)(gel@2.0.1))(zod@3.24.2):
     dependencies:
-      drizzle-orm: 0.40.1(@libsql/client@0.15.4)(gel@2.0.1)
+      drizzle-orm: 0.43.1(@libsql/client@0.15.4)(gel@2.0.1)
       zod: 3.24.2
 
   dunder-proto@1.0.1:
