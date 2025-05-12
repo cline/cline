@@ -496,7 +496,6 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		isPromptCacheOptional: true,
 		inputPrice: 2.5,
 		outputPrice: 15,
 	},
@@ -505,7 +504,6 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		isPromptCacheOptional: true,
 		inputPrice: 2.5,
 		outputPrice: 15,
 	},
@@ -530,7 +528,6 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		isPromptCacheOptional: true,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 	},
@@ -555,7 +552,6 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		isPromptCacheOptional: true,
 		inputPrice: 0.075,
 		outputPrice: 0.3,
 	},
@@ -690,7 +686,6 @@ export const geminiModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		isPromptCacheOptional: true,
 		inputPrice: 2.5, // This is the pricing for prompts above 200k tokens.
 		outputPrice: 15,
 		cacheReadsPrice: 0.625,
@@ -715,7 +710,6 @@ export const geminiModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		isPromptCacheOptional: true,
 		inputPrice: 2.5, // This is the pricing for prompts above 200k tokens.
 		outputPrice: 15,
 		cacheReadsPrice: 0.625,
@@ -740,7 +734,6 @@ export const geminiModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		isPromptCacheOptional: true,
 		inputPrice: 0.1,
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.025,
@@ -791,7 +784,6 @@ export const geminiModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
-		isPromptCacheOptional: true,
 		inputPrice: 0.15, // This is the pricing for prompts above 128k tokens.
 		outputPrice: 0.6,
 		cacheReadsPrice: 0.0375,
@@ -1717,18 +1709,9 @@ export const PROMPT_CACHING_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet",
 	"anthropic/claude-3.7-sonnet:beta",
 	"anthropic/claude-3.7-sonnet:thinking",
-	"google/gemini-2.5-pro-preview-03-25",
-	"google/gemini-2.5-pro-preview-05-06",
-	"google/gemini-2.0-flash-001",
-	"google/gemini-flash-1.5",
-	"google/gemini-flash-1.5-8b",
-])
-
-// These models don't have prompt caching enabled by default (you can turn it on
-// in settings).
-export const OPTIONAL_PROMPT_CACHING_MODELS = new Set([
-	"google/gemini-2.5-pro-preview-03-25",
-	"google/gemini-2.5-pro-preview-05-06",
+	"google/gemini-2.5-pro-preview",
+	"google/gemini-2.5-flash-preview",
+	"google/gemini-2.5-flash-preview:thinking",
 	"google/gemini-2.0-flash-001",
 	"google/gemini-flash-1.5",
 	"google/gemini-flash-1.5-8b",

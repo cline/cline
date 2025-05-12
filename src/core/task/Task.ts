@@ -132,7 +132,6 @@ export class Task extends EventEmitter<ClineEvents> {
 	// API
 	readonly apiConfiguration: ProviderSettings
 	api: ApiHandler
-	private promptCacheKey: string
 	private lastApiRequestTime?: number
 
 	toolRepetitionDetector: ToolRepetitionDetector
@@ -225,7 +224,6 @@ export class Task extends EventEmitter<ClineEvents> {
 
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
-		this.promptCacheKey = crypto.randomUUID()
 
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
@@ -324,8 +322,6 @@ export class Task extends EventEmitter<ClineEvents> {
 	}
 
 	public async overwriteClineMessages(newMessages: ClineMessage[]) {
-		// Reset the the prompt cache key since we've altered the conversation history.
-		this.promptCacheKey = crypto.randomUUID()
 		this.clineMessages = newMessages
 		await this.saveClineMessages()
 	}
@@ -1493,7 +1489,7 @@ export class Task extends EventEmitter<ClineEvents> {
 			return { role, content }
 		})
 
-		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory, this.promptCacheKey)
+		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory)
 		const iterator = stream[Symbol.asyncIterator]()
 
 		try {

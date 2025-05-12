@@ -201,7 +201,6 @@ type ProviderSettings = {
 		| undefined
 	includeMaxTokens?: boolean | undefined
 	reasoningEffort?: ("low" | "medium" | "high") | undefined
-	promptCachingDisabled?: boolean | undefined
 	diffEnabled?: boolean | undefined
 	fuzzyMatchThreshold?: number | undefined
 	modelTemperature?: (number | null) | undefined
@@ -245,7 +244,6 @@ type ProviderSettings = {
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
 				supportsPromptCache: boolean
-				isPromptCacheOptional?: boolean | undefined
 				inputPrice?: number | undefined
 				outputPrice?: number | undefined
 				cacheWritesPrice?: number | undefined

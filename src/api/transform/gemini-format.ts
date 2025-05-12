@@ -76,9 +76,3 @@ export function convertAnthropicMessageToGemini(message: Anthropic.Messages.Mess
 		parts: convertAnthropicContentToGemini(message.content),
 	}
 }
-
-const getContentLength = ({ parts }: Content): number =>
-	parts?.reduce((length, { text }) => length + (text?.length ?? 0), 0) ?? 0
-
-export const getMessagesLength = (contents: Content[]): number =>
-	contents.reduce((length, content) => length + getContentLength(content), 0)

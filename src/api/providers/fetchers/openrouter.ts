@@ -1,13 +1,7 @@
 import axios from "axios"
 import { z } from "zod"
 
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	anthropicModels,
-	COMPUTER_USE_MODELS,
-	OPTIONAL_PROMPT_CACHING_MODELS,
-} from "../../../shared/api"
+import { ApiHandlerOptions, ModelInfo, anthropicModels, COMPUTER_USE_MODELS } from "../../../shared/api"
 import { parseApiPrice } from "../../../utils/cost"
 
 // https://openrouter.ai/api/v1/models
@@ -72,7 +66,7 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 				typeof cacheWritesPrice !== "undefined" && typeof cacheReadsPrice !== "undefined"
 
 			const modelInfo: ModelInfo = {
-				maxTokens: 0,
+				maxTokens: rawModel.id.startsWith("anthropic/") ? rawModel.top_provider?.max_completion_tokens : 0,
 				contextWindow: rawModel.context_length,
 				supportsImages: rawModel.architecture?.modality?.includes("image"),
 				supportsPromptCache,
@@ -88,11 +82,6 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 			// computer use, so we need to set that manually.
 			if (COMPUTER_USE_MODELS.has(rawModel.id)) {
 				modelInfo.supportsComputerUse = true
-			}
-
-			// We want to treat prompt caching as "experimental" for these models.
-			if (OPTIONAL_PROMPT_CACHING_MODELS.has(rawModel.id)) {
-				modelInfo.isPromptCacheOptional = true
 			}
 
 			// Claude 3.7 Sonnet is a "hybrid" thinking model, and the `maxTokens`

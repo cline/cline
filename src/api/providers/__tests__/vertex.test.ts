@@ -56,11 +56,7 @@ describe("VertexHandler", () => {
 				yield { type: "usage", inputTokens: 0, outputTokens: 5 }
 			})
 
-			const mockCacheKey = "cacheKey"
-			// Since we're directly mocking createMessage, we don't need to spy on it
-			// We just need to call it and verify the results
-
-			const stream = handler.createMessage(systemPrompt, mockMessages, mockCacheKey)
+			const stream = handler.createMessage(systemPrompt, mockMessages)
 
 			const chunks: ApiStreamChunk[] = []
 

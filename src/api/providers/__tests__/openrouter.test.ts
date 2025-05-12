@@ -78,7 +78,6 @@ describe("OpenRouterHandler", () => {
 				topP: undefined,
 				promptCache: {
 					supported: true,
-					optional: false,
 				},
 			})
 		})

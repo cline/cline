@@ -32,7 +32,7 @@ export interface SingleCompletionHandler {
 }
 
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], cacheKey?: string): ApiStream
+	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 
 	getModel(): { id: string; info: ModelInfo }
 

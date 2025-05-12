@@ -8,7 +8,6 @@ import {
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
 	PROMPT_CACHING_MODELS,
-	OPTIONAL_PROMPT_CACHING_MODELS,
 	REASONING_MODELS,
 } from "../../shared/api"
 
@@ -94,7 +93,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
-		const isCacheAvailable = promptCache.supported && (!promptCache.optional || !this.options.promptCachingDisabled)
+		const isCacheAvailable = promptCache.supported
 
 		// https://openrouter.ai/docs/features/prompt-caching
 		if (isCacheAvailable) {
@@ -191,7 +190,6 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			topP: isDeepSeekR1 ? 0.95 : undefined,
 			promptCache: {
 				supported: PROMPT_CACHING_MODELS.has(id),
-				optional: OPTIONAL_PROMPT_CACHING_MODELS.has(id),
 			},
 		}
 	}
