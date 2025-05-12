@@ -69,7 +69,6 @@ describe("getEnvironmentDetails", () => {
 			maxOpenTabsContext: 10,
 			mode: "code",
 			customModes: [],
-			apiModelId: "test-model",
 			experiments: {},
 			customInstructions: "test instructions",
 			language: "en",
@@ -102,7 +101,7 @@ describe("getEnvironmentDetails", () => {
 			} as unknown as RooIgnoreController,
 			clineMessages: [],
 			api: {
-				getModel: jest.fn().mockReturnValue({ info: { contextWindow: 100000 } }),
+				getModel: jest.fn().mockReturnValue({ id: "test-model", info: { contextWindow: 100000 } }),
 				createMessage: jest.fn(),
 				countTokens: jest.fn(),
 			} as unknown as ApiHandler,
@@ -144,6 +143,7 @@ describe("getEnvironmentDetails", () => {
 		expect(result).toContain("# Current Context Size (Tokens)")
 		expect(result).toContain("# Current Cost")
 		expect(result).toContain("# Current Mode")
+		expect(result).toContain("<model>test-model</model>")
 
 		expect(mockProvider.getState).toHaveBeenCalled()
 

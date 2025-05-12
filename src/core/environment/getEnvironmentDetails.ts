@@ -190,7 +190,7 @@ export async function getEnvironmentDetails(cline: Task, includeFileDetails: boo
 
 	// Add context tokens information.
 	const { contextTokens, totalCost } = getApiMetrics(cline.clineMessages)
-	const modelInfo = cline.api.getModel().info
+	const { id: modelId, info: modelInfo } = cline.api.getModel()
 	const contextWindow = modelInfo.contextWindow
 
 	const contextPercentage =
@@ -203,7 +203,6 @@ export async function getEnvironmentDetails(cline: Task, includeFileDetails: boo
 	const {
 		mode,
 		customModes,
-		apiModelId,
 		customModePrompts,
 		experiments = {} as Record<ExperimentId, boolean>,
 		customInstructions: globalCustomInstructions,
@@ -221,7 +220,7 @@ export async function getEnvironmentDetails(cline: Task, includeFileDetails: boo
 	details += `\n\n# Current Mode\n`
 	details += `<slug>${currentMode}</slug>\n`
 	details += `<name>${modeDetails.name}</name>\n`
-	details += `<model>${apiModelId}</model>\n`
+	details += `<model>${modelId}</model>\n`
 
 	if (Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.POWER_STEERING)) {
 		details += `<role>${modeDetails.roleDefinition}</role>\n`
