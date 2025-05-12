@@ -10,6 +10,46 @@ import { Empty, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
+/** Request to convert a list of URIs to relative paths */
+export interface RelativePathsRequest {
+	metadata?: Metadata | undefined
+	uris: string[]
+}
+
+/** Response containing the converted relative paths */
+export interface RelativePaths {
+	paths: string[]
+}
+
+/** Request for file search operations */
+export interface FileSearchRequest {
+	metadata?: Metadata | undefined
+	/** Search query string */
+	query: string
+	/** Optional request ID for tracking requests */
+	mentionsRequestId?: string | undefined
+	/** Optional limit for results (default: 20) */
+	limit?: number | undefined
+}
+
+/** Result for file search operations */
+export interface FileSearchResults {
+	/** Array of file/folder results */
+	results: FileInfo[]
+	/** Echo of the request ID for tracking */
+	mentionsRequestId?: string | undefined
+}
+
+/** File information structure for search results */
+export interface FileInfo {
+	/** Relative path from workspace root */
+	path: string
+	/** "file" or "folder" */
+	type: string
+	/** Display name (usually basename) */
+	label?: string | undefined
+}
+
 /** Response for searchCommits */
 export interface GitCommits {
 	commits: GitCommit[]
@@ -43,6 +83,418 @@ export interface RuleFile {
 	displayName: string
 	/** For createRuleFile, indicates if file already existed */
 	alreadyExists: boolean
+}
+
+function createBaseRelativePathsRequest(): RelativePathsRequest {
+	return { metadata: undefined, uris: [] }
+}
+
+export const RelativePathsRequest: MessageFns<RelativePathsRequest> = {
+	encode(message: RelativePathsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		for (const v of message.uris) {
+			writer.uint32(18).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): RelativePathsRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseRelativePathsRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.uris.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): RelativePathsRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			uris: globalThis.Array.isArray(object?.uris) ? object.uris.map((e: any) => globalThis.String(e)) : [],
+		}
+	},
+
+	toJSON(message: RelativePathsRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.uris?.length) {
+			obj.uris = message.uris
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<RelativePathsRequest>, I>>(base?: I): RelativePathsRequest {
+		return RelativePathsRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<RelativePathsRequest>, I>>(object: I): RelativePathsRequest {
+		const message = createBaseRelativePathsRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.uris = object.uris?.map((e) => e) || []
+		return message
+	},
+}
+
+function createBaseRelativePaths(): RelativePaths {
+	return { paths: [] }
+}
+
+export const RelativePaths: MessageFns<RelativePaths> = {
+	encode(message: RelativePaths, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		for (const v of message.paths) {
+			writer.uint32(10).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): RelativePaths {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseRelativePaths()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.paths.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): RelativePaths {
+		return { paths: globalThis.Array.isArray(object?.paths) ? object.paths.map((e: any) => globalThis.String(e)) : [] }
+	},
+
+	toJSON(message: RelativePaths): unknown {
+		const obj: any = {}
+		if (message.paths?.length) {
+			obj.paths = message.paths
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<RelativePaths>, I>>(base?: I): RelativePaths {
+		return RelativePaths.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<RelativePaths>, I>>(object: I): RelativePaths {
+		const message = createBaseRelativePaths()
+		message.paths = object.paths?.map((e) => e) || []
+		return message
+	},
+}
+
+function createBaseFileSearchRequest(): FileSearchRequest {
+	return { metadata: undefined, query: "", mentionsRequestId: undefined, limit: undefined }
+}
+
+export const FileSearchRequest: MessageFns<FileSearchRequest> = {
+	encode(message: FileSearchRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.query !== "") {
+			writer.uint32(18).string(message.query)
+		}
+		if (message.mentionsRequestId !== undefined) {
+			writer.uint32(26).string(message.mentionsRequestId)
+		}
+		if (message.limit !== undefined) {
+			writer.uint32(32).int32(message.limit)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): FileSearchRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseFileSearchRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.query = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.mentionsRequestId = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 32) {
+						break
+					}
+
+					message.limit = reader.int32()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): FileSearchRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			query: isSet(object.query) ? globalThis.String(object.query) : "",
+			mentionsRequestId: isSet(object.mentionsRequestId) ? globalThis.String(object.mentionsRequestId) : undefined,
+			limit: isSet(object.limit) ? globalThis.Number(object.limit) : undefined,
+		}
+	},
+
+	toJSON(message: FileSearchRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.query !== "") {
+			obj.query = message.query
+		}
+		if (message.mentionsRequestId !== undefined) {
+			obj.mentionsRequestId = message.mentionsRequestId
+		}
+		if (message.limit !== undefined) {
+			obj.limit = Math.round(message.limit)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<FileSearchRequest>, I>>(base?: I): FileSearchRequest {
+		return FileSearchRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<FileSearchRequest>, I>>(object: I): FileSearchRequest {
+		const message = createBaseFileSearchRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.query = object.query ?? ""
+		message.mentionsRequestId = object.mentionsRequestId ?? undefined
+		message.limit = object.limit ?? undefined
+		return message
+	},
+}
+
+function createBaseFileSearchResults(): FileSearchResults {
+	return { results: [], mentionsRequestId: undefined }
+}
+
+export const FileSearchResults: MessageFns<FileSearchResults> = {
+	encode(message: FileSearchResults, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		for (const v of message.results) {
+			FileInfo.encode(v!, writer.uint32(10).fork()).join()
+		}
+		if (message.mentionsRequestId !== undefined) {
+			writer.uint32(18).string(message.mentionsRequestId)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): FileSearchResults {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseFileSearchResults()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.results.push(FileInfo.decode(reader, reader.uint32()))
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.mentionsRequestId = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): FileSearchResults {
+		return {
+			results: globalThis.Array.isArray(object?.results) ? object.results.map((e: any) => FileInfo.fromJSON(e)) : [],
+			mentionsRequestId: isSet(object.mentionsRequestId) ? globalThis.String(object.mentionsRequestId) : undefined,
+		}
+	},
+
+	toJSON(message: FileSearchResults): unknown {
+		const obj: any = {}
+		if (message.results?.length) {
+			obj.results = message.results.map((e) => FileInfo.toJSON(e))
+		}
+		if (message.mentionsRequestId !== undefined) {
+			obj.mentionsRequestId = message.mentionsRequestId
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<FileSearchResults>, I>>(base?: I): FileSearchResults {
+		return FileSearchResults.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<FileSearchResults>, I>>(object: I): FileSearchResults {
+		const message = createBaseFileSearchResults()
+		message.results = object.results?.map((e) => FileInfo.fromPartial(e)) || []
+		message.mentionsRequestId = object.mentionsRequestId ?? undefined
+		return message
+	},
+}
+
+function createBaseFileInfo(): FileInfo {
+	return { path: "", type: "", label: undefined }
+}
+
+export const FileInfo: MessageFns<FileInfo> = {
+	encode(message: FileInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.path !== "") {
+			writer.uint32(10).string(message.path)
+		}
+		if (message.type !== "") {
+			writer.uint32(18).string(message.type)
+		}
+		if (message.label !== undefined) {
+			writer.uint32(26).string(message.label)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): FileInfo {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseFileInfo()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.path = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.type = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.label = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): FileInfo {
+		return {
+			path: isSet(object.path) ? globalThis.String(object.path) : "",
+			type: isSet(object.type) ? globalThis.String(object.type) : "",
+			label: isSet(object.label) ? globalThis.String(object.label) : undefined,
+		}
+	},
+
+	toJSON(message: FileInfo): unknown {
+		const obj: any = {}
+		if (message.path !== "") {
+			obj.path = message.path
+		}
+		if (message.type !== "") {
+			obj.type = message.type
+		}
+		if (message.label !== undefined) {
+			obj.label = message.label
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<FileInfo>, I>>(base?: I): FileInfo {
+		return FileInfo.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<FileInfo>, I>>(object: I): FileInfo {
+		const message = createBaseFileInfo()
+		message.path = object.path ?? ""
+		message.type = object.type ?? ""
+		message.label = object.label ?? undefined
+		return message
+	},
 }
 
 function createBaseGitCommits(): GitCommits {
@@ -478,6 +930,24 @@ export const FileServiceDefinition = {
 			requestType: StringRequest,
 			requestStream: false,
 			responseType: GitCommits,
+			responseStream: false,
+			options: {},
+		},
+		/** Convert URIs to workspace-relative paths */
+		getRelativePaths: {
+			name: "getRelativePaths",
+			requestType: RelativePathsRequest,
+			requestStream: false,
+			responseType: RelativePaths,
+			responseStream: false,
+			options: {},
+		},
+		/** Search for files in the workspace with fuzzy matching */
+		searchFiles: {
+			name: "searchFiles",
+			requestType: FileSearchRequest,
+			requestStream: false,
+			responseType: FileSearchResults,
 			responseStream: false,
 			options: {},
 		},

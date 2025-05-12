@@ -17,6 +17,7 @@ export interface AutoApprovalSettings {
 	// Global settings
 	maxRequests: number // Maximum number of auto-approved requests
 	enableNotifications: boolean // Show notifications for approval and task completion
+	favorites: string[] // IDs of actions favorited by the user for quick access
 }
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
@@ -34,4 +35,5 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	},
 	maxRequests: 20,
 	enableNotifications: false,
+	favorites: [],
 }

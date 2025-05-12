@@ -25,7 +25,7 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
 import { regexSearchFiles } from "@services/ripgrep"
-import { telemetryService } from "@services/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { parseSourceCodeForDefinitionsTopLevel } from "@services/tree-sitter"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex, parsePartialArrayString } from "@shared/array"
@@ -57,6 +57,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { ClineAskResponse, ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import { fileExistsAtPath } from "@utils/fs"
+import { createAndOpenGitHubIssue } from "@utils/github-url-utils"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "@core/assistant-message"
@@ -98,6 +99,7 @@ import { parseSlashCommands } from "@core/slash-commands"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { isInTestMode } from "../../services/test/TestMode"
+import { featureFlagsService } from "@/services/posthog/feature-flags/FeatureFlagsService"
 
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -117,6 +119,7 @@ export class Task {
 	private cancelTask: () => Promise<void>
 
 	readonly taskId: string
+	private taskIsFavorited?: boolean
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
@@ -193,9 +196,7 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
-		this.clineIgnoreController.initialize().catch((error) => {
-			console.error("Failed to initialize ClineIgnoreController:", error)
-		})
+		// Initialization moved to startTask/resumeTaskFromHistory
 		this.terminalManager = new TerminalManager()
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.urlContentFetcher = new UrlContentFetcher(context)
@@ -210,6 +211,7 @@ export class Task {
 		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
+			this.taskIsFavorited = historyItem.isFavorited
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 		} else if (task || images) {
 			this.taskId = Date.now().toString()
@@ -313,6 +315,7 @@ export class Task {
 				size: taskDirSize,
 				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
 				conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+				isFavorited: this.taskIsFavorited,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)
@@ -852,6 +855,12 @@ export class Task {
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
+		try {
+			await this.clineIgnoreController.initialize()
+		} catch (error) {
+			console.error("Failed to initialize ClineIgnoreController:", error)
+			// Optionally, inform the user or handle the error appropriately
+		}
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
@@ -874,6 +883,12 @@ export class Task {
 	}
 
 	private async resumeTaskFromHistory() {
+		try {
+			await this.clineIgnoreController.initialize()
+		} catch (error) {
+			console.error("Failed to initialize ClineIgnoreController:", error)
+			// Optionally, inform the user or handle the error appropriately
+		}
 		// UPDATE: we don't need this anymore since most tasks are now created with checkpoints enabled
 		// right now we let users init checkpoints for old tasks, assuming they're continuing them from the same workspace (which we never tied to tasks, so no way for us to know if it's opened in the right workspace)
 		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.controllerRef.deref())
@@ -1710,6 +1725,8 @@ export class Task {
 							return `[${block.name} for creating a new task]`
 						case "condense":
 							return `[${block.name}]`
+						case "report_bug":
+							return `[${block.name}]`
 						case "new_rule":
 							return `[${block.name} for '${block.params.path}']`
 					}
@@ -1915,7 +1932,7 @@ export class Task {
 											: "other_diff_error"
 
 									// Add telemetry for diff edit failure
-									telemetryService.captureDiffEditFailure(this.taskId, errorType)
+									telemetryService.captureDiffEditFailure(this.taskId, this.api.getModel().id, errorType)
 
 									pushToolResult(
 										formatResponse.toolError(
@@ -3137,6 +3154,135 @@ export class Task {
 							break
 						}
 					}
+					case "report_bug": {
+						const title = block.params.title
+						const what_happened = block.params.what_happened
+						const steps_to_reproduce = block.params.steps_to_reproduce
+						const api_request_output = block.params.api_request_output
+						const additional_context = block.params.additional_context
+
+						try {
+							if (block.partial) {
+								await this.ask(
+									"report_bug",
+									JSON.stringify({
+										title: removeClosingTag("title", title),
+										what_happened: removeClosingTag("what_happened", what_happened),
+										steps_to_reproduce: removeClosingTag("steps_to_reproduce", steps_to_reproduce),
+										api_request_output: removeClosingTag("api_request_output", api_request_output),
+										additional_context: removeClosingTag("additional_context", additional_context),
+									}),
+									block.partial,
+								).catch(() => {})
+								break
+							} else {
+								if (!title) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "title"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!what_happened) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "what_happened"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!steps_to_reproduce) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "steps_to_reproduce"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!api_request_output) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "api_request_output"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!additional_context) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("report_bug", "additional_context"))
+									await this.saveCheckpoint()
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle: "Cline wants to create a github issue...",
+										message: `Cline is suggesting to create a github issue with the title: ${title}`,
+									})
+								}
+
+								// Derive system information values algorithmically
+								const operatingSystem = os.platform() + " " + os.release()
+								const clineVersion =
+									vscode.extensions.getExtension("saoudrizwan.claude-dev")?.packageJSON.version || "Unknown"
+								const systemInfo = `VSCode: ${vscode.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
+								const providerAndModel = `${(await getGlobalState(this.getContext(), "apiProvider")) as string} / ${this.api.getModel().id}`
+
+								// Ask user for confirmation
+								const bugReportData = JSON.stringify({
+									title,
+									what_happened,
+									steps_to_reproduce,
+									api_request_output,
+									additional_context,
+									// Include derived values in the JSON for display purposes
+									provider_and_model: providerAndModel,
+									operating_system: operatingSystem,
+									system_info: systemInfo,
+									cline_version: clineVersion,
+								})
+
+								const { text, images } = await this.ask("report_bug", bugReportData, false)
+
+								// If the user provided a response, treat it as feedback
+								if (text || images?.length) {
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										formatResponse.toolResult(
+											`The user provided feedback on the Github issue generated:\n<feedback>\n${text}\n</feedback>`,
+											images,
+										),
+									)
+								} else {
+									// If no response, the user accepted the condensed version
+									pushToolResult(
+										formatResponse.toolResult(`The user accepted the creation of the Github issue.`),
+									)
+
+									try {
+										// Create a Map of parameters for the GitHub issue
+										const params = new Map<string, string>()
+										params.set("title", title)
+										params.set("operating-system", operatingSystem)
+										params.set("cline-version", clineVersion)
+										params.set("system-info", systemInfo)
+										params.set("additional-context", additional_context)
+										params.set("what-happened", what_happened)
+										params.set("steps", steps_to_reproduce)
+										params.set("provider-model", providerAndModel)
+										params.set("logs", api_request_output)
+
+										// Use our utility function to create and open the GitHub issue URL
+										// This bypasses VS Code's URI handling issues with special characters
+										await createAndOpenGitHubIssue("cline", "cline", "bug_report.yml", params)
+									} catch (error) {
+										console.error(`An error occurred while attempting to report the bug: ${error}`)
+									}
+								}
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("reporting bug", error)
+							await this.saveCheckpoint()
+							break
+						}
+					}
 					case "plan_mode_respond": {
 						const response: string | undefined = block.params.response
 						const optionsRaw: string | undefined = block.params.options
@@ -3561,7 +3707,7 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user")
+		telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "user", true)
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
@@ -3638,7 +3784,13 @@ export class Task {
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
 				await this.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "assistant")
+				telemetryService.captureConversationTurnEvent(
+					this.taskId,
+					currentProviderId,
+					this.api.getModel().id,
+					"assistant",
+					true,
+				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3781,7 +3933,13 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.taskId, currentProviderId, this.api.getModel().id, "assistant")
+				telemetryService.captureConversationTurnEvent(
+					this.taskId,
+					currentProviderId,
+					this.api.getModel().id,
+					"assistant",
+					true,
+				)
 
 				await this.addToApiConversationHistory({
 					role: "assistant",

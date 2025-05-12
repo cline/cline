@@ -22,6 +22,11 @@ export interface StringRequest {
 	value: string
 }
 
+export interface StringArrayRequest {
+	metadata?: Metadata | undefined
+	value: string[]
+}
+
 export interface String {
 	value: string
 }
@@ -51,6 +56,10 @@ export interface BooleanRequest {
 
 export interface Boolean {
 	value: boolean
+}
+
+export interface StringArray {
+	values: string[]
 }
 
 function createBaseMetadata(): Metadata {
@@ -271,6 +280,83 @@ export const StringRequest: MessageFns<StringRequest> = {
 		message.metadata =
 			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
 		message.value = object.value ?? ""
+		return message
+	},
+}
+
+function createBaseStringArrayRequest(): StringArrayRequest {
+	return { metadata: undefined, value: [] }
+}
+
+export const StringArrayRequest: MessageFns<StringArrayRequest> = {
+	encode(message: StringArrayRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		for (const v of message.value) {
+			writer.uint32(18).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): StringArrayRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseStringArrayRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.value.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): StringArrayRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			value: globalThis.Array.isArray(object?.value) ? object.value.map((e: any) => globalThis.String(e)) : [],
+		}
+	},
+
+	toJSON(message: StringArrayRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.value?.length) {
+			obj.value = message.value
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<StringArrayRequest>, I>>(base?: I): StringArrayRequest {
+		return StringArrayRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<StringArrayRequest>, I>>(object: I): StringArrayRequest {
+		const message = createBaseStringArrayRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.value = object.value?.map((e) => e) || []
 		return message
 	},
 }
@@ -734,6 +820,66 @@ export const Boolean: MessageFns<Boolean> = {
 	fromPartial<I extends Exact<DeepPartial<Boolean>, I>>(object: I): Boolean {
 		const message = createBaseBoolean()
 		message.value = object.value ?? false
+		return message
+	},
+}
+
+function createBaseStringArray(): StringArray {
+	return { values: [] }
+}
+
+export const StringArray: MessageFns<StringArray> = {
+	encode(message: StringArray, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		for (const v of message.values) {
+			writer.uint32(10).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): StringArray {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseStringArray()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.values.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): StringArray {
+		return {
+			values: globalThis.Array.isArray(object?.values) ? object.values.map((e: any) => globalThis.String(e)) : [],
+		}
+	},
+
+	toJSON(message: StringArray): unknown {
+		const obj: any = {}
+		if (message.values?.length) {
+			obj.values = message.values
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<StringArray>, I>>(base?: I): StringArray {
+		return StringArray.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<StringArray>, I>>(object: I): StringArray {
+		const message = createBaseStringArray()
+		message.values = object.values?.map((e) => e) || []
 		return message
 	},
 }

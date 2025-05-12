@@ -1,6 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { CSSProperties, memo } from "react"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
+import { Accordion, AccordionItem } from "@heroui/react"
 
 interface AnnouncementProps {
 	version: string
@@ -43,90 +44,55 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price tracking for
-					Gemini models.
+					<b>Task Timeline:</b> See the history of your coding journey with a visual timeline of checkpoints, letting
+					you understand what Cline did at a glance.
 				</li>
 				<li>
-					<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their contents
-					easily.
+					<b>UX Improvements:</b> Type while Cline works, smarter auto-scrolling, new copy buttons for task headers and
+					messages, and a simplified home interface for a smoother experience.
 				</li>
 				<li>
-					<b>/newrule command:</b> New slash command to have cline write your .clinerules for you based on your
-					workflow.
+					<b>Commit Message Generation:</b> Let Cline help craft meaningful commit messages based on your changes.
 				</li>
 				<li>
-					<b>Drag and drop improvements:</b> Don't forget to hold shift while dragging files!
+					<b>Quote Replies:</b> Easily reference previous messages with new quote reply support for clearer
+					conversations.
 				</li>
-				<li>Added more checkpoints across the task, allowing you to restore from more than just file changes.</li>
-				<li>Added support for rendering LaTeX in message responses. (Try asking Cline to show the quadratic formula)</li>
+				<li>
+					<b>Auto Caching for Gemini:</b> Native support for Gemini's recently released Implicit Caching.
+				</li>
 			</ul>
-			{/* <h4 style={{ margin: "5px 0 5px" }}>Previous Updates:</h4>
-			<ul style={ulStyle}>
-				<li>
-					<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between projects.
-				</li>
-				<li>
-					<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files to plug
-					and play specific rules for the task
-				</li>
-				<li>
-					<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a new task
-					(more coming soon!)
-				</li>
-				<li>
-					<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally restore
-					your project when the message was sent!
-				</li>
-			</ul> */}
-			{/*
-			// Leave this here for an example of how to structure the announcement
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				 <li>
-					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
-					so I recommend trying them out.
-					<br />
-					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(vscodeUriScheme)}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Get OpenRouter API Key
-						</VSCodeButtonLink>
-					)}
-					{apiConfiguration?.openRouterApiKey && apiConfiguration?.apiProvider !== "openrouter" && (
-						<VSCodeButton
-							onClick={() => {
-								vscode.postMessage({
-									type: "apiConfiguration",
-									apiConfiguration: { ...apiConfiguration, apiProvider: "openrouter" },
-								})
-							}}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Switch to OpenRouter
-						</VSCodeButton>
-					)}
-				</li>
-				<li>
-					<b>Edit Cline's changes before accepting!</b> When he creates or edits a file, you can modify his
-					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
-					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
-				</li>
-				<li>
-					New <code>search_files</code> tool that lets Cline perform regex searches in your project, letting
-					him refactor code, address TODOs and FIXMEs, remove dead code, and more!
-				</li>
-				<li>
-					When Cline runs commands, you can now type directly in the terminal (+ support for Python
-					environments)
-				</li>
-			</ul>*/}
+			<Accordion isCompact className="pl-0">
+				<AccordionItem
+					key="1"
+					aria-label="Previous Updates"
+					title="Previous Updates:"
+					classNames={{
+						trigger: "bg-transparent border-0 pl-0 pb-0 w-fit",
+						title: "font-bold text-[var(--vscode-foreground)]",
+						indicator:
+							"text-[var(--vscode-foreground)] mb-0.5 -rotate-180 data-[open=true]:-rotate-90 rtl:rotate-0 rtl:data-[open=true]:-rotate-90",
+					}}>
+					<ul style={ulStyle}>
+						<li>
+							<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price
+							tracking for Gemini models.
+						</li>
+						<li>
+							<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their
+							contents easily.
+						</li>
+						<li>
+							<b>Global Cline Rules:</b> Store multiple rules files in Documents/Cline/Rules to share between
+							projects.
+						</li>
+						<li>
+							<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a
+							new task.
+						</li>
+					</ul>
+				</AccordionItem>
+			</Accordion>
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}

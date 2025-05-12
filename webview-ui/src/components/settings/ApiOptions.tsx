@@ -8,7 +8,7 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useEvent, useInterval } from "react-use"
 import styled from "styled-components"
@@ -55,6 +55,7 @@ import {
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
@@ -183,19 +184,41 @@ const ApiOptions = ({
 	}, [apiConfiguration])
 
 	// Poll ollama/lmstudio models
-	const requestLocalModels = useCallback(() => {
+	const requestLocalModels = useCallback(async () => {
 		if (selectedProvider === "ollama") {
-			vscode.postMessage({
-				type: "requestOllamaModels",
-				text: apiConfiguration?.ollamaBaseUrl,
-			})
+			try {
+				const response = await ModelsServiceClient.getOllamaModels({
+					value: apiConfiguration?.ollamaBaseUrl || "",
+				})
+				if (response && response.values) {
+					setOllamaModels(response.values)
+				}
+			} catch (error) {
+				console.error("Failed to fetch Ollama models:", error)
+				setOllamaModels([])
+			}
 		} else if (selectedProvider === "lmstudio") {
-			vscode.postMessage({
-				type: "requestLmStudioModels",
-				text: apiConfiguration?.lmStudioBaseUrl,
-			})
+			try {
+				const response = await ModelsServiceClient.getLmStudioModels({
+					value: apiConfiguration?.lmStudioBaseUrl || "",
+				})
+				if (response && response.values) {
+					setLmStudioModels(response.values)
+				}
+			} catch (error) {
+				console.error("Failed to fetch LM Studio models:", error)
+				setLmStudioModels([])
+			}
 		} else if (selectedProvider === "vscode-lm") {
-			vscode.postMessage({ type: "requestVsCodeLmModels" })
+			try {
+				const response = await ModelsServiceClient.getVsCodeLmModels({})
+				if (response && response.models) {
+					setVsCodeLmModels(response.models)
+				}
+			} catch (error) {
+				console.error("Failed to fetch VS Code LM models:", error)
+				setVsCodeLmModels([])
+			}
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
@@ -207,18 +230,6 @@ const ApiOptions = ({
 		requestLocalModels,
 		selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null,
 	)
-
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message: ExtensionMessage = event.data
-		if (message.type === "ollamaModels" && message.ollamaModels) {
-			setOllamaModels(message.ollamaModels)
-		} else if (message.type === "lmStudioModels" && message.lmStudioModels) {
-			setLmStudioModels(message.lmStudioModels)
-		} else if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
-			setVsCodeLmModels(message.vsCodeLmModels)
-		}
-	}, [])
-	useEvent("message", handleMessage)
 
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
@@ -251,6 +262,34 @@ const ApiOptions = ({
 			</VSCodeDropdown>
 		)
 	}
+
+	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
+	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+	useEffect(() => {
+		return () => {
+			if (debounceTimerRef.current) {
+				clearTimeout(debounceTimerRef.current)
+			}
+		}
+	}, [])
+
+	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current)
+		}
+
+		if (baseUrl && apiKey) {
+			debounceTimerRef.current = setTimeout(() => {
+				ModelsServiceClient.refreshOpenAiModels({
+					baseUrl,
+					apiKey,
+				}).catch((error) => {
+					console.error("Failed to refresh OpenAI models:", error)
+				})
+			}, 500)
+		}
+	}, [])
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
@@ -837,10 +876,7 @@ const ApiOptions = ({
 									color: "var(--vscode-descriptionForeground)",
 								}}>
 								Select "Custom" when using the Application Inference Profile in Bedrock. Enter the Application
-								Inference Profile ID in the Model ID field. However, be sure to encode the / in the ARN as %2F.
-								<br />
-								Example: arn:aws:bedrock:us-west-2:&lt;AWS Account
-								ID&gt;:application-inference-profile%2Fxxxxxxxxxxxx
+								Inference Profile ARN in the Model ID field.
 							</p>
 							<label htmlFor="bedrock-model-input">
 								<span style={{ fontWeight: 500 }}>Model ID</span>
@@ -1017,7 +1053,12 @@ const ApiOptions = ({
 						value={apiConfiguration?.openAiBaseUrl || ""}
 						style={{ width: "100%", marginBottom: 10 }}
 						type="url"
-						onInput={handleInputChange("openAiBaseUrl")}
+						onInput={(e: any) => {
+							const baseUrl = e.target.value
+							handleInputChange("openAiBaseUrl")({ target: { value: baseUrl } })
+
+							debouncedRefreshOpenAiModels(baseUrl, apiConfiguration?.openAiApiKey)
+						}}
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
@@ -1025,7 +1066,12 @@ const ApiOptions = ({
 						value={apiConfiguration?.openAiApiKey || ""}
 						style={{ width: "100%", marginBottom: 10 }}
 						type="password"
-						onInput={handleInputChange("openAiApiKey")}
+						onInput={(e: any) => {
+							const apiKey = e.target.value
+							handleInputChange("openAiApiKey")({ target: { value: apiKey } })
+
+							debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, apiKey)
+						}}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>

@@ -1,5 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react"
 import { useEvent } from "react-use"
+import { StateServiceClient } from "../services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
 import {
@@ -70,6 +72,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		planActSeparateModelsSetting: true,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
+		localCursorRulesToggles: {},
+		localWindsurfRulesToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -90,50 +94,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
-			case "state": {
-				setState((prevState) => {
-					const incoming = message.state!
-					// Versioning logic for autoApprovalSettings
-					const incomingVersion = incoming.autoApprovalSettings?.version ?? 1
-					const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-					const shouldUpdateAutoApproval = incomingVersion > currentVersion
-					return {
-						...incoming,
-						autoApprovalSettings: shouldUpdateAutoApproval
-							? incoming.autoApprovalSettings
-							: prevState.autoApprovalSettings,
-					}
-				})
-				const config = message.state?.apiConfiguration
-				const hasKey = config
-					? [
-							config.apiKey,
-							config.openRouterApiKey,
-							config.awsRegion,
-							config.vertexProjectId,
-							config.openAiApiKey,
-							config.ollamaModelId,
-							config.lmStudioModelId,
-							config.liteLlmApiKey,
-							config.geminiApiKey,
-							config.openAiNativeApiKey,
-							config.deepSeekApiKey,
-							config.requestyApiKey,
-							config.togetherApiKey,
-							config.qwenApiKey,
-							config.doubaoApiKey,
-							config.mistralApiKey,
-							config.vsCodeLmModelSelector,
-							config.clineApiKey,
-							config.asksageApiKey,
-							config.xaiApiKey,
-							config.sambanovaApiKey,
-						].some((key) => key !== undefined)
-					: false
-				setShowWelcome(!hasKey)
-				setDidHydrateState(true)
-				break
-			}
 			case "theme": {
 				if (message.text) {
 					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
@@ -199,8 +159,95 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	useEvent("message", handleMessage)
 
+	// Reference to store the state subscription cancellation function
+	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+
+	// Subscribe to state updates using the new gRPC streaming API
 	useEffect(() => {
+		// Set up state subscription
+		stateSubscriptionRef.current = StateServiceClient.subscribeToState(
+			{},
+			{
+				onResponse: (response) => {
+					console.log("[DEBUG] got state update via subscription", response)
+					if (response.stateJson) {
+						try {
+							const stateData = JSON.parse(response.stateJson) as ExtensionState
+							console.log("[DEBUG] parsed state JSON, updating state")
+							setState((prevState) => {
+								// Versioning logic for autoApprovalSettings
+								const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+								const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+								const shouldUpdateAutoApproval = incomingVersion > currentVersion
+
+								const newState = {
+									...stateData,
+									autoApprovalSettings: shouldUpdateAutoApproval
+										? stateData.autoApprovalSettings
+										: prevState.autoApprovalSettings,
+								}
+
+								// Update welcome screen state based on API configuration
+								const config = stateData.apiConfiguration
+								const hasKey = config
+									? [
+											config.apiKey,
+											config.openRouterApiKey,
+											config.awsRegion,
+											config.vertexProjectId,
+											config.openAiApiKey,
+											config.ollamaModelId,
+											config.lmStudioModelId,
+											config.liteLlmApiKey,
+											config.geminiApiKey,
+											config.openAiNativeApiKey,
+											config.deepSeekApiKey,
+											config.requestyApiKey,
+											config.togetherApiKey,
+											config.qwenApiKey,
+											config.doubaoApiKey,
+											config.mistralApiKey,
+											config.vsCodeLmModelSelector,
+											config.clineApiKey,
+											config.asksageApiKey,
+											config.xaiApiKey,
+											config.sambanovaApiKey,
+										].some((key) => key !== undefined)
+									: false
+
+								setShowWelcome(!hasKey)
+								setDidHydrateState(true)
+
+								console.log("[DEBUG] returning new state in ESC")
+
+								return newState
+							})
+						} catch (error) {
+							console.error("Error parsing state JSON:", error)
+							console.log("[DEBUG] ERR getting state", error)
+						}
+					}
+					console.log('[DEBUG] ended "got subscribed state"')
+				},
+				onError: (error) => {
+					console.error("Error in state subscription:", error)
+				},
+				onComplete: () => {
+					console.log("State subscription completed")
+				},
+			},
+		)
+
+		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
+
+		// Clean up subscription when component unmounts
+		return () => {
+			if (stateSubscriptionRef.current) {
+				stateSubscriptionRef.current()
+				stateSubscriptionRef.current = null
+			}
+		}
 	}, [])
 
 	const contextValue: ExtensionStateContextType = {
@@ -219,6 +266,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpTab,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
+		localCursorRulesToggles: state.localCursorRulesToggles || {},
+		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
