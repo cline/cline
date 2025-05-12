@@ -26,7 +26,7 @@ export function wrapHandler<TRequest, TResponse>(
 ): grpc.handleUnaryCall<TRequest, TResponse> {
 	return async (call, callback) => {
 		try {
-			log("gRPC request:", call.getPath())
+			log(`gRPC request: ${call.getPath()}`)
 			const result = await handler(controller, call.request)
 			callback(null, result)
 		} catch (err: any) {

@@ -5,6 +5,7 @@ const path = require("path")
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
 const standalone = process.argv.includes("--standalone")
+const destDir = "dist-standalone" ? standalone : "dist"
 
 /**
  * @type {import('esbuild').Plugin}
@@ -86,7 +87,7 @@ const copyWasmFiles = {
 		build.onEnd(() => {
 			// tree sitter
 			const sourceDir = path.join(__dirname, "node_modules", "web-tree-sitter")
-			const targetDir = path.join(__dirname, "dist")
+			const targetDir = path.join(__dirname, destDir)
 
 			// Copy tree-sitter.wasm
 			fs.copyFileSync(path.join(sourceDir, "tree-sitter.wasm"), path.join(targetDir, "tree-sitter.wasm"))
@@ -145,7 +146,7 @@ const extensionConfig = {
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
-	outfile: standalone ? "dist-standalone/extension-standalone.js" : "dist/extension.js",
+	outfile: standalone ? `${destDir}/extension-standalone.js` : `${destDir}/extension.js`,
 	external: ["vscode"],
 }
 
