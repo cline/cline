@@ -16,52 +16,6 @@ interface MarkdownBlockProps {
 	markdown?: string
 }
 
-interface PreWithCopyButtonProps {
-	children: React.ReactNode
-	theme?: Record<string, string>
-	[key: string]: any
-}
-
-const StyledPre = styled.pre<{ theme?: Record<string, string> }>`
-	& .hljs {
-		color: var(--vscode-editor-foreground, #fff);
-	}
-
-	${(props) =>
-		props.theme &&
-		Object.keys(props.theme)
-			.map((key) => {
-				return `
-      & ${key} {
-        color: ${props.theme?.[key]};
-      }
-    `
-			})
-			.join("")}
-`
-
-const PreWithCopyButton: React.FC<PreWithCopyButtonProps> = ({ children, theme, ...preProps }) => {
-	const preRef = useRef<HTMLPreElement>(null)
-
-	const handleCopy = () => {
-		if (!preRef.current) return null
-		const codeElement = preRef.current.querySelector("code")
-		const textToCopyResult = codeElement ? codeElement.textContent : preRef.current.textContent
-		if (!textToCopyResult) return null
-		return textToCopyResult
-	}
-
-	const styledPreProps = theme ? { ...preProps, theme } : preProps
-
-	return (
-		<WithCopyButton onCopy={handleCopy} position="top-right" ariaLabel="Copy code">
-			<StyledPre {...styledPreProps} ref={preRef}>
-				{children}
-			</StyledPre>
-		</WithCopyButton>
-	)
-}
-
 /**
  * Custom remark plugin that converts plain URLs in text into clickable links
  *
@@ -257,6 +211,52 @@ const StyledMarkdown = styled.div`
 		}
 	}
 `
+
+const StyledPre = styled.pre<{ theme: any }>`
+	& .hljs {
+		color: var(--vscode-editor-foreground, #fff);
+	}
+
+	${(props) =>
+		Object.keys(props.theme)
+			.map((key, index) => {
+				return `
+      & ${key} {
+        color: ${props.theme[key]};
+      }
+    `
+			})
+			.join("")}
+`
+
+const PreWithCopyButton = ({
+	children,
+	theme,
+	...preProps
+}: { theme: Record<string, string> } & React.HTMLAttributes<HTMLPreElement>) => {
+	const preRef = useRef<HTMLPreElement>(null)
+
+	const handleCopy = () => {
+		if (preRef.current) {
+			const codeElement = preRef.current.querySelector("code")
+			const textToCopy = codeElement ? codeElement.textContent : preRef.current.textContent
+
+			if (!textToCopy) return
+			return textToCopy
+		}
+		return null
+	}
+
+	const styledPreProps = theme ? { ...preProps, theme } : preProps
+
+	return (
+		<WithCopyButton onCopy={handleCopy} position="top-right" ariaLabel="Copy code">
+			<StyledPre {...styledPreProps} ref={preRef}>
+				{children}
+			</StyledPre>
+		</WithCopyButton>
+	)
+}
 
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
