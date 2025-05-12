@@ -256,7 +256,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								Task
 								{!isTaskExpanded && ":"}
 							</span>
-							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightText(task.text, false)}</span>}
+							{!isTaskExpanded && (
+								<span className="ph-no-capture" style={{ marginLeft: 4 }}>
+									{highlightText(task.text, false)}
+								</span>
+							)}
 						</div>
 					</div>
 					{isCostAvailable && (
@@ -302,7 +306,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									wordBreak: "break-word",
 									overflowWrap: "anywhere",
 								}}>
-								{highlightText(task.text, false)}
+								<span className="ph-no-capture">{highlightText(task.text, false)}</span>
 							</div>
 							{!isTextExpanded && showSeeMore && (
 								<div

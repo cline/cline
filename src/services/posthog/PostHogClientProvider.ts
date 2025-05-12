@@ -9,6 +9,7 @@ class PostHogClientProvider {
 		this.client = new PostHog(posthogConfig.apiKey, {
 			host: posthogConfig.host,
 			enableExceptionAutocapture: false,
+			defaultOptIn: false,
 		})
 	}
 

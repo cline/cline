@@ -67,6 +67,7 @@ export type GlobalStateKey =
 	| "previousModeModelInfo"
 	| "liteLlmBaseUrl"
 	| "liteLlmModelId"
+	| "liteLlmModelInfo"
 	| "liteLlmUsePromptCache"
 	| "qwenApiLine"
 	| "requestyModelId"
