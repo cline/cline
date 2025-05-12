@@ -1,18 +1,14 @@
 # Changelog
 
-## 3.16.0
+## [3.15.2]
 
--   95cc15a: Releasing memory after every diff edit to help fix grey screen webview crashes
--   33413e9: refreshRequestyModels protobus migration
--   e504b9d: introduce front end tracking for those who have opted in to telemetry
--   c79acf5: Disable breaking out of diff auto scroll while it's reworked
--   df9c8e2: Remove vite files and make enable all the first item
--   4d480ea: Adds switch to enabler/disable telemtry categories
--   a6c4c0c: Add detailed configuration options for LiteLLM provider
--   915555f: ship with defaults
--   f8a7b56: move slash report bug to protos / grpc
--   7d5d347: Fixed freezing issues during rendering of large streaming text.
--   312777d: remove explicit caching for gemini in OR/cline provider
+- Added details to auto approve menu and more sensible default controls
+- Add detailed configuration options for LiteLLM provider
+- Add webview telemetry for users who have opted in to telemetry
+- Update Gemini in OpenRouter/Cline providers to use implicit caching
+- Fix freezing issues during rendering of large streaming text
+- Fix grey screen webview crashes by releasing memory after every diff edit
+- Fix breaking out of diff auto-scroll
 
 ## [3.15.1]
 
