@@ -1,4 +1,4 @@
-import { useCallback, useState, memo } from "react"
+import { useCallback, useState, memo, useMemo } from "react"
 import { useEvent } from "react-use"
 import { ChevronDown, Skull } from "lucide-react"
 
@@ -16,32 +16,25 @@ import CodeBlock from "../common/CodeBlock"
 interface CommandExecutionProps {
 	executionId: string
 	text?: string
+	icon?: JSX.Element | null
+	title?: JSX.Element | null
 }
 
-const parseCommandAndOutput = (text: string) => {
-	const index = text.indexOf(COMMAND_OUTPUT_STRING)
-	if (index === -1) {
-		return { command: text, output: "" }
-	}
-	return {
-		command: text.slice(0, index),
-		output: text.slice(index + COMMAND_OUTPUT_STRING.length),
-	}
-}
-
-export const CommandExecution = ({ executionId, text }: CommandExecutionProps) => {
+export const CommandExecution = ({ executionId, text, icon, title }: CommandExecutionProps) => {
 	const { terminalShellIntegrationDisabled = false } = useExtensionState()
 
 	// If we aren't opening the VSCode terminal for this command then we default
 	// to expanding the command execution output.
 	const [isExpanded, setIsExpanded] = useState(terminalShellIntegrationDisabled)
 
-	const [status, setStatus] = useState<CommandExecutionStatus | null>(null)
-	const { command: initialCommand, output: initialOutput } = text
-		? parseCommandAndOutput(text)
-		: { command: "", output: "" }
+	const { command: initialCommand, output: initialOutput } = useMemo(
+		() => (text ? parseCommandAndOutput(text) : { command: "", output: "" }),
+		[text],
+	)
+
 	const [output, setOutput] = useState(initialOutput)
 	const [command, setCommand] = useState(initialCommand)
+	const [status, setStatus] = useState<CommandExecutionStatus | null>(null)
 
 	const onMessage = useCallback(
 		(event: MessageEvent) => {
@@ -81,62 +74,84 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 	useEvent("message", onMessage)
 
 	return (
-		<div className="w-full bg-vscode-editor-background border border-vscode-border rounded-xs p-2">
-			<CodeBlock source={text ? parseCommandAndOutput(text).command : command} language="shell" />
-			<div className="flex flex-row items-center justify-between gap-2 px-1">
+		<>
+			<div className="flex flex-row items-center justify-between gap-2 mb-1">
 				<div className="flex flex-row items-center gap-1">
-					{status?.status === "started" && (
-						<div className="flex flex-row items-center gap-2 font-mono text-xs">
-							<div className="rounded-full size-1.5 bg-lime-400" />
-							<div>Running</div>
-							{status.pid && <div className="whitespace-nowrap">(PID: {status.pid})</div>}
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={() =>
-									vscode.postMessage({ type: "terminalOperation", terminalOperation: "abort" })
-								}>
-								<Skull />
+					{icon}
+					{title}
+				</div>
+				<div className="flex flex-row items-center justify-between gap-2 px-1">
+					<div className="flex flex-row items-center gap-1">
+						{status?.status === "started" && (
+							<div className="flex flex-row items-center gap-2 font-mono text-xs">
+								<div className="rounded-full size-1.5 bg-lime-400" />
+								<div>Running</div>
+								{status.pid && <div className="whitespace-nowrap">(PID: {status.pid})</div>}
+								<Button
+									variant="ghost"
+									size="icon"
+									onClick={() =>
+										vscode.postMessage({ type: "terminalOperation", terminalOperation: "abort" })
+									}>
+									<Skull />
+								</Button>
+							</div>
+						)}
+						{status?.status === "exited" && (
+							<div className="flex flex-row items-center gap-2 font-mono text-xs">
+								<div
+									className={cn(
+										"rounded-full size-1.5",
+										status.exitCode === 0 ? "bg-lime-400" : "bg-red-400",
+									)}
+								/>
+								<div className="whitespace-nowrap">Exited ({status.exitCode})</div>
+							</div>
+						)}
+						{output.length > 0 && (
+							<Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
+								<ChevronDown
+									className={cn("size-4 transition-transform duration-300", {
+										"rotate-180": isExpanded,
+									})}
+								/>
 							</Button>
-						</div>
-					)}
-					{status?.status === "exited" && (
-						<div className="flex flex-row items-center gap-2 font-mono text-xs">
-							<div
-								className={cn(
-									"rounded-full size-1.5",
-									status.exitCode === 0 ? "bg-lime-400" : "bg-red-400",
-								)}
-							/>
-							<div className="whitespace-nowrap">Exited ({status.exitCode})</div>
-						</div>
-					)}
-					{output.length > 0 && (
-						<Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
-							<ChevronDown
-								className={cn("size-4 transition-transform duration-300", {
-									"rotate-180": isExpanded,
-								})}
-							/>
-						</Button>
-					)}
+						)}
+					</div>
 				</div>
 			</div>
-			<MemoizedOutputContainer isExpanded={isExpanded} output={output} />
-		</div>
+
+			<div className="w-full bg-vscode-editor-background border border-vscode-border rounded-xs p-2">
+				<CodeBlock source={command} language="shell" />
+				<OutputContainer isExpanded={isExpanded} output={output} />
+			</div>
+		</>
 	)
 }
 
 CommandExecution.displayName = "CommandExecution"
 
-const OutputContainer = ({ isExpanded, output }: { isExpanded: boolean; output: string }) => (
+const OutputContainerInternal = ({ isExpanded, output }: { isExpanded: boolean; output: string }) => (
 	<div
-		className={cn("mt-1 pt-1 border-t border-border/25 overflow-hidden transition-[max-height] duration-300", {
+		className={cn("overflow-hidden", {
 			"max-h-0": !isExpanded,
-			"max-h-[100%]": isExpanded,
+			"max-h-[100%] mt-1 pt-1 border-t border-border/25": isExpanded,
 		})}>
 		{output.length > 0 && <CodeBlock source={output} language="log" />}
 	</div>
 )
 
-const MemoizedOutputContainer = memo(OutputContainer)
+const OutputContainer = memo(OutputContainerInternal)
+
+const parseCommandAndOutput = (text: string) => {
+	const index = text.indexOf(COMMAND_OUTPUT_STRING)
+
+	if (index === -1) {
+		return { command: text, output: "" }
+	}
+
+	return {
+		command: text.slice(0, index),
+		output: text.slice(index + COMMAND_OUTPUT_STRING.length),
+	}
+}
