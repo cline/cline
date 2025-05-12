@@ -115,6 +115,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 										try {
 											await McpServiceClient.downloadMcp({ value: item.mcpId })
 										} catch (error) {
+											setIsDownloading(false)
 											console.error("Failed to download MCP:", error)
 										}
 									}
