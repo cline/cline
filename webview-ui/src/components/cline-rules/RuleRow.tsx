@@ -9,8 +9,10 @@ const RuleRow: React.FC<{
 	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
 }> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType }) => {
-	// Get the filename from the path for display
-	const displayName = rulePath.split("/").pop() || rulePath
+	// Get the display name - show full path from .clinerules/ if present, otherwise just filename
+	const displayName = rulePath.includes(".clinerules/")
+		? rulePath.substring(rulePath.indexOf(".clinerules/"))
+		: rulePath.split("/").pop() || rulePath
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
