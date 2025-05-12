@@ -1,8 +1,12 @@
 # Roo Code Changelog
 
+## [3.16.6] - 2025-05-12
+
+- Restore "Improve provider profile management in the external API"
+
 ## [3.16.5] - 2025-05-10
 
-- Revert profile management changes until we track down a bug with defaults
+- Revert "Improve provider profile management in the external API" until we track down a bug with defaults
 
 ## [3.16.4] - 2025-05-09
 
