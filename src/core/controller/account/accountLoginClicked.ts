@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import crypto from "crypto"
 import { Controller } from "../index"
 import { storeSecret } from "../../storage/state"
-import { String } from "../../../shared/proto/common"
+import { EmptyRequest, String } from "../../../shared/proto/common"
 
 /**
  * Handles the user clicking the login link in the UI.
@@ -12,7 +12,7 @@ import { String } from "../../../shared/proto/common"
  * @param controller The controller instance.
  * @returns The login URL as a string.
  */
-export async function accountLoginClicked(controller: Controller): Promise<String> {
+export async function accountLoginClicked(controller: Controller, unused: EmptyRequest): Promise<String> {
 	// Generate nonce for state validation
 	const nonce = crypto.randomBytes(32).toString("hex")
 	await storeSecret(controller.context, "authNonce", nonce)
