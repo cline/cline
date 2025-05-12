@@ -91,9 +91,9 @@ export class DiffViewProvider {
 				const currentFirstVisibleLine = e.visibleRanges[0]?.start.line || 0
 
 				// If the first visible line moved upward, user scrolled up
-				if (currentFirstVisibleLine < this.lastFirstVisibleLine) {
-					this.shouldAutoScroll = false
-				}
+				// if (currentFirstVisibleLine < this.lastFirstVisibleLine) {
+				// 	this.shouldAutoScroll = false
+				// }
 
 				// Always update our tracking variable
 				this.lastFirstVisibleLine = currentFirstVisibleLine
