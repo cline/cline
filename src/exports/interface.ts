@@ -1,7 +1,23 @@
 import { EventEmitter } from "events"
 
-import type { ProviderSettings, GlobalSettings, ClineMessage, TokenUsage, RooCodeEvents } from "./types"
-export type { RooCodeSettings, ProviderSettings, GlobalSettings, ClineMessage, TokenUsage, RooCodeEvents }
+import type {
+	GlobalSettings,
+	ProviderSettings,
+	ProviderSettingsEntry,
+	ClineMessage,
+	TokenUsage,
+	RooCodeEvents,
+} from "./types"
+
+export type {
+	RooCodeSettings,
+	GlobalSettings,
+	ProviderSettings,
+	ProviderSettingsEntry,
+	ClineMessage,
+	TokenUsage,
+	RooCodeEvents,
+}
 
 import { RooCodeEventName } from "../schemas"
 export type { RooCodeEventName }
@@ -75,6 +91,11 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	pressSecondaryButton(): Promise<void>
 
 	/**
+	 * Returns true if the API is ready to use.
+	 */
+	isReady(): boolean
+
+	/**
 	 * Returns the current configuration.
 	 * @returns The current configuration.
 	 */
@@ -87,30 +108,46 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	setConfiguration(values: RooCodeSettings): Promise<void>
 
 	/**
-	 * Creates a new API configuration profile
-	 * @param name The name of the profile
-	 * @returns The ID of the created profile
-	 */
-	createProfile(name: string): Promise<string>
-
-	/**
 	 * Returns a list of all configured profile names
 	 * @returns Array of profile names
 	 */
 	getProfiles(): string[]
 
 	/**
-	 * Changes the active API configuration profile
-	 * @param name The name of the profile to activate
-	 * @throws Error if the profile does not exist
+	 * Returns the profile entry for a given name
+	 * @param name The name of the profile
+	 * @returns The profile entry, or undefined if the profile does not exist
 	 */
-	setActiveProfile(name: string): Promise<void>
+	getProfileEntry(name: string): ProviderSettingsEntry | undefined
 
 	/**
-	 * Returns the name of the currently active profile
-	 * @returns The profile name, or undefined if no profile is active
+	 * Creates a new API configuration profile
+	 * @param name The name of the profile
+	 * @param profile The profile to create; defaults to an empty object
+	 * @param activate Whether to activate the profile after creation; defaults to true
+	 * @returns The ID of the created profile
+	 * @throws Error if the profile already exists
 	 */
-	getActiveProfile(): string | undefined
+	createProfile(name: string, profile?: ProviderSettings, activate?: boolean): Promise<string>
+
+	/**
+	 * Updates an existing API configuration profile
+	 * @param name The name of the profile
+	 * @param profile The profile to update
+	 * @param activate Whether to activate the profile after update; defaults to true
+	 * @returns The ID of the updated profile
+	 * @throws Error if the profile does not exist
+	 */
+	updateProfile(name: string, profile: ProviderSettings, activate?: boolean): Promise<string | undefined>
+
+	/**
+	 * Creates a new API configuration profile or updates an existing one
+	 * @param name The name of the profile
+	 * @param profile The profile to create or update; defaults to an empty object
+	 * @param activate Whether to activate the profile after upsert; defaults to true
+	 * @returns The ID of the upserted profile
+	 */
+	upsertProfile(name: string, profile: ProviderSettings, activate?: boolean): Promise<string | undefined>
 
 	/**
 	 * Deletes a profile by name
@@ -120,7 +157,15 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	deleteProfile(name: string): Promise<void>
 
 	/**
-	 * Returns true if the API is ready to use.
+	 * Returns the name of the currently active profile
+	 * @returns The profile name, or undefined if no profile is active
 	 */
-	isReady(): boolean
+	getActiveProfile(): string | undefined
+
+	/**
+	 * Changes the active API configuration profile
+	 * @param name The name of the profile to activate
+	 * @throws Error if the profile does not exist
+	 */
+	setActiveProfile(name: string): Promise<string | undefined>
 }

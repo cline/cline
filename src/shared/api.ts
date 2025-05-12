@@ -1,10 +1,8 @@
 import { ModelInfo, ProviderName, ProviderSettings } from "../schemas"
 
-export type { ModelInfo, ProviderName }
+export type { ModelInfo, ProviderName, ProviderSettings }
 
 export type ApiHandlerOptions = Omit<ProviderSettings, "apiProvider" | "id">
-
-export type ApiConfiguration = ProviderSettings
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models

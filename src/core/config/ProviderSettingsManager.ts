@@ -1,11 +1,14 @@
 import { ExtensionContext } from "vscode"
 import { z, ZodError } from "zod"
 
-import { providerSettingsSchema, ApiConfigMeta } from "../../schemas"
+import { providerSettingsSchema, ProviderSettingsEntry, providerSettingsSchemaDiscriminated } from "../../schemas"
 import { Mode, modes } from "../../shared/modes"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 const providerSettingsWithIdSchema = providerSettingsSchema.extend({ id: z.string().optional() })
+const discriminatedProviderSettingsWithIdSchema = providerSettingsSchemaDiscriminated.and(
+	z.object({ id: z.string().optional() }),
+)
 
 type ProviderSettingsWithId = z.infer<typeof providerSettingsWithIdSchema>
 
@@ -223,7 +226,7 @@ export class ProviderSettingsManager {
 	/**
 	 * List all available configs with metadata.
 	 */
-	public async listConfig(): Promise<ApiConfigMeta[]> {
+	public async listConfig(): Promise<ProviderSettingsEntry[]> {
 		try {
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()
@@ -244,66 +247,81 @@ export class ProviderSettingsManager {
 	 * Preserves the ID from the input 'config' object if it exists,
 	 * otherwise generates a new one (for creation scenarios).
 	 */
-	public async saveConfig(name: string, config: ProviderSettingsWithId) {
+	public async saveConfig(name: string, config: ProviderSettingsWithId): Promise<string> {
 		try {
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()
 				// Preserve the existing ID if this is an update to an existing config.
 				const existingId = providerProfiles.apiConfigs[name]?.id
-				providerProfiles.apiConfigs[name] = { ...config, id: config.id || existingId || this.generateId() }
+				const id = config.id || existingId || this.generateId()
+
+				// Filter out settings from other providers.
+				const filteredConfig = providerSettingsSchemaDiscriminated.parse(config)
+				providerProfiles.apiConfigs[name] = { ...filteredConfig, id }
 				await this.store(providerProfiles)
+				return id
 			})
 		} catch (error) {
 			throw new Error(`Failed to save config: ${error}`)
 		}
 	}
 
-	/**
-	 * Load a config by name and set it as the current config.
-	 */
-	public async loadConfig(name: string) {
+	public async getProfile(
+		params: { name: string } | { id: string },
+	): Promise<ProviderSettingsWithId & { name: string }> {
 		try {
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()
-				const providerSettings = providerProfiles.apiConfigs[name]
+				let name: string
+				let providerSettings: ProviderSettingsWithId
 
-				if (!providerSettings) {
-					throw new Error(`Config '${name}' not found`)
+				if ("name" in params) {
+					name = params.name
+
+					if (!providerProfiles.apiConfigs[name]) {
+						throw new Error(`Config with name '${name}' not found`)
+					}
+
+					providerSettings = providerProfiles.apiConfigs[name]
+				} else {
+					const id = params.id
+
+					const entry = Object.entries(providerProfiles.apiConfigs).find(
+						([_, apiConfig]) => apiConfig.id === id,
+					)
+
+					if (!entry) {
+						throw new Error(`Config with ID '${id}' not found`)
+					}
+
+					name = entry[0]
+					providerSettings = entry[1]
 				}
 
-				providerProfiles.currentApiConfigName = name
-				await this.store(providerProfiles)
-
-				return providerSettings
+				return { name, ...providerSettings }
 			})
 		} catch (error) {
-			throw new Error(`Failed to load config: ${error}`)
+			throw new Error(`Failed to get profile: ${error instanceof Error ? error.message : error}`)
 		}
 	}
 
 	/**
-	 * Load a config by ID and set it as the current config.
+	 * Activate a profile by name or ID.
 	 */
-	public async loadConfigById(id: string) {
+	public async activateProfile(
+		params: { name: string } | { id: string },
+	): Promise<ProviderSettingsWithId & { name: string }> {
+		const { name, ...providerSettings } = await this.getProfile(params)
+
 		try {
 			return await this.lock(async () => {
 				const providerProfiles = await this.load()
-				const providerSettings = Object.entries(providerProfiles.apiConfigs).find(
-					([_, apiConfig]) => apiConfig.id === id,
-				)
-
-				if (!providerSettings) {
-					throw new Error(`Config with ID '${id}' not found`)
-				}
-
-				const [name, apiConfig] = providerSettings
 				providerProfiles.currentApiConfigName = name
 				await this.store(providerProfiles)
-
-				return { config: apiConfig, name }
+				return { name, ...providerSettings }
 			})
 		} catch (error) {
-			throw new Error(`Failed to load config by ID: ${error}`)
+			throw new Error(`Failed to activate profile: ${error instanceof Error ? error.message : error}`)
 		}
 	}
 
@@ -381,7 +399,15 @@ export class ProviderSettingsManager {
 
 	public async export() {
 		try {
-			return await this.lock(async () => providerProfilesSchema.parse(await this.load()))
+			return await this.lock(async () => {
+				const profiles = providerProfilesSchema.parse(await this.load())
+				const configs = profiles.apiConfigs
+				for (const name in configs) {
+					// Avoid leaking properties from other providers.
+					configs[name] = discriminatedProviderSettingsWithIdSchema.parse(configs[name])
+				}
+				return profiles
+			})
 		} catch (error) {
 			throw new Error(`Failed to export provider profiles: ${error}`)
 		}

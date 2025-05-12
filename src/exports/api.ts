@@ -6,7 +6,14 @@ import * as path from "path"
 import { getWorkspacePath } from "../utils/path"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { openClineInNewTab } from "../activate/registerCommands"
-import { RooCodeSettings, RooCodeEvents, RooCodeEventName } from "../schemas"
+import {
+	RooCodeSettings,
+	RooCodeEvents,
+	RooCodeEventName,
+	ProviderSettings,
+	ProviderSettingsEntry,
+	isSecretStateKey,
+} from "../schemas"
 import { IpcOrigin, IpcMessageType, TaskCommandName, TaskEvent } from "../schemas/ipc"
 
 import { RooCodeAPI } from "./interface"
@@ -178,91 +185,6 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await this.sidebarProvider.postMessageToWebview({ type: "invoke", invoke: "secondaryButtonClick" })
 	}
 
-	public getConfiguration() {
-		return this.sidebarProvider.getValues()
-	}
-
-	public async setConfiguration(values: RooCodeSettings) {
-		await this.sidebarProvider.setValues(values)
-		await this.sidebarProvider.providerSettingsManager.saveConfig(values.currentApiConfigName || "default", values)
-		await this.sidebarProvider.postStateToWebview()
-	}
-
-	public async createProfile(name: string) {
-		if (!name || !name.trim()) {
-			throw new Error("Profile name cannot be empty")
-		}
-
-		const currentSettings = this.getConfiguration()
-		const profiles = currentSettings.listApiConfigMeta || []
-
-		if (profiles.some((profile) => profile.name === name)) {
-			throw new Error(`A profile with the name "${name}" already exists`)
-		}
-
-		const id = this.sidebarProvider.providerSettingsManager.generateId()
-
-		await this.setConfiguration({
-			...currentSettings,
-			listApiConfigMeta: [
-				...profiles,
-				{
-					id,
-					name: name.trim(),
-					apiProvider: "openai" as const,
-				},
-			],
-		})
-
-		return id
-	}
-
-	public getProfiles() {
-		return (this.getConfiguration().listApiConfigMeta || []).map((profile) => profile.name)
-	}
-
-	public async setActiveProfile(name: string) {
-		const currentSettings = this.getConfiguration()
-		const profiles = currentSettings.listApiConfigMeta || []
-
-		const profile = profiles.find((p) => p.name === name)
-
-		if (!profile) {
-			throw new Error(`Profile with name "${name}" does not exist`)
-		}
-
-		await this.setConfiguration({ ...currentSettings, currentApiConfigName: profile.name })
-	}
-
-	public getActiveProfile() {
-		return this.getConfiguration().currentApiConfigName
-	}
-
-	public async deleteProfile(name: string) {
-		const currentSettings = this.getConfiguration()
-		const profiles = currentSettings.listApiConfigMeta || []
-		const targetIndex = profiles.findIndex((p) => p.name === name)
-
-		if (targetIndex === -1) {
-			throw new Error(`Profile with name "${name}" does not exist`)
-		}
-
-		const profileToDelete = profiles[targetIndex]
-		profiles.splice(targetIndex, 1)
-
-		// If we're deleting the active profile, clear the currentApiConfigName.
-		const newSettings: RooCodeSettings = {
-			...currentSettings,
-			listApiConfigMeta: profiles,
-			currentApiConfigName:
-				currentSettings.currentApiConfigName === profileToDelete.name
-					? undefined
-					: currentSettings.currentApiConfigName,
-		}
-
-		await this.setConfiguration(newSettings)
-	}
-
 	public isReady() {
 		return this.sidebarProvider.viewLaunched
 	}
@@ -327,5 +249,104 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		} catch (_) {
 			this.logfile = undefined
 		}
+	}
+
+	// Global Settings Management
+
+	public getConfiguration(): RooCodeSettings {
+		return Object.fromEntries(
+			Object.entries(this.sidebarProvider.getValues()).filter(([key]) => !isSecretStateKey(key)),
+		)
+	}
+
+	public async setConfiguration(values: RooCodeSettings) {
+		await this.sidebarProvider.contextProxy.setValues(values)
+		await this.sidebarProvider.providerSettingsManager.saveConfig(values.currentApiConfigName || "default", values)
+		await this.sidebarProvider.postStateToWebview()
+	}
+
+	// Provider Profile Management
+
+	public getProfiles(): string[] {
+		return this.sidebarProvider.getProviderProfileEntries().map(({ name }) => name)
+	}
+
+	public getProfileEntry(name: string): ProviderSettingsEntry | undefined {
+		return this.sidebarProvider.getProviderProfileEntry(name)
+	}
+
+	public async createProfile(name: string, profile?: ProviderSettings, activate: boolean = true) {
+		const entry = this.getProfileEntry(name)
+
+		if (entry) {
+			throw new Error(`Profile with name "${name}" already exists`)
+		}
+
+		const id = await this.sidebarProvider.upsertProviderProfile(name, profile ?? {}, activate)
+
+		if (!id) {
+			throw new Error(`Failed to create profile with name "${name}"`)
+		}
+
+		return id
+	}
+
+	public async updateProfile(
+		name: string,
+		profile: ProviderSettings,
+		activate: boolean = true,
+	): Promise<string | undefined> {
+		const entry = this.getProfileEntry(name)
+
+		if (!entry) {
+			throw new Error(`Profile with name "${name}" does not exist`)
+		}
+
+		const id = await this.sidebarProvider.upsertProviderProfile(name, profile, activate)
+
+		if (!id) {
+			throw new Error(`Failed to update profile with name "${name}"`)
+		}
+
+		return id
+	}
+
+	public async upsertProfile(
+		name: string,
+		profile: ProviderSettings,
+		activate: boolean = true,
+	): Promise<string | undefined> {
+		const id = await this.sidebarProvider.upsertProviderProfile(name, profile, activate)
+
+		if (!id) {
+			throw new Error(`Failed to upsert profile with name "${name}"`)
+		}
+
+		return id
+	}
+
+	public async deleteProfile(name: string): Promise<void> {
+		const entry = this.getProfileEntry(name)
+
+		if (!entry) {
+			throw new Error(`Profile with name "${name}" does not exist`)
+		}
+
+		await this.sidebarProvider.deleteProviderProfile(entry)
+	}
+
+	public getActiveProfile(): string | undefined {
+		return this.getConfiguration().currentApiConfigName
+	}
+
+	public async setActiveProfile(name: string): Promise<string | undefined> {
+		const entry = this.getProfileEntry(name)
+
+		if (!entry) {
+			throw new Error(`Profile with name "${name}" does not exist`)
+		}
+
+		await this.sidebarProvider.activateProviderProfile({ name })
+		return this.getActiveProfile()
 	}
 }

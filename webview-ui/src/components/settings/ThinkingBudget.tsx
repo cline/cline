@@ -3,14 +3,14 @@ import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { Slider } from "@/components/ui"
 
-import { ApiConfiguration, ModelInfo } from "@roo/shared/api"
+import { ProviderSettings, ModelInfo } from "@roo/shared/api"
 
 const DEFAULT_MAX_OUTPUT_TOKENS = 16_384
 const DEFAULT_MAX_THINKING_TOKENS = 8_192
 
 interface ThinkingBudgetProps {
-	apiConfiguration: ApiConfiguration
-	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
+	apiConfiguration: ProviderSettings
+	setApiConfigurationField: <K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => void
 	modelInfo?: ModelInfo
 }
 

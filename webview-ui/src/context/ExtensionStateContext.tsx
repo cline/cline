@@ -1,9 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
-import { ApiConfigMeta, ExtensionMessage, ExtensionState } from "@roo/shared/ExtensionMessage"
-import { ApiConfiguration } from "@roo/shared/api"
-import { vscode } from "@src/utils/vscode"
-import { convertTextMateToHljs } from "@src/utils/textMateToHljs"
+
+import { ProviderSettingsEntry, ExtensionMessage, ExtensionState } from "@roo/shared/ExtensionMessage"
+import { ProviderSettings } from "@roo/shared/api"
 import { findLastIndex } from "@roo/shared/array"
 import { McpServer } from "@roo/shared/mcp"
 import { checkExistKey } from "@roo/shared/checkExistApiConfig"
@@ -11,6 +10,9 @@ import { Mode, CustomModePrompts, defaultModeSlug, defaultPrompts, ModeConfig } 
 import { CustomSupportPrompts } from "@roo/shared/support-prompt"
 import { experimentDefault, ExperimentId } from "@roo/shared/experiments"
 import { TelemetrySetting } from "@roo/shared/TelemetrySetting"
+
+import { vscode } from "@src/utils/vscode"
+import { convertTextMateToHljs } from "@src/utils/textMateToHljs"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	historyPreviewCollapsed?: boolean // Add the new state property
@@ -22,7 +24,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	currentCheckpoint?: string
 	filePaths: string[]
 	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
-	setApiConfiguration: (config: ApiConfiguration) => void
+	setApiConfiguration: (config: ProviderSettings) => void
 	setCustomInstructions: (value?: string) => void
 	setAlwaysAllowReadOnly: (value: boolean) => void
 	setAlwaysAllowReadOnlyOutsideWorkspace: (value: boolean) => void
@@ -65,7 +67,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	requestDelaySeconds: number
 	setRequestDelaySeconds: (value: number) => void
 	setCurrentApiConfigName: (value: string) => void
-	setListApiConfigMeta: (value: ApiConfigMeta[]) => void
+	setListApiConfigMeta: (value: ProviderSettingsEntry[]) => void
 	mode: Mode
 	setMode: (value: Mode) => void
 	setCustomModePrompts: (value: CustomModePrompts) => void
@@ -182,7 +184,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [currentCheckpoint, setCurrentCheckpoint] = useState<string>()
 
 	const setListApiConfigMeta = useCallback(
-		(value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
+		(value: ProviderSettingsEntry[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
 		[],
 	)
 

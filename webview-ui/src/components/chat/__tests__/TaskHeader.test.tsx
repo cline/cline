@@ -4,7 +4,7 @@ import React from "react"
 import { render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { ApiConfiguration } from "@roo/shared/api"
+import { ProviderSettings } from "@roo/shared/api"
 
 import TaskHeader, { TaskHeaderProps } from "../TaskHeader"
 
@@ -27,7 +27,7 @@ jest.mock("@src/context/ExtensionStateContext", () => ({
 			apiProvider: "anthropic",
 			apiKey: "test-api-key", // Add relevant fields
 			apiModelId: "claude-3-opus-20240229", // Add relevant fields
-		} as ApiConfiguration, // Optional: Add type assertion if ApiConfiguration is imported
+		} as ProviderSettings, // Optional: Add type assertion if ProviderSettings is imported
 		currentTaskItem: null,
 	}),
 }))

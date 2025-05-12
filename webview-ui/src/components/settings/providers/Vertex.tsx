@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { ApiConfiguration } from "@roo/shared/api"
+import { ProviderSettings } from "@roo/shared/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
@@ -10,17 +10,17 @@ import { inputEventTransform } from "../transforms"
 import { VERTEX_REGIONS } from "../constants"
 
 type VertexProps = {
-	apiConfiguration: ApiConfiguration
-	setApiConfigurationField: (field: keyof ApiConfiguration, value: ApiConfiguration[keyof ApiConfiguration]) => void
+	apiConfiguration: ProviderSettings
+	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
 }
 
 export const Vertex = ({ apiConfiguration, setApiConfigurationField }: VertexProps) => {
 	const { t } = useAppTranslation()
 
 	const handleInputChange = useCallback(
-		<K extends keyof ApiConfiguration, E>(
+		<K extends keyof ProviderSettings, E>(
 			field: K,
-			transform: (event: E) => ApiConfiguration[K] = inputEventTransform,
+			transform: (event: E) => ProviderSettings[K] = inputEventTransform,
 		) =>
 			(event: E | Event) => {
 				setApiConfigurationField(field, transform(event as E))

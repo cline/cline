@@ -1,5 +1,5 @@
 import { checkExistKey } from "../checkExistApiConfig"
-import { ApiConfiguration } from "../api"
+import { ProviderSettings } from "../api"
 
 describe("checkExistKey", () => {
 	it("should return false for undefined config", () => {
@@ -7,19 +7,19 @@ describe("checkExistKey", () => {
 	})
 
 	it("should return false for empty config", () => {
-		const config: ApiConfiguration = {}
+		const config: ProviderSettings = {}
 		expect(checkExistKey(config)).toBe(false)
 	})
 
 	it("should return true when one key is defined", () => {
-		const config: ApiConfiguration = {
+		const config: ProviderSettings = {
 			apiKey: "test-key",
 		}
 		expect(checkExistKey(config)).toBe(true)
 	})
 
 	it("should return true when multiple keys are defined", () => {
-		const config: ApiConfiguration = {
+		const config: ProviderSettings = {
 			apiKey: "test-key",
 			glamaApiKey: "glama-key",
 			openRouterApiKey: "openrouter-key",
@@ -28,7 +28,7 @@ describe("checkExistKey", () => {
 	})
 
 	it("should return true when only non-key fields are undefined", () => {
-		const config: ApiConfiguration = {
+		const config: ProviderSettings = {
 			apiKey: "test-key",
 			apiProvider: undefined,
 			anthropicBaseUrl: undefined,
@@ -38,7 +38,7 @@ describe("checkExistKey", () => {
 	})
 
 	it("should return false when all key fields are undefined", () => {
-		const config: ApiConfiguration = {
+		const config: ProviderSettings = {
 			apiKey: undefined,
 			glamaApiKey: undefined,
 			openRouterApiKey: undefined,
