@@ -6,7 +6,7 @@ import styled from "styled-components"
 
 interface CopyButtonProps {
 	textToCopy?: string
-	onCopy?: () => string | void | null // Allow onCopy to return null
+	onCopy?: () => string | void | null
 	className?: string
 	ariaLabel?: string
 }
@@ -14,12 +14,12 @@ interface CopyButtonProps {
 interface WithCopyButtonProps {
 	children: React.ReactNode
 	textToCopy?: string
-	onCopy?: () => string | void | null // Allow onCopy to return null
+	onCopy?: () => string | void | null
 	position?: "top-right" | "bottom-right"
 	style?: React.CSSProperties
 	className?: string
 	onMouseUp?: (event: React.MouseEvent<HTMLDivElement>) => void
-	ariaLabel?: string // Add ariaLabel here
+	ariaLabel?: string
 }
 
 // ======== Styled Components ========
