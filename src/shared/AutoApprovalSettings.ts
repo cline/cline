@@ -22,18 +22,18 @@ export interface AutoApprovalSettings {
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	version: 1,
-	enabled: false,
+	enabled: true,
 	actions: {
-		readFiles: false,
+		readFiles: true,
 		readFilesExternally: false,
 		editFiles: false,
 		editFilesExternally: false,
-		executeSafeCommands: false,
+		executeSafeCommands: true,
 		executeAllCommands: false,
 		useBrowser: false,
 		useMcp: false,
 	},
 	maxRequests: 20,
 	enableNotifications: false,
-	favorites: [],
+	favorites: ["enableAll", "readFiles", "editFiles"],
 }
