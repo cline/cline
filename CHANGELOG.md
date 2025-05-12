@@ -3,6 +3,9 @@
 ## [3.16.6] - 2025-05-12
 
 - Restore "Improve provider profile management in the external API"
+- Fix to subtask sequencing (thanks @wkordalski!)
+- Fix webview terminal output processing error (thanks @KJ7LNW!)
+- Fix textarea empty string fallback logic (thanks @elianiva!)
 
 ## [3.16.5] - 2025-05-10
 
