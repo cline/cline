@@ -121,7 +121,7 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 						<CopyButton
 							textToCopy={textToCopy}
 							onCopy={onCopy}
-							ariaLabel={ariaLabel || (textToCopy ? "Copy text" : "Copy")} // Use passed ariaLabel or default
+							ariaLabel={ariaLabel || (textToCopy ? "Copied" : "Copy")} // Use passed ariaLabel or default
 						/>
 					</ButtonContainer>
 				)}
