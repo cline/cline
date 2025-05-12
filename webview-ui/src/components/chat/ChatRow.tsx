@@ -20,7 +20,6 @@ import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils
 import { vscode } from "@/utils/vscode"
 import { FileServiceClient } from "@/services/grpc-client"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
-// Remove local WithCopyButton and related styled components
 import { WithCopyButton } from "@/components/common/CopyButton"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
