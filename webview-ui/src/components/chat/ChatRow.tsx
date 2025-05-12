@@ -21,7 +21,7 @@ import { vscode } from "@/utils/vscode"
 import { FileServiceClient } from "@/services/grpc-client"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 // Remove local WithCopyButton and related styled components
-import { WithCopyButton } from "@/components/common/CopyButtonComponents"
+import { WithCopyButton } from "@/components/common/CopyButton"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -905,7 +905,11 @@ export const ChatRowContent = ({
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
-						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={message.text} position="bottom-right">
+						<WithCopyButton
+							ref={contentRef}
+							onMouseUp={handleMouseUp}
+							textToCopy={message.text}
+							position="bottom-right">
 							<Markdown markdown={message.text} />
 							{quoteButtonState.visible && (
 								<QuoteButton
