@@ -9,6 +9,7 @@
 - Fix freezing issues during rendering of large streaming text
 - Fix grey screen webview crashes by releasing memory after every diff edit
 - Fix breaking out of diff auto-scroll
+- Fix IME composition Enter auto‑sending edited message
 
 ## [3.15.1]
 
