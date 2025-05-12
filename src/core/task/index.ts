@@ -1442,13 +1442,28 @@ export class Task {
 		return statusCode && !message.includes(statusCode.toString()) ? `${statusCode} - ${message}` : message
 	}
 
+	/**
+	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
+	 */
+	private async migrateDisableBrowserToolSetting(): Promise<void> {
+		const config = vscode.workspace.getConfiguration("cline")
+		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool")
+
+		if (disableBrowserTool !== undefined) {
+			this.browserSettings.disableToolUse = disableBrowserTool
+			// Remove from VSCode configuration
+			await config.update("disableBrowserTool", undefined, true)
+		}
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
-		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
+		await this.migrateDisableBrowserToolSetting()
+		const disableBrowserTool = this.browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
 		const modelSupportsBrowserUse = this.api.getModel().info.supportsImages ?? false
 

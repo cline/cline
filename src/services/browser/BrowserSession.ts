@@ -67,11 +67,25 @@ export class BrowserSession {
 		}
 	}
 
-	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
-		// First check VSCode config
+	/**
+	 * Migrates the chromeExecutablePath setting from VSCode configuration to browserSettings
+	 */
+	private async migrateChromeExecutablePathSetting(): Promise<void> {
+		const config = vscode.workspace.getConfiguration("cline")
 		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
-		if (configPath && (await fileExistsAtPath(configPath))) {
-			return { path: configPath, isBundled: false }
+
+		if (configPath !== undefined) {
+			this.browserSettings.chromeExecutablePath = configPath
+			// Remove from VSCode configuration
+			await config.update("chromeExecutablePath", undefined, true)
+		}
+	}
+
+	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
+		// First check browserSettings (from UI, stored in global state)
+		await this.migrateChromeExecutablePathSetting()
+		if (this.browserSettings.chromeExecutablePath && (await fileExistsAtPath(this.browserSettings.chromeExecutablePath))) {
+			return { path: this.browserSettings.chromeExecutablePath, isBundled: false }
 		}
 
 		// Then try to find system Chrome
