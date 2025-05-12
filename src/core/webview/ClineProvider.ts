@@ -177,15 +177,15 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		return this.clineStack.map((cline) => cline.taskId)
 	}
 
-	// remove the current task/cline instance (at the top of the stack), ao this task is finished
+	// remove the current task/cline instance (at the top of the stack), so this task is finished
 	// and resume the previous task/cline instance (if it exists)
 	// this is used when a sub task is finished and the parent task needs to be resumed
 	async finishSubTask(lastMessage: string) {
 		console.log(`[subtasks] finishing subtask ${lastMessage}`)
 		// remove the last cline instance from the stack (this is the finished sub task)
 		await this.removeClineFromStack()
-		// resume the last cline instance in the stack (if it exists - this is the 'parnt' calling task)
-		this.getCurrentCline()?.resumePausedTask(lastMessage)
+		// resume the last cline instance in the stack (if it exists - this is the 'parent' calling task)
+		await this.getCurrentCline()?.resumePausedTask(lastMessage)
 	}
 
 	/*
