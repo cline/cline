@@ -3,10 +3,12 @@
 
 // Import all method implementations
 import { registerMethod } from "./index"
+import { condense } from "./condense"
 import { reportBug } from "./reportBug"
 
 // Register all slash service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
+	registerMethod("condense", condense)
 	registerMethod("reportBug", reportBug)
 }
