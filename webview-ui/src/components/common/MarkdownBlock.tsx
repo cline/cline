@@ -16,8 +16,6 @@ interface MarkdownBlockProps {
 	markdown?: string
 }
 
-// ======== PreWithCopyButton and related definitions moved here ========
-
 interface PreWithCopyButtonProps {
 	children: React.ReactNode
 	theme?: Record<string, string>
@@ -142,26 +140,6 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
-// Remove VSCodeButton import if no longer used directly
-// import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-
-// Remove local CopyButton and CodeBlockContainer if PreWithCopyButton handles this
-// const CopyButton = styled(VSCodeButton)`
-// 	position: absolute;
-// 	top: 5px;
-// 	right: 5px;
-// 	z-index: 1;
-// 	opacity: 0;
-// `
-
-// const CodeBlockContainer = styled.div`
-// 	position: relative;
-
-// 	&:hover ${CopyButton} {
-// 		opacity: 1;
-// 	}
-// `
-
 const StyledMarkdown = styled.div`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
@@ -279,8 +257,6 @@ const StyledMarkdown = styled.div`
 		}
 	}
 `
-
-// Remove local PreWithCopyButton and StyledPre as they are now handled by the imported component
 
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
