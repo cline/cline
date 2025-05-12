@@ -1,6 +1,6 @@
 export type AssistantMessageContent = TextContent | ToolUse
 
-export { parseAssistantMessage } from "./parse-assistant-message"
+export { parseAssistantMessageV1, parseAssistantMessageV2 } from "./parse-assistant-message"
 
 export interface TextContent {
 	type: "text"
