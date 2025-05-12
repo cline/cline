@@ -303,6 +303,19 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.commitMessageInstructions": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"Start with a short summary (50-72 characters)",
+						"Use the imperative mood (e.g., \"Add feature\" not \"Added feature\")",
+						"Describe what was changed and why",
+						"Be clear and descriptive"
+					],
+					"description": "Instructions for generating commit messages. Each item will be numbered in the prompt sent to the AI."
 				}
 			}
 		}
