@@ -20,62 +20,8 @@ import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils
 import { vscode } from "@/utils/vscode"
 import { FileServiceClient } from "@/services/grpc-client"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
-
-interface CopyButtonProps {
-	textToCopy: string | undefined
-}
-
-const CopyButtonStyled = styled(VSCodeButton)`
-	position: absolute;
-	bottom: 2px;
-	right: 2px;
-	z-index: 1;
-	opacity: 0;
-`
-
-interface WithCopyButtonProps {
-	children: React.ReactNode
-	textToCopy?: string
-	style?: React.CSSProperties
-	ref?: React.Ref<HTMLDivElement>
-	onMouseUp?: (event: MouseEvent<HTMLDivElement>) => void
-}
-
-const StyledContainer = styled.div`
-	position: relative;
-
-	&:hover ${CopyButtonStyled} {
-		opacity: 1;
-	}
-`
-
-const WithCopyButton = React.forwardRef<HTMLDivElement, WithCopyButtonProps>(
-	({ children, textToCopy, style, onMouseUp, ...props }, ref) => {
-		const [copied, setCopied] = useState(false)
-
-		const handleCopy = () => {
-			if (!textToCopy) return
-
-			navigator.clipboard.writeText(textToCopy).then(() => {
-				setCopied(true)
-				setTimeout(() => {
-					setCopied(false)
-				}, 1500)
-			})
-		}
-
-		return (
-			<StyledContainer ref={ref} onMouseUp={onMouseUp} style={style} {...props}>
-				{children}
-				{textToCopy && (
-					<CopyButtonStyled appearance="icon" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy"}>
-						<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
-					</CopyButtonStyled>
-				)}
-			</StyledContainer>
-		)
-	},
-)
+// Remove local WithCopyButton and related styled components
+import { WithCopyButton } from "@/components/common/CopyButtonComponents"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -959,7 +905,7 @@ export const ChatRowContent = ({
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
-						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={message.text}>
+						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={message.text} position="bottom-right">
 							<Markdown markdown={message.text} />
 							{quoteButtonState.visible && (
 								<QuoteButton
@@ -1194,6 +1140,7 @@ export const ChatRowContent = ({
 								ref={contentRef}
 								onMouseUp={handleMouseUp}
 								textToCopy={text}
+								position="bottom-right"
 								style={{
 									color: "var(--vscode-charts-green)",
 									paddingTop: 10,
@@ -1357,6 +1304,7 @@ export const ChatRowContent = ({
 									ref={contentRef}
 									onMouseUp={handleMouseUp}
 									textToCopy={text}
+									position="bottom-right"
 									style={{
 										color: "var(--vscode-charts-green)",
 										paddingTop: 10,
@@ -1424,6 +1372,7 @@ export const ChatRowContent = ({
 								ref={contentRef}
 								onMouseUp={handleMouseUp}
 								textToCopy={question}
+								position="bottom-right"
 								style={{ paddingTop: 10 }}>
 								<Markdown markdown={question} />
 								<OptionsButtons
@@ -1507,7 +1456,7 @@ export const ChatRowContent = ({
 						response = message.text
 					}
 					return (
-						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={response}>
+						<WithCopyButton ref={contentRef} onMouseUp={handleMouseUp} textToCopy={response} position="bottom-right">
 							<Markdown markdown={response} />
 							<OptionsButtons
 								options={options}

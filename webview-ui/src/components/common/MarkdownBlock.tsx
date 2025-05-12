@@ -10,6 +10,7 @@ import type { Node } from "unist"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
+import { PreWithCopyButton } from "./CopyButtonComponents"
 
 interface MarkdownBlockProps {
 	markdown?: string
@@ -93,23 +94,25 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+// Remove VSCodeButton import if no longer used directly
+// import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
-const CopyButton = styled(VSCodeButton)`
-	position: absolute;
-	top: 5px;
-	right: 5px;
-	z-index: 1;
-	opacity: 0;
-`
+// Remove local CopyButton and CodeBlockContainer if PreWithCopyButton handles this
+// const CopyButton = styled(VSCodeButton)`
+// 	position: absolute;
+// 	top: 5px;
+// 	right: 5px;
+// 	z-index: 1;
+// 	opacity: 0;
+// `
 
-const CodeBlockContainer = styled.div`
-	position: relative;
+// const CodeBlockContainer = styled.div`
+// 	position: relative;
 
-	&:hover ${CopyButton} {
-		opacity: 1;
-	}
-`
+// 	&:hover ${CopyButton} {
+// 		opacity: 1;
+// 	}
+// `
 
 const StyledMarkdown = styled.div`
 	pre {
@@ -229,55 +232,7 @@ const StyledMarkdown = styled.div`
 	}
 `
 
-const StyledPre = styled.pre<{ theme: any }>`
-	& .hljs {
-		color: var(--vscode-editor-foreground, #fff);
-	}
-
-	${(props) =>
-		Object.keys(props.theme)
-			.map((key, index) => {
-				return `
-      & ${key} {
-        color: ${props.theme[key]};
-      }
-    `
-			})
-			.join("")}
-`
-
-const PreWithCopyButton = ({
-	children,
-	theme,
-	...preProps
-}: { theme: Record<string, string> } & React.HTMLAttributes<HTMLPreElement>) => {
-	const preRef = useRef<HTMLPreElement>(null)
-	const [copied, setCopied] = useState(false)
-
-	const handleCopy = () => {
-		if (preRef.current) {
-			const codeElement = preRef.current.querySelector("code")
-			const textToCopy = codeElement ? codeElement.textContent : preRef.current.textContent
-
-			if (!textToCopy) return
-			navigator.clipboard.writeText(textToCopy).then(() => {
-				setCopied(true)
-				setTimeout(() => setCopied(false), 1500)
-			})
-		}
-	}
-
-	return (
-		<CodeBlockContainer>
-			<CopyButton appearance="icon" onClick={handleCopy} aria-label={copied ? "Copied" : "Copy"}>
-				<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>
-			</CopyButton>
-			<StyledPre {...preProps} theme={theme} ref={preRef}>
-				{children}
-			</StyledPre>
-		</CodeBlockContainer>
-	)
-}
+// Remove local PreWithCopyButton and StyledPre as they are now handled by the imported component
 
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
