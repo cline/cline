@@ -19,12 +19,7 @@ interface WithCopyButtonProps {
   style?: React.CSSProperties
   className?: string
   onMouseUp?: (event: React.MouseEvent<HTMLDivElement>) => void
-}
-
-interface PreWithCopyButtonProps {
-  children: React.ReactNode
-  theme?: Record<string, string>
-  [key: string]: any
+  ariaLabel?: string // Add ariaLabel here
 }
 
 // ======== Styled Components ========
@@ -33,53 +28,27 @@ const StyledButton = styled(VSCodeButton)`
   z-index: 1;
 `
 
-// Styled container for WithCopyButton
-const GeneralContainer = styled.div`
+// Unified container component
+const ContentContainer = styled.div`
   position: relative;
 `
 
-const ButtonContainer = styled.div<{ $position: string }>`
+// Unified button container with flexible positioning
+const ButtonContainer = styled.div<{ $position?: "top-right" | "bottom-right" }>`
   position: absolute;
-  ${props => props.$position === "top-right" ? "top: 5px; right: 5px;" : "bottom: 2px; right: 2px;"}
-  opacity: 0;
-  
-  ${GeneralContainer}:hover & {
-    opacity: 1;
-  }
-`
-// Styled container for PreWithCopyButton (specifically for code blocks)
-const CodeBlockContainerWrapper = styled.div`
-  position: relative;
-`
-
-const ButtonWrapper = styled.div`
-  position: absolute;
-  top: 5px;
-  right: 5px;
+  ${props => {
+    switch(props.$position) {
+      case "bottom-right": return "bottom: 2px; right: 2px;";
+      case "top-right":
+      default: return "top: 5px; right: 5px;";
+    }
+  }}
   z-index: 1;
   opacity: 0;
   
-  ${CodeBlockContainerWrapper}:hover & {
+  ${ContentContainer}:hover & {
     opacity: 1;
   }
-`
-
-// StyledPre for use within PreWithCopyButton
-const StyledPre = styled.pre<{ theme?: Record<string, string> }>`
-  & .hljs {
-    color: var(--vscode-editor-foreground, #fff);
-  }
-
-  ${(props) =>
-    props.theme && Object.keys(props.theme)
-      .map((key) => {
-        return `
-      & ${key} {
-        color: ${props.theme?.[key]};
-      }
-    `
-      })
-      .join("")}
 `
 
 // ======== Component Implementations ========
@@ -140,10 +109,11 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(({
   style,
   className,
   onMouseUp,
+  ariaLabel, // Destructure ariaLabel
   ...props
 }, ref) => {
   return (
-    <GeneralContainer
+    <ContentContainer
       ref={ref}
       onMouseUp={onMouseUp}
       style={style}
@@ -156,52 +126,17 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(({
           <CopyButton
             textToCopy={textToCopy}
             onCopy={onCopy}
-            ariaLabel={textToCopy ? "Copy text" : "Copy code"}
+            ariaLabel={ariaLabel || (textToCopy ? "Copy text" : "Copy")} // Use passed ariaLabel or default
           />
         </ButtonContainer>
       )}
-    </GeneralContainer>
+    </ContentContainer>
   )
 })
-
-/**
- * Specialized component for code blocks in markdown that need copy functionality
- */
-export const PreWithCopyButton: React.FC<PreWithCopyButtonProps> = ({
-  children,
-  theme,
-  ...preProps
-}) => {
-  const preRef = useRef<HTMLPreElement>(null)
-  
-  const handleCopy = () => {
-    if (!preRef.current) return null
-    const codeElement = preRef.current.querySelector("code")
-    const textToCopyResult = codeElement ? codeElement.textContent : preRef.current.textContent
-    if (!textToCopyResult) return null
-    return textToCopyResult
-  }
-
-  // Pass theme to the pre element if it exists
-  // Pass theme to the StyledPre element if it exists
-  const styledPreProps = theme ? { ...preProps, theme } : preProps;
-
-  return (
-    <CodeBlockContainerWrapper>
-      <ButtonWrapper>
-        <CopyButton onCopy={handleCopy} ariaLabel="Copy code" />
-      </ButtonWrapper>
-      <StyledPre {...styledPreProps} ref={preRef}>
-        {children}
-      </StyledPre>
-    </CodeBlockContainerWrapper>
-  )
-}
 
 // Default export for convenience if needed, though named exports are preferred for clarity
 const CopyButtonComponents = {
   CopyButton,
   WithCopyButton,
-  PreWithCopyButton
 }
 export default CopyButtonComponents

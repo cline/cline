@@ -10,10 +10,62 @@ import type { Node } from "unist"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
-import { PreWithCopyButton } from "./CopyButtonComponents"
+// PreWithCopyButton will be defined in this file, WithCopyButton will be imported
+import { WithCopyButton } from "./CopyButtonComponents"
 
 interface MarkdownBlockProps {
 	markdown?: string
+}
+
+// ======== PreWithCopyButton and related definitions moved here ========
+
+interface PreWithCopyButtonProps {
+  children: React.ReactNode
+  theme?: Record<string, string>
+  [key: string]: any
+}
+
+const StyledPre = styled.pre<{ theme?: Record<string, string> }>`
+  & .hljs {
+    color: var(--vscode-editor-foreground, #fff);
+  }
+
+  ${(props) =>
+    props.theme && Object.keys(props.theme)
+      .map((key) => {
+        return `
+      & ${key} {
+        color: ${props.theme?.[key]};
+      }
+    `
+      })
+      .join("")}
+`
+
+const PreWithCopyButton: React.FC<PreWithCopyButtonProps> = ({
+  children,
+  theme,
+  ...preProps
+}) => {
+  const preRef = useRef<HTMLPreElement>(null)
+  
+  const handleCopy = () => {
+    if (!preRef.current) return null
+    const codeElement = preRef.current.querySelector("code")
+    const textToCopyResult = codeElement ? codeElement.textContent : preRef.current.textContent
+    if (!textToCopyResult) return null
+    return textToCopyResult
+  }
+
+  const styledPreProps = theme ? { ...preProps, theme } : preProps;
+
+  return (
+    <WithCopyButton onCopy={handleCopy} position="top-right" ariaLabel="Copy code">
+      <StyledPre {...styledPreProps} ref={preRef}>
+        {children}
+      </StyledPre>
+    </WithCopyButton>
+  )
 }
 
 /**
