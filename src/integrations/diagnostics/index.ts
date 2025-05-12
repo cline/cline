@@ -76,9 +76,12 @@ export async function diagnosticsToProblemsString(
 	cwd: string,
 ): Promise<string> {
 	const documents = new Map<vscode.Uri, vscode.TextDocument>()
+	const fileStats = new Map<vscode.Uri, vscode.FileStat>()
 	let result = ""
 	for (const [uri, fileDiagnostics] of diagnostics) {
-		const problems = fileDiagnostics.filter((d) => severities.includes(d.severity))
+		const problems = fileDiagnostics
+			.filter((d) => severities.includes(d.severity))
+			.sort((a, b) => a.range.start.line - b.range.start.line)
 		if (problems.length > 0) {
 			result += `\n\n${path.relative(cwd, uri.fsPath).toPosix()}`
 			for (const diagnostic of problems) {
@@ -101,10 +104,23 @@ export async function diagnosticsToProblemsString(
 				}
 				const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
 				const source = diagnostic.source ? `${diagnostic.source} ` : ""
-				const document = documents.get(uri) || (await vscode.workspace.openTextDocument(uri))
-				documents.set(uri, document)
-				const lineContent = document.lineAt(diagnostic.range.start.line).text
-				result += `\n- [${source}${label}] ${line} | ${lineContent} : ${diagnostic.message}`
+				try {
+					let fileStat = fileStats.get(uri)
+					if (!fileStat) {
+						fileStat = await vscode.workspace.fs.stat(uri)
+						fileStats.set(uri, fileStat)
+					}
+					if (fileStat.type === vscode.FileType.File) {
+						const document = documents.get(uri) || (await vscode.workspace.openTextDocument(uri))
+						documents.set(uri, document)
+						const lineContent = document.lineAt(diagnostic.range.start.line).text
+						result += `\n- [${source}${label}] ${line} | ${lineContent} : ${diagnostic.message}`
+					} else {
+						result += `\n- [${source}${label}] 1 | (directory) : ${diagnostic.message}`
+					}
+				} catch {
+					result += `\n- [${source}${label}] ${line} | (unavailable) : ${diagnostic.message}`
+				}
 			}
 		}
 	}
