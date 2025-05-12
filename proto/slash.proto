@@ -10,4 +10,5 @@ import "common.proto";
 service SlashService {
   // Sends button click message
   rpc reportBug(StringRequest) returns (Empty);
+  rpc condense(StringRequest) returns (Empty);
 }

@@ -556,10 +556,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					})
 					break
 				case "condense":
-					vscode.postMessage({
-						type: "condense",
-						text: lastMessage?.text,
-					})
+					await SlashServiceClient.condense({ value: lastMessage?.text }).catch((err) => console.error(err))
 					break
 				case "report_bug":
 					await SlashServiceClient.reportBug({ value: lastMessage?.text }).catch((err) => console.error(err))
