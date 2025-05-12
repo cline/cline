@@ -41,6 +41,7 @@ import {
 	internationalQwenDefaultModelId,
 	vertexDefaultModelId,
 	vertexModels,
+	vertexGlobalModels,
 	askSageModels,
 	askSageDefaultModelId,
 	askSageDefaultURL,
@@ -932,6 +933,7 @@ const ApiOptions = ({
 							<VSCodeOption value="europe-west1">europe-west1</VSCodeOption>
 							<VSCodeOption value="europe-west4">europe-west4</VSCodeOption>
 							<VSCodeOption value="asia-southeast1">asia-southeast1</VSCodeOption>
+							<VSCodeOption value="global">global</VSCodeOption>
 						</VSCodeDropdown>
 					</DropdownContainer>
 					<p
@@ -1851,7 +1853,8 @@ const ApiOptions = ({
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
 							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
-							{selectedProvider === "vertex" && createDropdown(vertexModels)}
+							{selectedProvider === "vertex" &&
+								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}

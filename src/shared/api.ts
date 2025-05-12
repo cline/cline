@@ -109,6 +109,7 @@ export interface ModelInfo {
 		outputPrice?: number // Output price per million tokens when budget > 0
 		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
 	}
+	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
@@ -398,6 +399,7 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 		cacheWritesPrice: 1.0,
@@ -408,6 +410,7 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0.075,
 		outputPrice: 0.3,
 	},
@@ -416,6 +419,7 @@ export const vertexModels = {
 		contextWindow: 32_767,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -424,6 +428,7 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -432,6 +437,7 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -440,6 +446,7 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 2.5,
 		outputPrice: 15,
 		cacheReadsPrice: 0.31,
@@ -463,6 +470,7 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 		thinkingConfig: {
@@ -475,6 +483,7 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
 		inputPrice: 0,
 		outputPrice: 0,
 	},
@@ -543,6 +552,10 @@ export const vertexModels = {
 		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
+	Object.entries(vertexModels).filter(([_k, v]) => v.hasOwnProperty("supportsGlobalEndpoint")),
+) as Record<string, ModelInfo>
 
 export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	maxTokens: -1,
