@@ -1,6 +1,5 @@
-import { HTMLAttributes, useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useState, memo } from "react"
 import { useEvent } from "react-use"
-import { Virtuoso } from "react-virtuoso"
 import { ChevronDown, Skull } from "lucide-react"
 
 import { CommandExecutionStatus, commandExecutionStatusSchema } from "@roo/schemas"
@@ -19,6 +18,17 @@ interface CommandExecutionProps {
 	text?: string
 }
 
+const parseCommandAndOutput = (text: string) => {
+	const index = text.indexOf(COMMAND_OUTPUT_STRING)
+	if (index === -1) {
+		return { command: text, output: "" }
+	}
+	return {
+		command: text.slice(0, index),
+		output: text.slice(index + COMMAND_OUTPUT_STRING.length),
+	}
+}
+
 export const CommandExecution = ({ executionId, text }: CommandExecutionProps) => {
 	const { terminalShellIntegrationDisabled = false } = useExtensionState()
 
@@ -27,13 +37,11 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 	const [isExpanded, setIsExpanded] = useState(terminalShellIntegrationDisabled)
 
 	const [status, setStatus] = useState<CommandExecutionStatus | null>(null)
-	const [output, setOutput] = useState("")
-	const [command, setCommand] = useState(text)
-
-	const lines = useMemo(
-		() => [`$ ${command}`, ...output.split("\n").filter((line) => line.trim() !== "")],
-		[output, command],
-	)
+	const { command: initialCommand, output: initialOutput } = text
+		? parseCommandAndOutput(text)
+		: { command: "", output: "" }
+	const [output, setOutput] = useState(initialOutput)
+	const [command, setCommand] = useState(initialCommand)
 
 	const onMessage = useCallback(
 		(event: MessageEvent) => {
@@ -55,7 +63,7 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 							setStatus(data)
 							break
 						case "output":
-							setOutput((output) => output + data.output)
+							setOutput(data.output)
 							break
 						case "fallback":
 							setIsExpanded(true)
@@ -72,22 +80,9 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 
 	useEvent("message", onMessage)
 
-	useEffect(() => {
-		if (!status && text) {
-			const index = text.indexOf(COMMAND_OUTPUT_STRING)
-
-			if (index === -1) {
-				setCommand(text)
-			} else {
-				setCommand(text.slice(0, index))
-				setOutput(text.slice(index + COMMAND_OUTPUT_STRING.length))
-			}
-		}
-	}, [status, text])
-
 	return (
 		<div className="w-full bg-vscode-editor-background border border-vscode-border rounded-xs p-2">
-			<CodeBlock source={command} language="shell" />
+			<CodeBlock source={text ? parseCommandAndOutput(text).command : command} language="shell" />
 			<div className="flex flex-row items-center justify-between gap-2 px-1">
 				<div className="flex flex-row items-center gap-1">
 					{status?.status === "started" && (
@@ -116,7 +111,7 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 							<div className="whitespace-nowrap">Exited ({status.exitCode})</div>
 						</div>
 					)}
-					{lines.length > 0 && (
+					{output.length > 0 && (
 						<Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
 							<ChevronDown
 								className={cn("size-4 transition-transform duration-300", {
@@ -127,31 +122,21 @@ export const CommandExecution = ({ executionId, text }: CommandExecutionProps) =
 					)}
 				</div>
 			</div>
-			<div
-				className={cn("mt-1 pt-1 border-t border-border/25", { hidden: !isExpanded })}
-				style={{ height: Math.min((lines.length + 1) * 16, 200) }}>
-				{lines.length > 0 && (
-					<Virtuoso
-						className="h-full"
-						totalCount={lines.length}
-						itemContent={(i) => <Line className="text-sm">{lines[i]}</Line>}
-						followOutput="auto"
-					/>
-				)}
-			</div>
+			<MemoizedOutputContainer isExpanded={isExpanded} output={output} />
 		</div>
 	)
 }
 
-type LineProps = HTMLAttributes<HTMLDivElement>
-
-const Line = ({ className, ...props }: LineProps) => {
-	return (
-		<div
-			className={cn("font-mono text-vscode-editor-foreground whitespace-pre-wrap break-words", className)}
-			{...props}
-		/>
-	)
-}
-
 CommandExecution.displayName = "CommandExecution"
+
+const OutputContainer = ({ isExpanded, output }: { isExpanded: boolean; output: string }) => (
+	<div
+		className={cn("mt-1 pt-1 border-t border-border/25 overflow-hidden transition-[max-height] duration-300", {
+			"max-h-0": !isExpanded,
+			"max-h-[100%]": isExpanded,
+		})}>
+		{output.length > 0 && <CodeBlock source={output} language="log" />}
+	</div>
+)
+
+const MemoizedOutputContainer = memo(OutputContainer)

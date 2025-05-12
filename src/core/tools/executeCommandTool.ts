@@ -149,9 +149,12 @@ export async function executeCommand(
 	const terminalProvider = terminalShellIntegrationDisabled ? "execa" : "vscode"
 	const clineProvider = await cline.providerRef.deref()
 
+	let accumulatedOutput = ""
 	const callbacks: RooTerminalCallbacks = {
-		onLine: async (output: string, process: RooTerminalProcess) => {
-			const status: CommandExecutionStatus = { executionId, status: "output", output }
+		onLine: async (lines: string, process: RooTerminalProcess) => {
+			accumulatedOutput += lines
+			const compressedOutput = Terminal.compressTerminalOutput(accumulatedOutput, terminalOutputLineLimit)
+			const status: CommandExecutionStatus = { executionId, status: "output", output: compressedOutput }
 			clineProvider?.postMessageToWebview({ type: "commandExecutionStatus", text: JSON.stringify(status) })
 
 			if (runInBackground) {
