@@ -2,12 +2,7 @@
 
 ## 3.16.0
 
-### Minor Changes
-
 -   95cc15a: Releasing memory after every diff edit to help fix grey screen webview crashes
-
-### Patch Changes
-
 -   33413e9: refreshRequestyModels protobus migration
 -   e504b9d: introduce front end tracking for those who have opted in to telemetry
 -   c79acf5: Disable breaking out of diff auto scroll while it's reworked
