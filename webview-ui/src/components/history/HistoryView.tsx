@@ -514,11 +514,14 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												whiteSpace: "pre-wrap",
 												wordBreak: "break-word",
 												overflowWrap: "anywhere",
-											}}
-											dangerouslySetInnerHTML={{
-												__html: item.task,
-											}}
-										/>
+											}}>
+											<span
+												className="ph-no-capture"
+												dangerouslySetInnerHTML={{
+													__html: item.task,
+												}}
+											/>
+										</div>
 									</div>
 									<div
 										style={{

@@ -51,7 +51,8 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedI
 					filteredCommands.map((command, index) => (
 						<div
 							key={command.name}
-							className={`py-2 px-3 cursor-pointer flex flex-col border-b border-[var(--vscode-editorGroup-border)] ${
+							id={`slash-command-menu-item-${index}`}
+							className={`slash-command-menu-item py-2 px-3 cursor-pointer flex flex-col border-b border-[var(--vscode-editorGroup-border)] ${
 								// Corrected padding
 								index === selectedIndex
 									? "bg-[var(--vscode-quickInputList-focusBackground)] text-[var(--vscode-quickInputList-focusForeground)]"
@@ -59,9 +60,11 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ onSelect, selectedI
 							} hover:bg-[var(--vscode-list-hoverBackground)]`}
 							onClick={() => handleClick(command)}
 							onMouseEnter={() => setSelectedIndex(index)}>
-							<div className="font-bold whitespace-nowrap overflow-hidden text-ellipsis">/{command.name}</div>
+							<div className="font-bold whitespace-nowrap overflow-hidden text-ellipsis">
+								<span className="ph-no-capture">/{command.name}</span>
+							</div>
 							<div className="text-[0.85em] text-[var(--vscode-descriptionForeground)] whitespace-normal overflow-hidden text-ellipsis">
-								{command.description}
+								<span className="ph-no-capture">{command.description}</span>
 							</div>
 						</div>
 					))

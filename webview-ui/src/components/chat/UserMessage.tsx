@@ -141,7 +141,9 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 					</div>
 				</>
 			) : (
-				<span style={{ display: "block" }}>{highlightText(editedText || text)}</span>
+				<span className="ph-no-capture" style={{ display: "block" }}>
+					{highlightText(editedText || text)}
+				</span>
 			)}
 			{images && images.length > 0 && <Thumbnails images={images} style={{ marginTop: "8px" }} />}
 		</div>
