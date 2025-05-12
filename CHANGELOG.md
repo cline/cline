@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.16.0
+
+### Minor Changes
+
+-   95cc15a: Releasing memory after every diff edit to help fix grey screen webview crashes
+
+### Patch Changes
+
+-   33413e9: refreshRequestyModels protobus migration
+-   e504b9d: introduce front end tracking for those who have opted in to telemetry
+-   c79acf5: Disable breaking out of diff auto scroll while it's reworked
+-   df9c8e2: Remove vite files and make enable all the first item
+-   4d480ea: Adds switch to enabler/disable telemtry categories
+-   a6c4c0c: Add detailed configuration options for LiteLLM provider
+-   915555f: ship with defaults
+-   f8a7b56: move slash report bug to protos / grpc
+-   7d5d347: Fixed freezing issues during rendering of large streaming text.
+-   312777d: remove explicit caching for gemini in OR/cline provider
+
 ## [3.15.1]
 
 -   Fix bug where PowerShell commands weren't given enough time before giving up and showing an error
