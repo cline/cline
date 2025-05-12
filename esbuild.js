@@ -4,6 +4,7 @@ const path = require("path")
 
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
+const standalone = process.argv.includes("--standalone")
 
 /**
  * @type {import('esbuild').Plugin}
@@ -140,11 +141,11 @@ const extensionConfig = {
 			},
 		},
 	],
-	entryPoints: ["src/extension.ts"],
+	entryPoints: [standalone ? "src/standalone/extension-standalone.ts" : "src/extension.ts"],
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
-	outfile: "dist/extension.js",
+	outfile: standalone ? "dist-standalone/extension-standalone.js" : "dist/extension.js",
 	external: ["vscode"],
 }
 

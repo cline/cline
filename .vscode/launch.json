@@ -38,6 +38,22 @@
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
 			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Launch standalone extension",
+			"skipFiles": ["<node_internals>/**"],
+			"sourceMaps": true,
+			"resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+			"cwd": "${workspaceFolder}/dist-standalone",
+			"outFiles": ["${workspaceFolder}/dist-standalone/**/*.js"],
+			"preLaunchTask": "compile-standalone",
+			"env": {
+				"GRPC_TRACE": "all",
+				"GRPC_VERBOSITY": "DEBUG"
+			},
+			"program": "extension-standalone.js"
 		}
 	]
 }

@@ -1,29 +1,26 @@
 #!/bin/bash
 set -uxe
 
-BUILD_DIR=build
-
-if [ ! -f ../dist/extension.js ]; then
-  echo You need to build the cline extension before running this script.
-  exit 1
-fi
+BUILD_DIR=dist-standalone
 
 mkdir -p $BUILD_DIR 2>/dev/null || true
 
-# Copy the standalone files into the buld dir.
-cp -av files/. $BUILD_DIR
+# Create proto descriptor set.
+mkdir -p $BUILD_DIR/proto
+npx grpc_tools_node_protoc \
+  --proto_path=proto \
+  --descriptor_set_out=$BUILD_DIR/proto/descriptor_set.pb \
+  --include_imports \
+  proto/*.proto
 
-PROTO_DIR=../proto
-# The proto files are needed when using protoLoader and gRPC reflection.
-rm -f $BUILD_DIR/*.proto
-cp -av $PROTO_DIR/*.proto $BUILD_DIR
+# Generate the code to setup the gRPC handlers.
+NODE_OPTIONS=--no-warnings node standalone/generate-server-setup.js
 
-# Copy the pre-built extension
-cp ../dist/extension.js $BUILD_DIR
-echo 'module.exports.Controller = Controller' >> build/extension.js
+# Compile the standalone extension.
+npm run compile-standalone
 
-# Generate gRPC server for the services and handlers.
-node generate-server.js
+# Copy the standalone's package.json and vscode replacement module into the build dir.
+cp -av standalone/runtime-files/. $BUILD_DIR
 
 # Install npm modules used by the extension at runtime.
 cd $BUILD_DIR
@@ -34,7 +31,7 @@ if find node_modules -name '*.node' | grep .; then
   exit 1
 fi
 
-# Zip all the files needed for the standalone extension.
+# # Zip all the files needed for the standalone extension.
 zip -q -r standalone.zip . -x standalone.zip
 
-echo Built standalone cline: $(realpath standalone.zip)
+# echo Built standalone cline: $(realpath standalone.zip)
