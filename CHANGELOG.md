@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.15.2]
+
+- Added details to auto approve menu and more sensible default controls
+- Add detailed configuration options for LiteLLM provider
+- Add webview telemetry for users who have opted in to telemetry
+- Update Gemini in OpenRouter/Cline providers to use implicit caching
+- Fix freezing issues during rendering of large streaming text
+- Fix grey screen webview crashes by releasing memory after every diff edit
+- Fix breaking out of diff auto-scroll
+- Fix IME composition Enter auto‑sending edited message
+
 ## [3.15.1]
 
 -   Fix bug where PowerShell commands weren't given enough time before giving up and showing an error
