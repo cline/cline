@@ -381,7 +381,10 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					maxHeight: isExpanded ? "1000px" : favorites.length > 0 ? "40px" : "22px", // Large enough to fit content
 					opacity: isExpanded ? 1 : 0,
 					overflow: "hidden",
-					transition: "max-height 0.3s ease-in-out, opacity 0.3s ease-in-out", // Removed padding to transition
+					transition: "max-height 0.3s ease-in-out, opacity 0.3s ease-in-out",
+					display: "flex",
+					flexDirection: "column",
+					gap: "4px",
 				}}>
 				{isExpanded && ( // Re-added conditional rendering for content
 					<>
@@ -469,7 +472,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								<span className="codicon codicon-settings" style={{ color: "#CCCCCC", fontSize: "14px" }} />
 								<span style={{ color: "#CCCCCC", fontSize: "12px", fontWeight: 500 }}>Max Requests:</span>
 								<VSCodeTextField
-									style={{ flex: "1", width: "100%" }}
+									style={{ flex: "1", width: "100%", paddingRight: "35px" }}
 									value={autoApprovalSettings.maxRequests.toString()}
 									onInput={(e) => {
 										const input = e.target as HTMLInputElement
@@ -493,6 +496,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							</div>
 						</HeroTooltip>
 					</>
+				)}
+				{isExpanded && (
+					<span
+						className="codicon codicon-chevron-up"
+						style={{ paddingBottom: "4px", marginLeft: "auto", marginTop: "-20px", cursor: "pointer" }}
+						onClick={() => setIsExpanded(false)}
+					/>
 				)}
 			</div>
 		</div>
