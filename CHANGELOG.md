@@ -4,8 +4,8 @@
 
 -   Add Fireworks API Provider
 -   Fix minor visual issues with auto-approve menu
--   Fixed one instance of terminal not getting output
--   Fixed 'Chrome was launched but debug port is not responding' error
+-   Fix one instance of terminal not getting output
+-   Fix 'Chrome was launched but debug port is not responding' error
 
 ## [3.15.2]
 
