@@ -138,6 +138,7 @@ type GlobalSettings = {
 				slug: string
 				name: string
 				roleDefinition: string
+				whenToUse?: string | undefined
 				customInstructions?: string | undefined
 				groups: (
 					| ("read" | "edit" | "browser" | "command" | "mcp" | "modes")
@@ -157,6 +158,7 @@ type GlobalSettings = {
 				[x: string]:
 					| {
 							roleDefinition?: string | undefined
+							whenToUse?: string | undefined
 							customInstructions?: string | undefined
 					  }
 					| undefined
@@ -822,6 +824,7 @@ type IpcMessage =
 											slug: string
 											name: string
 											roleDefinition: string
+											whenToUse?: string | undefined
 											customInstructions?: string | undefined
 											groups: (
 												| ("read" | "edit" | "browser" | "command" | "mcp" | "modes")
@@ -841,6 +844,7 @@ type IpcMessage =
 											[x: string]:
 												| {
 														roleDefinition?: string | undefined
+														whenToUse?: string | undefined
 														customInstructions?: string | undefined
 												  }
 												| undefined
@@ -1282,6 +1286,7 @@ type TaskCommand =
 								slug: string
 								name: string
 								roleDefinition: string
+								whenToUse?: string | undefined
 								customInstructions?: string | undefined
 								groups: (
 									| ("read" | "edit" | "browser" | "command" | "mcp" | "modes")
@@ -1301,6 +1306,7 @@ type TaskCommand =
 								[x: string]:
 									| {
 											roleDefinition?: string | undefined
+											whenToUse?: string | undefined
 											customInstructions?: string | undefined
 									  }
 									| undefined

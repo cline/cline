@@ -34,6 +34,11 @@
 		"resetToDefault": "기본값으로 재설정",
 		"description": "이 모드에 대한 Roo의 전문성과 성격을 정의하세요. 이 설명은 Roo가 자신을 어떻게 표현하고 작업에 접근하는지 형성합니다."
 	},
+	"whenToUse": {
+		"title": "사용 시기 (선택 사항)",
+		"description": "이 모드를 언제 사용해야 하는지 설명합니다. 이는 Orchestrator가 작업에 적합한 모드를 선택하는 데 도움이 됩니다.",
+		"resetToDefault": "'사용 시기' 설명을 기본값으로 재설정"
+	},
 	"customInstructions": {
 		"title": "모드별 사용자 지정 지침 (선택 사항)",
 		"resetToDefault": "기본값으로 재설정",
@@ -130,6 +135,10 @@
 		"roleDefinition": {
 			"label": "역할 정의",
 			"description": "이 모드에 대한 Roo의 전문성과 성격을 정의하세요."
+		},
+		"whenToUse": {
+			"label": "사용 시기 (선택 사항)",
+			"description": "이 모드가 가장 효과적인 시기와 어떤 유형의 작업에 적합한지에 대한 명확한 설명을 제공하세요."
 		},
 		"tools": {
 			"label": "사용 가능한 도구",

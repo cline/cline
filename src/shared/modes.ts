@@ -233,6 +233,7 @@ export const defaultPrompts: Readonly<CustomModePrompts> = Object.freeze(
 			mode.slug,
 			{
 				roleDefinition: mode.roleDefinition,
+				whenToUse: mode.whenToUse,
 				customInstructions: mode.customInstructions,
 			},
 		]),
@@ -248,6 +249,7 @@ export async function getAllModesWithPrompts(context: vscode.ExtensionContext): 
 	return allModes.map((mode) => ({
 		...mode,
 		roleDefinition: customModePrompts[mode.slug]?.roleDefinition ?? mode.roleDefinition,
+		whenToUse: customModePrompts[mode.slug]?.whenToUse ?? mode.whenToUse,
 		customInstructions: customModePrompts[mode.slug]?.customInstructions ?? mode.customInstructions,
 	}))
 }
@@ -271,6 +273,7 @@ export async function getFullModeDetails(
 
 	// Get the base custom instructions
 	const baseCustomInstructions = promptComponent?.customInstructions || baseMode.customInstructions || ""
+	const baseWhenToUse = promptComponent?.whenToUse || baseMode.whenToUse || ""
 
 	// If we have cwd, load and combine all custom instructions
 	let fullCustomInstructions = baseCustomInstructions
@@ -288,6 +291,7 @@ export async function getFullModeDetails(
 	return {
 		...baseMode,
 		roleDefinition: promptComponent?.roleDefinition || baseMode.roleDefinition,
+		whenToUse: baseWhenToUse,
 		customInstructions: fullCustomInstructions,
 	}
 }
@@ -300,6 +304,16 @@ export function getRoleDefinition(modeSlug: string, customModes?: ModeConfig[]):
 		return ""
 	}
 	return mode.roleDefinition
+}
+
+// Helper function to safely get whenToUse
+export function getWhenToUse(modeSlug: string, customModes?: ModeConfig[]): string {
+	const mode = getModeBySlug(modeSlug, customModes)
+	if (!mode) {
+		console.warn(`No mode found for slug: ${modeSlug}`)
+		return ""
+	}
+	return mode.whenToUse ?? ""
 }
 
 // Helper function to safely get custom instructions

@@ -34,6 +34,11 @@
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
 		"description": "Definiere Roos Expertise und Persönlichkeit für diesen Modus. Diese Beschreibung prägt, wie Roo sich präsentiert und an Aufgaben herangeht."
 	},
+	"whenToUse": {
+		"title": "Wann zu verwenden (optional)",
+		"description": "Beschreibe, wann dieser Modus verwendet werden sollte. Dies hilft dem Orchestrator, den richtigen Modus für eine Aufgabe auszuwählen.",
+		"resetToDefault": "Beschreibung 'Wann zu verwenden' auf Standardwerte zurücksetzen"
+	},
 	"customInstructions": {
 		"title": "Modusspezifische benutzerdefinierte Anweisungen (optional)",
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
@@ -130,6 +135,10 @@
 		"roleDefinition": {
 			"label": "Rollendefinition",
 			"description": "Definiere Roos Expertise und Persönlichkeit für diesen Modus."
+		},
+		"whenToUse": {
+			"label": "Wann zu verwenden (optional)",
+			"description": "Gib eine klare Beschreibung, wann dieser Modus am effektivsten ist und für welche Arten von Aufgaben er sich besonders eignet."
 		},
 		"tools": {
 			"label": "Verfügbare Werkzeuge",

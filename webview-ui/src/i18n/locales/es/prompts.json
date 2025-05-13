@@ -34,6 +34,11 @@
 		"resetToDefault": "Restablecer a valores predeterminados",
 		"description": "Define la experiencia y personalidad de Roo para este modo. Esta descripción determina cómo Roo se presenta y aborda las tareas."
 	},
+	"whenToUse": {
+		"title": "Cuándo usar (opcional)",
+		"description": "Describe cuándo se debe usar este modo. Esto ayuda al Orchestrator a elegir el modo correcto para una tarea.",
+		"resetToDefault": "Restablecer a valores predeterminados la descripción 'Cuándo usar'"
+	},
 	"customInstructions": {
 		"title": "Instrucciones personalizadas para el modo (opcional)",
 		"resetToDefault": "Restablecer a valores predeterminados",
@@ -130,6 +135,10 @@
 		"roleDefinition": {
 			"label": "Definición de rol",
 			"description": "Define la experiencia y personalidad de Roo para este modo."
+		},
+		"whenToUse": {
+			"label": "Cuándo usar (opcional)",
+			"description": "Proporciona una descripción clara de cuándo este modo es más efectivo y para qué tipos de tareas es más adecuado."
 		},
 		"tools": {
 			"label": "Herramientas disponibles",

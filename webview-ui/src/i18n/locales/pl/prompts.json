@@ -34,6 +34,11 @@
 		"resetToDefault": "Przywróć domyślne",
 		"description": "Zdefiniuj wiedzę specjalistyczną i osobowość Roo dla tego trybu. Ten opis kształtuje, jak Roo prezentuje się i podchodzi do zadań."
 	},
+	"whenToUse": {
+		"title": "Kiedy używać (opcjonalne)",
+		"description": "Opisz, kiedy ten tryb powinien być używany. Pomaga to Orchestratorowi wybrać odpowiedni tryb dla zadania.",
+		"resetToDefault": "Przywróć domyślny opis 'Kiedy używać'"
+	},
 	"customInstructions": {
 		"title": "Niestandardowe instrukcje dla trybu (opcjonalne)",
 		"resetToDefault": "Przywróć domyślne",
@@ -130,6 +135,10 @@
 		"roleDefinition": {
 			"label": "Definicja roli",
 			"description": "Zdefiniuj wiedzę specjalistyczną i osobowość Roo dla tego trybu."
+		},
+		"whenToUse": {
+			"label": "Kiedy używać (opcjonalne)",
+			"description": "Podaj jasny opis, kiedy ten tryb jest najbardziej efektywny i w jakich typach zadań się sprawdza."
 		},
 		"tools": {
 			"label": "Dostępne narzędzia",

@@ -34,6 +34,11 @@
 		"resetToDefault": "デフォルトにリセット",
 		"description": "このモードのRooの専門知識と個性を定義します。この説明は、Rooが自身をどのように表現し、タスクにどのように取り組むかを形作ります。"
 	},
+	"whenToUse": {
+		"title": "使用タイミング（オプション）",
+		"description": "このモードをいつ使用すべきかを説明します。これはOrchestratorがタスクに適切なモードを選択するのに役立ちます。",
+		"resetToDefault": "「使用タイミング」説明をデフォルトにリセット"
+	},
 	"customInstructions": {
 		"title": "モード固有のカスタム指示（オプション）",
 		"resetToDefault": "デフォルトにリセット",
@@ -130,6 +135,10 @@
 		"roleDefinition": {
 			"label": "役割の定義",
 			"description": "このモードのRooの専門知識と個性を定義します。"
+		},
+		"whenToUse": {
+			"label": "使用タイミング（オプション）",
+			"description": "このモードが最も効果的なタイミングと、どのようなタイプのタスクに適しているかを明確に説明します。"
 		},
 		"tools": {
 			"label": "利用可能なツール",

@@ -34,6 +34,11 @@
 		"resetToDefault": "Đặt lại về mặc định",
 		"description": "Xác định chuyên môn và tính cách của Roo cho chế độ này. Mô tả này định hình cách Roo giới thiệu bản thân và tiếp cận nhiệm vụ."
 	},
+	"whenToUse": {
+		"title": "Khi nào nên sử dụng (tùy chọn)",
+		"description": "Mô tả khi nào nên sử dụng chế độ này. Điều này giúp Orchestrator chọn chế độ phù hợp cho một nhiệm vụ.",
+		"resetToDefault": "Đặt lại mô tả 'Khi nào nên sử dụng' về mặc định"
+	},
 	"customInstructions": {
 		"title": "Hướng dẫn tùy chỉnh dành riêng cho chế độ (tùy chọn)",
 		"resetToDefault": "Đặt lại về mặc định",
@@ -130,6 +135,10 @@
 		"roleDefinition": {
 			"label": "Định nghĩa vai trò",
 			"description": "Xác định chuyên môn và tính cách của Roo cho chế độ này."
+		},
+		"whenToUse": {
+			"label": "Khi nào nên sử dụng (tùy chọn)",
+			"description": "Cung cấp mô tả rõ ràng về thời điểm chế độ này hiệu quả nhất và những loại nhiệm vụ nào nó thực hiện tốt nhất."
 		},
 		"tools": {
 			"label": "Công cụ có sẵn",

@@ -34,6 +34,11 @@
 		"resetToDefault": "Restablir a valors predeterminats",
 		"description": "Definiu l'experiència i personalitat de Roo per a aquest mode. Aquesta descripció determina com Roo es presenta i aborda les tasques."
 	},
+	"whenToUse": {
+		"title": "Quan utilitzar (opcional)",
+		"description": "Descriviu quan s'hauria d'utilitzar aquest mode. Això ajuda l'Orchestrator a escollir el mode correcte per a una tasca.",
+		"resetToDefault": "Restablir la descripció 'Quan utilitzar' a valors predeterminats"
+	},
 	"customInstructions": {
 		"title": "Instruccions personalitzades específiques del mode (opcional)",
 		"resetToDefault": "Restablir a valors predeterminats",
@@ -130,6 +135,10 @@
 		"roleDefinition": {
 			"label": "Definició de rol",
 			"description": "Definiu l'experiència i personalitat de Roo per a aquest mode."
+		},
+		"whenToUse": {
+			"label": "Quan utilitzar (opcional)",
+			"description": "Proporcioneu una descripció clara de quan aquest mode és més efectiu i per a quins tipus de tasques excel·leix."
 		},
 		"tools": {
 			"label": "Eines disponibles",

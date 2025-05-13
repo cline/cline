@@ -34,6 +34,11 @@
 		"resetToDefault": "Restaurar para padrão",
 		"description": "Defina a expertise e personalidade do Roo para este modo. Esta descrição molda como o Roo se apresenta e aborda tarefas."
 	},
+	"whenToUse": {
+		"title": "Quando usar (opcional)",
+		"description": "Descreva quando este modo deve ser usado. Isso ajuda o Orchestrator a escolher o modo certo para uma tarefa.",
+		"resetToDefault": "Restaurar descrição 'Quando usar' para padrão"
+	},
 	"customInstructions": {
 		"title": "Instruções personalizadas específicas do modo (opcional)",
 		"resetToDefault": "Restaurar para padrão",
@@ -130,6 +135,10 @@
 		"roleDefinition": {
 			"label": "Definição de função",
 			"description": "Defina a expertise e personalidade do Roo para este modo."
+		},
+		"whenToUse": {
+			"label": "Quando usar (opcional)",
+			"description": "Forneça uma descrição clara de quando este modo é mais eficaz e para quais tipos de tarefas ele se destaca."
 		},
 		"tools": {
 			"label": "Ferramentas disponíveis",
