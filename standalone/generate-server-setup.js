@@ -29,7 +29,10 @@ function generateHandlersAndExports() {
 		handlerSetup.push(`    server.addService(proto.cline.${name}.service, {`)
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
 			imports.push(`import { ${rpcName} } from "../core/controller/${dir}/${rpcName}"`)
-			if (rpc.requestStream || rpc.responseStream) {
+			if (rpc.requestStream) {
+				throw new Error("Request streaming is not supported")
+			}
+			if (rpc.responseStream) {
 				handlerSetup.push(`        // TODO add ${rpcName}`)
 			} else {
 				handlerSetup.push(`         ${rpcName}: wrapper(${rpcName}, controller),`)

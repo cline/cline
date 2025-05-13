@@ -57,7 +57,13 @@ import { getTaskHistory } from "../core/controller/task/getTaskHistory"
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
 
-function addServices(server: grpc.Server, proto: any, wrapper: GrpcHandlerWrapper, controller: Controller): void {
+function addServices(
+	server: grpc.Server,
+	proto: any,
+	wrapper: GrpcHandlerWrapper,
+	controller: Controller,
+	wrapResponseStreaming: any,
+): void {
 	// Account Service
 	server.addService(proto.cline.AccountService.service, {
 		accountLoginClicked: wrapper(accountLoginClicked, controller),
@@ -108,6 +114,7 @@ function addServices(server: grpc.Server, proto: any, wrapper: GrpcHandlerWrappe
 	// State Service
 	server.addService(proto.cline.StateService.service, {
 		getLatestState: wrapper(getLatestState, controller),
+		subscribeToState: wrapResponseStreaming(subscribeToState, controller),
 		// TODO add subscribeToState
 	})
 

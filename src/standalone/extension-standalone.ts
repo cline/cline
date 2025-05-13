@@ -5,9 +5,10 @@ import * as health from "grpc-health-check"
 import { activate } from "../extension"
 import { Controller } from "../core/controller"
 import { extensionContext, outputChannel, postMessage } from "./vscode-impls"
-import { packageDefinition, proto, log } from "./utils"
+import { packageDefinition, proto, log, camelToSnakeCase } from "./utils"
 import { GrpcHandler } from "./grpc-types"
 import { addServices } from "./server-setup"
+import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 
 /**
  * Wraps a Promise-based handler function to make it compatible with gRPC's callback-based API.
@@ -28,10 +29,46 @@ export function wrapHandler<TRequest, TResponse>(
 		try {
 			log(`gRPC request: ${call.getPath()}`)
 			const result = await handler(controller, call.request)
-			callback(null, result)
+			// The grpc-js serializer expects the proto message to be in the same
+			// case as the proto file. This is a work around until we find a solution.
+			callback(null, camelToSnakeCase(result))
 		} catch (err: any) {
 			log(`gRPC handler error: ${call.getPath()}\n${err.stack}`)
 			callback({
+				code: grpc.status.INTERNAL,
+				message: err.message || "Internal error",
+			} as grpc.ServiceError)
+		}
+	}
+}
+
+export function wrapResponseStreamingHandler<TRequest, TResponse>(handler: any, controller: Controller): any {
+	return async (call: grpc.ServerWritableStream<TRequest, TResponse>) => {
+		try {
+			const requestId = call.metadata.get("request-id")
+			log(`gRPC streaming request: ${call.getPath()}`)
+
+			const responseStream: StreamingResponseHandler = (response, isLast, sequenceNumber) => {
+				console.log(" sss ", response)
+				try {
+					// The grpc-js serializer expects the proto message to be in the same
+					// case as the proto file. This is a work around until we find a solution.
+
+					// Use a bound version of call.write to maintain proper 'this' context
+					call.write(camelToSnakeCase(response), (err: any) => console.log("message written, err?", err))
+					if (isLast === true) {
+						log(`Closing stream for ${requestId}`)
+						call.end()
+					}
+					return Promise.resolve()
+				} catch (error) {
+					return Promise.reject(error)
+				}
+			}
+			await handler(controller, call.request, responseStream, requestId)
+		} catch (err: any) {
+			log(`gRPC handler error: ${call.getPath()}\n${err.stack}`)
+			call.destroy({
 				code: grpc.status.INTERNAL,
 				message: err.message || "Internal error",
 			} as grpc.ServiceError)
@@ -51,7 +88,7 @@ function main() {
 	healthImpl.addToServer(server)
 
 	// Add all the handlers for the ProtoBus services to the server.
-	addServices(server, proto, wrapHandler, controller)
+	addServices(server, proto, wrapHandler, controller, wrapResponseStreamingHandler)
 
 	// Set up reflection.
 	const reflection = new ReflectionService(packageDefinition)

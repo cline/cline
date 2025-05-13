@@ -5,7 +5,7 @@ const path = require("path")
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
 const standalone = process.argv.includes("--standalone")
-const destDir = "dist-standalone" ? standalone : "dist"
+const destDir = standalone ? "dist-standalone" : "dist"
 
 /**
  * @type {import('esbuild').Plugin}
