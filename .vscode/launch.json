@@ -9,9 +9,35 @@
 			"name": "Run Extension",
 			"type": "extensionHost",
 			"request": "launch",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--disable-workspace-trust", "${workspaceFolder}"],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
-			"preLaunchTask": "${defaultBuildTask}"
+			"preLaunchTask": "${defaultBuildTask}",
+			"env": {
+				"IS_DEV": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
+			}
+		},
+		{
+			"name": "Run Extension (Fresh Install Mode)",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--profile-temp",
+				"--sync",
+				"off",
+				"--disable-extensions",
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"${workspaceFolder}"
+			],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"preLaunchTask": "clean-sandbox",
+			"internalConsoleOptions": "openOnSessionStart",
+			"postDebugTask": "stop",
+			"env": {
+				"IS_DEV": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
+			}
 		}
 	]
 }

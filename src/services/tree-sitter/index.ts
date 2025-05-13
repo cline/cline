@@ -1,9 +1,9 @@
 import * as fs from "fs/promises"
 import * as path from "path"
-import { listFiles } from "../glob/list-files"
+import { listFiles } from "@services/glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
-import { fileExistsAtPath } from "../../utils/fs"
-import { ClineIgnoreController } from "../../core/ignore/ClineIgnoreController"
+import { fileExistsAtPath } from "@utils/fs"
+import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(
@@ -84,6 +84,8 @@ function separateFiles(allFiles: string[]): {
 		"java",
 		"php",
 		"swift",
+		// Kotlin
+		"kt",
 	].map((e) => `.${e}`)
 	const filesToParse = allFiles.filter((file) => extensions.includes(path.extname(file))).slice(0, 50) // 50 files max
 	const remainingFiles = allFiles.filter((file) => !filesToParse.includes(file))
@@ -155,7 +157,7 @@ async function parseFile(
 				formattedOutput += "|----\n"
 			}
 			// Only add the first line of the definition
-			// query captures includes the definition name and the definition implementation, but we only want the name (I found discrepencies in the naming structure for various languages, i.e. javascript names would be 'name' and typescript names would be 'name.definition)
+			// query captures includes the definition name and the definition implementation, but we only want the name (I found discrepancies in the naming structure for various languages, i.e. javascript names would be 'name' and typescript names would be 'name.definition)
 			if (name.includes("name") && lines[startLine]) {
 				formattedOutput += `│${lines[startLine]}\n`
 			}

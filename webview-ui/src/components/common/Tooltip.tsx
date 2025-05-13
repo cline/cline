@@ -6,24 +6,26 @@ import {
 	VSC_SIDEBAR_BACKGROUND,
 	VSC_INPUT_PLACEHOLDER_FOREGROUND,
 	VSC_INPUT_BORDER,
-} from "../../utils/vscStyles"
+} from "@/utils/vscStyles"
 
 interface TooltipProps {
-	hintText: string
+	visible?: boolean
+	hintText?: string
 	tipText: string
 	children: React.ReactNode
+	style?: React.CSSProperties
 }
 
 // add styled component for tooltip
-const TooltipBody = styled.div`
+const TooltipBody = styled.div<Pick<TooltipProps, "style">>`
 	position: absolute;
 	background-color: ${getAsVar(VSC_SIDEBAR_BACKGROUND)};
 	color: ${getAsVar(VSC_DESCRIPTION_FOREGROUND)};
 	padding: 5px;
 	border-radius: 5px;
 	bottom: 100%;
-	left: -180%;
-	z-index: 10;
+	left: ${(props) => props.style?.left ?? -180}%;
+	z-index: ${(props) => props.style?.zIndex ?? 1000};
 	white-space: wrap;
 	max-width: 200px;
 	border: 1px solid ${getAsVar(VSC_INPUT_BORDER)};
@@ -38,17 +40,20 @@ const Hint = styled.div`
 	margin-top: 2px;
 `
 
-const Tooltip: React.FC<TooltipProps> = ({ tipText, hintText, children }) => {
-	const [visible, setVisible] = useState(false)
+const Tooltip: React.FC<TooltipProps> = ({ visible, tipText, hintText, children, style }) => {
+	const [isHovered, setIsHovered] = useState(false)
 
-	const showTooltip = () => setVisible(true)
-	const hideTooltip = () => setVisible(false)
+	// Determine final visibility based on prop or internal state
+	const shouldShow = visible !== undefined ? visible : isHovered
 
 	return (
-		<div style={{ position: "relative", display: "inline-block" }} onMouseEnter={showTooltip} onMouseLeave={hideTooltip}>
+		<div
+			style={{ position: "relative", display: "inline-block" }}
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}>
 			{children}
-			{visible && (
-				<TooltipBody>
+			{shouldShow && (
+				<TooltipBody style={style}>
 					{tipText}
 					{hintText && <Hint>{hintText}</Hint>}
 				</TooltipBody>

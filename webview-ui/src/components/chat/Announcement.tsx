@@ -1,120 +1,109 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo } from "react"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "../../utils/vscStyles"
+import { CSSProperties, memo } from "react"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
+import { Accordion, AccordionItem } from "@heroui/react"
 
 interface AnnouncementProps {
 	version: string
 	hideAnnouncement: () => void
 }
 
+const containerStyle: CSSProperties = {
+	backgroundColor: getAsVar(VSC_INACTIVE_SELECTION_BACKGROUND),
+	borderRadius: "3px",
+	padding: "12px 16px",
+	margin: "5px 15px 5px 15px",
+	position: "relative",
+	flexShrink: 0,
+}
+const closeIconStyle: CSSProperties = { position: "absolute", top: "8px", right: "8px" }
+const h3TitleStyle: CSSProperties = { margin: "0 0 8px" }
+const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px" }
+const accountIconStyle: CSSProperties = { fontSize: 11 }
+const hrStyle: CSSProperties = {
+	height: "1px",
+	background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+	opacity: 0.1,
+	margin: "8px 0",
+}
+const linkContainerStyle: CSSProperties = { margin: "0" }
+const linkStyle: CSSProperties = { display: "inline" }
+
 /*
-You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
+You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with what's in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	return (
-		<div
-			style={{
-				backgroundColor: getAsVar(VSC_INACTIVE_SELECTION_BACKGROUND),
-				borderRadius: "3px",
-				padding: "12px 16px",
-				margin: "5px 15px 5px 15px",
-				position: "relative",
-				flexShrink: 0,
-			}}>
-			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={{ position: "absolute", top: "8px", right: "8px" }}>
+		<div style={containerStyle}>
+			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={closeIconStyle}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h3 style={{ margin: "0 0 8px" }}>
+			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
+			<ul style={ulStyle}>
 				<li>
-					<b>Plan/Act mode toggle:</b> Plan mode turns Cline into an architect that gathers information, asks clarifying
-					questions, and designs a solution. Switch back to Act mode to let him execute the plan!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1881761978986934582" style={{ display: "inline" }}>
-						See a demo here.
-					</VSCodeLink>
+					<b>Task Timeline:</b> See the history of your coding journey with a visual timeline of checkpoints, letting
+					you understand what Cline did at a glance.
 				</li>
 				<li>
-					<b>Quick API/model switching</b> with a new popup menu under the chat field
+					<b>UX Improvements:</b> Type while Cline works, smarter auto-scrolling, new copy buttons for task headers and
+					messages, and a simplified home interface for a smoother experience.
 				</li>
 				<li>
-					<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot
+					<b>Commit Message Generation:</b> Let Cline help craft meaningful commit messages based on your changes.
 				</li>
 				<li>
-					<b>MCP server improvements:</b> On/off toggle to disable servers when not in use, and Auto-approve option for
-					individual tools
+					<b>Quote Replies:</b> Easily reference previous messages with new quote reply support for clearer
+					conversations.
 				</li>
 				<li>
-					In case you missed it, Cline now supports Checkpoints!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
-						See it in action here.
-					</VSCodeLink>
+					<b>Auto Caching for Gemini:</b> Native support for Gemini's recently released Implicit Caching.
 				</li>
 			</ul>
-			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				 <li>
-					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
-					so I recommend trying them out.
-					<br />
-					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(vscodeUriScheme)}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Get OpenRouter API Key
-						</VSCodeButtonLink>
-					)}
-					{apiConfiguration?.openRouterApiKey && apiConfiguration?.apiProvider !== "openrouter" && (
-						<VSCodeButton
-							onClick={() => {
-								vscode.postMessage({
-									type: "apiConfiguration",
-									apiConfiguration: { ...apiConfiguration, apiProvider: "openrouter" },
-								})
-							}}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Switch to OpenRouter
-						</VSCodeButton>
-					)}
-				</li>
-				<li>
-					<b>Edit Cline's changes before accepting!</b> When he creates or edits a file, you can modify his
-					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
-					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
-				</li>
-				<li>
-					New <code>search_files</code> tool that lets Cline perform regex searches in your project, letting
-					him refactor code, address TODOs and FIXMEs, remove dead code, and more!
-				</li>
-				<li>
-					When Cline runs commands, you can now type directly in the terminal (+ support for Python
-					environments)
-				</li>
-			</ul>*/}
-			<div
-				style={{
-					height: "1px",
-					background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
-					opacity: 0.1,
-					margin: "8px 0",
-				}}
-			/>
-			<p style={{ margin: "0" }}>
-				Join our{" "}
-				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord
+			<Accordion isCompact className="pl-0">
+				<AccordionItem
+					key="1"
+					aria-label="Previous Updates"
+					title="Previous Updates:"
+					classNames={{
+						trigger: "bg-transparent border-0 pl-0 pb-0 w-fit",
+						title: "font-bold text-[var(--vscode-foreground)]",
+						indicator:
+							"text-[var(--vscode-foreground)] mb-0.5 -rotate-180 data-[open=true]:-rotate-90 rtl:rotate-0 rtl:data-[open=true]:-rotate-90",
+					}}>
+					<ul style={ulStyle}>
+						<li>
+							<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price
+							tracking for Gemini models.
+						</li>
+						<li>
+							<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their
+							contents easily.
+						</li>
+						<li>
+							<b>Global Cline Rules:</b> Store multiple rules files in Documents/Cline/Rules to share between
+							projects.
+						</li>
+						<li>
+							<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a
+							new task.
+						</li>
+					</ul>
+				</AccordionItem>
+			</Accordion>
+			<div style={hrStyle} />
+			<p style={linkContainerStyle}>
+				Join us on{" "}
+				<VSCodeLink style={linkStyle} href="https://x.com/cline">
+					X,
+				</VSCodeLink>{" "}
+				<VSCodeLink style={linkStyle} href="https://discord.gg/cline">
+					discord,
 				</VSCodeLink>{" "}
 				or{" "}
-				<VSCodeLink style={{ display: "inline" }} href="https://www.reddit.com/r/cline/">
+				<VSCodeLink style={linkStyle} href="https://www.reddit.com/r/cline/">
 					r/cline
 				</VSCodeLink>
 				for more updates!

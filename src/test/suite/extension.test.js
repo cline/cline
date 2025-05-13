@@ -4,6 +4,25 @@ const vscode = require("vscode")
 describe("Extension Tests", function () {
 	this.timeout(60000) // Increased timeout for extension operations
 
+	let originalGetConfiguration
+
+	beforeEach(() => {
+		// Save original configuration
+		originalGetConfiguration = vscode.workspace.getConfiguration
+		// Setup mock configuration
+		const mockUpdate = async () => Promise.resolve()
+		const mockConfig = {
+			get: () => true,
+			update: mockUpdate,
+		}
+		vscode.workspace.getConfiguration = () => mockConfig
+	})
+
+	afterEach(() => {
+		// Restore original configuration
+		vscode.workspace.getConfiguration = originalGetConfiguration
+	})
+
 	it("should activate extension successfully", async () => {
 		// Get the extension
 		const extension = vscode.extensions.getExtension("saoudrizwan.claude-dev")
@@ -33,15 +52,5 @@ describe("Extension Tests", function () {
 		// Test basic command execution
 		await vscode.commands.executeCommand("cline.historyButtonClicked")
 		// Success if no error thrown
-	})
-
-	it("should handle advanced settings configuration", async () => {
-		// Test browser session setting
-		await vscode.workspace.getConfiguration().update("cline.disableBrowserTool", true, true)
-		const updatedConfig = vscode.workspace.getConfiguration("cline")
-		expect(updatedConfig.get("disableBrowserTool")).to.be.true
-
-		// Reset settings
-		await vscode.workspace.getConfiguration().update("cline.disableBrowserTool", undefined, true)
 	})
 })

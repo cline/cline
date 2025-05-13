@@ -1,39 +1,50 @@
 import * as vscode from "vscode"
 import * as path from "path"
-import { openFile } from "../../integrations/misc/open-file"
-import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
-import { mentionRegexGlobal } from "../../shared/context-mentions"
+import { openFile } from "@integrations/misc/open-file"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { mentionRegexGlobal } from "@shared/context-mentions"
 import fs from "fs/promises"
-import { extractTextFromFile } from "../../integrations/misc/extract-text"
+import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
-import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
+import { diagnosticsToProblemsString } from "@integrations/diagnostics"
+import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
+import { getCommitInfo } from "@utils/git"
+import { getWorkingState } from "@utils/git"
+import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 
 export function openMention(mention?: string): void {
 	if (!mention) {
 		return
 	}
 
+	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+	if (!cwd) {
+		return
+	}
+
 	if (mention.startsWith("/")) {
 		const relPath = mention.slice(1)
-		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-		if (!cwd) {
-			return
-		}
 		const absPath = path.resolve(cwd, relPath)
 		if (mention.endsWith("/")) {
 			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
-			// vscode.commands.executeCommand("vscode.openFolder", , { forceNewWindow: false }) opens in new window
 		} else {
 			openFile(absPath)
 		}
 	} else if (mention === "problems") {
 		vscode.commands.executeCommand("workbench.actions.view.problems")
+	} else if (mention === "terminal") {
+		vscode.commands.executeCommand("workbench.action.terminal.focus")
 	} else if (mention.startsWith("http")) {
 		vscode.env.openExternal(vscode.Uri.parse(mention))
 	}
 }
 
-export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
+export async function parseMentions(
+	text: string,
+	cwd: string,
+	urlContentFetcher: UrlContentFetcher,
+	fileContextTracker?: FileContextTracker,
+): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
@@ -46,6 +57,12 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 				: `'${mentionPath}' (see below for file content)`
 		} else if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
+		} else if (mention === "terminal") {
+			return `Terminal Output (see below for output)`
+		} else if (mention === "git-changes") {
+			return `Working directory changes (see below for details)`
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+			return `Git commit '${mention}' (see below for commit info)`
 		}
 		return match
 	})
@@ -61,7 +78,10 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 		}
 	}
 
-	for (const mention of mentions) {
+	// Filter out duplicate mentions while preserving order
+	const uniqueMentions = Array.from(new Set(mentions))
+
+	for (const mention of uniqueMentions) {
 		if (mention.startsWith("http")) {
 			let result: string
 			if (launchBrowserError) {
@@ -84,6 +104,10 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 					parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
 				} else {
 					parsedText += `\n\n<file_content path="${mentionPath}">\n${content}\n</file_content>`
+					// Track that this file was mentioned and its content was included
+					if (fileContextTracker) {
+						await fileContextTracker.trackFileContext(mentionPath, "file_mentioned")
+					}
 				}
 			} catch (error) {
 				if (mention.endsWith("/")) {
@@ -98,6 +122,27 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
+			}
+		} else if (mention === "terminal") {
+			try {
+				const terminalOutput = await getLatestTerminalOutput()
+				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
+			} catch (error) {
+				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
+			}
+		} else if (mention === "git-changes") {
+			try {
+				const workingState = await getWorkingState(cwd)
+				parsedText += `\n\n<git_working_state>\n${workingState}\n</git_working_state>`
+			} catch (error) {
+				parsedText += `\n\n<git_working_state>\nError fetching working state: ${error.message}\n</git_working_state>`
+			}
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+			try {
+				const commitInfo = await getCommitInfo(mention, cwd)
+				parsedText += `\n\n<git_commit hash="${mention}">\n${commitInfo}\n</git_commit>`
+			} catch (error) {
+				parsedText += `\n\n<git_commit hash="${mention}">\nError fetching commit info: ${error.message}\n</git_commit>`
 			}
 		}
 	}

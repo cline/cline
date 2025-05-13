@@ -1,7 +1,6 @@
 import * as vscode from "vscode"
 import { describe, it, beforeEach, afterEach } from "mocha"
 import { strict as assert } from "assert"
-import { join } from "path"
 describe("Chat Integration Tests", () => {
 	let panel: vscode.WebviewPanel
 	let disposables: vscode.Disposable[] = []
@@ -29,7 +28,7 @@ describe("Chat Integration Tests", () => {
                                     break;
                                 case 'toggleMode':
                                     vscode.postMessage({
-                                        type: 'chatSettings',
+                                        type: 'togglePlanActMode',
                                         chatSettings: { mode: 'act' }, 
                                         chatContent: {
                                             message: "message test",
@@ -84,7 +83,7 @@ describe("Chat Integration Tests", () => {
 		// Set up state change listener
 		const stateChangePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "chatSettings") {
+				if (message.type === "togglePlanActMode") {
 					resolve(message)
 				}
 			})
@@ -102,7 +101,7 @@ describe("Chat Integration Tests", () => {
 		// Set up state change listener
 		const stateChangePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "chatSettings") {
+				if (message.type === "togglePlanActMode") {
 					resolve(message)
 				}
 			})

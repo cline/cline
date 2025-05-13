@@ -45,3 +45,59 @@ export async function fileExistsAtPath(filePath: string): Promise<boolean> {
 		return false
 	}
 }
+
+/**
+ * Checks if the path is a directory
+ * @param filePath - The path to check.
+ * @returns A promise that resolves to true if the path is a directory, false otherwise.
+ */
+export async function isDirectory(filePath: string): Promise<boolean> {
+	try {
+		const stats = await fs.stat(filePath)
+		return stats.isDirectory()
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Gets the size of a file in kilobytes
+ * @param filePath - Path to the file to check
+ * @returns Promise<number> - Size of the file in KB, or 0 if file doesn't exist
+ */
+export async function getFileSizeInKB(filePath: string): Promise<number> {
+	try {
+		const stats = await fs.stat(filePath)
+		const fileSizeInKB = stats.size / 1000 // Convert bytes to KB (decimal) - matches OS file size display
+		return fileSizeInKB
+	} catch {
+		return 0
+	}
+}
+
+// Common OS-generated files that would appear in an otherwise clean directory
+const OS_GENERATED_FILES = [
+	".DS_Store", // macOS Finder
+	"Thumbs.db", // Windows Explorer thumbnails
+	"desktop.ini", // Windows folder settings
+]
+
+/**
+ * Recursively reads a directory and returns an array of absolute file paths.
+ *
+ * @param directoryPath - The path to the directory to read.
+ * @returns A promise that resolves to an array of absolute file paths.
+ * @throws Error if the directory cannot be read.
+ */
+export const readDirectory = async (directoryPath: string) => {
+	try {
+		const filePaths = await fs
+			.readdir(directoryPath, { withFileTypes: true, recursive: true })
+			.then((entries) => entries.filter((entry) => !OS_GENERATED_FILES.includes(entry.name)))
+			.then((entries) => entries.filter((entry) => entry.isFile()))
+			.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
+		return filePaths
+	} catch {
+		throw new Error(`Error reading directory at ${directoryPath}`)
+	}
+}

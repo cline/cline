@@ -1,32 +1,68 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { useClickAway, useWindowSize } from "react-use"
+import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
-import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
 	insertMention,
+	insertMentionDirectly,
 	removeMention,
 	shouldShowContextMenu,
-} from "../../utils/context-mentions"
-import { validateApiConfiguration, validateModelId } from "../../utils/validate"
-import { vscode } from "../../utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import Thumbnails from "../common/Thumbnails"
-import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
-import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
-import ContextMenu from "./ContextMenu"
-import { useShortcut } from "../../utils/hooks"
-import Tooltip from "../common/Tooltip"
-import { useMetaKeyDetection } from "../../utils/hooks"
+	SearchResult,
+} from "@/utils/context-mentions"
+import {
+	SlashCommand,
+	slashCommandDeleteRegex,
+	shouldShowSlashCommandsMenu,
+	getMatchingSlashCommands,
+	insertSlashCommand,
+	removeSlashCommand,
+	validateSlashCommand,
+} from "@/utils/slash-commands"
+import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
+import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import { vscode } from "@/utils/vscode"
+import { EmptyRequest } from "@shared/proto/common"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import Thumbnails from "@/components/common/Thumbnails"
+import Tooltip from "@/components/common/Tooltip"
+import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
+import ContextMenu from "@/components/chat/ContextMenu"
+import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
+import { ChatSettings } from "@shared/ChatSettings"
+import ServersToggleModal from "./ServersToggleModal"
+import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
+
+const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
+	return new Promise((resolve, reject) => {
+		const img = new Image()
+		img.onload = () => {
+			if (img.naturalWidth > 7500 || img.naturalHeight > 7500) {
+				reject(new Error("Image dimensions exceed maximum allowed size of 7500px."))
+			} else {
+				resolve({ width: img.naturalWidth, height: img.naturalHeight })
+			}
+		}
+		img.onerror = (err) => {
+			console.error("Failed to load image for dimension check:", err)
+			reject(new Error("Failed to load image to check dimensions."))
+		}
+		img.src = dataUrl
+	})
+}
 
 interface ChatTextAreaProps {
 	inputValue: string
+	activeQuote: string | null
 	setInputValue: (value: string) => void
-	textAreaDisabled: boolean
+	sendingDisabled: boolean
 	placeholderText: string
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
@@ -34,6 +70,14 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
+	onFocusChange?: (isFocused: boolean) => void
+}
+
+interface GitCommit {
+	type: ContextMenuOptionType.Git
+	value: string
+	label: string
+	description: string
 }
 
 const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
@@ -201,8 +245,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	(
 		{
 			inputValue,
+			activeQuote,
 			setInputValue,
-			textAreaDisabled,
+			sendingDisabled,
 			placeholderText,
 			selectedImages,
 			setSelectedImages,
@@ -210,11 +255,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSelectImages,
 			shouldDisableImages,
 			onHeightChange,
+			onFocusChange,
 		},
 		ref,
 	) => {
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+		const [isDraggingOver, setIsDraggingOver] = useState(false)
+		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
+
+		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
+		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
+		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
+		const slashCommandsMenuContainerRef = useRef<HTMLDivElement>(null)
+
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
@@ -226,6 +280,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [selectedMenuIndex, setSelectedMenuIndex] = useState(-1)
 		const [selectedType, setSelectedType] = useState<ContextMenuOptionType | null>(null)
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
+		const [justDeletedSpaceAfterSlashCommand, setJustDeletedSpaceAfterSlashCommand] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 		const [showModelSelector, setShowModelSelector] = useState(false)
@@ -234,15 +289,65 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
+		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
+		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
+		const shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
+		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showDimensionError, setShowDimensionError] = useState(false)
+		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
+		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
 		const prevShowModelSelector = useRef(showModelSelector)
 
+		// Fetch git commits when Git is selected or when typing a hash
+		useEffect(() => {
+			if (selectedType === ContextMenuOptionType.Git || /^[a-f0-9]+$/i.test(searchQuery)) {
+				FileServiceClient.searchCommits({ value: searchQuery || "" })
+					.then((response) => {
+						if (response.commits) {
+							const commits: GitCommit[] = response.commits.map(
+								(commit: { hash: string; shortHash: string; subject: string; author: string; date: string }) => ({
+									type: ContextMenuOptionType.Git,
+									value: commit.hash,
+									label: commit.subject,
+									description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
+								}),
+							)
+							setGitCommits(commits)
+						}
+					})
+					.catch((error) => {
+						console.error("Error searching commits:", error)
+					})
+			}
+		}, [selectedType, searchQuery])
+
+		const handleMessage = useCallback((event: MessageEvent) => {
+			const message: ExtensionMessage = event.data
+			switch (message.type) {
+				case "fileSearchResults": {
+					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
+					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
+						setFileSearchResults(message.results || [])
+						setSearchLoading(false)
+					}
+					break
+				}
+			}
+		}, [])
+
+		useEvent("message", handleMessage)
+
 		const queryItems = useMemo(() => {
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
+				{ type: ContextMenuOptionType.Terminal, value: "terminal" },
+				...gitCommits,
 				...filePaths
 					.map((file) => "/" + file)
 					.map((path) => ({
@@ -250,7 +355,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value: path,
 					})),
 			]
-		}, [filePaths])
+		}, [filePaths, gitCommits])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
@@ -274,7 +379,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return
 				}
 
-				if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+				if (
+					type === ContextMenuOptionType.File ||
+					type === ContextMenuOptionType.Folder ||
+					type === ContextMenuOptionType.Git
+				) {
 					if (!value) {
 						setSelectedType(type)
 						setSearchQuery("")
@@ -293,6 +402,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = value || ""
 					} else if (type === ContextMenuOptionType.Problems) {
 						insertValue = "problems"
+					} else if (type === ContextMenuOptionType.Terminal) {
+						insertValue = "terminal"
+					} else if (type === ContextMenuOptionType.Git) {
+						insertValue = value || ""
 					}
 
 					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
@@ -315,8 +428,62 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[setInputValue, cursorPosition],
 		)
 
+		const handleSlashCommandsSelect = useCallback(
+			(command: SlashCommand) => {
+				setShowSlashCommandsMenu(false)
+
+				if (textAreaRef.current) {
+					const { newValue, commandIndex } = insertSlashCommand(textAreaRef.current.value, command.name)
+					const newCursorPosition = newValue.indexOf(" ", commandIndex + 1 + command.name.length) + 1
+
+					setInputValue(newValue)
+					setCursorPosition(newCursorPosition)
+					setIntendedCursorPosition(newCursorPosition)
+
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.blur()
+							textAreaRef.current.focus()
+						}
+					}, 0)
+				}
+			},
+			[setInputValue],
+		)
+
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+				if (showSlashCommandsMenu) {
+					if (event.key === "Escape") {
+						setShowSlashCommandsMenu(false)
+						return
+					}
+
+					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+						event.preventDefault()
+						setSelectedSlashCommandsIndex((prevIndex) => {
+							const direction = event.key === "ArrowUp" ? -1 : 1
+							const commands = getMatchingSlashCommands(slashCommandsQuery)
+
+							if (commands.length === 0) {
+								return prevIndex
+							}
+
+							const newIndex = (prevIndex + direction + commands.length) % commands.length
+							return newIndex
+						})
+						return
+					}
+
+					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
+						event.preventDefault()
+						const commands = getMatchingSlashCommands(slashCommandsQuery)
+						if (commands.length > 0) {
+							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
+						}
+						return
+					}
+				}
 				if (showContextMenu) {
 					if (event.key === "Escape") {
 						// event.preventDefault()
@@ -329,7 +496,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							const options = getContextMenuOptions(searchQuery, selectedType, queryItems)
+							const options = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)
 							const optionsLength = options.length
 
 							if (optionsLength === 0) return prevIndex
@@ -355,7 +522,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
 						event.preventDefault()
-						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[selectedMenuIndex]
+						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)[
+							selectedMenuIndex
+						]
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&
@@ -370,8 +539,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const isComposing = event.nativeEvent?.isComposing ?? false
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
-					setIsTextAreaFocused(false)
-					onSend()
+
+					if (!sendingDisabled) {
+						setIsTextAreaFocused(false)
+						onSend()
+					}
 				}
 
 				if (event.key === "Backspace" && !isComposing) {
@@ -382,13 +554,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						charBeforeCursor === " " || charBeforeCursor === "\n" || charBeforeCursor === "\r\n"
 					const charAfterIsWhitespace =
 						charAfterCursor === " " || charAfterCursor === "\n" || charAfterCursor === "\r\n"
-					// checks if char before cursor is whitespace after a mention
+
+					// Check if we're right after a space that follows a mention or slash command
 					if (
 						charBeforeIsWhitespace &&
-						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$")) // "$" is added to ensure the match occurs at the end of the string
+						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$"))
 					) {
+						// File mention handling
 						const newCursorPosition = cursorPosition - 1
-						// if mention is followed by another word, then instead of deleting the space separating them we just move the cursor to the end of the mention
 						if (!charAfterIsWhitespace) {
 							event.preventDefault()
 							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
@@ -396,17 +569,44 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}
 						setCursorPosition(newCursorPosition)
 						setJustDeletedSpaceAfterMention(true)
-					} else if (justDeletedSpaceAfterMention) {
+						setJustDeletedSpaceAfterSlashCommand(false)
+					} else if (charBeforeIsWhitespace && inputValue.slice(0, cursorPosition - 1).match(slashCommandDeleteRegex)) {
+						// New slash command handling
+						const newCursorPosition = cursorPosition - 1
+						if (!charAfterIsWhitespace) {
+							event.preventDefault()
+							textAreaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition)
+							setCursorPosition(newCursorPosition)
+						}
+						setCursorPosition(newCursorPosition)
+						setJustDeletedSpaceAfterSlashCommand(true)
+						setJustDeletedSpaceAfterMention(false)
+					}
+					// Handle the second backspace press for mentions or slash commands
+					else if (justDeletedSpaceAfterMention) {
 						const { newText, newPosition } = removeMention(inputValue, cursorPosition)
 						if (newText !== inputValue) {
 							event.preventDefault()
 							setInputValue(newText)
-							setIntendedCursorPosition(newPosition) // Store the new cursor position in state
+							setIntendedCursorPosition(newPosition)
 						}
 						setJustDeletedSpaceAfterMention(false)
 						setShowContextMenu(false)
-					} else {
+					} else if (justDeletedSpaceAfterSlashCommand) {
+						// New slash command deletion
+						const { newText, newPosition } = removeSlashCommand(inputValue, cursorPosition)
+						if (newText !== inputValue) {
+							event.preventDefault()
+							setInputValue(newText)
+							setIntendedCursorPosition(newPosition)
+						}
+						setJustDeletedSpaceAfterSlashCommand(false)
+						setShowSlashCommandsMenu(false)
+					}
+					// Default case - reset flags if none of the above apply
+					else {
 						setJustDeletedSpaceAfterMention(false)
+						setJustDeletedSpaceAfterSlashCommand(false)
 					}
 				}
 			},
@@ -422,15 +622,48 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				justDeletedSpaceAfterMention,
 				queryItems,
+				fileSearchResults,
+				showSlashCommandsMenu,
+				selectedSlashCommandsIndex,
+				slashCommandsQuery,
+				handleSlashCommandsSelect,
+				sendingDisabled,
 			],
 		)
 
+		// Effect to set cursor position after state updates
 		useLayoutEffect(() => {
 			if (intendedCursorPosition !== null && textAreaRef.current) {
 				textAreaRef.current.setSelectionRange(intendedCursorPosition, intendedCursorPosition)
-				setIntendedCursorPosition(null) // Reset the state
+				setIntendedCursorPosition(null) // Reset the state after applying
 			}
 		}, [inputValue, intendedCursorPosition])
+
+		useEffect(() => {
+			if (pendingInsertions.length === 0 || !textAreaRef.current) {
+				return
+			}
+
+			const path = pendingInsertions[0]
+			const currentTextArea = textAreaRef.current
+			const currentValue = currentTextArea.value
+			const currentCursorPos =
+				intendedCursorPosition ??
+				(currentTextArea.selectionStart >= 0 ? currentTextArea.selectionStart : currentValue.length)
+
+			const { newValue, mentionIndex } = insertMentionDirectly(currentValue, currentCursorPos, path)
+
+			setInputValue(newValue)
+
+			const newCursorPosition = mentionIndex + path.length + 2
+			setIntendedCursorPosition(newCursorPosition)
+
+			setPendingInsertions((prev) => prev.slice(1))
+		}, [pendingInsertions, setInputValue])
+
+		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+		const currentSearchQueryRef = useRef<string>("")
 
 		const handleInputChange = useCallback(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -438,24 +671,70 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				const newCursorPosition = e.target.selectionStart
 				setInputValue(newValue)
 				setCursorPosition(newCursorPosition)
-				const showMenu = shouldShowContextMenu(newValue, newCursorPosition)
+				let showMenu = shouldShowContextMenu(newValue, newCursorPosition)
+				const showSlashCommandsMenu = shouldShowSlashCommandsMenu(newValue, newCursorPosition)
 
+				// we do not allow both menus to be shown at the same time
+				// the slash commands menu has precedence bc its a narrower component
+				if (showSlashCommandsMenu) {
+					showMenu = false
+				}
+
+				setShowSlashCommandsMenu(showSlashCommandsMenu)
 				setShowContextMenu(showMenu)
+
+				if (showSlashCommandsMenu) {
+					const slashIndex = newValue.indexOf("/")
+					const query = newValue.slice(slashIndex + 1, newCursorPosition)
+					setSlashCommandsQuery(query)
+					setSelectedSlashCommandsIndex(0)
+				} else {
+					setSlashCommandsQuery("")
+					setSelectedSlashCommandsIndex(0)
+				}
+
 				if (showMenu) {
 					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
 					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
 					setSearchQuery(query)
-					if (query.length > 0) {
+					currentSearchQueryRef.current = query
+
+					if (query.length > 0 && !selectedType) {
 						setSelectedMenuIndex(0)
+
+						// Clear any existing timeout
+						if (searchTimeoutRef.current) {
+							clearTimeout(searchTimeoutRef.current)
+						}
+
+						setSearchLoading(true)
+
+						// Set a timeout to debounce the search requests
+						searchTimeoutRef.current = setTimeout(() => {
+							FileServiceClient.searchFiles({
+								query: query,
+								mentionsRequestId: query,
+							})
+								.then((results) => {
+									setFileSearchResults(results.results || [])
+									setSearchLoading(false)
+								})
+								.catch((error) => {
+									console.error("Error searching files:", error)
+									setFileSearchResults([])
+									setSearchLoading(false)
+								})
+						}, 200) // 200ms debounce
 					} else {
 						setSelectedMenuIndex(3) // Set to "File" option by default
 					}
 				} else {
 					setSearchQuery("")
 					setSelectedMenuIndex(-1)
+					setFileSearchResults([])
 				}
 			},
-			[setInputValue],
+			[setInputValue, setFileSearchResults, selectedType],
 		)
 
 		useEffect(() => {
@@ -468,9 +747,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			// Only hide the context menu if the user didn't click on it
 			if (!isMouseDownOnMenu) {
 				setShowContextMenu(false)
+				setShowSlashCommandsMenu(false)
 			}
 			setIsTextAreaFocused(false)
-		}, [isMouseDownOnMenu])
+			onFocusChange?.(false) // Call prop on blur
+		}, [isMouseDownOnMenu, onFocusChange])
+
+		const showDimensionErrorMessage = useCallback(() => {
+			setShowDimensionError(true)
+			if (dimensionErrorTimerRef.current) {
+				clearTimeout(dimensionErrorTimerRef.current)
+			}
+			dimensionErrorTimerRef.current = setTimeout(() => {
+				setShowDimensionError(false)
+				dimensionErrorTimerRef.current = null
+			}, 3000)
+		}, [])
 
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
@@ -517,13 +809,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								return
 							}
 							const reader = new FileReader()
-							reader.onloadend = () => {
+							reader.onloadend = async () => {
 								if (reader.error) {
 									console.error("Error reading file:", reader.error)
 									resolve(null)
 								} else {
 									const result = reader.result
-									resolve(typeof result === "string" ? result : null)
+									if (typeof result === "string") {
+										try {
+											await getImageDimensions(result)
+											resolve(result)
+										} catch (error) {
+											console.warn((error as Error).message)
+											showDimensionErrorMessage()
+											resolve(null)
+										}
+									} else {
+										resolve(null)
+									}
 								}
 							}
 							reader.readAsDataURL(blob)
@@ -539,7 +842,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue],
+			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, showDimensionErrorMessage],
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -559,13 +862,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const updateHighlights = useCallback(() => {
 			if (!textAreaRef.current || !highlightLayerRef.current) return
 
-			const text = textAreaRef.current.value
+			let processedText = textAreaRef.current.value
 
-			highlightLayerRef.current.innerHTML = text
+			processedText = processedText
 				.replace(/\n$/, "\n\n")
 				.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c] || c)
+				// highlight @mentions
 				.replace(mentionRegexGlobal, '<mark class="mention-context-textarea-highlight">$&</mark>')
 
+			// check for highlighting /slash-commands
+			if (/^\s*\//.test(processedText)) {
+				const slashIndex = processedText.indexOf("/")
+
+				// end of command is end of text or first whitespace
+				const spaceIndex = processedText.indexOf(" ", slashIndex)
+				const endIndex = spaceIndex > -1 ? spaceIndex : processedText.length
+
+				// extract and validate the exact command text
+				const commandText = processedText.substring(slashIndex + 1, endIndex)
+				const isValidCommand = validateSlashCommand(commandText)
+
+				if (isValidCommand) {
+					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
+
+					const highlighted = `<mark class="mention-context-textarea-highlight">${fullCommand}</mark>`
+					processedText = processedText.substring(0, slashIndex) + highlighted + processedText.substring(endIndex)
+				}
+			}
+
+			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
 		}, [])
@@ -597,7 +922,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!apiValidationResult && !modelIdValidationResult) {
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
-				vscode.postMessage({ type: "getLatestState" })
+				StateServiceClient.getLatestState(EmptyRequest.create())
+					.then(() => {
+						console.log("State refreshed")
+					})
+					.catch((error) => {
+						console.error("Error refreshing state:", error)
+					})
 			}
 		}, [apiConfiguration, openRouterModels])
 
@@ -612,7 +943,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setTimeout(() => {
 				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
 				vscode.postMessage({
-					type: "chatSettings",
+					type: "togglePlanActMode",
 					chatSettings: {
 						mode: newMode,
 					},
@@ -631,8 +962,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
-			if (textAreaDisabled) return
-
 			// Focus the textarea first
 			textAreaRef.current?.focus()
 
@@ -671,7 +1000,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			} as React.ChangeEvent<HTMLTextAreaElement>
 			handleInputChange(event)
 			updateHighlights()
-		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
+		}, [inputValue, handleInputChange, updateHighlights])
 
 		// Use an effect to detect menu close
 		useEffect(() => {
@@ -699,8 +1028,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
-				case "anthropic":
-				case "openrouter":
+				case "cline":
 					return `${selectedProvider}:${selectedModelId}`
 				case "openai":
 					return `openai-compat:${selectedModelId}`
@@ -717,7 +1045,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "litellm":
 					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
 				case "requesty":
-					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
+				case "anthropic":
+				case "openrouter":
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
@@ -751,6 +1080,44 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showModelSelector])
 
+		// Function to show error message for unsupported files for drag and drop
+		const showUnsupportedFileErrorMessage = () => {
+			// Show error message for unsupported files
+			setShowUnsupportedFileError(true)
+
+			// Clear any existing timer
+			if (unsupportedFileTimerRef.current) {
+				clearTimeout(unsupportedFileTimerRef.current)
+			}
+
+			// Set timer to hide error after 3 seconds
+			unsupportedFileTimerRef.current = setTimeout(() => {
+				setShowUnsupportedFileError(false)
+				unsupportedFileTimerRef.current = null
+			}, 3000)
+		}
+
+		const handleDragEnter = (e: React.DragEvent) => {
+			e.preventDefault()
+			setIsDraggingOver(true)
+
+			// Check if files are being dragged
+			if (e.dataTransfer.types.includes("Files")) {
+				// Check if any of the files are not images
+				const items = Array.from(e.dataTransfer.items)
+				const hasNonImageFile = items.some((item) => {
+					if (item.kind === "file") {
+						const type = item.type.split("/")[0]
+						return type !== "image"
+					}
+					return false
+				})
+
+				if (hasNonImageFile) {
+					showUnsupportedFileErrorMessage()
+				}
+			}
+		}
 		/**
 		 * Handles the drag over event to allow dropping.
 		 * Prevents the default behavior to enable drop.
@@ -759,7 +1126,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDragOver = (e: React.DragEvent) => {
 			e.preventDefault()
+			// Ensure state remains true if dragging continues over the element
+			if (!isDraggingOver) {
+				setIsDraggingOver(true)
+			}
 		}
+
+		const handleDragLeave = (e: React.DragEvent) => {
+			e.preventDefault()
+			// Check if the related target is still within the drop zone; prevents flickering
+			const dropZone = e.currentTarget as HTMLElement
+			if (!dropZone.contains(e.relatedTarget as Node)) {
+				setIsDraggingOver(false)
+				// Don't clear the error message here, let it time out naturally
+			}
+		}
+
+		// Effect to detect when drag operation ends outside the component
+		useEffect(() => {
+			const handleGlobalDragEnd = () => {
+				// This will be triggered when the drag operation ends anywhere
+				setIsDraggingOver(false)
+				// Don't clear error message, let it time out naturally
+			}
+
+			document.addEventListener("dragend", handleGlobalDragEnd)
+
+			return () => {
+				document.removeEventListener("dragend", handleGlobalDragEnd)
+			}
+		}, [])
 
 		/**
 		 * Handles the drop event for files and text.
@@ -769,22 +1165,77 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
+			setIsDraggingOver(false) // Reset state on drop
 
-			const files = Array.from(e.dataTransfer.files)
+			// Clear any error message when something is actually dropped
+			setShowUnsupportedFileError(false)
+			if (unsupportedFileTimerRef.current) {
+				clearTimeout(unsupportedFileTimerRef.current)
+				unsupportedFileTimerRef.current = null
+			}
+
+			// --- 1. VSCode Explorer Drop Handling ---
+			let uris: string[] = []
+			const resourceUrlsData = e.dataTransfer.getData("resourceurls")
+			const vscodeUriListData = e.dataTransfer.getData("application/vnd.code.uri-list")
+
+			// 1a. Try 'resourceurls' first (used for multi-select)
+			if (resourceUrlsData) {
+				try {
+					uris = JSON.parse(resourceUrlsData)
+					uris = uris.map((uri) => decodeURIComponent(uri))
+				} catch (error) {
+					console.error("Failed to parse resourceurls JSON:", error)
+					uris = [] // Reset if parsing failed
+				}
+			}
+
+			// 1b. Fallback to 'application/vnd.code.uri-list' (newline separated)
+			if (uris.length === 0 && vscodeUriListData) {
+				uris = vscodeUriListData.split("\n").map((uri) => uri.trim())
+			}
+
+			// 1c. Filter for valid schemes (file or vscode-file) and non-empty strings
+			const validUris = uris.filter((uri) => uri && (uri.startsWith("vscode-file:") || uri.startsWith("file:")))
+
+			if (validUris.length > 0) {
+				setPendingInsertions([])
+				let initialCursorPos = inputValue.length
+				if (textAreaRef.current) {
+					initialCursorPos = textAreaRef.current.selectionStart
+				}
+				setIntendedCursorPosition(initialCursorPos)
+
+				FileServiceClient.getRelativePaths({ uris: validUris })
+					.then((response) => {
+						if (response.paths.length > 0) {
+							setPendingInsertions((prev) => [...prev, ...response.paths])
+						}
+					})
+					.catch((error) => {
+						console.error("Error getting relative paths:", error)
+					})
+				return
+			}
+
 			const text = e.dataTransfer.getData("text")
-
 			if (text) {
 				handleTextDrop(text)
 				return
 			}
 
+			// --- 3. Image Drop Handling ---
+			// Only proceed if it wasn't a VSCode resource or plain text drop
+			const files = Array.from(e.dataTransfer.files)
 			const acceptedTypes = ["png", "jpeg", "webp"]
 			const imageFiles = files.filter((file) => {
 				const [type, subtype] = file.type.split("/")
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableImages || imageFiles.length === 0) return
+			if (shouldDisableImages || imageFiles.length === 0) {
+				return
+			}
 
 			const imageDataArray = await readImageFiles(imageFiles)
 			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
@@ -823,13 +1274,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					(file) =>
 						new Promise<string | null>((resolve) => {
 							const reader = new FileReader()
-							reader.onloadend = () => {
+							reader.onloadend = async () => {
+								// Make async
 								if (reader.error) {
 									console.error("Error reading file:", reader.error)
 									resolve(null)
 								} else {
 									const result = reader.result
-									resolve(typeof result === "string" ? result : null)
+									if (typeof result === "string") {
+										try {
+											await getImageDimensions(result) // Check dimensions
+											resolve(result)
+										} catch (error) {
+											console.warn((error as Error).message)
+											showDimensionErrorMessage() // Show error to user
+											resolve(null) // Don't add this image
+										}
+									} else {
+										resolve(null)
+									}
 								}
 							}
 							reader.readAsDataURL(file)
@@ -843,12 +1306,77 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				<div
 					style={{
 						padding: "10px 15px",
-						opacity: textAreaDisabled ? 0.5 : 1,
+						opacity: 1,
 						position: "relative",
 						display: "flex",
+						// Drag-over styles moved to DynamicTextArea
+						transition: "background-color 0.1s ease-in-out, border 0.1s ease-in-out",
 					}}
 					onDrop={onDrop}
-					onDragOver={onDragOver}>
+					onDragOver={onDragOver}
+					onDragEnter={handleDragEnter}
+					onDragLeave={handleDragLeave}>
+					{showDimensionError && (
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px",
+								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
+								border: "2px solid var(--vscode-errorForeground)",
+								borderRadius: 2,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								zIndex: 10, // Ensure it's above other elements
+								pointerEvents: "none",
+							}}>
+							<span
+								style={{
+									color: "var(--vscode-errorForeground)",
+									fontWeight: "bold",
+									fontSize: "12px",
+									textAlign: "center",
+								}}>
+								Image dimensions exceed 7500px
+							</span>
+						</div>
+					)}
+					{showUnsupportedFileError && (
+						<div
+							style={{
+								position: "absolute",
+								inset: "10px 15px",
+								backgroundColor: "rgba(var(--vscode-errorForeground-rgb), 0.1)",
+								border: "2px solid var(--vscode-errorForeground)",
+								borderRadius: 2,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								zIndex: 10,
+								pointerEvents: "none",
+							}}>
+							<span
+								style={{
+									color: "var(--vscode-errorForeground)",
+									fontWeight: "bold",
+									fontSize: "12px",
+								}}>
+								Only image files are supported
+							</span>
+						</div>
+					)}
+					{showSlashCommandsMenu && (
+						<div ref={slashCommandsMenuContainerRef}>
+							<SlashCommandMenu
+								onSelect={handleSlashCommandsSelect}
+								selectedIndex={selectedSlashCommandsIndex}
+								setSelectedIndex={setSelectedSlashCommandsIndex}
+								onMouseDown={handleMenuMouseDown}
+								query={slashCommandsQuery}
+							/>
+						</div>
+					)}
+
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
@@ -859,10 +1387,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setSelectedIndex={setSelectedMenuIndex}
 								selectedType={selectedType}
 								queryItems={queryItems}
+								dynamicSearchResults={fileSearchResults}
+								isLoading={searchLoading}
 							/>
 						</div>
 					)}
-					{!isTextAreaFocused && (
+					{!isTextAreaFocused && !activeQuote && (
 						<div
 							style={{
 								position: "absolute",
@@ -897,7 +1427,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderTop: 0,
 							borderColor: "transparent",
 							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
-							padding: "9px 49px 3px 9px",
+							padding: "9px 28px 3px 9px",
 						}}
 					/>
 					<DynamicTextArea
@@ -911,14 +1441,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							textAreaRef.current = el
 						}}
 						value={inputValue}
-						disabled={textAreaDisabled}
 						onChange={(e) => {
 							handleInputChange(e)
 							updateHighlights()
 						}}
 						onKeyDown={handleKeyDown}
 						onKeyUp={handleKeyUp}
-						onFocus={() => setIsTextAreaFocused(true)}
+						onFocus={() => {
+							setIsTextAreaFocused(true)
+							onFocusChange?.(true) // Call prop on focus
+						}}
 						onBlur={handleBlur}
 						onPaste={handlePaste}
 						onSelect={updateCursorPosition}
@@ -929,7 +1461,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 							onHeightChange?.(height)
 						}}
-						placeholder={placeholderText}
+						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
 						maxRows={10}
 						autoFocus={true}
 						style={{
@@ -958,12 +1490,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
 							padding: "9px 28px 3px 9px",
-							cursor: textAreaDisabled ? "not-allowed" : undefined,
+							cursor: "text",
 							flex: 1,
 							zIndex: 1,
-							outline: isTextAreaFocused
-								? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
-								: "none",
+							outline:
+								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
+									? "2px dashed var(--vscode-focusBorder)"
+									: isTextAreaFocused
+										? `1px solid ${chatSettings.mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+										: "none",
+							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
 						}}
 						onScroll={() => updateHighlights()}
 					/>
@@ -989,7 +1525,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							display: "flex",
 							alignItems: "flex-center",
 							height: textAreaBaseHeight || 31,
-							bottom: 9.5, // should be 10 but doesnt look good on mac
+							bottom: 9.5, // should be 10 but doesn't look good on mac
 							zIndex: 2,
 						}}>
 						<div
@@ -1012,9 +1548,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							/> */}
 							<div
 								data-testid="send-button"
-								className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
+								className={`input-icon-button ${sendingDisabled ? "disabled" : ""} codicon codicon-send`}
 								onClick={() => {
-									if (!textAreaDisabled) {
+									if (!sendingDisabled) {
 										setIsTextAreaFocused(false)
 										onSend()
 									}
@@ -1025,78 +1561,114 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				</div>
 
 				<ControlsContainer>
-					<ButtonGroup>
-						<VSCodeButton
-							data-testid="context-button"
-							appearance="icon"
-							aria-label="Add Context"
-							disabled={textAreaDisabled}
-							onClick={handleContextButtonClick}
-							style={{ padding: "0px 0px", height: "20px" }}>
-							<ButtonContainer>
-								<span style={{ fontSize: "13px", marginBottom: 1 }}>@</span>
-								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
-							</ButtonContainer>
-						</VSCodeButton>
+					{/* Always render both components, but control visibility with CSS */}
+					<div
+						style={{
+							position: "relative",
+							flex: 1,
+							minWidth: 0,
+							height: "28px", // Fixed height to prevent container shrinking
+						}}>
+						{/* ButtonGroup - always in DOM but visibility controlled */}
+						<ButtonGroup
+							style={{
+								position: "absolute",
+								top: 0,
+								left: 0,
+								right: 0,
+								transition: "opacity 0.3s ease-in-out",
+								width: "100%",
+								height: "100%",
+								zIndex: 6,
+							}}>
+							<Tooltip tipText="Add Context" style={{ left: 0 }}>
+								<VSCodeButton
+									data-testid="context-button"
+									appearance="icon"
+									aria-label="Add Context"
+									onClick={handleContextButtonClick}
+									style={{ padding: "0px 0px", height: "20px" }}>
+									<ButtonContainer>
+										<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
+											@
+										</span>
+									</ButtonContainer>
+								</VSCodeButton>
+							</Tooltip>
 
-						<VSCodeButton
-							data-testid="images-button"
-							appearance="icon"
-							aria-label="Add Images"
-							disabled={shouldDisableImages}
-							onClick={() => {
-								if (!shouldDisableImages) {
-									onSelectImages()
-								}
-							}}
-							style={{ padding: "0px 0px", height: "20px" }}>
-							<ButtonContainer>
-								<span className="codicon codicon-device-camera" style={{ fontSize: "14px", marginBottom: -3 }} />
-								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
-							</ButtonContainer>
-						</VSCodeButton>
-
-						<ModelContainer ref={modelSelectorRef}>
-							<ModelButtonWrapper ref={buttonRef}>
-								<ModelDisplayButton
-									role="button"
-									isActive={showModelSelector}
-									disabled={false}
-									onClick={handleModelButtonClick}
-									// onKeyDown={(e) => {
-									// 	if (e.key === "Enter" || e.key === " ") {
-									// 		e.preventDefault()
-									// 		handleModelButtonClick()
-									// 	}
-									// }}
-									tabIndex={0}>
-									<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
-								</ModelDisplayButton>
-							</ModelButtonWrapper>
-							{showModelSelector && (
-								<ModelSelectorTooltip
-									arrowPosition={arrowPosition}
-									menuPosition={menuPosition}
-									style={{
-										bottom: `calc(100vh - ${menuPosition}px + 6px)`,
-									}}>
-									<ApiOptions
-										showModelOptions={true}
-										apiErrorMessage={undefined}
-										modelIdErrorMessage={undefined}
-										isPopup={true}
-									/>
-								</ModelSelectorTooltip>
-							)}
-						</ModelContainer>
-					</ButtonGroup>
+							<Tooltip tipText="Add Images">
+								<VSCodeButton
+									data-testid="images-button"
+									appearance="icon"
+									aria-label="Add Images"
+									disabled={shouldDisableImages}
+									onClick={() => {
+										if (!shouldDisableImages) {
+											onSelectImages()
+										}
+									}}
+									style={{ padding: "0px 0px", height: "20px" }}>
+									<ButtonContainer>
+										<span
+											className="codicon codicon-device-camera flex items-center"
+											style={{ fontSize: "14px", marginBottom: -3 }}
+										/>
+									</ButtonContainer>
+								</VSCodeButton>
+							</Tooltip>
+							<ServersToggleModal />
+							<ClineRulesToggleModal />
+							<ModelContainer ref={modelSelectorRef}>
+								<ModelButtonWrapper ref={buttonRef}>
+									<ModelDisplayButton
+										role="button"
+										isActive={showModelSelector}
+										disabled={false}
+										title="Select Model / API Provider"
+										onClick={handleModelButtonClick}
+										tabIndex={0}>
+										<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
+									</ModelDisplayButton>
+								</ModelButtonWrapper>
+								{showModelSelector && (
+									<ModelSelectorTooltip
+										arrowPosition={arrowPosition}
+										menuPosition={menuPosition}
+										style={{
+											bottom: `calc(100vh - ${menuPosition}px + 6px)`,
+										}}>
+										<ApiOptions
+											showModelOptions={true}
+											apiErrorMessage={undefined}
+											modelIdErrorMessage={undefined}
+											isPopup={true}
+											saveImmediately={true} // Ensure popup saves immediately
+										/>
+									</ModelSelectorTooltip>
+								)}
+							</ModelContainer>
+						</ButtonGroup>
+					</div>
+					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
 					<Tooltip
-						tipText={`In ${chatSettings.mode === "act" ? "Act" : "Plan"}  mode, Cline will ${chatSettings.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+						style={{ zIndex: 1000 }}
+						visible={shownTooltipMode !== null}
+						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
 						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
-							<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
-							<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
+							<SwitchOption
+								isActive={chatSettings.mode === "plan"}
+								onMouseOver={() => setShownTooltipMode("plan")}
+								onMouseLeave={() => setShownTooltipMode(null)}>
+								Plan
+							</SwitchOption>
+							<SwitchOption
+								isActive={chatSettings.mode === "act"}
+								onMouseOver={() => setShownTooltipMode("act")}
+								onMouseLeave={() => setShownTooltipMode(null)}>
+								Act
+							</SwitchOption>
 						</SwitchContainer>
 					</Tooltip>
 				</ControlsContainer>

@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react"
-import { getLanguageFromPath } from "../../utils/getLanguageFromPath"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
+import { getLanguageFromPath } from "@/utils/getLanguageFromPath"
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 
 interface CodeAccordianProps {
 	code?: string
@@ -37,6 +37,13 @@ const CodeAccordian = ({
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
 		[path, language, code],
 	)
+
+	const numberOfEdits = useMemo(() => {
+		if (code) {
+			return (code.match(/>>>>>>> REPLACE/g) || []).length || undefined
+		}
+		return undefined
+	}, [code])
 
 	return (
 		<div
@@ -95,6 +102,18 @@ const CodeAccordian = ({
 						</>
 					)}
 					<div style={{ flexGrow: 1 }}></div>
+					{numberOfEdits !== undefined && (
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								marginRight: "8px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							<span className="codicon codicon-diff-single" style={{ marginRight: "4px" }}></span>
+							<span>{numberOfEdits}</span>
+						</div>
+					)}
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}

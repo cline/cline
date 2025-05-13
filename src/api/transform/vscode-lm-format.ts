@@ -4,7 +4,7 @@ import * as vscode from "vscode"
 /**
  * Safely converts a value into a plain object.
  */
-function asObjectSafe(value: any): object {
+export function asObjectSafe(value: any): object {
 	// Handle null/undefined
 	if (!value) {
 		return {}
@@ -145,7 +145,9 @@ export function convertToVsCodeLmMessages(
 	return vsCodeLmMessages
 }
 
-export function convertToAnthropicRole(vsCodeLmMessageRole: vscode.LanguageModelChatMessageRole): string | null {
+export function convertToAnthropicRole(
+	vsCodeLmMessageRole: vscode.LanguageModelChatMessageRole,
+): Anthropic.Messages.MessageParam["role"] | null {
 	switch (vsCodeLmMessageRole) {
 		case vscode.LanguageModelChatMessageRole.Assistant:
 			return "assistant"
@@ -156,10 +158,8 @@ export function convertToAnthropicRole(vsCodeLmMessageRole: vscode.LanguageModel
 	}
 }
 
-export async function convertToAnthropicMessage(
-	vsCodeLmMessage: vscode.LanguageModelChatMessage,
-): Promise<Anthropic.Messages.Message> {
-	const anthropicRole: string | null = convertToAnthropicRole(vsCodeLmMessage.role)
+export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelChatMessage): Anthropic.Messages.Message {
+	const anthropicRole = convertToAnthropicRole(vsCodeLmMessage.role)
 	if (anthropicRole !== "assistant") {
 		throw new Error("Cline <Language Model API>: Only assistant messages are supported.")
 	}
@@ -175,6 +175,7 @@ export async function convertToAnthropicMessage(
 					return {
 						type: "text",
 						text: part.value,
+						citations: null,
 					}
 				}
 
@@ -195,6 +196,8 @@ export async function convertToAnthropicMessage(
 		usage: {
 			input_tokens: 0,
 			output_tokens: 0,
+			cache_creation_input_tokens: null,
+			cache_read_input_tokens: null,
 		},
 	}
 }

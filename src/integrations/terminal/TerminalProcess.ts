@@ -1,6 +1,7 @@
 import { EventEmitter } from "events"
-import stripAnsi from "strip-ansi"
+import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
+import { Logger } from "@services/logging/Logger"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -34,7 +35,42 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
+			let firstChunkTimeout: NodeJS.Timeout
+
+			const isWindows = process.platform === "win32"
+			const timeoutMs = isWindows ? 5000 : 500
+
+			const onTimeout = () => {
+				// In rare cases (e.g. running the same command twice like `npm run build`),
+				// the shell integration stream enters a broken state where no data is ever emitted.
+				// We never even get the first chunk, which bricks the UI and locks the user out.
+				// Interestingly, the stream still gets created, and future commands (like `ls`) will work,
+				// suggesting the stream itself isn't one-shot—but certain shell states break its behavior.
+				// To recover, we add a timeout waiting for the first chunk.
+				// If it doesn’t arrive in time, we assume the terminal is broken, dispose it,
+				// and emit an error so the user can safely retry in a clean terminal.
+
+				Logger.debug(
+					`[TerminalProcess.run] First chunk timeout hit — terminal likely in bad state. Terminating terminal.`,
+				)
+				try {
+					terminal.dispose()
+				} catch (err) {
+					Logger.debug(`[TerminalProcess.run] Failed to dispose terminal: ${String(err)}`)
+				}
+				this.emit(
+					"error",
+					new Error("The command ran successfully, but we couldn't capture its output. Please proceed accordingly."),
+				)
+				this.emit("completed")
+				this.emit("continue")
+			}
+
+			firstChunkTimeout = setTimeout(onTimeout, timeoutMs)
+
 			for await (let data of stream) {
+				clearTimeout(firstChunkTimeout)
+
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
@@ -71,21 +107,29 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// remove ansi
 					data = stripAnsi(data)
 					// Split data by newlines
-					let lines = data ? data.split("\n") : []
+					const lines = data ? data.split("\n") : []
 					// Remove non-human readable characters from the first line
 					if (lines.length > 0) {
 						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
 					}
-					// Check if first two characters are the same, if so remove the first character
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
+					// Check for duplicated first character that might be a terminal artifact
+					// But skip this check for known syntax characters like {, [, ", etc.
+					if (
+						lines.length > 0 &&
+						lines[0].length >= 2 &&
+						lines[0][0] === lines[0][1] &&
+						!["[", "{", '"', "'", "<", "("].includes(lines[0][0])
+					) {
 						lines[0] = lines[0].slice(1)
 					}
-					// Remove everything up to the first alphanumeric character for first two lines
+					// Only remove specific terminal artifacts from line beginnings while preserving JSON syntax
 					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
+						// This regex only removes common terminal artifacts (%, $, >, #) and invisible control chars
+						// but preserves important syntax chars like {, [, ", etc.
+						lines[0] = lines[0].replace(/^[\x00-\x1F%$>#\s]*/, "")
 					}
 					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
+						lines[1] = lines[1].replace(/^[\x00-\x1F%$>#\s]*/, "")
 					}
 					// Join lines back
 					data = lines.join("\n")
@@ -94,8 +138,17 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = stripAnsi(data)
 				}
 
+				// Ctrl+C detection: if user presses Ctrl+C, treat as command terminated
+				if (data.includes("^C") || data.includes("\u0003")) {
+					if (this.hotTimer) {
+						clearTimeout(this.hotTimer)
+					}
+					this.isHot = false
+					break
+				}
+
 				// first few chunks could be the command being echoed back, so we must ignore
-				// note this means that 'echo' commands wont work
+				// note this means that 'echo' commands won't work
 				if (!didOutputNonCommand) {
 					const lines = data.split("\n")
 					for (let i = 0; i < lines.length; i++) {
@@ -109,9 +162,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					}
 					data = lines.join("\n")
 				}
-
-				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
-				data = data.replace(/,/g, "")
 
 				// 2. Set isHot depending on the command
 				// Set to hot to stall API requests until terminal is cool again
@@ -145,7 +195,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
 				)
 
-				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
+				// For non-immediately returning commands we want to show loading spinner right away but this wouldn't happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
 				if (!didEmitEmptyLine && !this.fullOutput && data) {
 					this.emit("line", "") // empty line to indicate start of command output stream
 					didEmitEmptyLine = true

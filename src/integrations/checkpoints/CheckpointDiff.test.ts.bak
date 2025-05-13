@@ -1,0 +1,68 @@
+import { expect } from "chai"
+import { describe, it, beforeEach, afterEach } from "mocha"
+import fs from "fs/promises"
+import { createTestEnvironment, createTestTracker } from "./Checkpoint-test-utils"
+
+describe("Checkpoint Diff Operations", () => {
+    let env: Awaited<ReturnType<typeof createTestEnvironment>>
+
+    beforeEach(async () => {
+        env = await createTestEnvironment()
+    })
+
+    afterEach(async () => {
+        await env.cleanup()
+    })
+
+    it("should detect file changes between commits", async () => {
+        const tracker = await createTestTracker(env.globalStoragePath)
+        if (!tracker) {throw new Error("Failed to create tracker")}
+
+        // Create initial file
+        await fs.writeFile(env.testFilePath, "initial content")
+
+        // Create first checkpoint
+        const firstCommit = await tracker.commit()
+        expect(firstCommit).to.not.be.undefined
+
+        // Modify file
+        await fs.writeFile(env.testFilePath, "modified content")
+
+        // Create second checkpoint
+        const secondCommit = await tracker.commit()
+        expect(secondCommit).to.not.be.undefined
+
+        // Get diff between commits
+        const diffSet = await tracker.getDiffSet(firstCommit, secondCommit)
+
+        // Verify diff results
+        expect(diffSet).to.have.lengthOf(1)
+        expect(diffSet[0].relativePath).to.equal("src/test.txt")
+        expect(diffSet[0].before).to.equal("initial content")
+        expect(diffSet[0].after).to.equal("modified content")
+    })
+
+    it("should detect changes between commit and working directory", async () => {
+        const tracker = await createTestTracker(env.globalStoragePath)
+        if (!tracker) {throw new Error("Failed to create tracker")}
+
+        // Create initial file
+        await fs.writeFile(env.testFilePath, "initial content")
+
+        // Create checkpoint
+        const commit = await tracker.commit()
+        expect(commit).to.not.be.undefined
+
+        // Modify file without committing
+        await fs.writeFile(env.testFilePath, "working directory changes")
+
+        // Get diff between commit and working directory
+        const diffSet = await tracker.getDiffSet(commit)
+
+        // Verify diff results
+        expect(diffSet).to.have.lengthOf(1)
+        expect(diffSet[0].relativePath).to.equal("src/test.txt")
+        expect(diffSet[0].before).to.equal("initial content")
+        expect(diffSet[0].after).to.equal("working directory changes")
+    })
+})

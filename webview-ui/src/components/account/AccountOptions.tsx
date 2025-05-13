@@ -1,9 +1,12 @@
 import { memo } from "react"
-import { vscode } from "../../utils/vscode"
+import { AccountServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
 
 const AccountOptions = () => {
 	const handleAccountClick = () => {
-		vscode.postMessage({ type: "accountLoginClicked" })
+		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
+			console.error("Failed to get login URL:", err),
+		)
 	}
 
 	// Call handleAccountClick immediately when component mounts

@@ -1,5 +1,6 @@
 import * as path from "path"
 import os from "os"
+import * as vscode from "vscode"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -98,4 +99,32 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 			return absolutePath.toPosix()
 		}
 	}
+}
+
+export const getWorkspacePath = (defaultCwdPath = "") => {
+	const cwdPath = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || defaultCwdPath
+	const currentFileUri = vscode.window.activeTextEditor?.document.uri
+	if (currentFileUri) {
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentFileUri)
+		return workspaceFolder?.uri.fsPath || cwdPath
+	}
+	return cwdPath
+}
+
+export const isLocatedInWorkspace = (pathToCheck: string = ""): boolean => {
+	const workspacePath = getWorkspacePath()
+
+	// Handle long paths in Windows
+	if (pathToCheck.startsWith("\\\\?\\") || workspacePath.startsWith("\\\\?\\")) {
+		return pathToCheck.startsWith(workspacePath)
+	}
+
+	// Normalize paths without resolving symlinks
+	const normalizedWorkspace = path.normalize(workspacePath)
+	const normalizedPath = path.normalize(path.resolve(workspacePath, pathToCheck))
+
+	// Use path.relative to check if the path is within the workspace
+	const relativePath = path.relative(normalizedWorkspace, normalizedPath)
+
+	return !relativePath.startsWith("..") && !path.isAbsolute(relativePath)
 }

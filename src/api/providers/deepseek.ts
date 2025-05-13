@@ -2,7 +2,8 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "../../shared/api"
+import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "@shared/api"
+import { calculateApiCostOpenAI } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
@@ -17,6 +18,38 @@ export class DeepSeekHandler implements ApiHandler {
 			baseURL: "https://api.deepseek.com/v1",
 			apiKey: this.options.deepSeekApiKey,
 		})
+	}
+
+	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
+		// Deepseek reports total input AND cache reads/writes,
+		// see context caching: https://api-docs.deepseek.com/guides/kv_cache)
+		// where the input tokens is the sum of the cache hits/misses, just like OpenAI.
+		// This affects:
+		// 1) context management truncation algorithm, and
+		// 2) cost calculation
+
+		// Deepseek usage includes extra fields.
+		// Safely cast the prompt token details section to the appropriate structure.
+		interface DeepSeekUsage extends OpenAI.CompletionUsage {
+			prompt_cache_hit_tokens?: number
+			prompt_cache_miss_tokens?: number
+		}
+		const deepUsage = usage as DeepSeekUsage
+
+		const inputTokens = deepUsage?.prompt_tokens || 0 // sum of cache hits and misses
+		const outputTokens = deepUsage?.completion_tokens || 0
+		const cacheReadTokens = deepUsage?.prompt_cache_hit_tokens || 0
+		const cacheWriteTokens = deepUsage?.prompt_cache_miss_tokens || 0
+		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens) // this will always be 0
+		yield {
+			type: "usage",
+			inputTokens: nonCachedInputTokens,
+			outputTokens: outputTokens,
+			cacheWriteTokens: cacheWriteTokens,
+			cacheReadTokens: cacheReadTokens,
+			totalCost: totalCost,
+		}
 	}
 
 	@withRetry()
@@ -61,15 +94,7 @@ export class DeepSeekHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
-				yield {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0, // (deepseek reports total input AND cache reads/writes, see context caching: https://api-docs.deepseek.com/guides/kv_cache) where the input tokens is the sum of the cache hits/misses, while anthropic reports them as separate tokens. This is important to know for 1) context management truncation algorithm, and 2) cost calculation (NOTE: we report both input and cache stats but for now set input price to 0 since all the cost calculation will be done using cache hits/misses)
-					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
-					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
-					// @ts-ignore-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
-				}
+				yield* this.yieldUsage(model.info, chunk.usage)
 			}
 		}
 	}

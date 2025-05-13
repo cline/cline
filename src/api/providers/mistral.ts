@@ -2,16 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Mistral } from "@mistralai/mistralai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	mistralDefaultModelId,
-	MistralModelId,
-	mistralModels,
-	ModelInfo,
-	openAiNativeDefaultModelId,
-	OpenAiNativeModelId,
-	openAiNativeModels,
-} from "../../shared/api"
+import { ApiHandlerOptions, mistralDefaultModelId, MistralModelId, mistralModels, ModelInfo } from "@shared/api"
 import { convertToMistralMessages } from "../transform/mistral-format"
 import { ApiStream } from "../transform/stream"
 
@@ -22,7 +13,6 @@ export class MistralHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new Mistral({
-			serverURL: "https://api.mistral.ai",
 			apiKey: this.options.mistralApiKey,
 		})
 	}

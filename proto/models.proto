@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// Service for model-related operations
+service ModelsService {
+  // Fetches available models from Ollama
+  rpc getOllamaModels(StringRequest) returns (StringArray);
+  // Fetches available models from LM Studio
+  rpc getLmStudioModels(StringRequest) returns (StringArray);
+  // Fetches available models from VS Code LM API
+  rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
+  // Refreshes and returns OpenRouter models
+  rpc refreshOpenRouterModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns OpenAI models
+  rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
+  // Refreshes and returns Requesty models
+  rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+}
+
+// List of VS Code LM models
+message VsCodeLmModelsArray {
+  repeated VsCodeLmModel models = 1;
+}
+
+// Structure representing a VS Code LM model
+message VsCodeLmModel {
+  string vendor = 1;
+  string family = 2;
+  string version = 3;
+  string id = 4;
+}
+
+// For OpenRouterCompatibleModelInfo structure in OpenRouterModels
+message OpenRouterModelInfo {
+  int32 max_tokens = 1;
+  int32 context_window = 2;
+  bool supports_images = 3;
+  bool supports_prompt_cache = 4;
+  double input_price = 5;
+  double output_price = 6;
+  double cache_writes_price = 7;
+  double cache_reads_price = 8;
+  string description = 9;
+}
+
+// Shared response message for model information
+message OpenRouterCompatibleModelInfo {
+  map<string, OpenRouterModelInfo> models = 1;
+}
+
+// Request for fetching OpenAI models
+message OpenAiModelsRequest {
+  Metadata metadata = 1;
+  string baseUrl = 2;
+  string apiKey = 3;
+}

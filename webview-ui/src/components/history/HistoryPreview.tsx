@@ -1,8 +1,9 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
 import { memo } from "react"
-import { formatLargeNumber } from "../../utils/format"
+import { TaskServiceClient } from "@/services/grpc-client"
+import { formatLargeNumber } from "@/utils/format"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -11,7 +12,7 @@ type HistoryPreviewProps = {
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
 	const handleHistorySelect = (id: string) => {
-		vscode.postMessage({ type: "showTaskWithId", text: id })
+		TaskServiceClient.showTaskWithId({ value: id }).catch((error) => console.error("Error showing task:", error))
 	}
 
 	const formatDate = (timestamp: number) => {
@@ -91,7 +92,21 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										{formatDate(item.ts)}
 									</span>
 								</div>
+								{item.isFavorited && (
+									<div
+										style={{
+											position: "absolute",
+											top: "12px",
+											right: "12px",
+											color: "var(--vscode-button-background)",
+										}}>
+										<span className="codicon codicon-star-full" aria-label="Favorited" />
+									</div>
+								)}
+
 								<div
+									id={`history-preview-task-${item.id}`}
+									className="history-preview-task"
 									style={{
 										fontSize: "var(--vscode-font-size)",
 										color: "var(--vscode-descriptionForeground)",
@@ -104,7 +119,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										wordBreak: "break-word",
 										overflowWrap: "anywhere",
 									}}>
-									{item.task}
+									<span className="ph-no-capture">{item.task}</span>
 								</div>
 								<div
 									style={{

@@ -1,12 +1,12 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 import ApiOptions from "../ApiOptions"
-import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
+import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...actual,
+		...(actual || {}),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
@@ -25,7 +25,8 @@ describe("ApiOptions Component", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		global.vscode = { postMessage: mockPostMessage } as any
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
+		global.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Requesty API Key input", () => {
@@ -52,7 +53,7 @@ describe("ApiOptions Component", () => {
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...actual,
+		...(actual || {}),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
@@ -71,7 +72,8 @@ describe("ApiOptions Component", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		global.vscode = { postMessage: mockPostMessage } as any
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
+		global.vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Together API Key input", () => {
@@ -98,8 +100,7 @@ describe("ApiOptions Component", () => {
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...actual,
-		// your mocked methods
+		...(actual || {}),
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
 				apiProvider: "fireworks",
@@ -185,6 +186,7 @@ describe("OpenApiInfoOptions", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
 		global.vscode = { postMessage: mockPostMessage }
 	})
 
@@ -194,6 +196,7 @@ describe("OpenApiInfoOptions", () => {
 				<ApiOptions showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
+		fireEvent.click(screen.getByText("Model Configuration"))
 		const apiKeyInput = screen.getByText("Supports Images")
 		expect(apiKeyInput).toBeInTheDocument()
 	})
@@ -204,6 +207,7 @@ describe("OpenApiInfoOptions", () => {
 				<ApiOptions showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
+		fireEvent.click(screen.getByText("Model Configuration"))
 		const orgIdInput = screen.getByText("Context Window Size")
 		expect(orgIdInput).toBeInTheDocument()
 	})
@@ -214,6 +218,7 @@ describe("OpenApiInfoOptions", () => {
 				<ApiOptions showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
+		fireEvent.click(screen.getByText("Model Configuration"))
 		const modelInput = screen.getByText("Max Output Tokens")
 		expect(modelInput).toBeInTheDocument()
 	})

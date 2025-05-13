@@ -3,7 +3,7 @@ import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
 
@@ -151,7 +151,9 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 				maxHeight: forceWrap ? "none" : "100%",
 				backgroundColor: CODE_BLOCK_BG_COLOR,
 			}}>
-			<StyledMarkdown forceWrap={forceWrap}>{reactContent}</StyledMarkdown>
+			<StyledMarkdown className="ph-no-capture" forceWrap={forceWrap}>
+				{reactContent}
+			</StyledMarkdown>
 		</div>
 	)
 })

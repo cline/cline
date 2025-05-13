@@ -1,9 +1,10 @@
 import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
-import { arePathsEqual } from "../../utils/path"
+import { arePathsEqual } from "@utils/path"
 
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
+	// First resolve the path normally - path.resolve doesn't care about glob special characters
 	const absolutePath = path.resolve(dirPath)
 	// Do not allow listing files in root or home directory, which cline tends to want to do when the user's prompt is vague.
 	const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
@@ -36,7 +37,7 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
 	].map((dir) => `**/${dir}/**`)
 
-	const options = {
+	const options: Options = {
 		cwd: dirPath,
 		dot: true, // do not ignore hidden files/directories
 		absolute: true,
@@ -44,9 +45,11 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		gitignore: recursive, // globby ignores any files that are gitignored
 		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
 		onlyFiles: false, // true by default, false means it will list directories on their own too
+		suppressErrors: true,
 	}
 
 	// * globs all files in one dir, ** globs files in nested directories
+	// For non-recursive listing, we still use a simple pattern
 	const filePaths = recursive ? await globbyLevelByLevel(limit, options) : (await globby("*", options)).slice(0, limit)
 
 	return [filePaths, filePaths.length >= limit]
@@ -65,8 +68,8 @@ Breadth-first traversal of directory structure level by level up to a limit:
    - Timeout mechanism prevents infinite loops
 */
 async function globbyLevelByLevel(limit: number, options?: Options) {
-	let results: Set<string> = new Set()
-	let queue: string[] = ["*"]
+	const results: Set<string> = new Set()
+	const queue: string[] = ["*"]
 
 	const globbingProcess = async () => {
 		while (queue.length > 0 && results.size < limit) {
@@ -79,7 +82,11 @@ async function globbyLevelByLevel(limit: number, options?: Options) {
 				}
 				results.add(file)
 				if (file.endsWith("/")) {
-					queue.push(`${file}*`)
+					// Escape parentheses in the path to prevent glob pattern interpretation
+					// This is crucial for NextJS folder naming conventions which use parentheses like (auth), (dashboard)
+					// Without escaping, glob treats parentheses as special pattern grouping characters
+					const escapedFile = file.replace(/\(/g, "\\(").replace(/\)/g, "\\)")
+					queue.push(`${escapedFile}*`)
 				}
 			}
 		}

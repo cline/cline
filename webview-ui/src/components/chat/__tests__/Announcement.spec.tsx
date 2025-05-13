@@ -1,10 +1,12 @@
+import React from "react"
+import type { ComponentProps } from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 import Announcement from "../Announcement"
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	useTheme: () => ({ themeType: "light" }),
-	VSCodeButton: (props: any) => <button {...props}>{props.children}</button>,
+	VSCodeButton: (props: ComponentProps<"button">) => <button {...props}>{props.children}</button>,
 	VSCodeLink: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }))
 
@@ -22,18 +24,9 @@ describe("Announcement", () => {
 		expect(hideAnnouncement).toHaveBeenCalled()
 	})
 
-	it("renders the mcp server improvements announcement", () => {
+	it("renders the enhanced MCP support announcement", () => {
 		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/MCP server improvements:/)).toBeInTheDocument()
-	})
-
-	it("renders the 'See new changes' button feature", () => {
-		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/See it in action here./)).toBeInTheDocument()
-	})
-
-	it("renders the demo link", () => {
-		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/See a demo here./)).toBeInTheDocument()
+		// Updated text based on actual component output
+		expect(screen.getByText(/Enhanced MCP Support:/)).toBeInTheDocument()
 	})
 })

@@ -28,10 +28,7 @@ updates:
               patterns:
                   - "*"
       ignore:
-          # Ignore CRA and related packages that often have false positives
-          - dependency-name: "react-scripts"
           - dependency-name: "@testing-library/*"
-          - dependency-name: "web-vitals"
           - dependency-name: "*"
             update-types:
                 - "version-update:semver-major"

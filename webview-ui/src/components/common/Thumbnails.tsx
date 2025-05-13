@@ -1,6 +1,7 @@
 import React, { useState, useRef, useLayoutEffect, memo } from "react"
 import { useWindowSize } from "react-use"
-import { vscode } from "../../utils/vscode"
+import { FileServiceClient } from "@/services/grpc-client"
+import { vscode } from "@/utils/vscode"
 
 interface ThumbnailsProps {
 	images: string[]
@@ -33,7 +34,7 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 	const isDeletable = setImages !== undefined
 
 	const handleImageClick = (image: string) => {
-		vscode.postMessage({ type: "openImage", text: image })
+		FileServiceClient.openImage({ value: image }).catch((err) => console.error("Failed to open image:", err))
 	}
 
 	return (

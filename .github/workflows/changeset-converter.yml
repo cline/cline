@@ -1,0 +1,113 @@
+name: Changeset Converter
+run-name: Changeset Conversion
+
+on:
+    workflow_dispatch:
+    pull_request:
+        types: [closed]
+
+env:
+    REPO_PATH: ${{ github.repository }}
+    GIT_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
+    NODE_VERSION: 20.18.1
+
+jobs:
+    # Job 1: Create version bump PR when changesets are merged to main
+    changeset-pr-version-bump:
+        if: |
+            github.event_name == 'workflow_dispatch' ||
+            (
+                github.event_name == 'pull_request' &&
+                github.event.pull_request.merged == true &&
+                github.event.pull_request.base.ref == 'main' &&
+                github.actor != 'github-actions'
+            )
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            pull-requests: write
+        steps:
+            - name: Check user for team affiliation
+              id: team_check
+              if: github.event_name == 'workflow_dispatch'
+              uses: morfien101/actions-authorized-user@4a3cfbf0bcb3cafe4a71710a278920c5d94bb38b
+              with:
+                  username: ${{ github.actor }}
+                  org: ${{ github.repository_owner }}
+                  team: "deployer"
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Check if user is authorized
+              if: github.event_name == 'workflow_dispatch'
+              run: |
+                  if [ "${{ steps.team_check.outputs.authorized }}" != "true" ]; then
+                      echo "User is not authorized to run this workflow."
+                      exit 1
+                  fi
+
+            - name: Git Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  ref: ${{ env.GIT_REF }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: "npm"
+
+            - name: Install Dependencies
+              run: npm install changeset
+
+            # Check if there are any new changesets to process
+            - name: Check for changesets
+              id: check-changesets
+              run: |
+                  NEW_CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')
+                  echo "Changesets diff with previous version: $NEW_CHANGESETS"
+                  echo "new_changesets=$NEW_CHANGESETS" >> $GITHUB_OUTPUT
+
+            # Create version bump PR using changesets/action if there are new changesets
+            - name: Create Changeset Pull Request
+              if: steps.check-changesets.outputs.new_changesets != '0'
+              uses: changesets/action@v1
+              with:
+                  commit: "changeset version bump"
+                  title: "Changeset version bump"
+                  version: npm run version-packages # This performs the changeset version bump
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # Get current and previous versions to edit changelog entry
+            - name: Get version
+              id: get_version
+              run: |
+                  VERSION=$(git show HEAD:package.json | jq -r '.version')
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  PREV_VERSION=$(git show origin/main:package.json | jq -r '.version')
+                  echo "prev_version=$PREV_VERSION" >> $GITHUB_OUTPUT
+                  echo "version=$VERSION"
+                  echo "prev_version=$PREV_VERSION"
+
+            # Update CHANGELOG.md with proper format
+            - name: Update Changelog Format
+              env:
+                  VERSION: ${{ steps.get_version.outputs.version }}
+                  PREV_VERSION: ${{ steps.get_version.outputs.prev_version }}
+              run: python .github/scripts/overwrite_changeset_changelog.py
+
+            # Commit and push changelog updates
+            - name: Push Changelog updates to Pull Request
+              run: |
+                  git config user.name "github-actions"
+                  git config user.email github-actions@github.com
+                  echo "Running git add and commit..."
+                  git add CHANGELOG.md
+                  git commit -m "Updating CHANGELOG.md format"
+                  git status
+                  echo "--------------------------------------------------------------------------------"
+                  echo "Pushing to remote..."
+                  echo "--------------------------------------------------------------------------------"
+                  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                  git push origin $CURRENT_BRANCH
