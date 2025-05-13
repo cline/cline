@@ -2335,6 +2335,54 @@ function three() {
 }`)
 			}
 		})
+
+		it("should deduce start_line when include line number in search and replace content", async () => {
+			const originalContent = `
+function one() {
+    return 1;
+}
+
+function process() {
+    return "target";
+}
+
+function process() {
+    return "target";
+}
+
+function two() {
+    return 2;
+}
+`.trim()
+			const diffContent = `test.ts
+<<<<<<< SEARCH
+9 | function process() {
+10 |     return "target";
+=======
+9 | function process2() {
+10 |     return "target222";
+>>>>>>> REPLACE`
+
+			const result = await strategy.applyDiff(originalContent, diffContent)
+			expect(result.success).toBe(true)
+			if (result.success) {
+				expect(result.content).toBe(`function one() {
+    return 1;
+}
+
+function process() {
+    return "target";
+}
+
+function process2() {
+    return "target222";
+}
+
+function two() {
+    return 2;
+}`)
+			}
+		})
 	})
 
 	describe("getToolDescription", () => {

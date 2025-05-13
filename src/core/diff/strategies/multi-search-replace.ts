@@ -380,6 +380,10 @@ Only use a single line of '=======' between search and replacement content, beca
 				(everyLineHasLineNumbers(searchContent) && everyLineHasLineNumbers(replaceContent)) ||
 				(everyLineHasLineNumbers(searchContent) && replaceContent.trim() === "")
 
+			if (hasAllLineNumbers && startLine === 0) {
+				startLine = parseInt(searchContent.split("\n")[0].split("|")[0])
+			}
+
 			if (hasAllLineNumbers) {
 				searchContent = stripLineNumbers(searchContent)
 				replaceContent = stripLineNumbers(replaceContent)
