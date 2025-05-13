@@ -55,30 +55,46 @@ async function main() {
 
 	// Process all proto files
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
-	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
+	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, absolute: true })
 
-	for (const protoFile of protoFiles) {
-		console.log(chalk.cyan(`Generating TypeScript code for ${protoFile}...`))
+	console.log(chalk.cyan(`Generating TypeScript code for:\n${protoFiles.join("\n")}...`))
 
-		// Build the protoc command with proper path handling for cross-platform
-		const protocCommand = [
-			protoc,
-			`--plugin=protoc-gen-ts_proto="${tsProtoPlugin}"`,
-			`--ts_proto_out="${TS_OUT_DIR}"`,
-			"--ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages",
-			`--proto_path="${SCRIPT_DIR}"`,
-			`"${path.join(SCRIPT_DIR, protoFile)}"`,
-		].join(" ")
+	// Build the protoc command with proper path handling for cross-platform
+	const tsProtocCommand = [
+		protoc,
+		`--proto_path="${SCRIPT_DIR}"`,
+		`--plugin=protoc-gen-ts_proto="${tsProtoPlugin}"`,
+		`--ts_proto_out="${TS_OUT_DIR}"`,
+		"--ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages",
+		...protoFiles,
+	].join(" ")
+	const execOptions = {
+		stdio: "inherit",
+	}
+	try {
+		execSync(tsProtocCommand, execOptions)
+	} catch (error) {
+		console.error(chalk.red(`Error generating TypeScript for ${protoFile}:`), error)
+		process.exit(1)
+	}
 
-		try {
-			const execOptions = {
-				stdio: "inherit",
-			}
-			execSync(protocCommand, execOptions)
-		} catch (error) {
-			console.error(chalk.red(`Error generating TypeScript for ${protoFile}:`), error)
-			process.exit(1)
-		}
+	const descriptorOutDir = path.join(ROOT_DIR, "dist-standalone", "proto")
+	await fs.mkdir(descriptorOutDir, { recursive: true })
+
+	const descriptorFile = path.join(descriptorOutDir, "descriptor_set.pb")
+	const descriptorProtocCommand = [
+		protoc,
+		`--proto_path="${SCRIPT_DIR}"`,
+		`--descriptor_set_out="${descriptorFile}"`,
+		"--include_imports",
+		...protoFiles,
+	].join(" ")
+	try {
+		console.log(chalk.cyan("Generating descriptor set..."))
+		execSync(descriptorProtocCommand, execOptions)
+	} catch (error) {
+		console.error(chalk.red(`Error generating descriptor set for ${protoFile}:`), error)
+		process.exit(1)
 	}
 
 	console.log(chalk.green("Protocol Buffer code generation completed successfully."))
