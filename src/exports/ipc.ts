@@ -4,20 +4,14 @@ import * as crypto from "node:crypto"
 
 import ipc from "node-ipc"
 
-import { IpcOrigin, IpcMessageType, IpcMessage, ipcMessageSchema, TaskCommand, TaskEvent } from "../schemas/ipc"
+import { IpcOrigin, IpcMessageType, type IpcMessage, ipcMessageSchema } from "../schemas"
+import type { IpcServerEvents, RooCodeIpcServer } from "./interface"
 
 /**
  * IpcServer
  */
 
-type IpcServerEvents = {
-	[IpcMessageType.Connect]: [clientId: string]
-	[IpcMessageType.Disconnect]: [clientId: string]
-	[IpcMessageType.TaskCommand]: [clientId: string, data: TaskCommand]
-	[IpcMessageType.TaskEvent]: [relayClientId: string | undefined, data: TaskEvent]
-}
-
-export class IpcServer extends EventEmitter<IpcServerEvents> {
+export class IpcServer extends EventEmitter<IpcServerEvents> implements RooCodeIpcServer {
 	private readonly _socketPath: string
 	private readonly _log: (...args: unknown[]) => void
 	private readonly _clients: Map<string, Socket>

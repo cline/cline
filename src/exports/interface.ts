@@ -1,4 +1,9 @@
 import { EventEmitter } from "events"
+import { Socket } from "node:net"
+
+/**
+ * Types
+ */
 
 import type {
 	GlobalSettings,
@@ -7,22 +12,36 @@ import type {
 	ClineMessage,
 	TokenUsage,
 	RooCodeEvents,
+	IpcMessage,
+	TaskCommand,
+	TaskEvent,
 } from "./types"
 
 export type {
-	RooCodeSettings,
 	GlobalSettings,
 	ProviderSettings,
 	ProviderSettingsEntry,
 	ClineMessage,
 	TokenUsage,
 	RooCodeEvents,
+	IpcMessage,
+	TaskCommand,
+	TaskEvent,
 }
 
-import { RooCodeEventName } from "../schemas"
-export type { RooCodeEventName }
+/**
+ * Enums
+ */
 
-type RooCodeSettings = GlobalSettings & ProviderSettings
+import { RooCodeEventName, IpcOrigin, IpcMessageType } from "../schemas"
+
+export { RooCodeEventName, IpcOrigin, IpcMessageType }
+
+/**
+ * RooCodeAPI
+ */
+
+export type RooCodeSettings = GlobalSettings & ProviderSettings
 
 export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	/**
@@ -168,4 +187,27 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	 * @throws Error if the profile does not exist
 	 */
 	setActiveProfile(name: string): Promise<string | undefined>
+}
+
+/**
+ * RooCodeIpcServer
+ */
+
+export type IpcServerEvents = {
+	[IpcMessageType.Connect]: [clientId: string]
+	[IpcMessageType.Disconnect]: [clientId: string]
+	[IpcMessageType.TaskCommand]: [clientId: string, data: TaskCommand]
+	[IpcMessageType.TaskEvent]: [relayClientId: string | undefined, data: TaskEvent]
+}
+
+export interface RooCodeIpcServer extends EventEmitter<IpcServerEvents> {
+	listen(): void
+
+	broadcast(message: IpcMessage): void
+
+	send(client: string | Socket, message: IpcMessage): void
+
+	get socketPath(): string
+
+	get isListening(): boolean
 }
