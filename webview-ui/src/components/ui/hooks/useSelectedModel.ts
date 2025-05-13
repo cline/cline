@@ -34,32 +34,57 @@ import {
 } from "@roo/shared/api"
 
 import { useRouterModels } from "./useRouterModels"
+import { useOpenRouterModelProviders } from "./useOpenRouterModelProviders"
 
 export const useSelectedModel = (apiConfiguration?: ProviderSettings) => {
-	const { data: routerModels, isLoading, isError } = useRouterModels()
 	const provider = apiConfiguration?.apiProvider || "anthropic"
+	const openRouterModelId = provider === "openrouter" ? apiConfiguration?.openRouterModelId : undefined
+
+	const routerModels = useRouterModels()
+	const openRouterModelProviders = useOpenRouterModelProviders(openRouterModelId)
 
 	const { id, info } =
-		apiConfiguration && routerModels
-			? getSelectedModel({ provider, apiConfiguration, routerModels })
+		apiConfiguration &&
+		typeof routerModels.data !== "undefined" &&
+		typeof openRouterModelProviders.data !== "undefined"
+			? getSelectedModel({
+					provider,
+					apiConfiguration,
+					routerModels: routerModels.data,
+					openRouterModelProviders: openRouterModelProviders.data,
+				})
 			: { id: anthropicDefaultModelId, info: undefined }
 
-	return { provider, id, info, isLoading, isError }
+	return {
+		provider,
+		id,
+		info,
+		isLoading: routerModels.isLoading || openRouterModelProviders.isLoading,
+		isError: routerModels.isError || openRouterModelProviders.isError,
+	}
 }
 
 function getSelectedModel({
 	provider,
 	apiConfiguration,
 	routerModels,
+	openRouterModelProviders,
 }: {
 	provider: ProviderName
 	apiConfiguration: ProviderSettings
 	routerModels: RouterModels
+	openRouterModelProviders: Record<string, ModelInfo>
 }): { id: string; info: ModelInfo } {
 	switch (provider) {
 		case "openrouter": {
 			const id = apiConfiguration.openRouterModelId ?? openRouterDefaultModelId
-			const info = routerModels.openrouter[id]
+			let info = routerModels.openrouter[id]
+			const specificProvider = apiConfiguration.openRouterSpecificProvider
+
+			if (specificProvider && openRouterModelProviders[specificProvider]) {
+				info = openRouterModelProviders[specificProvider]
+			}
+
 			return info
 				? { id, info }
 				: { id: openRouterDefaultModelId, info: routerModels.openrouter[openRouterDefaultModelId] }

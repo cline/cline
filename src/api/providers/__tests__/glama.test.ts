@@ -6,7 +6,7 @@ import { GlamaHandler } from "../glama"
 import { ApiHandlerOptions } from "../../../shared/api"
 
 // Mock dependencies
-jest.mock("../fetchers/cache", () => ({
+jest.mock("../fetchers/modelCache", () => ({
 	getModels: jest.fn().mockImplementation(() => {
 		return Promise.resolve({
 			"anthropic/claude-3-7-sonnet": {

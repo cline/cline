@@ -7,7 +7,7 @@ import { ApiHandlerOptions } from "../../../shared/api"
 import { UnboundHandler } from "../unbound"
 
 // Mock dependencies
-jest.mock("../fetchers/cache", () => ({
+jest.mock("../fetchers/modelCache", () => ({
 	getModels: jest.fn().mockImplementation(() => {
 		return Promise.resolve({
 			"anthropic/claude-3-5-sonnet-20241022": {

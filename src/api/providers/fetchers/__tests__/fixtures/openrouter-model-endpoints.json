@@ -1,0 +1,25 @@
+[
+	{
+		"scope": "https://openrouter.ai:443",
+		"method": "GET",
+		"path": "/api/v1/models/google/gemini-2.5-pro-preview/endpoints",
+		"body": "",
+		"status": 200,
+		"response": [
+			"31441d002056aa5ad5de6cfba09eb44cd983cf558aa50307224fd48d88f0c0d12137eda7bef1c435891ecc325645bf9d4794cd227137c069a7450a3f6ea3541aeacce9727170159a489e4b07a179ae738dc1a983bd860cb018631c277e3ab29720d5dea2ad528e551ef3c67c0e83e03cc3e22da9c6d2dbbb03ed2d5afa96237dbbe0d4e5e379806d0ef657edc161db2c0d863cfc7525951860c1af95425fdef6f1e177a1a24eb98a9b4ab75cb9acf4e63df938f044074a6c06dac44cda2750e3aa6e1246437d1cde032d10d0fceac4d20b07958df4a4aeec4affaa012d9b3eb5d0e3c33fdd4ad849181f1ffe53efd2b0f7f70b17431cdc7a92309228d5154e736588069b1ce7714bce6952e85c744b1cb672c175e424fda500d2300b1b3041bffe4209e02917760c1a225f6c218da952e14c3eaba01868e2fc07a68969cda1df7a9777e56ff7021bc945ab34b99e29c5222ab6214868114c9f3ebfc91c1c358cbac63aba3c18cabc99b8570923ed7b493445434205c506e4261983e7a03ac145e5e4177400cabf2a713a933092e58c0b18a4ecdf48b9d73933ec3534ee38c815670864c1a091d593757a991836ccd364e0e3e026d14b58285fe813f16ee4eaa5f285b20969d68ece56b8c01e61f98b7837320c3632314e0ce2acf4b627b7061c86ca07350aecd135c00ba71b0a08efaa5e567b2d0cbc9adc95fbb8146c53ef1fb6072b8394a59730c25e23e5e893c2a25ed4755dd70db7e0d3c42101aeda3430c89cb7df048b5a2990a64ddbac6070ceebeefc16f4f805e51cdcd44502b278439ab5eb5dbfe52eb31b84c8552f1b9aaaf32ccab7a459896918a4f4096b035bdf1a6cccc99db59ac1e0d7ec82ca95d307726386bbe8b4243aff7b14d855db2e5b0ad032c82ac88aecad09dd4eab813d6282a8dd0d947de2ecb0656ea03175e91d885361ba221b03605034261814e6c1c060c0125d58114a23c9334aa543079846052706459dce45f590e0f827bf794f3f751e24c224c06e3106cccf5c5dea93db5b0303"
+		],
+		"rawHeaders": {
+			"access-control-allow-origin": "*",
+			"cache-control": "s-maxage=300, stale-while-revalidate=600",
+			"cf-ray": "93ed496b8e0a0fb1-LAX",
+			"connection": "close",
+			"content-encoding": "br",
+			"content-type": "application/json",
+			"date": "Mon, 12 May 2025 22:17:32 GMT",
+			"server": "cloudflare",
+			"transfer-encoding": "chunked",
+			"vary": "Accept-Encoding"
+		},
+		"responseIsBinary": false
+	}
+]

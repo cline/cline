@@ -12,7 +12,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { SingleCompletionHandler } from "../"
 import { BaseProvider } from "./base-provider"
 import { DEFAULT_HEADERS } from "./constants"
-import { getModels } from "./fetchers/cache"
+import { getModels } from "./fetchers/modelCache"
 import OpenAI from "openai"
 
 // Requesty usage includes an extra field for Anthropic use cases.

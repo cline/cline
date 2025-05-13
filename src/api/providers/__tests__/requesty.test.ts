@@ -8,7 +8,7 @@ import { ApiHandlerOptions } from "../../../shared/api"
 
 jest.mock("openai")
 jest.mock("delay", () => jest.fn(() => Promise.resolve()))
-jest.mock("../fetchers/cache", () => ({
+jest.mock("../fetchers/modelCache", () => ({
 	getModels: jest.fn().mockImplementation(() => {
 		return Promise.resolve({
 			"coding/claude-3-7-sonnet": {

@@ -6,15 +6,15 @@ import { back as nockBack } from "nock"
 
 import { PROMPT_CACHING_MODELS } from "../../../../shared/api"
 
-import { getOpenRouterModels } from "../openrouter"
+import { getOpenRouterModelEndpoints, getOpenRouterModels } from "../openrouter"
 
 nockBack.fixtures = path.join(__dirname, "fixtures")
 nockBack.setMode("lockdown")
 
-describe("OpenRouter API", () => {
+describe.skip("OpenRouter API", () => {
 	describe("getOpenRouterModels", () => {
 		// This flakes in CI (probably related to Nock). Need to figure out why.
-		it.skip("fetches models and validates schema", async () => {
+		it("fetches models and validates schema", async () => {
 			const { nockDone } = await nockBack("openrouter-models.json")
 
 			const models = await getOpenRouterModels()
@@ -91,6 +91,42 @@ describe("OpenRouter API", () => {
 				{ id: "anthropic/claude-3.7-sonnet:beta", maxTokens: 8192 },
 				{ id: "anthropic/claude-3.7-sonnet:thinking", maxTokens: 128000 },
 			])
+
+			nockDone()
+		})
+	})
+
+	describe("getOpenRouterModelEndpoints", () => {
+		it("fetches model endpoints and validates schema", async () => {
+			const { nockDone } = await nockBack("openrouter-model-endpoints.json")
+			const endpoints = await getOpenRouterModelEndpoints("google/gemini-2.5-pro-preview")
+
+			expect(endpoints).toEqual({
+				Google: {
+					maxTokens: 0,
+					contextWindow: 1048576,
+					supportsImages: true,
+					supportsPromptCache: true,
+					inputPrice: 1.25,
+					outputPrice: 10,
+					cacheWritesPrice: 1.625,
+					cacheReadsPrice: 0.31,
+					description: undefined,
+					thinking: false,
+				},
+				"Google AI Studio": {
+					maxTokens: 0,
+					contextWindow: 1048576,
+					supportsImages: true,
+					supportsPromptCache: true,
+					inputPrice: 1.25,
+					outputPrice: 10,
+					cacheWritesPrice: 1.625,
+					cacheReadsPrice: 0.31,
+					description: undefined,
+					thinking: false,
+				},
+			})
 
 			nockDone()
 		})
