@@ -2,4 +2,4 @@
 "claude-dev": minor
 ---
 
-feat(ui): display full path from .clinerules folder in rules toggle list
+feat(ui): display path after .clinerules folder in rules toggle list
