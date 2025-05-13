@@ -414,7 +414,9 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						Response
 					</div>
 					{isExpanded && (
-						<ToggleSwitch onClick={(e) => e.stopPropagation()}> {/* Prevent header click when toggling mode */}
+						<ToggleSwitch onClick={(e) => e.stopPropagation()}>
+							{" "}
+							{/* Prevent header click when toggling mode */}
 							<span className="toggle-label">{displayMode === "rich" ? "Rich Display" : "Plain Text"}</span>
 							<div
 								className={`toggle-container ${displayMode === "rich" ? "active" : ""}`}
