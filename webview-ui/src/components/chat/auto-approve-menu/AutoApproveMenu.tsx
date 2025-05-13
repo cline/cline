@@ -336,7 +336,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		<div
 			ref={menuRef}
 			style={{
-				padding: "0 10px",
+				padding: "0 4px 0 10px",
 				margin: "0 5px",
 				userSelect: "none",
 				borderTop: `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`,
@@ -352,6 +352,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					style={{
 						cursor: "pointer",
 						paddingTop: "6px",
+						paddingRight: "2px",
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "space-between",
@@ -369,6 +370,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							gap: "4px",
 							whiteSpace: "nowrap", // Prevent text wrapping
 						}}>
+						<span>Auto-approve:</span>
 						{getQuickAccessItems()}
 					</div>
 					<span className="codicon codicon-chevron-right" />
@@ -393,7 +395,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								display: "flex",
 								justifyContent: "space-between",
 								alignItems: "center",
-								padding: "8px 0",
+								padding: "8px 4px 8px 0",
 								cursor: "pointer",
 								position: "relative", // Added for positioning context
 							}}
@@ -401,9 +403,9 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							<HeroTooltip
 								content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
 								placement="top">
-								<span style={{ color: getAsVar(VSC_FOREGROUND) }}>Auto-approve</span>
+								<span style={{ color: getAsVar(VSC_FOREGROUND), fontWeight: 500 }}>Auto-approve:</span>
 							</HeroTooltip>
-							<span className="codicon codicon-chevron-down" style={{ paddingRight: "4px" }} />
+							<span className="codicon codicon-chevron-down" />
 						</div>
 
 						<div
@@ -411,7 +413,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							style={{
 								columnCount: containerWidth > breakpoint ? 2 : 1,
 								columnGap: "4px",
-								margin: "4px 0 8px 0",
+								margin: "4px 0 16px 0",
 								position: "relative", // For absolute positioning of the separator
 							}}>
 							{/* Vertical separator line - only visible in two-column mode */}
@@ -442,14 +444,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								/>
 							))}
 						</div>
-						<div
-							style={{
-								height: "0.5px",
-								background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
-								margin: "8px 0",
-								opacity: 0.2,
-							}}
-						/>
+						<span style={{ color: getAsVar(VSC_FOREGROUND), marginBottom: 4, fontWeight: 500 }}>Quick Settings:</span>
 						<AutoApproveMenuItem
 							key={NOTIFICATIONS_SETTING.id}
 							action={NOTIFICATIONS_SETTING}
@@ -463,7 +458,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							placement="top">
 							<div
 								style={{
-									margin: "2px 10px 10px 5px",
+									margin: "2px 10px 20px 5px",
 									display: "flex",
 									alignItems: "center",
 									gap: "8px",
@@ -500,7 +495,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				{isExpanded && (
 					<span
 						className="codicon codicon-chevron-up"
-						style={{ paddingBottom: "4px", marginLeft: "auto", marginTop: "-20px", cursor: "pointer" }}
+						style={{
+							paddingBottom: "4px",
+							paddingRight: "3px",
+							marginLeft: "auto",
+							marginTop: "-20px",
+							cursor: "pointer",
+						}}
 						onClick={() => setIsExpanded(false)}
 					/>
 				)}
