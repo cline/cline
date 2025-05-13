@@ -83,7 +83,7 @@ const AutoApproveMenuItem = ({
 
 	const onChange = async (e: Event) => {
 		e.stopPropagation()
-		onToggle(action, !checked)
+		await onToggle(action, !checked)
 	}
 
 	const content = (
@@ -105,9 +105,10 @@ const AutoApproveMenuItem = ({
 									style={{
 										cursor: "pointer",
 									}}
-									onClick={(e) => {
+									onClick={async (e) => {
 										e.stopPropagation()
-										onToggleFavorite?.(action.id)
+										if (action.id === "enableAll") return
+										await onToggleFavorite?.(action.id)
 									}}
 								/>
 							</HeroTooltip>

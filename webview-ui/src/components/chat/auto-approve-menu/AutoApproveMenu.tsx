@@ -164,12 +164,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			const subActionId = action.subAction?.id
 
 			if (actionId === "enableAll" || subActionId === "enableAll") {
-				toggleAll(action, value)
+				await toggleAll(action, value)
 				return
 			}
 
 			if (actionId === "enableNotifications" || subActionId === "enableNotifications") {
-				updateNotifications(action, value)
+				await updateNotifications(action, value)
 				return
 			}
 
@@ -243,7 +243,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	)
 
 	// Handle clicks outside the menu to close it
-	useClickAway(menuRef, () => {
+	useClickAway(menuRef, async () => {
 		if (isExpanded) {
 			setIsExpanded(false)
 		}
@@ -333,7 +333,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			{/* Collapsed view with favorited items */}
 			{!isExpanded && (
 				<div
-					onClick={() => setIsExpanded(true)}
+					onClick={async () => setIsExpanded(true)}
 					style={{
 						cursor: "pointer",
 						paddingTop: "6px",
@@ -382,7 +382,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								cursor: "pointer",
 								position: "relative", // Added for positioning context
 							}}
-							onClick={() => setIsExpanded(false)}>
+							onClick={async () => setIsExpanded(false)}>
 							<HeroTooltip
 								content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
 								placement="top">
@@ -459,13 +459,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								<VSCodeTextField
 									style={{ flex: "1", width: "100%", paddingRight: "35px" }}
 									value={autoApprovalSettings.maxRequests.toString()}
-									onInput={(e) => {
+									onInput={async (e) => {
 										const input = e.target as HTMLInputElement
 										// Remove any non-numeric characters
 										input.value = input.value.replace(/[^0-9]/g, "")
 										const value = parseInt(input.value)
 										if (!isNaN(value) && value > 0) {
-											updateMaxRequests(value)
+											await updateMaxRequests(value)
 										}
 									}}
 									onKeyDown={(e) => {
@@ -486,7 +486,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					<span
 						className="codicon codicon-chevron-up"
 						style={{ paddingBottom: "4px", marginLeft: "auto", marginTop: "-20px", cursor: "pointer" }}
-						onClick={() => setIsExpanded(false)}
+						onClick={async () => setIsExpanded(false)}
 					/>
 				)}
 			</div>
