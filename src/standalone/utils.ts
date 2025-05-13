@@ -17,26 +17,27 @@ const proto = grpc.loadPackageDefinition(packageDefinition) as unknown
 
 // Helper function to convert camelCase to snake_case
 function camelToSnakeCase(obj: any): any {
-	if (obj === null || typeof obj !== 'object') {
-		return obj;
+	if (obj === null || typeof obj !== "object") {
+		return obj
 	}
 
 	if (Array.isArray(obj)) {
-		return obj.map(camelToSnakeCase);
+		return obj.map(camelToSnakeCase)
 	}
 
 	return Object.keys(obj).reduce((acc: any, key: string) => {
 		// Convert key from camelCase to snake_case
-		const snakeKey = key.replace(/([A-Z])/g, "_$1")
-			.replace(/^_+/, '')
-			.toLowerCase();
+		const snakeKey = key
+			.replace(/([A-Z])/g, "_$1")
+			.replace(/^_+/, "")
+			.toLowerCase()
 
 		// Convert value recursively if it's an object
-		const value = obj[key];
-		acc[snakeKey] = camelToSnakeCase(value);
+		const value = obj[key]
+		acc[snakeKey] = camelToSnakeCase(value)
 
-		return acc;
-	}, {});
+		return acc
+	}, {})
 }
 
 export { packageDefinition, proto, log, camelToSnakeCase }
