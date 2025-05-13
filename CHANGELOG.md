@@ -1,18 +1,11 @@
 # Changelog
 
-## 3.16.0
+## [3.15.3]
 
--   4a230ad: Add Fireworks API Provider
--   afb64c8: add distinct id bootstrap
--   3657e90: Fix minor visual issues with auto-approve menu
--   d88c07c: convert condense command to use grpc
--   abbe40e: downloadMcp protobus migration
--   65f1b05: Added confirmation of a successful cd to cwd before executing commands in the active terminal
--   7937530: removing free gemini models
--   0fcab4d: This fix adds the --user-data-dir flag when launching Chrome with the remote debugging port, which resolves the 'Chrome was launched but debug port is not responding' error.
--   5c08276: toggleFavoriteModel protobus migration
--   94c432f: adding activation events so cline is activated when vs code opens
--   01877c1: prevent IME composition Enter from auto‑sending edited message
+-   Add Fireworks API Provider
+-   Fix minor visual issues with auto-approve menu
+-   Fixed one instance of terminal not getting output
+-   Fixed 'Chrome was launched but debug port is not responding' error
 
 ## [3.15.2]
 
