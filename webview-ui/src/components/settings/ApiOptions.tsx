@@ -1379,7 +1379,7 @@ const ApiOptions = ({
 						type="password"
 						onInput={handleInputChange("fireworksApiKey")}
 						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>API Key</span>
+						<span style={{ fontWeight: 500 }}>Fireworks API Key</span>
 					</VSCodeTextField>
 					<p
 						style={{
@@ -1419,7 +1419,7 @@ const ApiOptions = ({
 					</p>
 					<VSCodeTextField
 						value={apiConfiguration?.fireworksModelMaxCompletionTokens?.toString() || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", marginBottom: 8 }}
 						onInput={(e) => {
 							const value = (e.target as HTMLInputElement).value
 							if (!value) {
@@ -1440,7 +1440,7 @@ const ApiOptions = ({
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.fireworksModelMaxTokens?.toString() || ""}
-						style={{ width: "100%", "marginTop": 4 }}
+						style={{ width: "100%", marginBottom: 8 }}
 						onInput={(e) => {
 							const value = (e.target as HTMLInputElement).value
 							if (!value) {
