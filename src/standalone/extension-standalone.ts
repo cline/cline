@@ -6,7 +6,7 @@ import { activate } from "../extension"
 import { Controller } from "../core/controller"
 import { extensionContext, outputChannel, postMessage } from "./vscode-impls"
 import { packageDefinition, proto, log, camelToSnakeCase } from "./utils"
-import { GrpcHandler } from "./grpc-types"
+import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
 import { addServices } from "./server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 
@@ -21,11 +21,11 @@ import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
  * @param controllerInstance - The controller instance to pass to the handler
  * @returns A gRPC-compatible callback-style handler function
  */
-export function wrapHandler<TRequest, TResponse>(
+function wrapHandler<TRequest, TResponse>(
 	handler: GrpcHandler<TRequest, TResponse>,
 	controller: Controller,
 ): grpc.handleUnaryCall<TRequest, TResponse> {
-	return async (call, callback) => {
+	return async (call: grpc.ServerUnaryCall<TRequest, TResponse>, callback: grpc.sendUnaryData<TResponse>) => {
 		try {
 			log(`gRPC request: ${call.getPath()}`)
 			const result = await handler(controller, call.request)
@@ -42,20 +42,21 @@ export function wrapHandler<TRequest, TResponse>(
 	}
 }
 
-export function wrapResponseStreamingHandler<TRequest, TResponse>(handler: any, controller: Controller): any {
+function wrapResponseStreamingHandler<TRequest, TResponse>(
+	handler: GrpcStreamingResponseHandler<TRequest, TResponse>,
+	controller: Controller,
+): grpc.handleServerStreamingCall<TRequest, TResponse> {
 	return async (call: grpc.ServerWritableStream<TRequest, TResponse>) => {
 		try {
-			const requestId = call.metadata.get("request-id")
+			const requestId = call.metadata.get("request-id").pop()?.toString()
 			log(`gRPC streaming request: ${call.getPath()}`)
 
 			const responseStream: StreamingResponseHandler = (response, isLast, sequenceNumber) => {
-				console.log(" sss ", response)
 				try {
 					// The grpc-js serializer expects the proto message to be in the same
 					// case as the proto file. This is a work around until we find a solution.
+					call.write(camelToSnakeCase(response)) // Use a bound version of call.write to maintain proper 'this' context
 
-					// Use a bound version of call.write to maintain proper 'this' context
-					call.write(camelToSnakeCase(response), (err: any) => console.log("message written, err?", err))
 					if (isLast === true) {
 						log(`Closing stream for ${requestId}`)
 						call.end()
@@ -88,7 +89,7 @@ function main() {
 	healthImpl.addToServer(server)
 
 	// Add all the handlers for the ProtoBus services to the server.
-	addServices(server, proto, wrapHandler, controller, wrapResponseStreamingHandler)
+	addServices(server, proto, controller, wrapHandler, wrapResponseStreamingHandler)
 
 	// Set up reflection.
 	const reflection = new ReflectionService(packageDefinition)
