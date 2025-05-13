@@ -22,7 +22,8 @@ const CheckboxContainer = styled.div<{
 	display: flex;
 	align-items: center;
 	justify-content: space-between; /* Push content to edges */
-	padding: 0 4px;
+	padding-left: 4px;
+	padding-right: 1px;
 	border-radius: 4px;
 	cursor: pointer;
 	transition: all 0.2s ease;
@@ -51,7 +52,7 @@ const CheckboxContainer = styled.div<{
 	.star {
 		color: ${(props) => (props.isFavorited ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)")};
 		opacity: ${(props) => (props.isFavorited ? 1 : 0.6)};
-		font-size: 12px;
+		font-size: 14px;
 	}
 `
 
@@ -99,21 +100,14 @@ const AutoApproveMenuItem = ({
 						{onToggleFavorite && !condensed && (
 							<HeroTooltip
 								delay={500}
-								content={
-									action.id === "enableAll"
-										? "Required"
-										: favorited
-											? "Remove from quick-access menu"
-											: "Add to quick-access menu"
-								}>
+								content={favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}>
 								<span
-									className={`codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
+									className={`p-0.5 codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
 									style={{
-										cursor: action.id === "enableAll" ? "not-allowed" : "pointer",
+										cursor: "pointer",
 									}}
 									onClick={(e) => {
 										e.stopPropagation()
-										if (action.id === "enableAll") return
 										onToggleFavorite?.(action.id)
 									}}
 								/>
