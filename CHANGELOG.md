@@ -2,12 +2,7 @@
 
 ## 3.16.0
 
-### Minor Changes
-
 -   4a230ad: Add Fireworks API Provider
-
-### Patch Changes
-
 -   afb64c8: add distinct id bootstrap
 -   3657e90: Fix minor visual issues with auto-approve menu
 -   d88c07c: convert condense command to use grpc
