@@ -354,7 +354,7 @@ export class DiffViewProvider {
 	// close editor if open?
 	async reset() {
 		// Ensure any diff views opened by this provider are closed to release memory
-		await this.closeAllDiffViews();
+		await this.closeAllDiffViews()
 		this.editType = undefined
 		this.isEditing = false
 		this.originalContent = undefined
