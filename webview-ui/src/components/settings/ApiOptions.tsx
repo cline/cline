@@ -1390,7 +1390,7 @@ const ApiOptions = ({
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.fireworksApiKey && (
 							<VSCodeLink
-								href="https://fireworks.ai/account/api-keys"
+								href="https://fireworks.ai/settings/users/api-keys"
 								style={{
 									display: "inline",
 									fontSize: "inherit",
@@ -1440,7 +1440,7 @@ const ApiOptions = ({
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.fireworksModelMaxTokens?.toString() || ""}
-						style={{ width: "100%" }}
+						style={{ width: "100%", "marginTop": 4 }}
 						onInput={(e) => {
 							const value = (e.target as HTMLInputElement).value
 							if (!value) {
