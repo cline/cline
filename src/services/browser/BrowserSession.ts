@@ -148,7 +148,7 @@ export class BrowserSession {
 
 			// Instead of using any default flags, use a minimal set to ensure session persistence
 			// This closely mimics running "google-chrome-stable --remote-debugging-port=9222 --user-data-dir=/path/to/profile" from the CLI
-			const userDataDir = path.join(require('os').tmpdir(), "chrome-debug-profile")
+			const userDataDir = path.join(require("os").tmpdir(), "chrome-debug-profile")
 			const chromeFlags = [
 				"--remote-debugging-port=" + DEBUG_PORT,
 				`--user-data-dir=${userDataDir}`,
@@ -167,7 +167,7 @@ export class BrowserSession {
 				`--remote-debugging-port=${DEBUG_PORT}`,
 				`--user-data-dir=${userDataDir}`,
 				"--disable-notifications",
-				"chrome://newtab"
+				"chrome://newtab",
 			]
 
 			// Spawn Chrome as a detached process
