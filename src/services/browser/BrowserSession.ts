@@ -16,6 +16,7 @@ import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./Br
 import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "@core/controller"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import os from "os"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -146,26 +147,16 @@ export class BrowserSession {
 			// Wait a moment for Chrome to fully shut down
 			await new Promise((resolve) => setTimeout(resolve, 500))
 
-			// Instead of using any default flags, use a minimal set to ensure session persistence
-			// This closely mimics running "google-chrome-stable --remote-debugging-port=9222 --user-data-dir=/path/to/profile" from the CLI
-			const userDataDir = path.join(require("os").tmpdir(), "chrome-debug-profile")
-			const chromeFlags = [
-				"--remote-debugging-port=" + DEBUG_PORT,
-				`--user-data-dir=${userDataDir}`,
-				"--disable-notifications",
-				// Do not add any flags that might interfere with profile data
-			]
-
+			const userDataDir = path.join(os.tmpdir(), "chrome-debug-profile")
 			const installation = chromeLauncher.Launcher.getFirstInstallation()
 			if (!installation) {
 				throw new Error("Could not find Chrome installation on this system")
 			}
 			console.info("chrome installation", installation)
 
-			// Prepare the command arguments using the same userDataDir
 			const args = [
 				`--remote-debugging-port=${DEBUG_PORT}`,
-				`--user-data-dir=${userDataDir}`,
+				`--user-data-dir="${userDataDir}"`,
 				"--disable-notifications",
 				"chrome://newtab",
 			]
