@@ -15,15 +15,25 @@ type ShellToken = string | { op: string } | { command: string }
 export function parseCommand(command: string): string[] {
 	if (!command?.trim()) return []
 
-	// First handle PowerShell redirections by temporarily replacing them
+	// Storage for replaced content
 	const redirections: string[] = []
+	const subshells: string[] = []
+	const quotes: string[] = []
+	const arrayIndexing: string[] = []
+
+	// First handle PowerShell redirections by temporarily replacing them
 	let processedCommand = command.replace(/\d*>&\d*/g, (match) => {
 		redirections.push(match)
 		return `__REDIR_${redirections.length - 1}__`
 	})
 
+	// Handle array indexing expressions: ${array[...]} pattern and partial expressions
+	processedCommand = processedCommand.replace(/\$\{[^}]*\[[^\]]*(\]([^}]*\})?)?/g, (match) => {
+		arrayIndexing.push(match)
+		return `__ARRAY_${arrayIndexing.length - 1}__`
+	})
+
 	// Then handle subshell commands
-	const subshells: string[] = []
 	processedCommand = processedCommand
 		.replace(/\$\((.*?)\)/g, (_, inner) => {
 			subshells.push(inner.trim())
@@ -35,7 +45,6 @@ export function parseCommand(command: string): string[] {
 		})
 
 	// Then handle quoted strings
-	const quotes: string[] = []
 	processedCommand = processedCommand.replace(/"[^"]*"/g, (match) => {
 		quotes.push(match)
 		return `__QUOTE_${quotes.length - 1}__`
@@ -84,6 +93,8 @@ export function parseCommand(command: string): string[] {
 		result = result.replace(/__QUOTE_(\d+)__/g, (_, i) => quotes[parseInt(i)])
 		// Restore redirections
 		result = result.replace(/__REDIR_(\d+)__/g, (_, i) => redirections[parseInt(i)])
+		// Restore array indexing expressions
+		result = result.replace(/__ARRAY_(\d+)__/g, (_, i) => arrayIndexing[parseInt(i)])
 		return result
 	})
 }
