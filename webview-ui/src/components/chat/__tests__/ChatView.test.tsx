@@ -59,7 +59,7 @@ jest.mock("../AutoApproveMenu", () => ({
 interface ChatTextAreaProps {
 	onSend: (value: string) => void
 	inputValue?: string
-	textAreaDisabled?: boolean
+	sendingDisabled?: boolean
 	placeholderText?: string
 	selectedImages?: string[]
 	shouldDisableImages?: boolean
