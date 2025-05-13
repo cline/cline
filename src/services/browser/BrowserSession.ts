@@ -124,29 +124,7 @@ export class BrowserSession {
 	}
 
 	async relaunchChromeDebugMode(controller: Controller) {
-		const result = await vscode.window.showWarningMessage(
-			"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
-			{ modal: true },
-			"Yes",
-		)
-
-		if (result !== "Yes") {
-			controller?.postMessageToWebview({
-				type: "browserRelaunchResult",
-				success: false,
-				text: "Operation cancelled by user",
-			})
-			return
-		}
-
 		try {
-			// Chrome-launcher's killAll only kills instances it launched
-			// We need to handle system Chrome processes separately
-			await this.killAllChromeBrowsers()
-
-			// Wait a moment for Chrome to fully shut down
-			await new Promise((resolve) => setTimeout(resolve, 500))
-
 			const userDataDir = path.join(os.tmpdir(), "chrome-debug-profile")
 			const installation = chromeLauncher.Launcher.getFirstInstallation()
 			if (!installation) {
