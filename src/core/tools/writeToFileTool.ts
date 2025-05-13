@@ -72,6 +72,7 @@ export async function writeToFileTool(
 	const sharedMessageProps: ClineSayTool = {
 		tool: fileExists ? "editedExistingFile" : "newFileCreated",
 		path: getReadablePath(cline.cwd, removeClosingTag("path", relPath)),
+		content: newContent,
 		isOutsideWorkspace,
 	}
 

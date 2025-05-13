@@ -26,13 +26,13 @@ export async function insertContentTool(
 	const sharedMessageProps: ClineSayTool = {
 		tool: "insertContent",
 		path: getReadablePath(cline.cwd, removeClosingTag("path", relPath)),
+		diff: content,
 		lineNumber: line ? parseInt(line, 10) : undefined,
 	}
 
 	try {
 		if (block.partial) {
-			const partialMessage = JSON.stringify(sharedMessageProps)
-			await cline.ask("tool", partialMessage, block.partial).catch(() => {})
+			await cline.ask("tool", JSON.stringify(sharedMessageProps), block.partial).catch(() => {})
 			return
 		}
 
@@ -145,14 +145,15 @@ export async function insertContentTool(
 			return
 		}
 
-		const userFeedbackDiff = JSON.stringify({
-			tool: "insertContent",
-			path: getReadablePath(cline.cwd, relPath),
-			lineNumber: lineNumber,
-			diff: userEdits,
-		} satisfies ClineSayTool)
-
-		await cline.say("user_feedback_diff", userFeedbackDiff)
+		await cline.say(
+			"user_feedback_diff",
+			JSON.stringify({
+				tool: "insertContent",
+				path: getReadablePath(cline.cwd, relPath),
+				diff: userEdits,
+				lineNumber: lineNumber,
+			} satisfies ClineSayTool),
+		)
 
 		pushToolResult(
 			`The user made the following updates to your content:\n\n${userEdits}\n\n` +

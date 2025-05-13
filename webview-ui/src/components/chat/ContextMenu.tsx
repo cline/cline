@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { getIconForFilePath, getIconUrlByName, getIconForDirectoryPath } from "vscode-material-icons"
+
+import { ModeConfig } from "@roo/shared/modes"
+
 import {
 	ContextMenuOptionType,
 	ContextMenuQueryItem,
 	getContextMenuOptions,
 	SearchResult,
 } from "@src/utils/context-mentions"
-import { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
-import { ModeConfig } from "@roo/shared/modes"
+import { removeLeadingNonAlphanumeric } from "@src/utils/removeLeadingNonAlphanumeric"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void
