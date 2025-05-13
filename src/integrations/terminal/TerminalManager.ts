@@ -253,7 +253,9 @@ export class TerminalManager {
 
 			// Either resolve immediately if CWD already updated or wait for event/timeout
 			if (this.isCwdMatchingExpected(availableTerminal)) {
-				availableTerminal.cwdResolved?.resolve()
+				if (availableTerminal.cwdResolved) {
+					availableTerminal.cwdResolved.resolve()
+				}
 				availableTerminal.pendingCwdChange = undefined
 				availableTerminal.cwdResolved = undefined
 			} else {
@@ -261,7 +263,9 @@ export class TerminalManager {
 					// Wait with a timeout for state change event to resolve
 					await Promise.race([
 						cwdPromise,
-						new Promise<void>((_, reject) => setTimeout(() => reject(new Error("CWD timeout")), 1000)),
+						new Promise<void>((_, reject) =>
+							setTimeout(() => reject(new Error(`CWD timeout: Failed to update to ${cwd}`)), 1000),
+						),
 					])
 				} catch (err) {
 					// Clear pending state on timeout
