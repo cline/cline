@@ -603,27 +603,6 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
-			case "toggleFavoriteModel": {
-				if (message.modelId) {
-					const { apiConfiguration } = await getAllExtensionState(this.context)
-					const favoritedModelIds = apiConfiguration.favoritedModelIds || []
-
-					// Toggle favorite status
-					const updatedFavorites = favoritedModelIds.includes(message.modelId)
-						? favoritedModelIds.filter((id) => id !== message.modelId)
-						: [...favoritedModelIds, message.modelId]
-
-					await updateGlobalState(this.context, "favoritedModelIds", updatedFavorites)
-
-					// Capture telemetry for model favorite toggle
-					const isFavorited = !favoritedModelIds.includes(message.modelId)
-					telemetryService.captureModelFavoritesUsage(message.modelId, isFavorited)
-
-					// Post state to webview without changing any other configuration
-					await this.postStateToWebview()
-				}
-				break
-			}
 			case "grpc_request": {
 				if (message.grpc_request) {
 					await handleGrpcRequest(this, message.grpc_request)

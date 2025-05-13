@@ -6,7 +6,7 @@ import { useMount } from "react-use"
 import styled from "styled-components"
 import { openRouterDefaultModelId } from "@shared/api"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
+import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { vscode } from "@/utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
@@ -292,10 +292,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 												isFavorite={isFavorite}
 												onClick={(e) => {
 													e.stopPropagation()
-													vscode.postMessage({
-														type: "toggleFavoriteModel",
-														modelId: item.id,
-													})
+													StateServiceClient.toggleFavoriteModel({ value: item.id }).catch((error) =>
+														console.error("Failed to toggle favorite model:", error),
+													)
 												}}
 											/>
 										</div>
