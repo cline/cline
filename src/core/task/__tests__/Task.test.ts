@@ -61,6 +61,7 @@ jest.mock("vscode", () => {
 	const mockTabGroup = { tabs: [mockTab] }
 
 	return {
+		TabInputTextDiff: jest.fn(),
 		CodeActionKind: {
 			QuickFix: { value: "quickfix" },
 			RefactorRewrite: { value: "refactor.rewrite" },
@@ -72,6 +73,7 @@ jest.mock("vscode", () => {
 			visibleTextEditors: [mockTextEditor],
 			tabGroups: {
 				all: [mockTabGroup],
+				close: jest.fn(),
 				onDidChangeTabs: jest.fn(() => ({ dispose: jest.fn() })),
 			},
 			showErrorMessage: jest.fn(),
