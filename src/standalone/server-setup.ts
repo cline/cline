@@ -57,7 +57,6 @@ import { getTaskHistory } from "../core/controller/task/getTaskHistory"
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
 
-
 export function addServices(
 	server: grpc.Server,
 	proto: any,
@@ -65,75 +64,74 @@ export function addServices(
 	wrapper: GrpcHandlerWrapper,
 	wrapResponseStreaming: GrpcStreamingResponseHandlerWrapper,
 ): void {
-    // Account Service
-    server.addService(proto.cline.AccountService.service, {
-         accountLoginClicked: wrapper(accountLoginClicked, controller),
-    });
+	// Account Service
+	server.addService(proto.cline.AccountService.service, {
+		accountLoginClicked: wrapper(accountLoginClicked, controller),
+	})
 
-    // Browser Service
-    server.addService(proto.cline.BrowserService.service, {
-         getBrowserConnectionInfo: wrapper(getBrowserConnectionInfo, controller),
-         testBrowserConnection: wrapper(testBrowserConnection, controller),
-         discoverBrowser: wrapper(discoverBrowser, controller),
-         getDetectedChromePath: wrapper(getDetectedChromePath, controller),
-         updateBrowserSettings: wrapper(updateBrowserSettings, controller),
-    });
+	// Browser Service
+	server.addService(proto.cline.BrowserService.service, {
+		getBrowserConnectionInfo: wrapper(getBrowserConnectionInfo, controller),
+		testBrowserConnection: wrapper(testBrowserConnection, controller),
+		discoverBrowser: wrapper(discoverBrowser, controller),
+		getDetectedChromePath: wrapper(getDetectedChromePath, controller),
+		updateBrowserSettings: wrapper(updateBrowserSettings, controller),
+	})
 
-    // Checkpoints Service
-    server.addService(proto.cline.CheckpointsService.service, {
-         checkpointDiff: wrapper(checkpointDiff, controller),
-         checkpointRestore: wrapper(checkpointRestore, controller),
-    });
+	// Checkpoints Service
+	server.addService(proto.cline.CheckpointsService.service, {
+		checkpointDiff: wrapper(checkpointDiff, controller),
+		checkpointRestore: wrapper(checkpointRestore, controller),
+	})
 
-    // File Service
-    server.addService(proto.cline.FileService.service, {
-         openFile: wrapper(openFile, controller),
-         openImage: wrapper(openImage, controller),
-         deleteRuleFile: wrapper(deleteRuleFile, controller),
-         createRuleFile: wrapper(createRuleFile, controller),
-         searchCommits: wrapper(searchCommits, controller),
-         getRelativePaths: wrapper(getRelativePaths, controller),
-         searchFiles: wrapper(searchFiles, controller),
-    });
+	// File Service
+	server.addService(proto.cline.FileService.service, {
+		openFile: wrapper(openFile, controller),
+		openImage: wrapper(openImage, controller),
+		deleteRuleFile: wrapper(deleteRuleFile, controller),
+		createRuleFile: wrapper(createRuleFile, controller),
+		searchCommits: wrapper(searchCommits, controller),
+		getRelativePaths: wrapper(getRelativePaths, controller),
+		searchFiles: wrapper(searchFiles, controller),
+	})
 
-    // Mcp Service
-    server.addService(proto.cline.McpService.service, {
-         toggleMcpServer: wrapper(toggleMcpServer, controller),
-         updateMcpTimeout: wrapper(updateMcpTimeout, controller),
-         addRemoteMcpServer: wrapper(addRemoteMcpServer, controller),
-    });
+	// Mcp Service
+	server.addService(proto.cline.McpService.service, {
+		toggleMcpServer: wrapper(toggleMcpServer, controller),
+		updateMcpTimeout: wrapper(updateMcpTimeout, controller),
+		addRemoteMcpServer: wrapper(addRemoteMcpServer, controller),
+	})
 
-    // Models Service
-    server.addService(proto.cline.ModelsService.service, {
-         getOllamaModels: wrapper(getOllamaModels, controller),
-         getLmStudioModels: wrapper(getLmStudioModels, controller),
-         getVsCodeLmModels: wrapper(getVsCodeLmModels, controller),
-         refreshOpenRouterModels: wrapper(refreshOpenRouterModels, controller),
-         refreshOpenAiModels: wrapper(refreshOpenAiModels, controller),
-    });
+	// Models Service
+	server.addService(proto.cline.ModelsService.service, {
+		getOllamaModels: wrapper(getOllamaModels, controller),
+		getLmStudioModels: wrapper(getLmStudioModels, controller),
+		getVsCodeLmModels: wrapper(getVsCodeLmModels, controller),
+		refreshOpenRouterModels: wrapper(refreshOpenRouterModels, controller),
+		refreshOpenAiModels: wrapper(refreshOpenAiModels, controller),
+	})
 
-    // State Service
-    server.addService(proto.cline.StateService.service, {
-         getLatestState: wrapper(getLatestState, controller),
-        // TODO add subscribeToState
-    });
+	// State Service
+	server.addService(proto.cline.StateService.service, {
+		getLatestState: wrapper(getLatestState, controller),
+		// TODO add subscribeToState
+	})
 
-    // Task Service
-    server.addService(proto.cline.TaskService.service, {
-         cancelTask: wrapper(cancelTask, controller),
-         clearTask: wrapper(clearTask, controller),
-         deleteTasksWithIds: wrapper(deleteTasksWithIds, controller),
-         newTask: wrapper(newTask, controller),
-         showTaskWithId: wrapper(showTaskWithId, controller),
-         exportTaskWithId: wrapper(exportTaskWithId, controller),
-         toggleTaskFavorite: wrapper(toggleTaskFavorite, controller),
-         deleteNonFavoritedTasks: wrapper(deleteNonFavoritedTasks, controller),
-         getTaskHistory: wrapper(getTaskHistory, controller),
-    });
+	// Task Service
+	server.addService(proto.cline.TaskService.service, {
+		cancelTask: wrapper(cancelTask, controller),
+		clearTask: wrapper(clearTask, controller),
+		deleteTasksWithIds: wrapper(deleteTasksWithIds, controller),
+		newTask: wrapper(newTask, controller),
+		showTaskWithId: wrapper(showTaskWithId, controller),
+		exportTaskWithId: wrapper(exportTaskWithId, controller),
+		toggleTaskFavorite: wrapper(toggleTaskFavorite, controller),
+		deleteNonFavoritedTasks: wrapper(deleteNonFavoritedTasks, controller),
+		getTaskHistory: wrapper(getTaskHistory, controller),
+	})
 
-    // Web Service
-    server.addService(proto.cline.WebService.service, {
-         checkIsImageUrl: wrapper(checkIsImageUrl, controller),
-    });
-
+	// Web Service
+	server.addService(proto.cline.WebService.service, {
+		checkIsImageUrl: wrapper(checkIsImageUrl, controller),
+	})
 }
