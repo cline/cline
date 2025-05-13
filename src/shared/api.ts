@@ -19,6 +19,7 @@ export type ApiProvider =
 	| "vscode-lm"
 	| "cline"
 	| "litellm"
+	| "fireworks"
 	| "asksage"
 	| "xai"
 	| "sambanova"
@@ -70,6 +71,10 @@ export interface ApiHandlerOptions {
 	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
+	fireworksApiKey?: string
+	fireworksModelId?: string
+	fireworksModelMaxCompletionTokens?: number
+	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
