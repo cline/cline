@@ -17,8 +17,8 @@ type HistoryViewProps = {
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
-// Component that visually matches VSCodeRadio but supports custom icons and is not a direct child of VSCodeRadioGroup
-// Used for favorites and current workspace filters
+// Tailwind-styled radio with custom icon support - works independently of VSCodeRadioGroup but looks the same
+// Used for workspace and favorites filters
 
 interface CustomFilterRadioProps {
 	checked: boolean
@@ -31,47 +31,15 @@ const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadio
 	return (
 		<div
 			onClick={onChange}
-			style={{
-				display: "flex",
-				alignItems: "center",
-				cursor: "pointer",
-				padding: "0.3em 0.0em",
-				marginRight: "10px",
-				fontSize: "var(--vscode-font-size)",
-				userSelect: "none",
-			}}>
+			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-[var(--vscode-font-size)] select-none">
 			<div
-				style={{
-					width: "14px",
-					height: "14px",
-					borderRadius: "50%",
-					border: "1px solid var(--vscode-checkbox-border)",
-					backgroundColor: checked ? "var(--vscode-checkbox-background)" : "transparent",
-					position: "relative",
-					display: "flex",
-					justifyContent: "center",
-					alignItems: "center",
-					marginRight: "6px",
-				}}>
-				{checked && (
-					<div
-						style={{
-							width: "6px",
-							height: "6px",
-							borderRadius: "50%",
-							backgroundColor: "var(--vscode-checkbox-foreground)",
-						}}
-					/>
-				)}
+				className={`w-[14px] h-[14px] rounded-full border border-[var(--vscode-checkbox-border)] relative flex justify-center items-center mr-[6px] ${
+					checked ? "bg-[var(--vscode-checkbox-background)]" : "bg-transparent"
+				}`}>
+				{checked && <div className="w-[6px] h-[6px] rounded-full bg-[var(--vscode-checkbox-foreground)]" />}
 			</div>
-			<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-				<div
-					className={`codicon codicon-${icon}`}
-					style={{
-						color: "var(--vscode-button-background)",
-						fontSize: "16px",
-					}}
-				/>
+			<span className="flex items-center gap-[3px]">
+				<div className={`codicon codicon-${icon} text-[var(--vscode-button-background)] text-base`} />
 				{label}
 			</span>
 		</div>
