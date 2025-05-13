@@ -6,7 +6,7 @@ import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...(actual || {}),
+		...(typeof actual === "object" && actual !== null ? actual : {}),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
@@ -26,7 +26,7 @@ describe("ApiOptions Component", () => {
 
 	beforeEach(() => {
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
-		global.vscode = { postMessage: mockPostMessage }
+		global.vscode = { postMessage: mockPostMessage } as any
 	})
 
 	it("renders Requesty API Key input", () => {
@@ -53,7 +53,7 @@ describe("ApiOptions Component", () => {
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...(actual || {}),
+		...(typeof actual === "object" && actual !== null ? actual : {}),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
@@ -73,7 +73,7 @@ describe("ApiOptions Component", () => {
 
 	beforeEach(() => {
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
-		global.vscode = { postMessage: mockPostMessage }
+		global.vscode = { postMessage: mockPostMessage } as any
 	})
 
 	it("renders Together API Key input", () => {
@@ -100,7 +100,7 @@ describe("ApiOptions Component", () => {
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...(actual || {}),
+		...(typeof actual === "object" && actual !== null ? actual : {}),
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
 				apiProvider: "fireworks",
@@ -120,6 +120,7 @@ describe("ApiOptions Component", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
 		global.vscode = { postMessage: mockPostMessage } as any
 	})
 
@@ -167,7 +168,7 @@ describe("ApiOptions Component", () => {
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...actual,
+		...(typeof actual === "object" && actual !== null ? actual : {}),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
