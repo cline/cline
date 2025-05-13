@@ -40,6 +40,8 @@
 		"llama"
 	],
 	"activationEvents": [
+		"onLanguage",
+		"onStartupFinished",
 		"workspaceContains:evals.env"
 	],
 	"main": "./dist/extension.js",
