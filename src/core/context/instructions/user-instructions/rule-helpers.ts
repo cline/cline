@@ -6,9 +6,13 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
  */
-export async function readDirectoryRecursive(directoryPath: string, allowedFileExtension: string): Promise<string[]> {
+export async function readDirectoryRecursive(
+	directoryPath: string,
+	allowedFileExtension: string,
+	excludedPaths: string[][] = [],
+): Promise<string[]> {
 	try {
-		const entries = await readDirectory(directoryPath)
+		const entries = await readDirectory(directoryPath, excludedPaths)
 		let results: string[] = []
 		for (const entry of entries) {
 			if (allowedFileExtension !== "") {
@@ -33,6 +37,7 @@ export async function synchronizeRuleToggles(
 	rulesDirectoryPath: string,
 	currentToggles: ClineRulesToggles,
 	allowedFileExtension: string = "",
+	excludedPaths: string[][] = [],
 ): Promise<ClineRulesToggles> {
 	// Create a copy of toggles to modify
 	const updatedToggles = { ...currentToggles }
@@ -45,7 +50,7 @@ export async function synchronizeRuleToggles(
 
 			if (isDir) {
 				// DIRECTORY CASE
-				const filePaths = await readDirectoryRecursive(rulesDirectoryPath, allowedFileExtension)
+				const filePaths = await readDirectoryRecursive(rulesDirectoryPath, allowedFileExtension, excludedPaths)
 				const existingRulePaths = new Set<string>()
 
 				for (const filePath of filePaths) {

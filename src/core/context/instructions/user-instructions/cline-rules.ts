@@ -80,7 +80,8 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 	if (await fileExistsAtPath(clineRulesFilePath)) {
 		if (await isDirectory(clineRulesFilePath)) {
 			try {
-				const rulesFilePaths = await readDirectory(clineRulesFilePath)
+				const rulesFilePaths = await readDirectory(clineRulesFilePath, [[".clinerules", "workflows"]])
+
 				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, cwd, toggles)
 				if (rulesFilesTotalContent) {
 					clineRulesFileInstructions = formatResponse.clineRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent)
@@ -121,7 +122,9 @@ export async function refreshClineRulesToggles(
 	// Local toggles
 	const localClineRulesToggles = ((await getWorkspaceState(context, "localClineRulesToggles")) as ClineRulesToggles) || {}
 	const localClineRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.clineRules)
-	const updatedLocalToggles = await synchronizeRuleToggles(localClineRulesFilePath, localClineRulesToggles)
+	const updatedLocalToggles = await synchronizeRuleToggles(localClineRulesFilePath, localClineRulesToggles, "", [
+		[".clinerules", "workflows"],
+	])
 	await updateWorkspaceState(context, "localClineRulesToggles", updatedLocalToggles)
 
 	return {
