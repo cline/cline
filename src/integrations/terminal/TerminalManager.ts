@@ -87,11 +87,6 @@ declare module "vscode" {
 			disposables?: vscode.Disposable[],
 		) => vscode.Disposable
 	}
-
-	// Define TerminalStateChangeEvent interface
-	interface TerminalStateChangeEvent {
-		terminal: Terminal
-	}
 }
 
 export class TerminalManager {
