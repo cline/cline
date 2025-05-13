@@ -322,10 +322,7 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 			let startedNewParam = false
 
 			for (const [tag, paramName] of toolParamOpenTags.entries()) {
-				if (
-					currentCharIndex >= tag.length - 1 &&
-					assistantMessage.startsWith(tag, currentCharIndex - tag.length + 1)
-				) {
+				if (currentCharIndex >= tag.length - 1 && assistantMessage.startsWith(tag, currentCharIndex - tag.length + 1)) {
 					currentParamName = paramName
 					currentParamValueStart = currentCharIndex + 1 // Value starts after the tag.
 					startedNewParam = true
@@ -371,9 +368,7 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 					const contentEnd = toolContentSlice.lastIndexOf(contentEndTag)
 
 					if (contentStart !== -1 && contentEnd !== -1 && contentEnd > contentStart) {
-						const contentValue = toolContentSlice
-							.slice(contentStart + contentStartTag.length, contentEnd)
-							.trim()
+						const contentValue = toolContentSlice.slice(contentStart + contentStartTag.length, contentEnd).trim()
 
 						currentToolUse.params[contentParamName] = contentValue
 					}
@@ -397,10 +392,7 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 			let startedNewTool = false
 
 			for (const [tag, toolName] of toolUseOpenTags.entries()) {
-				if (
-					currentCharIndex >= tag.length - 1 &&
-					assistantMessage.startsWith(tag, currentCharIndex - tag.length + 1)
-				) {
+				if (currentCharIndex >= tag.length - 1 && assistantMessage.startsWith(tag, currentCharIndex - tag.length + 1)) {
 					// End current text block if one was active.
 					if (currentTextContent) {
 						currentTextContent.content = assistantMessage
