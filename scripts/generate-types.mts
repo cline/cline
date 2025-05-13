@@ -20,7 +20,6 @@ async function main() {
 
 	await $`npx tsup src/exports/interface.ts --dts-only -d out`
 	await fs.copyFile('out/interface.d.ts', 'src/exports/roo-code.d.ts')
-	await fs.copyFile('out/interface.d.ts', 'roo-code-types/index.d.ts')
 
 	await $`npx prettier --write src/exports/types.ts src/exports/roo-code.d.ts`
 }
