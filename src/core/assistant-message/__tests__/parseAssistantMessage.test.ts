@@ -335,6 +335,158 @@ const isEmptyTextContent = (block: AssistantMessageContent) =>
 				expect(result[5].type).toBe("tool_use")
 				expect((result[5] as ToolUse).name).toBe("execute_command")
 			})
+
+			it("treats inline <read_file> mention as plain text", () => {
+				const message = "Use the `<read_file>` tool when you need to read a file."
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+			})
+
+			it("treats fenced code block mention as plain text", () => {
+				const message = [
+					"Here is an example:",
+					"```",
+					"<read_file>",
+					"<path>demo.txt</path>",
+					"</read_file>",
+					"```",
+				].join("\n")
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+			})
+
+			it("parses real tool invocation with newline correctly", () => {
+				const invocation = ["<read_file>", "<path>demo.txt</path>", "</read_file>"].join("\n")
+				const result = parser(invocation)
+				expect(result).toHaveLength(1)
+				const tool = result[0] as ToolUse
+				expect(tool.type).toBe("tool_use")
+				expect(tool.name).toBe("read_file")
+				expect(tool.params.path).toBe("demo.txt")
+			})
+		})
+
+		describe("code block edge cases", () => {
+			it("handles nested code blocks with tool tags", () => {
+				const message = [
+					"Here's a nested code block:",
+					"> ```",
+					"> <read_file><path>test.txt</path></read_file>",
+					"> ```",
+				].join("\n")
+
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+			})
+
+			it("handles escaped backticks", () => {
+				const message = "This has an escaped \\`<read_file>\\` tag"
+
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+			})
+
+			it("handles incomplete code blocks", () => {
+				const message = [
+					"```javascript",
+					"<read_file><path>test.txt</path></read_file>",
+					// Missing closing backticks
+				].join("\n")
+
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+			})
+		})
+
+		describe("tool tag edge cases", () => {
+			it("handles HTML comments containing tool tags", () => {
+				const message = "<!-- <read_file><path>test.txt</path></read_file> -->"
+
+				// Note: Currently both parsers treat tool tags in HTML comments as actual tool invocations
+				// This test documents the current behavior rather than the ideal behavior
+				const result = parser(message)
+				expect(result).toHaveLength(3)
+				expect(result[0].type).toBe("text")
+				expect((result[0] as TextContent).content).toBe("<!--")
+				expect(result[1].type).toBe("tool_use")
+				expect((result[1] as ToolUse).name).toBe("read_file")
+				expect(result[2].type).toBe("text")
+				expect((result[2] as TextContent).content).toBe("-->")
+			})
+
+			it("handles tool tags with HTML-like attributes", () => {
+				const message = '<read_file class="example"><path>test.txt</path></read_file>'
+
+				// This should be treated as plain text since it's not a valid tool format
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+			})
+
+			it("handles malformed tool tags with extra spaces", () => {
+				const message = "< read_file >< path >test.txt< /path >< /read_file >"
+
+				// This should be treated as plain text since it's not a valid tool format
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+			})
+		})
+
+		describe("mixed formatting edge cases", () => {
+			it("handles tool tags with markdown formatting", () => {
+				const message = "**<read_file>**<path>test.txt</path></read_file>"
+
+				// The opening tag is malformed due to the bold formatting
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+			})
+
+			it("handles tool tags in markdown links", () => {
+				const message = "[Example](<read_file><path>test.txt</path></read_file>)"
+
+				// Note: Currently both parsers treat tool tags in markdown links as actual tool invocations
+				// This test documents the current behavior rather than the ideal behavior
+				const result = parser(message)
+				expect(result).toHaveLength(3)
+				expect(result[0].type).toBe("text")
+				expect((result[0] as TextContent).content).toBe("[Example](")
+				expect(result[1].type).toBe("tool_use")
+				expect((result[1] as ToolUse).name).toBe("read_file")
+				expect(result[2].type).toBe("text")
+				expect((result[2] as TextContent).content).toBe(")")
+			})
+		})
+
+		describe("performance edge cases", () => {
+			it("handles very long text with no tool uses", () => {
+				const message = "A".repeat(10000)
+
+				const result = parser(message)
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("text")
+				expect((result[0] as TextContent).content.length).toBe(10000)
+			})
+
+			it("handles deeply nested tool parameters", () => {
+				// Create a message with a tool that has many nested parameters
+				let message = "<execute_command><command>"
+				for (let i = 0; i < 10; i++) {
+					message += `echo "Level ${i}" && `
+				}
+				message += 'echo "Done"</command></execute_command>'
+
+				const result = parser(message).filter((block) => !isEmptyTextContent(block))
+				expect(result).toHaveLength(1)
+				expect(result[0].type).toBe("tool_use")
+				expect((result[0] as ToolUse).name).toBe("execute_command")
+			})
 		})
 	})
 })
