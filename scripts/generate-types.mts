@@ -21,12 +21,13 @@ async function main() {
 	fs.writeFileSync("src/exports/types.ts", types.join("\n\n"))
 
 	await $`npx tsup src/exports/interface.ts --dts-only -d out`
-	fs.writeFileSync("out/interface.d.ts", "src/exports/roo-code.d.ts")
+	fs.copyFileSync("out/interface.d.ts", "src/exports/roo-code.d.ts")
 
 	await $`npx prettier --write src/exports/types.ts src/exports/roo-code.d.ts`
 
 	if (fs.existsSync(path.join("..", "Roo-Code-Types"))) {
-		fs.copyFileSync("src/exports/roo-code.d.ts", path.join("..", "Roo-Code-Types", "index.d.ts"))
+		fs.copyFileSync("out/interface.js", path.join("..", "Roo-Code-Types", "src", "index.js"))
+		fs.copyFileSync("out/interface.d.ts", path.join("..", "Roo-Code-Types", "src", "index.d.ts"))
 	}
 }
 

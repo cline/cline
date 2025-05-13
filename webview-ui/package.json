@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"lint": "eslint src --ext .ts,.tsx",
+		"lint": "eslint src --ext .ts,.tsx --max-warnings=0",
 		"check-types": "tsc",
 		"test": "jest -w=40%",
 		"dev": "vite",

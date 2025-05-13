@@ -12,14 +12,14 @@ module.exports = {
 		"^vscrui$": "<rootDir>/src/__mocks__/vscrui.ts",
 		"^@vscode/webview-ui-toolkit/react$": "<rootDir>/src/__mocks__/@vscode/webview-ui-toolkit/react.ts",
 		"^@/(.*)$": "<rootDir>/src/$1",
-		'^@roo/(.*)$': '<rootDir>/../src/$1',
-		'^@src/(.*)$': '<rootDir>/src/$1',		
+		"^@roo/(.*)$": "<rootDir>/../src/$1",
+		"^@src/(.*)$": "<rootDir>/src/$1",
 		"^src/i18n/setup$": "<rootDir>/src/__mocks__/i18n/setup.ts",
 		"^\\.\\./setup$": "<rootDir>/src/__mocks__/i18n/setup.ts",
 		"^\\./setup$": "<rootDir>/src/__mocks__/i18n/setup.ts",
 		"^src/i18n/TranslationContext$": "<rootDir>/src/__mocks__/i18n/TranslationContext.tsx",
 		"^\\.\\./TranslationContext$": "<rootDir>/src/__mocks__/i18n/TranslationContext.tsx",
-		"^\\./TranslationContext$": "<rootDir>/src/__mocks__/i18n/TranslationContext.tsx"
+		"^\\./TranslationContext$": "<rootDir>/src/__mocks__/i18n/TranslationContext.tsx",
 	},
 	reporters: [["jest-simple-dot-reporter", {}]],
 	transformIgnorePatterns: [

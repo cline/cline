@@ -1,93 +1,93 @@
 {
-  "extension": {
-    "name": "Roo Code",
-    "description": "Een compleet ontwikkelteam van AI-agenten in je editor."
-  },
-  "number_format": {
-    "thousand_suffix": "k",
-    "million_suffix": "m",
-    "billion_suffix": "mrd"
-  },
-  "welcome": "Welkom, {{name}}! Je hebt {{count}} meldingen.",
-  "items": {
-    "zero": "Geen items",
-    "one": "Eén item",
-    "other": "{{count}} items"
-  },
-  "confirmation": {
-    "reset_state": "Weet je zeker dat je alle status en geheime opslag in de extensie wilt resetten? Dit kan niet ongedaan worden gemaakt.",
-    "delete_config_profile": "Weet je zeker dat je dit configuratieprofiel wilt verwijderen?",
-    "delete_custom_mode": "Weet je zeker dat je deze aangepaste modus wilt verwijderen?",
-    "delete_message": "Wat wil je verwijderen?",
-    "just_this_message": "Alleen dit bericht",
-    "this_and_subsequent": "Dit en alle volgende berichten"
-  },
-  "errors": {
-    "invalid_mcp_config": "Ongeldig project MCP-configuratieformaat",
-    "invalid_mcp_settings_format": "Ongeldig MCP-instellingen JSON-formaat. Zorg ervoor dat je instellingen het juiste JSON-formaat volgen.",
-    "invalid_mcp_settings_syntax": "Ongeldig MCP-instellingen JSON-formaat. Controleer je instellingenbestand op syntaxfouten.",
-    "invalid_mcp_settings_validation": "Ongeldig MCP-instellingenformaat: {{errorMessages}}",
-    "failed_initialize_project_mcp": "Initialiseren van project MCP-server mislukt: {{error}}",
-    "invalid_data_uri": "Ongeldig data-URI-formaat",
-    "checkpoint_timeout": "Time-out bij het herstellen van checkpoint.",
-    "checkpoint_failed": "Herstellen van checkpoint mislukt.",
-    "no_workspace": "Open eerst een projectmap",
-    "update_support_prompt": "Bijwerken van ondersteuningsprompt mislukt",
-    "reset_support_prompt": "Resetten van ondersteuningsprompt mislukt",
-    "enhance_prompt": "Verbeteren van prompt mislukt",
-    "get_system_prompt": "Ophalen van systeemprompt mislukt",
-    "search_commits": "Zoeken naar commits mislukt",
-    "save_api_config": "Opslaan van API-configuratie mislukt",
-    "create_api_config": "Aanmaken van API-configuratie mislukt",
-    "rename_api_config": "Hernoemen van API-configuratie mislukt",
-    "load_api_config": "Laden van API-configuratie mislukt",
-    "delete_api_config": "Verwijderen van API-configuratie mislukt",
-    "list_api_config": "Ophalen van lijst met API-configuraties mislukt",
-    "update_server_timeout": "Bijwerken van server-timeout mislukt",
-    "create_mcp_json": "Aanmaken of openen van .roo/mcp.json mislukt: {{error}}",
-    "hmr_not_running": "Lokale ontwikkelserver draait niet, HMR werkt niet. Voer 'npm run dev' uit voordat je de extensie start om HMR in te schakelen.",
-    "retrieve_current_mode": "Fout: ophalen van huidige modus uit status mislukt.",
-    "failed_delete_repo": "Verwijderen van gekoppelde schaduwrepository of branch mislukt: {{error}}",
-    "failed_remove_directory": "Verwijderen van taakmap mislukt: {{error}}",
-    "custom_storage_path_unusable": "Aangepast opslagpad \"{{path}}\" is onbruikbaar, standaardpad wordt gebruikt",
-    "cannot_access_path": "Kan pad {{path}} niet openen: {{error}}",
-    "failed_update_project_mcp": "Bijwerken van project MCP-servers mislukt"
-  },
-  "warnings": {
-    "no_terminal_content": "Geen terminalinhoud geselecteerd",
-    "missing_task_files": "De bestanden van deze taak ontbreken. Wil je deze uit de takenlijst verwijderen?"
-  },
-  "info": {
-    "no_changes": "Geen wijzigingen gevonden.",
-    "clipboard_copy": "Systeemprompt succesvol gekopieerd naar klembord",
-    "history_cleanup": "{{count}} taak/taken met ontbrekende bestanden uit geschiedenis verwijderd.",
-    "mcp_server_restarting": "{{serverName}} MCP-server wordt opnieuw gestart...",
-    "mcp_server_connected": "{{serverName}} MCP-server verbonden",
-    "mcp_server_deleted": "MCP-server verwijderd: {{serverName}}",
-    "mcp_server_not_found": "Server \"{{serverName}}\" niet gevonden in configuratie",
-    "custom_storage_path_set": "Aangepast opslagpad ingesteld: {{path}}",
-    "default_storage_path": "Terug naar standaard opslagpad",
-    "settings_imported": "Instellingen succesvol geïmporteerd."
-  },
-  "answers": {
-    "yes": "Ja",
-    "no": "Nee",
-    "cancel": "Annuleren",
-    "remove": "Verwijderen",
-    "keep": "Behouden"
-  },
-  "tasks": {
-    "canceled": "Taakfout: gestopt en geannuleerd door gebruiker.",
-    "deleted": "Taakfout: gestopt en verwijderd door gebruiker."
-  },
-  "storage": {
-    "prompt_custom_path": "Voer een aangepast opslagpad voor gespreksgeschiedenis in, laat leeg voor standaardlocatie",
-    "path_placeholder": "D:\\RooCodeStorage",
-    "enter_absolute_path": "Voer een absoluut pad in (bijv. D:\\RooCodeStorage of /home/user/storage)",
-    "enter_valid_path": "Voer een geldig pad in"
-  },
-  "input": {
-    "task_prompt": "Wat moet Roo doen?",
-    "task_placeholder": "Typ hier je taak"
-  }
+	"extension": {
+		"name": "Roo Code",
+		"description": "Een compleet ontwikkelteam van AI-agenten in je editor."
+	},
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "mrd"
+	},
+	"welcome": "Welkom, {{name}}! Je hebt {{count}} meldingen.",
+	"items": {
+		"zero": "Geen items",
+		"one": "Eén item",
+		"other": "{{count}} items"
+	},
+	"confirmation": {
+		"reset_state": "Weet je zeker dat je alle status en geheime opslag in de extensie wilt resetten? Dit kan niet ongedaan worden gemaakt.",
+		"delete_config_profile": "Weet je zeker dat je dit configuratieprofiel wilt verwijderen?",
+		"delete_custom_mode": "Weet je zeker dat je deze aangepaste modus wilt verwijderen?",
+		"delete_message": "Wat wil je verwijderen?",
+		"just_this_message": "Alleen dit bericht",
+		"this_and_subsequent": "Dit en alle volgende berichten"
+	},
+	"errors": {
+		"invalid_mcp_config": "Ongeldig project MCP-configuratieformaat",
+		"invalid_mcp_settings_format": "Ongeldig MCP-instellingen JSON-formaat. Zorg ervoor dat je instellingen het juiste JSON-formaat volgen.",
+		"invalid_mcp_settings_syntax": "Ongeldig MCP-instellingen JSON-formaat. Controleer je instellingenbestand op syntaxfouten.",
+		"invalid_mcp_settings_validation": "Ongeldig MCP-instellingenformaat: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Initialiseren van project MCP-server mislukt: {{error}}",
+		"invalid_data_uri": "Ongeldig data-URI-formaat",
+		"checkpoint_timeout": "Time-out bij het herstellen van checkpoint.",
+		"checkpoint_failed": "Herstellen van checkpoint mislukt.",
+		"no_workspace": "Open eerst een projectmap",
+		"update_support_prompt": "Bijwerken van ondersteuningsprompt mislukt",
+		"reset_support_prompt": "Resetten van ondersteuningsprompt mislukt",
+		"enhance_prompt": "Verbeteren van prompt mislukt",
+		"get_system_prompt": "Ophalen van systeemprompt mislukt",
+		"search_commits": "Zoeken naar commits mislukt",
+		"save_api_config": "Opslaan van API-configuratie mislukt",
+		"create_api_config": "Aanmaken van API-configuratie mislukt",
+		"rename_api_config": "Hernoemen van API-configuratie mislukt",
+		"load_api_config": "Laden van API-configuratie mislukt",
+		"delete_api_config": "Verwijderen van API-configuratie mislukt",
+		"list_api_config": "Ophalen van lijst met API-configuraties mislukt",
+		"update_server_timeout": "Bijwerken van server-timeout mislukt",
+		"create_mcp_json": "Aanmaken of openen van .roo/mcp.json mislukt: {{error}}",
+		"hmr_not_running": "Lokale ontwikkelserver draait niet, HMR werkt niet. Voer 'npm run dev' uit voordat je de extensie start om HMR in te schakelen.",
+		"retrieve_current_mode": "Fout: ophalen van huidige modus uit status mislukt.",
+		"failed_delete_repo": "Verwijderen van gekoppelde schaduwrepository of branch mislukt: {{error}}",
+		"failed_remove_directory": "Verwijderen van taakmap mislukt: {{error}}",
+		"custom_storage_path_unusable": "Aangepast opslagpad \"{{path}}\" is onbruikbaar, standaardpad wordt gebruikt",
+		"cannot_access_path": "Kan pad {{path}} niet openen: {{error}}",
+		"failed_update_project_mcp": "Bijwerken van project MCP-servers mislukt"
+	},
+	"warnings": {
+		"no_terminal_content": "Geen terminalinhoud geselecteerd",
+		"missing_task_files": "De bestanden van deze taak ontbreken. Wil je deze uit de takenlijst verwijderen?"
+	},
+	"info": {
+		"no_changes": "Geen wijzigingen gevonden.",
+		"clipboard_copy": "Systeemprompt succesvol gekopieerd naar klembord",
+		"history_cleanup": "{{count}} taak/taken met ontbrekende bestanden uit geschiedenis verwijderd.",
+		"mcp_server_restarting": "{{serverName}} MCP-server wordt opnieuw gestart...",
+		"mcp_server_connected": "{{serverName}} MCP-server verbonden",
+		"mcp_server_deleted": "MCP-server verwijderd: {{serverName}}",
+		"mcp_server_not_found": "Server \"{{serverName}}\" niet gevonden in configuratie",
+		"custom_storage_path_set": "Aangepast opslagpad ingesteld: {{path}}",
+		"default_storage_path": "Terug naar standaard opslagpad",
+		"settings_imported": "Instellingen succesvol geïmporteerd."
+	},
+	"answers": {
+		"yes": "Ja",
+		"no": "Nee",
+		"cancel": "Annuleren",
+		"remove": "Verwijderen",
+		"keep": "Behouden"
+	},
+	"tasks": {
+		"canceled": "Taakfout: gestopt en geannuleerd door gebruiker.",
+		"deleted": "Taakfout: gestopt en verwijderd door gebruiker."
+	},
+	"storage": {
+		"prompt_custom_path": "Voer een aangepast opslagpad voor gespreksgeschiedenis in, laat leeg voor standaardlocatie",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Voer een absoluut pad in (bijv. D:\\RooCodeStorage of /home/user/storage)",
+		"enter_valid_path": "Voer een geldig pad in"
+	},
+	"input": {
+		"task_prompt": "Wat moet Roo doen?",
+		"task_placeholder": "Typ hier je taak"
+	}
 }
