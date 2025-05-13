@@ -87,6 +87,11 @@ declare module "vscode" {
 			disposables?: vscode.Disposable[],
 		) => vscode.Disposable
 	}
+
+	// Define TerminalStateChangeEvent interface
+	interface TerminalStateChangeEvent {
+		terminal: Terminal
+	}
 }
 
 export class TerminalManager {
@@ -108,6 +113,47 @@ export class TerminalManager {
 		if (disposable) {
 			this.disposables.push(disposable)
 		}
+
+		// Add a listener for terminal state changes to detect CWD updates
+		try {
+			const stateChangeDisposable = vscode.window.onDidChangeTerminalState((terminal) => {
+				const terminalInfo = this.findTerminalInfoByTerminal(terminal)
+				if (terminalInfo && terminalInfo.pendingCwdChange && terminalInfo.cwdResolved) {
+					// Check if CWD has been updated to match the expected path
+					if (this.isCwdMatchingExpected(terminalInfo)) {
+						const resolver = terminalInfo.cwdResolved.resolve
+						terminalInfo.pendingCwdChange = undefined
+						terminalInfo.cwdResolved = undefined
+						resolver()
+					}
+				}
+			})
+			this.disposables.push(stateChangeDisposable)
+		} catch (error) {
+			console.error("Error setting up onDidChangeTerminalState", error)
+		}
+	}
+
+	//Find a TerminalInfo by its VSCode Terminal instance
+	private findTerminalInfoByTerminal(terminal: vscode.Terminal): TerminalInfo | undefined {
+		const terminals = TerminalRegistry.getAllTerminals()
+		return terminals.find((t) => t.terminal === terminal)
+	}
+
+	//Check if a terminal's CWD matches its expected pending change
+	private isCwdMatchingExpected(terminalInfo: TerminalInfo): boolean {
+		if (!terminalInfo.pendingCwdChange) {
+			return false
+		}
+
+		const currentCwd = terminalInfo.terminal.shellIntegration?.cwd?.fsPath
+		const targetCwd = vscode.Uri.file(terminalInfo.pendingCwdChange).fsPath
+
+		if (!currentCwd) {
+			return false
+		}
+
+		return arePathsEqual(currentCwd, targetCwd)
 	}
 
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
@@ -196,8 +242,33 @@ export class TerminalManager {
 		// If no matching terminal exists, try to find any non-busy terminal
 		const availableTerminal = terminals.find((t) => !t.busy)
 		if (availableTerminal) {
+			// Set up promise and tracking for CWD change
+			const cwdPromise = new Promise<void>((resolve, reject) => {
+				availableTerminal.pendingCwdChange = cwd
+				availableTerminal.cwdResolved = { resolve, reject }
+			})
+
 			// Navigate back to the desired directory
 			await this.runCommand(availableTerminal, `cd "${cwd}"`)
+
+			// Either resolve immediately if CWD already updated or wait for event/timeout
+			if (this.isCwdMatchingExpected(availableTerminal)) {
+				availableTerminal.cwdResolved?.resolve()
+				availableTerminal.pendingCwdChange = undefined
+				availableTerminal.cwdResolved = undefined
+			} else {
+				try {
+					// Wait with a timeout for state change event to resolve
+					await Promise.race([
+						cwdPromise,
+						new Promise<void>((_, reject) => setTimeout(() => reject(new Error("CWD timeout")), 1000)),
+					])
+				} catch (err) {
+					// Clear pending state on timeout
+					availableTerminal.pendingCwdChange = undefined
+					availableTerminal.cwdResolved = undefined
+				}
+			}
 			this.terminalIds.add(availableTerminal.id)
 			return availableTerminal
 		}
