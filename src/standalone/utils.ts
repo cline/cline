@@ -40,4 +40,26 @@ function camelToSnakeCase(obj: any): any {
 	}, {})
 }
 
-export { packageDefinition, proto, log, camelToSnakeCase }
+// Helper function to convert snake_case to camelCase
+function snakeToCamelCase(obj: any): any {
+	if (obj === null || typeof obj !== "object") {
+		return obj
+	}
+
+	if (Array.isArray(obj)) {
+		return obj.map(snakeToCamelCase)
+	}
+
+	return Object.keys(obj).reduce((acc: any, key: string) => {
+		// Convert key from snake_case to camelCase
+		const camelKey = key.replace(/_([a-z0-9])/g, (_, char) => char.toUpperCase())
+
+		// Convert value recursively if it's an object
+		const value = obj[key]
+		acc[camelKey] = snakeToCamelCase(value)
+
+		return acc
+	}, {})
+}
+
+export { packageDefinition, proto, log, camelToSnakeCase, snakeToCamelCase }

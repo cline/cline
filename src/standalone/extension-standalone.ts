@@ -5,7 +5,7 @@ import * as health from "grpc-health-check"
 import { activate } from "../extension"
 import { Controller } from "../core/controller"
 import { extensionContext, outputChannel, postMessage } from "./vscode-impls"
-import { packageDefinition, proto, log, camelToSnakeCase } from "./utils"
+import { packageDefinition, proto, log, camelToSnakeCase, snakeToCamelCase } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
 import { addServices } from "./server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
@@ -28,7 +28,7 @@ function wrapHandler<TRequest, TResponse>(
 	return async (call: grpc.ServerUnaryCall<TRequest, TResponse>, callback: grpc.sendUnaryData<TResponse>) => {
 		try {
 			log(`gRPC request: ${call.getPath()}`)
-			const result = await handler(controller, call.request)
+			const result = await handler(controller, snakeToCamelCase(call.request))
 			// The grpc-js serializer expects the proto message to be in the same
 			// case as the proto file. This is a work around until we find a solution.
 			callback(null, camelToSnakeCase(result))
@@ -51,7 +51,7 @@ function wrapResponseStreamingHandler<TRequest, TResponse>(
 			const requestId = call.metadata.get("request-id").pop()?.toString()
 			log(`gRPC streaming request: ${call.getPath()}`)
 
-			const responseStream: StreamingResponseHandler = (response, isLast, sequenceNumber) => {
+			const responseHandler: StreamingResponseHandler = (response, isLast, sequenceNumber) => {
 				try {
 					// The grpc-js serializer expects the proto message to be in the same
 					// case as the proto file. This is a work around until we find a solution.
@@ -66,7 +66,7 @@ function wrapResponseStreamingHandler<TRequest, TResponse>(
 					return Promise.reject(error)
 				}
 			}
-			await handler(controller, call.request, responseStream, requestId)
+			await handler(controller, snakeToCamelCase(call.request), responseHandler, requestId)
 		} catch (err: any) {
 			log(`gRPC handler error: ${call.getPath()}\n${err.stack}`)
 			call.destroy({
