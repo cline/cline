@@ -1,15 +1,34 @@
 # Changelog
 
+## 3.16.0
+
+### Minor Changes
+
+-   4a230ad: Add Fireworks API Provider
+
+### Patch Changes
+
+-   afb64c8: add distinct id bootstrap
+-   3657e90: Fix minor visual issues with auto-approve menu
+-   d88c07c: convert condense command to use grpc
+-   abbe40e: downloadMcp protobus migration
+-   65f1b05: Added confirmation of a successful cd to cwd before executing commands in the active terminal
+-   7937530: removing free gemini models
+-   0fcab4d: This fix adds the --user-data-dir flag when launching Chrome with the remote debugging port, which resolves the 'Chrome was launched but debug port is not responding' error.
+-   5c08276: toggleFavoriteModel protobus migration
+-   94c432f: adding activation events so cline is activated when vs code opens
+-   01877c1: prevent IME composition Enter from auto‑sending edited message
+
 ## [3.15.2]
 
-- Added details to auto approve menu and more sensible default controls
-- Add detailed configuration options for LiteLLM provider
-- Add webview telemetry for users who have opted in to telemetry
-- Update Gemini in OpenRouter/Cline providers to use implicit caching
-- Fix freezing issues during rendering of large streaming text
-- Fix grey screen webview crashes by releasing memory after every diff edit
-- Fix breaking out of diff auto-scroll
-- Fix IME composition Enter auto‑sending edited message
+-   Added details to auto approve menu and more sensible default controls
+-   Add detailed configuration options for LiteLLM provider
+-   Add webview telemetry for users who have opted in to telemetry
+-   Update Gemini in OpenRouter/Cline providers to use implicit caching
+-   Fix freezing issues during rendering of large streaming text
+-   Fix grey screen webview crashes by releasing memory after every diff edit
+-   Fix breaking out of diff auto-scroll
+-   Fix IME composition Enter auto‑sending edited message
 
 ## [3.15.1]
 
