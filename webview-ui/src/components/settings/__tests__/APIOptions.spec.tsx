@@ -120,7 +120,7 @@ describe("ApiOptions Component", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		global.vscode = { postMessage: mockPostMessage } as any
+		;(global as any).vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Fireworks API Key input", () => {
@@ -167,7 +167,7 @@ describe("ApiOptions Component", () => {
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...actual,
+		...(actual || {}),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
