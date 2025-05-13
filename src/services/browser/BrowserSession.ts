@@ -156,7 +156,7 @@ export class BrowserSession {
 
 			const args = [
 				`--remote-debugging-port=${DEBUG_PORT}`,
-				`--user-data-dir="${userDataDir}"`,
+				`--user-data-dir=${userDataDir}`,
 				"--disable-notifications",
 				"chrome://newtab",
 			]
