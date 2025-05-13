@@ -3,9 +3,10 @@ import { PostHogProvider } from "posthog-js/react"
 import posthog from "posthog-js"
 import { posthogConfig } from "@shared/services/config/posthog-config"
 import { useExtensionState } from "./context/ExtensionStateContext"
+import { vscode } from "./utils/vscode"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
-	const { telemetrySetting } = useExtensionState()
+	const { telemetrySetting, vscMachineId } = useExtensionState()
 	const isTelemetryEnabled = telemetrySetting !== "disabled"
 
 	useEffect(() => {
@@ -16,6 +17,9 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			disable_session_recording: true,
 			capture_pageview: false,
 			capture_dead_clicks: true,
+			bootstrap: {
+				distinctID: vscMachineId,
+			},
 		})
 
 		if (isTelemetryEnabled) {
