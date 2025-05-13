@@ -60,6 +60,7 @@ export interface WebviewMessage {
 		| "toggleClineRule"
 		| "toggleCursorRule"
 		| "toggleWindsurfRule"
+		| "toggleWorkflow"
 		| "deleteClineRule"
 		| "copyToClipboard"
 		| "updateTerminalConnectionTimeout"
@@ -110,9 +111,10 @@ export interface WebviewMessage {
 	grpc_request_cancel?: {
 		request_id: string // ID of the request to cancel
 	}
-	// For cline rules
+	// For cline rules and workflows
 	isGlobal?: boolean
 	rulePath?: string
+	workflowPath?: string
 	enabled?: boolean
 	filename?: string
 
