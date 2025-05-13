@@ -1,4 +1,5 @@
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
+import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import * as path from "path"
 import fs from "fs/promises"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -123,4 +124,92 @@ export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePat
 		}),
 	).then((contents) => contents.filter(Boolean).join("\n\n"))
 	return ruleFilesTotalContent
+}
+
+/**
+ * Create a rule file or workflow file
+ */
+export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: string, type: string) => {
+	try {
+		let filePath: string
+		if (isGlobal) {
+			// global means its implicitly clinerules
+			const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+			filePath = path.join(globalClineRulesFilePath, filename)
+		} else {
+			const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
+
+			const hasError = await ensureLocalClineDirExists(localClineRulesFilePath, "default-rules.md")
+			if (hasError === true) {
+				return { filePath: null, fileExists: false }
+			}
+
+			await fs.mkdir(localClineRulesFilePath, { recursive: true })
+
+			if (type === "workflow") {
+				const localWorkflowsFilePath = path.resolve(cwd, GlobalFileNames.workflows)
+
+				const hasError = await ensureLocalClineDirExists(localWorkflowsFilePath, "default-workflows.md")
+				if (hasError === true) {
+					return { filePath: null, fileExists: false }
+				}
+
+				await fs.mkdir(localWorkflowsFilePath, { recursive: true })
+
+				filePath = path.join(localWorkflowsFilePath, filename)
+			} else {
+				// clinerules file creation
+				filePath = path.join(localClineRulesFilePath, filename)
+			}
+		}
+
+		const fileExists = await fileExistsAtPath(filePath)
+
+		if (fileExists) {
+			return { filePath, fileExists }
+		}
+
+		await fs.writeFile(filePath, "", "utf8")
+
+		return { filePath, fileExists: false }
+	} catch (error) {
+		return { filePath: null, fileExists: false }
+	}
+}
+
+/**
+ * Handles converting any directory into a file (specifically used for .clinerules and .clinerules/workflows)
+ * The old .clinerules file or .clinerules/workflows file will be renamed to a default filename
+ * Doesn't do anything if the dir already exists or doesn't exist
+ * Returns whether there are any uncaught errors
+ */
+export async function ensureLocalClineDirExists(clinerulePath: string, defaultRuleFilename: string): Promise<boolean> {
+	try {
+		const exists = await fileExistsAtPath(clinerulePath)
+
+		if (exists && !(await isDirectory(clinerulePath))) {
+			// logic to convert .clinerules file into directory, and rename the rules file to {defaultRuleFilename}
+			const content = await fs.readFile(clinerulePath, "utf8")
+			const tempPath = clinerulePath + ".bak"
+			await fs.rename(clinerulePath, tempPath) // create backup
+			try {
+				await fs.mkdir(clinerulePath, { recursive: true })
+				await fs.writeFile(path.join(clinerulePath, defaultRuleFilename), content, "utf8")
+				await fs.unlink(tempPath).catch(() => {}) // delete backup
+
+				return false // conversion successful with no errors
+			} catch (conversionError) {
+				// attempt to restore backup on conversion failure
+				try {
+					await fs.rm(clinerulePath, { recursive: true, force: true }).catch(() => {})
+					await fs.rename(tempPath, clinerulePath) // restore backup
+				} catch (restoreError) {}
+				return true // in either case here we consider this an error
+			}
+		}
+		// exists and is a dir or doesn't exist, either of these cases we dont need to handle here
+		return false
+	} catch (error) {
+		return true
+	}
 }

@@ -13,11 +13,12 @@ export const DeleteRuleFileRequest = {
 
 // Helper for creating create requests
 export const CreateRuleFileRequest = {
-	create: (params: { filename: string; isGlobal: boolean; metadata?: any }): RuleFileRequest => {
+	create: (params: { filename: string; isGlobal: boolean; metadata?: any; type?: string }): RuleFileRequest => {
 		return RuleFileRequest.create({
 			filename: params.filename,
 			isGlobal: params.isGlobal,
 			metadata: params.metadata,
+			type: params.type,
 		})
 	},
 }

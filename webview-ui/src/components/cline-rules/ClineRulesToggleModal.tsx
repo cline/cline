@@ -13,6 +13,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		localClineRulesToggles = {},
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
+		workflowToggles = {},
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -20,6 +21,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
+	const [currentView, setCurrentView] = useState<"rules" | "workflows">("rules")
 
 	useEffect(() => {
 		if (isVisible) {
@@ -42,6 +44,10 @@ const ClineRulesToggleModal: React.FC = () => {
 		.sort(([a], [b]) => a.localeCompare(b))
 
 	const windsurfRules = Object.entries(localWindsurfRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	const workflows = Object.entries(workflowToggles || {})
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
@@ -71,6 +77,14 @@ const ClineRulesToggleModal: React.FC = () => {
 		})
 	}
 
+	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {
+		vscode.postMessage({
+			type: "toggleWorkflow",
+			workflowPath,
+			enabled,
+		})
+	}
+
 	// Close modal when clicking outside
 	useClickAway(modalRef, () => {
 		setIsVisible(false)
@@ -91,7 +105,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<Tooltip tipText="Manage Cline Rules" visible={isVisible ? false : undefined}>
+				<Tooltip tipText="Manage Cline Rules & Workflows" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
 						aria-label="Cline Rules"
@@ -126,63 +140,112 @@ const ClineRulesToggleModal: React.FC = () => {
 					/>
 
 					<div className="flex justify-between items-center mb-2.5">
-						<div className="m-0 text-base font-semibold">Cline Rules</div>
+						<div className="m-0 text-base font-semibold">{currentView === "rules" ? "Cline Rules" : "Workflows"}</div>
 
-						<VSCodeButton
-							appearance="icon"
-							onClick={() => {
-								vscode.postMessage({
-									type: "openExtensionSettings",
-								})
-								setIsVisible(false)
-							}}></VSCodeButton>
+						<div className="flex items-center">
+							<div
+								className="flex items-center bg-[var(--vscode-editor-background)] rounded-md p-0.5 mr-2"
+								role="tablist">
+								<button
+									className={`px-2 py-1 rounded-md text-xs transition-colors ${
+										currentView === "rules"
+											? "bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]"
+											: "hover:bg-[var(--vscode-list-hoverBackground)]"
+									}`}
+									onClick={() => setCurrentView("rules")}
+									role="tab"
+									aria-selected={currentView === "rules"}>
+									Rules
+								</button>
+								<button
+									className={`px-2 py-1 rounded-md text-xs transition-colors ${
+										currentView === "workflows"
+											? "bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]"
+											: "hover:bg-[var(--vscode-list-hoverBackground)]"
+									}`}
+									onClick={() => setCurrentView("workflows")}
+									role="tab"
+									aria-selected={currentView === "workflows"}>
+									Workflows
+								</button>
+							</div>
+
+							<VSCodeButton
+								appearance="icon"
+								onClick={() => {
+									vscode.postMessage({
+										type: "openExtensionSettings",
+									})
+									setIsVisible(false)
+								}}></VSCodeButton>
+						</div>
 					</div>
 
-					{/* Global Rules Section */}
-					<div className="mb-3">
-						<div className="text-sm font-normal mb-2">Global Rules</div>
-						<RulesToggleList
-							rules={globalRules}
-							toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
-							listGap="small"
-							isGlobal={true}
-							ruleType={"cline"}
-							showNewRule={true}
-							showNoRules={true}
-						/>
-					</div>
+					{currentView === "rules" ? (
+						<>
+							{/* Global Rules Section */}
+							<div className="mb-3">
+								<div className="text-sm font-normal mb-2">Global Rules</div>
+								<RulesToggleList
+									rules={globalRules}
+									toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
+									listGap="small"
+									isGlobal={true}
+									ruleType={"cline"}
+									showNewRule={true}
+									showNoRules={true}
+								/>
+							</div>
 
-					{/* Local Rules Section */}
-					<div style={{ marginBottom: -10 }}>
-						<div className="text-sm font-normal mb-2">Workspace Rules</div>
-						<RulesToggleList
-							rules={localRules}
-							toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
-							listGap="small"
-							isGlobal={false}
-							ruleType={"cline"}
-							showNewRule={false}
-							showNoRules={false}
-						/>
-						<RulesToggleList
-							rules={cursorRules}
-							toggleRule={toggleCursorRule}
-							listGap="small"
-							isGlobal={false}
-							ruleType={"cursor"}
-							showNewRule={false}
-							showNoRules={false}
-						/>
-						<RulesToggleList
-							rules={windsurfRules}
-							toggleRule={toggleWindsurfRule}
-							listGap="small"
-							isGlobal={false}
-							ruleType={"windsurf"}
-							showNewRule={true}
-							showNoRules={localRules.length === 0 && cursorRules.length === 0 && windsurfRules.length === 0}
-						/>
-					</div>
+							{/* Local Rules Section */}
+							<div style={{ marginBottom: -10 }}>
+								<div className="text-sm font-normal mb-2">Workspace Rules</div>
+								<RulesToggleList
+									rules={localRules}
+									toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"cline"}
+									showNewRule={false}
+									showNoRules={false}
+								/>
+								<RulesToggleList
+									rules={cursorRules}
+									toggleRule={toggleCursorRule}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"cursor"}
+									showNewRule={false}
+									showNoRules={false}
+								/>
+								<RulesToggleList
+									rules={windsurfRules}
+									toggleRule={toggleWindsurfRule}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"windsurf"}
+									showNewRule={true}
+									showNoRules={
+										localRules.length === 0 && cursorRules.length === 0 && windsurfRules.length === 0
+									}
+								/>
+							</div>
+						</>
+					) : (
+						/* Workflows section */
+						<div style={{ marginBottom: -10 }}>
+							<div className="text-sm font-normal mb-2">Workflow Rules</div>
+							<RulesToggleList
+								rules={workflows}
+								toggleRule={toggleWorkflow}
+								listGap="small"
+								isGlobal={false}
+								ruleType={"workflow"}
+								showNewRule={true}
+								showNoRules={workflows.length === 0}
+							/>
+						</div>
+					)}
 				</div>
 			)}
 		</div>
