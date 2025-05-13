@@ -1,18 +1,18 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { withRetry } from "../retry"
-import { ApiHandler } from "../"
-import { convertToR1Format } from "../transform/r1-format"
-import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "@shared/api"
-import { calculateApiCostOpenAI } from "../../utils/cost"
-import { ApiStream } from "../transform/stream"
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import {
 	BedrockRuntimeClient,
 	ConversationRole,
 	ConverseStreamCommand,
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
+import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "@shared/api"
+import { ApiHandler } from "../"
+import { calculateApiCostOpenAI } from "../../utils/cost"
+import { withRetry } from "../retry"
+import { convertToR1Format } from "../transform/r1-format"
+import { ApiStream } from "../transform/stream"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -63,7 +63,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const previousEnv = process.env
 		delete process.env["AWS_PROFILE"]
 		const stream = await client.messages.create({
-			model: modelId,
+			model: modelId.includes("/") ? encodeURIComponent(modelId) : modelId,
 			max_tokens: model.info.maxTokens || 8192,
 			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			temperature: reasoningOn ? undefined : 0,
@@ -276,9 +276,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * If the model ID is an ARN that contains a slash, you will get the URL encoded ARN.
 	 */
 	async getModelId(): Promise<string> {
-		if (this.options.awsBedrockCustomSelected && this.getModel().id.includes("/")) {
-			return encodeURIComponent(this.getModel().id)
-		}
 		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
