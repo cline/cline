@@ -64,7 +64,7 @@ export async function listCodeDefinitionNamesTool(
 			}
 
 			if (relPath) {
-				await cline.getFileContextTracker().trackFileContext(relPath, "read_tool" as RecordSource)
+				await cline.fileContextTracker.trackFileContext(relPath, "read_tool" as RecordSource)
 			}
 
 			pushToolResult(result)

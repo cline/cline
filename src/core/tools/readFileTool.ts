@@ -245,7 +245,7 @@ export async function readFileTool(
 
 			// Track file read operation
 			if (relPath) {
-				await cline.getFileContextTracker().trackFileContext(relPath, "read_tool" as RecordSource)
+				await cline.fileContextTracker.trackFileContext(relPath, "read_tool" as RecordSource)
 			}
 
 			// Format the result into the required XML structure

@@ -164,7 +164,7 @@ export async function applyDiffTool(
 
 			// Track file edit operation
 			if (relPath) {
-				await cline.getFileContextTracker().trackFileContext(relPath, "roo_edited" as RecordSource)
+				await cline.fileContextTracker.trackFileContext(relPath, "roo_edited" as RecordSource)
 			}
 
 			// Used to determine if we should wait for busy terminal to update before sending api request

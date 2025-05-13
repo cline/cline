@@ -33,15 +33,15 @@ let mockInputContent = ""
 
 jest.mock("../../../integrations/misc/extract-text", () => {
 	const actual = jest.requireActual("../../../integrations/misc/extract-text")
-	// Create a spy on the actual addLineNumbers function
+	// Create a spy on the actual addLineNumbers function.
 	const addLineNumbersSpy = jest.spyOn(actual, "addLineNumbers")
 
 	return {
 		...actual,
-		// Expose the spy so tests can access it
+		// Expose the spy so tests can access it.
 		__addLineNumbersSpy: addLineNumbersSpy,
 		extractTextFromFile: jest.fn().mockImplementation((_filePath) => {
-			// Use the actual addLineNumbers function
+			// Use the actual addLineNumbers function.
 			const content = mockInputContent
 			return Promise.resolve(actual.addLineNumbers(content))
 		}),
@@ -87,7 +87,6 @@ describe("read_file tool with maxReadFileLine setting", () => {
 	const mockedIsBinaryFile = isBinaryFile as jest.MockedFunction<typeof isBinaryFile>
 	const mockedPathResolve = path.resolve as jest.MockedFunction<typeof path.resolve>
 
-	// Mock instances
 	const mockCline: any = {}
 	let mockProvider: any
 	let toolResult: ToolResponse | undefined
@@ -95,31 +94,26 @@ describe("read_file tool with maxReadFileLine setting", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
 
-		// Setup path resolution
 		mockedPathResolve.mockReturnValue(absoluteFilePath)
-
-		// Setup mocks for file operations
 		mockedIsBinaryFile.mockResolvedValue(false)
 
-		// Set the default content for the mock
 		mockInputContent = fileContent
 
-		// Setup the extractTextFromFile mock implementation with the current mockInputContent
+		// Setup the extractTextFromFile mock implementation with the current
+		// mockInputContent.
 		mockedExtractTextFromFile.mockImplementation((_filePath) => {
 			const actual = jest.requireActual("../../../integrations/misc/extract-text")
 			return Promise.resolve(actual.addLineNumbers(mockInputContent))
 		})
 
 		// No need to setup the extractTextFromFile mock implementation here
-		// as it's already defined at the module level
+		// as it's already defined at the module level.
 
-		// Setup mock provider
 		mockProvider = {
 			getState: jest.fn(),
 			deref: jest.fn().mockReturnThis(),
 		}
 
-		// Setup Cline instance with mock methods
 		mockCline.cwd = "/"
 		mockCline.task = "Test"
 		mockCline.providerRef = mockProvider
@@ -129,12 +123,14 @@ describe("read_file tool with maxReadFileLine setting", () => {
 		mockCline.say = jest.fn().mockResolvedValue(undefined)
 		mockCline.ask = jest.fn().mockResolvedValue(true)
 		mockCline.presentAssistantMessage = jest.fn()
-		mockCline.getFileContextTracker = jest.fn().mockReturnValue({
+
+		mockCline.fileContextTracker = {
 			trackFileContext: jest.fn().mockResolvedValue(undefined),
-		})
+		}
+
 		mockCline.recordToolUsage = jest.fn().mockReturnValue(undefined)
 		mockCline.recordToolError = jest.fn().mockReturnValue(undefined)
-		// Reset tool result
+
 		toolResult = undefined
 	})
 
@@ -433,22 +429,16 @@ describe("read_file tool XML output structure", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
 
-		// Setup path resolution
 		mockedPathResolve.mockReturnValue(absoluteFilePath)
-
-		// Setup mocks for file operations
 		mockedIsBinaryFile.mockResolvedValue(false)
 
-		// Set the default content for the mock
 		mockInputContent = fileContent
 
-		// Setup mock provider
 		mockProvider = {
 			getState: jest.fn().mockResolvedValue({ maxReadFileLine: 500 }),
 			deref: jest.fn().mockReturnThis(),
 		}
 
-		// Setup Cline instance with mock methods
 		mockCline.cwd = "/"
 		mockCline.task = "Test"
 		mockCline.providerRef = mockProvider
@@ -459,14 +449,14 @@ describe("read_file tool XML output structure", () => {
 		mockCline.ask = jest.fn().mockResolvedValue(true)
 		mockCline.presentAssistantMessage = jest.fn()
 		mockCline.sayAndCreateMissingParamError = jest.fn().mockResolvedValue("Missing required parameter")
-		// Add mock for getFileContextTracker method
-		mockCline.getFileContextTracker = jest.fn().mockReturnValue({
+
+		mockCline.fileContextTracker = {
 			trackFileContext: jest.fn().mockResolvedValue(undefined),
-		})
+		}
+
 		mockCline.recordToolUsage = jest.fn().mockReturnValue(undefined)
 		mockCline.recordToolError = jest.fn().mockReturnValue(undefined)
 
-		// Reset tool result
 		toolResult = undefined
 	})
 

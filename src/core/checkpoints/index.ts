@@ -93,10 +93,14 @@ export function getCheckpointService(cline: Task) {
 			try {
 				provider?.postMessageToWebview({ type: "currentCheckpointUpdated", text: to })
 
-				cline.say("checkpoint_saved", to, undefined, undefined, { isFirst, from, to }).catch((err) => {
-					log("[Cline#getCheckpointService] caught unexpected error in say('checkpoint_saved')")
-					console.error(err)
-				})
+				cline
+					.say("checkpoint_saved", to, undefined, undefined, { isFirst, from, to }, undefined, {
+						isNonInteractive: true,
+					})
+					.catch((err) => {
+						log("[Cline#getCheckpointService] caught unexpected error in say('checkpoint_saved')")
+						console.error(err)
+					})
 			} catch (err) {
 				log("[Cline#getCheckpointService] caught unexpected error in on('checkpoint'), disabling checkpoints")
 				console.error(err)
