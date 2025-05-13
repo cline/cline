@@ -13,51 +13,9 @@ export function parseAssistantMessage(assistantMessage: string): AssistantMessag
 	let currentParamValueStartIndex = 0
 	let accumulator = ""
 
-	// Track whether we are inside markdown code blocks or inline code to avoid treating textual mentions
-	// of tool tags (e.g. <read_file>) as actual tool invocations.
-	let insideCodeBlock = false // ``` fenced code block
-	let insideInlineCode = false // `inline code`
-
-	// Helper to decide if we should parse for tool-related tags at the current position
-	const shouldParseToolTags = () => !insideCodeBlock && !insideInlineCode
-
 	for (let i = 0; i < assistantMessage.length; i++) {
 		const char = assistantMessage[i]
-
-		// Detect fenced code block (```).
-		if (!insideInlineCode && assistantMessage.slice(i, i + 3) === "```") {
-			insideCodeBlock = !insideCodeBlock
-			// Append the full trio of backticks to accumulator.
-			accumulator += "```"
-			i += 2 // Skip the two extra backticks we just added.
-
-			// When toggling code block state, continue to next iteration as
-			// these chars are text.
-			continue
-		}
-
-		// Detect inline code (`) when not inside a fenced code block and not part of triple backticks
-		if (!insideCodeBlock && char === "`") {
-			insideInlineCode = !insideInlineCode
-		}
-
 		accumulator += char
-
-		// If we are in any kind of code context, treat everything as plain text.
-		if (!shouldParseToolTags()) {
-			// Handle accumulating text content block.
-			if (currentTextContent === undefined) {
-				currentTextContentStartIndex = i
-			}
-
-			currentTextContent = {
-				type: "text",
-				content: accumulator.slice(currentTextContentStartIndex).trim(),
-				partial: true,
-			}
-
-			continue
-		}
 
 		// There should not be a param without a tool use.
 		if (currentToolUse && currentParamName) {
@@ -87,7 +45,6 @@ export function parseAssistantMessage(assistantMessage: string): AssistantMessag
 				continue
 			} else {
 				const possibleParamOpeningTags = toolParamNames.map((name) => `<${name}>`)
-
 				for (const paramOpeningTag of possibleParamOpeningTags) {
 					if (accumulator.endsWith(paramOpeningTag)) {
 						// Start of a new parameter.
@@ -132,25 +89,6 @@ export function parseAssistantMessage(assistantMessage: string): AssistantMessag
 
 		for (const toolUseOpeningTag of possibleToolUseOpeningTags) {
 			if (accumulator.endsWith(toolUseOpeningTag)) {
-				// Check that this is likely an actual tool invocation and not
-				// an inline textual reference.
-				// We consider it an invocation only if the next non-whitespace
-				// character is a newline (\n or \r) or an opening angle bracket
-				// '<' (which would start the first parameter tag).
-
-				let j = i + 1 // Position after the closing '>' of the opening tag.
-
-				while (j < assistantMessage.length && assistantMessage[j] === " ") {
-					j++
-				}
-
-				const nextChar = assistantMessage[j] ?? ""
-
-				if (nextChar && nextChar !== "<" && nextChar !== "\n" && nextChar !== "\r") {
-					// Treat as plain text, not a tool invocation.
-					continue
-				}
-
 				// Start of a new tool use.
 				currentToolUse = {
 					type: "tool_use",
@@ -213,6 +151,5 @@ export function parseAssistantMessage(assistantMessage: string): AssistantMessag
 		contentBlocks.push(currentTextContent)
 	}
 
-	// Remove any empty text blocks that may have been created by whitespace or newlines before/after tool calls
-	return contentBlocks.filter((block) => !(block.type === "text" && block.content.trim().length === 0))
+	return contentBlocks
 }

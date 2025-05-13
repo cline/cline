@@ -46,14 +46,6 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	let currentParamValueStart = 0 // Index *after* the opening tag of the current param.
 	let currentParamName: ToolParamName | undefined = undefined
 
-	// Track whether we are inside markdown code blocks or inline code to avoid treating textual mentions
-	// of tool tags (e.g. <read_file>) as actual tool invocations.
-	let insideCodeBlock = false // ``` fenced code block
-	let insideInlineCode = false // `inline code`
-
-	// Helper to decide if we should parse for tool-related tags at the current position
-	const shouldParseToolTags = () => !insideCodeBlock && !insideInlineCode
-
 	// Precompute tags for faster lookups.
 	const toolUseOpenTags = new Map<string, ToolName>()
 	const toolParamOpenTags = new Map<string, ToolParamName>()
@@ -71,39 +63,16 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	for (let i = 0; i < len; i++) {
 		const currentCharIndex = i
 
-		// Detect fenced code block (```).
-		if (!insideInlineCode && i + 2 < len && assistantMessage.slice(i, i + 3) === "```") {
-			insideCodeBlock = !insideCodeBlock
-			i += 2 // Skip the two extra backticks.
-			continue
-		}
-
-		// Detect inline code (`) when not inside a fenced code block and not
-		// part of triple backticks.
-		if (!insideCodeBlock && assistantMessage[i] === "`") {
-			insideInlineCode = !insideInlineCode
-		}
-
-		// If we are in any kind of code context, treat everything as plain text.
-		if (!shouldParseToolTags()) {
-			// If we're not already tracking text content, start now.
-			if (!currentTextContent) {
-				currentTextContentStart = currentCharIndex
-				currentTextContent = { type: "text", content: "", partial: true }
-			}
-
-			continue
-		}
-
 		// Parsing a tool parameter
 		if (currentToolUse && currentParamName) {
 			const closeTag = `</${currentParamName}>`
-
-			// Check if the string *ending* at index `i` matches the closing tag.
+			// Check if the string *ending* at index `i` matches the closing tag
 			if (
 				currentCharIndex >= closeTag.length - 1 &&
-				// Start checking from potential start of tag.
-				assistantMessage.startsWith(closeTag, currentCharIndex - closeTag.length + 1)
+				assistantMessage.startsWith(
+					closeTag,
+					currentCharIndex - closeTag.length + 1, // Start checking from potential start of tag.
+				)
 			) {
 				// Found the closing tag for the parameter.
 				const value = assistantMessage
@@ -206,23 +175,6 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 					currentCharIndex >= tag.length - 1 &&
 					assistantMessage.startsWith(tag, currentCharIndex - tag.length + 1)
 				) {
-					// Check that this is likely an actual tool invocation and not
-					// an inline textual reference.
-					// We consider it an invocation only if the next non-whitespace
-					// character is a newline (\n or \r) or an opening angle bracket
-					// '<' (which would start the first parameter tag).
-					let j = currentCharIndex + 1 // Position after the closing '>' of the opening tag.
-
-					while (j < len && assistantMessage[j] === " ") {
-						j++
-					}
-
-					const nextChar = assistantMessage[j] ?? ""
-
-					if (nextChar && nextChar !== "<" && nextChar !== "\n" && nextChar !== "\r") {
-						// Treat as plain text, not a tool invocation.
-						continue
-					}
 					// End current text block if one was active.
 					if (currentTextContent) {
 						currentTextContent.content = assistantMessage
@@ -249,13 +201,22 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 							.trim()
 
 						if (potentialText.length > 0) {
-							contentBlocks.push({ type: "text", content: potentialText, partial: false })
+							contentBlocks.push({
+								type: "text",
+								content: potentialText,
+								partial: false,
+							})
 						}
 					}
 
 					// Start the new tool use.
-					// Assume partial until closing tag is found.
-					currentToolUse = { type: "tool_use", name: toolName, params: {}, partial: true }
+					currentToolUse = {
+						type: "tool_use",
+						name: toolName,
+						params: {},
+						partial: true, // Assume partial until closing tag is found.
+					}
+
 					currentToolUseStart = currentCharIndex + 1 // Tool content starts after the opening tag.
 					startedNewTool = true
 
