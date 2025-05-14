@@ -14,7 +14,6 @@ export interface WebviewMessage {
 		| "newTask"
 		| "condense"
 		| "reportBug"
-		| "askResponse"
 		| "didShowAnnouncement"
 		| "selectImages"
 		| "resetState"
@@ -66,7 +65,6 @@ export interface WebviewMessage {
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
-	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
