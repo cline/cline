@@ -1,14 +1,15 @@
 import { newTaskToolResponse, condenseToolResponse, newRuleToolResponse, reportBugToolResponse } from "../prompts/commands"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import fs from "fs/promises"
 
 /**
  * Processes text for slash commands and transforms them with appropriate instructions
  * This is called after parseMentions() to process any slash commands in the user's message
  */
-export function parseSlashCommands(
+export async function parseSlashCommands(
 	text: string,
 	workflowToggles: ClineRulesToggles,
-): { processedText: string; needsClinerulesFileCheck: boolean } {
+): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
 	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug"]
 
 	const commandReplacements: Record<string, string> = {
@@ -75,7 +76,7 @@ export function parseSlashCommands(
 			if (matchingWorkflow) {
 				try {
 					// Read workflow file content from the full path
-					const workflowContent = await fs.readFile(matchingWorkflow.fullPath, "utf8")
+					const workflowContent = (await fs.readFile(matchingWorkflow.fullPath, "utf8")).trim()
 
 					// find position of slash command within the full match
 					const fullMatchStartIndex = match.index
@@ -90,7 +91,7 @@ export function parseSlashCommands(
 					const textWithoutSlashCommand =
 						text.substring(0, slashCommandStartIndex) + text.substring(slashCommandEndIndex)
 					const processedText =
-						`<explicit_instructions type="${matchingWorkflow.fileName}">${workflowContent}</explicit_instructions>` +
+						`<explicit_instructions type="${matchingWorkflow.fileName}">\n${workflowContent}\n</explicit_instructions>\n` +
 						textWithoutSlashCommand
 
 					return { processedText, needsClinerulesFileCheck: false }
