@@ -22,7 +22,6 @@ import { TaskServiceClient, SlashServiceClient } from "@/services/grpc-client"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import Announcement from "@/components/chat/Announcement"
-import AutoApproveMenu from "@/components/chat/auto-approve-menu/AutoApproveMenu"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
@@ -34,7 +33,7 @@ import remarkStringify from "remark-stringify"
 import rehypeRemark from "rehype-remark"
 import rehypeParse from "rehype-parse"
 import HomeHeader from "../welcome/HomeHeader"
-
+import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
@@ -1047,7 +1046,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				</div>
 			)}
 
-			{!task && <AutoApproveMenu />}
+			{!task && <AutoApproveBar />}
 
 			{task && (
 				<>
@@ -1081,7 +1080,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							initialTopMostItemIndex={groupedMessages.length - 1}
 						/>
 					</div>
-					<AutoApproveMenu />
+					<AutoApproveBar />
 					{showScrollToBottom ? (
 						<div
 							style={{
