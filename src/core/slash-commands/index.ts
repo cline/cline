@@ -1,11 +1,15 @@
 import { newTaskToolResponse, condenseToolResponse, newRuleToolResponse, reportBugToolResponse } from "../prompts/commands"
+import { ClineRulesToggles } from "@shared/cline-rules"
 
 /**
  * Processes text for slash commands and transforms them with appropriate instructions
  * This is called after parseMentions() to process any slash commands in the user's message
  */
-export function parseSlashCommands(text: string): { processedText: string; needsClinerulesFileCheck: boolean } {
-	const SUPPORTED_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug"]
+export function parseSlashCommands(
+	text: string,
+	workflowToggles: ClineRulesToggles,
+): { processedText: string; needsClinerulesFileCheck: boolean } {
+	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug"]
 
 	const commandReplacements: Record<string, string> = {
 		newtask: newTaskToolResponse(),
@@ -34,7 +38,8 @@ export function parseSlashCommands(text: string): { processedText: string; needs
 
 			const commandName = match[2] // casing matters
 
-			if (SUPPORTED_COMMANDS.includes(commandName)) {
+			// we give preference to the default commands if the user has a file with the same name
+			if (SUPPORTED_DEFAULT_COMMANDS.includes(commandName)) {
 				const fullMatchStartIndex = match.index
 
 				// find position of slash command within the full match
@@ -50,6 +55,48 @@ export function parseSlashCommands(text: string): { processedText: string; needs
 				const processedText = commandReplacements[commandName] + textWithoutSlashCommand
 
 				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" ? true : false }
+			}
+
+			// in practice we want to minimize this work, so we only do it if theres a possible match
+			const enabledWorkflows = Object.entries(workflowToggles)
+				.filter(([_, enabled]) => enabled)
+				.map(([filePath, _]) => {
+					const fileName = filePath.replace(/^.*[/\\]/, "")
+					// const fileName = path.basename(filePath) // plan to move to this, but want to be consistent with the frontend regex for now
+					return {
+						fullPath: filePath,
+						fileName: fileName,
+					}
+				})
+
+			// Then check if the command matches any enabled workflow filename
+			const matchingWorkflow = enabledWorkflows.find((workflow) => workflow.fileName === commandName)
+
+			if (matchingWorkflow) {
+				try {
+					// Read workflow file content from the full path
+					const workflowContent = await fs.readFile(matchingWorkflow.fullPath, "utf8")
+
+					// find position of slash command within the full match
+					const fullMatchStartIndex = match.index
+					const fullMatch = match[0]
+					const relativeStartIndex = fullMatch.indexOf(match[1])
+
+					// calculate absolute indices in the original string
+					const slashCommandStartIndex = fullMatchStartIndex + relativeStartIndex
+					const slashCommandEndIndex = slashCommandStartIndex + match[1].length
+
+					// remove the slash command and add custom instructions at the top of this message
+					const textWithoutSlashCommand =
+						text.substring(0, slashCommandStartIndex) + text.substring(slashCommandEndIndex)
+					const processedText =
+						`<explicit_instructions type="${matchingWorkflow.fileName}">${workflowContent}</explicit_instructions>` +
+						textWithoutSlashCommand
+
+					return { processedText, needsClinerulesFileCheck: false }
+				} catch (error) {
+					console.error(`Error reading workflow file ${matchingWorkflow.fullPath}: ${error}`)
+				}
 			}
 		}
 	}
