@@ -54,7 +54,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 
 		return (
 			<>
-				<div className="text-xs text-[var(--vscode-descriptionForeground)] px-3 py-1 font-medium border-b border-[var(--vscode-editorGroup-border)]">
+				<div className="text-xs text-[var(--vscode-descriptionForeground)] px-3 py-1 font-bold border-b border-[var(--vscode-editorGroup-border)]">
 					{title}
 				</div>
 				{commands.map((command, index) => {
