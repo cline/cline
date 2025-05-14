@@ -278,7 +278,8 @@
 	"scripts": {
 		"vscode:prepublish": "npm run package",
 		"compile": "npm run check-types && npm run lint && node esbuild.js",
-		"compile-standalone": "npm run check-types && npm run lint && node esbuild.js --standalone",
+		"compile-standalone": "npm run protos && npm run check-types && npm run lint && node esbuild.js --standalone",
+		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -367,6 +368,7 @@
 		"@opentelemetry/semantic-conventions": "^1.30.0",
 		"@sentry/browser": "^9.12.0",
 		"@vscode/codicons": "^0.0.36",
+		"archiver": "^7.0.1",
 		"axios": "^1.8.2",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
