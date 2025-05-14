@@ -76,7 +76,7 @@ async function main() {
 	const project = new Project()
 	const sourceFile = project.addSourceFileAtPath(inputPath)
 
-	output = []
+	const output = []
 	output.push("// GENERATED CODE -- DO NOT EDIT!")
 	output.push('console.log("Loading stubs...");')
 	output.push('const { createStub } = require("./stub-utils")')

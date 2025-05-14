@@ -37,7 +37,7 @@ function createMemento(): vscode.Memento {
 			return Object.keys(store)
 		},
 		get: function <T>(key: string): T | undefined {
-			key in store ? store[key] : undefined
+			return key in store ? store[key] : undefined
 		},
 		update: function (key: string, value: any): Thenable<void> {
 			store[key] = value
