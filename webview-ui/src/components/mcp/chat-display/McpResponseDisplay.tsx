@@ -443,9 +443,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				</ResponseHeader>
 				{isExpanded && (
 					<div className="response-content">
-						<div style={{ color: "var(--vscode-errorForeground)" }}>
-							Error parsing response:
-						</div>
+						<div style={{ color: "var(--vscode-errorForeground)" }}>Error parsing response:</div>
 						<UrlText>{responseText}</UrlText>
 					</div>
 				)}
