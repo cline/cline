@@ -3,11 +3,25 @@ import path from "path"
 import { glob } from "glob"
 import archiver from "archiver"
 import { cp } from "fs/promises"
+import { execSync } from "child_process"
 
 const BUILD_DIR = "dist-standalone"
 const SOURCE_DIR = "standalone/runtime-files"
 
 await cp(SOURCE_DIR, BUILD_DIR, { recursive: true })
+
+// Run npm install in the distribution directory
+console.log("Running npm install in distribution directory...")
+const cwd = process.cwd()
+process.chdir(BUILD_DIR)
+try {
+	execSync("npm install", { stdio: "inherit" })
+} catch (error) {
+	console.error("Error running npm install:", error)
+	process.exit(1)
+} finally {
+	process.chdir(cwd)
+}
 
 // Check for native .node modules.
 const nativeModules = await glob("**/*.node", { cwd: BUILD_DIR, nodir: true })

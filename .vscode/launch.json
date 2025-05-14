@@ -51,7 +51,8 @@
 			"preLaunchTask": "compile-standalone",
 			"env": {
 				"GRPC_TRACE": "all",
-				"GRPC_VERBOSITY": "DEBUG"
+				"GRPC_VERBOSITY": "DEBUG",
+				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules"
 			},
 			"program": "standalone.js"
 		}
