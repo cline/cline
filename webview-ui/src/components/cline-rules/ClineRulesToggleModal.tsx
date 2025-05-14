@@ -234,7 +234,7 @@ const ClineRulesToggleModal: React.FC = () => {
 					) : (
 						/* Workflows section */
 						<div style={{ marginBottom: -10 }}>
-							<div className="text-sm font-normal mb-2">Workflow Rules</div>
+							<div className="text-sm font-normal mb-2">Workspace Workflows</div>
 							<RulesToggleList
 								rules={workflows}
 								toggleRule={toggleWorkflow}

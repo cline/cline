@@ -73,6 +73,7 @@ export interface RuleFileRequest {
 	rulePath?: string | undefined
 	/** Filename field for createRuleFile (optional) */
 	filename?: string | undefined
+	/** Type of the file to create (optional) */
 	type?: string | undefined
 }
 
