@@ -42,7 +42,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Launch standalone extension",
+			"name": "Run Standalone Extension",
 			"skipFiles": ["<node_internals>/**"],
 			"sourceMaps": true,
 			"resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
@@ -53,7 +53,7 @@
 				"GRPC_TRACE": "all",
 				"GRPC_VERBOSITY": "DEBUG"
 			},
-			"program": "extension-standalone.js"
+			"program": "standalone.js"
 		}
 	]
 }

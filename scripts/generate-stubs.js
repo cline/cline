@@ -70,13 +70,8 @@ function sanitizeParam(name, index) {
 }
 
 async function main() {
-	if (process.argv.length < 4) {
-		console.error("Usage: node script.js <vscode-types-file> <vscode-stubs-output-file>")
-		process.exit(1)
-	}
-
-	const inputPath = path.resolve(process.argv[2])
-	const outputPath = path.resolve(process.argv[3])
+	const inputPath = "node_modules/@types/vscode/index.d.ts"
+	const outputPath = "standalone/runtime-files/vscode/vscode-stubs.js"
 
 	const project = new Project()
 	const sourceFile = project.addSourceFileAtPath(inputPath)
@@ -84,7 +79,7 @@ async function main() {
 	output = []
 	output.push("// GENERATED CODE -- DO NOT EDIT!")
 	output.push('console.log("Loading stubs...");')
-	output.push('const { createStub, stubUri, createMemento } = require("stub-utils");')
+	output.push('const { createStub } = require("./stub-utils")')
 	traverse(sourceFile, output)
 	output.push("module.exports = vscode;")
 	output.push('console.log("Finished loading stubs");')
