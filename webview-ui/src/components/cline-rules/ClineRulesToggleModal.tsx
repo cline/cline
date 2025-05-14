@@ -147,25 +147,27 @@ const ClineRulesToggleModal: React.FC = () => {
 								className="flex items-center bg-[var(--vscode-editor-background)] rounded-md p-0.5 mr-2"
 								role="tablist">
 								<button
-									className={`px-2 py-1 rounded-md text-xs transition-colors ${
+									className={`px-2 py-1 rounded-md text-xs transition-colors cursor-pointer select-none ${
 										currentView === "rules"
 											? "bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]"
-											: "hover:bg-[var(--vscode-list-hoverBackground)]"
+											: ""
 									}`}
 									onClick={() => setCurrentView("rules")}
 									role="tab"
-									aria-selected={currentView === "rules"}>
+									aria-selected={currentView === "rules"}
+									style={{ outline: "none" }}>
 									Rules
 								</button>
 								<button
-									className={`px-2 py-1 rounded-md text-xs transition-colors ${
+									className={`px-2 py-1 rounded-md text-xs transition-colors cursor-pointer select-none ${
 										currentView === "workflows"
 											? "bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]"
-											: "hover:bg-[var(--vscode-list-hoverBackground)]"
+											: ""
 									}`}
 									onClick={() => setCurrentView("workflows")}
 									role="tab"
-									aria-selected={currentView === "workflows"}>
+									aria-selected={currentView === "workflows"}
+									style={{ outline: "none" }}>
 									Workflows
 								</button>
 							</div>
