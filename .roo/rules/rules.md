@@ -16,4 +16,4 @@
 
 # Adding a New Setting
 
-To add a new setting that persists its state, follow the steps in cline_docs/settings.md
+To add a new setting that persists its state, follow the steps in docs/settings.md

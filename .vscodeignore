@@ -30,7 +30,7 @@ jest.*
 .rooignore
 .roo/**
 benchmark/**
-cline_docs/**
+docs/**
 e2e/**
 evals/**
 locales/**
