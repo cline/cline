@@ -50,6 +50,7 @@ export interface GetTaskHistoryRequest {
 	favoritesOnly: boolean
 	searchQuery: string
 	sortBy: string
+	currentWorkspaceOnly: boolean
 }
 
 /** Response for task history */
@@ -550,7 +551,7 @@ export const DeleteNonFavoritedTasksResults: MessageFns<DeleteNonFavoritedTasksR
 }
 
 function createBaseGetTaskHistoryRequest(): GetTaskHistoryRequest {
-	return { metadata: undefined, favoritesOnly: false, searchQuery: "", sortBy: "" }
+	return { metadata: undefined, favoritesOnly: false, searchQuery: "", sortBy: "", currentWorkspaceOnly: false }
 }
 
 export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
@@ -566,6 +567,9 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 		}
 		if (message.sortBy !== "") {
 			writer.uint32(34).string(message.sortBy)
+		}
+		if (message.currentWorkspaceOnly !== false) {
+			writer.uint32(40).bool(message.currentWorkspaceOnly)
 		}
 		return writer
 	},
@@ -609,6 +613,14 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 					message.sortBy = reader.string()
 					continue
 				}
+				case 5: {
+					if (tag !== 40) {
+						break
+					}
+
+					message.currentWorkspaceOnly = reader.bool()
+					continue
+				}
 			}
 			if ((tag & 7) === 4 || tag === 0) {
 				break
@@ -624,6 +636,7 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 			favoritesOnly: isSet(object.favoritesOnly) ? globalThis.Boolean(object.favoritesOnly) : false,
 			searchQuery: isSet(object.searchQuery) ? globalThis.String(object.searchQuery) : "",
 			sortBy: isSet(object.sortBy) ? globalThis.String(object.sortBy) : "",
+			currentWorkspaceOnly: isSet(object.currentWorkspaceOnly) ? globalThis.Boolean(object.currentWorkspaceOnly) : false,
 		}
 	},
 
@@ -641,6 +654,9 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 		if (message.sortBy !== "") {
 			obj.sortBy = message.sortBy
 		}
+		if (message.currentWorkspaceOnly !== false) {
+			obj.currentWorkspaceOnly = message.currentWorkspaceOnly
+		}
 		return obj
 	},
 
@@ -654,6 +670,7 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 		message.favoritesOnly = object.favoritesOnly ?? false
 		message.searchQuery = object.searchQuery ?? ""
 		message.sortBy = object.sortBy ?? ""
+		message.currentWorkspaceOnly = object.currentWorkspaceOnly ?? false
 		return message
 	},
 }
