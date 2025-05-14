@@ -159,8 +159,8 @@ const extensionConfig = {
 // Standalone-specific configuration
 const standaloneConfig = {
 	...baseConfig,
-	entryPoints: ["src/standalone/extension-standalone.ts"],
-	outfile: `${destDir}/extension-standalone.js`,
+	entryPoints: ["src/standalone/standalone.ts"],
+	outfile: `${destDir}/standalone.js`,
 	// These gRPC protos need to load files from the module directory at runtime,
 	// so they cannot be bundled.
 	external: ["vscode", "@grpc/reflection", "grpc-health-check"],
