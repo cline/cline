@@ -6,6 +6,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
+import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const DEFAULT_CACHE_TTL_SECONDS = 900
@@ -74,7 +75,7 @@ export class GeminiHandler implements ApiHandler {
 	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const { id: model, info } = this.getModel()
+		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
 		// Configure thinking budget if supported
@@ -98,52 +99,99 @@ export class GeminiHandler implements ApiHandler {
 		}
 
 		// Generate content using the configured parameters
-		const result = await this.client.models.generateContentStream({
-			model,
-			contents: contents,
-			config: {
-				...requestConfig,
-			},
-		})
-
-		// Track usage metadata
+		const sdkCallStartTime = Date.now()
+		let sdkFirstChunkTime: number | undefined
+		let ttftSdkMs: number | undefined
+		let apiSuccess = false
+		let apiError: string | undefined
+		let promptTokens = 0
+		let outputTokens = 0
+		let cacheReadTokens = 0
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 
-		// Process the stream
-		for await (const chunk of result) {
-			if (chunk.text) {
-				yield {
-					type: "text",
-					text: chunk.text,
-				}
-			}
-
-			if (chunk.usageMetadata) {
-				lastUsageMetadata = chunk.usageMetadata
-			}
-		}
-
-		// Yield usage information at the end
-		if (lastUsageMetadata) {
-			const inputTokens = lastUsageMetadata.promptTokenCount ?? 0
-			const outputTokens = lastUsageMetadata.candidatesTokenCount ?? 0
-			const cacheReadTokens = lastUsageMetadata.cachedContentTokenCount
-
-			// Calculate immediate costs
-			const totalCost = this.calculateCost({
-				info,
-				inputTokens,
-				outputTokens,
-				cacheReadTokens,
+		try {
+			const result = await this.client.models.generateContentStream({
+				model: modelId,
+				contents: contents,
+				config: {
+					...requestConfig,
+				},
 			})
 
-			yield {
-				type: "usage",
-				inputTokens,
-				outputTokens,
-				cacheReadTokens,
-				cacheWriteTokens: 0,
-				totalCost,
+			let isFirstSdkChunk = true
+			for await (const chunk of result) {
+				if (isFirstSdkChunk) {
+					sdkFirstChunkTime = Date.now()
+					ttftSdkMs = sdkFirstChunkTime - sdkCallStartTime
+					isFirstSdkChunk = false
+				}
+
+				if (chunk.text) {
+					yield {
+						type: "text",
+						text: chunk.text,
+					}
+				}
+
+				if (chunk.usageMetadata) {
+					lastUsageMetadata = chunk.usageMetadata
+					promptTokens = lastUsageMetadata.promptTokenCount ?? promptTokens
+					outputTokens = lastUsageMetadata.candidatesTokenCount ?? outputTokens
+					cacheReadTokens = lastUsageMetadata.cachedContentTokenCount ?? cacheReadTokens
+				}
+			}
+			apiSuccess = true
+
+			if (lastUsageMetadata) {
+				const totalCost = this.calculateCost({
+					info,
+					inputTokens: promptTokens,
+					outputTokens,
+					cacheReadTokens,
+				})
+				yield {
+					type: "usage",
+					inputTokens: promptTokens,
+					outputTokens,
+					cacheReadTokens,
+					cacheWriteTokens: 0,
+					totalCost,
+				}
+			}
+		} catch (error) {
+			apiSuccess = false
+			apiError = error instanceof Error ? error.message : String(error)
+			// Let the error propagate to be handled by withRetry or Task.ts
+			// Telemetry will be sent in the finally block.
+			throw error
+		} finally {
+			const sdkCallEndTime = Date.now()
+			const totalDurationSdkMs = sdkCallEndTime - sdkCallStartTime
+			const cacheHit = cacheReadTokens > 0
+			const cacheHitPercentage = promptTokens > 0 ? (cacheReadTokens / promptTokens) * 100 : undefined
+			const throughputTokensPerSecSdk =
+				totalDurationSdkMs > 0 && outputTokens > 0 ? outputTokens / (totalDurationSdkMs / 1000) : undefined
+
+			if (this.options.taskId) {
+				telemetryService.captureGeminiApiPerformance(
+					this.options.taskId,
+					modelId,
+					{
+						ttftSec: ttftSdkMs !== undefined ? ttftSdkMs / 1000 : undefined,
+						totalDurationSec: totalDurationSdkMs / 1000,
+						promptTokens,
+						outputTokens,
+						cacheReadTokens,
+						cacheHit,
+						cacheHitPercentage,
+						apiSuccess,
+						apiError,
+						throughputTokensPerSec: throughputTokensPerSecSdk,
+					},
+					true,
+				)
+			} else {
+				console.warn("GeminiHandler: taskId not available for telemetry in createMessage.")
 			}
 		}
 	}
