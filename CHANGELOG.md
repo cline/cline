@@ -1,10 +1,10 @@
 # Changelog
 
-## 3.15.4
+## [3.15.4]
 
--   277b20a: Add gemini model back to vertex provider
--   55d12d7: Adding gemini telemetry
--   a527acc: Adds filtering for tasks tied to the current workspace
+-   Add gemini model back to vertex provider
+-   Add gemini telemetry
+-   Add filtering for tasks tied to the current workspace
 
 ## [3.15.3]
 
