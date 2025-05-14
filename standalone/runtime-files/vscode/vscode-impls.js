@@ -1,59 +1,7 @@
 console.log("Loading stub impls...")
 
-const { createStub, stubUri, createMemento } = require("stub-utils")
+const { createStub } = require("./stub-utils")
 const open = require("open").default
-
-vscode.ExtensionContext = {
-	extensionPath: "/tmp/vscode/extension",
-	extensionUri: stubUri("/tmp/vscode/extension"),
-
-	globalStoragePath: "/tmp/vscode/global",
-	globalStorageUri: stubUri("/tmp/vscode/global"),
-
-	storagePath: "/tmp/vscode/storage",
-	storageUri: stubUri("/tmp/vscode/storage"),
-
-	logPath: "/tmp/vscode/log",
-	logUri: stubUri("/tmp/vscode/log"),
-
-	globalState: createMemento(),
-	workspaceState: createMemento(),
-	storageState: createMemento(),
-
-	environmentVariableCollection: {
-		persistent: true,
-		replace: () => {},
-		append: () => {},
-		prepend: () => {},
-		get: () => undefined,
-		forEach: () => {},
-		clear: () => {},
-		delete: () => {},
-	},
-
-	extensionMode: 1, // Development
-
-	extension: {
-		id: "your.extension.id",
-		isActive: true,
-		extensionPath: "/tmp/vscode/extension",
-		extensionUri: stubUri("/tmp/vscode/extension"),
-		packageJSON: {},
-		exports: {},
-		activate: async () => {},
-	},
-
-	subscriptions: [],
-
-	asAbsolutePath: (relPath) => `/tmp/vscode/extension/${relPath}`,
-
-	secrets: {
-		store: async () => {},
-		get: async () => undefined,
-		delete: async () => {},
-		onDidChange: { dispose: () => {} },
-	},
-}
 
 vscode.window = {
 	showInformationMessage: (...args) => {
@@ -123,14 +71,7 @@ vscode.window = {
 		}
 	},
 }
-vscode.OutputChannel = {
-	append: (text) => process.stdout.write(text),
-	appendLine: (line) => console.log(line),
-	clear: () => {},
-	show: () => {},
-	hide: () => {},
-	dispose: () => {},
-}
+
 vscode.env = {
 	uriScheme: "vscode",
 	appName: "Visual Studio Code",

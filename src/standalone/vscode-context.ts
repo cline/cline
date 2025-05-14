@@ -159,6 +159,6 @@ function postMessage(message: ExtensionMessage): Promise<boolean> {
 	return Promise.resolve(true)
 }
 
-console.log("Finished loading stub impls...")
+console.log("Finished loading vscode context...")
 
 export { extensionContext, outputChannel, postMessage }

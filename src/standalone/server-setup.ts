@@ -69,7 +69,7 @@ export function addServices(
 	proto: any,
 	controller: Controller,
 	wrapper: GrpcHandlerWrapper,
-	wrapResponseStreaming: GrpcStreamingResponseHandlerWrapper,
+	wrapStreamingResponse: GrpcStreamingResponseHandlerWrapper,
 ): void {
 	// Account Service
 	server.addService(proto.cline.AccountService.service, {
@@ -129,7 +129,7 @@ export function addServices(
 	// State Service
 	server.addService(proto.cline.StateService.service, {
 		getLatestState: wrapper(getLatestState, controller),
-		// TODO add subscribeToState
+		subscribeToState: wrapStreamingResponse(subscribeToState, controller),
 		toggleFavoriteModel: wrapper(toggleFavoriteModel, controller),
 	})
 

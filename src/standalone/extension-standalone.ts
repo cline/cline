@@ -4,11 +4,42 @@ import * as health from "grpc-health-check"
 
 import { activate } from "../extension"
 import { Controller } from "../core/controller"
-import { extensionContext, outputChannel, postMessage } from "./vscode-impls"
+import { extensionContext, outputChannel, postMessage } from "./vscode-context"
 import { packageDefinition, proto, log, camelToSnakeCase, snakeToCamelCase } from "./utils"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "./grpc-types"
 import { addServices } from "./server-setup"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
+
+function main() {
+	log("Starting service...")
+
+	activate(extensionContext)
+	const controller = new Controller(extensionContext, outputChannel, postMessage)
+	const server = new grpc.Server()
+
+	// Set up health check.
+	const healthImpl = new health.HealthImplementation({ "": "SERVING" })
+	healthImpl.addToServer(server)
+
+	// Add all the handlers for the ProtoBus services to the server.
+	addServices(server, proto, controller, wrapHandler, wrapStreamingResponseHandler)
+
+	// Set up reflection.
+	const reflection = new ReflectionService(packageDefinition)
+	reflection.addToServer(server)
+
+	// Start the server.
+	const host = "127.0.0.1:50051"
+	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
+		if (err) {
+			log(`Error: Failed to bind to ${host}, port may be unavailable ${err.message}`)
+			process.exit(1)
+		} else {
+			server.start()
+			log(`gRPC server listening on ${host}`)
+		}
+	})
+}
 
 /**
  * Wraps a Promise-based handler function to make it compatible with gRPC's callback-based API.
@@ -42,7 +73,7 @@ function wrapHandler<TRequest, TResponse>(
 	}
 }
 
-function wrapResponseStreamingHandler<TRequest, TResponse>(
+function wrapStreamingResponseHandler<TRequest, TResponse>(
 	handler: GrpcStreamingResponseHandler<TRequest, TResponse>,
 	controller: Controller,
 ): grpc.handleServerStreamingCall<TRequest, TResponse> {
@@ -75,37 +106,6 @@ function wrapResponseStreamingHandler<TRequest, TResponse>(
 			} as grpc.ServiceError)
 		}
 	}
-}
-
-function main() {
-	log("Starting service...")
-
-	activate(extensionContext)
-	const controller = new Controller(extensionContext, outputChannel, postMessage)
-	const server = new grpc.Server()
-
-	// Set up health check.
-	const healthImpl = new health.HealthImplementation({ "": "SERVING" })
-	healthImpl.addToServer(server)
-
-	// Add all the handlers for the ProtoBus services to the server.
-	addServices(server, proto, controller, wrapHandler, wrapResponseStreamingHandler)
-
-	// Set up reflection.
-	const reflection = new ReflectionService(packageDefinition)
-	reflection.addToServer(server)
-
-	// Start the server.
-	const host = "127.0.0.1:50051"
-	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
-		if (err) {
-			log(`Error: Failed to bind to ${host}, port may be unavailable ${err.message}`)
-			process.exit(1)
-		} else {
-			server.start()
-			log(`gRPC server listening on ${host}`)
-		}
-	})
 }
 
 main()

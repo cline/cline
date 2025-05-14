@@ -33,7 +33,7 @@ function generateHandlersAndExports() {
 				throw new Error("Request streaming is not supported")
 			}
 			if (rpc.responseStream) {
-				handlerSetup.push(`        // TODO add ${rpcName}`)
+				handlerSetup.push(`        ${rpcName}: wrapStreamingResponse(${rpcName}, controller),`)
 			} else {
 				handlerSetup.push(`         ${rpcName}: wrapper(${rpcName}, controller),`)
 			}
@@ -64,7 +64,7 @@ export function addServices(
 	proto: any,
 	controller: Controller,
 	wrapper: GrpcHandlerWrapper,
-	wrapResponseStreaming: GrpcStreamingResponseHandlerWrapper,
+	wrapStreamingResponse: GrpcStreamingResponseHandlerWrapper,
 ): void {
 ${handlerSetup}
 }

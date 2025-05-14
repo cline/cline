@@ -16,21 +16,4 @@ function createStub(path) {
 	})
 }
 
-function stubUri(path) {
-	console.log(`Using file path: ${path}`)
-	return { fsPath: path }
-}
-
-function createMemento() {
-	const store = {}
-	return {
-		get: (key, defaultValue) => (key in store ? store[key] : defaultValue),
-		update: (key, value) => {
-			store[key] = value
-			return Promise.resolve()
-		},
-		keys: () => Object.keys(store),
-	}
-}
-
-module.exports = { createStub, stubUri, createMemento }
+module.exports = { createStub }

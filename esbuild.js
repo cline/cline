@@ -119,7 +119,8 @@ const copyWasmFiles = {
 	},
 }
 
-const extensionConfig = {
+// Base configuration shared between extension and standalone builds
+const baseConfig = {
 	bundle: true,
 	minify: production,
 	sourcemap: !production,
@@ -142,16 +143,32 @@ const extensionConfig = {
 			},
 		},
 	],
-	entryPoints: [standalone ? "src/standalone/extension-standalone.ts" : "src/extension.ts"],
 	format: "cjs",
 	sourcesContent: false,
 	platform: "node",
-	outfile: standalone ? `${destDir}/extension-standalone.js` : `${destDir}/extension.js`,
+}
+
+// Extension-specific configuration
+const extensionConfig = {
+	...baseConfig,
+	entryPoints: ["src/extension.ts"],
+	outfile: `${destDir}/extension.js`,
 	external: ["vscode"],
 }
 
+// Standalone-specific configuration
+const standaloneConfig = {
+	...baseConfig,
+	entryPoints: ["src/standalone/extension-standalone.ts"],
+	outfile: `${destDir}/extension-standalone.js`,
+	// These gRPC protos need to load files from the module directory at runtime,
+	// so they cannot be bundled.
+	external: ["vscode", "@grpc/reflection", "grpc-health-check"],
+}
+
 async function main() {
-	const extensionCtx = await esbuild.context(extensionConfig)
+	const config = standalone ? standaloneConfig : extensionConfig
+	const extensionCtx = await esbuild.context(config)
 	if (watch) {
 		await extensionCtx.watch()
 	} else {
