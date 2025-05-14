@@ -58,6 +58,7 @@ export default defineConfig({
 	build: {
 		outDir: "build",
 		reportCompressedSize: false,
+		sourcemap: true,
 		rollupOptions: {
 			output: {
 				entryFileNames: `assets/[name].js`,
