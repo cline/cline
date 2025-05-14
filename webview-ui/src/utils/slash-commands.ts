@@ -105,8 +105,7 @@ export function shouldShowSlashCommandsMenu(text: string, cursorPosition: number
  */
 export function getMatchingSlashCommands(query: string, workflowToggles: Record<string, boolean> = {}): SlashCommand[] {
 	const workflowCommands = getWorkflowCommands(workflowToggles)
-	//const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
-	const allCommands = DEFAULT_SLASH_COMMANDS
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
 
 	if (!query) {
 		return allCommands
@@ -142,8 +141,7 @@ export function validateSlashCommand(command: string, workflowToggles: Record<st
 	}
 
 	const workflowCommands = getWorkflowCommands(workflowToggles)
-	//const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
-	const allCommands = DEFAULT_SLASH_COMMANDS
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
 
 	// case sensitive matching
 	const exactMatch = allCommands.some((cmd) => cmd.name === command)
