@@ -29,9 +29,6 @@ export async function refreshOpenAiModels(controller: Controller, request: OpenA
 		const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 		const models = [...new Set<string>(modelsArray)]
 
-		// Send models to webview
-		controller.postMessageToWebview({ type: "openAiModels", openAiModels: models })
-
 		return StringArray.create({ values: models })
 	} catch (error) {
 		console.error("Error fetching OpenAI models:", error)

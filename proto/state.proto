@@ -6,6 +6,7 @@ import "common.proto";
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
   rpc subscribeToState(EmptyRequest) returns (stream State);
+  rpc toggleFavoriteModel(StringRequest) returns (Empty);
 }
 
 message State {

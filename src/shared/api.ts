@@ -19,6 +19,7 @@ export type ApiProvider =
 	| "vscode-lm"
 	| "cline"
 	| "litellm"
+	| "fireworks"
 	| "asksage"
 	| "xai"
 	| "sambanova"
@@ -33,6 +34,7 @@ export interface ApiHandlerOptions {
 	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
+	liteLlmModelInfo?: LiteLLMModelInfo
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -69,6 +71,10 @@ export interface ApiHandlerOptions {
 	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
+	fireworksApiKey?: string
+	fireworksModelId?: string
+	fireworksModelMaxCompletionTokens?: number
+	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
@@ -427,14 +433,6 @@ export const vertexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-2.5-pro-exp-03-25": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
 	"gemini-2.5-pro-preview-05-06": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
@@ -560,14 +558,6 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 export type GeminiModelId = keyof typeof geminiModels
 export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
 export const geminiModels = {
-	"gemini-2.5-pro-exp-03-25": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
 	"gemini-2.5-pro-preview-05-06": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
@@ -1452,8 +1442,12 @@ export const mistralModels = {
 // LiteLLM
 // https://docs.litellm.ai/docs/
 export type LiteLLMModelId = string
-export const liteLlmDefaultModelId = "gpt-3.5-turbo"
-export const liteLlmModelInfoSaneDefaults: ModelInfo = {
+export const liteLlmDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
+export interface LiteLLMModelInfo extends ModelInfo {
+	temperature?: number
+}
+
+export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
@@ -1462,6 +1456,7 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	outputPrice: 0,
 	cacheWritesPrice: 0,
 	cacheReadsPrice: 0,
+	temperature: 0,
 }
 
 // AskSage Models

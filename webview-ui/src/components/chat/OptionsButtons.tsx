@@ -51,6 +51,8 @@ export const OptionsButtons = ({
 			</div> */}
 			{options.map((option, index) => (
 				<OptionButton
+					id={`options-button-${index}`}
+					className="options-button"
 					key={index}
 					isSelected={option === selected}
 					isNotSelectable={hasSelected || !isActive}
@@ -63,7 +65,7 @@ export const OptionsButtons = ({
 							text: option + (inputValue ? `: ${inputValue?.trim()}` : ""),
 						})
 					}}>
-					{option}
+					<span className="ph-no-capture">{option}</span>
 				</OptionButton>
 			))}
 		</div>

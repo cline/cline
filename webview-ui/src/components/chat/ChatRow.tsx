@@ -378,7 +378,7 @@ export const ChatRowContent = ({
 								marginBottom: "-1.5px",
 							}}></span>
 					),
-					<span style={{ color: normalColor, fontWeight: "bold", wordBreak: "break-word" }}>
+					<span className="ph-no-capture" style={{ color: normalColor, fontWeight: "bold", wordBreak: "break-word" }}>
 						Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
 						<code style={{ wordBreak: "break-all" }}>
 							{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
@@ -493,7 +493,7 @@ export const ChatRowContent = ({
 		}
 		const toolIcon = (name: string, color?: string, rotation?: number, title?: string) => (
 			<span
-				className={`codicon codicon-${name}`}
+				className={`codicon codicon-${name} ph-no-capture`}
 				style={{
 					color: color ? colorMap[color as keyof typeof colorMap] || color : "var(--vscode-foreground)",
 					marginBottom: "-1.5px",
@@ -577,6 +577,7 @@ export const ChatRowContent = ({
 								}}>
 								{tool.path?.startsWith(".") && <span>.</span>}
 								<span
+									className="ph-no-capture"
 									style={{
 										whiteSpace: "nowrap",
 										overflow: "hidden",
@@ -999,12 +1000,13 @@ export const ChatRowContent = ({
 													}}
 												/>
 											</span>
-											{message.text}
+											<span className="ph-no-capture">{message.text}</span>
 										</div>
 									) : (
 										<div style={{ display: "flex", alignItems: "center" }}>
 											<span style={{ fontWeight: "bold", marginRight: "4px" }}>Thinking:</span>
 											<span
+												className="ph-no-capture"
 												style={{
 													whiteSpace: "nowrap",
 													overflow: "hidden",

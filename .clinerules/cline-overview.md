@@ -209,7 +209,7 @@ class Task {
         switch (chunk.type) {
           case "text":
             // Parse into content blocks
-            this.assistantMessageContent = parseAssistantMessage(chunk.text)
+            this.assistantMessageContent = parseAssistantMessageV2(chunk.text)
             // Present blocks to user
             await this.presentAssistantMessage()
             break
