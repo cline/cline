@@ -1,8 +1,8 @@
 import { UpdateBrowserSettingsRequest } from "../../../shared/proto/browser"
 import { Boolean } from "../../../shared/proto/common"
 import { Controller } from "../index"
-import { updateGlobalState } from "../../storage/state"
-import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
+import { updateGlobalState, getGlobalState } from "../../storage/state"
+import { BrowserSettings as SharedBrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 
 /**
  * Update browser settings
@@ -12,23 +12,39 @@ import { BrowserSettings as SharedBrowserSettings } from "../../../shared/Browse
  */
 export async function updateBrowserSettings(controller: Controller, request: UpdateBrowserSettingsRequest): Promise<Boolean> {
 	try {
-		// Convert from protobuf format to shared format
-		const browserSettings: SharedBrowserSettings = {
+		// Get current browser settings to preserve fields not in the request
+		const currentSettings = (await getGlobalState(controller.context, "browserSettings")) as SharedBrowserSettings | undefined
+		const mergedWithDefaults = { ...DEFAULT_BROWSER_SETTINGS, ...currentSettings }
+
+		// Convert from protobuf format to shared format, merging with existing settings
+		const newBrowserSettings: SharedBrowserSettings = {
+			...mergedWithDefaults, // Start with existing settings (and defaults)
 			viewport: {
-				width: request.viewport?.width || 900,
-				height: request.viewport?.height || 600,
+				// Apply updates from request
+				width: request.viewport?.width || mergedWithDefaults.viewport.width,
+				height: request.viewport?.height || mergedWithDefaults.viewport.height,
 			},
-			remoteBrowserEnabled: request.remoteBrowserEnabled || false,
-			remoteBrowserHost: request.remoteBrowserHost || undefined,
+			// Explicitly handle optional boolean and string fields from the request
+			remoteBrowserEnabled:
+				request.remoteBrowserEnabled === undefined
+					? mergedWithDefaults.remoteBrowserEnabled
+					: request.remoteBrowserEnabled,
+			remoteBrowserHost:
+				request.remoteBrowserHost === undefined ? mergedWithDefaults.remoteBrowserHost : request.remoteBrowserHost,
+			chromeExecutablePath:
+				// If chromeExecutablePath is explicitly in the request (even as ""), use it.
+				// Otherwise, fall back to mergedWithDefaults.
+				"chromeExecutablePath" in request ? request.chromeExecutablePath : mergedWithDefaults.chromeExecutablePath,
+			disableToolUse: request.disableToolUse === undefined ? mergedWithDefaults.disableToolUse : request.disableToolUse,
 		}
 
 		// Update global state with new settings
-		await updateGlobalState(controller.context, "browserSettings", browserSettings)
+		await updateGlobalState(controller.context, "browserSettings", newBrowserSettings)
 
 		// Update task browser settings if task exists
 		if (controller.task) {
-			controller.task.browserSettings = browserSettings
-			controller.task.browserSession.browserSettings = browserSettings
+			controller.task.browserSettings = newBrowserSettings
+			controller.task.browserSession.browserSettings = newBrowserSettings
 		}
 
 		// Post updated state to webview

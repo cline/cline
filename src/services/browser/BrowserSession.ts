@@ -16,6 +16,7 @@ import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./Br
 import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "@core/controller"
 import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
+import os from "os"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -67,11 +68,25 @@ export class BrowserSession {
 		}
 	}
 
-	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
-		// First check VSCode config
+	/**
+	 * Migrates the chromeExecutablePath setting from VSCode configuration to browserSettings
+	 */
+	private async migrateChromeExecutablePathSetting(): Promise<void> {
+		const config = vscode.workspace.getConfiguration("cline")
 		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
-		if (configPath && (await fileExistsAtPath(configPath))) {
-			return { path: configPath, isBundled: false }
+
+		if (configPath !== undefined) {
+			this.browserSettings.chromeExecutablePath = configPath
+			// Remove from VSCode configuration
+			await config.update("chromeExecutablePath", undefined, true)
+		}
+	}
+
+	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
+		// First check browserSettings (from UI, stored in global state)
+		await this.migrateChromeExecutablePathSetting()
+		if (this.browserSettings.chromeExecutablePath && (await fileExistsAtPath(this.browserSettings.chromeExecutablePath))) {
+			return { path: this.browserSettings.chromeExecutablePath, isBundled: false }
 		}
 
 		// Then try to find system Chrome
@@ -109,45 +124,20 @@ export class BrowserSession {
 	}
 
 	async relaunchChromeDebugMode(controller: Controller) {
-		const result = await vscode.window.showWarningMessage(
-			"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
-			{ modal: true },
-			"Yes",
-		)
-
-		if (result !== "Yes") {
-			controller?.postMessageToWebview({
-				type: "browserRelaunchResult",
-				success: false,
-				text: "Operation cancelled by user",
-			})
-			return
-		}
-
 		try {
-			// Chrome-launcher's killAll only kills instances it launched
-			// We need to handle system Chrome processes separately
-			await this.killAllChromeBrowsers()
-
-			// Wait a moment for Chrome to fully shut down
-			await new Promise((resolve) => setTimeout(resolve, 500))
-
-			// Instead of using any default flags, use a minimal set to ensure session persistence
-			// This closely mimics running "google-chrome-stable --remote-debugging-port=9222" from the CLI
-			const chromeFlags = [
-				"--remote-debugging-port=" + DEBUG_PORT,
-				"--disable-notifications",
-				// Do not add any flags that might interfere with profile data
-			]
-
+			const userDataDir = path.join(os.tmpdir(), "chrome-debug-profile")
 			const installation = chromeLauncher.Launcher.getFirstInstallation()
 			if (!installation) {
 				throw new Error("Could not find Chrome installation on this system")
 			}
 			console.info("chrome installation", installation)
 
-			// Prepare the command arguments
-			const args = [`--remote-debugging-port=${DEBUG_PORT}`, "--disable-notifications", "chrome://newtab"]
+			const args = [
+				`--remote-debugging-port=${DEBUG_PORT}`,
+				`--user-data-dir=${userDataDir}`,
+				"--disable-notifications",
+				"chrome://newtab",
+			]
 
 			// Spawn Chrome as a detached process
 			const chromeProcess = spawn(installation, args, {

@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { EmptyRequest, StringArray, StringRequest } from "./common"
+import { EmptyRequest, Metadata, StringArray, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -23,7 +23,7 @@ export interface VsCodeLmModel {
 	id: string
 }
 
-/** For ModelInfo structure in OpenRouterModels */
+/** For OpenRouterCompatibleModelInfo structure in OpenRouterModels */
 export interface OpenRouterModelInfo {
 	maxTokens: number
 	contextWindow: number
@@ -36,14 +36,21 @@ export interface OpenRouterModelInfo {
 	description: string
 }
 
-/** Response message for OpenRouter models */
-export interface OpenRouterModels {
+/** Shared response message for model information */
+export interface OpenRouterCompatibleModelInfo {
 	models: { [key: string]: OpenRouterModelInfo }
 }
 
-export interface OpenRouterModels_ModelsEntry {
+export interface OpenRouterCompatibleModelInfo_ModelsEntry {
 	key: string
 	value?: OpenRouterModelInfo | undefined
+}
+
+/** Request for fetching OpenAI models */
+export interface OpenAiModelsRequest {
+	metadata?: Metadata | undefined
+	baseUrl: string
+	apiKey: string
 }
 
 function createBaseVsCodeLmModelsArray(): VsCodeLmModelsArray {
@@ -412,22 +419,22 @@ export const OpenRouterModelInfo: MessageFns<OpenRouterModelInfo> = {
 	},
 }
 
-function createBaseOpenRouterModels(): OpenRouterModels {
+function createBaseOpenRouterCompatibleModelInfo(): OpenRouterCompatibleModelInfo {
 	return { models: {} }
 }
 
-export const OpenRouterModels: MessageFns<OpenRouterModels> = {
-	encode(message: OpenRouterModels, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const OpenRouterCompatibleModelInfo: MessageFns<OpenRouterCompatibleModelInfo> = {
+	encode(message: OpenRouterCompatibleModelInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		Object.entries(message.models).forEach(([key, value]) => {
-			OpenRouterModels_ModelsEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join()
+			OpenRouterCompatibleModelInfo_ModelsEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join()
 		})
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): OpenRouterModels {
+	decode(input: BinaryReader | Uint8Array, length?: number): OpenRouterCompatibleModelInfo {
 		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseOpenRouterModels()
+		const message = createBaseOpenRouterCompatibleModelInfo()
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
@@ -436,7 +443,7 @@ export const OpenRouterModels: MessageFns<OpenRouterModels> = {
 						break
 					}
 
-					const entry1 = OpenRouterModels_ModelsEntry.decode(reader, reader.uint32())
+					const entry1 = OpenRouterCompatibleModelInfo_ModelsEntry.decode(reader, reader.uint32())
 					if (entry1.value !== undefined) {
 						message.models[entry1.key] = entry1.value
 					}
@@ -451,7 +458,7 @@ export const OpenRouterModels: MessageFns<OpenRouterModels> = {
 		return message
 	},
 
-	fromJSON(object: any): OpenRouterModels {
+	fromJSON(object: any): OpenRouterCompatibleModelInfo {
 		return {
 			models: isObject(object.models)
 				? Object.entries(object.models).reduce<{ [key: string]: OpenRouterModelInfo }>((acc, [key, value]) => {
@@ -462,7 +469,7 @@ export const OpenRouterModels: MessageFns<OpenRouterModels> = {
 		}
 	},
 
-	toJSON(message: OpenRouterModels): unknown {
+	toJSON(message: OpenRouterCompatibleModelInfo): unknown {
 		const obj: any = {}
 		if (message.models) {
 			const entries = Object.entries(message.models)
@@ -476,11 +483,11 @@ export const OpenRouterModels: MessageFns<OpenRouterModels> = {
 		return obj
 	},
 
-	create<I extends Exact<DeepPartial<OpenRouterModels>, I>>(base?: I): OpenRouterModels {
-		return OpenRouterModels.fromPartial(base ?? ({} as any))
+	create<I extends Exact<DeepPartial<OpenRouterCompatibleModelInfo>, I>>(base?: I): OpenRouterCompatibleModelInfo {
+		return OpenRouterCompatibleModelInfo.fromPartial(base ?? ({} as any))
 	},
-	fromPartial<I extends Exact<DeepPartial<OpenRouterModels>, I>>(object: I): OpenRouterModels {
-		const message = createBaseOpenRouterModels()
+	fromPartial<I extends Exact<DeepPartial<OpenRouterCompatibleModelInfo>, I>>(object: I): OpenRouterCompatibleModelInfo {
+		const message = createBaseOpenRouterCompatibleModelInfo()
 		message.models = Object.entries(object.models ?? {}).reduce<{ [key: string]: OpenRouterModelInfo }>(
 			(acc, [key, value]) => {
 				if (value !== undefined) {
@@ -494,12 +501,12 @@ export const OpenRouterModels: MessageFns<OpenRouterModels> = {
 	},
 }
 
-function createBaseOpenRouterModels_ModelsEntry(): OpenRouterModels_ModelsEntry {
+function createBaseOpenRouterCompatibleModelInfo_ModelsEntry(): OpenRouterCompatibleModelInfo_ModelsEntry {
 	return { key: "", value: undefined }
 }
 
-export const OpenRouterModels_ModelsEntry: MessageFns<OpenRouterModels_ModelsEntry> = {
-	encode(message: OpenRouterModels_ModelsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const OpenRouterCompatibleModelInfo_ModelsEntry: MessageFns<OpenRouterCompatibleModelInfo_ModelsEntry> = {
+	encode(message: OpenRouterCompatibleModelInfo_ModelsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
 		if (message.key !== "") {
 			writer.uint32(10).string(message.key)
 		}
@@ -509,10 +516,10 @@ export const OpenRouterModels_ModelsEntry: MessageFns<OpenRouterModels_ModelsEnt
 		return writer
 	},
 
-	decode(input: BinaryReader | Uint8Array, length?: number): OpenRouterModels_ModelsEntry {
+	decode(input: BinaryReader | Uint8Array, length?: number): OpenRouterCompatibleModelInfo_ModelsEntry {
 		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
 		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseOpenRouterModels_ModelsEntry()
+		const message = createBaseOpenRouterCompatibleModelInfo_ModelsEntry()
 		while (reader.pos < end) {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
@@ -541,14 +548,14 @@ export const OpenRouterModels_ModelsEntry: MessageFns<OpenRouterModels_ModelsEnt
 		return message
 	},
 
-	fromJSON(object: any): OpenRouterModels_ModelsEntry {
+	fromJSON(object: any): OpenRouterCompatibleModelInfo_ModelsEntry {
 		return {
 			key: isSet(object.key) ? globalThis.String(object.key) : "",
 			value: isSet(object.value) ? OpenRouterModelInfo.fromJSON(object.value) : undefined,
 		}
 	},
 
-	toJSON(message: OpenRouterModels_ModelsEntry): unknown {
+	toJSON(message: OpenRouterCompatibleModelInfo_ModelsEntry): unknown {
 		const obj: any = {}
 		if (message.key !== "") {
 			obj.key = message.key
@@ -559,14 +566,111 @@ export const OpenRouterModels_ModelsEntry: MessageFns<OpenRouterModels_ModelsEnt
 		return obj
 	},
 
-	create<I extends Exact<DeepPartial<OpenRouterModels_ModelsEntry>, I>>(base?: I): OpenRouterModels_ModelsEntry {
-		return OpenRouterModels_ModelsEntry.fromPartial(base ?? ({} as any))
+	create<I extends Exact<DeepPartial<OpenRouterCompatibleModelInfo_ModelsEntry>, I>>(
+		base?: I,
+	): OpenRouterCompatibleModelInfo_ModelsEntry {
+		return OpenRouterCompatibleModelInfo_ModelsEntry.fromPartial(base ?? ({} as any))
 	},
-	fromPartial<I extends Exact<DeepPartial<OpenRouterModels_ModelsEntry>, I>>(object: I): OpenRouterModels_ModelsEntry {
-		const message = createBaseOpenRouterModels_ModelsEntry()
+	fromPartial<I extends Exact<DeepPartial<OpenRouterCompatibleModelInfo_ModelsEntry>, I>>(
+		object: I,
+	): OpenRouterCompatibleModelInfo_ModelsEntry {
+		const message = createBaseOpenRouterCompatibleModelInfo_ModelsEntry()
 		message.key = object.key ?? ""
 		message.value =
 			object.value !== undefined && object.value !== null ? OpenRouterModelInfo.fromPartial(object.value) : undefined
+		return message
+	},
+}
+
+function createBaseOpenAiModelsRequest(): OpenAiModelsRequest {
+	return { metadata: undefined, baseUrl: "", apiKey: "" }
+}
+
+export const OpenAiModelsRequest: MessageFns<OpenAiModelsRequest> = {
+	encode(message: OpenAiModelsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.baseUrl !== "") {
+			writer.uint32(18).string(message.baseUrl)
+		}
+		if (message.apiKey !== "") {
+			writer.uint32(26).string(message.apiKey)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): OpenAiModelsRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseOpenAiModelsRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.baseUrl = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.apiKey = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): OpenAiModelsRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			baseUrl: isSet(object.baseUrl) ? globalThis.String(object.baseUrl) : "",
+			apiKey: isSet(object.apiKey) ? globalThis.String(object.apiKey) : "",
+		}
+	},
+
+	toJSON(message: OpenAiModelsRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.baseUrl !== "") {
+			obj.baseUrl = message.baseUrl
+		}
+		if (message.apiKey !== "") {
+			obj.apiKey = message.apiKey
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<OpenAiModelsRequest>, I>>(base?: I): OpenAiModelsRequest {
+		return OpenAiModelsRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<OpenAiModelsRequest>, I>>(object: I): OpenAiModelsRequest {
+		const message = createBaseOpenAiModelsRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.baseUrl = object.baseUrl ?? ""
+		message.apiKey = object.apiKey ?? ""
 		return message
 	},
 }
@@ -609,7 +713,25 @@ export const ModelsServiceDefinition = {
 			name: "refreshOpenRouterModels",
 			requestType: EmptyRequest,
 			requestStream: false,
-			responseType: OpenRouterModels,
+			responseType: OpenRouterCompatibleModelInfo,
+			responseStream: false,
+			options: {},
+		},
+		/** Refreshes and returns OpenAI models */
+		refreshOpenAiModels: {
+			name: "refreshOpenAiModels",
+			requestType: OpenAiModelsRequest,
+			requestStream: false,
+			responseType: StringArray,
+			responseStream: false,
+			options: {},
+		},
+		/** Refreshes and returns Requesty models */
+		refreshRequestyModels: {
+			name: "refreshRequestyModels",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: OpenRouterCompatibleModelInfo,
 			responseStream: false,
 			options: {},
 		},

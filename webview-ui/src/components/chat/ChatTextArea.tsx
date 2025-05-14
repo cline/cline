@@ -1038,6 +1038,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${apiConfiguration.togetherModelId}`
 				case "netmind":
 					return `${selectedProvider}:${apiConfiguration.netmindModelId}`
+				case "fireworks":
+					return `fireworks:${apiConfiguration.fireworksModelId}`
 				case "lmstudio":
 					return `${selectedProvider}:${apiConfiguration.lmStudioModelId}`
 				case "ollama":

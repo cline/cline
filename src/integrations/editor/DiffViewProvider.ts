@@ -91,9 +91,9 @@ export class DiffViewProvider {
 				const currentFirstVisibleLine = e.visibleRanges[0]?.start.line || 0
 
 				// If the first visible line moved upward, user scrolled up
-				if (currentFirstVisibleLine < this.lastFirstVisibleLine) {
-					this.shouldAutoScroll = false
-				}
+				// if (currentFirstVisibleLine < this.lastFirstVisibleLine) {
+				// 	this.shouldAutoScroll = false
+				// }
 
 				// Always update our tracking variable
 				this.lastFirstVisibleLine = currentFirstVisibleLine
@@ -433,6 +433,12 @@ export class DiffViewProvider {
 
 	// close editor if open?
 	async reset() {
+		// releasing memory by clearing the diff editor
+		try {
+			await this.closeAllDiffViews()
+		} catch (error) {
+			console.error("Error closing diff views:", error)
+		}
 		this.editType = undefined
 		this.isEditing = false
 		this.originalContent = undefined

@@ -185,6 +185,12 @@
 			"label": "stop",
 			"command": "echo ${input:terminate}",
 			"type": "shell"
+		},
+		{
+			"label": "clean-sandbox",
+			"type": "shell",
+			"dependsOn": ["watch"],
+			"command": "rm -rf .vscode-dev"
 		}
 	],
 	"inputs": [

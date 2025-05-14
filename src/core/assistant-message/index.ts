@@ -1,6 +1,6 @@
 export type AssistantMessageContent = TextContent | ToolUse
 
-export { parseAssistantMessage } from "./parse-assistant-message"
+export { parseAssistantMessageV1, parseAssistantMessageV2 } from "./parse-assistant-message"
 
 export interface TextContent {
 	type: "text"
@@ -25,6 +25,7 @@ export const toolUseNames = [
 	"attempt_completion",
 	"new_task",
 	"condense",
+	"report_bug",
 	"new_rule",
 ] as const
 
@@ -53,6 +54,11 @@ export const toolParamNames = [
 	"response",
 	"result",
 	"context",
+	"title",
+	"what_happened",
+	"steps_to_reproduce",
+	"api_request_output",
+	"additional_context",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

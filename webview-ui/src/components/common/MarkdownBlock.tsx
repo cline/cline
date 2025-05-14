@@ -339,7 +339,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 
 	return (
 		<div>
-			<StyledMarkdown>{reactContent}</StyledMarkdown>
+			<StyledMarkdown className="ph-no-capture">{reactContent}</StyledMarkdown>
 		</div>
 	)
 })

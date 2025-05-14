@@ -6,7 +6,9 @@ import { registerMethod } from "./index"
 import { getLmStudioModels } from "./getLmStudioModels"
 import { getOllamaModels } from "./getOllamaModels"
 import { getVsCodeLmModels } from "./getVsCodeLmModels"
+import { refreshOpenAiModels } from "./refreshOpenAiModels"
 import { refreshOpenRouterModels } from "./refreshOpenRouterModels"
+import { refreshRequestyModels } from "./refreshRequestyModels"
 
 // Register all models service methods
 export function registerAllMethods(): void {
@@ -14,5 +16,7 @@ export function registerAllMethods(): void {
 	registerMethod("getLmStudioModels", getLmStudioModels)
 	registerMethod("getOllamaModels", getOllamaModels)
 	registerMethod("getVsCodeLmModels", getVsCodeLmModels)
+	registerMethod("refreshOpenAiModels", refreshOpenAiModels)
 	registerMethod("refreshOpenRouterModels", refreshOpenRouterModels)
+	registerMethod("refreshRequestyModels", refreshRequestyModels)
 }

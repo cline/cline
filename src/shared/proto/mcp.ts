@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Metadata } from "./common"
+import { Empty, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -1001,6 +1001,14 @@ export const McpServiceDefinition = {
 			requestType: AddRemoteMcpServerRequest,
 			requestStream: false,
 			responseType: McpServers,
+			responseStream: false,
+			options: {},
+		},
+		downloadMcp: {
+			name: "downloadMcp",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
 			responseStream: false,
 			options: {},
 		},
