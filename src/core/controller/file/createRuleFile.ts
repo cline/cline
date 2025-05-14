@@ -35,11 +35,13 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 	const { filePath, fileExists } = await createRuleFileImpl(request.isGlobal, request.filename, cwd, request.type)
 
 	if (!filePath) {
-		throw new Error("Failed to create rule file.")
+		throw new Error("Failed to create file.")
 	}
 
+	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
+
 	if (fileExists) {
-		vscode.window.showWarningMessage(`Rule file "${request.filename}" already exists.`)
+		vscode.window.showWarningMessage(`${fileTypeName} file "${request.filename}" already exists.`)
 		// Still open it for editing
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
 	} else {
@@ -51,8 +53,6 @@ export const createRuleFile: FileMethodHandler = async (controller: Controller, 
 		await controller.postStateToWebview()
 
 		await handleFileServiceRequest(controller, "openFile", { value: filePath })
-
-		const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
 
 		vscode.window.showInformationMessage(
 			`Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`,

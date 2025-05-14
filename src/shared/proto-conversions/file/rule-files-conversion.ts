@@ -2,11 +2,12 @@ import { RuleFileRequest } from "../../proto/file"
 
 // Helper for creating delete requests
 export const DeleteRuleFileRequest = {
-	create: (params: { rulePath: string; isGlobal: boolean; metadata?: any }): RuleFileRequest => {
+	create: (params: { rulePath: string; isGlobal: boolean; metadata?: any; type?: string }): RuleFileRequest => {
 		return RuleFileRequest.create({
 			rulePath: params.rulePath,
 			isGlobal: params.isGlobal,
 			metadata: params.metadata,
+			type: params.type,
 		})
 	},
 }
