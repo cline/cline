@@ -202,12 +202,12 @@
 		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.16 Yayınlandı",
-		"description": "Roo Code 3.16 geri bildirimlerinize dayalı yeni özellikler ve iyileştirmeler getiriyor.",
+		"title": "🎉 Roo Code 3.17 Yayınlandı",
+		"description": "Roo Code 3.17 geri bildirimlerinize dayalı güçlü yeni özellikler ve iyileştirmeler getiriyor.",
 		"whatsNew": "Yenilikler",
-		"feature1": "<bold>Groq ve Chutes API Sağlayıcıları</bold>: Groq ve Chutes API sağlayıcıları için destek eklendi (teşekkürler @shariqriazz!)",
-		"feature2": "<bold>Tıklanabilir Kod Referansları</bold>: Model yanıtlarındaki kod referansları artık doğrudan kaynak satırlarına gidiyor (teşekkürler @KJ7LNW!)",
-		"feature3": "<bold>MCP Kararlılık İyileştirmeleri</bold>: MCP entegrasyonlarının kararlılığını artırmak için çeşitli hatalar düzeltildi",
+		"feature1": "<bold>Gemini için Örtük Önbelleğe Alma</bold>: Gemini API çağrıları artık otomatik olarak önbelleğe alınıyor, API maliyetlerini azaltıyor",
+		"feature2": "<bold>Daha Akıllı Mod Seçimi</bold>: Mod tanımları artık her modun ne zaman kullanılması gerektiğine dair rehberlik içerebiliyor, daha iyi orkestrasyon sağlıyor",
+		"feature3": "<bold>Akıllı Bağlam Yoğunlaştırma</bold>: Bağlam dolduğunda kesip atmak yerine konuşma geçmişini akıllıca özetliyor (Ayarlar -> Deneysel bölümünden etkinleştirin)",
 		"hideButton": "Duyuruyu gizle",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
 	},

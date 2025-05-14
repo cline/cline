@@ -49,14 +49,13 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.16 Released
+## 🎉 Roo Code 3.17 Released
 
-Roo Code 3.16 brings new features and improvements based on your feedback!
+Roo Code 3.17 brings powerful new features and improvements based on your feedback!
 
-- **Groq and Chutes API Providers** - Added support for Groq and Chutes API providers, expanding your model options.
-- **Clickable Code References** - Code references in model responses now navigate directly to source lines.
-- **MCP Stability Improvements** - Fixed several bugs to enhance the stability of MCP integrations.
-- **Accessibility Improvements** - Enhanced accessibility of Auto-Approve toggles and other UI elements.
+- **Implicit Caching for Gemini** - Gemini API calls are now automatically cached, reducing API costs.
+- **Smarter Mode Selection** - Mode definitions can now include guidance on when each mode should be used, enabling better orchestration.
+- **Intelligent Context Condensing** - Intelligently summarizes conversation history when context fills up instead of truncating (enable in Settings -> Experimental).
 
 ---
 

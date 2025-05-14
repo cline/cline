@@ -202,12 +202,12 @@
 		"copyToInput": "Sao chép vào ô nhập liệu (hoặc Shift + nhấp chuột)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.16 Đã phát hành",
-		"description": "Roo Code 3.16 mang đến các tính năng và cải tiến mới dựa trên phản hồi của bạn.",
+		"title": "🎉 Roo Code 3.17 Đã phát hành",
+		"description": "Roo Code 3.17 mang đến các tính năng mạnh mẽ và cải tiến mới dựa trên phản hồi của bạn.",
 		"whatsNew": "Có gì mới",
-		"feature1": "<bold>Nhà cung cấp API Groq và Chutes</bold>: Đã thêm hỗ trợ cho nhà cung cấp API Groq và Chutes (cảm ơn @shariqriazz!)",
-		"feature2": "<bold>Tham chiếu mã có thể nhấp</bold>: Tham chiếu mã trong phản hồi của mô hình giờ đây có thể điều hướng trực tiếp đến dòng mã nguồn (cảm ơn @KJ7LNW!)",
-		"feature3": "<bold>Cải thiện độ ổn định MCP</bold>: Đã sửa nhiều lỗi để nâng cao độ ổn định của tích hợp MCP",
+		"feature1": "<bold>Bộ nhớ đệm ngầm cho Gemini</bold>: Các lệnh gọi API Gemini hiện được tự động lưu vào bộ nhớ đệm, giảm chi phí API",
+		"feature2": "<bold>Lựa chọn chế độ thông minh hơn</bold>: Định nghĩa chế độ giờ đây có thể bao gồm hướng dẫn về thời điểm nên sử dụng mỗi chế độ, cho phép điều phối tốt hơn",
+		"feature3": "<bold>Ngắn gọn hóa bối cảnh thông minh</bold>: Tóm tắt thông minh lịch sử cuộc trò chuyện khi bối cảnh đầy thay vì cắt bỏ (bật trong Cài đặt -> Thử nghiệm)",
 		"hideButton": "Ẩn thông báo",
 		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
 	},

@@ -195,12 +195,12 @@
 		"description": "Auto-approve allows Roo Code to perform actions without asking for permission. Only enable for actions you fully trust. More detailed configuration available in <settingsLink>Settings</settingsLink>."
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.16 Released",
-		"description": "Roo Code 3.16 brings new features and improvements based on your feedback.",
+		"title": "🎉 Roo Code 3.17 Released",
+		"description": "Roo Code 3.17 brings powerful new features and improvements based on your feedback.",
 		"whatsNew": "What's New",
-		"feature1": "<bold>Groq and Chutes API Providers</bold>: Added support for Groq and Chutes API providers (thanks @shariqriazz!)",
-		"feature2": "<bold>Clickable Code References</bold>: Code references in model responses now navigate to source lines (thanks @KJ7LNW!)",
-		"feature3": "<bold>MCP Stability Improvements</bold>: Fixed several bugs to enhance the stability of MCP integrations",
+		"feature1": "<bold>Implicit Caching for Gemini</bold>: Gemini API calls are now automatically cached, reducing API costs",
+		"feature2": "<bold>Smarter Mode Selection</bold>: Mode definitions can now include guidance on when each mode should be used, enabling better orchestration",
+		"feature3": "<bold>Intelligent Context Condensing</bold>: Intelligently summarizes conversation history when context fills up instead of truncating (enable in Settings -> Experimental)",
 		"hideButton": "Hide announcement",
 		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
 	},

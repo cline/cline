@@ -202,12 +202,12 @@
 		"copyToInput": "Copia nell'input (o Shift + clic)"
 	},
 	"announcement": {
-		"title": "🎉 Rilasciato Roo Code 3.16",
-		"description": "Roo Code 3.16 porta nuove funzionalità e miglioramenti basati sui tuoi feedback.",
+		"title": "🎉 Rilasciato Roo Code 3.17",
+		"description": "Roo Code 3.17 introduce potenti nuove funzionalità e miglioramenti basati sui tuoi feedback.",
 		"whatsNew": "Novità",
-		"feature1": "<bold>Provider API Groq e Chutes</bold>: Aggiunto supporto per i provider API Groq e Chutes (grazie @shariqriazz!)",
-		"feature2": "<bold>Riferimenti di codice cliccabili</bold>: I riferimenti di codice nelle risposte del modello ora navigano direttamente alle righe di origine (grazie @KJ7LNW!)",
-		"feature3": "<bold>Miglioramenti di stabilità MCP</bold>: Risolti diversi bug per migliorare la stabilità delle integrazioni MCP",
+		"feature1": "<bold>Caching implicito per Gemini</bold>: Le chiamate API Gemini vengono ora memorizzate automaticamente nella cache, riducendo i costi API",
+		"feature2": "<bold>Selezione della modalità più intelligente</bold>: Le definizioni delle modalità possono ora includere indicazioni su quando ogni modalità dovrebbe essere utilizzata, permettendo una migliore orchestrazione",
+		"feature3": "<bold>Condensazione intelligente del contesto</bold>: Riassume in modo intelligente la cronologia delle conversazioni quando il contesto si riempie invece di troncarla (abilitare in Impostazioni -> Sperimentale)",
 		"hideButton": "Nascondi annuncio",
 		"detailsDiscussLinks": "Ottieni maggiori dettagli e partecipa alle discussioni su <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},

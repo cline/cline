@@ -202,12 +202,12 @@
 		"copyToInput": "Copiar a l'entrada (o Shift + clic)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.16 publicat",
-		"description": "Roo Code 3.16 porta noves funcionalitats i millores basades en els teus comentaris.",
+		"title": "🎉 Roo Code 3.17 publicat",
+		"description": "Roo Code 3.17 porta noves funcionalitats potents i millores basades en els teus comentaris.",
 		"whatsNew": "Novetats",
-		"feature1": "<bold>Proveïdors d'API Groq i Chutes</bold>: S'ha afegit suport per als proveïdors d'API Groq i Chutes (gràcies @shariqriazz!)",
-		"feature2": "<bold>Referències de codi clicables</bold>: Les referències de codi a les respostes del model ara naveguen directament a les línies de codi font (gràcies @KJ7LNW!)",
-		"feature3": "<bold>Millores d'estabilitat MCP</bold>: S'han corregit diversos errors per millorar l'estabilitat de les integracions MCP",
+		"feature1": "<bold>Emmagatzematge en caché implícit per a Gemini</bold>: Les crides a l'API de Gemini ara s'emmagatzemen automàticament en caché, reduint els costos d'API",
+		"feature2": "<bold>Selecció de mode més intel·ligent</bold>: Les definicions de mode ara poden incloure orientació sobre quan s'ha d'utilitzar cada mode, permetent una millor orquestració",
+		"feature3": "<bold>Condensació intel·ligent del context</bold>: Resumeix de manera intel·ligent l'historial de converses quan el context s'omple en lloc de truncar-lo (activa-ho a Configuració -> Experimental)",
 		"hideButton": "Amagar anunci",
 		"detailsDiscussLinks": "Obtingues més detalls i participa a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},
