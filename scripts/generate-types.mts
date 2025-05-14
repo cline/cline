@@ -20,7 +20,7 @@ async function main() {
 
 	fs.writeFileSync("src/exports/types.ts", types.join("\n\n"))
 
-	await $`npx tsup src/exports/interface.ts --dts-only -d out`
+	await $`npx tsup src/exports/interface.ts -d out`
 	fs.copyFileSync("out/interface.d.ts", "src/exports/roo-code.d.ts")
 
 	await $`npx prettier --write src/exports/types.ts src/exports/roo-code.d.ts`
