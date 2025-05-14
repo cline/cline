@@ -80,6 +80,7 @@ import {
 	ensureTaskDirectoryExists,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
+	GlobalFileNames,
 	saveApiConversationHistory,
 	saveClineMessages,
 } from "@core/storage/disk"
@@ -87,8 +88,8 @@ import {
 	getGlobalClineRules,
 	getLocalClineRules,
 	refreshClineRulesToggles,
-	ensureLocalClinerulesDirExists,
 } from "@core/context/instructions/user-instructions/cline-rules"
+import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import {
 	refreshExternalRulesToggles,
 	getLocalWindsurfRules,
@@ -4061,7 +4062,7 @@ export class Task {
 		// After processing content, check clinerulesData if needed
 		let clinerulesError = false
 		if (needsClinerulesFileCheck) {
-			clinerulesError = await ensureLocalClinerulesDirExists(cwd)
+			clinerulesError = await ensureLocalClineDirExists(cwd, GlobalFileNames.clineRules)
 		}
 
 		// Return all results
