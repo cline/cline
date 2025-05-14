@@ -107,7 +107,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
+		liteLlmModelInfo,
 		liteLlmUsePromptCache,
+		fireworksApiKey,
+		fireworksModelId,
+		fireworksModelMaxCompletionTokens,
+		fireworksModelMaxTokens,
 		userInfo,
 		previousModeApiProvider,
 		previousModeModelId,
@@ -186,7 +191,12 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		getGlobalState(context, "liteLlmBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "liteLlmModelInfo") as Promise<ModelInfo | undefined>,
 		getGlobalState(context, "liteLlmUsePromptCache") as Promise<boolean | undefined>,
+		getSecret(context, "fireworksApiKey") as Promise<string | undefined>,
+		getGlobalState(context, "fireworksModelId") as Promise<string | undefined>,
+		getGlobalState(context, "fireworksModelMaxCompletionTokens") as Promise<number | undefined>,
+		getGlobalState(context, "fireworksModelMaxTokens") as Promise<number | undefined>,
 		getGlobalState(context, "userInfo") as Promise<UserInfo | undefined>,
 		getGlobalState(context, "previousModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "previousModeModelId") as Promise<string | undefined>,
@@ -304,8 +314,13 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			reasoningEffort,
 			liteLlmBaseUrl,
 			liteLlmModelId,
+			liteLlmModelInfo,
 			liteLlmApiKey,
 			liteLlmUsePromptCache,
+			fireworksApiKey,
+			fireworksModelId,
+			fireworksModelMaxCompletionTokens,
+			fireworksModelMaxTokens,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -386,6 +401,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
+		liteLlmModelInfo,
 		liteLlmApiKey,
 		liteLlmUsePromptCache,
 		qwenApiLine,
@@ -444,6 +460,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
 	await updateGlobalState(context, "liteLlmBaseUrl", liteLlmBaseUrl)
 	await updateGlobalState(context, "liteLlmModelId", liteLlmModelId)
+	await updateGlobalState(context, "liteLlmModelInfo", liteLlmModelInfo)
 	await updateGlobalState(context, "liteLlmUsePromptCache", liteLlmUsePromptCache)
 	await updateGlobalState(context, "qwenApiLine", qwenApiLine)
 	await updateGlobalState(context, "requestyModelId", requestyModelId)
@@ -480,6 +497,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"mistralApiKey",
 		"clineApiKey",
 		"liteLlmApiKey",
+		"fireworksApiKey",
 		"asksageApiKey",
 		"xaiApiKey",
 		"sambanovaApiKey",
