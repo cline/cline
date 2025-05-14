@@ -31,6 +31,7 @@ import { searchFiles } from "../core/controller/file/searchFiles"
 import { toggleMcpServer } from "../core/controller/mcp/toggleMcpServer"
 import { updateMcpTimeout } from "../core/controller/mcp/updateMcpTimeout"
 import { addRemoteMcpServer } from "../core/controller/mcp/addRemoteMcpServer"
+import { downloadMcp } from "../core/controller/mcp/downloadMcp"
 
 // Models Service
 import { getOllamaModels } from "../core/controller/models/getOllamaModels"
@@ -38,10 +39,16 @@ import { getLmStudioModels } from "../core/controller/models/getLmStudioModels"
 import { getVsCodeLmModels } from "../core/controller/models/getVsCodeLmModels"
 import { refreshOpenRouterModels } from "../core/controller/models/refreshOpenRouterModels"
 import { refreshOpenAiModels } from "../core/controller/models/refreshOpenAiModels"
+import { refreshRequestyModels } from "../core/controller/models/refreshRequestyModels"
+
+// Slash Service
+import { reportBug } from "../core/controller/slash/reportBug"
+import { condense } from "../core/controller/slash/condense"
 
 // State Service
 import { getLatestState } from "../core/controller/state/getLatestState"
 import { subscribeToState } from "../core/controller/state/subscribeToState"
+import { toggleFavoriteModel } from "../core/controller/state/toggleFavoriteModel"
 
 // Task Service
 import { cancelTask } from "../core/controller/task/cancelTask"
@@ -100,6 +107,7 @@ export function addServices(
 		toggleMcpServer: wrapper(toggleMcpServer, controller),
 		updateMcpTimeout: wrapper(updateMcpTimeout, controller),
 		addRemoteMcpServer: wrapper(addRemoteMcpServer, controller),
+		downloadMcp: wrapper(downloadMcp, controller),
 	})
 
 	// Models Service
@@ -109,12 +117,20 @@ export function addServices(
 		getVsCodeLmModels: wrapper(getVsCodeLmModels, controller),
 		refreshOpenRouterModels: wrapper(refreshOpenRouterModels, controller),
 		refreshOpenAiModels: wrapper(refreshOpenAiModels, controller),
+		refreshRequestyModels: wrapper(refreshRequestyModels, controller),
+	})
+
+	// Slash Service
+	server.addService(proto.cline.SlashService.service, {
+		reportBug: wrapper(reportBug, controller),
+		condense: wrapper(condense, controller),
 	})
 
 	// State Service
 	server.addService(proto.cline.StateService.service, {
 		getLatestState: wrapper(getLatestState, controller),
 		// TODO add subscribeToState
+		toggleFavoriteModel: wrapper(toggleFavoriteModel, controller),
 	})
 
 	// Task Service
