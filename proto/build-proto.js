@@ -57,8 +57,6 @@ async function main() {
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
 	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, absolute: true })
 
-	console.log(chalk.cyan(`Generating TypeScript code for:\n${protoFiles.join("\n")}...`))
-
 	// Build the protoc command with proper path handling for cross-platform
 	const tsProtocCommand = [
 		protoc,
@@ -68,11 +66,9 @@ async function main() {
 		"--ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages",
 		...protoFiles,
 	].join(" ")
-	const execOptions = {
-		stdio: "inherit",
-	}
 	try {
-		execSync(tsProtocCommand, execOptions)
+		console.log(chalk.cyan(`Generating TypeScript code for:\n${protoFiles.join("\n")}...`))
+		execSync(tsProtocCommand, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)
@@ -91,7 +87,7 @@ async function main() {
 	].join(" ")
 	try {
 		console.log(chalk.cyan("Generating descriptor set..."))
-		execSync(descriptorProtocCommand, execOptions)
+		execSync(descriptorProtocCommand, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating descriptor set for proto file:"), error)
 		process.exit(1)
