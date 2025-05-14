@@ -74,7 +74,7 @@ async function main() {
 	try {
 		execSync(tsProtocCommand, execOptions)
 	} catch (error) {
-		console.error(chalk.red(`Error generating TypeScript for ${protoFile}:`), error)
+		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)
 	}
 
@@ -93,7 +93,7 @@ async function main() {
 		console.log(chalk.cyan("Generating descriptor set..."))
 		execSync(descriptorProtocCommand, execOptions)
 	} catch (error) {
-		console.error(chalk.red(`Error generating descriptor set for ${protoFile}:`), error)
+		console.error(chalk.red("Error generating descriptor set for proto file:"), error)
 		process.exit(1)
 	}
 
