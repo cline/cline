@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "配置設定檔",
 		"providerDocumentation": "{{provider}} 文件",
+		"configProfile": "配置設定檔",
 		"description": "儲存不同的 API 設定以快速切換供應商和設定。",
 		"apiProvider": "API 供應商",
 		"model": "模型",
@@ -98,11 +98,11 @@
 		"enterProfileName": "輸入設定檔名稱",
 		"createProfile": "建立設定檔",
 		"cannotDeleteOnlyProfile": "無法刪除唯一的設定檔",
+		"searchPlaceholder": "搜尋設定檔",
+		"noMatchFound": "找不到符合的設定檔",
 		"vscodeLmDescription": "VS Code 語言模型 API 可以讓您使用其他擴充功能（如 GitHub Copilot）提供的模型。最簡單的方式是從 VS Code Marketplace 安裝 Copilot 和 Copilot Chat 擴充套件。",
 		"awsCustomArnUse": "輸入您要使用的模型的有效 Amazon Bedrock ARN。格式範例：",
 		"awsCustomArnDesc": "確保 ARN 中的區域與您上面選擇的 AWS 區域相符。",
-		"searchPlaceholder": "搜尋設定檔",
-		"noMatchFound": "找不到符合的設定檔",
 		"openRouterApiKey": "OpenRouter API 金鑰",
 		"getOpenRouterApiKey": "取得 OpenRouter API 金鑰",
 		"apiKeyStorageNotice": "API 金鑰安全儲存於 VSCode 金鑰儲存中",
@@ -116,11 +116,11 @@
 		"headerValue": "標頭值",
 		"noCustomHeaders": "尚未定義自訂標頭。點擊 + 按鈕以新增。",
 		"requestyApiKey": "Requesty API 金鑰",
-		"getRequestyApiKey": "取得 Requesty API 金鑰",
 		"refreshModels": {
 			"label": "重新整理模型",
 			"hint": "請重新開啟設定以查看最新模型。"
 		},
+		"getRequestyApiKey": "取得 Requesty API 金鑰",
 		"openRouterTransformsText": "將提示和訊息鏈壓縮到上下文大小 (<a>OpenRouter 轉換</a>)",
 		"anthropicApiKey": "Anthropic API 金鑰",
 		"getAnthropicApiKey": "取得 Anthropic API 金鑰",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "啟用瀏覽器工具",
-			"description": "啟用後，Roo 可在使用支援電腦使用的模型時使用瀏覽器與網站互動。"
+			"description": "啟用後，Roo 可在使用支援電腦使用的模型時使用瀏覽器與網站互動。 <0>瞭解更多</0>"
 		},
 		"viewport": {
 			"label": "視窗大小",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "啟用自動檢查點",
-			"description": "啟用後，Roo 將在工作執行期間自動建立檢查點，使審核變更或回到早期狀態變得容易。"
+			"description": "啟用後，Roo 將在工作執行期間自動建立檢查點，使審核變更或回到早期狀態變得容易。 <0>瞭解更多</0>"
 		}
 	},
 	"notifications": {
@@ -312,7 +312,7 @@
 		},
 		"maxReadFile": {
 			"label": "檔案讀取自動截斷閾值",
-			"description": "當模型未指定起始/結束值時，Roo 讀取的行數。如果此數值小於檔案總行數，Roo 將產生程式碼定義的行號索引。特殊情況：-1 指示 Roo 讀取整個檔案（不建立索引），0 指示不讀取任何行並僅提供行索引以取得最小上下文。較低的值可最小化初始上下文使用，允許後續精確的行範圍讀取。明確指定起始/結束的請求不受此設定限制。",
+			"description": "當模型未指定起始/結束值時，Roo 讀取的行數。如果此數值小於檔案總行數，Roo 將產生程式碼定義的行號索引。特殊情況：-1 指示 Roo 讀取整個檔案（不建立索引），0 指示不讀取任何行並僅提供行索引以取得最小上下文。較低的值可最小化初始上下文使用，允許後續精確的行範圍讀取。明確指定起始/結束的請求不受此設定限制。 <0>瞭解更多</0>",
 			"lines": "行",
 			"always_full_read": "始終讀取整個檔案"
 		}
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "終端機輸出行數限制",
-			"description": "執行命令時終端機輸出的最大行數。超過此限制時，會從中間移除多餘的行數，以節省 token 用量。"
+			"description": "執行命令時終端機輸出的最大行數。超過此限制時，會從中間移除多餘的行數，以節省 token 用量。 <0>瞭解更多</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "終端機 Shell 整合逾時",
-			"description": "執行命令前等待 Shell 整合初始化的最長時間。如果您的 Shell 啟動較慢，且終端機出現「Shell 整合無法使用」的錯誤訊息，可能需要提高此數值。"
+			"description": "執行命令前等待 Shell 整合初始化的最長時間。如果您的 Shell 啟動較慢，且終端機出現「Shell 整合無法使用」的錯誤訊息，可能需要提高此數值。 <0>瞭解更多</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "停用終端機 Shell 整合",
-			"description": "如果終端機指令無法正常運作或看到 'Shell Integration Unavailable' 錯誤，請啟用此項。這會使用較簡單的方法執行指令，繞過一些進階終端機功能。"
-		},
-		"compressProgressBar": {
-			"label": "壓縮進度條輸出",
-			"description": "啟用後，將處理包含歸位字元 (\\r) 的終端機輸出，模擬真實終端機顯示內容的方式。這會移除進度條的中間狀態，只保留最終狀態，為更重要的資訊節省上下文空間。"
-		},
-		"zdotdir": {
-			"label": "啟用 ZDOTDIR 處理",
-			"description": "啟用後將建立暫存目錄用於 ZDOTDIR，以正確處理 zsh shell 整合。這確保 VSCode shell 整合能與 zsh 正常運作，同時保留您的 zsh 設定。（實驗性）"
+			"description": "如果終端機指令無法正常運作或看到 'Shell Integration Unavailable' 錯誤，請啟用此項。這會使用較簡單的方法執行指令，繞過一些進階終端機功能。 <0>瞭解更多</0>"
 		},
 		"commandDelay": {
 			"label": "終端機命令延遲",
-			"description": "命令執行後添加的延遲時間（毫秒）。預設值為 0 時完全停用延遲。這可以幫助確保在有計時問題的終端機中完整擷取命令輸出。在大多數終端機中，這是透過設定 `PROMPT_COMMAND='sleep N'` 實現的，而 PowerShell 會在每個命令結尾加入 `start-sleep`。最初是為了解決 VSCode 錯誤#237208，現在可能不再需要。"
+			"description": "命令執行後添加的延遲時間（毫秒）。預設值為 0 時完全停用延遲。這可以幫助確保在有計時問題的終端機中完整擷取命令輸出。在大多數終端機中，這是透過設定 `PROMPT_COMMAND='sleep N'` 實現的，而 PowerShell 會在每個命令結尾加入 `start-sleep`。最初是為了解決 VSCode 錯誤#237208，現在可能不再需要。 <0>瞭解更多</0>"
+		},
+		"compressProgressBar": {
+			"label": "壓縮進度條輸出",
+			"description": "啟用後，將處理包含歸位字元 (\\r) 的終端機輸出，模擬真實終端機顯示內容的方式。這會移除進度條的中間狀態，只保留最終狀態，為更重要的資訊節省上下文空間。 <0>瞭解更多</0>"
 		},
 		"powershellCounter": {
 			"label": "啟用 PowerShell 計數器解決方案",
-			"description": "啟用後，會在 PowerShell 命令中加入計數器以確保命令正確執行。這有助於解決可能存在輸出擷取問題的 PowerShell 終端機。"
+			"description": "啟用後，會在 PowerShell 命令中加入計數器以確保命令正確執行。這有助於解決可能存在輸出擷取問題的 PowerShell 終端機。 <0>瞭解更多</0>"
 		},
 		"zshClearEolMark": {
 			"label": "清除 ZSH 行尾標記",
-			"description": "啟用後，透過設定 PROMPT_EOL_MARK='' 清除 ZSH 行尾標記。這可以防止命令輸出以特殊字元（如 '%'）結尾時的解析問題。"
+			"description": "啟用後，透過設定 PROMPT_EOL_MARK='' 清除 ZSH 行尾標記。這可以防止命令輸出以特殊字元（如 '%'）結尾時的解析問題。 <0>瞭解更多</0>"
 		},
 		"zshOhMy": {
 			"label": "啟用 Oh My Zsh 整合",
-			"description": "啟用後，設定 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以啟用 Oh My Zsh shell 整合功能。套用此設定可能需要重新啟動 IDE。（實驗性）"
+			"description": "啟用後，設定 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以啟用 Oh My Zsh shell 整合功能。套用此設定可能需要重新啟動 IDE。 <0>瞭解更多</0>"
 		},
 		"zshP10k": {
 			"label": "啟用 Powerlevel10k 整合",
-			"description": "啟用後，設定 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以啟用 Powerlevel10k shell 整合功能。（實驗性）"
+			"description": "啟用後，設定 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以啟用 Powerlevel10k shell 整合功能。 <0>瞭解更多</0>"
+		},
+		"zdotdir": {
+			"label": "啟用 ZDOTDIR 處理",
+			"description": "啟用後將建立暫存目錄用於 ZDOTDIR，以正確處理 zsh shell 整合。這確保 VSCode shell 整合能與 zsh 正常運作，同時保留您的 zsh 設定。 <0>瞭解更多</0>"
 		},
 		"inheritEnv": {
 			"label": "繼承環境變數",
-			"description": "啟用後，終端機將從 VSCode 父程序繼承環境變數，如使用者設定檔中定義的 shell 整合設定。這直接切換 VSCode 全域設定 `terminal.integrated.inheritEnv`"
+			"description": "啟用後，終端機將從 VSCode 父程序繼承環境變數，如使用者設定檔中定義的 shell 整合設定。這直接切換 VSCode 全域設定 `terminal.integrated.inheritEnv`。 <0>瞭解更多</0>"
 		}
 	},
 	"advanced": {

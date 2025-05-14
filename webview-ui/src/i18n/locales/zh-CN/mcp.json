@@ -1,18 +1,19 @@
 {
-	"title": "MCP服务管理",
+	"title": "MCP 服务器",
 	"done": "完成",
-	"description": "<0>Model Context Protocol</0> 支持与本地MCP服务通信，提供扩展功能。您可以使用<1>社区服务器</1>，或通过指令创建定制工具（例如：“新增获取最新npm文档的工具”）。",
+	"description": "启用 Model Context Protocol (MCP)，让 Roo Code 可用外部服务器的工具和服务，扩展 Roo 的能力。<0>了解更多</0>",
 	"enableToggle": {
-		"title": "启用MCP服务",
-		"description": "启用后Roo可与MCP服务交互获取高级功能。未使用时建议关闭以节省Token消耗。"
+		"title": "启用 MCP 服务器",
+		"description": "开启后 Roo 可用已连接 MCP 服务器的工具，能力更强。不用这些工具时建议关闭，节省 API Token 费用。"
 	},
 	"enableServerCreation": {
-		"title": "允许创建工具",
-		"description": "启用后模型可通过“添加新工具”等指令创建MCP服务。无需创建功能时建议关闭以节省Token。"
+		"title": "启用 MCP 服务器创建",
+		"description": "开启后 Roo 可帮你创建<1>新</1>自定义 MCP 服务器。<0>了解服务器创建</0>",
+		"hint": "提示：不需要 Roo 创建新 MCP 服务器时建议关闭，减少 API Token 费用。"
 	},
-	"editGlobalMCP": "编辑全局配置",
-	"editProjectMCP": "编辑项目配置",
-	"editSettings": "参数设置",
+	"editGlobalMCP": "编辑全局 MCP",
+	"editProjectMCP": "编辑项目 MCP",
+	"learnMoreEditingSettings": "了解如何编辑 MCP 设置文件",
 	"tool": {
 		"alwaysAllow": "始终允许",
 		"parameters": "参数",
@@ -30,8 +31,8 @@
 		"noErrors": "未找到错误"
 	},
 	"networkTimeout": {
-		"label": "请求超时",
-		"description": "服务响应最长等待时间",
+		"label": "网络超时",
+		"description": "服务器响应最大等待时间",
 		"options": {
 			"15seconds": "15秒",
 			"30seconds": "30秒",
@@ -40,12 +41,12 @@
 			"10minutes": "10分钟",
 			"15minutes": "15分钟",
 			"30minutes": "30分钟",
-			"60minutes": "1小时"
+			"60minutes": "60分钟"
 		}
 	},
 	"deleteDialog": {
-		"title": "删除 MCP 服务",
-		"description": "确认删除MCP服务 \"{{serverName}}\"？此操作不可逆。",
+		"title": "删除 MCP 服务器",
+		"description": "确认删除 MCP 服务器 \"{{serverName}}\"？此操作不可逆。",
 		"cancel": "取消",
 		"delete": "删除"
 	},

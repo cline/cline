@@ -8,6 +8,79 @@
 		"add": "Header toevoegen",
 		"remove": "Verwijderen"
 	},
+	"header": {
+		"title": "Instellingen",
+		"saveButtonTooltip": "Wijzigingen opslaan",
+		"nothingChangedTooltip": "Niets gewijzigd",
+		"doneButtonTooltip": "Niet-opgeslagen wijzigingen negeren en instellingen sluiten"
+	},
+	"unsavedChangesDialog": {
+		"title": "Niet-opgeslagen wijzigingen",
+		"description": "Wil je de wijzigingen negeren en doorgaan?",
+		"cancelButton": "Annuleren",
+		"discardButton": "Wijzigingen negeren"
+	},
+	"sections": {
+		"providers": "Providers",
+		"autoApprove": "Auto-goedkeuren",
+		"browser": "Browser",
+		"checkpoints": "Checkpoints",
+		"notifications": "Meldingen",
+		"contextManagement": "Context",
+		"terminal": "Terminal",
+		"experimental": "Experimenteel",
+		"language": "Taal",
+		"about": "Over Roo Code"
+	},
+	"autoApprove": {
+		"description": "Sta Roo toe om automatisch handelingen uit te voeren zonder goedkeuring. Schakel deze instellingen alleen in als je de AI volledig vertrouwt en de bijbehorende beveiligingsrisico's begrijpt.",
+		"readOnly": {
+			"label": "Lezen",
+			"description": "Indien ingeschakeld, bekijkt Roo automatisch de inhoud van mappen en leest bestanden zonder dat je op de Goedkeuren-knop hoeft te klikken.",
+			"outsideWorkspace": {
+				"label": "Inclusief bestanden buiten werkruimte",
+				"description": "Sta Roo toe om bestanden buiten de huidige werkruimte te lezen zonder goedkeuring."
+			}
+		},
+		"write": {
+			"label": "Schrijven",
+			"description": "Automatisch bestanden aanmaken en bewerken zonder goedkeuring",
+			"delayLabel": "Vertraging na schrijven om diagnostiek de kans te geven mogelijke problemen te detecteren",
+			"outsideWorkspace": {
+				"label": "Inclusief bestanden buiten werkruimte",
+				"description": "Sta Roo toe om bestanden buiten de huidige werkruimte aan te maken en te bewerken zonder goedkeuring."
+			}
+		},
+		"browser": {
+			"label": "Browser",
+			"description": "Automatisch browseracties uitvoeren zonder goedkeuring. Let op: geldt alleen als het model computergebruik ondersteunt."
+		},
+		"retry": {
+			"label": "Opnieuw proberen",
+			"description": "Automatisch mislukte API-verzoeken opnieuw proberen wanneer de server een foutmelding geeft",
+			"delayLabel": "Vertraging voordat het verzoek opnieuw wordt geprobeerd"
+		},
+		"mcp": {
+			"label": "MCP",
+			"description": "Automatische goedkeuring van individuele MCP-tools in het MCP-serversoverzicht inschakelen (vereist zowel deze instelling als het selectievakje 'Altijd toestaan' bij de tool)"
+		},
+		"modeSwitch": {
+			"label": "Modus",
+			"description": "Automatisch tussen verschillende modi schakelen zonder goedkeuring"
+		},
+		"subtasks": {
+			"label": "Subtaken",
+			"description": "Subtaken aanmaken en afronden zonder goedkeuring"
+		},
+		"execute": {
+			"label": "Uitvoeren",
+			"description": "Automatisch toegestane terminalcommando's uitvoeren zonder goedkeuring",
+			"allowedCommands": "Toegestane automatisch uit te voeren commando's",
+			"allowedCommandsDescription": "Commando-prefixen die automatisch kunnen worden uitgevoerd als 'Altijd goedkeuren voor uitvoeren' is ingeschakeld. Voeg * toe om alle commando's toe te staan (gebruik met voorzichtigheid).",
+			"commandPlaceholder": "Voer commando-prefix in (bijv. 'git ')",
+			"addButton": "Toevoegen"
+		}
+	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentatie",
 		"configProfile": "Configuratieprofiel",
@@ -177,83 +250,10 @@
 		},
 		"setReasoningLevel": "Redeneervermogen inschakelen"
 	},
-	"header": {
-		"title": "Instellingen",
-		"saveButtonTooltip": "Wijzigingen opslaan",
-		"nothingChangedTooltip": "Niets gewijzigd",
-		"doneButtonTooltip": "Niet-opgeslagen wijzigingen negeren en instellingen sluiten"
-	},
-	"unsavedChangesDialog": {
-		"title": "Niet-opgeslagen wijzigingen",
-		"description": "Wil je de wijzigingen negeren en doorgaan?",
-		"cancelButton": "Annuleren",
-		"discardButton": "Wijzigingen negeren"
-	},
-	"sections": {
-		"providers": "Providers",
-		"autoApprove": "Auto-goedkeuren",
-		"browser": "Browser",
-		"checkpoints": "Checkpoints",
-		"notifications": "Meldingen",
-		"contextManagement": "Context",
-		"terminal": "Terminal",
-		"experimental": "Experimenteel",
-		"language": "Taal",
-		"about": "Over Roo Code"
-	},
-	"autoApprove": {
-		"description": "Sta Roo toe om automatisch handelingen uit te voeren zonder goedkeuring. Schakel deze instellingen alleen in als je de AI volledig vertrouwt en de bijbehorende beveiligingsrisico's begrijpt.",
-		"readOnly": {
-			"label": "Lezen",
-			"description": "Indien ingeschakeld, bekijkt Roo automatisch de inhoud van mappen en leest bestanden zonder dat je op de Goedkeuren-knop hoeft te klikken.",
-			"outsideWorkspace": {
-				"label": "Inclusief bestanden buiten werkruimte",
-				"description": "Sta Roo toe om bestanden buiten de huidige werkruimte te lezen zonder goedkeuring."
-			}
-		},
-		"write": {
-			"label": "Schrijven",
-			"description": "Automatisch bestanden aanmaken en bewerken zonder goedkeuring",
-			"delayLabel": "Vertraging na schrijven om diagnostiek de kans te geven mogelijke problemen te detecteren",
-			"outsideWorkspace": {
-				"label": "Inclusief bestanden buiten werkruimte",
-				"description": "Sta Roo toe om bestanden buiten de huidige werkruimte aan te maken en te bewerken zonder goedkeuring."
-			}
-		},
-		"browser": {
-			"label": "Browser",
-			"description": "Automatisch browseracties uitvoeren zonder goedkeuring. Let op: geldt alleen als het model computergebruik ondersteunt."
-		},
-		"retry": {
-			"label": "Opnieuw proberen",
-			"description": "Automatisch mislukte API-verzoeken opnieuw proberen wanneer de server een foutmelding geeft",
-			"delayLabel": "Vertraging voordat het verzoek opnieuw wordt geprobeerd"
-		},
-		"mcp": {
-			"label": "MCP",
-			"description": "Automatische goedkeuring van individuele MCP-tools in het MCP-serversoverzicht inschakelen (vereist zowel deze instelling als het selectievakje 'Altijd toestaan' bij de tool)"
-		},
-		"modeSwitch": {
-			"label": "Modus",
-			"description": "Automatisch tussen verschillende modi schakelen zonder goedkeuring"
-		},
-		"subtasks": {
-			"label": "Subtaken",
-			"description": "Subtaken aanmaken en afronden zonder goedkeuring"
-		},
-		"execute": {
-			"label": "Uitvoeren",
-			"description": "Automatisch toegestane terminalcommando's uitvoeren zonder goedkeuring",
-			"allowedCommands": "Toegestane automatisch uit te voeren commando's",
-			"allowedCommandsDescription": "Commando-prefixen die automatisch kunnen worden uitgevoerd als 'Altijd goedkeuren voor uitvoeren' is ingeschakeld. Voeg * toe om alle commando's toe te staan (gebruik met voorzichtigheid).",
-			"commandPlaceholder": "Voer commando-prefix in (bijv. 'git ')",
-			"addButton": "Toevoegen"
-		}
-	},
 	"browser": {
 		"enable": {
 			"label": "Browserhulpmiddel inschakelen",
-			"description": "Indien ingeschakeld, kan Roo een browser gebruiken om te interageren met websites wanneer modellen computergebruik ondersteunen."
+			"description": "Indien ingeschakeld, kan Roo een browser gebruiken om te interageren met websites wanneer modellen computergebruik ondersteunen. <0>Meer informatie</0>"
 		},
 		"viewport": {
 			"label": "Viewport-grootte",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "Automatische checkpoints inschakelen",
-			"description": "Indien ingeschakeld, maakt Roo automatisch checkpoints tijdens het uitvoeren van taken, zodat je eenvoudig wijzigingen kunt bekijken of terugzetten."
+			"description": "Indien ingeschakeld, maakt Roo automatisch checkpoints tijdens het uitvoeren van taken, zodat je eenvoudig wijzigingen kunt bekijken of terugzetten. <0>Meer informatie</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "Terminaluitvoerlimiet",
-			"description": "Maximaal aantal regels dat wordt opgenomen in de terminaluitvoer bij het uitvoeren van commando's. Overtollige regels worden uit het midden verwijderd om tokens te besparen."
+			"description": "Maximaal aantal regels dat wordt opgenomen in de terminaluitvoer bij het uitvoeren van commando's. Overtollige regels worden uit het midden verwijderd om tokens te besparen. <0>Meer informatie</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "Terminal shell-integratie timeout",
-			"description": "Maximale wachttijd voor het initialiseren van shell-integratie voordat commando's worden uitgevoerd. Voor gebruikers met lange shell-opstarttijden moet deze waarde mogelijk worden verhoogd als je 'Shell Integration Unavailable'-fouten ziet in de terminal."
+			"description": "Maximale wachttijd voor het initialiseren van shell-integratie voordat commando's worden uitgevoerd. Voor gebruikers met lange shell-opstarttijden moet deze waarde mogelijk worden verhoogd als je 'Shell Integration Unavailable'-fouten ziet in de terminal. <0>Meer informatie</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "Terminal shell-integratie uitschakelen",
-			"description": "Schakel dit in als terminalcommando's niet correct werken of als je 'Shell Integration Unavailable'-fouten ziet. Dit gebruikt een eenvoudigere methode om commando's uit te voeren en omzeilt enkele geavanceerde terminalfuncties."
+			"description": "Schakel dit in als terminalcommando's niet correct werken of als je 'Shell Integration Unavailable'-fouten ziet. Dit gebruikt een eenvoudigere methode om commando's uit te voeren en omzeilt enkele geavanceerde terminalfuncties. <0>Meer informatie</0>"
 		},
 		"commandDelay": {
 			"label": "Terminalcommando-vertraging",
-			"description": "Vertraging in milliseconden na het uitvoeren van een commando. De standaardinstelling van 0 schakelt de vertraging volledig uit. Dit kan helpen om te zorgen dat de uitvoer volledig wordt vastgelegd in terminals met timingproblemen. In de meeste terminals wordt dit geïmplementeerd door `PROMPT_COMMAND='sleep N'` te zetten en in Powershell wordt `start-sleep` toegevoegd aan het einde van elk commando. Oorspronkelijk was dit een workaround voor VSCode bug#237208 en is mogelijk niet meer nodig."
+			"description": "Vertraging in milliseconden na het uitvoeren van een commando. De standaardinstelling van 0 schakelt de vertraging volledig uit. Dit kan helpen om te zorgen dat de uitvoer volledig wordt vastgelegd in terminals met timingproblemen. In de meeste terminals wordt dit geïmplementeerd door `PROMPT_COMMAND='sleep N'` te zetten en in Powershell wordt `start-sleep` toegevoegd aan het einde van elk commando. Oorspronkelijk was dit een workaround voor VSCode bug#237208 en is mogelijk niet meer nodig. <0>Meer informatie</0>"
 		},
 		"compressProgressBar": {
 			"label": "Voortgangsbalk-uitvoer comprimeren",
-			"description": "Indien ingeschakeld, verwerkt Roo terminaluitvoer met carriage returns (\r) om te simuleren hoe een echte terminal inhoud weergeeft. Dit verwijdert tussenliggende voortgangsbalken en behoudt alleen de eindstatus, waardoor er meer contextruimte overblijft."
+			"description": "Indien ingeschakeld, verwerkt Roo terminaluitvoer met carriage returns (\r) om te simuleren hoe een echte terminal inhoud weergeeft. Dit verwijdert tussenliggende voortgangsbalken en behoudt alleen de eindstatus, waardoor er meer contextruimte overblijft. <0>Meer informatie</0>"
 		},
 		"powershellCounter": {
 			"label": "PowerShell-teller workaround inschakelen",
-			"description": "Indien ingeschakeld, voegt Roo een teller toe aan PowerShell-commando's om correcte uitvoering te garanderen. Dit helpt bij PowerShell-terminals die problemen hebben met het vastleggen van uitvoer."
+			"description": "Indien ingeschakeld, voegt Roo een teller toe aan PowerShell-commando's om correcte uitvoering te garanderen. Dit helpt bij PowerShell-terminals die problemen hebben met het vastleggen van uitvoer. <0>Meer informatie</0>"
 		},
 		"zshClearEolMark": {
 			"label": "ZSH EOL-markering wissen",
-			"description": "Indien ingeschakeld, wist Roo de ZSH end-of-line markering door PROMPT_EOL_MARK='' te zetten. Dit voorkomt problemen met de interpretatie van uitvoer die eindigt met speciale tekens zoals '%'."
+			"description": "Indien ingeschakeld, wist Roo de ZSH end-of-line markering door PROMPT_EOL_MARK='' te zetten. Dit voorkomt problemen met de interpretatie van uitvoer die eindigt met speciale tekens zoals '%'. <0>Meer informatie</0>"
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh-integratie inschakelen",
-			"description": "Indien ingeschakeld, zet Roo ITERM_SHELL_INTEGRATION_INSTALLED=Yes om Oh My Zsh shell-integratiefuncties te activeren. Het toepassen van deze instelling kan een herstart van de IDE vereisen."
+			"description": "Indien ingeschakeld, zet Roo ITERM_SHELL_INTEGRATION_INSTALLED=Yes om Oh My Zsh shell-integratiefuncties te activeren. Het toepassen van deze instelling kan een herstart van de IDE vereisen. <0>Meer informatie</0>"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k-integratie inschakelen",
-			"description": "Indien ingeschakeld, zet Roo POWERLEVEL9K_TERM_SHELL_INTEGRATION=true om Powerlevel10k shell-integratiefuncties te activeren."
+			"description": "Indien ingeschakeld, zet Roo POWERLEVEL9K_TERM_SHELL_INTEGRATION=true om Powerlevel10k shell-integratiefuncties te activeren. <0>Meer informatie</0>"
 		},
 		"zdotdir": {
 			"label": "ZDOTDIR-afhandeling inschakelen",
-			"description": "Indien ingeschakeld, maakt Roo een tijdelijke map aan voor ZDOTDIR om zsh shell-integratie correct af te handelen. Dit zorgt ervoor dat VSCode shell-integratie goed werkt met zsh en je zsh-configuratie behouden blijft."
+			"description": "Indien ingeschakeld, maakt Roo een tijdelijke map aan voor ZDOTDIR om zsh shell-integratie correct af te handelen. Dit zorgt ervoor dat VSCode shell-integratie goed werkt met zsh en je zsh-configuratie behouden blijft. <0>Meer informatie</0>"
 		},
 		"inheritEnv": {
 			"label": "Omgevingsvariabelen overnemen",
-			"description": "Indien ingeschakeld, neemt de terminal omgevingsvariabelen over van het bovenliggende VSCode-proces, zoals shell-integratie-instellingen uit het gebruikersprofiel. Dit schakelt direct de VSCode-instelling `terminal.integrated.inheritEnv` om."
+			"description": "Indien ingeschakeld, neemt de terminal omgevingsvariabelen over van het bovenliggende VSCode-proces, zoals shell-integratie-instellingen uit het gebruikersprofiel. Dit schakelt direct de VSCode-instelling `terminal.integrated.inheritEnv` om. <0>Meer informatie</0>"
 		}
 	},
 	"advanced": {

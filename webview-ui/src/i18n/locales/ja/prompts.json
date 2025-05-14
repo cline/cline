@@ -7,7 +7,7 @@
 		"editModesConfig": "モード設定を編集",
 		"editGlobalModes": "グローバルモードを編集",
 		"editProjectModes": "プロジェクトモードを編集 (.roomodes)",
-		"createModeHelpText": "+ をクリックして新しいカスタムモードを作成するか、チャットで Roo に作成を依頼してください！",
+		"createModeHelpText": "モードはRooの振る舞いを調整する専門的なペルソナです。<0>モードの使用について学ぶ</0>か、<1>モードのカスタマイズについて学ぶ</1>。",
 		"selectMode": "モードを検索"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "すべてのモードのカスタム指示",
-		"description": "これらの指示はすべてのモードに適用されます。モード固有の指示で強化できる基本的な動作セットを提供します。\nRooにエディタの表示言語({{language}})とは異なる言語で考えたり話したりさせたい場合は、ここで指定できます。",
+		"description": "これらの指示はすべてのモードに適用されます。モード固有の指示で強化できる基本的な動作セットを提供します。<0>詳細はこちら</0>",
 		"loadFromFile": "指示はワークスペースの<span>.roo/rules/</span>フォルダからも読み込めます（.roorules と .clinerules は非推奨であり、まもなく機能しなくなります）。"
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "詳細設定：システムプロンプトの上書き",
-		"description": "ワークスペースの<span>.roo/system-prompt-{{slug}}</span>にファイルを作成することで、このモードのシステムプロンプト（役割定義とカスタム指示以外）を完全に置き換えることができます。これは組み込みの安全対策と一貫性チェック（特にツールの使用に関して）をバイパスする非常に高度な機能なので、注意して使用してください！"
+		"description": "<2>⚠️ 警告：</2> この高度な機能は安全対策をバイパスします。<1>使用前にこれを読んでください！</1>ワークスペースの<span>.roo/system-prompt-{{slug}}</span>にファイルを作成することで、デフォルトのシステムプロンプトを上書きします。"
 	},
 	"createModeDialog": {
 		"title": "新しいモードを作成",

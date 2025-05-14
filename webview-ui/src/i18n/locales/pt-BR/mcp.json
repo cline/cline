@@ -1,17 +1,19 @@
 {
 	"title": "Servidores MCP",
 	"done": "Concluído",
-	"description": "O <0>Model Context Protocol</0> permite a comunicação com servidores MCP em execução localmente que fornecem ferramentas e recursos adicionais para estender as capacidades do Roo. Você pode usar <1>servidores criados pela comunidade</1> ou pedir ao Roo para criar novas ferramentas específicas para seu fluxo de trabalho (por exemplo, \"adicionar uma ferramenta que obtém a documentação mais recente do npm\").",
+	"description": "Ative o Model Context Protocol (MCP) para permitir que o Roo Code use ferramentas e serviços extras de servidores externos. Isso amplia o que o Roo pode fazer por você. <0>Saiba mais</0>",
 	"enableToggle": {
 		"title": "Ativar servidores MCP",
-		"description": "Quando ativado, o Roo poderá interagir com servidores MCP para funcionalidades avançadas. Se você não estiver usando MCP, pode desativar isso para reduzir o uso de tokens do Roo."
+		"description": "Ative para que o Roo possa usar ferramentas de servidores MCP conectados. Isso dá mais capacidades ao Roo. Se você não pretende usar essas ferramentas extras, desative para ajudar a reduzir os custos de tokens da API."
 	},
 	"enableServerCreation": {
 		"title": "Ativar criação de servidores MCP",
-		"description": "Quando ativado, o Roo pode ajudar você a criar novos servidores MCP por meio de comandos como \"adicionar uma nova ferramenta para...\". Se você não precisar criar servidores MCP, pode desativar isso para reduzir o uso de tokens do Roo."
+		"description": "Ative para que o Roo possa te ajudar a criar <1>novos</1> servidores MCP personalizados. <0>Saiba mais sobre criação de servidores</0>",
+		"hint": "Dica: Para reduzir os custos de tokens da API, desative esta configuração quando não estiver pedindo ao Roo para criar um novo servidor MCP."
 	},
-	"editGlobalMCP": "Editar MCP Global",
-	"editProjectMCP": "Editar MCP do Projeto",
+	"editGlobalMCP": "Editar MCP global",
+	"editProjectMCP": "Editar MCP do projeto",
+	"learnMoreEditingSettings": "Saiba mais sobre como editar arquivos de configuração MCP",
 	"tool": {
 		"alwaysAllow": "Sempre permitir",
 		"parameters": "Parâmetros",
@@ -30,7 +32,7 @@
 	},
 	"networkTimeout": {
 		"label": "Tempo limite de rede",
-		"description": "Tempo máximo de espera para respostas do servidor",
+		"description": "Tempo máximo de espera por respostas do servidor",
 		"options": {
 			"15seconds": "15 segundos",
 			"30seconds": "30 segundos",
@@ -50,6 +52,6 @@
 	},
 	"serverStatus": {
 		"retrying": "Tentando novamente...",
-		"retryConnection": "Tentar conexão novamente"
+		"retryConnection": "Tentar reconectar"
 	}
 }

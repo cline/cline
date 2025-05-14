@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "Hồ sơ cấu hình",
 		"providerDocumentation": "Tài liệu {{provider}}",
+		"configProfile": "Hồ sơ cấu hình",
 		"description": "Lưu các cấu hình API khác nhau để nhanh chóng chuyển đổi giữa các nhà cung cấp và cài đặt.",
 		"apiProvider": "Nhà cung cấp API",
 		"model": "Mẫu",
@@ -116,7 +116,12 @@
 		"headerValue": "Giá trị tiêu đề",
 		"noCustomHeaders": "Chưa có tiêu đề tùy chỉnh nào được định nghĩa. Nhấp vào nút + để thêm.",
 		"requestyApiKey": "Khóa API Requesty",
+		"refreshModels": {
+			"label": "Làm mới mô hình",
+			"hint": "Vui lòng mở lại cài đặt để xem các mô hình mới nhất."
+		},
 		"getRequestyApiKey": "Lấy khóa API Requesty",
+		"openRouterTransformsText": "Nén lời nhắc và chuỗi tin nhắn theo kích thước ngữ cảnh (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Khóa API Anthropic",
 		"getAnthropicApiKey": "Lấy khóa API Anthropic",
 		"anthropicUseAuthToken": "Truyền khóa API Anthropic dưới dạng tiêu đề Authorization thay vì X-Api-Key",
@@ -177,11 +182,6 @@
 			"modelId": "ID mô hình",
 			"description": "Ollama cho phép bạn chạy các mô hình cục bộ trên máy tính của bạn. Để biết hướng dẫn về cách bắt đầu, xem hướng dẫn nhanh của họ.",
 			"warning": "Lưu ý: Roo Code sử dụng các lời nhắc phức tạp và hoạt động tốt nhất với các mô hình Claude. Các mô hình kém mạnh hơn có thể không hoạt động như mong đợi."
-		},
-		"openRouterTransformsText": "Nén lời nhắc và chuỗi tin nhắn theo kích thước ngữ cảnh (<a>OpenRouter Transforms</a>)",
-		"refreshModels": {
-			"label": "Làm mới mô hình",
-			"hint": "Vui lòng mở lại cài đặt để xem các mô hình mới nhất."
 		},
 		"unboundApiKey": "Khóa API Unbound",
 		"getUnboundApiKey": "Lấy khóa API Unbound",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "Bật công cụ trình duyệt",
-			"description": "Khi được bật, Roo có thể sử dụng trình duyệt để tương tác với các trang web khi sử dụng các mô hình hỗ trợ sử dụng máy tính."
+			"description": "Khi được bật, Roo có thể sử dụng trình duyệt để tương tác với các trang web khi sử dụng các mô hình hỗ trợ sử dụng máy tính. <0>Tìm hiểu thêm</0>"
 		},
 		"viewport": {
 			"label": "Kích thước khung nhìn",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "Bật điểm kiểm tra tự động",
-			"description": "Khi được bật, Roo sẽ tự động tạo các điểm kiểm tra trong quá trình thực hiện nhiệm vụ, giúp dễ dàng xem lại các thay đổi hoặc quay lại trạng thái trước đó."
+			"description": "Khi được bật, Roo sẽ tự động tạo các điểm kiểm tra trong quá trình thực hiện nhiệm vụ, giúp dễ dàng xem lại các thay đổi hoặc quay lại trạng thái trước đó. <0>Tìm hiểu thêm</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "Giới hạn đầu ra terminal",
-			"description": "Số dòng tối đa để đưa vào đầu ra terminal khi thực hiện lệnh. Khi vượt quá, các dòng sẽ bị xóa khỏi phần giữa, tiết kiệm token."
+			"description": "Số dòng tối đa để đưa vào đầu ra terminal khi thực hiện lệnh. Khi vượt quá, các dòng sẽ bị xóa khỏi phần giữa, tiết kiệm token. <0>Tìm hiểu thêm</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "Thời gian chờ tích hợp shell terminal",
-			"description": "Thời gian tối đa để chờ tích hợp shell khởi tạo trước khi thực hiện lệnh. Đối với người dùng có thời gian khởi động shell dài, giá trị này có thể cần được tăng lên nếu bạn thấy lỗi \"Shell Integration Unavailable\" trong terminal."
+			"description": "Thời gian tối đa để chờ tích hợp shell khởi tạo trước khi thực hiện lệnh. Đối với người dùng có thời gian khởi động shell dài, giá trị này có thể cần được tăng lên nếu bạn thấy lỗi \"Shell Integration Unavailable\" trong terminal. <0>Tìm hiểu thêm</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "Tắt tích hợp shell terminal",
-			"description": "Bật tùy chọn này nếu lệnh terminal không hoạt động chính xác hoặc bạn thấy lỗi 'Shell Integration Unavailable'. Tùy chọn này sử dụng phương pháp đơn giản hơn để chạy lệnh, bỏ qua một số tính năng terminal nâng cao."
-		},
-		"compressProgressBar": {
-			"label": "Nén đầu ra thanh tiến trình",
-			"description": "Khi được bật, xử lý đầu ra terminal với các ký tự carriage return (\\r) để mô phỏng cách terminal thật hiển thị nội dung. Điều này loại bỏ các trạng thái trung gian của thanh tiến trình, chỉ giữ lại trạng thái cuối cùng, giúp tiết kiệm không gian ngữ cảnh cho thông tin quan trọng hơn."
-		},
-		"zdotdir": {
-			"label": "Bật xử lý ZDOTDIR",
-			"description": "Khi được bật, tạo thư mục tạm thời cho ZDOTDIR để xử lý tích hợp shell zsh một cách chính xác. Điều này đảm bảo tích hợp shell VSCode hoạt động chính xác với zsh trong khi vẫn giữ nguyên cấu hình zsh của bạn. (thử nghiệm)"
+			"description": "Bật tùy chọn này nếu lệnh terminal không hoạt động chính xác hoặc bạn thấy lỗi 'Shell Integration Unavailable'. Tùy chọn này sử dụng phương pháp đơn giản hơn để chạy lệnh, bỏ qua một số tính năng terminal nâng cao. <0>Tìm hiểu thêm</0>"
 		},
 		"commandDelay": {
 			"label": "Độ trễ lệnh terminal",
-			"description": "Độ trễ tính bằng mili giây để thêm vào sau khi thực hiện lệnh. Cài đặt mặc định là 0 sẽ tắt hoàn toàn độ trễ. Điều này có thể giúp đảm bảo đầu ra lệnh được ghi lại đầy đủ trong các terminal có vấn đề về thời gian. Trong hầu hết các terminal, điều này được thực hiện bằng cách đặt `PROMPT_COMMAND='sleep N'` và PowerShell thêm `start-sleep` vào cuối mỗi lệnh. Ban đầu là giải pháp cho lỗi VSCode#237208 và có thể không cần thiết."
+			"description": "Độ trễ tính bằng mili giây để thêm vào sau khi thực hiện lệnh. Cài đặt mặc định là 0 sẽ tắt hoàn toàn độ trễ. Điều này có thể giúp đảm bảo đầu ra lệnh được ghi lại đầy đủ trong các terminal có vấn đề về thời gian. Trong hầu hết các terminal, điều này được thực hiện bằng cách đặt `PROMPT_COMMAND='sleep N'` và PowerShell thêm `start-sleep` vào cuối mỗi lệnh. Ban đầu là giải pháp cho lỗi VSCode#237208 và có thể không cần thiết. <0>Tìm hiểu thêm</0>"
+		},
+		"compressProgressBar": {
+			"label": "Nén đầu ra thanh tiến trình",
+			"description": "Khi được bật, xử lý đầu ra terminal với các ký tự carriage return (\\r) để mô phỏng cách terminal thật hiển thị nội dung. Điều này loại bỏ các trạng thái trung gian của thanh tiến trình, chỉ giữ lại trạng thái cuối cùng, giúp tiết kiệm không gian ngữ cảnh cho thông tin quan trọng hơn. <0>Tìm hiểu thêm</0>"
 		},
 		"powershellCounter": {
 			"label": "Bật giải pháp bộ đếm PowerShell",
-			"description": "Khi được bật, thêm một bộ đếm vào các lệnh PowerShell để đảm bảo thực thi lệnh chính xác. Điều này giúp ích với các terminal PowerShell có thể gặp vấn đề về ghi lại đầu ra."
+			"description": "Khi được bật, thêm một bộ đếm vào các lệnh PowerShell để đảm bảo thực thi lệnh chính xác. Điều này giúp ích với các terminal PowerShell có thể gặp vấn đề về ghi lại đầu ra. <0>Tìm hiểu thêm</0>"
 		},
 		"zshClearEolMark": {
 			"label": "Xóa dấu cuối dòng ZSH",
-			"description": "Khi được bật, xóa dấu cuối dòng ZSH bằng cách đặt PROMPT_EOL_MARK=''. Điều này ngăn chặn các vấn đề về diễn giải đầu ra lệnh khi kết thúc bằng các ký tự đặc biệt như '%'."
+			"description": "Khi được bật, xóa dấu cuối dòng ZSH bằng cách đặt PROMPT_EOL_MARK=''. Điều này ngăn chặn các vấn đề về diễn giải đầu ra lệnh khi kết thúc bằng các ký tự đặc biệt như '%'. <0>Tìm hiểu thêm</0>"
 		},
 		"zshOhMy": {
 			"label": "Bật tích hợp Oh My Zsh",
-			"description": "Khi được bật, đặt ITERM_SHELL_INTEGRATION_INSTALLED=Yes để kích hoạt các tính năng tích hợp shell của Oh My Zsh. Việc áp dụng cài đặt này có thể yêu cầu khởi động lại IDE. (thử nghiệm)"
+			"description": "Khi được bật, đặt ITERM_SHELL_INTEGRATION_INSTALLED=Yes để kích hoạt các tính năng tích hợp shell của Oh My Zsh. Việc áp dụng cài đặt này có thể yêu cầu khởi động lại IDE. <0>Tìm hiểu thêm</0>"
 		},
 		"zshP10k": {
 			"label": "Bật tích hợp Powerlevel10k",
-			"description": "Khi được bật, đặt POWERLEVEL9K_TERM_SHELL_INTEGRATION=true để kích hoạt các tính năng tích hợp shell của Powerlevel10k. (thử nghiệm)"
+			"description": "Khi được bật, đặt POWERLEVEL9K_TERM_SHELL_INTEGRATION=true để kích hoạt các tính năng tích hợp shell của Powerlevel10k. <0>Tìm hiểu thêm</0>"
+		},
+		"zdotdir": {
+			"label": "Bật xử lý ZDOTDIR",
+			"description": "Khi được bật, tạo thư mục tạm thời cho ZDOTDIR để xử lý tích hợp shell zsh một cách chính xác. Điều này đảm bảo tích hợp shell VSCode hoạt động chính xác với zsh trong khi vẫn giữ nguyên cấu hình zsh của bạn. <0>Tìm hiểu thêm</0>"
 		},
 		"inheritEnv": {
 			"label": "Kế thừa biến môi trường",
-			"description": "Khi được bật, terminal sẽ kế thừa các biến môi trường từ tiến trình cha của VSCode, như các cài đặt tích hợp shell được định nghĩa trong hồ sơ người dùng. Điều này trực tiếp chuyển đổi cài đặt toàn cục của VSCode `terminal.integrated.inheritEnv`"
+			"description": "Khi được bật, terminal sẽ kế thừa các biến môi trường từ tiến trình cha của VSCode, như các cài đặt tích hợp shell được định nghĩa trong hồ sơ người dùng. Điều này trực tiếp chuyển đổi cài đặt toàn cục của VSCode `terminal.integrated.inheritEnv`. <0>Tìm hiểu thêm</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "Nếu bạn có bất kỳ câu hỏi hoặc phản hồi nào, vui lòng mở một vấn đề tại <githubLink>github.com/RooVetGit/Roo-Code</githubLink> hoặc tham gia <redditLink>reddit.com/r/RooCode</redditLink> hoặc <discordLink>discord.gg/roocode</discordLink>",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Cho phép báo cáo lỗi và sử dụng ẩn danh",
 			"description": "Giúp cải thiện Roo Code bằng cách gửi dữ liệu sử dụng ẩn danh và báo cáo lỗi. Không bao giờ gửi mã, lời nhắc hoặc thông tin cá nhân. Xem chính sách bảo mật của chúng tôi để biết thêm chi tiết."

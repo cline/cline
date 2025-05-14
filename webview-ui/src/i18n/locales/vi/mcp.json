@@ -1,18 +1,19 @@
 {
 	"title": "Máy chủ MCP",
-	"done": "Hoàn thành",
-	"description": "<0>Giao thức ngữ cảnh mô hình</0> cho phép giao tiếp với các máy chủ MCP đang chạy cục bộ, cung cấp các công cụ và tài nguyên bổ sung để mở rộng khả năng của Roo. Bạn có thể sử dụng <1>các máy chủ do cộng đồng tạo</1> hoặc yêu cầu Roo tạo các công cụ mới dành riêng cho quy trình làm việc của bạn (ví dụ: \"thêm công cụ lấy tài liệu npm mới nhất\").",
+	"done": "Xong",
+	"description": "Bật Model Context Protocol (MCP) để Roo Code có thể dùng thêm công cụ và dịch vụ từ máy chủ bên ngoài. Điều này mở rộng khả năng của Roo cho bạn. <0>Tìm hiểu thêm</0>",
 	"enableToggle": {
 		"title": "Bật máy chủ MCP",
-		"description": "Khi được bật, Roo sẽ có thể tương tác với các máy chủ MCP cho chức năng nâng cao. Nếu bạn không sử dụng MCP, bạn có thể tắt tính năng này để giảm lượng token mà Roo sử dụng."
+		"description": "Bật lên để Roo dùng công cụ từ các máy chủ MCP đã kết nối. Roo sẽ có nhiều khả năng hơn. Nếu không dùng các công cụ này, hãy tắt để tiết kiệm chi phí token API."
 	},
 	"enableServerCreation": {
 		"title": "Bật tạo máy chủ MCP",
-		"description": "Khi được bật, Roo có thể giúp bạn tạo máy chủ MCP mới thông qua các lệnh như \"thêm công cụ mới để...\". Nếu bạn không cần tạo máy chủ MCP, bạn có thể tắt tính năng này để giảm lượng token mà Roo sử dụng."
+		"description": "Bật lên để Roo giúp bạn tạo <1>máy chủ MCP mới</1> tuỳ chỉnh. <0>Tìm hiểu về tạo máy chủ</0>",
+		"hint": "Mẹo: Để giảm chi phí token API, hãy tắt khi không cần Roo tạo máy chủ MCP mới."
 	},
 	"editGlobalMCP": "Chỉnh sửa MCP toàn cục",
 	"editProjectMCP": "Chỉnh sửa MCP dự án",
-	"editSettings": "Chỉnh sửa cài đặt MCP",
+	"learnMoreEditingSettings": "Tìm hiểu thêm về chỉnh sửa file cài đặt MCP",
 	"tool": {
 		"alwaysAllow": "Luôn cho phép",
 		"parameters": "Tham số",
@@ -24,14 +25,14 @@
 		"errors": "Lỗi"
 	},
 	"emptyState": {
-		"noTools": "Không tìm thấy công cụ nào",
-		"noResources": "Không tìm thấy tài nguyên nào",
+		"noTools": "Không tìm thấy công cụ",
+		"noResources": "Không tìm thấy tài nguyên",
 		"noLogs": "Không tìm thấy nhật ký",
 		"noErrors": "Không tìm thấy lỗi"
 	},
 	"networkTimeout": {
 		"label": "Thời gian chờ mạng",
-		"description": "Thời gian tối đa để chờ phản hồi từ máy chủ",
+		"description": "Thời gian tối đa chờ phản hồi từ máy chủ",
 		"options": {
 			"15seconds": "15 giây",
 			"30seconds": "30 giây",
@@ -44,10 +45,10 @@
 		}
 	},
 	"deleteDialog": {
-		"title": "Xóa máy chủ MCP",
-		"description": "Bạn có chắc chắn muốn xóa máy chủ MCP \"{{serverName}}\"? Hành động này không thể hoàn tác.",
-		"cancel": "Hủy",
-		"delete": "Xóa"
+		"title": "Xoá máy chủ MCP",
+		"description": "Bạn chắc chắn muốn xoá máy chủ MCP \"{{serverName}}\"? Hành động này không thể hoàn tác.",
+		"cancel": "Huỷ",
+		"delete": "Xoá"
 	},
 	"serverStatus": {
 		"retrying": "Đang thử lại...",

@@ -1,20 +1,22 @@
 {
 	"title": "MCP 서버",
 	"done": "완료",
-	"description": "<0>Model Context Protocol</0>은 로컬에서 실행되는 MCP 서버와 통신하여 Roo의 기능을 확장하는 추가 도구 및 리소스를 제공합니다. <1>커뮤니티에서 만든 서버</1>를 사용하거나 Roo에게 작업 흐름에 맞는 새로운 도구를 만들도록 요청할 수 있습니다 (예: \"최신 npm 문서를 가져오는 도구 추가\").",
+	"description": "Model Context Protocol(MCP)를 활성화하면 Roo Code가 외부 서버에서 추가 도구와 서비스를 사용할 수 있어. Roo가 할 수 있는 일이 더 많아져! <0>자세히 알아보기</0>",
 	"enableToggle": {
 		"title": "MCP 서버 활성화",
-		"description": "활성화하면 Roo가 고급 기능을 위해 MCP 서버와 상호 작용할 수 있습니다. MCP를 사용하지 않는 경우 비활성화하여 Roo의 token 사용량을 줄일 수 있습니다."
+		"description": "이걸 켜면 Roo가 연결된 MCP 서버의 도구를 쓸 수 있어. Roo의 능력이 더 늘어나! 추가 도구를 쓸 생각이 없다면, API 토큰 비용을 줄이기 위해 꺼 두는 게 좋아."
 	},
 	"enableServerCreation": {
 		"title": "MCP 서버 생성 활성화",
-		"description": "활성화하면 Roo가 \"새 도구 추가...\"와 같은 명령을 통해 새 MCP 서버를 만드는 데 도움을 줄 수 있습니다. MCP 서버를 만들 필요가 없다면 이 기능을 비활성화하여 Roo의 token 사용량을 줄일 수 있습니다."
+		"description": "이걸 켜면 Roo가 <1>새로운</1> 맞춤형 MCP 서버를 만드는 걸 도와줄 수 있어. <0>서버 생성에 대해 알아보기</0>",
+		"hint": "팁: API 토큰 비용을 줄이고 싶으면, Roo에게 새 MCP 서버를 만들라고 하지 않을 때 이 설정을 꺼 둬."
 	},
-	"editGlobalMCP": "전역 MCP 편집",
+	"editGlobalMCP": "글로벌 MCP 편집",
 	"editProjectMCP": "프로젝트 MCP 편집",
+	"learnMoreEditingSettings": "MCP 설정 파일 편집 방법 더 알아보기",
 	"tool": {
 		"alwaysAllow": "항상 허용",
-		"parameters": "매개변수",
+		"parameters": "파라미터",
 		"noDescription": "설명 없음"
 	},
 	"tabs": {
@@ -44,12 +46,12 @@
 	},
 	"deleteDialog": {
 		"title": "MCP 서버 삭제",
-		"description": "MCP 서버 \"{{serverName}}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+		"description": "정말로 MCP 서버 \"{{serverName}}\"을(를) 삭제할까? 이 작업은 되돌릴 수 없어.",
 		"cancel": "취소",
 		"delete": "삭제"
 	},
 	"serverStatus": {
-		"retrying": "재시도 중...",
-		"retryConnection": "연결 재시도"
+		"retrying": "다시 시도 중...",
+		"retryConnection": "연결 다시 시도"
 	}
 }

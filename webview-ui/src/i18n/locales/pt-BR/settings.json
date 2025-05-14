@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "Perfil de configuração",
 		"providerDocumentation": "Documentação do {{provider}}",
+		"configProfile": "Perfil de configuração",
 		"description": "Salve diferentes configurações de API para alternar rapidamente entre provedores e configurações.",
 		"apiProvider": "Provedor de API",
 		"model": "Modelo",
@@ -116,11 +116,11 @@
 		"headerValue": "Valor do cabeçalho",
 		"noCustomHeaders": "Nenhum cabeçalho personalizado definido. Clique no botão + para adicionar um.",
 		"requestyApiKey": "Chave de API Requesty",
-		"getRequestyApiKey": "Obter chave de API Requesty",
 		"refreshModels": {
 			"label": "Atualizar modelos",
 			"hint": "Por favor, reabra as configurações para ver os modelos mais recentes."
 		},
+		"getRequestyApiKey": "Obter chave de API Requesty",
 		"openRouterTransformsText": "Comprimir prompts e cadeias de mensagens para o tamanho do contexto (<a>Transformações OpenRouter</a>)",
 		"anthropicApiKey": "Chave de API Anthropic",
 		"getAnthropicApiKey": "Obter chave de API Anthropic",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "Ativar ferramenta de navegador",
-			"description": "Quando ativado, o Roo pode usar um navegador para interagir com sites ao usar modelos que suportam o uso do computador."
+			"description": "Quando ativado, o Roo pode usar um navegador para interagir com sites ao usar modelos que suportam o uso do computador. <0>Saiba mais</0>"
 		},
 		"viewport": {
 			"label": "Tamanho da viewport",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "Ativar pontos de verificação automáticos",
-			"description": "Quando ativado, o Roo criará automaticamente pontos de verificação durante a execução de tarefas, facilitando a revisão de alterações ou o retorno a estados anteriores."
+			"description": "Quando ativado, o Roo criará automaticamente pontos de verificação durante a execução de tarefas, facilitando a revisão de alterações ou o retorno a estados anteriores. <0>Saiba mais</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "Limite de saída do terminal",
-			"description": "Número máximo de linhas a incluir na saída do terminal ao executar comandos. Quando excedido, as linhas serão removidas do meio, economizando token."
+			"description": "Número máximo de linhas a incluir na saída do terminal ao executar comandos. Quando excedido, as linhas serão removidas do meio, economizando token. <0>Saiba mais</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "Tempo limite de integração do shell do terminal",
-			"description": "Tempo máximo de espera para a inicialização da integração do shell antes de executar comandos. Para usuários com tempos de inicialização de shell longos, este valor pode precisar ser aumentado se você vir erros \"Shell Integration Unavailable\" no terminal."
+			"description": "Tempo máximo de espera para a inicialização da integração do shell antes de executar comandos. Para usuários com tempos de inicialização de shell longos, este valor pode precisar ser aumentado se você vir erros \"Shell Integration Unavailable\" no terminal. <0>Saiba mais</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "Desativar integração do shell do terminal",
-			"description": "Ative isso se os comandos do terminal não estiverem funcionando corretamente ou se você vir erros de 'Shell Integration Unavailable'. Isso usa um método mais simples para executar comandos, ignorando alguns recursos avançados do terminal."
-		},
-		"compressProgressBar": {
-			"label": "Comprimir saída de barras de progresso",
-			"description": "Quando ativado, processa a saída do terminal com retornos de carro (\\r) para simular como um terminal real exibiria o conteúdo. Isso remove os estados intermediários das barras de progresso, mantendo apenas o estado final, o que conserva espaço de contexto para informações mais relevantes."
-		},
-		"zdotdir": {
-			"label": "Ativar gerenciamento do ZDOTDIR",
-			"description": "Quando ativado, cria um diretório temporário para o ZDOTDIR para lidar corretamente com a integração do shell zsh. Isso garante que a integração do shell do VSCode funcione corretamente com o zsh enquanto preserva sua configuração do zsh."
+			"description": "Ative isso se os comandos do terminal não estiverem funcionando corretamente ou se você vir erros de 'Shell Integration Unavailable'. Isso usa um método mais simples para executar comandos, ignorando alguns recursos avançados do terminal. <0>Saiba mais</0>"
 		},
 		"commandDelay": {
 			"label": "Atraso de comando do terminal",
-			"description": "Atraso em milissegundos para adicionar após a execução do comando. A configuração padrão de 0 desativa completamente o atraso. Isso pode ajudar a garantir que a saída do comando seja totalmente capturada em terminais com problemas de temporização. Na maioria dos terminais, isso é implementado definindo `PROMPT_COMMAND='sleep N'` e o PowerShell adiciona `start-sleep` ao final de cada comando. Originalmente era uma solução para o bug VSCode#237208 e pode não ser necessário."
+			"description": "Atraso em milissegundos para adicionar após a execução do comando. A configuração padrão de 0 desativa completamente o atraso. Isso pode ajudar a garantir que a saída do comando seja totalmente capturada em terminais com problemas de temporização. Na maioria dos terminais, isso é implementado definindo `PROMPT_COMMAND='sleep N'` e o PowerShell adiciona `start-sleep` ao final de cada comando. Originalmente era uma solução para o bug VSCode#237208 e pode não ser necessário. <0>Saiba mais</0>"
+		},
+		"compressProgressBar": {
+			"label": "Comprimir saída de barras de progresso",
+			"description": "Quando ativado, processa a saída do terminal com retornos de carro (\\r) para simular como um terminal real exibiria o conteúdo. Isso remove os estados intermediários das barras de progresso, mantendo apenas o estado final, o que conserva espaço de contexto para informações mais relevantes. <0>Saiba mais</0>"
 		},
 		"powershellCounter": {
 			"label": "Ativar solução alternativa do contador PowerShell",
-			"description": "Quando ativado, adiciona um contador aos comandos PowerShell para garantir a execução correta dos comandos. Isso ajuda com terminais PowerShell que podem ter problemas com a captura de saída."
+			"description": "Quando ativado, adiciona um contador aos comandos PowerShell para garantir a execução correta dos comandos. Isso ajuda com terminais PowerShell que podem ter problemas com a captura de saída. <0>Saiba mais</0>"
 		},
 		"zshClearEolMark": {
 			"label": "Limpar marca de fim de linha do ZSH",
-			"description": "Quando ativado, limpa a marca de fim de linha do ZSH definindo PROMPT_EOL_MARK=''. Isso evita problemas com a interpretação da saída de comandos quando termina com caracteres especiais como '%'."
+			"description": "Quando ativado, limpa a marca de fim de linha do ZSH definindo PROMPT_EOL_MARK=''. Isso evita problemas com a interpretação da saída de comandos quando termina com caracteres especiais como '%'. <0>Saiba mais</0>"
 		},
 		"zshOhMy": {
 			"label": "Ativar integração Oh My Zsh",
-			"description": "Quando ativado, define ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar os recursos de integração do shell Oh My Zsh. A aplicação desta configuração pode exigir a reinicialização do IDE."
+			"description": "Quando ativado, define ITERM_SHELL_INTEGRATION_INSTALLED=Yes para habilitar os recursos de integração do shell Oh My Zsh. A aplicação desta configuração pode exigir a reinicialização do IDE. <0>Saiba mais</0>"
 		},
 		"zshP10k": {
 			"label": "Ativar integração Powerlevel10k",
-			"description": "Quando ativado, define POWERLEVEL9K_TERM_SHELL_INTEGRATION=true para habilitar os recursos de integração do shell Powerlevel10k."
+			"description": "Quando ativado, define POWERLEVEL9K_TERM_SHELL_INTEGRATION=true para habilitar os recursos de integração do shell Powerlevel10k. <0>Saiba mais</0>"
+		},
+		"zdotdir": {
+			"label": "Ativar gerenciamento do ZDOTDIR",
+			"description": "Quando ativado, cria um diretório temporário para o ZDOTDIR para lidar corretamente com a integração do shell zsh. Isso garante que a integração do shell do VSCode funcione corretamente com o zsh enquanto preserva sua configuração do zsh. <0>Saiba mais</0>"
 		},
 		"inheritEnv": {
 			"label": "Herdar variáveis de ambiente",
-			"description": "Quando ativado, o terminal herda variáveis de ambiente do processo pai do VSCode, como configurações de integração do shell definidas no perfil do usuário. Isso alterna diretamente a configuração global do VSCode `terminal.integrated.inheritEnv`"
+			"description": "Quando ativado, o terminal herda variáveis de ambiente do processo pai do VSCode, como configurações de integração do shell definidas no perfil do usuário. Isso alterna diretamente a configuração global do VSCode `terminal.integrated.inheritEnv`. <0>Saiba mais</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "Se tiver alguma dúvida ou feedback, sinta-se à vontade para abrir um problema em <githubLink>github.com/RooVetGit/Roo-Code</githubLink> ou juntar-se a <redditLink>reddit.com/r/RooCode</redditLink> ou <discordLink>discord.gg/roocode</discordLink>",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Permitir relatórios anônimos de erros e uso",
 			"description": "Ajude a melhorar o Roo Code enviando dados de uso anônimos e relatórios de erros. Nunca são enviados código, prompts ou informações pessoais. Consulte nossa política de privacidade para mais detalhes."

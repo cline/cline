@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { VSCodeCheckbox, VSCodeRadioGroup, VSCodeRadio, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeCheckbox,
+	VSCodeRadioGroup,
+	VSCodeRadio,
+	VSCodeTextArea,
+	VSCodeLink,
+} from "@vscode/webview-ui-toolkit/react"
 
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import {
@@ -19,9 +25,9 @@ import { supportPrompt, SupportPromptType } from "@roo/shared/support-prompt"
 import { TOOL_GROUPS, ToolGroup } from "@roo/shared/tools"
 import { vscode } from "@src/utils/vscode"
 import { Tab, TabContent, TabHeader } from "../common/Tab"
-import i18next from "i18next"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Trans } from "react-i18next"
+import { buildDocLink } from "@src/utils/docLinks"
 import {
 	Select,
 	SelectContent,
@@ -515,7 +521,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 
 					<div className="text-sm text-vscode-descriptionForeground mb-3">
-						{t("prompts:modes.createModeHelpText")}
+						<Trans i18nKey="prompts:modes.createModeHelpText">
+							<VSCodeLink
+								href={buildDocLink("basic-usage/using-modes", "prompts_view_modes")}
+								style={{ display: "inline" }}></VSCodeLink>
+							<VSCodeLink
+								href={buildDocLink("features/custom-modes", "prompts_view_modes")}
+								style={{ display: "inline" }}></VSCodeLink>
+						</Trans>
 					</div>
 
 					<div className="flex items-center gap-1 mb-3">
@@ -610,6 +623,34 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								</Command>
 							</PopoverContent>
 						</Popover>
+					</div>
+					{/* API Configuration - Moved Here */}
+					<div className="mb-3">
+						<div className="font-bold mb-1">{t("prompts:apiConfiguration.title")}</div>
+						<div className="mb-2">
+							<Select
+								value={currentApiConfigName}
+								onValueChange={(value) => {
+									vscode.postMessage({
+										type: "loadApiConfiguration",
+										text: value,
+									})
+								}}>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder={t("settings:common.select")} />
+								</SelectTrigger>
+								<SelectContent>
+									{(listApiConfigMeta || []).map((config) => (
+										<SelectItem key={config.id} value={config.name}>
+											{config.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<div className="text-xs mt-1.5 text-vscode-descriptionForeground">
+								{t("prompts:apiConfiguration.select")}
+							</div>
+						</div>
 					</div>
 				</div>
 
@@ -764,34 +805,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 					{/* Mode settings */}
 					<>
-						<div className="mb-3">
-							<div className="font-bold mb-1">{t("prompts:apiConfiguration.title")}</div>
-							<div className="mb-2">
-								<Select
-									value={currentApiConfigName}
-									onValueChange={(value) => {
-										vscode.postMessage({
-											type: "loadApiConfiguration",
-											text: value,
-										})
-									}}>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder={t("settings:common.select")} />
-									</SelectTrigger>
-									<SelectContent>
-										{(listApiConfigMeta || []).map((config) => (
-											<SelectItem key={config.id} value={config.name}>
-												{config.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-								<div className="text-xs mt-1.5 text-vscode-descriptionForeground">
-									{t("prompts:apiConfiguration.select")}
-								</div>
-							</div>
-						</div>
-
 						{/* Show tools for all modes */}
 						<div className="mb-4">
 							<div className="flex justify-between items-center mb-1">
@@ -1049,6 +1062,15 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												}}
 											/>
 										),
+										"1": (
+											<VSCodeLink
+												href={buildDocLink(
+													"features/footgun-prompting",
+													"prompts_advanced_system_prompt",
+												)}
+												style={{ display: "inline" }}></VSCodeLink>
+										),
+										"2": <strong />,
 									}}
 								/>
 							</div>
@@ -1060,9 +1082,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					<h3 className="text-vscode-foreground mb-3">{t("prompts:globalCustomInstructions.title")}</h3>
 
 					<div className="text-sm text-vscode-descriptionForeground mb-2">
-						{t("prompts:globalCustomInstructions.description", {
-							language: i18next.language,
-						})}
+						<Trans i18nKey="prompts:globalCustomInstructions.description">
+							<VSCodeLink
+								href={buildDocLink(
+									"features/custom-instructions#global-custom-instructions",
+									"prompts_global_custom_instructions",
+								)}
+								style={{ display: "inline" }}></VSCodeLink>
+						</Trans>
 					</div>
 					<VSCodeTextArea
 						value={customInstructions || ""}

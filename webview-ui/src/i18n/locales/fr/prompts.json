@@ -7,7 +7,7 @@
 		"editModesConfig": "Modifier la configuration des modes",
 		"editGlobalModes": "Modifier les modes globaux",
 		"editProjectModes": "Modifier les modes du projet (.roomodes)",
-		"createModeHelpText": "Cliquez sur + pour créer un nouveau mode personnalisé, ou demandez simplement à Roo dans le chat de vous en créer un !",
+		"createModeHelpText": "Les modes sont des personas spécialisés qui adaptent le comportement de Roo. <0>En savoir plus sur l'utilisation des modes</0> ou <1>la personnalisation des modes.</1>",
 		"selectMode": "Rechercher les modes"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "Instructions personnalisées pour tous les modes",
-		"description": "Ces instructions s'appliquent à tous les modes. Elles fournissent un ensemble de comportements de base qui peuvent être améliorés par des instructions spécifiques au mode ci-dessous.\nSi vous souhaitez que Roo pense et parle dans une langue différente de celle de votre éditeur ({{language}}), vous pouvez le spécifier ici.",
+		"description": "Ces instructions s'appliquent à tous les modes. Elles fournissent un ensemble de comportements de base qui peuvent être améliorés par des instructions spécifiques au mode ci-dessous. <0>En savoir plus</0>",
 		"loadFromFile": "Les instructions peuvent également être chargées depuis le dossier <span>.roo/rules/</span> dans votre espace de travail (.roorules et .clinerules sont obsolètes et cesseront de fonctionner bientôt)."
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Avancé : Remplacer le prompt système",
-		"description": "Vous pouvez complètement remplacer le prompt système pour ce mode (en dehors de la définition du rôle et des instructions personnalisées) en créant un fichier à <span>.roo/system-prompt-{{slug}}</span> dans votre espace de travail. Il s'agit d'une fonctionnalité très avancée qui contourne les garanties intégrées et les vérifications de cohérence (notamment concernant l'utilisation des outils), alors soyez prudent !"
+		"description": "<2>⚠️ Attention :</2> Cette fonctionnalité avancée contourne les mesures de protection. <1>LISEZ CECI AVANT UTILISATION !</1>Remplacez le prompt système par défaut en créant un fichier à l'emplacement <span>.roo/system-prompt-{{slug}}</span>."
 	},
 	"createModeDialog": {
 		"title": "Créer un nouveau mode",

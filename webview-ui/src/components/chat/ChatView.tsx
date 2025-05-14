@@ -40,6 +40,7 @@ import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import SystemPromptWarning from "./SystemPromptWarning"
 import { CheckpointWarning } from "./CheckpointWarning"
+import { buildDocLink } from "@src/utils/docLinks"
 
 export interface ChatViewProps {
 	isHidden: boolean
@@ -1258,7 +1259,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 								i18nKey="chat:about"
 								components={{
 									DocsLink: (
-										<a href="https://docs.roocode.com/" target="_blank" rel="noopener noreferrer">
+										<a href={buildDocLink("", "welcome")} target="_blank" rel="noopener noreferrer">
 											the docs
 										</a>
 									),

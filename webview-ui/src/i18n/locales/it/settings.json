@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "Profilo di configurazione",
 		"providerDocumentation": "Documentazione {{provider}}",
+		"configProfile": "Profilo di configurazione",
 		"description": "Salva diverse configurazioni API per passare rapidamente tra fornitori e impostazioni.",
 		"apiProvider": "Fornitore API",
 		"model": "Modello",
@@ -116,11 +116,11 @@
 		"headerValue": "Valore intestazione",
 		"noCustomHeaders": "Nessuna intestazione personalizzata definita. Fai clic sul pulsante + per aggiungerne una.",
 		"requestyApiKey": "Chiave API Requesty",
-		"getRequestyApiKey": "Ottieni chiave API Requesty",
 		"refreshModels": {
 			"label": "Aggiorna modelli",
 			"hint": "Riapri le impostazioni per vedere i modelli più recenti."
 		},
+		"getRequestyApiKey": "Ottieni chiave API Requesty",
 		"openRouterTransformsText": "Comprimi prompt e catene di messaggi alla dimensione del contesto (<a>Trasformazioni OpenRouter</a>)",
 		"anthropicApiKey": "Chiave API Anthropic",
 		"getAnthropicApiKey": "Ottieni chiave API Anthropic",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "Abilita strumento browser",
-			"description": "Quando abilitato, Roo può utilizzare un browser per interagire con siti web quando si utilizzano modelli che supportano l'uso del computer."
+			"description": "Quando abilitato, Roo può utilizzare un browser per interagire con siti web quando si utilizzano modelli che supportano l'uso del computer. <0>Scopri di più</0>"
 		},
 		"viewport": {
 			"label": "Dimensione viewport",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "Abilita punti di controllo automatici",
-			"description": "Quando abilitato, Roo creerà automaticamente punti di controllo durante l'esecuzione dei compiti, facilitando la revisione delle modifiche o il ritorno a stati precedenti."
+			"description": "Quando abilitato, Roo creerà automaticamente punti di controllo durante l'esecuzione dei compiti, facilitando la revisione delle modifiche o il ritorno a stati precedenti. <0>Scopri di più</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "Limite output terminale",
-			"description": "Numero massimo di righe da includere nell'output del terminale durante l'esecuzione dei comandi. Quando superato, le righe verranno rimosse dal centro, risparmiando token."
+			"description": "Numero massimo di righe da includere nell'output del terminale durante l'esecuzione dei comandi. Quando superato, le righe verranno rimosse dal centro, risparmiando token. <0>Scopri di più</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "Timeout integrazione shell del terminale",
-			"description": "Tempo massimo di attesa per l'inizializzazione dell'integrazione della shell prima di eseguire i comandi. Per gli utenti con tempi di avvio della shell lunghi, questo valore potrebbe dover essere aumentato se si vedono errori \"Shell Integration Unavailable\" nel terminale."
+			"description": "Tempo massimo di attesa per l'inizializzazione dell'integrazione della shell prima di eseguire i comandi. Per gli utenti con tempi di avvio della shell lunghi, questo valore potrebbe dover essere aumentato se si vedono errori \"Shell Integration Unavailable\" nel terminale. <0>Scopri di più</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "Disabilita l'integrazione della shell del terminale",
-			"description": "Abilita questa opzione se i comandi del terminale non funzionano correttamente o se vedi errori 'Shell Integration Unavailable'. Questo utilizza un metodo più semplice per eseguire i comandi, bypassando alcune funzionalità avanzate del terminale."
-		},
-		"compressProgressBar": {
-			"label": "Comprimi output barre di progresso",
-			"description": "Quando abilitato, elabora l'output del terminale con ritorni a capo (\\r) per simulare come un terminale reale visualizzerebbe il contenuto. Questo rimuove gli stati intermedi delle barre di progresso, mantenendo solo lo stato finale, il che conserva spazio di contesto per informazioni più rilevanti."
-		},
-		"zdotdir": {
-			"label": "Abilita gestione ZDOTDIR",
-			"description": "Quando abilitato, crea una directory temporanea per ZDOTDIR per gestire correttamente l'integrazione della shell zsh. Questo assicura che l'integrazione della shell VSCode funzioni correttamente con zsh mantenendo la tua configurazione zsh. (sperimentale)"
+			"description": "Abilita questa opzione se i comandi del terminale non funzionano correttamente o se vedi errori 'Shell Integration Unavailable'. Questo utilizza un metodo più semplice per eseguire i comandi, bypassando alcune funzionalità avanzate del terminale. <0>Scopri di più</0>"
 		},
 		"commandDelay": {
 			"label": "Ritardo comando terminale",
-			"description": "Ritardo in millisecondi da aggiungere dopo l'esecuzione del comando. L'impostazione predefinita di 0 disabilita completamente il ritardo. Questo può aiutare a garantire che l'output del comando sia catturato completamente nei terminali con problemi di temporizzazione. Nella maggior parte dei terminali viene implementato impostando `PROMPT_COMMAND='sleep N'` e Powershell aggiunge `start-sleep` alla fine di ogni comando. In origine era una soluzione per il bug VSCode#237208 e potrebbe non essere necessario."
+			"description": "Ritardo in millisecondi da aggiungere dopo l'esecuzione del comando. L'impostazione predefinita di 0 disabilita completamente il ritardo. Questo può aiutare a garantire che l'output del comando sia catturato completamente nei terminali con problemi di temporizzazione. Nella maggior parte dei terminali viene implementato impostando `PROMPT_COMMAND='sleep N'` e Powershell aggiunge `start-sleep` alla fine di ogni comando. In origine era una soluzione per il bug VSCode#237208 e potrebbe non essere necessario. <0>Scopri di più</0>"
+		},
+		"compressProgressBar": {
+			"label": "Comprimi output barre di progresso",
+			"description": "Quando abilitato, elabora l'output del terminale con ritorni a capo (\\r) per simulare come un terminale reale visualizzerebbe il contenuto. Questo rimuove gli stati intermedi delle barre di progresso, mantenendo solo lo stato finale, il che conserva spazio di contesto per informazioni più rilevanti. <0>Scopri di più</0>"
 		},
 		"powershellCounter": {
 			"label": "Abilita soluzione temporanea contatore PowerShell",
-			"description": "Quando abilitato, aggiunge un contatore ai comandi PowerShell per garantire la corretta esecuzione dei comandi. Questo aiuta con i terminali PowerShell che potrebbero avere problemi con la cattura dell'output."
+			"description": "Quando abilitato, aggiunge un contatore ai comandi PowerShell per garantire la corretta esecuzione dei comandi. Questo aiuta con i terminali PowerShell che potrebbero avere problemi con la cattura dell'output. <0>Scopri di più</0>"
 		},
 		"zshClearEolMark": {
 			"label": "Cancella marcatore fine riga ZSH",
-			"description": "Quando abilitato, cancella il marcatore di fine riga ZSH impostando PROMPT_EOL_MARK=''. Questo previene problemi con l'interpretazione dell'output dei comandi quando termina con caratteri speciali come '%'."
+			"description": "Quando abilitato, cancella il marcatore di fine riga ZSH impostando PROMPT_EOL_MARK=''. Questo previene problemi con l'interpretazione dell'output dei comandi quando termina con caratteri speciali come '%'. <0>Scopri di più</0>"
 		},
 		"zshOhMy": {
 			"label": "Abilita integrazione Oh My Zsh",
-			"description": "Quando abilitato, imposta ITERM_SHELL_INTEGRATION_INSTALLED=Yes per abilitare le funzionalità di integrazione della shell Oh My Zsh. L'applicazione di questa impostazione potrebbe richiedere il riavvio dell'IDE. (sperimentale)"
+			"description": "Quando abilitato, imposta ITERM_SHELL_INTEGRATION_INSTALLED=Yes per abilitare le funzionalità di integrazione della shell Oh My Zsh. L'applicazione di questa impostazione potrebbe richiedere il riavvio dell'IDE. <0>Scopri di più</0>"
 		},
 		"zshP10k": {
 			"label": "Abilita integrazione Powerlevel10k",
-			"description": "Quando abilitato, imposta POWERLEVEL9K_TERM_SHELL_INTEGRATION=true per abilitare le funzionalità di integrazione della shell Powerlevel10k. (sperimentale)"
+			"description": "Quando abilitato, imposta POWERLEVEL9K_TERM_SHELL_INTEGRATION=true per abilitare le funzionalità di integrazione della shell Powerlevel10k. <0>Scopri di più</0>"
+		},
+		"zdotdir": {
+			"label": "Abilita gestione ZDOTDIR",
+			"description": "Quando abilitato, crea una directory temporanea per ZDOTDIR per gestire correttamente l'integrazione della shell zsh. Questo assicura che l'integrazione della shell VSCode funzioni correttamente con zsh mantenendo la tua configurazione zsh. <0>Scopri di più</0>"
 		},
 		"inheritEnv": {
 			"label": "Eredita variabili d'ambiente",
-			"description": "Quando abilitato, il terminale eredita le variabili d'ambiente dal processo padre di VSCode, come le impostazioni di integrazione della shell definite nel profilo utente. Questo attiva direttamente l'impostazione globale di VSCode `terminal.integrated.inheritEnv`"
+			"description": "Quando abilitato, il terminale eredita le variabili d'ambiente dal processo padre di VSCode, come le impostazioni di integrazione della shell definite nel profilo utente. Questo attiva direttamente l'impostazione globale di VSCode `terminal.integrated.inheritEnv`. <0>Scopri di più</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "Se hai domande o feedback, sentiti libero di aprire un issue su <githubLink>github.com/RooVetGit/Roo-Code</githubLink> o unirti a <redditLink>reddit.com/r/RooCode</redditLink> o <discordLink>discord.gg/roocode</discordLink>",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Consenti segnalazioni anonime di errori e utilizzo",
 			"description": "Aiuta a migliorare Roo Code inviando dati di utilizzo anonimi e segnalazioni di errori. Non vengono mai inviati codice, prompt o informazioni personali. Consulta la nostra politica sulla privacy per maggiori dettagli."

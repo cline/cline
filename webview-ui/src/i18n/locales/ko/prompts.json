@@ -7,7 +7,7 @@
 		"editModesConfig": "모드 구성 편집",
 		"editGlobalModes": "전역 모드 편집",
 		"editProjectModes": "프로젝트 모드 편집 (.roomodes)",
-		"createModeHelpText": "새 커스텀 모드를 만들려면 + 버튼을 클릭하거나, 채팅에서 Roo에게 만들어달라고 요청하세요!",
+		"createModeHelpText": "모드는 Roo의 행동을 맞춤화하는 특화된 페르소나입니다. <0>모드 사용에 대해 알아보기</0> 또는 <1>모드 사용자 정의하기.</1>",
 		"selectMode": "모드 검색"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "모든 모드에 대한 사용자 지정 지침",
-		"description": "이 지침은 모든 모드에 적용됩니다. 아래의 모드별 지침으로 향상될 수 있는 기본 동작 세트를 제공합니다.\nRoo가 에디터 표시 언어({{language}})와 다른 언어로 생각하고 말하기를 원하시면, 여기에 지정할 수 있습니다.",
+		"description": "이 지침은 모든 모드에 적용됩니다. 아래의 모드별 지침으로 향상될 수 있는 기본 동작 세트를 제공합니다. <0>더 알아보기</0>",
 		"loadFromFile": "지침은 작업 공간의 <span>.roo/rules/</span> 폴더에서도 로드할 수 있습니다(.roorules와 .clinerules는 더 이상 사용되지 않으며 곧 작동을 중단합니다)."
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "고급: 시스템 프롬프트 재정의",
-		"description": "작업 공간의 <span>.roo/system-prompt-{{slug}}</span>에 파일을 생성하여 이 모드의 시스템 프롬프트(역할 정의 및 사용자 지정 지침 제외)를 완전히 대체할 수 있습니다. 이는 내장된 안전 장치와 일관성 검사(특히 도구 사용 관련)를 우회하는 매우 고급 기능이므로 주의하세요!"
+		"description": "<2>⚠️ 경고:</2> 이 고급 기능은 안전 장치를 우회합니다. <1>사용하기 전에 이것을 읽으십시오!</1>작업 공간의 <span>.roo/system-prompt-{{slug}}</span>에 파일을 생성하여 기본 시스템 프롬프트를 재정의합니다."
 	},
 	"createModeDialog": {
 		"title": "새 모드 만들기",

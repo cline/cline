@@ -1,17 +1,19 @@
 {
 	"title": "Serveurs MCP",
 	"done": "Terminé",
-	"description": "Le <0>Model Context Protocol</0> permet la communication avec des serveurs MCP exécutés localement qui fournissent des outils et des ressources supplémentaires pour étendre les capacités de Roo. Vous pouvez utiliser <1>des serveurs créés par la communauté</1> ou demander à Roo de créer de nouveaux outils spécifiques à votre flux de travail (par exemple, \"ajouter un outil qui récupère la dernière documentation npm\").",
+	"description": "Active le Model Context Protocol (MCP) pour permettre à Roo Code d'utiliser des outils et services supplémentaires depuis des serveurs externes. Cela élargit ce que Roo peut faire pour toi. <0>En savoir plus</0>",
 	"enableToggle": {
 		"title": "Activer les serveurs MCP",
-		"description": "Lorsqu'activé, Roo pourra interagir avec les serveurs MCP pour des fonctionnalités avancées. Si vous n'utilisez pas MCP, vous pouvez désactiver cette option pour réduire l'utilisation de tokens par Roo."
+		"description": "Active cette option pour que Roo puisse utiliser des outils provenant de serveurs MCP connectés. Cela donne plus de capacités à Roo. Si tu ne comptes pas utiliser ces outils supplémentaires, désactive-la pour réduire les coûts de tokens API."
 	},
 	"enableServerCreation": {
 		"title": "Activer la création de serveurs MCP",
-		"description": "Lorsqu'activé, Roo peut vous aider à créer de nouveaux serveurs MCP via des commandes comme \"ajouter un nouvel outil pour...\". Si vous n'avez pas besoin de créer des serveurs MCP, vous pouvez désactiver cette option pour réduire l'utilisation de tokens par Roo."
+		"description": "Active cette option pour que Roo t'aide à créer de <1>nouveaux</1> serveurs MCP personnalisés. <0>En savoir plus sur la création de serveurs</0>",
+		"hint": "Astuce : Pour réduire les coûts de tokens API, désactive cette option quand tu ne demandes pas à Roo de créer un nouveau serveur MCP."
 	},
-	"editGlobalMCP": "Modifier MCP Global",
-	"editProjectMCP": "Modifier MCP du Projet",
+	"editGlobalMCP": "Modifier le MCP global",
+	"editProjectMCP": "Modifier le MCP du projet",
+	"learnMoreEditingSettings": "En savoir plus sur la modification des fichiers de configuration MCP",
 	"tool": {
 		"alwaysAllow": "Toujours autoriser",
 		"parameters": "Paramètres",
@@ -30,7 +32,7 @@
 	},
 	"networkTimeout": {
 		"label": "Délai d'attente réseau",
-		"description": "Temps maximal d'attente pour les réponses du serveur",
+		"description": "Temps d'attente maximal pour les réponses du serveur",
 		"options": {
 			"15seconds": "15 secondes",
 			"30seconds": "30 secondes",
@@ -44,7 +46,7 @@
 	},
 	"deleteDialog": {
 		"title": "Supprimer le serveur MCP",
-		"description": "Êtes-vous sûr de vouloir supprimer le serveur MCP \"{{serverName}}\" ? Cette action ne peut pas être annulée.",
+		"description": "Es-tu sûr de vouloir supprimer le serveur MCP \"{{serverName}}\" ? Cette action est irréversible.",
 		"cancel": "Annuler",
 		"delete": "Supprimer"
 	},

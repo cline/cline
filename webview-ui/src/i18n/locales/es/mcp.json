@@ -1,17 +1,19 @@
 {
 	"title": "Servidores MCP",
-	"done": "Listo",
-	"description": "El <0>Model Context Protocol</0> permite la comunicación con servidores MCP que se ejecutan localmente y proporcionan herramientas y recursos adicionales para extender las capacidades de Roo. Puedes usar <1>servidores creados por la comunidad</1> o pedir a Roo que cree nuevas herramientas específicas para tu flujo de trabajo (por ejemplo, \"añadir una herramienta que obtenga la documentación más reciente de npm\").",
+	"done": "Hecho",
+	"description": "Activa el Model Context Protocol (MCP) para que Roo Code pueda usar herramientas y servicios adicionales de servidores externos. Esto amplía lo que Roo puede hacer por ti. <0>Más información</0>",
 	"enableToggle": {
-		"title": "Habilitar servidores MCP",
-		"description": "Cuando está habilitado, Roo podrá interactuar con servidores MCP para obtener funcionalidades avanzadas. Si no usas MCP, puedes desactivarlo para reducir el uso de tokens de Roo."
+		"title": "Activar servidores MCP",
+		"description": "Actívalo para que Roo pueda usar herramientas de servidores MCP conectados. Esto le da más capacidades a Roo. Si no planeas usar estas herramientas extra, desactívalo para ayudar a reducir los costes de tokens API."
 	},
 	"enableServerCreation": {
-		"title": "Habilitar creación de servidores MCP",
-		"description": "Cuando está habilitado, Roo puede ayudarte a crear nuevos servidores MCP mediante comandos como \"añadir una nueva herramienta para...\". Si no necesitas crear servidores MCP, puedes desactivar esto para reducir el uso de tokens de Roo."
+		"title": "Activar creación de servidores MCP",
+		"description": "Actívalo para que Roo te ayude a crear <1>nuevos</1> servidores MCP personalizados. <0>Más información sobre la creación de servidores</0>",
+		"hint": "Consejo: Para reducir los costes de tokens API, desactiva esta opción cuando no le pidas a Roo que cree un nuevo servidor MCP."
 	},
-	"editGlobalMCP": "Editar MCP Global",
-	"editProjectMCP": "Editar MCP del Proyecto",
+	"editGlobalMCP": "Editar MCP global",
+	"editProjectMCP": "Editar MCP del proyecto",
+	"learnMoreEditingSettings": "Más información sobre cómo editar archivos de configuración MCP",
 	"tool": {
 		"alwaysAllow": "Permitir siempre",
 		"parameters": "Parámetros",
@@ -44,7 +46,7 @@
 	},
 	"deleteDialog": {
 		"title": "Eliminar servidor MCP",
-		"description": "¿Estás seguro de que deseas eliminar el servidor MCP \"{{serverName}}\"? Esta acción no se puede deshacer.",
+		"description": "¿Seguro que quieres eliminar el servidor MCP \"{{serverName}}\"? Esta acción no se puede deshacer.",
 		"cancel": "Cancelar",
 		"delete": "Eliminar"
 	},

@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "設定プロファイル",
 		"providerDocumentation": "{{provider}}のドキュメント",
+		"configProfile": "設定プロファイル",
 		"description": "異なるAPI設定を保存して、プロバイダーと設定をすばやく切り替えることができます。",
 		"apiProvider": "APIプロバイダー",
 		"model": "モデル",
@@ -116,11 +116,11 @@
 		"headerValue": "ヘッダー値",
 		"noCustomHeaders": "カスタムヘッダーが定義されていません。+ ボタンをクリックして追加してください。",
 		"requestyApiKey": "Requesty APIキー",
-		"getRequestyApiKey": "Requesty APIキーを取得",
 		"refreshModels": {
 			"label": "モデルを更新",
 			"hint": "最新のモデルを表示するには設定を再度開いてください。"
 		},
+		"getRequestyApiKey": "Requesty APIキーを取得",
 		"openRouterTransformsText": "プロンプトとメッセージチェーンをコンテキストサイズに圧縮 (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Anthropic APIキー",
 		"getAnthropicApiKey": "Anthropic APIキーを取得",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "ブラウザツールを有効化",
-			"description": "有効にすると、コンピューター使用をサポートするモデルを使用する際に、Rooはウェブサイトとのやり取りにブラウザを使用できます。"
+			"description": "有効にすると、コンピューター使用をサポートするモデルを使用する際に、Rooはウェブサイトとのやり取りにブラウザを使用できます。 <0>詳細情報</0>"
 		},
 		"viewport": {
 			"label": "ビューポートサイズ",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "自動チェックポイントを有効化",
-			"description": "有効にすると、Rooはタスク実行中に自動的にチェックポイントを作成し、変更の確認や以前の状態への復帰を容易にします。"
+			"description": "有効にすると、Rooはタスク実行中に自動的にチェックポイントを作成し、変更の確認や以前の状態への復帰を容易にします。 <0>詳細情報</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "ターミナル出力制限",
-			"description": "コマンド実行時にターミナル出力に含める最大行数。超過すると中央から行が削除され、tokenを節約します。"
+			"description": "コマンド実行時にターミナル出力に含める最大行数。超過すると中央から行が削除され、tokenを節約します。 <0>詳細情報</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "ターミナルシェル統合タイムアウト",
-			"description": "コマンドを実行する前にシェル統合の初期化を待つ最大時間。シェルの起動時間が長いユーザーの場合、ターミナルで「Shell Integration Unavailable」エラーが表示される場合は、この値を増やす必要があるかもしれません。"
+			"description": "コマンドを実行する前にシェル統合の初期化を待つ最大時間。シェルの起動時間が長いユーザーの場合、ターミナルで「Shell Integration Unavailable」エラーが表示される場合は、この値を増やす必要があるかもしれません。 <0>詳細情報</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "ターミナルシェル統合を無効にする",
-			"description": "ターミナルコマンドが正しく機能しない場合や、「シェル統合が利用できません」というエラーが表示される場合は、これを有効にします。これにより、一部の高度なターミナル機能をバイパスして、コマンドを実行するより簡単な方法が使用されます。"
-		},
-		"compressProgressBar": {
-			"label": "プログレスバー出力を圧縮",
-			"description": "有効にすると、キャリッジリターン（\\r）を含むターミナル出力を処理して、実際のターミナルがコンテンツを表示する方法をシミュレートします。これによりプログレスバーの中間状態が削除され、最終状態のみが保持されるため、より関連性の高い情報のためのコンテキスト空間が節約されます。"
-		},
-		"zdotdir": {
-			"label": "ZDOTDIR 処理を有効化",
-			"description": "有効にすると、zsh シェル統合を適切に処理するために ZDOTDIR 用の一時ディレクトリを作成します。これにより、zsh の設定を保持しながら VSCode のシェル統合が正しく機能します。（実験的）"
+			"description": "ターミナルコマンドが正しく機能しない場合や、「シェル統合が利用できません」というエラーが表示される場合は、これを有効にします。これにより、一部の高度なターミナル機能をバイパスして、コマンドを実行するより簡単な方法が使用されます。 <0>詳細情報</0>"
 		},
 		"commandDelay": {
 			"label": "ターミナルコマンド遅延",
-			"description": "コマンド実行後に追加する遅延時間（ミリ秒）。デフォルト設定の0は遅延を完全に無効にします。これはタイミングの問題があるターミナルでコマンド出力を完全にキャプチャするのに役立ちます。ほとんどのターミナルでは`PROMPT_COMMAND='sleep N'`を設定することで実装され、PowerShellは各コマンドの最後に`start-sleep`を追加します。元々はVSCodeバグ#237208の回避策で、必要ない場合があります。"
+			"description": "コマンド実行後に追加する遅延時間（ミリ秒）。デフォルト設定の0は遅延を完全に無効にします。これはタイミングの問題があるターミナルでコマンド出力を完全にキャプチャするのに役立ちます。ほとんどのターミナルでは`PROMPT_COMMAND='sleep N'`を設定することで実装され、PowerShellは各コマンドの最後に`start-sleep`を追加します。元々はVSCodeバグ#237208の回避策で、必要ない場合があります。 <0>詳細情報</0>"
+		},
+		"compressProgressBar": {
+			"label": "プログレスバー出力を圧縮",
+			"description": "有効にすると、キャリッジリターン（\\r）を含むターミナル出力を処理して、実際のターミナルがコンテンツを表示する方法をシミュレートします。これによりプログレスバーの中間状態が削除され、最終状態のみが保持されるため、より関連性の高い情報のためのコンテキスト空間が節約されます。 <0>詳細情報</0>"
 		},
 		"powershellCounter": {
 			"label": "PowerShellカウンター回避策を有効化",
-			"description": "有効にすると、PowerShellコマンドにカウンターを追加して、コマンドの正しい実行を確保します。これは出力のキャプチャに問題がある可能性のあるPowerShellターミナルで役立ちます。"
+			"description": "有効にすると、PowerShellコマンドにカウンターを追加して、コマンドの正しい実行を確保します。これは出力のキャプチャに問題がある可能性のあるPowerShellターミナルで役立ちます。 <0>詳細情報</0>"
 		},
 		"zshClearEolMark": {
 			"label": "ZSH行末マークをクリア",
-			"description": "有効にすると、PROMPT_EOL_MARK=''を設定してZSHの行末マークをクリアします。これにより、'%'などの特殊文字で終わるコマンド出力の解釈に関する問題を防ぎます。"
+			"description": "有効にすると、PROMPT_EOL_MARK=''を設定してZSHの行末マークをクリアします。これにより、'%'などの特殊文字で終わるコマンド出力の解釈に関する問題を防ぎます。 <0>詳細情報</0>"
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh 統合を有効化",
-			"description": "有効にすると、ITERM_SHELL_INTEGRATION_INSTALLED=Yes を設定して Oh My Zsh シェル統合機能を有効にします。この設定を適用するには、IDEの再起動が必要な場合があります。（実験的）"
+			"description": "有効にすると、ITERM_SHELL_INTEGRATION_INSTALLED=Yes を設定して Oh My Zsh シェル統合機能を有効にします。この設定を適用するには、IDEの再起動が必要な場合があります。 <0>詳細情報</0>"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k 統合を有効化",
-			"description": "有効にすると、POWERLEVEL9K_TERM_SHELL_INTEGRATION=true を設定して Powerlevel10k シェル統合機能を有効にします。（実験的）"
+			"description": "有効にすると、POWERLEVEL9K_TERM_SHELL_INTEGRATION=true を設定して Powerlevel10k シェル統合機能を有効にします。 <0>詳細情報</0>"
+		},
+		"zdotdir": {
+			"label": "ZDOTDIR 処理を有効化",
+			"description": "有効にすると、zsh シェル統合を適切に処理するために ZDOTDIR 用の一時ディレクトリを作成します。これにより、zsh の設定を保持しながら VSCode のシェル統合が正しく機能します。 <0>詳細情報</0>"
 		},
 		"inheritEnv": {
 			"label": "環境変数を継承",
-			"description": "有効にすると、ターミナルは VSCode の親プロセスから環境変数を継承します。ユーザープロファイルで定義されたシェル統合設定などが含まれます。これは VSCode のグローバル設定 `terminal.integrated.inheritEnv` を直接切り替えます"
+			"description": "有効にすると、ターミナルは VSCode の親プロセスから環境変数を継承します。ユーザープロファイルで定義されたシェル統合設定などが含まれます。これは VSCode のグローバル設定 `terminal.integrated.inheritEnv` を直接切り替えます。 <0>詳細情報</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "質問やフィードバックがある場合は、<githubLink>github.com/RooVetGit/Roo-Code</githubLink>で問題を開くか、<redditLink>reddit.com/r/RooCode</redditLink>や<discordLink>discord.gg/roocode</discordLink>に参加してください",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "匿名のエラーと使用状況レポートを許可",
 			"description": "匿名の使用データとエラーレポートを送信してRoo Codeの改善にご協力ください。コード、プロンプト、個人情報が送信されることはありません。詳細については、プライバシーポリシーをご覧ください。"

@@ -1,17 +1,19 @@
 {
 	"title": "MCP Sunucuları",
-	"done": "Tamam",
-	"description": "<0>Model Context Protocol</0>, Roo'nun yeteneklerini genişletmek için ek araçlar ve kaynaklar sağlayan yerel olarak çalışan MCP sunucularıyla iletişim kurmanızı sağlar. <1>Topluluk tarafından oluşturulan sunucuları</1> kullanabilir veya Roo'dan iş akışınıza özel yeni araçlar oluşturmasını isteyebilirsiniz (örneğin, \"en son npm belgelerini alan bir araç ekle\").",
+	"done": "Bitti",
+	"description": "Roo Code'un harici sunuculardan ek araçlar ve servisler kullanabilmesi için Model Context Protocol (MCP)'yi etkinleştir. Böylece Roo senin için daha fazlasını yapabilir. <0>Daha fazla bilgi</0>",
 	"enableToggle": {
 		"title": "MCP Sunucularını Etkinleştir",
-		"description": "Etkinleştirildiğinde, Roo gelişmiş işlevler için MCP sunucularıyla etkileşim kurabilecektir. MCP kullanmıyorsanız, Roo'nun token kullanımını azaltmak için bunu devre dışı bırakabilirsiniz."
+		"description": "Bunu AÇ, böylece Roo bağlı MCP sunucularından araçlar kullanabilir. Roo'ya daha fazla yetenek kazandırır. Ekstra araçları kullanmayacaksan, API token maliyetini azaltmak için bunu KAPAT."
 	},
 	"enableServerCreation": {
 		"title": "MCP Sunucu Oluşturmayı Etkinleştir",
-		"description": "Etkinleştirildiğinde, Roo \"için yeni bir araç ekle...\" gibi komutlar aracılığıyla yeni MCP sunucuları oluşturmanıza yardımcı olabilir. MCP sunucuları oluşturmanız gerekmiyorsa, Roo'nun token kullanımını azaltmak için bunu devre dışı bırakabilirsiniz."
+		"description": "Bunu AÇ, Roo'nun <1>yeni</1> özel MCP sunucuları oluşturmanda sana yardımcı olmasını sağlar. <0>Sunucu oluşturma hakkında bilgi al</0>",
+		"hint": "İpucu: API token maliyetini azaltmak için Roo'dan yeni bir MCP sunucusu oluşturmasını istemediğinde bu ayarı kapat."
 	},
 	"editGlobalMCP": "Global MCP'yi Düzenle",
-	"editProjectMCP": "Proje MCP'yi Düzenle",
+	"editProjectMCP": "Proje MCP'sini Düzenle",
+	"learnMoreEditingSettings": "MCP ayar dosyalarını düzenleme hakkında daha fazla bilgi",
 	"tool": {
 		"alwaysAllow": "Her zaman izin ver",
 		"parameters": "Parametreler",
@@ -25,12 +27,12 @@
 	"emptyState": {
 		"noTools": "Araç bulunamadı",
 		"noResources": "Kaynak bulunamadı",
-		"noLogs": "Günlük bulunamadı",
+		"noLogs": "Kayıt bulunamadı",
 		"noErrors": "Hata bulunamadı"
 	},
 	"networkTimeout": {
 		"label": "Ağ Zaman Aşımı",
-		"description": "Sunucu yanıtları için beklenecek maksimum süre",
+		"description": "Sunucu yanıtları için maksimum bekleme süresi",
 		"options": {
 			"15seconds": "15 saniye",
 			"30seconds": "30 saniye",
@@ -44,12 +46,12 @@
 	},
 	"deleteDialog": {
 		"title": "MCP Sunucusunu Sil",
-		"description": "\"{{serverName}}\" MCP sunucusunu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
+		"description": "\"{{serverName}}\" MCP sunucusunu silmek istediğine emin misin? Bu işlem geri alınamaz.",
 		"cancel": "İptal",
 		"delete": "Sil"
 	},
 	"serverStatus": {
-		"retrying": "Yeniden deneniyor...",
-		"retryConnection": "Bağlantıyı Yeniden Dene"
+		"retrying": "Tekrar deneniyor...",
+		"retryConnection": "Bağlantıyı tekrar dene"
 	}
 }

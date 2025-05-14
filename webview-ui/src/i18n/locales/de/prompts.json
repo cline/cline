@@ -7,7 +7,7 @@
 		"editModesConfig": "Moduskonfiguration bearbeiten",
 		"editGlobalModes": "Globale Modi bearbeiten",
 		"editProjectModes": "Projektmodi bearbeiten (.roomodes)",
-		"createModeHelpText": "Klicke auf +, um einen neuen benutzerdefinierten Modus zu erstellen, oder bitte Roo einfach im Chat, einen für dich zu erstellen!",
+		"createModeHelpText": "Modi sind spezialisierte Personas, die Roos Verhalten anpassen. <0>Erfahre mehr über die Verwendung von Modi</0> oder <1>die Anpassung von Modi.</1>",
 		"selectMode": "Modi suchen"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "Benutzerdefinierte Anweisungen für alle Modi",
-		"description": "Diese Anweisungen gelten für alle Modi. Sie bieten einen grundlegenden Satz von Verhaltensweisen, die durch modusspezifische Anweisungen unten erweitert werden können.\nWenn du möchtest, dass Roo in einer anderen Sprache als deiner Editor-Anzeigesprache ({{language}}) denkt und spricht, kannst du das hier angeben.",
+		"description": "Diese Anweisungen gelten für alle Modi. Sie bieten einen grundlegenden Satz von Verhaltensweisen, die durch modusspezifische Anweisungen unten erweitert werden können. <0>Mehr erfahren</0>",
 		"loadFromFile": "Anweisungen können auch aus dem Ordner <span>.roo/rules/</span> in deinem Arbeitsbereich geladen werden (.roorules und .clinerules sind veraltet und werden bald nicht mehr funktionieren)."
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Erweitert: System-Prompt überschreiben",
-		"description": "Du kannst den System-Prompt für diesen Modus vollständig ersetzen (abgesehen von der Rollendefinition und benutzerdefinierten Anweisungen), indem du eine Datei unter <span>.roo/system-prompt-{{slug}}</span> in deinem Arbeitsbereich erstellst. Dies ist eine sehr fortgeschrittene Funktion, die eingebaute Schutzmaßnahmen und Konsistenzprüfungen umgeht (besonders bei der Werkzeugnutzung), also sei vorsichtig!"
+		"description": "<2>⚠️ Warnung:</2> Diese erweiterte Funktion umgeht Sicherheitsvorkehrungen. <1>LESEN SIE DIES VOR DER VERWENDUNG!</1>Überschreiben Sie den Standard-System-Prompt, indem Sie eine Datei unter <span>.roo/system-prompt-{{slug}}</span> erstellen."
 	},
 	"createModeDialog": {
 		"title": "Neuen Modus erstellen",

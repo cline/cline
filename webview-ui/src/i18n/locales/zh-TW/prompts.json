@@ -7,7 +7,7 @@
 		"editModesConfig": "編輯模式設定",
 		"editGlobalModes": "編輯全域模式",
 		"editProjectModes": "編輯專案模式 (.roomodes)",
-		"createModeHelpText": "點選 + 建立新的自訂模式，或者在聊天中直接請 Roo 為您建立！",
+		"createModeHelpText": "模式是 Roo 的專屬角色，用於客製化其行為。<0>了解如何使用模式</0>或<1>自訂模式。</1>",
 		"selectMode": "搜尋模式"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "所有模式的自訂指令",
-		"description": "這些指令適用於所有模式。它們提供了一組基本行為，可以透過下方的模式專屬自訂指令來強化。\n如果您希望 Roo 使用與編輯器顯示語言 ({{language}}) 不同的語言來思考和對話，您可以在這裡指定。",
+		"description": "這些指令適用於所有模式。它們提供了一組基本行為，可以透過下方的模式專屬自訂指令來強化。<0>了解更多</0>",
 		"loadFromFile": "指令也可以從工作區的 <span>.roo/rules/</span> 資料夾載入（.roorules 和 .clinerules 已棄用並將很快停止運作）。"
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "進階：覆寫系統提示詞",
-		"description": "您可以透過在工作區建立檔案 <span>.roo/system-prompt-{{slug}}</span> 來完全替換此模式的系統提示詞（角色定義和自訂指令除外）。這是一個非常進階的功能，會繞過內建的安全措施和一致性檢查（尤其是與工具使用相關的檢查），請謹慎使用！"
+		"description": "<2>⚠️ 警告：</2> 此進階功能會略過安全防護。<1>使用前請閱讀！</1>透過在您的工作區中建立檔案 <span>.roo/system-prompt-{{slug}}</span> 來覆寫預設的系統提示詞。"
 	},
 	"createModeDialog": {
 		"title": "建立新模式",

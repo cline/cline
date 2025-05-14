@@ -24,7 +24,7 @@
 		"providers": "提供商",
 		"autoApprove": "自动批准",
 		"browser": "计算机交互",
-		"checkpoints": "检查点",
+		"checkpoints": "存档点",
 		"notifications": "通知",
 		"contextManagement": "上下文",
 		"terminal": "终端",
@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "配置文件",
 		"providerDocumentation": "{{provider}} 文档",
+		"configProfile": "配置文件",
 		"description": "保存多组API配置便于快速切换",
 		"apiProvider": "API提供商",
 		"model": "模型",
@@ -106,6 +106,8 @@
 		"openRouterApiKey": "OpenRouter API 密钥",
 		"getOpenRouterApiKey": "获取 OpenRouter API 密钥",
 		"apiKeyStorageNotice": "API 密钥安全存储在 VSCode 的密钥存储中",
+		"glamaApiKey": "Glama API 密钥",
+		"getGlamaApiKey": "获取 Glama API 密钥",
 		"useCustomBaseUrl": "使用自定义基础 URL",
 		"useHostHeader": "使用自定义 Host 标头",
 		"useLegacyFormat": "使用传统 OpenAI API 格式",
@@ -113,14 +115,12 @@
 		"headerName": "标头名称",
 		"headerValue": "标头值",
 		"noCustomHeaders": "暂无自定义标头。点击 + 按钮添加。",
-		"glamaApiKey": "Glama API 密钥",
-		"getGlamaApiKey": "获取 Glama API 密钥",
 		"requestyApiKey": "Requesty API 密钥",
-		"getRequestyApiKey": "获取 Requesty API 密钥",
 		"refreshModels": {
 			"label": "刷新模型",
 			"hint": "请重新打开设置以查看最新模型。"
 		},
+		"getRequestyApiKey": "获取 Requesty API 密钥",
 		"openRouterTransformsText": "自动压缩提示词和消息链到上下文长度限制内 (<a>OpenRouter转换</a>)",
 		"anthropicApiKey": "Anthropic API 密钥",
 		"getAnthropicApiKey": "获取 Anthropic API 密钥",
@@ -239,7 +239,7 @@
 			"resetDefaults": "重置为默认值"
 		},
 		"rateLimitSeconds": {
-			"label": "请求频率限制",
+			"label": "API 请求频率限制",
 			"description": "设置API请求的最小间隔时间"
 		},
 		"reasoningEffort": {
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "启用浏览器工具",
-			"description": "启用后，若模型支持计算机功能调用，Roo 可以使用浏览器与网站交互。"
+			"description": "启用后，若模型支持计算机功能调用，Roo 可以使用浏览器与网站交互。 <0>了解更多</0>"
 		},
 		"viewport": {
 			"label": "视口大小",
@@ -280,8 +280,8 @@
 	},
 	"checkpoints": {
 		"enable": {
-			"label": "启用自动检查点",
-			"description": "开启后自动创建任务检查点，方便回溯修改。"
+			"label": "启用自动存档点",
+			"description": "开启后自动创建任务存档点，方便回溯修改。 <0>了解更多</0>"
 		}
 	},
 	"notifications": {
@@ -312,7 +312,7 @@
 		},
 		"maxReadFile": {
 			"label": "文件读取自动截断阈值",
-			"description": "自动读取文件行数设置：-1=完整读取 0=仅生成行号索引，较小值可节省token，支持后续使用行号进行读取。",
+			"description": "自动读取文件行数设置：-1=完整读取 0=仅生成行号索引，较小值可节省token，支持后续使用行号进行读取。 <0>了解更多</0>",
 			"lines": "行",
 			"always_full_read": "始终读取整个文件"
 		}
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "终端输出限制",
-			"description": "执行命令时在终端输出中包含的最大行数。超过时将从中间删除行，节省 token。"
+			"description": "执行命令时在终端输出中包含的最大行数。超过时将从中间删除行，节省 token。 <0>了解更多</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "终端初始化等待时间",
-			"description": "执行命令前等待 Shell 集成初始化的最长时间。对于 Shell 启动时间较长的用户，如果在终端中看到\"Shell Integration Unavailable\"错误，可能需要增加此值。"
+			"description": "执行命令前等待 Shell 集成初始化的最长时间。对于 Shell 启动时间较长的用户，如果在终端中看到\"Shell Integration Unavailable\"错误，可能需要增加此值。 <0>了解更多</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "禁用终端 Shell 集成",
-			"description": "如果终端命令无法正常工作或看到 'Shell Integration Unavailable' 错误，请启用此项。这将使用更简单的方法运行命令，绕过一些高级终端功能。"
-		},
-		"compressProgressBar": {
-			"label": "压缩进度条输出",
-			"description": "启用后，将处理包含回车符 (\\r) 的终端输出，模拟真实终端显示内容的方式。这会移除进度条的中间状态，只保留最终状态，为更重要的信息节省上下文空间。"
-		},
-		"zdotdir": {
-			"label": "启用 ZDOTDIR 处理",
-			"description": "启用后将创建临时目录用于 ZDOTDIR，以正确处理 zsh shell 集成。这确保 VSCode shell 集成能与 zsh 正常工作，同时保留您的 zsh 配置。（实验性）"
+			"description": "如果终端命令无法正常工作或看到 'Shell Integration Unavailable' 错误，请启用此项。这将使用更简单的方法运行命令，绕过一些高级终端功能。 <0>了解更多</0>"
 		},
 		"commandDelay": {
 			"label": "终端命令延迟",
-			"description": "命令执行后添加的延迟时间（毫秒）。默认设置为 0 时完全禁用延迟。这可以帮助确保在有计时问题的终端中完全捕获命令输出。在大多数终端中，这是通过设置 `PROMPT_COMMAND='sleep N'` 实现的，而 PowerShell 会在每个命令末尾添加 `start-sleep`。最初是为了解决 VSCode 错误#237208，现在可能不再需要。"
+			"description": "命令执行后添加的延迟时间（毫秒）。默认设置为 0 时完全禁用延迟。这可以帮助确保在有计时问题的终端中完全捕获命令输出。在大多数终端中，这是通过设置 `PROMPT_COMMAND='sleep N'` 实现的，而 PowerShell 会在每个命令末尾添加 `start-sleep`。最初是为了解决 VSCode 错误#237208，现在可能不再需要。 <0>了解更多</0>"
+		},
+		"compressProgressBar": {
+			"label": "压缩进度条输出",
+			"description": "启用后，将处理包含回车符 (\\r) 的终端输出，模拟真实终端显示内容的方式。这会移除进度条的中间状态，只保留最终状态，为更重要的信息节省上下文空间。 <0>了解更多</0>"
 		},
 		"powershellCounter": {
 			"label": "启用 PowerShell 计数器解决方案",
-			"description": "启用后，会在 PowerShell 命令中添加计数器以确保命令正确执行。这有助于解决可能存在输出捕获问题的 PowerShell 终端。"
+			"description": "启用后，会在 PowerShell 命令中添加计数器以确保命令正确执行。这有助于解决可能存在输出捕获问题的 PowerShell 终端。 <0>了解更多</0>"
 		},
 		"zshClearEolMark": {
 			"label": "清除 ZSH 行尾标记",
-			"description": "启用后，通过设置 PROMPT_EOL_MARK='' 清除 ZSH 行尾标记。这可以防止命令输出以特殊字符（如 '%'）结尾时的解析问题。"
+			"description": "启用后，通过设置 PROMPT_EOL_MARK='' 清除 ZSH 行尾标记。这可以防止命令输出以特殊字符（如 '%'）结尾时的解析问题。 <0>了解更多</0>"
 		},
 		"zshOhMy": {
 			"label": "启用 Oh My Zsh 集成",
-			"description": "启用后，设置 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以启用 Oh My Zsh shell 集成功能。应用此设置可能需要重启 IDE。（实验性）"
+			"description": "启用后，设置 ITERM_SHELL_INTEGRATION_INSTALLED=Yes 以启用 Oh My Zsh shell 集成功能。应用此设置可能需要重启 IDE。 <0>了解更多</0>"
 		},
 		"zshP10k": {
 			"label": "启用 Powerlevel10k 集成",
-			"description": "启用后，设置 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以启用 Powerlevel10k shell 集成功能。（实验性）"
+			"description": "启用后，设置 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true 以启用 Powerlevel10k shell 集成功能。 <0>了解更多</0>"
+		},
+		"zdotdir": {
+			"label": "启用 ZDOTDIR 处理",
+			"description": "启用后将创建临时目录用于 ZDOTDIR，以正确处理 zsh shell 集成。这确保 VSCode shell 集成能与 zsh 正常工作，同时保留您的 zsh 配置。 <0>了解更多</0>"
 		},
 		"inheritEnv": {
 			"label": "继承环境变量",
-			"description": "启用后，终端将从 VSCode 父进程继承环境变量，如用户配置文件中定义的 shell 集成设置。这直接切换 VSCode 全局设置 `terminal.integrated.inheritEnv`"
+			"description": "启用后，终端将从 VSCode 父进程继承环境变量，如用户配置文件中定义的 shell 集成设置。这直接切换 VSCode 全局设置 `terminal.integrated.inheritEnv`。 <0>了解更多</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "如果您有任何问题或反馈，请随时在 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 上提出问题或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink>",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "允许匿名数据收集",
 			"description": "匿名收集错误报告和使用数据（不含代码/提示/个人信息），详情见隐私政策"

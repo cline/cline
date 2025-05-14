@@ -7,7 +7,7 @@
 		"editModesConfig": "Editar configuración de modos",
 		"editGlobalModes": "Editar modos globales",
 		"editProjectModes": "Editar modos del proyecto (.roomodes)",
-		"createModeHelpText": "¡Haz clic en + para crear un nuevo modo personalizado, o simplemente pídele a Roo en el chat que te cree uno!",
+		"createModeHelpText": "Los modos son personas especializadas que adaptan el comportamiento de Roo. <0>Aprende sobre el uso de modos</0> o <1>Personalización de modos.</1>",
 		"selectMode": "Buscar modos"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "Instrucciones personalizadas para todos los modos",
-		"description": "Estas instrucciones se aplican a todos los modos. Proporcionan un conjunto base de comportamientos que pueden ser mejorados por instrucciones específicas de cada modo.\nSi quieres que Roo piense y hable en un idioma diferente al idioma de visualización de tu editor ({{language}}), puedes especificarlo aquí.",
+		"description": "Estas instrucciones se aplican a todos los modos. Proporcionan un conjunto base de comportamientos que pueden ser mejorados por instrucciones específicas de cada modo a continuación. <0>Más información</0>",
 		"loadFromFile": "Las instrucciones también se pueden cargar desde la carpeta <span>.roo/rules/</span> en tu espacio de trabajo (.roorules y .clinerules están obsoletos y dejarán de funcionar pronto)."
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Avanzado: Anular solicitud del sistema",
-		"description": "Puedes reemplazar completamente la solicitud del sistema para este modo (aparte de la definición de rol e instrucciones personalizadas) creando un archivo en <span>.roo/system-prompt-{{slug}}</span> en tu espacio de trabajo. ¡Esta es una función muy avanzada que omite las salvaguardas integradas y las verificaciones de consistencia (especialmente en torno al uso de herramientas), así que ten cuidado!"
+		"description": "<2>⚠️ Advertencia:</2> Esta función avanzada omite las medidas de seguridad. <1>¡LEE ESTO ANTES DE USAR!</1>Anula la solicitud del sistema predeterminada creando un archivo en <span>.roo/system-prompt-{{slug}}</span>."
 	},
 	"createModeDialog": {
 		"title": "Crear nuevo modo",

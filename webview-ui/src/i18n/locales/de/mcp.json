@@ -1,17 +1,19 @@
 {
 	"title": "MCP-Server",
 	"done": "Fertig",
-	"description": "Das <0>Model Context Protocol</0> ermöglicht die Kommunikation mit lokal laufenden MCP-Servern, die zusätzliche Tools und Ressourcen zur Erweiterung der Fähigkeiten von Roo bereitstellen. Du kannst <1>von der Community erstellte Server</1> verwenden oder Roo bitten, neue Tools speziell für deinen Workflow zu erstellen (z.B. \"ein Tool hinzufügen, das die neueste npm-Dokumentation abruft\").",
+	"description": "Aktiviere das Model Context Protocol (MCP), damit Roo Code zusätzliche Tools und Dienste von externen Servern nutzen kann. Dies erweitert, was Roo für dich tun kann. <0>Mehr erfahren</0>",
 	"enableToggle": {
 		"title": "MCP-Server aktivieren",
-		"description": "Wenn aktiviert, kann Roo mit MCP-Servern für erweiterte Funktionen interagieren. Wenn du MCP nicht verwendest, kannst du dies deaktivieren, um den Token-Verbrauch von Roo zu reduzieren."
+		"description": "Schalte dies EIN, damit Roo Tools von verbundenen MCP-Servern verwenden kann. Dies gibt Roo mehr Möglichkeiten. Wenn du diese zusätzlichen Tools nicht verwenden möchtest, schalte es AUS, um API-Token-Kosten zu senken."
 	},
 	"enableServerCreation": {
 		"title": "MCP-Server-Erstellung aktivieren",
-		"description": "Wenn aktiviert, kann Roo dir helfen, neue MCP-Server über Befehle wie \"neues Tool hinzufügen zu...\" zu erstellen. Wenn du keine MCP-Server erstellen musst, kannst du dies deaktivieren, um den Token-Verbrauch von Roo zu reduzieren."
+		"description": "Aktiviere dies, damit Roo dir helfen kann, <1>neue</1> benutzerdefinierte MCP-Server zu erstellen. <0>Erfahre mehr über Server-Erstellung</0>",
+		"hint": "Hinweis: Um API-Token-Kosten zu senken, deaktiviere diese Einstellung, wenn du Roo nicht aktiv darum bittest, einen neuen MCP-Server zu erstellen."
 	},
-	"editGlobalMCP": "Globales MCP bearbeiten",
+	"editGlobalMCP": "Globale MCP bearbeiten",
 	"editProjectMCP": "Projekt-MCP bearbeiten",
+	"learnMoreEditingSettings": "Mehr über das Bearbeiten von MCP-Einstellungsdateien erfahren",
 	"tool": {
 		"alwaysAllow": "Immer erlauben",
 		"parameters": "Parameter",
@@ -25,7 +27,7 @@
 	"emptyState": {
 		"noTools": "Keine Tools gefunden",
 		"noResources": "Keine Ressourcen gefunden",
-		"noLogs": "Keine Logs gefunden",
+		"noLogs": "Keine Protokolle gefunden",
 		"noErrors": "Keine Fehler gefunden"
 	},
 	"networkTimeout": {
@@ -50,6 +52,6 @@
 	},
 	"serverStatus": {
 		"retrying": "Wiederhole...",
-		"retryConnection": "Verbindung wiederherstellen"
+		"retryConnection": "Verbindung wiederholen"
 	}
 }

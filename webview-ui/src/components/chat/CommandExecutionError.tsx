@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import { useTranslation, Trans } from "react-i18next"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { buildDocLink } from "../../utils/docLinks"
 
 export const CommandExecutionError = () => {
 	const { t } = useTranslation()
@@ -28,7 +29,7 @@ export const CommandExecutionError = () => {
 					/>
 				</div>
 				<a
-					href="http://docs.roocode.com/troubleshooting/shell-integration/"
+					href={buildDocLink("troubleshooting/shell-integration/", "error_tooltip")}
 					className="underline"
 					style={{ color: "inherit" }}>
 					{t("chat:shellIntegration.troubleshooting")}

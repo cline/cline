@@ -7,7 +7,7 @@
 		"editModesConfig": "Modusconfiguratie bewerken",
 		"editGlobalModes": "Globale modi bewerken",
 		"editProjectModes": "Projectmodi bewerken (.roomodes)",
-		"createModeHelpText": "Klik op + om een nieuwe aangepaste modus te maken, of vraag Roo in de chat om er een voor je te maken!",
+		"createModeHelpText": "Modi zijn gespecialiseerde persona's die het gedrag van Roo aanpassen. <0>Meer informatie over het gebruik van modi</0> of <1>het aanpassen van modi.</1>",
 		"selectMode": "Modus zoeken"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "Aangepaste instructies voor alle modi",
-		"description": "Deze instructies gelden voor alle modi. Ze bieden een basisset aan gedragingen die kunnen worden uitgebreid met modusspecifieke instructies hieronder.\nWil je dat Roo in een andere taal denkt en spreekt dan de weergavetaal van je editor ({{language}}), dan kun je dat hier aangeven.",
+		"description": "Deze instructies gelden voor alle modi. Ze bieden een basisset aan gedragingen die kunnen worden uitgebreid met modusspecifieke instructies hieronder. <0>Meer informatie</0>",
 		"loadFromFile": "Instructies kunnen ook worden geladen uit de map <span>.roo/rules/</span> in je werkruimte (.roorules en .clinerules zijn verouderd en werken binnenkort niet meer)."
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Geavanceerd: Systeemprompt overschrijven",
-		"description": "Je kunt de systeemprompt voor deze modus volledig vervangen (behalve de roldefinitie en aangepaste instructies) door een bestand aan te maken op <span>.roo/system-prompt-{{slug}}</span> in je werkruimte. Dit is een zeer geavanceerde functie die ingebouwde beveiligingen en consistentiecontroles omzeilt (vooral rond toolgebruik), dus wees voorzichtig!"
+		"description": "<2>⚠️ Waarschuwing:</2> Deze geavanceerde functie omzeilt beveiligingen. <1>LEES DIT VOOR GEBRUIK!</1>Overschrijf de standaard systeemprompt door een bestand aan te maken op <span>.roo/system-prompt-{{slug}}</span>."
 	},
 	"createModeDialog": {
 		"title": "Nieuwe modus aanmaken",

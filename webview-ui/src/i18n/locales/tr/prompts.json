@@ -7,7 +7,7 @@
 		"editModesConfig": "Mod yapılandırmasını düzenle",
 		"editGlobalModes": "Global modları düzenle",
 		"editProjectModes": "Proje modlarını düzenle (.roomodes)",
-		"createModeHelpText": "Yeni bir özel mod oluşturmak için + düğmesine tıklayın veya sohbette Roo'dan sizin için bir tane oluşturmasını isteyin!",
+		"createModeHelpText": "Modlar, Roo'nun davranışını uyarlayan özel kişiliklerdir. <0>Modları Kullanma Hakkında Bilgi Edinin</0> veya <1>Modları Özelleştirme.</1>",
 		"selectMode": "Modları Ara"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "Tüm Modlar için Özel Talimatlar",
-		"description": "Bu talimatlar tüm modlara uygulanır. Aşağıdaki moda özgü talimatlarla geliştirilebilen temel davranış seti sağlarlar.\nRoo'nun editörünüzün görüntüleme dilinden ({{language}}) farklı bir dilde düşünmesini ve konuşmasını istiyorsanız, burada belirtebilirsiniz.",
+		"description": "Bu talimatlar tüm modlara uygulanır. Aşağıdaki moda özgü talimatlarla geliştirilebilen temel davranış seti sağlarlar. <0>Daha fazla bilgi edinin</0>",
 		"loadFromFile": "Talimatlar ayrıca çalışma alanınızdaki <span>.roo/rules/</span> klasöründen de yüklenebilir (.roorules ve .clinerules kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaklardır)."
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Gelişmiş: Sistem Promptunu Geçersiz Kıl",
-		"description": "Çalışma alanınızda <span>.roo/system-prompt-{{slug}}</span> adresinde bir dosya oluşturarak bu mod için sistem istemini tamamen değiştirebilirsiniz (rol tanımı ve özel talimatlar hariç). Bu, yerleşik güvenlik önlemlerini ve tutarlılık kontrollerini (özellikle araç kullanımıyla ilgili) aşan çok gelişmiş bir özelliktir, bu yüzden dikkatli olun!"
+		"description": "<2>⚠️ Uyarı:</2> Bu gelişmiş özellik güvenlik önlemlerini atlar. <1>KULLANMADAN ÖNCE BUNU OKUYUN!</1>Çalışma alanınızda <span>.roo/system-prompt-{{slug}}</span> adresinde bir dosya oluşturarak varsayılan sistem istemini geçersiz kılın."
 	},
 	"createModeDialog": {
 		"title": "Yeni Mod Oluştur",

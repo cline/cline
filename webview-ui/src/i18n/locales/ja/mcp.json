@@ -1,20 +1,22 @@
 {
 	"title": "MCPサーバー",
 	"done": "完了",
-	"description": "<0>Model Context Protocol</0>は、ローカルで実行されているMCPサーバーとの通信を可能にし、Rooの機能を拡張するための追加ツールやリソースを提供します。<1>コミュニティによって作成されたサーバー</1>を使用したり、Rooにワークフロー専用の新しいツールを作成するよう依頼したりできます（例：「最新のnpmドキュメントを取得するツールを追加する」）。",
+	"description": "Model Context Protocol (MCP) を有効にすると、Roo Code が外部サーバーから追加のツールやサービスを利用できるようになります。これで Roo ができることが広がるよ。<0>詳細はこちら</0>",
 	"enableToggle": {
-		"title": "MCPサーバーを有効にする",
-		"description": "有効にすると、Rooは高度な機能のためにMCPサーバーと対話できるようになります。MCPを使用していない場合は、これを無効にしてRooのtoken使用量を減らすことができます。"
+		"title": "MCPサーバーを有効化",
+		"description": "これをONにすると、Rooが接続されたMCPサーバーのツールを使えるようになるよ。Rooの機能が増える！追加ツールを使わないなら、APIトークンのコストを抑えるためにOFFにしてね。"
 	},
 	"enableServerCreation": {
-		"title": "MCPサーバー作成を有効にする",
-		"description": "有効にすると、Rooは「新しいツールを追加する...」などのコマンドを通じて新しいMCPサーバーの作成を支援できます。MCPサーバーを作成する必要がない場合は、これを無効にしてRooのtoken使用量を減らすことができます。"
+		"title": "MCPサーバー作成を有効化",
+		"description": "これをONにすると、Rooが<1>新しい</1>カスタムMCPサーバーを作るのを手伝ってくれるよ。<0>サーバー作成について詳しく</0>",
+		"hint": "ヒント: APIトークンのコストを抑えたいときは、Rooに新しいMCPサーバーを作らせないときにこの設定をOFFにしてね。"
 	},
 	"editGlobalMCP": "グローバルMCPを編集",
 	"editProjectMCP": "プロジェクトMCPを編集",
+	"learnMoreEditingSettings": "MCP設定ファイルの編集方法を詳しく見る",
 	"tool": {
 		"alwaysAllow": "常に許可",
-		"parameters": "パラメータ",
+		"parameters": "パラメーター",
 		"noDescription": "説明なし"
 	},
 	"tabs": {
@@ -30,7 +32,7 @@
 	},
 	"networkTimeout": {
 		"label": "ネットワークタイムアウト",
-		"description": "サーバー応答を待つ最大時間",
+		"description": "サーバー応答の最大待機時間",
 		"options": {
 			"15seconds": "15秒",
 			"30seconds": "30秒",
@@ -44,12 +46,12 @@
 	},
 	"deleteDialog": {
 		"title": "MCPサーバーを削除",
-		"description": "MCPサーバー「{{serverName}}」を削除してもよろしいですか？この操作は元に戻せません。",
+		"description": "本当にMCPサーバー「{{serverName}}」を削除する？この操作は元に戻せないよ。",
 		"cancel": "キャンセル",
 		"delete": "削除"
 	},
 	"serverStatus": {
 		"retrying": "再試行中...",
-		"retryConnection": "接続を再試行"
+		"retryConnection": "再接続"
 	}
 }

@@ -7,7 +7,7 @@
 		"editModesConfig": "Editar configuração de modos",
 		"editGlobalModes": "Editar modos globais",
 		"editProjectModes": "Editar modos do projeto (.roomodes)",
-		"createModeHelpText": "Clique em + para criar um novo modo personalizado, ou simplesmente peça ao Roo no chat para criar um para você!",
+		"createModeHelpText": "Modos são personas especializadas que adaptam o comportamento do Roo. <0>Saiba mais sobre o uso de modos</0> ou <1>Personalização de modos.</1>",
 		"selectMode": "Buscar modos"
 	},
 	"apiConfiguration": {
@@ -43,11 +43,11 @@
 		"title": "Instruções personalizadas específicas do modo (opcional)",
 		"resetToDefault": "Restaurar para padrão",
 		"description": "Adicione diretrizes comportamentais específicas para o modo {{modeName}}.",
-		"loadFromFile": "Instruções personalizadas específicas para o modo {{modeName}} também podem ser carregadas da pasta <span>.roo/rules-{{modeSlug}}/</span> no seu espaço de trabalho (.roorules-{{modeSlug}} e .clinerules-{{modeSlug}} estão obsoletos e deixarão de funcionar em breve)."
+		"loadFromFile": "Instruções personalizadas específicas para o modo {{mode}} também podem ser carregadas da pasta <span>.roo/rules-{{slug}}/</span> no seu espaço de trabalho (.roorules-{{slug}} e .clinerules-{{slug}} estão obsoletos e deixarão de funcionar em breve)."
 	},
 	"globalCustomInstructions": {
 		"title": "Instruções personalizadas para todos os modos",
-		"description": "Estas instruções se aplicam a todos os modos. Elas fornecem um conjunto base de comportamentos que podem ser aprimorados por instruções específicas do modo abaixo.\nSe você desejar que o Roo pense e fale em um idioma diferente do idioma de exibição do seu editor ({{language}}), você pode especificá-lo aqui.",
+		"description": "Estas instruções se aplicam a todos os modos. Elas fornecem um conjunto base de comportamentos que podem ser aprimorados por instruções específicas do modo abaixo. <0>Saiba mais</0>",
 		"loadFromFile": "As instruções também podem ser carregadas da pasta <span>.roo/rules/</span> no seu espaço de trabalho (.roorules e .clinerules estão obsoletos e deixarão de funcionar em breve)."
 	},
 	"systemPrompt": {
@@ -81,7 +81,7 @@
 			},
 			"IMPROVE": {
 				"label": "Melhorar Código",
-				"description": "Receba sugestões para otimização de código, melhores práticas e melhorias arquitetônicas mantendo a funcionalidade. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique direito no código selecionado)."
+				"description": "Receba sugestões para otimização de código, melhores práticas e melhorias arquitetônicas mantendo la funcionalidade. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique direito no código selecionado)."
 			},
 			"ADD_TO_CONTEXT": {
 				"label": "Adicionar ao Contexto",
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Avançado: Substituir prompt do sistema",
-		"description": "Você pode substituir completamente o prompt do sistema para este modo (além da definição de função e instruções personalizadas) criando um arquivo em .roo/system-prompt-{{modeSlug}} no seu espaço de trabalho. Esta é uma funcionalidade muito avançada que contorna as salvaguardas integradas e verificações de consistência (especialmente em torno do uso de ferramentas), então tenha cuidado!"
+		"description": "<2>⚠️ Aviso:</2> Este recurso avançado ignora as proteções. <1>LEIA ISTO ANTES DE USAR!</1>Substitua o prompt do sistema padrão criando um arquivo em <span>.roo/system-prompt-{{slug}}</span>."
 	},
 	"createModeDialog": {
 		"title": "Criar novo modo",

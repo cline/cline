@@ -1,17 +1,19 @@
 {
 	"title": "MCP-servers",
-	"done": "Gereed",
-	"description": "Het <0>Model Context Protocol</0> maakt communicatie mogelijk met lokaal draaiende MCP-servers die extra tools en bronnen bieden om Roo's mogelijkheden uit te breiden. Je kunt <1>community-servers</1> gebruiken of Roo vragen om nieuwe tools te maken die specifiek zijn voor jouw workflow (bijv. 'voeg een tool toe die de nieuwste npm-documentatie ophaalt').",
+	"done": "Klaar",
+	"description": "Schakel het Model Context Protocol (MCP) in zodat Roo Code extra tools en diensten van externe servers kan gebruiken. Zo kan Roo meer voor je doen. <0>Meer informatie</0>",
 	"enableToggle": {
 		"title": "MCP-servers inschakelen",
-		"description": "Indien ingeschakeld, kan Roo communiceren met MCP-servers voor geavanceerde functionaliteit. Gebruik je geen MCP, dan kun je dit uitschakelen om het tokengebruik te verminderen."
+		"description": "Zet dit AAN zodat Roo tools van verbonden MCP-servers kan gebruiken. Dit geeft Roo meer mogelijkheden. Gebruik je deze extra tools niet, zet het dan UIT om API-tokenkosten te besparen."
 	},
 	"enableServerCreation": {
-		"title": "Aanmaken van MCP-server inschakelen",
-		"description": "Indien ingeschakeld, kan Roo je helpen nieuwe MCP-servers te maken via commando's zoals 'voeg een nieuwe tool toe aan...'. Heb je dit niet nodig, schakel het dan uit om het tokengebruik te verminderen."
+		"title": "MCP-server aanmaken inschakelen",
+		"description": "Schakel dit in zodat Roo je kan helpen <1>nieuwe</1> aangepaste MCP-servers te bouwen. <0>Meer over server aanmaken</0>",
+		"hint": "Tip: Zet deze instelling uit als je Roo niet actief vraagt om een nieuwe MCP-server te maken, om API-tokenkosten te besparen."
 	},
 	"editGlobalMCP": "Globale MCP bewerken",
 	"editProjectMCP": "Project-MCP bewerken",
+	"learnMoreEditingSettings": "Meer over het bewerken van MCP-instellingen",
 	"tool": {
 		"alwaysAllow": "Altijd toestaan",
 		"parameters": "Parameters",
@@ -25,12 +27,12 @@
 	"emptyState": {
 		"noTools": "Geen tools gevonden",
 		"noResources": "Geen bronnen gevonden",
-		"noLogs": "Geen logboeken gevonden",
+		"noLogs": "Geen logs gevonden",
 		"noErrors": "Geen fouten gevonden"
 	},
 	"networkTimeout": {
-		"label": "Netwerktime-out",
-		"description": "Maximale wachttijd op serverantwoorden",
+		"label": "Netwerk-timeout",
+		"description": "Maximale wachttijd op serverreacties",
 		"options": {
 			"15seconds": "15 seconden",
 			"30seconds": "30 seconden",
@@ -44,7 +46,7 @@
 	},
 	"deleteDialog": {
 		"title": "MCP-server verwijderen",
-		"description": "Weet je zeker dat je de MCP-server '{{serverName}}' wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.",
+		"description": "Weet je zeker dat je de MCP-server \"{{serverName}}\" wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.",
 		"cancel": "Annuleren",
 		"delete": "Verwijderen"
 	},

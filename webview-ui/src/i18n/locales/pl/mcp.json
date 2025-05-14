@@ -1,19 +1,21 @@
 {
 	"title": "Serwery MCP",
 	"done": "Gotowe",
-	"description": "<0>Model Context Protocol</0> umożliwia komunikację z lokalnie uruchomionymi serwerami MCP, które zapewniają dodatkowe narzędzia i zasoby rozszerzające możliwości Roo. Możesz korzystać z <1>serwerów stworzonych przez społeczność</1> lub poprosić Roo o utworzenie nowych narzędzi specyficznych dla twojego przepływu pracy (np. \"dodaj narzędzie, które pobiera najnowszą dokumentację npm\").",
+	"description": "Włącz Model Context Protocol (MCP), aby Roo Code mógł korzystać z dodatkowych narzędzi i usług z zewnętrznych serwerów. To rozszerza możliwości Roo. <0>Dowiedz się więcej</0>",
 	"enableToggle": {
 		"title": "Włącz serwery MCP",
-		"description": "Po włączeniu, Roo będzie mógł komunikować się z serwerami MCP w celu uzyskania zaawansowanych funkcji. Jeśli nie korzystasz z MCP, możesz to wyłączyć, aby zmniejszyć zużycie tokenów przez Roo."
+		"description": "Włącz to, aby Roo mógł korzystać z narzędzi połączonych serwerów MCP. Daje to Roo więcej możliwości. Jeśli nie planujesz korzystać z tych dodatkowych narzędzi, wyłącz to, aby zmniejszyć koszty tokenów API."
 	},
 	"enableServerCreation": {
 		"title": "Włącz tworzenie serwerów MCP",
-		"description": "Po włączeniu, Roo może pomóc w tworzeniu nowych serwerów MCP za pomocą poleceń takich jak \"dodaj nowe narzędzie do...\". Jeśli nie potrzebujesz tworzyć serwerów MCP, możesz to wyłączyć, aby zmniejszyć zużycie tokenów przez Roo."
+		"description": "Włącz to, aby Roo mógł pomóc ci tworzyć <1>nowe</1> niestandardowe serwery MCP. <0>Dowiedz się więcej o tworzeniu serwerów</0>",
+		"hint": "Wskazówka: Aby zmniejszyć koszty tokenów API, wyłącz tę opcję, gdy nie prosisz Roo o utworzenie nowego serwera MCP."
 	},
-	"editGlobalMCP": "Edytuj globalne MCP",
-	"editProjectMCP": "Edytuj projektowe MCP",
+	"editGlobalMCP": "Edytuj globalny MCP",
+	"editProjectMCP": "Edytuj MCP projektu",
+	"learnMoreEditingSettings": "Dowiedz się więcej o edycji plików ustawień MCP",
 	"tool": {
-		"alwaysAllow": "Zawsze zezwalaj",
+		"alwaysAllow": "Zawsze pozwalaj",
 		"parameters": "Parametry",
 		"noDescription": "Brak opisu"
 	},
@@ -49,7 +51,7 @@
 		"delete": "Usuń"
 	},
 	"serverStatus": {
-		"retrying": "Ponowna próba...",
+		"retrying": "Ponawianie...",
 		"retryConnection": "Ponów połączenie"
 	}
 }

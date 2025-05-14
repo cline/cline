@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "Yapılandırma Profili",
 		"providerDocumentation": "{{provider}} Dokümantasyonu",
+		"configProfile": "Yapılandırma Profili",
 		"description": "Sağlayıcılar ve ayarlar arasında hızlıca geçiş yapmak için farklı API yapılandırmalarını kaydedin.",
 		"apiProvider": "API Sağlayıcı",
 		"model": "Model",
@@ -116,11 +116,11 @@
 		"headerValue": "Başlık değeri",
 		"noCustomHeaders": "Tanımlanmış özel başlık yok. Eklemek için + düğmesine tıklayın.",
 		"requestyApiKey": "Requesty API Anahtarı",
-		"getRequestyApiKey": "Requesty API Anahtarı Al",
 		"refreshModels": {
 			"label": "Modelleri Yenile",
 			"hint": "En son modelleri görmek için lütfen ayarları yeniden açın."
 		},
+		"getRequestyApiKey": "Requesty API Anahtarı Al",
 		"openRouterTransformsText": "İstem ve mesaj zincirlerini bağlam boyutuna sıkıştır (<a>OpenRouter Dönüşümleri</a>)",
 		"anthropicApiKey": "Anthropic API Anahtarı",
 		"getAnthropicApiKey": "Anthropic API Anahtarı Al",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "Tarayıcı aracını etkinleştir",
-			"description": "Etkinleştirildiğinde, Roo bilgisayar kullanımını destekleyen modeller kullanırken web siteleriyle etkileşim kurmak için bir tarayıcı kullanabilir."
+			"description": "Etkinleştirildiğinde, Roo bilgisayar kullanımını destekleyen modeller kullanırken web siteleriyle etkileşim kurmak için bir tarayıcı kullanabilir. <0>Daha fazla bilgi</0>"
 		},
 		"viewport": {
 			"label": "Görünüm alanı boyutu",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "Otomatik kontrol noktalarını etkinleştir",
-			"description": "Etkinleştirildiğinde, Roo görev yürütme sırasında otomatik olarak kontrol noktaları oluşturarak değişiklikleri gözden geçirmeyi veya önceki durumlara dönmeyi kolaylaştırır."
+			"description": "Etkinleştirildiğinde, Roo görev yürütme sırasında otomatik olarak kontrol noktaları oluşturarak değişiklikleri gözden geçirmeyi veya önceki durumlara dönmeyi kolaylaştırır. <0>Daha fazla bilgi</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "Terminal çıktısı sınırı",
-			"description": "Komutları yürütürken terminal çıktısına dahil edilecek maksimum satır sayısı. Aşıldığında, token tasarrufu sağlayarak satırlar ortadan kaldırılacaktır."
+			"description": "Komutları yürütürken terminal çıktısına dahil edilecek maksimum satır sayısı. Aşıldığında, token tasarrufu sağlayarak satırlar ortadan kaldırılacaktır. <0>Daha fazla bilgi</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "Terminal kabuk entegrasyonu zaman aşımı",
-			"description": "Komutları yürütmeden önce kabuk entegrasyonunun başlatılması için beklenecek maksimum süre. Kabuk başlatma süresi uzun olan kullanıcılar için, terminalde \"Shell Integration Unavailable\" hatalarını görürseniz bu değerin artırılması gerekebilir."
+			"description": "Komutları yürütmeden önce kabuk entegrasyonunun başlatılması için beklenecek maksimum süre. Kabuk başlatma süresi uzun olan kullanıcılar için, terminalde \"Shell Integration Unavailable\" hatalarını görürseniz bu değerin artırılması gerekebilir. <0>Daha fazla bilgi</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "Terminal kabuk entegrasyonunu devre dışı bırak",
-			"description": "Terminal komutları düzgün çalışmıyorsa veya 'Shell Integration Unavailable' hataları görüyorsanız bunu etkinleştirin. Bu, bazı gelişmiş terminal özelliklerini atlayarak komutları çalıştırmak için daha basit bir yöntem kullanır."
-		},
-		"compressProgressBar": {
-			"label": "İlerleme çubuğu çıktısını sıkıştır",
-			"description": "Etkinleştirildiğinde, satır başı karakteri (\\r) içeren terminal çıktısını işleyerek gerçek bir terminalin içeriği nasıl göstereceğini simüle eder. Bu, ilerleme çubuğunun ara durumlarını kaldırır, yalnızca son durumu korur ve daha alakalı bilgiler için bağlam alanından tasarruf sağlar."
-		},
-		"zdotdir": {
-			"label": "ZDOTDIR işlemeyi etkinleştir",
-			"description": "Etkinleştirildiğinde, zsh kabuğu entegrasyonunu düzgün şekilde işlemek için ZDOTDIR için geçici bir dizin oluşturur. Bu, zsh yapılandırmanızı korurken VSCode kabuk entegrasyonunun zsh ile düzgün çalışmasını sağlar. (deneysel)"
+			"description": "Terminal komutları düzgün çalışmıyorsa veya 'Shell Integration Unavailable' hataları görüyorsanız bunu etkinleştirin. Bu, bazı gelişmiş terminal özelliklerini atlayarak komutları çalıştırmak için daha basit bir yöntem kullanır. <0>Daha fazla bilgi</0>"
 		},
 		"commandDelay": {
 			"label": "Terminal komut gecikmesi",
-			"description": "Komut yürütmesinden sonra eklenecek gecikme süresi (milisaniye). 0 varsayılan ayarı gecikmeyi tamamen devre dışı bırakır. Bu, zamanlama sorunları olan terminallerde komut çıktısının tam olarak yakalanmasını sağlamaya yardımcı olabilir. Çoğu terminalde bu, `PROMPT_COMMAND='sleep N'` ayarlanarak uygulanır ve PowerShell her komutun sonuna `start-sleep` ekler. Başlangıçta VSCode hata#237208 için bir geçici çözümdü ve gerekli olmayabilir."
+			"description": "Komut yürütmesinden sonra eklenecek gecikme süresi (milisaniye). 0 varsayılan ayarı gecikmeyi tamamen devre dışı bırakır. Bu, zamanlama sorunları olan terminallerde komut çıktısının tam olarak yakalanmasını sağlamaya yardımcı olabilir. Çoğu terminalde bu, `PROMPT_COMMAND='sleep N'` ayarlanarak uygulanır ve PowerShell her komutun sonuna `start-sleep` ekler. Başlangıçta VSCode hata#237208 için bir geçici çözümdü ve gerekli olmayabilir. <0>Daha fazla bilgi</0>"
+		},
+		"compressProgressBar": {
+			"label": "İlerleme çubuğu çıktısını sıkıştır",
+			"description": "Etkinleştirildiğinde, satır başı karakteri (\\r) içeren terminal çıktısını işleyerek gerçek bir terminalin içeriği nasıl göstereceğini simüle eder. Bu, ilerleme çubuğunun ara durumlarını kaldırır, yalnızca son durumu korur ve daha alakalı bilgiler için bağlam alanından tasarruf sağlar. <0>Daha fazla bilgi</0>"
 		},
 		"powershellCounter": {
 			"label": "PowerShell sayaç geçici çözümünü etkinleştir",
-			"description": "Etkinleştirildiğinde, komutların doğru şekilde yürütülmesini sağlamak için PowerShell komutlarına bir sayaç ekler. Bu, çıktı yakalama sorunları yaşayabilecek PowerShell terminallerinde yardımcı olur."
+			"description": "Etkinleştirildiğinde, komutların doğru şekilde yürütülmesini sağlamak için PowerShell komutlarına bir sayaç ekler. Bu, çıktı yakalama sorunları yaşayabilecek PowerShell terminallerinde yardımcı olur. <0>Daha fazla bilgi</0>"
 		},
 		"zshClearEolMark": {
 			"label": "ZSH satır sonu işaretini temizle",
-			"description": "Etkinleştirildiğinde, PROMPT_EOL_MARK='' ayarlanarak ZSH satır sonu işaretini temizler. Bu, '%' gibi özel karakterlerle biten komut çıktılarının yorumlanmasında sorun yaşanmasını önler."
+			"description": "Etkinleştirildiğinde, PROMPT_EOL_MARK='' ayarlanarak ZSH satır sonu işaretini temizler. Bu, '%' gibi özel karakterlerle biten komut çıktılarının yorumlanmasında sorun yaşanmasını önler. <0>Daha fazla bilgi</0>"
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh entegrasyonunu etkinleştir",
-			"description": "Etkinleştirildiğinde, Oh My Zsh kabuk entegrasyon özelliklerini etkinleştirmek için ITERM_SHELL_INTEGRATION_INSTALLED=Yes ayarlar. Bu ayarın uygulanması IDE'nin yeniden başlatılmasını gerektirebilir. (deneysel)"
+			"description": "Etkinleştirildiğinde, Oh My Zsh kabuk entegrasyon özelliklerini etkinleştirmek için ITERM_SHELL_INTEGRATION_INSTALLED=Yes ayarlar. Bu ayarın uygulanması IDE'nin yeniden başlatılmasını gerektirebilir. <0>Daha fazla bilgi</0>"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k entegrasyonunu etkinleştir",
-			"description": "Etkinleştirildiğinde, Powerlevel10k kabuk entegrasyon özelliklerini etkinleştirmek için POWERLEVEL9K_TERM_SHELL_INTEGRATION=true ayarlar. (deneysel)"
+			"description": "Etkinleştirildiğinde, Powerlevel10k kabuk entegrasyon özelliklerini etkinleştirmek için POWERLEVEL9K_TERM_SHELL_INTEGRATION=true ayarlar. <0>Daha fazla bilgi</0>"
+		},
+		"zdotdir": {
+			"label": "ZDOTDIR işlemeyi etkinleştir",
+			"description": "Etkinleştirildiğinde, zsh kabuğu entegrasyonunu düzgün şekilde işlemek için ZDOTDIR için geçici bir dizin oluşturur. Bu, zsh yapılandırmanızı korurken VSCode kabuk entegrasyonunun zsh ile düzgün çalışmasını sağlar. <0>Daha fazla bilgi</0>"
 		},
 		"inheritEnv": {
 			"label": "Ortam değişkenlerini devral",
-			"description": "Etkinleştirildiğinde, terminal VSCode üst işleminden ortam değişkenlerini devralır, örneğin kullanıcı profilinde tanımlanan kabuk entegrasyon ayarları gibi. Bu, VSCode'un global ayarı olan `terminal.integrated.inheritEnv` değerini doğrudan değiştirir"
+			"description": "Etkinleştirildiğinde, terminal VSCode üst işleminden ortam değişkenlerini devralır, örneğin kullanıcı profilinde tanımlanan kabuk entegrasyon ayarları gibi. Bu, VSCode'un global ayarı olan `terminal.integrated.inheritEnv` değerini doğrudan değiştirir. <0>Daha fazla bilgi</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "Herhangi bir sorunuz veya geri bildiriminiz varsa, <githubLink>github.com/RooVetGit/Roo-Code</githubLink> adresinde bir konu açmaktan veya <redditLink>reddit.com/r/RooCode</redditLink> ya da <discordLink>discord.gg/roocode</discordLink>'a katılmaktan çekinmeyin",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Anonim hata ve kullanım raporlamaya izin ver",
 			"description": "Anonim kullanım verileri ve hata raporları göndererek Roo Code'u geliştirmeye yardımcı olun. Hiçbir kod, istem veya kişisel bilgi asla gönderilmez. Daha fazla ayrıntı için gizlilik politikamıza bakın."

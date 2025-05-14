@@ -7,7 +7,7 @@
 		"editModesConfig": "Modifica configurazione modalità",
 		"editGlobalModes": "Modifica modalità globali",
 		"editProjectModes": "Modifica modalità di progetto (.roomodes)",
-		"createModeHelpText": "Clicca sul + per creare una nuova modalità personalizzata, o chiedi semplicemente a Roo nella chat di crearne una per te!",
+		"createModeHelpText": "Le modalità sono personas specializzate che personalizzano il comportamento di Roo. <0>Scopri di più sull'uso delle modalità</0> o <1>sulla personalizzazione delle modalità.</1>",
 		"selectMode": "Cerca modalità"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "Istruzioni personalizzate per tutte le modalità",
-		"description": "Queste istruzioni si applicano a tutte le modalità. Forniscono un insieme base di comportamenti che possono essere migliorati dalle istruzioni specifiche per modalità qui sotto.\nSe desideri che Roo pensi e parli in una lingua diversa dalla lingua di visualizzazione del tuo editor ({{language}}), puoi specificarlo qui.",
+		"description": "Queste istruzioni si applicano a tutte le modalità. Forniscono un insieme base di comportamenti che possono essere migliorati dalle istruzioni specifiche per modalità qui sotto. <0>Scopri di più</0>",
 		"loadFromFile": "Le istruzioni possono essere caricate anche dalla cartella <span>.roo/rules/</span> nel tuo spazio di lavoro (.roorules e .clinerules sono obsoleti e smetteranno di funzionare presto)."
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Avanzato: Sovrascrivi prompt di sistema",
-		"description": "Puoi sostituire completamente il prompt di sistema per questa modalità (a parte la definizione del ruolo e le istruzioni personalizzate) creando un file in <span>.roo/system-prompt-{{slug}}</span> nel tuo spazio di lavoro. Questa è una funzionalità molto avanzata che bypassa le protezioni integrate e i controlli di coerenza (specialmente riguardo all'uso degli strumenti), quindi fai attenzione!"
+		"description": "<2>⚠️ Attenzione:</2> Questa funzionalità avanzata bypassa le misure di sicurezza. <1>LEGGI QUESTO PRIMA DI USARE!</1>Sovrascrivi il prompt di sistema predefinito creando un file in <span>.roo/system-prompt-{{slug}}</span>."
 	},
 	"createModeDialog": {
 		"title": "Crea nuova modalità",

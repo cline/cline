@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "구성 프로필",
 		"providerDocumentation": "{{provider}} 문서",
+		"configProfile": "구성 프로필",
 		"description": "다양한 API 구성을 저장하여 제공자와 설정 간에 빠르게 전환할 수 있습니다.",
 		"apiProvider": "API 제공자",
 		"model": "모델",
@@ -116,11 +116,11 @@
 		"headerValue": "헤더 값",
 		"noCustomHeaders": "정의된 사용자 정의 헤더가 없습니다. + 버튼을 클릭하여 추가하세요.",
 		"requestyApiKey": "Requesty API 키",
-		"getRequestyApiKey": "Requesty API 키 받기",
 		"refreshModels": {
 			"label": "모델 새로고침",
 			"hint": "최신 모델을 보려면 설정을 다시 열어주세요."
 		},
+		"getRequestyApiKey": "Requesty API 키 받기",
 		"openRouterTransformsText": "프롬프트와 메시지 체인을 컨텍스트 크기로 압축 (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Anthropic API 키",
 		"getAnthropicApiKey": "Anthropic API 키 받기",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "브라우저 도구 활성화",
-			"description": "활성화되면 Roo는 컴퓨터 사용을 지원하는 모델을 사용할 때 웹사이트와 상호 작용하기 위해 브라우저를 사용할 수 있습니다."
+			"description": "활성화되면 Roo는 컴퓨터 사용을 지원하는 모델을 사용할 때 웹사이트와 상호 작용하기 위해 브라우저를 사용할 수 있습니다. <0>더 알아보기</0>"
 		},
 		"viewport": {
 			"label": "뷰포트 크기",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "자동 체크포인트 활성화",
-			"description": "활성화되면 Roo는 작업 실행 중에 자동으로 체크포인트를 생성하여 변경 사항을 검토하거나 이전 상태로 되돌리기 쉽게 합니다."
+			"description": "활성화되면 Roo는 작업 실행 중에 자동으로 체크포인트를 생성하여 변경 사항을 검토하거나 이전 상태로 되돌리기 쉽게 합니다. <0>더 알아보기</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "터미널 출력 제한",
-			"description": "명령 실행 시 터미널 출력에 포함할 최대 라인 수. 초과 시 중간에서 라인이 제거되어 token이 절약됩니다."
+			"description": "명령 실행 시 터미널 출력에 포함할 최대 라인 수. 초과 시 중간에서 라인이 제거되어 token이 절약됩니다. <0>더 알아보기</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "터미널 쉘 통합 타임아웃",
-			"description": "명령을 실행하기 전에 쉘 통합이 초기화될 때까지 기다리는 최대 시간. 쉘 시작 시간이 긴 사용자의 경우, 터미널에서 \"Shell Integration Unavailable\" 오류가 표시되면 이 값을 늘려야 할 수 있습니다."
+			"description": "명령을 실행하기 전에 쉘 통합이 초기화될 때까지 기다리는 최대 시간. 쉘 시작 시간이 긴 사용자의 경우, 터미널에서 \"Shell Integration Unavailable\" 오류가 표시되면 이 값을 늘려야 할 수 있습니다. <0>더 알아보기</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "터미널 셸 통합 비활성화",
-			"description": "터미널 명령이 올바르게 작동하지 않거나 '셸 통합을 사용할 수 없음' 오류가 표시되는 경우 이 옵션을 활성화합니다. 이렇게 하면 일부 고급 터미널 기능을 우회하여 명령을 실행하는 더 간단한 방법을 사용합니다."
-		},
-		"compressProgressBar": {
-			"label": "진행 표시줄 출력 압축",
-			"description": "활성화하면 캐리지 리턴(\\r)이 포함된 터미널 출력을 처리하여 실제 터미널이 콘텐츠를 표시하는 방식을 시뮬레이션합니다. 이는 진행 표시줄의 중간 상태를 제거하고 최종 상태만 유지하여 더 관련성 있는 정보를 위한 컨텍스트 공간을 절약합니다."
-		},
-		"zdotdir": {
-			"label": "ZDOTDIR 처리 활성화",
-			"description": "활성화하면 zsh 셸 통합을 올바르게 처리하기 위한 ZDOTDIR용 임시 디렉터리를 생성합니다. 이를 통해 zsh 구성을 유지하면서 VSCode 셸 통합이 zsh와 올바르게 작동합니다. (실험적)"
+			"description": "터미널 명령이 올바르게 작동하지 않거나 '셸 통합을 사용할 수 없음' 오류가 표시되는 경우 이 옵션을 활성화합니다. 이렇게 하면 일부 고급 터미널 기능을 우회하여 명령을 실행하는 더 간단한 방법을 사용합니다. <0>더 알아보기</0>"
 		},
 		"commandDelay": {
 			"label": "터미널 명령 지연",
-			"description": "명령 실행 후 추가할 지연 시간(밀리초). 기본값 0은 지연을 완전히 비활성화합니다. 이는 타이밍 문제가 있는 터미널에서 명령 출력을 완전히 캡처하는 데 도움이 될 수 있습니다. 대부분의 터미널에서는 `PROMPT_COMMAND='sleep N'`을 설정하여 구현되며, PowerShell은 각 명령 끝에 `start-sleep`을 추가합니다. 원래는 VSCode 버그#237208에 대한 해결책이었으며 필요하지 않을 수 있습니다."
+			"description": "명령 실행 후 추가할 지연 시간(밀리초). 기본값 0은 지연을 완전히 비활성화합니다. 이는 타이밍 문제가 있는 터미널에서 명령 출력을 완전히 캡처하는 데 도움이 될 수 있습니다. 대부분의 터미널에서는 `PROMPT_COMMAND='sleep N'`을 설정하여 구현되며, PowerShell은 각 명령 끝에 `start-sleep`을 추가합니다. 원래는 VSCode 버그#237208에 대한 해결책이었으며 필요하지 않을 수 있습니다. <0>더 알아보기</0>"
+		},
+		"compressProgressBar": {
+			"label": "진행 표시줄 출력 압축",
+			"description": "활성화하면 캐리지 리턴(\\r)이 포함된 터미널 출력을 처리하여 실제 터미널이 콘텐츠를 표시하는 방식을 시뮬레이션합니다. 이는 진행 표시줄의 중간 상태를 제거하고 최종 상태만 유지하여 더 관련성 있는 정보를 위한 컨텍스트 공간을 절약합니다. <0>더 알아보기</0>"
 		},
 		"powershellCounter": {
 			"label": "PowerShell 카운터 해결 방법 활성화",
-			"description": "활성화하면 PowerShell 명령에 카운터를 추가하여 명령이 올바르게 실행되도록 합니다. 이는 명령 출력 캡처에 문제가 있을 수 있는 PowerShell 터미널에서 도움이 됩니다."
+			"description": "활성화하면 PowerShell 명령에 카운터를 추가하여 명령이 올바르게 실행되도록 합니다. 이는 명령 출력 캡처에 문제가 있을 수 있는 PowerShell 터미널에서 도움이 됩니다. <0>더 알아보기</0>"
 		},
 		"zshClearEolMark": {
 			"label": "ZSH 줄 끝 표시 지우기",
-			"description": "활성화하면 PROMPT_EOL_MARK=''를 설정하여 ZSH 줄 끝 표시를 지웁니다. 이는 '%'와 같은 특수 문자로 끝나는 명령 출력 해석의 문제를 방지합니다."
+			"description": "활성화하면 PROMPT_EOL_MARK=''를 설정하여 ZSH 줄 끝 표시를 지웁니다. 이는 '%'와 같은 특수 문자로 끝나는 명령 출력 해석의 문제를 방지합니다. <0>더 알아보기</0>"
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh 통합 활성화",
-			"description": "활성화하면 ITERM_SHELL_INTEGRATION_INSTALLED=Yes를 설정하여 Oh My Zsh 셸 통합 기능을 활성화합니다. 이 설정을 적용하려면 IDE를 다시 시작해야 할 수 있습니다. (실험적)"
+			"description": "활성화하면 ITERM_SHELL_INTEGRATION_INSTALLED=Yes를 설정하여 Oh My Zsh 셸 통합 기능을 활성화합니다. 이 설정을 적용하려면 IDE를 다시 시작해야 할 수 있습니다. <0>더 알아보기</0>"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k 통합 활성화",
-			"description": "활성화하면 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true를 설정하여 Powerlevel10k 셸 통합 기능을 활성화합니다. (실험적)"
+			"description": "활성화하면 POWERLEVEL9K_TERM_SHELL_INTEGRATION=true를 설정하여 Powerlevel10k 셸 통합 기능을 활성화합니다. <0>더 알아보기</0>"
+		},
+		"zdotdir": {
+			"label": "ZDOTDIR 처리 활성화",
+			"description": "활성화하면 zsh 셸 통합을 올바르게 처리하기 위한 ZDOTDIR용 임시 디렉터리를 생성합니다. 이를 통해 zsh 구성을 유지하면서 VSCode 셸 통합이 zsh와 올바르게 작동합니다. <0>더 알아보기</0>"
 		},
 		"inheritEnv": {
 			"label": "환경 변수 상속",
-			"description": "활성화하면 터미널이 VSCode 부모 프로세스로부터 환경 변수를 상속받습니다. 사용자 프로필에 정의된 셸 통합 설정 등이 포함됩니다. 이는 VSCode 전역 설정 `terminal.integrated.inheritEnv`를 직접 전환합니다"
+			"description": "활성화하면 터미널이 VSCode 부모 프로세스로부터 환경 변수를 상속받습니다. 사용자 프로필에 정의된 셸 통합 설정 등이 포함됩니다. 이는 VSCode 전역 설정 `terminal.integrated.inheritEnv`를 직접 전환합니다. <0>더 알아보기</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "질문이나 피드백이 있으시면 <githubLink>github.com/RooVetGit/Roo-Code</githubLink>에서 이슈를 열거나 <redditLink>reddit.com/r/RooCode</redditLink> 또는 <discordLink>discord.gg/roocode</discordLink>에 가입하세요",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "익명 오류 및 사용 보고 허용",
 			"description": "익명 사용 데이터 및 오류 보고서를 보내 Roo Code 개선에 도움을 주세요. 코드, 프롬프트 또는 개인 정보는 절대 전송되지 않습니다. 자세한 내용은 개인정보 보호정책을 참조하세요."

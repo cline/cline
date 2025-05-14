@@ -82,11 +82,11 @@
 		}
 	},
 	"providers": {
-		"configProfile": "Perfil de configuració",
 		"providerDocumentation": "Documentació de {{provider}}",
+		"configProfile": "Perfil de configuració",
 		"description": "Deseu diferents configuracions d'API per canviar ràpidament entre proveïdors i configuracions.",
 		"apiProvider": "Proveïdor d'API",
-		"openRouterApiKey": "Clau API d'OpenRouter",
+		"model": "Model",
 		"nameEmpty": "El nom no pot estar buit",
 		"nameExists": "Ja existeix un perfil amb aquest nom",
 		"deleteProfile": "Esborrar perfil",
@@ -103,7 +103,11 @@
 		"vscodeLmDescription": "L'API del model de llenguatge de VS Code us permet executar models proporcionats per altres extensions de VS Code (incloent-hi, però no limitat a, GitHub Copilot). La manera més senzilla de començar és instal·lar les extensions Copilot i Copilot Chat des del VS Code Marketplace.",
 		"awsCustomArnUse": "Introduïu un ARN vàlid d'Amazon Bedrock per al model que voleu utilitzar. Exemples de format:",
 		"awsCustomArnDesc": "Assegureu-vos que la regió a l'ARN coincideix amb la regió d'AWS seleccionada anteriorment.",
+		"openRouterApiKey": "Clau API d'OpenRouter",
+		"getOpenRouterApiKey": "Obtenir clau API d'OpenRouter",
 		"apiKeyStorageNotice": "Les claus API s'emmagatzemen de forma segura a l'Emmagatzematge Secret de VSCode",
+		"glamaApiKey": "Clau API de Glama",
+		"getGlamaApiKey": "Obtenir clau API de Glama",
 		"useCustomBaseUrl": "Utilitzar URL base personalitzada",
 		"useHostHeader": "Utilitzar capçalera Host personalitzada",
 		"useLegacyFormat": "Utilitzar el format d'API OpenAI antic",
@@ -111,17 +115,13 @@
 		"headerName": "Nom de la capçalera",
 		"headerValue": "Valor de la capçalera",
 		"noCustomHeaders": "No hi ha capçaleres personalitzades definides. Feu clic al botó + per afegir-ne una.",
-		"openRouterTransformsText": "Comprimir prompts i cadenes de missatges a la mida del context (<a>Transformacions d'OpenRouter</a>)",
-		"model": "Model",
-		"getOpenRouterApiKey": "Obtenir clau API d'OpenRouter",
-		"glamaApiKey": "Clau API de Glama",
-		"getGlamaApiKey": "Obtenir clau API de Glama",
 		"requestyApiKey": "Clau API de Requesty",
-		"getRequestyApiKey": "Obtenir clau API de Requesty",
 		"refreshModels": {
 			"label": "Actualitzar models",
 			"hint": "Si us plau, torneu a obrir la configuració per veure els models més recents."
 		},
+		"getRequestyApiKey": "Obtenir clau API de Requesty",
+		"openRouterTransformsText": "Comprimir prompts i cadenes de missatges a la mida del context (<a>Transformacions d'OpenRouter</a>)",
 		"anthropicApiKey": "Clau API d'Anthropic",
 		"getAnthropicApiKey": "Obtenir clau API d'Anthropic",
 		"anthropicUseAuthToken": "Passar la clau API d'Anthropic com a capçalera d'autorització en lloc de X-Api-Key",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "Habilitar eina de navegador",
-			"description": "Quan està habilitat, Roo pot utilitzar un navegador per interactuar amb llocs web quan s'utilitzen models que admeten l'ús de l'ordinador."
+			"description": "Quan està habilitat, Roo pot utilitzar un navegador per interactuar amb llocs web quan s'utilitzen models que admeten l'ús de l'ordinador. <0>Més informació</0>"
 		},
 		"viewport": {
 			"label": "Mida del viewport",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "Habilitar punts de control automàtics",
-			"description": "Quan està habilitat, Roo crearà automàticament punts de control durant l'execució de tasques, facilitant la revisió de canvis o la reversió a estats anteriors."
+			"description": "Quan està habilitat, Roo crearà automàticament punts de control durant l'execució de tasques, facilitant la revisió de canvis o la reversió a estats anteriors. <0>Més informació</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "Límit de sortida de terminal",
-			"description": "Nombre màxim de línies a incloure a la sortida del terminal en executar comandes. Quan s'excedeix, s'eliminaran línies del mig, estalviant token."
+			"description": "Nombre màxim de línies a incloure a la sortida del terminal en executar comandes. Quan s'excedeix, s'eliminaran línies del mig, estalviant token. <0>Més informació</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "Temps d'espera d'integració de shell del terminal",
-			"description": "Temps màxim d'espera per a la inicialització de la integració de shell abans d'executar comandes. Per a usuaris amb temps d'inici de shell llargs, aquest valor pot necessitar ser augmentat si veieu errors \"Shell Integration Unavailable\" al terminal."
+			"description": "Temps màxim d'espera per a la inicialització de la integració de shell abans d'executar comandes. Per a usuaris amb temps d'inici de shell llargs, aquest valor pot necessitar ser augmentat si veieu errors \"Shell Integration Unavailable\" al terminal. <0>Més informació</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "Desactiva la integració de l'intèrpret d'ordres del terminal",
-			"description": "Activa això si les ordres del terminal no funcionen correctament o si veus errors de 'Shell Integration Unavailable'. Això utilitza un mètode més senzill per executar ordres, evitant algunes funcions avançades del terminal."
-		},
-		"compressProgressBar": {
-			"label": "Comprimir sortida de barra de progrés",
-			"description": "Quan està habilitat, processa la sortida del terminal amb retorns de carro (\\r) per simular com un terminal real mostraria el contingut. Això elimina els estats intermedis de les barres de progrés, mantenint només l'estat final, la qual cosa conserva espai de context per a informació més rellevant."
-		},
-		"zdotdir": {
-			"label": "Habilitar gestió de ZDOTDIR",
-			"description": "Quan està habilitat, crea un directori temporal per a ZDOTDIR per gestionar correctament la integració del shell zsh. Això assegura que la integració del shell de VSCode funcioni correctament amb zsh mentre es preserva la teva configuració de zsh."
+			"description": "Activa això si les ordres del terminal no funcionen correctament o si veus errors de 'Shell Integration Unavailable'. Això utilitza un mètode més senzill per executar ordres, evitant algunes funcions avançades del terminal. <0>Més informació</0>"
 		},
 		"commandDelay": {
 			"label": "Retard de comanda del terminal",
-			"description": "Retard en mil·lisegons a afegir després de l'execució de la comanda. La configuració predeterminada de 0 desactiva completament el retard. Això pot ajudar a assegurar que la sortida de la comanda es capturi completament en terminals amb problemes de temporització. En la majoria de terminals s'implementa establint `PROMPT_COMMAND='sleep N'` i Powershell afegeix `start-sleep` al final de cada comanda. Originalment era una solució per al error VSCode#237208 i pot no ser necessari."
+			"description": "Retard en mil·lisegons a afegir després de l'execució de la comanda. La configuració predeterminada de 0 desactiva completament el retard. Això pot ajudar a assegurar que la sortida de la comanda es capturi completament en terminals amb problemes de temporització. En la majoria de terminals s'implementa establint `PROMPT_COMMAND='sleep N'` i Powershell afegeix `start-sleep` al final de cada comanda. Originalment era una solució per al error VSCode#237208 i pot no ser necessari. <0>Més informació</0>"
+		},
+		"compressProgressBar": {
+			"label": "Comprimir sortida de barra de progrés",
+			"description": "Quan està habilitat, processa la sortida del terminal amb retorns de carro (\\r) per simular com un terminal real mostraria el contingut. Això elimina els estats intermedis de les barres de progrés, mantenint només l'estat final, la qual cosa conserva espai de context per a informació més rellevant. <0>Més informació</0>"
 		},
 		"powershellCounter": {
 			"label": "Habilita la solució temporal del comptador PowerShell",
-			"description": "Quan està habilitat, afegeix un comptador a les comandes PowerShell per assegurar l'execució correcta de les comandes. Això ajuda amb els terminals PowerShell que poden tenir problemes amb la captura de sortida."
+			"description": "Quan està habilitat, afegeix un comptador a les comandes PowerShell per assegurar l'execució correcta de les comandes. Això ajuda amb els terminals PowerShell que poden tenir problemes amb la captura de sortida. <0>Més informació</0>"
 		},
 		"zshClearEolMark": {
 			"label": "Neteja la marca EOL de ZSH",
-			"description": "Quan està habilitat, neteja la marca de final de línia de ZSH establint PROMPT_EOL_MARK=''. Això evita problemes amb la interpretació de la sortida de comandes quan acaba amb caràcters especials com '%'."
+			"description": "Quan està habilitat, neteja la marca de final de línia de ZSH establint PROMPT_EOL_MARK=''. Això evita problemes amb la interpretació de la sortida de comandes quan acaba amb caràcters especials com '%'. <0>Més informació</0>"
 		},
 		"zshOhMy": {
 			"label": "Habilita la integració Oh My Zsh",
-			"description": "Quan està habilitat, estableix ITERM_SHELL_INTEGRATION_INSTALLED=Yes per habilitar les característiques d'integració del shell Oh My Zsh. Aplicar aquesta configuració pot requerir reiniciar l'IDE."
+			"description": "Quan està habilitat, estableix ITERM_SHELL_INTEGRATION_INSTALLED=Yes per habilitar les característiques d'integració del shell Oh My Zsh. Aplicar aquesta configuració pot requerir reiniciar l'IDE. <0>Més informació</0>"
 		},
 		"zshP10k": {
 			"label": "Habilita la integració Powerlevel10k",
-			"description": "Quan està habilitat, estableix POWERLEVEL9K_TERM_SHELL_INTEGRATION=true per habilitar les característiques d'integració del shell Powerlevel10k."
+			"description": "Quan està habilitat, estableix POWERLEVEL9K_TERM_SHELL_INTEGRATION=true per habilitar les característiques d'integració del shell Powerlevel10k. <0>Més informació</0>"
+		},
+		"zdotdir": {
+			"label": "Habilitar gestió de ZDOTDIR",
+			"description": "Quan està habilitat, crea un directori temporal per a ZDOTDIR per gestionar correctament la integració del shell zsh. Això assegura que la integració del shell de VSCode funcioni correctament amb zsh mentre es preserva la teva configuració de zsh. <0>Més informació</0>"
 		},
 		"inheritEnv": {
 			"label": "Hereta variables d'entorn",
-			"description": "Quan està habilitat, el terminal hereta les variables d'entorn del procés pare de VSCode, com ara la configuració d'integració del shell definida al perfil d'usuari. Això commuta directament la configuració global de VSCode `terminal.integrated.inheritEnv`"
+			"description": "Quan està habilitat, el terminal hereta les variables d'entorn del procés pare de VSCode, com ara la configuració d'integració del shell definida al perfil d'usuari. Això commuta directament la configuració global de VSCode `terminal.integrated.inheritEnv`. <0>Més informació</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "Si teniu qualsevol pregunta o comentari, no dubteu a obrir un issue a <githubLink>github.com/RooVetGit/Roo-Code</githubLink> o unir-vos a <redditLink>reddit.com/r/RooCode</redditLink> o <discordLink>discord.gg/roocode</discordLink>",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Permetre informes anònims d'errors i ús",
 			"description": "Ajudeu a millorar Roo Code enviant dades d'ús anònimes i informes d'errors. Mai s'envia codi, prompts o informació personal. Vegeu la nostra política de privacitat per a més detalls."

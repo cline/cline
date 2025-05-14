@@ -1,18 +1,19 @@
 {
 	"title": "MCP 伺服器",
 	"done": "完成",
-	"description": "<0>Model Context Protocol</0> 能與本機執行的 MCP 伺服器通訊，提供額外的工具和資源來擴展 Roo 的功能。您可以使用<1>社群開發的伺服器</1>，或請 Roo 為您的工作流程建立新工具（例如「新增一個取得最新 npm 文件的工具」）。",
+	"description": "啟用 Model Context Protocol (MCP)，讓 Roo Code 可用外部伺服器的工具和服務，擴展 Roo 的能力。<0>了解更多</0>",
 	"enableToggle": {
 		"title": "啟用 MCP 伺服器",
-		"description": "啟用後，Roo 將能與 MCP 伺服器互動以取得進階功能。如果您不使用 MCP，可以停用此功能以減少 Roo 的 token 使用量。"
+		"description": "開啟後 Roo 可用已連接 MCP 伺服器的工具，能力更強。不用這些工具時建議關閉，節省 API Token 費用。"
 	},
 	"enableServerCreation": {
 		"title": "啟用 MCP 伺服器建立",
-		"description": "啟用後，Roo 可以透過如「新增工具到...」等命令協助您建立新的 MCP 伺服器。如果您不需要建立 MCP 伺服器，可以停用此功能以減少 Roo 的 token 使用量。"
+		"description": "開啟後 Roo 可協助你建立<1>新</1>自訂 MCP 伺服器。<0>了解伺服器建立</0>",
+		"hint": "提示：不需要 Roo 建立新 MCP 伺服器時建議關閉，減少 API Token 費用。"
 	},
 	"editGlobalMCP": "編輯全域 MCP",
 	"editProjectMCP": "編輯專案 MCP",
-	"editSettings": "編輯 MCP 設定",
+	"learnMoreEditingSettings": "了解如何編輯 MCP 設定檔",
 	"tool": {
 		"alwaysAllow": "總是允許",
 		"parameters": "參數",
@@ -31,7 +32,7 @@
 	},
 	"networkTimeout": {
 		"label": "網路逾時",
-		"description": "等待伺服器回應的最長時間",
+		"description": "伺服器回應最大等待時間",
 		"options": {
 			"15seconds": "15 秒",
 			"30seconds": "30 秒",
@@ -45,7 +46,7 @@
 	},
 	"deleteDialog": {
 		"title": "刪除 MCP 伺服器",
-		"description": "您確定要刪除 MCP 伺服器「{{serverName}}」嗎？此操作無法復原。",
+		"description": "你確定要刪除 MCP 伺服器「{{serverName}}」嗎？此操作無法復原。",
 		"cancel": "取消",
 		"delete": "刪除"
 	},

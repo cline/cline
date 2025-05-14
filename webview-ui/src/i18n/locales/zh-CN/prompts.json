@@ -7,7 +7,7 @@
 		"editModesConfig": "模式设置",
 		"editGlobalModes": "修改全局模式",
 		"editProjectModes": "编辑项目模式 (.roomodes)",
-		"createModeHelpText": "点击 + 创建模式，或在对话时让Roo创建一个新模式。",
+		"createModeHelpText": "模式是Roo的专属角色，用于定制其行为。<0>了解如何使用模式</0>或<1>自定义模式。</1>",
 		"selectMode": "搜索模式"
 	},
 	"apiConfiguration": {
@@ -47,7 +47,7 @@
 	},
 	"globalCustomInstructions": {
 		"title": "所有模式的自定义指令",
-		"description": "所有模式通用规则\n当前语言：{{language}}",
+		"description": "这些指令适用于所有模式。它们提供了一套基础行为，可以通过下面的模式特定指令进行增强。<0>了解更多</0>",
 		"loadFromFile": "支持从<span>.roo/rules/</span>目录读取全局配置（.roorules和.clinerules已弃用并将很快停止工作）。"
 	},
 	"systemPrompt": {
@@ -107,7 +107,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "高级：覆盖系统提示词",
-		"description": "您可以通过在工作区创建文件 <span>.roo/system-prompt-{{slug}}</span>，完全替换此模式的系统提示（角色定义和自定义指令除外）。这是一个非常高级的功能，会绕过内置的安全措施和一致性检查（尤其是与工具使用相关的部分），请谨慎操作！"
+		"description": "<2>⚠️ 警告：</2> 此高级功能会绕过安全措施。<1>使用前请阅读！</1>通过在您的工作区中创建文件 <span>.roo/system-prompt-{{slug}}</span> 来覆盖默认系统提示。"
 	},
 	"createModeDialog": {
 		"title": "创建新模式",

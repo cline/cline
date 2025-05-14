@@ -1,17 +1,19 @@
 {
 	"title": "Server MCP",
 	"done": "Fatto",
-	"description": "Il <0>Model Context Protocol</0> permette la comunicazione con server MCP in esecuzione locale che forniscono strumenti e risorse aggiuntive per estendere le capacità di Roo. Puoi utilizzare <1>server creati dalla comunità</1> o chiedere a Roo di creare nuovi strumenti specifici per il tuo flusso di lavoro (ad esempio, \"aggiungi uno strumento che ottiene la documentazione npm più recente\").",
+	"description": "Abilita il Model Context Protocol (MCP) per permettere a Roo Code di usare strumenti e servizi extra da server esterni. Questo amplia ciò che Roo può fare per te. <0>Scopri di più</0>",
 	"enableToggle": {
 		"title": "Abilita server MCP",
-		"description": "Quando abilitato, Roo sarà in grado di interagire con i server MCP per funzionalità avanzate. Se non stai utilizzando MCP, puoi disabilitare questa opzione per ridurre l'utilizzo di token da parte di Roo."
+		"description": "Attiva questa opzione per permettere a Roo di usare strumenti dai server MCP collegati. Questo dà a Roo più capacità. Se non vuoi usare questi strumenti extra, disattiva per ridurre i costi dei token API."
 	},
 	"enableServerCreation": {
 		"title": "Abilita creazione server MCP",
-		"description": "Quando abilitato, Roo può aiutarti a creare nuovi server MCP tramite comandi come \"aggiungi un nuovo strumento per...\". Se non hai bisogno di creare server MCP, puoi disabilitare questa opzione per ridurre l'utilizzo di token da parte di Roo."
+		"description": "Abilita questa opzione per farti aiutare da Roo a creare <1>nuovi</1> server MCP personalizzati. <0>Scopri di più sulla creazione di server</0>",
+		"hint": "Suggerimento: Per ridurre i costi dei token API, disattiva questa impostazione quando non chiedi a Roo di creare un nuovo server MCP."
 	},
-	"editGlobalMCP": "Modifica MCP Globale",
-	"editProjectMCP": "Modifica MCP del Progetto",
+	"editGlobalMCP": "Modifica MCP globale",
+	"editProjectMCP": "Modifica MCP del progetto",
+	"learnMoreEditingSettings": "Scopri di più sulla modifica dei file di configurazione MCP",
 	"tool": {
 		"alwaysAllow": "Consenti sempre",
 		"parameters": "Parametri",
@@ -49,7 +51,7 @@
 		"delete": "Elimina"
 	},
 	"serverStatus": {
-		"retrying": "Nuovo tentativo...",
+		"retrying": "Riprovo...",
 		"retryConnection": "Riprova connessione"
 	}
 }

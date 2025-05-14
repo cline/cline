@@ -82,8 +82,8 @@
 		}
 	},
 	"providers": {
-		"configProfile": "Konfigurationsprofil",
 		"providerDocumentation": "{{provider}}-Dokumentation",
+		"configProfile": "Konfigurationsprofil",
 		"description": "Speichern Sie verschiedene API-Konfigurationen, um schnell zwischen Anbietern und Einstellungen zu wechseln.",
 		"apiProvider": "API-Anbieter",
 		"model": "Modell",
@@ -116,11 +116,11 @@
 		"headerValue": "Header-Wert",
 		"noCustomHeaders": "Keine benutzerdefinierten Headers definiert. Klicke auf die + Schaltfläche, um einen hinzuzufügen.",
 		"requestyApiKey": "Requesty API-Schlüssel",
-		"getRequestyApiKey": "Requesty API-Schlüssel erhalten",
 		"refreshModels": {
 			"label": "Modelle aktualisieren",
 			"hint": "Bitte öffne die Einstellungen erneut, um die neuesten Modelle zu sehen."
 		},
+		"getRequestyApiKey": "Requesty API-Schlüssel erhalten",
 		"openRouterTransformsText": "Prompts und Nachrichtenketten auf Kontextgröße komprimieren (<a>OpenRouter Transformationen</a>)",
 		"anthropicApiKey": "Anthropic API-Schlüssel",
 		"getAnthropicApiKey": "Anthropic API-Schlüssel erhalten",
@@ -130,9 +130,9 @@
 		"deepSeekApiKey": "DeepSeek API-Schlüssel",
 		"getDeepSeekApiKey": "DeepSeek API-Schlüssel erhalten",
 		"geminiApiKey": "Gemini API-Schlüssel",
-		"getGeminiApiKey": "Gemini API-Schlüssel erhalten",
 		"getGroqApiKey": "Groq API-Schlüssel erhalten",
 		"groqApiKey": "Groq API-Schlüssel",
+		"getGeminiApiKey": "Gemini API-Schlüssel erhalten",
 		"openAiApiKey": "OpenAI API-Schlüssel",
 		"openAiBaseUrl": "Basis-URL",
 		"getOpenAiApiKey": "OpenAI API-Schlüssel erhalten",
@@ -253,7 +253,7 @@
 	"browser": {
 		"enable": {
 			"label": "Browser-Tool aktivieren",
-			"description": "Wenn aktiviert, kann Roo einen Browser verwenden, um mit Websites zu interagieren, wenn Modelle verwendet werden, die Computer-Nutzung unterstützen."
+			"description": "Wenn aktiviert, kann Roo einen Browser verwenden, um mit Websites zu interagieren, wenn Modelle verwendet werden, die Computer-Nutzung unterstützen. <0>Mehr erfahren</0>"
 		},
 		"viewport": {
 			"label": "Viewport-Größe",
@@ -281,7 +281,7 @@
 	"checkpoints": {
 		"enable": {
 			"label": "Automatische Kontrollpunkte aktivieren",
-			"description": "Wenn aktiviert, erstellt Roo automatisch Kontrollpunkte während der Aufgabenausführung, was die Überprüfung von Änderungen oder die Rückkehr zu früheren Zuständen erleichtert."
+			"description": "Wenn aktiviert, erstellt Roo automatisch Kontrollpunkte während der Aufgabenausführung, was die Überprüfung von Änderungen oder die Rückkehr zu früheren Zuständen erleichtert. <0>Mehr erfahren</0>"
 		}
 	},
 	"notifications": {
@@ -328,47 +328,47 @@
 		},
 		"outputLineLimit": {
 			"label": "Terminal-Ausgabelimit",
-			"description": "Maximale Anzahl von Zeilen, die in der Terminal-Ausgabe bei der Ausführung von Befehlen enthalten sein sollen. Bei Überschreitung werden Zeilen aus der Mitte entfernt, wodurch Token gespart werden."
+			"description": "Maximale Anzahl von Zeilen, die in der Terminal-Ausgabe bei der Ausführung von Befehlen enthalten sein sollen. Bei Überschreitung werden Zeilen aus der Mitte entfernt, wodurch Token gespart werden. <0>Mehr erfahren</0>"
 		},
 		"shellIntegrationTimeout": {
 			"label": "Terminal-Shell-Integrationszeit-Limit",
-			"description": "Maximale Wartezeit für die Shell-Integration, bevor Befehle ausgeführt werden. Für Benutzer mit langen Shell-Startzeiten musst du diesen Wert möglicherweise erhöhen, wenn du Fehler vom Typ \"Shell Integration Unavailable\" im Terminal siehst."
+			"description": "Maximale Wartezeit für die Shell-Integration, bevor Befehle ausgeführt werden. Für Benutzer mit langen Shell-Startzeiten musst du diesen Wert möglicherweise erhöhen, wenn du Fehler vom Typ \"Shell Integration Unavailable\" im Terminal siehst. <0>Mehr erfahren</0>"
 		},
 		"shellIntegrationDisabled": {
 			"label": "Terminal-Shell-Integration deaktivieren",
-			"description": "Aktiviere dies, wenn Terminalbefehle nicht korrekt funktionieren oder du Fehler wie 'Shell Integration Unavailable' siehst. Dies verwendet eine einfachere Methode zur Ausführung von Befehlen und umgeht einige erweiterte Terminalfunktionen."
-		},
-		"compressProgressBar": {
-			"label": "Fortschrittsbalken-Ausgabe komprimieren",
-			"description": "Wenn aktiviert, verarbeitet diese Option Terminal-Ausgaben mit Wagenrücklaufzeichen (\\r), um zu simulieren, wie ein echtes Terminal Inhalte anzeigen würde. Dies entfernt Zwischenzustände von Fortschrittsbalken und behält nur den Endzustand bei, wodurch Kontextraum für relevantere Informationen gespart wird."
-		},
-		"zdotdir": {
-			"label": "ZDOTDIR-Behandlung aktivieren",
-			"description": "Erstellt bei Aktivierung ein temporäres Verzeichnis für ZDOTDIR, um die zsh-Shell-Integration korrekt zu handhaben. Dies stellt sicher, dass die VSCode-Shell-Integration mit zsh funktioniert und dabei deine zsh-Konfiguration erhalten bleibt. (experimentell)"
+			"description": "Aktiviere dies, wenn Terminalbefehle nicht korrekt funktionieren oder du Fehler wie 'Shell Integration Unavailable' siehst. Dies verwendet eine einfachere Methode zur Ausführung von Befehlen und umgeht einige erweiterte Terminalfunktionen. <0>Mehr erfahren</0>"
 		},
 		"commandDelay": {
 			"label": "Terminal-Befehlsverzögerung",
-			"description": "Verzögerung in Millisekunden, die nach der Befehlsausführung hinzugefügt wird. Die Standardeinstellung von 0 deaktiviert die Verzögerung vollständig. Dies kann dazu beitragen, dass die Befehlsausgabe in Terminals mit Timing-Problemen vollständig erfasst wird. In den meisten Terminals wird dies durch Setzen von `PROMPT_COMMAND='sleep N'` implementiert, und Powershell fügt `start-sleep` am Ende jedes Befehls hinzu. Ursprünglich war dies eine Lösung für VSCode-Bug#237208 und ist möglicherweise nicht mehr erforderlich."
+			"description": "Verzögerung in Millisekunden, die nach der Befehlsausführung hinzugefügt wird. Die Standardeinstellung von 0 deaktiviert die Verzögerung vollständig. Dies kann dazu beitragen, dass die Befehlsausgabe in Terminals mit Timing-Problemen vollständig erfasst wird. In den meisten Terminals wird dies durch Setzen von `PROMPT_COMMAND='sleep N'` implementiert, und Powershell fügt `start-sleep` am Ende jedes Befehls hinzu. Ursprünglich war dies eine Lösung für VSCode-Bug#237208 und ist möglicherweise nicht mehr erforderlich. <0>Mehr erfahren</0>"
+		},
+		"compressProgressBar": {
+			"label": "Fortschrittsbalken-Ausgabe komprimieren",
+			"description": "Wenn aktiviert, verarbeitet diese Option Terminal-Ausgaben mit Wagenrücklaufzeichen (\\r), um zu simulieren, wie ein echtes Terminal Inhalte anzeigen würde. Dies entfernt Zwischenzustände von Fortschrittsbalken und behält nur den Endzustand bei, wodurch Kontextraum für relevantere Informationen gespart wird. <0>Mehr erfahren</0>"
 		},
 		"powershellCounter": {
 			"label": "PowerShell-Zähler-Workaround aktivieren",
-			"description": "Wenn aktiviert, fügt einen Zähler zu PowerShell-Befehlen hinzu, um die korrekte Befehlsausführung sicherzustellen. Dies hilft bei PowerShell-Terminals, die Probleme mit der Ausgabeerfassung haben könnten."
+			"description": "Wenn aktiviert, fügt einen Zähler zu PowerShell-Befehlen hinzu, um die korrekte Befehlsausführung sicherzustellen. Dies hilft bei PowerShell-Terminals, die Probleme mit der Ausgabeerfassung haben könnten. <0>Mehr erfahren</0>"
 		},
 		"zshClearEolMark": {
 			"label": "ZSH-Zeilenende-Markierung löschen",
-			"description": "Wenn aktiviert, wird die ZSH-Zeilenende-Markierung durch Setzen von PROMPT_EOL_MARK='' gelöscht. Dies verhindert Probleme bei der Interpretation der Befehlsausgabe, wenn diese mit Sonderzeichen wie '%' endet."
+			"description": "Wenn aktiviert, wird die ZSH-Zeilenende-Markierung durch Setzen von PROMPT_EOL_MARK='' gelöscht. Dies verhindert Probleme bei der Interpretation der Befehlsausgabe, wenn diese mit Sonderzeichen wie '%' endet. <0>Mehr erfahren</0>"
 		},
 		"zshOhMy": {
 			"label": "Oh My Zsh-Integration aktivieren",
-			"description": "Wenn aktiviert, wird ITERM_SHELL_INTEGRATION_INSTALLED=Yes gesetzt, um die Shell-Integrationsfunktionen von Oh My Zsh zu aktivieren. Das Anwenden dieser Einstellung erfordert möglicherweise einen Neustart der IDE. (experimentell)"
+			"description": "Wenn aktiviert, wird ITERM_SHELL_INTEGRATION_INSTALLED=Yes gesetzt, um die Shell-Integrationsfunktionen von Oh My Zsh zu aktivieren. Das Anwenden dieser Einstellung erfordert möglicherweise einen Neustart der IDE. <0>Mehr erfahren</0>"
 		},
 		"zshP10k": {
 			"label": "Powerlevel10k-Integration aktivieren",
-			"description": "Wenn aktiviert, wird POWERLEVEL9K_TERM_SHELL_INTEGRATION=true gesetzt, um die Shell-Integrationsfunktionen von Powerlevel10k zu aktivieren. (experimentell)"
+			"description": "Wenn aktiviert, wird POWERLEVEL9K_TERM_SHELL_INTEGRATION=true gesetzt, um die Shell-Integrationsfunktionen von Powerlevel10k zu aktivieren. <0>Mehr erfahren</0>"
+		},
+		"zdotdir": {
+			"label": "ZDOTDIR-Behandlung aktivieren",
+			"description": "Erstellt bei Aktivierung ein temporäres Verzeichnis für ZDOTDIR, um die zsh-Shell-Integration korrekt zu handhaben. Dies stellt sicher, dass die VSCode-Shell-Integration mit zsh funktioniert und dabei deine zsh-Konfiguration erhalten bleibt. <0>Mehr erfahren</0>"
 		},
 		"inheritEnv": {
 			"label": "Umgebungsvariablen übernehmen",
-			"description": "Wenn aktiviert, übernimmt das Terminal Umgebungsvariablen vom übergeordneten VSCode-Prozess, wie z.B. in Benutzerprofilen definierte Shell-Integrationseinstellungen. Dies schaltet direkt die globale VSCode-Einstellung `terminal.integrated.inheritEnv` um"
+			"description": "Wenn aktiviert, übernimmt das Terminal Umgebungsvariablen vom übergeordneten VSCode-Prozess, wie z.B. in Benutzerprofilen definierte Shell-Integrationseinstellungen. Dies schaltet direkt die globale VSCode-Einstellung `terminal.integrated.inheritEnv` um. <0>Mehr erfahren</0>"
 		}
 	},
 	"advanced": {
@@ -458,7 +458,6 @@
 	},
 	"footer": {
 		"feedback": "Wenn du Fragen oder Feedback hast, kannst du gerne ein Issue auf <githubLink>github.com/RooVetGit/Roo-Code</githubLink> öffnen oder <redditLink>reddit.com/r/RooCode</redditLink> oder <discordLink>discord.gg/roocode</discordLink> beitreten",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Anonyme Fehler- und Nutzungsberichte zulassen",
 			"description": "Helfen Sie, Roo Code zu verbessern, indem Sie anonyme Nutzungsdaten und Fehlerberichte senden. Es werden niemals Code, Prompts oder persönliche Informationen gesendet. Weitere Details finden Sie in unserer Datenschutzrichtlinie."

@@ -23,6 +23,7 @@ import {
 	DialogDescription,
 	DialogFooter,
 } from "@src/components/ui"
+import { buildDocLink } from "@src/utils/docLinks"
 
 import { Tab, TabContent, TabHeader } from "../common/Tab"
 
@@ -62,13 +63,10 @@ const McpView = ({ onDone }: McpViewProps) => {
 						marginTop: "5px",
 					}}>
 					<Trans i18nKey="mcp:description">
-						<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
-							Model Context Protocol
-						</VSCodeLink>
 						<VSCodeLink
-							href="https://github.com/modelcontextprotocol/servers"
+							href={buildDocLink("features/mcp/using-mcp-in-roo", "mcp_settings")}
 							style={{ display: "inline" }}>
-							community-made servers
+							Learn More
 						</VSCodeLink>
 					</Trans>
 				</div>
@@ -86,14 +84,25 @@ const McpView = ({ onDone }: McpViewProps) => {
 								}}>
 								<span style={{ fontWeight: "500" }}>{t("mcp:enableServerCreation.title")}</span>
 							</VSCodeCheckbox>
-							<p
+							<div
 								style={{
 									fontSize: "12px",
 									marginTop: "5px",
 									color: "var(--vscode-descriptionForeground)",
 								}}>
-								{t("mcp:enableServerCreation.description")}
-							</p>
+								<Trans i18nKey="mcp:enableServerCreation.description">
+									<VSCodeLink
+										href={buildDocLink(
+											"features/mcp/using-mcp-in-roo#how-to-use-roo-to-create-an-mcp-server",
+											"mcp_server_creation",
+										)}
+										style={{ display: "inline" }}>
+										Learn about server creation
+									</VSCodeLink>
+									<strong>new</strong>
+								</Trans>
+								<p style={{ marginTop: "8px" }}>{t("mcp:enableServerCreation.hint")}</p>
+							</div>
 						</div>
 
 						{/* Server List */}
@@ -129,6 +138,21 @@ const McpView = ({ onDone }: McpViewProps) => {
 								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
 								{t("mcp:editProjectMCP")}
 							</Button>
+						</div>
+						<div
+							style={{
+								marginTop: "15px",
+								fontSize: "12px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							<VSCodeLink
+								href={buildDocLink(
+									"features/mcp/using-mcp-in-roo#editing-mcp-settings-files",
+									"mcp_edit_settings",
+								)}
+								style={{ display: "inline" }}>
+								{t("mcp:learnMoreEditingSettings")}
+							</VSCodeLink>
 						</div>
 					</>
 				)}
