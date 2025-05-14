@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.15.4
+
+### Patch Changes
+
+-   277b20a: Add gemini model back to vertex provider
+-   55d12d7: Adding gemini telemetry
+-   a527acc: Adds filtering for tasks tied to the current workspace
+
 ## [3.15.3]
 
 -   Add Fireworks API Provider
