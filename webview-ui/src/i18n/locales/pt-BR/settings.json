@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Condensar inteligentemente a janela de contexto",
+			"description": "Usa uma chamada LLM para resumir a conversa anterior quando a janela de contexto da tarefa está quase cheia, em vez de descartar mensagens antigas. Aviso: o custo de resumir não está atualmente incluído nos custos de API mostrados na interface."
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usar estratégia diff unificada experimental",
 			"description": "Ativar a estratégia diff unificada experimental. Esta estratégia pode reduzir o número de novas tentativas causadas por erros do modelo, mas pode causar comportamento inesperado ou edições incorretas. Ative apenas se compreender os riscos e estiver disposto a revisar cuidadosamente todas as alterações."

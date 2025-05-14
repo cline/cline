@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Nén cửa sổ ngữ cảnh một cách thông minh",
+			"description": "Sử dụng một lệnh gọi LLM để tóm tắt cuộc trò chuyện trước đó khi cửa sổ ngữ cảnh của tác vụ gần đầy, thay vì loại bỏ các tin nhắn cũ. Lưu ý: chi phí tóm tắt hiện không được tính vào chi phí API hiển thị trong giao diện người dùng."
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Sử dụng chiến lược diff thống nhất thử nghiệm",
 			"description": "Bật chiến lược diff thống nhất thử nghiệm. Chiến lược này có thể giảm số lần thử lại do lỗi mô hình nhưng có thể gây ra hành vi không mong muốn hoặc chỉnh sửa không chính xác. Chỉ bật nếu bạn hiểu rõ các rủi ro và sẵn sàng xem xét cẩn thận tất cả các thay đổi."

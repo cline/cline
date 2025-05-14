@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Condensa intelligentemente la finestra di contesto",
+			"description": "Utilizza una chiamata LLM per riassumere la conversazione precedente quando la finestra di contesto dell'attività è quasi piena, invece di eliminare i messaggi vecchi. Avviso: il costo della sintesi non è attualmente incluso nei costi API mostrati nell'interfaccia."
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usa strategia diff unificata sperimentale",
 			"description": "Abilita la strategia diff unificata sperimentale. Questa strategia potrebbe ridurre il numero di tentativi causati da errori del modello, ma può causare comportamenti imprevisti o modifiche errate. Abilitala solo se comprendi i rischi e sei disposto a rivedere attentamente tutte le modifiche."

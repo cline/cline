@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Bağlam penceresini akıllıca sıkıştır",
+			"description": "Görevin bağlam penceresi neredeyse dolduğunda, eski mesajları atmak yerine önceki konuşmayı özetlemek için bir LLM çağrısı kullanır. Not: Özetleme maliyeti şu anda arayüzde gösterilen API maliyetlerine dahil değildir."
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Deneysel birleştirilmiş diff stratejisini kullan",
 			"description": "Deneysel birleştirilmiş diff stratejisini etkinleştir. Bu strateji, model hatalarından kaynaklanan yeniden deneme sayısını azaltabilir, ancak beklenmeyen davranışlara veya hatalı düzenlemelere neden olabilir. Yalnızca riskleri anlıyorsanız ve tüm değişiklikleri dikkatlice incelemeye istekliyseniz etkinleştirin."

@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Inteligentnie kondensuj okno kontekstu",
+			"description": "Używa wywołania LLM do podsumowania wcześniejszej rozmowy, gdy okno kontekstu zadania jest prawie pełne, zamiast usuwać stare wiadomości. Zastrzeżenie: koszt podsumowania nie jest obecnie uwzględniony w kosztach API pokazywanych w interfejsie."
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Użyj eksperymentalnej ujednoliconej strategii diff",
 			"description": "Włącz eksperymentalną ujednoliconą strategię diff. Ta strategia może zmniejszyć liczbę ponownych prób spowodowanych błędami modelu, ale może powodować nieoczekiwane zachowanie lub nieprawidłowe edycje. Włącz tylko jeśli rozumiesz ryzyko i jesteś gotów dokładnie przeglądać wszystkie zmiany."

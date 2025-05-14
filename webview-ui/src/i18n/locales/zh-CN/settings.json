@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "智能压缩上下文窗口",
+			"description": "当任务上下文窗口接近填满时，使用 LLM 调用来总结过去的对话，而不是删除旧消息。注意：目前 UI 中显示的 API 费用不包括总结的成本。"
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "启用diff更新工具",
 			"description": "可减少因模型错误导致的重复尝试，但可能引发意外操作。启用前请确保理解风险并会仔细检查所有修改。"

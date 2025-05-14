@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Condenser intelligemment la fenêtre de contexte",
+			"description": "Utilise un appel LLM pour résumer la conversation précédente lorsque la fenêtre de contexte de la tâche est presque pleine, plutôt que de supprimer les anciens messages. Avertissement : le coût de la synthèse n'est actuellement pas inclus dans les coûts API affichés dans l'interface."
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Utiliser la stratégie diff unifiée expérimentale",
 			"description": "Activer la stratégie diff unifiée expérimentale. Cette stratégie pourrait réduire le nombre de tentatives causées par des erreurs de modèle, mais peut provoquer des comportements inattendus ou des modifications incorrectes. Activez-la uniquement si vous comprenez les risques et êtes prêt à examiner attentivement tous les changements."

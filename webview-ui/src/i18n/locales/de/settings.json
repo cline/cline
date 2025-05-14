@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Kontextfenster intelligent komprimieren",
+			"description": "Verwendet einen LLM-Aufruf, um das vorherige Gespräch zusammenzufassen, wenn das Kontextfenster der Aufgabe fast voll ist, anstatt alte Nachrichten zu verwerfen. Hinweis: Die Kosten für die Zusammenfassung sind derzeit nicht in den in der Benutzeroberfläche angezeigten API-Kosten enthalten."
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Experimentelle einheitliche Diff-Strategie verwenden",
 			"description": "Aktiviert die experimentelle einheitliche Diff-Strategie. Diese Strategie könnte die Anzahl der durch Modellfehler verursachten Wiederholungen reduzieren, kann aber unerwartetes Verhalten oder falsche Bearbeitungen verursachen. Nur aktivieren, wenn du die Risiken verstehst und bereit bist, alle Änderungen sorgfältig zu überprüfen."

@@ -396,6 +396,10 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"AUTO_CONDENSE_CONTEXT": {
+			"name": "Condensar inteligentemente la ventana de contexto",
+			"description": "Utiliza una llamada LLM para resumir la conversación anterior cuando la ventana de contexto de la tarea está casi llena, en lugar de eliminar mensajes antiguos. Aviso: el costo de resumir actualmente no está incluido en los costos de API mostrados en la interfaz."
+		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usar estrategia de diff unificada experimental",
 			"description": "Habilitar la estrategia de diff unificada experimental. Esta estrategia podría reducir el número de reintentos causados por errores del modelo, pero puede causar comportamientos inesperados o ediciones incorrectas. Habilítela solo si comprende los riesgos y está dispuesto a revisar cuidadosamente todos los cambios."

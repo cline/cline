@@ -10,6 +10,7 @@ import {
 	truncateConversation,
 	truncateConversationIfNeeded,
 } from "../index"
+import { ApiMessage } from "../../task-persistence/apiMessages"
 
 // Create a mock ApiHandler for testing
 class MockApiHandler extends BaseProvider {
@@ -41,7 +42,7 @@ const mockApiHandler = new MockApiHandler()
  */
 describe("truncateConversation", () => {
 	it("should retain the first message", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: ApiMessage[] = [
 			{ role: "user", content: "First message" },
 			{ role: "assistant", content: "Second message" },
 			{ role: "user", content: "Third message" },
@@ -58,7 +59,7 @@ describe("truncateConversation", () => {
 	})
 
 	it("should remove the specified fraction of messages (rounded to even number)", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: ApiMessage[] = [
 			{ role: "user", content: "First message" },
 			{ role: "assistant", content: "Second message" },
 			{ role: "user", content: "Third message" },
@@ -77,7 +78,7 @@ describe("truncateConversation", () => {
 	})
 
 	it("should round to an even number of messages to remove", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: ApiMessage[] = [
 			{ role: "user", content: "First message" },
 			{ role: "assistant", content: "Second message" },
 			{ role: "user", content: "Third message" },
@@ -96,7 +97,7 @@ describe("truncateConversation", () => {
 	})
 
 	it("should handle edge case with fracToRemove = 0", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: ApiMessage[] = [
 			{ role: "user", content: "First message" },
 			{ role: "assistant", content: "Second message" },
 			{ role: "user", content: "Third message" },
@@ -108,7 +109,7 @@ describe("truncateConversation", () => {
 	})
 
 	it("should handle edge case with fracToRemove = 1", () => {
-		const messages: Anthropic.Messages.MessageParam[] = [
+		const messages: ApiMessage[] = [
 			{ role: "user", content: "First message" },
 			{ role: "assistant", content: "Second message" },
 			{ role: "user", content: "Third message" },
@@ -224,7 +225,7 @@ describe("truncateConversationIfNeeded", () => {
 		maxTokens,
 	})
 
-	const messages: Anthropic.Messages.MessageParam[] = [
+	const messages: ApiMessage[] = [
 		{ role: "user", content: "First message" },
 		{ role: "assistant", content: "Second message" },
 		{ role: "user", content: "Third message" },
@@ -328,7 +329,7 @@ describe("truncateConversationIfNeeded", () => {
 		// Test case 1: Small content that won't push us over the threshold
 		const smallContent = [{ type: "text" as const, text: "Small content" }]
 		const smallContentTokens = await estimateTokenCount(smallContent, mockApiHandler)
-		const messagesWithSmallContent: Anthropic.Messages.MessageParam[] = [
+		const messagesWithSmallContent: ApiMessage[] = [
 			...messages.slice(0, -1),
 			{ role: messages[messages.length - 1].role, content: smallContent },
 		]
@@ -353,7 +354,7 @@ describe("truncateConversationIfNeeded", () => {
 			},
 		]
 		const largeContentTokens = await estimateTokenCount(largeContent, mockApiHandler)
-		const messagesWithLargeContent: Anthropic.Messages.MessageParam[] = [
+		const messagesWithLargeContent: ApiMessage[] = [
 			...messages.slice(0, -1),
 			{ role: messages[messages.length - 1].role, content: largeContent },
 		]
@@ -372,7 +373,7 @@ describe("truncateConversationIfNeeded", () => {
 		// Test case 3: Very large content that will definitely exceed threshold
 		const veryLargeContent = [{ type: "text" as const, text: "X".repeat(1000) }]
 		const veryLargeContentTokens = await estimateTokenCount(veryLargeContent, mockApiHandler)
-		const messagesWithVeryLargeContent: Anthropic.Messages.MessageParam[] = [
+		const messagesWithVeryLargeContent: ApiMessage[] = [
 			...messages.slice(0, -1),
 			{ role: messages[messages.length - 1].role, content: veryLargeContent },
 		]
@@ -424,7 +425,7 @@ describe("getMaxTokens", () => {
 	})
 
 	// Reuse across tests for consistency
-	const messages: Anthropic.Messages.MessageParam[] = [
+	const messages: ApiMessage[] = [
 		{ role: "user", content: "First message" },
 		{ role: "assistant", content: "Second message" },
 		{ role: "user", content: "Third message" },
