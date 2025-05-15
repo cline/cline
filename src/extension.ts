@@ -275,7 +275,13 @@ export function activate(context: vscode.ExtensionContext) {
 			const filePath = editor.document.uri.fsPath
 			const languageId = editor.document.languageId
 
-			const visibleWebview = WebviewProvider.getVisibleInstance()
+			let visibleWebview = WebviewProvider.getVisibleInstance()
+			if (!visibleWebview) {
+				// Ensure the sidebar view is visible
+				vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				visibleWebview = WebviewProvider.getSidebarInstance()
+			}
+
 			await visibleWebview?.controller.addSelectedCodeToChat(
 				selectedText,
 				filePath,
