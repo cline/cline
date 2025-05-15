@@ -4234,6 +4234,41 @@ export class Task {
 			}
 		}
 
+		// Add Git repository information
+		try {
+			const gitExtension = vscode.extensions.getExtension<{ getAPI: (version: number) => any }>("vscode.git")
+			if (gitExtension && gitExtension.isActive) {
+				const gitApi = gitExtension.exports.getAPI(1)
+				if (gitApi && gitApi.repositories && gitApi.repositories.length > 0) {
+					details += "\n\n# Git Repositories"
+					for (const repo of gitApi.repositories) {
+						const repoPath = repo.rootUri.fsPath
+						const relativeRepoPath = path.relative(cwd, repoPath)
+
+						if (this.clineIgnoreController.validateAccess(relativeRepoPath)) {
+							let remoteUrl = ""
+							if (repo.state.remotes && repo.state.remotes.length > 0) {
+								const originRemote = repo.state.remotes.find((r: any) => r.name === "origin")
+								const targetRemote = originRemote || repo.state.remotes[0]
+								if (targetRemote) {
+									remoteUrl = targetRemote.fetchUrl || targetRemote.pushUrl || ""
+								}
+							}
+							const posixRelativeRepoPath = relativeRepoPath.replace(/\\/g, "/")
+							details += `\n## Repository: ${posixRelativeRepoPath}`
+							const currentBranch = repo.state.HEAD?.name
+							if (currentBranch) {
+								details += ` - Current Branch: ${currentBranch}`
+							}
+							details += ` (${remoteUrl})`
+						}
+					}
+				}
+			}
+		} catch (error: any) {
+			Logger.error("Error when adding git repository information", error)
+		}
+
 		// Add context window usage information
 		const { contextWindow, maxAllowedSize } = getContextWindowInfo(this.api)
 
