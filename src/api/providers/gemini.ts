@@ -1,6 +1,6 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
-import { GoogleGenAI, type Content, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
+import { GoogleGenAI, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
@@ -160,9 +160,20 @@ export class GeminiHandler implements ApiHandler {
 			}
 		} catch (error) {
 			apiSuccess = false
-			apiError = error instanceof Error ? error.message : String(error)
 			// Let the error propagate to be handled by withRetry or Task.ts
 			// Telemetry will be sent in the finally block.
+			if (error instanceof Error) {
+				apiError = error.message
+
+				// Gemini doesn't include status codes in their errors
+				// https://github.com/googleapis/js-genai/blob/61f7f27b866c74333ca6331883882489bcb708b9/src/_api_client.ts#L569
+				if (error.name === "ClientError" && error.message.includes("got status: 429 Too Many Requests.")) {
+					;(error as any).status = 429
+				}
+			} else {
+				apiError = String(error)
+			}
+
 			throw error
 		} finally {
 			const sdkCallEndTime = Date.now()
