@@ -166,7 +166,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 	// Render a timeline block
 	const TimelineBlock = useCallback(
 		(index: number) => {
-			console.log(`Rendering timeline block at index ${index}`)
 			const message = taskTimelinePropsMessages[index]
 			return (
 				<div
