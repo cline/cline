@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from "react"
+import React, { useMemo, useRef, useEffect, useCallback } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
@@ -10,21 +10,28 @@ import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLO
 const TIMELINE_HEIGHT = "18px"
 const BLOCK_WIDTH = "9px"
 const BLOCK_GAP = "3px"
-const TOOLTIP_MARGIN = 32 // 32px margin on each side
+
+export interface EnrichedClineMessage extends ClineMessage {
+	_blockColor: string
+	_tooltipDesc: string
+	_tooltipContentPreview: string
+	_tooltipTimestamp: string
+}
 
 interface TaskTimelineProps {
 	messages: ClineMessage[]
 }
 
-const getBlockColor = (message: ClineMessage): string => {
+// Helper functions for enriching messages (logic adapted from TaskTimelineTooltip.tsx)
+const getEnrichedMessageDescription = (message: ClineMessage): string => {
 	if (message.type === "say") {
 		switch (message.say) {
 			case "task":
-				return COLOR_WHITE // White for system prompt
+				return "Task Message"
 			case "user_feedback":
-				return COLOR_WHITE // White for user feedback
+				return "User Message"
 			case "text":
-				return COLOR_GRAY // Gray for assistant responses
+				return "Assistant Response"
 			case "tool":
 				if (message.text) {
 					try {
@@ -35,35 +42,38 @@ const getBlockColor = (message: ClineMessage): string => {
 							toolData.tool === "listFilesRecursive" ||
 							toolData.tool === "listCodeDefinitionNames" ||
 							toolData.tool === "searchFiles"
-						) {
-							return COLOR_BEIGE // Beige for file read operations
-						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
-							return COLOR_BLUE // Blue for file edit/create operations
-						}
+						)
+							return `File Read: ${toolData.tool}`
+						if (toolData.tool === "editedExistingFile") return `File Edit: ${toolData.path || "Unknown file"}`
+						if (toolData.tool === "newFileCreated") return `New File: ${toolData.path || "Unknown file"}`
+						return `Tool: ${toolData.tool}`
 					} catch (e) {
-						// JSON parse error here
+						return "Tool Use"
 					}
 				}
-				return COLOR_BEIGE // Default beige for tool use
+				return "Tool Use"
 			case "command":
+				return "Terminal Command"
 			case "command_output":
-				return COLOR_PURPLE // Red for terminal commands
+				return "Terminal Output"
 			case "browser_action":
+				return "Browser Action"
 			case "browser_action_result":
-				return COLOR_PURPLE // Purple for browser actions
+				return "Browser Result"
 			case "completion_result":
-				return COLOR_GREEN // Green for task success
+				return "Task Completed"
+			case "checkpoint_created":
+				return "Checkpoint Created"
 			default:
-				return COLOR_DARK_GRAY // Dark gray for unknown
+				return message.say || "Unknown"
 		}
 	} else if (message.type === "ask") {
 		switch (message.ask) {
 			case "followup":
-				return COLOR_GRAY // Gray for user messages
+				return "User Message"
 			case "plan_mode_respond":
-				return COLOR_GRAY // Gray for planning responses
+				return "Planning Response"
 			case "tool":
-				// Match the color of the tool approval with the tool type
 				if (message.text) {
 					try {
 						const toolData = JSON.parse(message.text)
@@ -73,85 +83,193 @@ const getBlockColor = (message: ClineMessage): string => {
 							toolData.tool === "listFilesRecursive" ||
 							toolData.tool === "listCodeDefinitionNames" ||
 							toolData.tool === "searchFiles"
-						) {
-							return COLOR_BEIGE // Beige for file read operations
-						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
-							return COLOR_BLUE // Blue for file edit/create operations
-						}
+						)
+							return `File Read Approval: ${toolData.tool}`
+						if (toolData.tool === "editedExistingFile")
+							return `File Edit Approval: ${toolData.path || "Unknown file"}`
+						if (toolData.tool === "newFileCreated") return `New File Approval: ${toolData.path || "Unknown file"}`
+						return `Tool Approval: ${toolData.tool}`
 					} catch (e) {
-						// JSON parse error here
+						return "Tool Approval"
 					}
 				}
-				return COLOR_BEIGE // Default beige for tool approvals
+				return "Tool Approval"
 			case "command":
-				return COLOR_PURPLE // Red for command approvals (same as terminal commands)
+				return "Terminal Command Approval"
 			case "browser_action_launch":
-				return COLOR_PURPLE // Purple for browser launch approvals (same as browser actions)
+				return "Browser Action Approval"
 			default:
-				return COLOR_DARK_GRAY // Dark gray for unknown
+				return message.ask || "Unknown"
 		}
 	}
-	return COLOR_WHITE // Default color
+	return "Unknown Message Type"
+}
+
+const getEnrichedMessageContent = (message: ClineMessage): string => {
+	if (message.text) {
+		if (message.type === "ask" && message.ask === "plan_mode_respond" && message.text) {
+			try {
+				const planData = JSON.parse(message.text)
+				return planData.response || message.text
+			} catch (e) {
+				return message.text
+			}
+		} else if (message.type === "say" && message.say === "tool" && message.text) {
+			try {
+				const toolData = JSON.parse(message.text)
+				return JSON.stringify(toolData, null, 2)
+			} catch (e) {
+				return message.text
+			}
+		}
+		if (message.text.length > 200) return message.text.substring(0, 200) + "..."
+		return message.text
+	}
+	return ""
+}
+
+const getEnrichedMessageTimestamp = (message: ClineMessage): string => {
+	if (message.ts) {
+		const messageDate = new Date(message.ts)
+		const today = new Date()
+		const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+		const messageDateOnly = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate())
+		const time = messageDate.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
+		const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+		const monthName = monthNames[messageDate.getMonth()]
+		if (messageDateOnly.getTime() === todayDate.getTime()) return `${time}`
+		if (messageDate.getFullYear() === today.getFullYear()) return `${monthName} ${messageDate.getDate()} ${time}`
+		return `${monthName} ${messageDate.getDate()}, ${messageDate.getFullYear()} ${time}`
+	}
+	return ""
+}
+
+const getEnrichedBlockColor = (message: ClineMessage): string => {
+	if (message.type === "say") {
+		switch (message.say) {
+			case "task":
+				return COLOR_WHITE
+			case "user_feedback":
+				return COLOR_WHITE
+			case "text":
+				return COLOR_GRAY
+			case "tool":
+				if (message.text) {
+					try {
+						const toolData = JSON.parse(message.text)
+						if (
+							toolData.tool === "readFile" ||
+							toolData.tool === "listFilesTopLevel" ||
+							toolData.tool === "listFilesRecursive" ||
+							toolData.tool === "listCodeDefinitionNames" ||
+							toolData.tool === "searchFiles"
+						)
+							return COLOR_BEIGE
+						if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") return COLOR_BLUE
+					} catch (e) {
+						/* ignore */
+					}
+				}
+				return COLOR_BEIGE
+			case "command":
+			case "command_output":
+				return COLOR_PURPLE
+			case "browser_action":
+			case "browser_action_result":
+				return COLOR_PURPLE
+			case "completion_result":
+				return COLOR_GREEN
+			default:
+				return COLOR_DARK_GRAY
+		}
+	} else if (message.type === "ask") {
+		switch (message.ask) {
+			case "followup":
+				return COLOR_GRAY
+			case "plan_mode_respond":
+				return COLOR_GRAY
+			case "tool":
+				if (message.text) {
+					try {
+						const toolData = JSON.parse(message.text)
+						if (
+							toolData.tool === "readFile" ||
+							toolData.tool === "listFilesTopLevel" ||
+							toolData.tool === "listFilesRecursive" ||
+							toolData.tool === "listCodeDefinitionNames" ||
+							toolData.tool === "searchFiles"
+						)
+							return COLOR_BEIGE
+						if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") return COLOR_BLUE
+					} catch (e) {
+						/* ignore */
+					}
+				}
+				return COLOR_BEIGE
+			case "command":
+				return COLOR_PURPLE
+			case "browser_action_launch":
+				return COLOR_PURPLE
+			default:
+				return COLOR_DARK_GRAY
+		}
+	}
+	return COLOR_WHITE
 }
 
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 	const containerRef = useRef<HTMLDivElement>(null)
-	const scrollableRef = useRef<HTMLDivElement>(null)
-
-	const taskTimelinePropsMessages = useMemo(() => {
-		if (messages.length <= 1) return []
-
-		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
-
-		return processed.filter((msg) => {
-			// Filter out standard "say" events we don't want to show
-			if (
-				msg.type === "say" &&
-				(msg.say === "api_req_started" ||
-					msg.say === "api_req_finished" ||
-					msg.say === "api_req_retried" ||
-					msg.say === "deleted_api_reqs" ||
-					msg.say === "checkpoint_created" ||
-					(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
-			) {
-				return false
-			}
-
-			// Filter out "ask" events we don't want to show, including the duplicate completion_result
-			if (
-				msg.type === "ask" &&
-				(msg.ask === "resume_task" || msg.ask === "resume_completed_task" || msg.ask === "completion_result") // Filter out the duplicate completion_result "ask" message
-			) {
-				return false
-			}
-
-			return true
-		})
-	}, [messages])
-
-	useEffect(() => {
-		if (scrollableRef.current && taskTimelinePropsMessages.length > 0) {
-			scrollableRef.current.scrollLeft = scrollableRef.current.scrollWidth
-		}
-	}, [taskTimelinePropsMessages])
-
-	// Calculate the item size (width of block + gap)
-	const itemWidth = parseInt(BLOCK_WIDTH.replace("px", "")) + parseInt(BLOCK_GAP.replace("px", ""))
-
-	// Virtuoso requires a reference to scroll to the end
 	const virtuosoRef = useRef<any>(null)
 
-	// Render a timeline block
+	const enrichedTimelineMessages: EnrichedClineMessage[] = useMemo(() => {
+		if (messages.length <= 1) return []
+
+		const processedAndFiltered = combineApiRequests(combineCommandSequences(messages.slice(1)))
+			.filter((msg) => {
+				if (
+					msg.type === "say" &&
+					(msg.say === "api_req_started" ||
+						msg.say === "api_req_finished" ||
+						msg.say === "api_req_retried" ||
+						msg.say === "deleted_api_reqs" ||
+						msg.say === "checkpoint_created" ||
+						(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
+				) {
+					return false
+				}
+				if (
+					msg.type === "ask" &&
+					(msg.ask === "resume_task" || msg.ask === "resume_completed_task" || msg.ask === "completion_result")
+				) {
+					return false
+				}
+				return true
+			})
+			.map((msg) => ({
+				...msg,
+				_blockColor: getEnrichedBlockColor(msg),
+				_tooltipDesc: getEnrichedMessageDescription(msg),
+				_tooltipContentPreview: getEnrichedMessageContent(msg),
+				_tooltipTimestamp: getEnrichedMessageTimestamp(msg),
+			}))
+		return processedAndFiltered
+	}, [messages])
+
 	const TimelineBlock = useCallback(
 		(index: number) => {
-			const message = taskTimelinePropsMessages[index]
+			const message = enrichedTimelineMessages[index]
 			return (
-				<TaskTimelineTooltip message={message}>
+				<TaskTimelineTooltip
+					message={message} // Pass original message for now, will update tooltip to use enriched props
+					blockColor={message._blockColor}
+					tooltipDesc={message._tooltipDesc}
+					tooltipContentPreview={message._tooltipContentPreview}
+					tooltipTimestamp={message._tooltipTimestamp}>
 					<div
 						style={{
 							width: BLOCK_WIDTH,
 							height: "100%",
-							backgroundColor: getBlockColor(message),
+							backgroundColor: message._blockColor, // Use pre-computed color
 							flexShrink: 0,
 							cursor: "pointer",
 							marginRight: BLOCK_GAP,
@@ -160,20 +278,19 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				</TaskTimelineTooltip>
 			)
 		},
-		[taskTimelinePropsMessages],
+		[enrichedTimelineMessages],
 	)
 
-	// Scroll to the end when messages change
 	useEffect(() => {
-		if (virtuosoRef.current && taskTimelinePropsMessages.length > 0) {
+		if (virtuosoRef.current && enrichedTimelineMessages.length > 0) {
 			virtuosoRef.current.scrollToIndex({
-				index: taskTimelinePropsMessages.length - 1,
+				index: enrichedTimelineMessages.length - 1,
 				align: "end",
 			})
 		}
-	}, [taskTimelinePropsMessages])
+	}, [enrichedTimelineMessages])
 
-	if (taskTimelinePropsMessages.length === 0) {
+	if (enrichedTimelineMessages.length === 0) {
 		return null
 	}
 
@@ -207,11 +324,11 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 					height: TIMELINE_HEIGHT,
 					width: "100%",
 				}}
-				totalCount={taskTimelinePropsMessages.length}
+				totalCount={enrichedTimelineMessages.length}
 				itemContent={TimelineBlock}
 				horizontalDirection={true}
 				increaseViewportBy={12}
-				fixedItemHeight={itemWidth}
+				// No fixedItemHeight/Width needed as Virtuoso will use the rendered item's dimensions
 			/>
 		</div>
 	)
