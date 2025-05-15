@@ -95,8 +95,6 @@ const getBlockColor = (message: ClineMessage): string => {
 }
 
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
-	const [hoveredMessage, setHoveredMessage] = useState<ClineMessage | null>(null)
-	const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const scrollableRef = useRef<HTMLDivElement>(null)
 
@@ -137,28 +135,8 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 		}
 	}, [taskTimelinePropsMessages])
 
-	const handleMouseEnter = useCallback((message: ClineMessage, event: React.MouseEvent<HTMLDivElement>) => {
-		setHoveredMessage(message)
-
-		const viewportWidth = window.innerWidth
-		const tooltipWidth = viewportWidth - TOOLTIP_MARGIN * 2
-
-		// Center the tooltip horizontally in the viewport
-		const x = TOOLTIP_MARGIN
-
-		setTooltipPosition({ x, y: event.clientY })
-	}, [])
-
-	const handleMouseLeave = useCallback(() => {
-		setHoveredMessage(null)
-		setTooltipPosition(null)
-	}, [])
-
 	// Calculate the item size (width of block + gap)
 	const itemWidth = parseInt(BLOCK_WIDTH.replace("px", "")) + parseInt(BLOCK_GAP.replace("px", ""))
-
-	// Size function for Virtuoso
-	const itemSize = useCallback(() => itemWidth, [itemWidth])
 
 	// Virtuoso requires a reference to scroll to the end
 	const virtuosoRef = useRef<any>(null)
@@ -168,21 +146,21 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 		(index: number) => {
 			const message = taskTimelinePropsMessages[index]
 			return (
-				<div
-					style={{
-						width: BLOCK_WIDTH,
-						height: "100%",
-						backgroundColor: getBlockColor(message),
-						flexShrink: 0,
-						cursor: "pointer",
-						marginRight: BLOCK_GAP,
-					}}
-					onMouseEnter={(e) => handleMouseEnter(message, e)}
-					onMouseLeave={handleMouseLeave}
-				/>
+				<TaskTimelineTooltip message={message}>
+					<div
+						style={{
+							width: BLOCK_WIDTH,
+							height: "100%",
+							backgroundColor: getBlockColor(message),
+							flexShrink: 0,
+							cursor: "pointer",
+							marginRight: BLOCK_GAP,
+						}}
+					/>
+				</TaskTimelineTooltip>
 			)
 		},
-		[taskTimelinePropsMessages, handleMouseEnter, handleMouseLeave],
+		[taskTimelinePropsMessages],
 	)
 
 	// Scroll to the end when messages change
@@ -235,20 +213,6 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				increaseViewportBy={12}
 				fixedItemHeight={itemWidth}
 			/>
-
-			{hoveredMessage && containerRef.current && tooltipPosition && (
-				<div
-					style={{
-						position: "fixed",
-						left: `${tooltipPosition.x}px`,
-						top: `${tooltipPosition.y + 20}px`,
-						zIndex: 1000,
-						pointerEvents: "none",
-						width: `calc(100% - ${TOOLTIP_MARGIN * 2}px)`,
-					}}>
-					<TaskTimelineTooltip message={hoveredMessage} />
-				</div>
-			)}
 		</div>
 	)
 }
