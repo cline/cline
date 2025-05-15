@@ -3,7 +3,7 @@ import { useClickAway, useWindowSize } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import HeroTooltip from "@/components/common/HeroTooltip"
@@ -241,6 +241,9 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 
 				<div className="flex justify-between items-center mb-2.5">
 					<div className="m-0 text-base font-semibold">Auto-approve Settings</div>
+					<VSCodeButton appearance="icon" onClick={() => setIsVisible(false)}>
+						<span className="codicon codicon-close text-[10px]"></span>
+					</VSCodeButton>
 				</div>
 
 				<HeroTooltip
@@ -253,7 +256,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 
 				<div
 					ref={itemsContainerRef}
-					className="relative my-[4px_0_16px_0]"
+					className="relative mt-4 mb-6"
 					style={{
 						columnCount: containerWidth > breakpoint ? 2 : 1,
 						columnGap: "4px",
@@ -282,7 +285,9 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					))}
 				</div>
 
-				<span className="text-[color:var(--vscode-foreground)] mb-1 font-medium">Quick Settings:</span>
+				<div className="mb-3">
+					<span className="text-[color:var(--vscode-foreground)] font-medium">Quick Settings:</span>
+				</div>
 
 				<AutoApproveMenuItem
 					key={NOTIFICATIONS_SETTING.id}
@@ -296,11 +301,13 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 				<HeroTooltip
 					content="Cline will automatically make this many API requests before asking for approval to proceed with the task."
 					placement="top">
-					<div className="flex items-center gap-2 w-full my-[2px_10px_20px_5px]">
-						<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
-						<span className="text-[#CCCCCC] text-xs font-medium">Max Requests:</span>
+					<div className="flex items-center pl-[4px] my-2">
+						<div style={{ width: "24px" }}>
+							<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
+						</div>
+						<span className="text-[#CCCCCC] text-xs font-medium ml-2">Max Requests:</span>
 						<VSCodeTextField
-							className="flex-1 w-full pr-[35px]"
+							className="flex-1 w-full pr-[35px] ml-4"
 							value={autoApprovalSettings.maxRequests.toString()}
 							onInput={(e) => {
 								const input = e.target as HTMLInputElement

@@ -88,7 +88,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 
 	return (
 		<div
-			className="px-[4px_10px] mx-[5px] select-none rounded-[10px_10px_0_0]"
+			className="px-[10px] mx-[5px] select-none rounded-[10px_10px_0_0]"
 			style={{
 				borderTop: `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`,
 				overflowY: "auto",
@@ -97,7 +97,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 			}}>
 			<div
 				ref={buttonRef}
-				className="cursor-pointer pt-[6px] pr-[2px] flex items-center justify-between gap-[8px]"
+				className="cursor-pointer py-[8px] pr-[2px] flex items-center justify-between gap-[8px]"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}>
