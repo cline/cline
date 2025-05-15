@@ -20,6 +20,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			disable_session_recording: true,
 			capture_pageview: false,
 			capture_dead_clicks: true,
+			capture_exceptions: true,
 			bootstrap: {
 				distinctID: vscMachineId,
 			},
