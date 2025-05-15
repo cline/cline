@@ -100,7 +100,8 @@ export const calculateTokenDistribution = (
 
 	// Get the actual max tokens value from the model
 	// If maxTokens is valid, use it, otherwise reserve 20% of the context window as a default
-	const reservedForOutput = maxTokens && maxTokens > 0 ? maxTokens : Math.ceil(safeContextWindow * 0.2)
+	const reservedForOutput =
+		maxTokens && maxTokens > 0 && maxTokens !== safeContextWindow ? maxTokens : Math.ceil(safeContextWindow * 0.2)
 
 	// Calculate sizes directly without buffer display
 	const availableSize = Math.max(0, safeContextWindow - safeContextTokens - reservedForOutput)
