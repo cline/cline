@@ -104,16 +104,17 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
 
 	const getThinkingBudgetPercentage = (): number => {
-		if (apiConfiguration?.apiProvider === "gemini" && apiConfiguration.apiModelId === "gemini-2-5-flash") {
+		if (apiConfiguration?.apiModelId === "gemini-2-5-gemini-2.5-flash-preview-04-17") {
 			return 1.0 // Gemini2.5 Flash is 100%
 		} else if (
 			(apiConfiguration?.apiProvider === "anthropic" && apiConfiguration.apiModelId === "claude-3-7-sonnet-20250219") ||
-			(apiConfiguration?.apiProvider === "bedrock" && apiConfiguration.apiModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
-			(apiConfiguration?.apiProvider === "gemini" && apiConfiguration.apiModelId === "claude-3-7-sonnet@20250219")
+			(apiConfiguration?.apiProvider === "bedrock" &&
+				apiConfiguration.apiModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+			(apiConfiguration?.apiProvider === "vertex" && apiConfiguration.apiModelId === "claude-3-7-sonnet@20250219")
 		) {
 			return 0.5 // Claude3.7 is 50%(32K Token)
 		}
-		
+
 		return DEFAULT_MAX_PERCENTAGE
 	}
 
