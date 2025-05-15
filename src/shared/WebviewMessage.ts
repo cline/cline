@@ -16,7 +16,6 @@ export interface WebviewMessage {
 		| "reportBug"
 		| "askResponse"
 		| "didShowAnnouncement"
-		| "resetState"
 		| "openInBrowser"
 		| "openMention"
 		| "showChatView"
