@@ -43,7 +43,7 @@
 
 Tant si busqueu un soci de programació flexible, un arquitecte de sistemes o rols especialitzats com un enginyer de control de qualitat o un gestor de producte, Roo Code us pot ajudar a construir programari de manera més eficient.
 
-Consulteu el [CHANGELOG](../CHANGELOG.md) per a actualitzacions i correccions detallades.
+Consulteu el [CHANGELOG](../../CHANGELOG.md) per a actualitzacions i correccions detallades.
 
 ---
 

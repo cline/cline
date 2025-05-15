@@ -43,7 +43,7 @@
 
 İster esnek bir kodlama ortağı, ister bir sistem mimarı, isterse QA mühendisi veya ürün yöneticisi gibi uzmanlaşmış roller arıyor olun, Roo Code yazılım geliştirme sürecinizi daha verimli hale getirmenize yardımcı olabilir.
 
-Detaylı güncellemeler ve düzeltmeler için [CHANGELOG](../CHANGELOG.md) dosyasını kontrol edin.
+Detaylı güncellemeler ve düzeltmeler için [CHANGELOG](../../CHANGELOG.md) dosyasını kontrol edin.
 
 ---
 

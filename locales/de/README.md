@@ -43,7 +43,7 @@
 
 Ob Sie einen flexiblen Coding-Partner, einen Systemarchitekten oder spezialisierte Rollen wie einen QA-Ingenieur oder Produktmanager suchen, Roo Code kann Ihnen helfen, Software effizienter zu entwickeln.
 
-Sehen Sie sich das [CHANGELOG](../CHANGELOG.md) für detaillierte Updates und Fehlerbehebungen an.
+Sehen Sie sich das [CHANGELOG](../../CHANGELOG.md) für detaillierte Updates und Fehlerbehebungen an.
 
 ---
 

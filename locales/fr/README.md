@@ -43,7 +43,7 @@
 
 Que vous recherchiez un partenaire de codage flexible, un architecte système, ou des rôles spécialisés comme un ingénieur QA ou un chef de produit, Roo Code peut vous aider à développer des logiciels plus efficacement.
 
-Consultez le [CHANGELOG](../CHANGELOG.md) pour des mises à jour détaillées et des corrections.
+Consultez le [CHANGELOG](../../CHANGELOG.md) pour des mises à jour détaillées et des corrections.
 
 ---
 

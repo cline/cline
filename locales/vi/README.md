@@ -43,7 +43,7 @@
 
 Cho dù bạn đang tìm kiếm một đối tác lập trình linh hoạt, một kiến trúc sư hệ thống, hay các vai trò chuyên biệt như kỹ sư QA hoặc quản lý sản phẩm, Roo Code có thể giúp bạn xây dựng phần mềm hiệu quả hơn.
 
-Kiểm tra [CHANGELOG](../CHANGELOG.md) để biết thông tin chi tiết về các cập nhật và sửa lỗi.
+Kiểm tra [CHANGELOG](../../CHANGELOG.md) để biết thông tin chi tiết về các cập nhật và sửa lỗi.
 
 ---
 

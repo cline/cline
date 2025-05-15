@@ -43,7 +43,7 @@
 
 Ya sea que busques un socio de programación flexible, un arquitecto de sistemas o roles especializados como ingeniero de control de calidad o gestor de productos, Roo Code puede ayudarte a construir software de manera más eficiente.
 
-Consulta el [CHANGELOG](../CHANGELOG.md) para ver actualizaciones detalladas y correcciones.
+Consulta el [CHANGELOG](../../CHANGELOG.md) para ver actualizaciones detalladas y correcciones.
 
 ---
 

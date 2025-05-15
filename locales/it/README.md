@@ -43,7 +43,7 @@
 
 Che tu stia cercando un partner di codifica flessibile, un architetto di sistema o ruoli specializzati come un ingegnere QA o un product manager, Roo Code può aiutarti a costruire software in modo più efficiente.
 
-Consulta il [CHANGELOG](../CHANGELOG.md) per aggiornamenti dettagliati e correzioni.
+Consulta il [CHANGELOG](../../CHANGELOG.md) per aggiornamenti dettagliati e correzioni.
 
 ---
 
