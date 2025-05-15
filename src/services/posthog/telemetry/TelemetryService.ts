@@ -5,6 +5,7 @@ import { version as extensionVersion } from "../../../../package.json"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import { posthogClientProvider } from "../PostHogClientProvider"
+import { Logger } from "../../logging/Logger"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
@@ -170,6 +171,22 @@ class PostHogClient {
 	 * @param event The event to capture with its properties
 	 * @param collect If true, store the event in collectedEvents instead of sending to PostHog
 	 */
+	/**
+	 * Calculate the total size of all collected tasks
+	 * @returns Object containing total size in bytes and event count
+	 */
+	private calculateTotalCollectedSize(): { totalSizeInBytes: number; totalEventCount: number } {
+		let totalSizeInBytes = 0
+		let totalEventCount = 0
+
+		for (const task of this.collectedTasks) {
+			totalEventCount += task.collection.length
+			totalSizeInBytes += this.calculateObjectSize(task.collection)
+		}
+
+		return { totalSizeInBytes, totalEventCount }
+	}
+
 	public capture(event: { event: string; properties?: any }, collect: boolean = false): void {
 		const taskId = event.properties.taskId
 		const propertiesWithVersion = {
@@ -179,22 +196,42 @@ class PostHogClient {
 		}
 		if (collect) {
 			const existingTask = this.collectedTasks.find((task) => task.taskId === taskId)
+			const newEvent = {
+				event: event.event,
+				properties: propertiesWithVersion,
+			}
+
+			// Calculate size of the new event
+			const newEventSizeInBytes = this.calculateObjectSize(newEvent)
+			const formattedNewEventSize = this.formatBytes(newEventSizeInBytes)
+
 			if (existingTask) {
-				existingTask.collection.push({
-					event: event.event,
-					properties: propertiesWithVersion,
-				})
+				existingTask.collection.push(newEvent)
+
+				// Calculate size of this task's collection after adding the new event
+				const taskSizeInBytes = this.calculateObjectSize(existingTask.collection)
+				const formattedTaskSize = this.formatBytes(taskSizeInBytes)
+
+				Logger.log(
+					`Telemetry: Added event ${event.event} to task ${taskId} (event size: ${formattedNewEventSize}, task total: ${formattedTaskSize}, events in task: ${existingTask.collection.length})`,
+				)
 			} else {
 				this.collectedTasks.push({
 					taskId,
-					collection: [
-						{
-							event: event.event,
-							properties: propertiesWithVersion,
-						},
-					],
+					collection: [newEvent],
 				})
+
+				Logger.log(
+					`Telemetry: Created new collection for task ${taskId} with event ${event.event} (event size: ${formattedNewEventSize})`,
+				)
 			}
+
+			// Log the total size of all collected events
+			const { totalSizeInBytes, totalEventCount } = this.calculateTotalCollectedSize()
+			const formattedTotalSize = this.formatBytes(totalSizeInBytes)
+			Logger.log(
+				`Telemetry: Total collected events: ${totalEventCount} across ${this.collectedTasks.length} tasks (total size: ${formattedTotalSize})`,
+			)
 		} else if (this.telemetryEnabled) {
 			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
 		}
@@ -805,11 +842,49 @@ class PostHogClient {
 		return this.telemetryCategoryEnabled.get(category) ?? true
 	}
 
+	/**
+	 * Calculate the size of an object in bytes
+	 * @param obj The object to calculate the size of
+	 * @returns The size in bytes
+	 */
+	private calculateObjectSize(obj: any): number {
+		// Convert the object to a JSON string
+		const jsonString = JSON.stringify(obj)
+
+		// Calculate the size in bytes (2 bytes per character in UTF-16)
+		return jsonString.length * 2
+	}
+
+	/**
+	 * Format bytes into a human-readable string
+	 * @param bytes The number of bytes
+	 * @returns A human-readable string (e.g., "1.23 KB", "2.34 MB")
+	 */
+	private formatBytes(bytes: number): string {
+		if (bytes === 0) return "0 Bytes"
+
+		const k = 1024
+		const sizes = ["Bytes", "KB", "MB", "GB"]
+		const i = Math.floor(Math.log(bytes) / Math.log(k))
+
+		return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+	}
+
 	public async sendCollectedEvents(taskId?: string): Promise<void> {
 		if (this.collectedTasks.length > 0) {
 			if (taskId) {
 				const task = this.collectedTasks.find((t) => t.taskId === taskId)
 				if (task) {
+					// Calculate and log the size of the events
+					const eventCount = task.collection.length
+					const sizeInBytes = this.calculateObjectSize(task.collection)
+					const formattedSize = this.formatBytes(sizeInBytes)
+
+					Logger.log(`Telemetry: Flushing ${eventCount} events for task ${taskId} (${formattedSize})`)
+
+					// Log detailed event information at debug level
+					Logger.log(`Telemetry: Events for task ${taskId}: ${JSON.stringify(task.collection.map((c) => c.event))}`)
+
 					this.capture(
 						{
 							event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
@@ -820,7 +895,35 @@ class PostHogClient {
 					this.collectedTasks = this.collectedTasks.filter((t) => t.taskId !== taskId)
 				}
 			} else {
+				// Calculate total size of all events
+				let totalSizeInBytes = 0
+				let totalEventCount = 0
+
 				for (const task of this.collectedTasks) {
+					totalEventCount += task.collection.length
+					totalSizeInBytes += this.calculateObjectSize(task.collection)
+				}
+
+				const formattedTotalSize = this.formatBytes(totalSizeInBytes)
+				Logger.log(
+					`Telemetry: Flushing all events (${this.collectedTasks.length} tasks, ${totalEventCount} events, ${formattedTotalSize})`,
+				)
+
+				// Create a copy of the array to avoid modification during iteration
+				const tasksCopy = [...this.collectedTasks]
+
+				for (const task of tasksCopy) {
+					const eventCount = task.collection.length
+					const sizeInBytes = this.calculateObjectSize(task.collection)
+					const formattedSize = this.formatBytes(sizeInBytes)
+
+					Logger.log(`Telemetry: Flushing ${eventCount} events for task ${task.taskId} (${formattedSize})`)
+
+					// Log detailed event information at debug level
+					Logger.log(
+						`Telemetry: Events for task ${task.taskId}: ${JSON.stringify(task.collection.map((c) => c.event))}`,
+					)
+
 					this.capture(
 						{
 							event: PostHogClient.EVENTS.TASK.TASK_COLLECTION,
@@ -828,8 +931,10 @@ class PostHogClient {
 						},
 						false,
 					)
-					this.collectedTasks = this.collectedTasks.filter((t) => t.taskId !== task.taskId)
 				}
+
+				// Clear the collected tasks after processing
+				this.collectedTasks = []
 			}
 		}
 	}
