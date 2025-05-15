@@ -49,6 +49,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = baseModelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
+		// maxTokens
+		let maxTokens = model.info.maxTokens || 8192
+		if (reasoningOn && model.info.thinkingConfig?.maxBudget) {
+			maxTokens = model.info.thinkingConfig.maxBudget
+		}
+
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
@@ -64,7 +70,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		delete process.env["AWS_PROFILE"]
 		const stream = await client.messages.create({
 			model: modelId,
-			max_tokens: model.info.maxTokens || 8192,
+			max_tokens: maxTokens,
 			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			temperature: reasoningOn ? undefined : 0,
 			system: [

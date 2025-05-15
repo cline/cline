@@ -1,5 +1,5 @@
 import { memo, useCallback, useState } from "react"
-import { anthropicModels, ApiConfiguration, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { anthropicModels, ApiConfiguration, bedrockModels, geminiDefaultModelId, geminiModels, vertexModels } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 
@@ -86,17 +86,27 @@ interface ThinkingBudgetSliderProps {
 }
 
 const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget }: ThinkingBudgetSliderProps) => {
-	const maxTokens =
-		apiConfiguration?.apiProvider === "gemini"
-			? geminiModels[geminiDefaultModelId].maxTokens
-			: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
-
+	const maxTokens = (): number => {
+		if (apiConfiguration?.apiProvider === "gemini") {
+			if (apiConfiguration.apiModelId === "claude-3-7-sonnet@20250219") {
+				return vertexModels["claude-3-7-sonnet@20250219"].thinkingConfig.maxBudget
+			}
+			return geminiModels[geminiDefaultModelId].maxTokens
+		}
+		if (apiConfiguration?.apiProvider === "anthropic") {
+			return anthropicModels["claude-3-7-sonnet-20250219"].thinkingConfig.maxBudget
+		}
+		if (apiConfiguration?.apiProvider === "bedrock") {
+			return bedrockModels["anthropic.claude-3-7-sonnet-20250219-v1:0"].thinkingConfig.maxBudget
+		}
+		return 0
+	}
 	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
 	const maxSliderValue = (() => {
 		if (maxBudget !== undefined) {
 			return maxBudget
 		}
-		return Math.floor(maxTokens * MAX_PERCENTAGE)
+		return Math.floor(maxTokens() * MAX_PERCENTAGE)
 	})()
 
 	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
