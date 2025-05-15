@@ -33,7 +33,6 @@ export function getWorkflowCommands(workflowToggles: Record<string, boolean>): S
 		.map(([filePath, _]) => {
 			// potentially remove the file extension if there is one, but this would then require
 			// that we prevent users from having the same fname with different extensions
-			//const fileName = path.basename(filePath) // this doesnt work
 			const fileName = filePath.replace(/^.*[/\\]/, "")
 
 			return {

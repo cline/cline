@@ -63,7 +63,7 @@ export async function parseSlashCommands(
 				.filter(([_, enabled]) => enabled)
 				.map(([filePath, _]) => {
 					const fileName = filePath.replace(/^.*[/\\]/, "")
-					// const fileName = path.basename(filePath) // plan to move to this, but want to be consistent with the frontend regex for now
+
 					return {
 						fullPath: filePath,
 						fileName: fileName,
