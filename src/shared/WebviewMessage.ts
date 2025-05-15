@@ -90,6 +90,8 @@ export interface WebviewMessage {
 	// For openInBrowser
 	url?: string
 	planActSeparateModelsSetting?: boolean
+	enableCheckpointsSetting?: boolean
+	mcpMarketplaceEnabled?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
 	// For task feedback

@@ -9,7 +9,7 @@ export async function createOpenRouterStream(
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
-	o3MiniReasoningEffort?: string,
+	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
 ) {
@@ -144,7 +144,7 @@ export async function createOpenRouterStream(
 		stream_options: { include_usage: true },
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
-		...(model.id.startsWith("openai/o") ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
+		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 	})

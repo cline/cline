@@ -80,7 +80,6 @@ export interface ApiHandlerOptions {
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: LanguageModelChatSelector
-	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string

@@ -236,43 +236,7 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {
-				"cline.enableCheckpoints": {
-					"type": "boolean",
-					"default": true,
-					"description": "Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not work well with large workspaces."
-				},
-				"cline.preferredLanguage": {
-					"type": "string",
-					"enum": [
-						"English",
-						"Arabic - العربية",
-						"Portuguese - Português (Brasil)",
-						"Czech - Čeština",
-						"French - Français",
-						"German - Deutsch",
-						"Hindi - हिन्दी",
-						"Hungarian - Magyar",
-						"Italian - Italiano",
-						"Japanese - 日本語",
-						"Korean - 한국어",
-						"Polish - Polski",
-						"Portuguese - Português (Portugal)",
-						"Russian - Русский",
-						"Simplified Chinese - 简体中文",
-						"Spanish - Español",
-						"Traditional Chinese - 繁體中文",
-						"Turkish - Türkçe"
-					],
-					"default": "English",
-					"description": "The language that Cline should use for communication."
-				},
-				"cline.mcpMarketplace.enabled": {
-					"type": "boolean",
-					"default": true,
-					"description": "Controls whether the MCP Marketplace is enabled."
-				}
-			}
+			"properties": {}
 		}
 	},
 	"scripts": {

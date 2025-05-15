@@ -145,6 +145,7 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
+			enableCheckpointsSetting,
 		} = await getAllExtensionState(this.context)
 
 		if (autoApprovalSettings) {
@@ -168,6 +169,7 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
+			enableCheckpointsSetting ?? true,
 			customInstructions,
 			task,
 			images,
@@ -562,6 +564,22 @@ export class Controller {
 
 				// plan act setting
 				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)
+
+				if (typeof message.enableCheckpointsSetting === "boolean") {
+					await updateGlobalState(this.context, "enableCheckpointsSetting", message.enableCheckpointsSetting)
+				}
+
+				if (typeof message.mcpMarketplaceEnabled === "boolean") {
+					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
+				}
+
+				// chat settings (including preferredLanguage and openAIReasoningEffort)
+				if (message.chatSettings) {
+					await updateGlobalState(this.context, "chatSettings", message.chatSettings)
+					if (this.task) {
+						this.task.chatSettings = message.chatSettings
+					}
+				}
 
 				// after settings are updated, post state to webview
 				await this.postStateToWebview()
@@ -1332,6 +1350,7 @@ export class Controller {
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			enableCheckpointsSetting,
 			globalClineRulesToggles,
 			shellIntegrationTimeout,
 		} = await getAllExtensionState(this.context)
@@ -1366,6 +1385,7 @@ export class Controller {
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},

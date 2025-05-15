@@ -17,7 +17,7 @@ import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/share
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
@@ -41,7 +41,10 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
+	setEnableCheckpointsSetting: (value: boolean) => void
+	setMcpMarketplaceEnabled: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
+	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 
 	// Navigation
@@ -70,6 +73,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		telemetrySetting: "unset",
 		vscMachineId: "",
 		planActSeparateModelsSetting: true,
+		enableCheckpointsSetting: true,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
@@ -268,6 +272,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
+		enableCheckpointsSetting: state.enableCheckpointsSetting,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -288,6 +293,16 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				planActSeparateModelsSetting: value,
 			})),
+		setEnableCheckpointsSetting: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				enableCheckpointsSetting: value,
+			})),
+		setMcpMarketplaceEnabled: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				mcpMarketplaceEnabled: value,
+			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -300,6 +315,22 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setShowMcp,
+		setChatSettings: (value) => {
+			setState((prevState) => ({
+				...prevState,
+				chatSettings: value,
+			}))
+			vscode.postMessage({
+				type: "updateSettings",
+				chatSettings: value,
+				apiConfiguration: state.apiConfiguration,
+				customInstructionsSetting: state.customInstructions,
+				telemetrySetting: state.telemetrySetting,
+				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
+				enableCheckpointsSetting: state.enableCheckpointsSetting,
+				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+			})
+		},
 		setMcpTab,
 	}
 
