@@ -280,6 +280,7 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 			shadow="sm"
 			placement="bottom"
 			disableAnimation
+			closeDelay={100}
 			isKeyboardDismissDisabled={true}>
 			{children}
 		</Tooltip>
