@@ -1087,10 +1087,6 @@ export class Controller {
 
 	// 'Add to Cline' context menu in Terminal
 	async addSelectedTerminalOutputToChat(output: string, terminalName: string) {
-		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await setTimeoutPromise(100)
-
 		// Post message to webview with the selected terminal output
 		// await this.postMessageToWebview({
 		//     type: "addSelectedTerminalOutput",
