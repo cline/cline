@@ -373,6 +373,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showContextMenu, setShowContextMenu])
 
+		useEffect(() => {
+			const handleClickOutsideSlashMenu = (event: MouseEvent) => {
+				if (
+					slashCommandsMenuContainerRef.current &&
+					!slashCommandsMenuContainerRef.current.contains(event.target as Node)
+				) {
+					setShowSlashCommandsMenu(false)
+				}
+			}
+
+			if (showSlashCommandsMenu) {
+				document.addEventListener("mousedown", handleClickOutsideSlashMenu)
+			}
+
+			return () => {
+				document.removeEventListener("mousedown", handleClickOutsideSlashMenu)
+			}
+		}, [showSlashCommandsMenu])
+
 		const handleMentionSelect = useCallback(
 			(type: ContextMenuOptionType, value?: string) => {
 				if (type === ContextMenuOptionType.NoResults) {
