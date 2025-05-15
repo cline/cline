@@ -1,11 +1,9 @@
 # Changelog
 
-## 3.16.0
+## [3.15.5]
 
--   a66724e: Refactor auto approval menu to use the existing modal architecture defined by the cline rules and mcp servers modals
--   19e4387: Optimized memory management for task timeline via virtuoso
--   6a96c18: Handle Gemini Rate limiting
--   4dfc135: Migrate Task Timeline tooltips to HeroUI
+-   Fix inefficient memory management in the task timeline 
+-   Fix Gemini rate limitation response not being handled properly (Thanks @BarreiroT!)
 
 ## [3.15.4]
 
