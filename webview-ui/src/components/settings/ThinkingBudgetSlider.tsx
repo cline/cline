@@ -5,7 +5,7 @@ import styled from "styled-components"
 
 // Constants
 const DEFAULT_MIN_VALID_TOKENS = 1024
-const MAX_PERCENTAGE = 0.8
+const DEFAULT_MAX_PERCENTAGE = 0.8
 const THUMB_SIZE = 16
 
 // Styled Components
@@ -102,11 +102,26 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget
 		return 0
 	}
 	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
+
+	const getThinkingBudgetPercentage = (): number => {
+		if (apiConfiguration?.apiProvider === "gemini" && apiConfiguration.apiModelId === "gemini-2-5-flash") {
+			return 1.0 // Gemini2.5 Flash is 100%
+		} else if (
+			(apiConfiguration?.apiProvider === "anthropic" && apiConfiguration.apiModelId === "claude-3-7-sonnet-20250219") ||
+			(apiConfiguration?.apiProvider === "bedrock" && apiConfiguration.apiModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+			(apiConfiguration?.apiProvider === "gemini" && apiConfiguration.apiModelId === "claude-3-7-sonnet@20250219")
+		) {
+			return 0.5 // Claude3.7 is 50%(32K Token)
+		}
+		
+		return DEFAULT_MAX_PERCENTAGE
+	}
+
 	const maxSliderValue = (() => {
 		if (maxBudget !== undefined) {
 			return maxBudget
 		}
-		return Math.floor(maxTokens() * MAX_PERCENTAGE)
+		return Math.floor(maxTokens() * getThinkingBudgetPercentage())
 	})()
 
 	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
