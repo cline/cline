@@ -42,7 +42,6 @@ export interface WebviewMessage {
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
 		| "openSettings"
-		| "fetchOpenGraphData"
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
