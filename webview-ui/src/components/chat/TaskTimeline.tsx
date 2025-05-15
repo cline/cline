@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useRef, useEffect } from "react"
+import React, { useMemo, useState, useRef, useEffect, useCallback } from "react"
+import { Virtuoso } from "react-virtuoso"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
@@ -136,11 +137,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 		}
 	}, [taskTimelinePropsMessages])
 
-	if (taskTimelinePropsMessages.length === 0) {
-		return null
-	}
-
-	const handleMouseEnter = (message: ClineMessage, event: React.MouseEvent<HTMLDivElement>) => {
+	const handleMouseEnter = useCallback((message: ClineMessage, event: React.MouseEvent<HTMLDivElement>) => {
 		setHoveredMessage(message)
 
 		const viewportWidth = window.innerWidth
@@ -150,11 +147,56 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 		const x = TOOLTIP_MARGIN
 
 		setTooltipPosition({ x, y: event.clientY })
-	}
+	}, [])
 
-	const handleMouseLeave = () => {
+	const handleMouseLeave = useCallback(() => {
 		setHoveredMessage(null)
 		setTooltipPosition(null)
+	}, [])
+
+	// Calculate the item size (width of block + gap)
+	const itemWidth = parseInt(BLOCK_WIDTH.replace("px", "")) + parseInt(BLOCK_GAP.replace("px", ""))
+
+	// Size function for Virtuoso
+	const itemSize = useCallback(() => itemWidth, [itemWidth])
+
+	// Virtuoso requires a reference to scroll to the end
+	const virtuosoRef = useRef<any>(null)
+
+	// Render a timeline block
+	const TimelineBlock = useCallback(
+		(index: number) => {
+			const message = taskTimelinePropsMessages[index]
+			return (
+				<div
+					style={{
+						width: BLOCK_WIDTH,
+						height: "100%",
+						backgroundColor: getBlockColor(message),
+						flexShrink: 0,
+						cursor: "pointer",
+						marginRight: BLOCK_GAP,
+					}}
+					onMouseEnter={(e) => handleMouseEnter(message, e)}
+					onMouseLeave={handleMouseLeave}
+				/>
+			)
+		},
+		[taskTimelinePropsMessages, handleMouseEnter, handleMouseLeave],
+	)
+
+	// Scroll to the end when messages change
+	useEffect(() => {
+		if (virtuosoRef.current && taskTimelinePropsMessages.length > 0) {
+			virtuosoRef.current.scrollToIndex({
+				index: taskTimelinePropsMessages.length - 1,
+				align: "end",
+			})
+		}
+	}, [taskTimelinePropsMessages])
+
+	if (taskTimelinePropsMessages.length === 0) {
+		return null
 	}
 
 	return (
@@ -167,41 +209,32 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				marginBottom: "4px",
 				overflow: "hidden",
 			}}>
-			<div
-				ref={scrollableRef}
+			<style>
+				{`
+					/* Hide scrollbar for Chrome, Safari and Opera */
+					.timeline-virtuoso::-webkit-scrollbar {
+						display: none;
+					}
+					.timeline-virtuoso {
+						scrollbar-width: none;
+						-ms-overflow-style: none;
+					}
+				`}
+			</style>
+
+			<Virtuoso
+				ref={virtuosoRef}
+				className="timeline-virtuoso"
 				style={{
-					display: "flex",
 					height: TIMELINE_HEIGHT,
-					overflowX: "auto",
-					scrollbarWidth: "none",
-					msOverflowStyle: "none",
 					width: "100%",
-					WebkitOverflowScrolling: "touch",
-					gap: BLOCK_GAP, // Using flexbox gap instead of marginRight
-				}}>
-				<style>
-					{`
-            /* Hide scrollbar for Chrome, Safari and Opera */
-            div::-webkit-scrollbar {
-              display: none;
-            }
-          `}
-				</style>
-				{taskTimelinePropsMessages.map((message, index) => (
-					<div
-						key={index}
-						style={{
-							width: BLOCK_WIDTH,
-							height: "100%",
-							backgroundColor: getBlockColor(message),
-							flexShrink: 0,
-							cursor: "pointer",
-						}}
-						onMouseEnter={(e) => handleMouseEnter(message, e)}
-						onMouseLeave={handleMouseLeave}
-					/>
-				))}
-			</div>
+				}}
+				totalCount={taskTimelinePropsMessages.length}
+				itemContent={TimelineBlock}
+				horizontalDirection={true}
+				increaseViewportBy={12}
+				fixedItemHeight={itemWidth}
+			/>
 
 			{hoveredMessage && containerRef.current && tooltipPosition && (
 				<div
