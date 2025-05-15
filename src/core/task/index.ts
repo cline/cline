@@ -598,7 +598,9 @@ export class Task {
 	}
 
 	async doesLatestTaskCompletionHaveNewChanges() {
-		if (!this.enableCheckpoints) return false
+		if (!this.enableCheckpoints) {
+			return false
+		}
 
 		const messageIndex = findLastIndex(this.clineMessages, (m) => m.say === "completion_result")
 		const message = this.clineMessages[messageIndex]
