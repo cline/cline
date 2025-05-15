@@ -22,10 +22,10 @@ export async function parseSlashCommands(
 
 	// this currently allows matching prepended whitespace prior to /slash-command
 	const tagPatterns = [
-		{ tag: "task", regex: /<task>(\s*\/([a-zA-Z0-9_-]+))(\s+.+?)?\s*<\/task>/is },
-		{ tag: "feedback", regex: /<feedback>(\s*\/([a-zA-Z0-9_-]+))(\s+.+?)?\s*<\/feedback>/is },
-		{ tag: "answer", regex: /<answer>(\s*\/([a-zA-Z0-9_-]+))(\s+.+?)?\s*<\/answer>/is },
-		{ tag: "user_message", regex: /<user_message>(\s*\/([a-zA-Z0-9_-]+))(\s+.+?)?\s*<\/user_message>/is },
+		{ tag: "task", regex: /<task>(\s*\/([a-zA-Z0-9_\.-]+))(\s+.+?)?\s*<\/task>/is },
+		{ tag: "feedback", regex: /<feedback>(\s*\/([a-zA-Z0-9_\.-]+))(\s+.+?)?\s*<\/feedback>/is },
+		{ tag: "answer", regex: /<answer>(\s*\/([a-zA-Z0-9_\.-]+))(\s+.+?)?\s*<\/answer>/is },
+		{ tag: "user_message", regex: /<user_message>(\s*\/([a-zA-Z0-9_\.-]+))(\s+.+?)?\s*<\/user_message>/is },
 	]
 
 	// if we find a valid match, we will return inside that block
