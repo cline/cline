@@ -239,7 +239,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					}}
 				/>
 
-				<div className="flex justify-between items-center mb-2.5">
+				<div className="flex justify-between items-center mb-3">
 					<div className="m-0 text-base font-semibold">Auto-approve Settings</div>
 					<VSCodeButton appearance="icon" onClick={() => setIsVisible(false)}>
 						<span className="codicon codicon-close text-[10px]"></span>
@@ -256,7 +256,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 
 				<div
 					ref={itemsContainerRef}
-					className="relative mt-4 mb-6"
+					className="relative mb-6"
 					style={{
 						columnCount: containerWidth > breakpoint ? 2 : 1,
 						columnGap: "4px",
@@ -301,10 +301,8 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 				<HeroTooltip
 					content="Cline will automatically make this many API requests before asking for approval to proceed with the task."
 					placement="top">
-					<div className="flex items-center pl-[4px] my-2">
-						<div style={{ width: "24px" }}>
-							<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
-						</div>
+					<div className="flex items-center pl-1.5 my-2">
+						<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
 						<span className="text-[#CCCCCC] text-xs font-medium ml-2">Max Requests:</span>
 						<VSCodeTextField
 							className="flex-1 w-full pr-[35px] ml-4"
