@@ -1,14 +1,9 @@
 import { AutoApprovalSettings } from "../../AutoApprovalSettings"
 import { AutoApprovalSettingsRequest } from "../../proto/state"
-import { Metadata } from "../../proto/common"
 
 // Converts domain AutoApprovalSettings to proto AutoApprovalSettingsRequest
 export function convertAutoApprovalSettingsToProto(settings: AutoApprovalSettings): AutoApprovalSettingsRequest {
 	return {
-		metadata: {
-			timestamp: Date.now(),
-			clientVersion: process.env.VERSION || "1.0.0",
-		} as Metadata,
 		version: settings.version,
 		enabled: settings.enabled,
 		actions: {
@@ -21,9 +16,9 @@ export function convertAutoApprovalSettingsToProto(settings: AutoApprovalSetting
 			useBrowser: settings.actions.useBrowser || false,
 			useMcp: settings.actions.useMcp || false,
 		},
-		maxRequests: settings.maxRequests,
-		enableNotifications: settings.enableNotifications,
-		favorites: settings.favorites,
+		maxRequests: settings.maxRequests || 20,
+		enableNotifications: settings.enableNotifications || false,
+		favorites: settings.favorites || [],
 	}
 }
 
@@ -42,8 +37,8 @@ export function convertProtoToAutoApprovalSettings(protoSettings: AutoApprovalSe
 			useBrowser: protoSettings.actions?.useBrowser || false,
 			useMcp: protoSettings.actions?.useMcp || false,
 		},
-		maxRequests: protoSettings.maxRequests,
-		enableNotifications: protoSettings.enableNotifications,
+		maxRequests: protoSettings.maxRequests || 20,
+		enableNotifications: protoSettings.enableNotifications || false,
 		favorites: protoSettings.favorites || [],
 	}
 }
