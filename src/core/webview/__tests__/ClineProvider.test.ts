@@ -806,45 +806,6 @@ describe("ClineProvider", () => {
 		expect(mockPostMessage).toHaveBeenCalled()
 	})
 
-	test("uses mode-specific custom instructions in Cline initialization", async () => {
-		// Setup mock state
-		const modeCustomInstructions = "Code mode instructions"
-		const mockApiConfig = {
-			apiProvider: "openrouter",
-		}
-
-		jest.spyOn(provider, "getState").mockResolvedValue({
-			apiConfiguration: mockApiConfig,
-			customModePrompts: {
-				code: { customInstructions: modeCustomInstructions },
-			},
-			mode: "code",
-			diffEnabled: true,
-			enableCheckpoints: false,
-			fuzzyMatchThreshold: 1.0,
-			experiments: experimentDefault,
-		} as any)
-
-		// Initialize Cline with a task
-		await provider.initClineWithTask("Test task")
-
-		// Verify Cline was initialized with mode-specific instructions
-		expect(Task).toHaveBeenCalledWith({
-			provider,
-			apiConfiguration: mockApiConfig,
-			customInstructions: modeCustomInstructions,
-			enableDiff: true,
-			enableCheckpoints: false,
-			fuzzyMatchThreshold: 1.0,
-			task: "Test task",
-			experiments: experimentDefault,
-			rootTask: undefined,
-			parentTask: undefined,
-			taskNumber: 1,
-			onCreated: expect.any(Function),
-		})
-	})
-
 	test("handles mode-specific custom instructions updates", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
