@@ -31,7 +31,7 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
-import { extractCommitMessage } from "@integrations/git/commit-message-generator"
+import { extractCommitMessage, formatGitDiffPrompt } from "@integrations/git/commit-message-generator"
 import { getTotalTasksSize } from "@utils/storage"
 import { openMention } from "../mentions"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
@@ -1498,18 +1498,8 @@ export class Controller {
 				},
 				async (progress, token) => {
 					try {
-						// Format the git diff into a prompt
-						const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
-
-${gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff}
-
-The commit message should:
-1. Start with a short summary (50-72 characters)
-2. Use the imperative mood (e.g., "Add feature" not "Added feature")
-3. Describe what was changed and why
-4. Be clear and descriptive
-
-Commit message:`
+						// Format the git diff into a prompt using the formatGitDiffPrompt function
+						const prompt = formatGitDiffPrompt(gitDiff)
 
 						// Get the current API configuration
 						const { apiConfiguration } = await getAllExtensionState(this.context)

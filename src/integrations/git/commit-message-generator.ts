@@ -6,7 +6,19 @@ import { getWorkingState } from "@utils/git"
  * @param gitDiff The git diff to format
  * @returns A formatted prompt for the AI
  */
-function formatGitDiffPrompt(gitDiff: string): string {
+export function formatGitDiffPrompt(gitDiff: string): string {
+	// Get commit message instructions from settings
+	const config = vscode.workspace.getConfiguration("cline")
+	const instructions = config.get<string[]>("commitMessageInstructions") || [
+		"Start with a short summary (50-72 characters)",
+		'Use the imperative mood (e.g., "Add feature" not "Added feature")',
+		"Describe what was changed and why",
+		"Be clear and descriptive",
+	]
+
+	// Format instructions as numbered list
+	const instructionsText = instructions.map((instruction: string, index: number) => `${index + 1}. ${instruction}`).join("\n")
+
 	// Limit the diff size to avoid token limits
 	const maxDiffLength = 5000
 	let truncatedDiff = gitDiff
@@ -20,10 +32,7 @@ function formatGitDiffPrompt(gitDiff: string): string {
 ${truncatedDiff}
 
 The commit message should:
-1. Start with a short summary (50-72 characters)
-2. Use the imperative mood (e.g., "Add feature" not "Added feature")
-3. Describe what was changed and why
-4. Be clear and descriptive
+${instructionsText}
 
 Commit message:`
 }
