@@ -29,9 +29,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Install Dependencies
-        run: |
-          npm install -g vsce ovsx
-          npm run install:all
+        run: npm run install:all
       - name: Create .env file
         run: echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> .env
       - name: Package Extension
