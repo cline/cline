@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.17.1] - 2025-05-15
+
+- Fix the display of the command to execute during approval
+- Fix incorrect reserved tokens calculation on OpenRouter (thanks @daniel-lxs!)
+
 ## [3.17.0] - 2025-05-14
 
 - Enable Gemini implicit caching
