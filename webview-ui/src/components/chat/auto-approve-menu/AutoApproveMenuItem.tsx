@@ -1,8 +1,7 @@
-import React, { type ChangeEvent, type ChangeEventHandler } from "react"
+import React from "react"
 import styled from "styled-components"
 import HeroTooltip from "@/components/common/HeroTooltip"
-import { ActionMetadata } from "./AutoApproveMenu"
-import { useState } from "react"
+import { ActionMetadata } from "./types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 interface AutoApproveMenuItemProps {
