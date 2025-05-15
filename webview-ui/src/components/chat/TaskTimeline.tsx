@@ -1,169 +1,155 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from "react"
-import { Virtuoso } from "react-virtuoso"
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
-import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_RED, COLOR_PURPLE, COLOR_GREEN } from "./colors"
+// getBlockColor will be defined in this file now.
+
+// Color constants (moved from TaskTimelineTooltip.tsx or a shared file)
+const COLOR_WHITE = "#FFFFFF"
+const COLOR_GRAY = "#808080"
+const COLOR_DARK_GRAY = "#A9A9A9"
+const COLOR_BEIGE = "#F5F5DC"
+const COLOR_BLUE = "#ADD8E6"
+const COLOR_RED = "#FFC0CB" // Example, adjust as needed
+const COLOR_PURPLE = "#E6E6FA" // Example, adjust as needed
+const COLOR_GREEN = "#90EE90" // Example, adjust as needed
 
 // Timeline dimensions and spacing
 const TIMELINE_HEIGHT = "18px"
 const BLOCK_WIDTH = "9px"
 const BLOCK_GAP = "3px"
-const TOOLTIP_MARGIN = 32 // 32px margin on each side
+// const TOOLTIP_MARGIN = 32;
 
 interface TaskTimelineProps {
 	messages: ClineMessage[]
 }
 
+// Moved getBlockColor function here
 const getBlockColor = (message: ClineMessage): string => {
 	if (message.type === "say") {
 		switch (message.say) {
 			case "task":
-				return COLOR_WHITE // White for system prompt
+				return COLOR_WHITE
 			case "user_feedback":
-				return COLOR_WHITE // White for user feedback
+				return COLOR_WHITE
 			case "text":
-				return COLOR_GRAY // Gray for assistant responses
+				return COLOR_GRAY
 			case "tool":
 				if (message.text) {
 					try {
 						const toolData = JSON.parse(message.text)
 						if (
-							toolData.tool === "readFile" ||
-							toolData.tool === "listFilesTopLevel" ||
-							toolData.tool === "listFilesRecursive" ||
-							toolData.tool === "listCodeDefinitionNames" ||
-							toolData.tool === "searchFiles"
-						) {
-							return COLOR_BEIGE // Beige for file read operations
-						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
-							return COLOR_BLUE // Blue for file edit/create operations
-						}
+							[
+								"readFile",
+								"listFilesTopLevel",
+								"listFilesRecursive",
+								"listCodeDefinitionNames",
+								"searchFiles",
+							].includes(toolData.tool)
+						)
+							return COLOR_BEIGE
+						if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") return COLOR_BLUE
 					} catch (e) {
-						// JSON parse error here
+						/* fallback */
 					}
 				}
-				return COLOR_BEIGE // Default beige for tool use
+				return COLOR_BEIGE
 			case "command":
 			case "command_output":
-				return COLOR_PURPLE // Red for terminal commands
+				return COLOR_RED // Using defined COLOR_RED
 			case "browser_action":
 			case "browser_action_result":
-				return COLOR_PURPLE // Purple for browser actions
+				return COLOR_PURPLE
 			case "completion_result":
-				return COLOR_GREEN // Green for task success
+				return COLOR_GREEN
 			default:
-				return COLOR_DARK_GRAY // Dark gray for unknown
+				return COLOR_DARK_GRAY
 		}
 	} else if (message.type === "ask") {
 		switch (message.ask) {
 			case "followup":
-				return COLOR_GRAY // Gray for user messages
+				return COLOR_GRAY
 			case "plan_mode_respond":
-				return COLOR_GRAY // Gray for planning responses
+				return COLOR_GRAY
 			case "tool":
-				// Match the color of the tool approval with the tool type
 				if (message.text) {
 					try {
 						const toolData = JSON.parse(message.text)
 						if (
-							toolData.tool === "readFile" ||
-							toolData.tool === "listFilesTopLevel" ||
-							toolData.tool === "listFilesRecursive" ||
-							toolData.tool === "listCodeDefinitionNames" ||
-							toolData.tool === "searchFiles"
-						) {
-							return COLOR_BEIGE // Beige for file read operations
-						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
-							return COLOR_BLUE // Blue for file edit/create operations
-						}
+							[
+								"readFile",
+								"listFilesTopLevel",
+								"listFilesRecursive",
+								"listCodeDefinitionNames",
+								"searchFiles",
+							].includes(toolData.tool)
+						)
+							return COLOR_BEIGE
+						if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") return COLOR_BLUE
 					} catch (e) {
-						// JSON parse error here
+						/* fallback */
 					}
 				}
-				return COLOR_BEIGE // Default beige for tool approvals
+				return COLOR_BEIGE
 			case "command":
-				return COLOR_PURPLE // Red for command approvals (same as terminal commands)
+				return COLOR_RED // Using defined COLOR_RED
 			case "browser_action_launch":
-				return COLOR_PURPLE // Purple for browser launch approvals (same as browser actions)
+				return COLOR_PURPLE
 			default:
-				return COLOR_DARK_GRAY // Dark gray for unknown
+				return COLOR_DARK_GRAY
 		}
 	}
 	return COLOR_WHITE // Default color
 }
 
+// Define an interface for messages that include the pre-calculated _blockColor
+interface ProcessedClineMessage extends ClineMessage {
+	_blockColor: string
+}
+
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 	const containerRef = useRef<HTMLDivElement>(null)
-	const scrollableRef = useRef<HTMLDivElement>(null)
+	const virtuosoRef = useRef<VirtuosoHandle>(null)
 
-	const taskTimelinePropsMessages = useMemo(() => {
+	const [hoveredMessage, setHoveredMessage] = useState<ProcessedClineMessage | null>(null) // Use ProcessedClineMessage
+	const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null)
+
+	const taskTimelinePropsMessages: ProcessedClineMessage[] = useMemo(() => {
+		// Ensure type
 		if (messages.length <= 1) return []
-
 		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
-
-		return processed.filter((msg) => {
-			// Filter out standard "say" events we don't want to show
-			if (
-				msg.type === "say" &&
-				(msg.say === "api_req_started" ||
-					msg.say === "api_req_finished" ||
-					msg.say === "api_req_retried" ||
-					msg.say === "deleted_api_reqs" ||
-					msg.say === "checkpoint_created" ||
-					(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
-			) {
-				return false
-			}
-
-			// Filter out "ask" events we don't want to show, including the duplicate completion_result
-			if (
-				msg.type === "ask" &&
-				(msg.ask === "resume_task" || msg.ask === "resume_completed_task" || msg.ask === "completion_result") // Filter out the duplicate completion_result "ask" message
-			) {
-				return false
-			}
-
-			return true
-		})
+		return processed
+			.filter((msg) => {
+				if (
+					msg.type === "say" &&
+					(msg.say === "api_req_started" ||
+						msg.say === "api_req_finished" ||
+						msg.say === "api_req_retried" ||
+						msg.say === "deleted_api_reqs" ||
+						msg.say === "checkpoint_created" ||
+						(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
+				) {
+					return false
+				}
+				if (
+					msg.type === "ask" &&
+					(msg.ask === "resume_task" || msg.ask === "resume_completed_task" || msg.ask === "completion_result")
+				) {
+					return false
+				}
+				return true
+			})
+			.map(
+				(msg): ProcessedClineMessage => ({
+					// Explicitly type the mapped object
+					...msg,
+					_blockColor: getBlockColor(msg),
+				}),
+			)
 	}, [messages])
 
-	useEffect(() => {
-		if (scrollableRef.current && taskTimelinePropsMessages.length > 0) {
-			scrollableRef.current.scrollLeft = scrollableRef.current.scrollWidth
-		}
-	}, [taskTimelinePropsMessages])
-
-	// Calculate the item size (width of block + gap)
-	const itemWidth = parseInt(BLOCK_WIDTH.replace("px", "")) + parseInt(BLOCK_GAP.replace("px", ""))
-
-	// Virtuoso requires a reference to scroll to the end
-	const virtuosoRef = useRef<any>(null)
-
-	// Render a timeline block
-	const TimelineBlock = useCallback(
-		(index: number) => {
-			const message = taskTimelinePropsMessages[index]
-			return (
-				<TaskTimelineTooltip message={message}>
-					<div
-						style={{
-							width: BLOCK_WIDTH,
-							height: "100%",
-							backgroundColor: getBlockColor(message),
-							flexShrink: 0,
-							cursor: "pointer",
-							marginRight: BLOCK_GAP,
-						}}
-					/>
-				</TaskTimelineTooltip>
-			)
-		},
-		[taskTimelinePropsMessages],
-	)
-
-	// Scroll to the end when messages change
 	useEffect(() => {
 		if (virtuosoRef.current && taskTimelinePropsMessages.length > 0) {
 			virtuosoRef.current.scrollToIndex({
@@ -172,6 +158,47 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 			})
 		}
 	}, [taskTimelinePropsMessages])
+
+	const TimelineBlock = useCallback(
+		(index: number) => {
+			const message = taskTimelinePropsMessages[index]
+
+			const handleMouseEnter = (event: React.MouseEvent<HTMLDivElement>) => {
+				setHoveredMessage(message)
+				if (containerRef.current) {
+					const blockRect = event.currentTarget.getBoundingClientRect()
+					const containerRect = containerRef.current.getBoundingClientRect()
+					const tooltipHeightEstimate = 60 // Approximate tooltip height
+					const gap = 5
+
+					let top = blockRect.top - containerRect.top - tooltipHeightEstimate - gap
+					let left = blockRect.left - containerRect.left + blockRect.width / 2
+
+					setTooltipPosition({ top, left })
+				}
+			}
+
+			const handleMouseLeave = () => {
+				setHoveredMessage(null)
+			}
+
+			return (
+				<div
+					style={{
+						width: BLOCK_WIDTH,
+						height: "100%",
+						backgroundColor: message._blockColor, // Use pre-calculated color
+						flexShrink: 0,
+						cursor: "pointer",
+						marginRight: BLOCK_GAP,
+					}}
+					onMouseEnter={handleMouseEnter}
+					onMouseLeave={handleMouseLeave}
+				/>
+			)
+		},
+		[taskTimelinePropsMessages],
+	)
 
 	if (taskTimelinePropsMessages.length === 0) {
 		return null
@@ -189,17 +216,10 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 			}}>
 			<style>
 				{`
-					/* Hide scrollbar for Chrome, Safari and Opera */
-					.timeline-virtuoso::-webkit-scrollbar {
-						display: none;
-					}
-					.timeline-virtuoso {
-						scrollbar-width: none;
-						-ms-overflow-style: none;
-					}
+					.timeline-virtuoso::-webkit-scrollbar { display: none; }
+					.timeline-virtuoso { scrollbar-width: none; -ms-overflow-style: none; }
 				`}
 			</style>
-
 			<Virtuoso
 				ref={virtuosoRef}
 				className="timeline-virtuoso"
@@ -211,10 +231,24 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				itemContent={TimelineBlock}
 				horizontalDirection={true}
 				increaseViewportBy={12}
-				fixedItemHeight={itemWidth}
+				// fixedItemHeight is for vertical lists; for horizontal, Virtuoso uses item width
 			/>
+			{hoveredMessage && tooltipPosition && (
+				<div
+					style={{
+						position: "absolute",
+						top: `${tooltipPosition.top}px`,
+						left: `${tooltipPosition.left}px`,
+						transform: "translateX(-50%)", // Center the tooltip
+						zIndex: 1000,
+						pointerEvents: "none",
+					}}>
+					{/* Pass the pre-calculated _blockColor to TaskTimelineTooltip */}
+					<TaskTimelineTooltip message={hoveredMessage} blockColor={hoveredMessage._blockColor} />
+				</div>
+			)}
 		</div>
 	)
 }
 
-export default TaskTimeline
+export default React.memo(TaskTimeline)
