@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react"
 import styled from "styled-components"
-import { vscode } from "@/utils/vscode"
-import { TaskFeedbackType } from "@shared/WebviewMessage"
+import { TaskServiceClient } from "@/services/grpc-client"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { TaskFeedbackType } from "@shared/WebviewMessage"
 
 interface TaskFeedbackButtonsProps {
 	messageTs: number
@@ -41,25 +41,27 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 		return null
 	}
 
-	const handleFeedback = (type: TaskFeedbackType) => {
+	const handleFeedback = async (type: TaskFeedbackType) => {
 		if (feedback !== null) return // Already provided feedback
 
 		setFeedback(type)
 
-		// Send feedback to extension
-		vscode.postMessage({
-			type: "taskFeedback",
-			feedbackType: type,
-		})
-
-		// Store in localStorage that feedback was provided for this message
 		try {
-			const feedbackHistory = localStorage.getItem("taskFeedbackHistory") || "{}"
-			const history = JSON.parse(feedbackHistory)
-			history[messageTs] = true
-			localStorage.setItem("taskFeedbackHistory", JSON.stringify(history))
-		} catch (e) {
-			console.error("Error updating feedback history:", e)
+			await TaskServiceClient.taskFeedback({
+				value: type,
+			})
+
+			// Store in localStorage that feedback was provided for this message
+			try {
+				const feedbackHistory = localStorage.getItem("taskFeedbackHistory") || "{}"
+				const history = JSON.parse(feedbackHistory)
+				history[messageTs] = true
+				localStorage.setItem("taskFeedbackHistory", JSON.stringify(history))
+			} catch (e) {
+				console.error("Error updating feedback history:", e)
+			}
+		} catch (error) {
+			console.error("Error sending task feedback:", error)
 		}
 	}
 

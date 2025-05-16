@@ -48,7 +48,6 @@ export interface WebviewMessage {
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "relaunchChromeDebugMode"
-		| "taskFeedback"
 		| "scrollToSettings"
 		| "searchFiles"
 		| "grpc_request"
@@ -92,8 +91,6 @@ export interface WebviewMessage {
 	mcpMarketplaceEnabled?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
-	// For task feedback
-	feedbackType?: TaskFeedbackType
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel

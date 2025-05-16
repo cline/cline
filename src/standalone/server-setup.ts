@@ -20,11 +20,11 @@ import { checkpointRestore } from "../core/controller/checkpoints/checkpointRest
 
 // File Service
 import { openFile } from "../core/controller/file/openFile"
-import { selectImages } from "../core/controller/file/selectImages"
 import { openImage } from "../core/controller/file/openImage"
 import { deleteRuleFile } from "../core/controller/file/deleteRuleFile"
 import { createRuleFile } from "../core/controller/file/createRuleFile"
 import { searchCommits } from "../core/controller/file/searchCommits"
+import { selectImages } from "../core/controller/file/selectImages"
 import { getRelativePaths } from "../core/controller/file/getRelativePaths"
 import { searchFiles } from "../core/controller/file/searchFiles"
 
@@ -62,6 +62,7 @@ import { toggleTaskFavorite } from "../core/controller/task/toggleTaskFavorite"
 import { deleteNonFavoritedTasks } from "../core/controller/task/deleteNonFavoritedTasks"
 import { getTaskHistory } from "../core/controller/task/getTaskHistory"
 import { askResponse } from "../core/controller/task/askResponse"
+import { taskFeedback } from "../core/controller/task/taskFeedback"
 
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
@@ -96,11 +97,11 @@ export function addServices(
 	// File Service
 	server.addService(proto.cline.FileService.service, {
 		openFile: wrapper(openFile, controller),
-		selectImages: wrapper(selectImages, controller),
 		openImage: wrapper(openImage, controller),
 		deleteRuleFile: wrapper(deleteRuleFile, controller),
 		createRuleFile: wrapper(createRuleFile, controller),
 		searchCommits: wrapper(searchCommits, controller),
+		selectImages: wrapper(selectImages, controller),
 		getRelativePaths: wrapper(getRelativePaths, controller),
 		searchFiles: wrapper(searchFiles, controller),
 	})
@@ -148,6 +149,7 @@ export function addServices(
 		deleteNonFavoritedTasks: wrapper(deleteNonFavoritedTasks, controller),
 		getTaskHistory: wrapper(getTaskHistory, controller),
 		askResponse: wrapper(askResponse, controller),
+		taskFeedback: wrapper(taskFeedback, controller),
 	})
 
 	// Web Service
