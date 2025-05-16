@@ -323,9 +323,6 @@ export class Controller {
 				const browserSession = new BrowserSession(this.context, browserSettings)
 				await browserSession.relaunchChromeDebugMode(this)
 				break
-			case "askResponse":
-				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
-				break
 			case "didShowAnnouncement":
 				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
 				await this.postStateToWebview()

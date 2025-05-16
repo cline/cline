@@ -463,25 +463,22 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_completed_task":
 						case "mistake_limit_reached":
 						case "new_task": // user can provide feedback or reject the new task suggestion
-							vscode.postMessage({
-								type: "askResponse",
-								askResponse: "messageResponse",
+							await TaskServiceClient.askResponse({
+								responseType: "messageResponse",
 								text: messageToSend,
 								images,
 							})
 							break
 						case "condense":
-							vscode.postMessage({
-								type: "askResponse",
-								askResponse: "messageResponse",
+							await TaskServiceClient.askResponse({
+								responseType: "messageResponse",
 								text: messageToSend,
 								images,
 							})
 							break
 						case "report_bug":
-							vscode.postMessage({
-								type: "askResponse",
-								askResponse: "messageResponse",
+							await TaskServiceClient.askResponse({
+								responseType: "messageResponse",
 								text: messageToSend,
 								images,
 							})
@@ -525,16 +522,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
 					if (trimmedInput || (images && images.length > 0)) {
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "yesButtonClicked",
+						await TaskServiceClient.askResponse({
+							responseType: "yesButtonClicked",
 							text: trimmedInput,
 							images: images,
 						})
 					} else {
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "yesButtonClicked",
+						await TaskServiceClient.askResponse({
+							responseType: "yesButtonClicked",
 						})
 					}
 					// Clear input state after sending
@@ -591,17 +586,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "browser_action_launch":
 				case "use_mcp_server":
 					if (trimmedInput || (images && images.length > 0)) {
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "noButtonClicked",
+						await TaskServiceClient.askResponse({
+							responseType: "noButtonClicked",
 							text: trimmedInput,
 							images: images,
 						})
 					} else {
 						// responds to the API with a "This operation failed" and lets it try again
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "noButtonClicked",
+						await TaskServiceClient.askResponse({
+							responseType: "noButtonClicked",
 						})
 					}
 					// Clear input state after sending

@@ -61,6 +61,7 @@ import { exportTaskWithId } from "../core/controller/task/exportTaskWithId"
 import { toggleTaskFavorite } from "../core/controller/task/toggleTaskFavorite"
 import { deleteNonFavoritedTasks } from "../core/controller/task/deleteNonFavoritedTasks"
 import { getTaskHistory } from "../core/controller/task/getTaskHistory"
+import { askResponse } from "../core/controller/task/askResponse"
 
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
@@ -146,6 +147,7 @@ export function addServices(
 		toggleTaskFavorite: wrapper(toggleTaskFavorite, controller),
 		deleteNonFavoritedTasks: wrapper(deleteNonFavoritedTasks, controller),
 		getTaskHistory: wrapper(getTaskHistory, controller),
+		askResponse: wrapper(askResponse, controller),
 	})
 
 	// Web Service

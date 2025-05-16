@@ -73,6 +73,14 @@ export interface TaskItem {
 	cacheReads: number
 }
 
+/** Request for ask response operation */
+export interface AskResponseRequest {
+	metadata?: Metadata | undefined
+	responseType: string
+	text: string
+	images: string[]
+}
+
 function createBaseNewTaskRequest(): NewTaskRequest {
 	return { metadata: undefined, text: "", images: [] }
 }
@@ -966,6 +974,115 @@ export const TaskItem: MessageFns<TaskItem> = {
 	},
 }
 
+function createBaseAskResponseRequest(): AskResponseRequest {
+	return { metadata: undefined, responseType: "", text: "", images: [] }
+}
+
+export const AskResponseRequest: MessageFns<AskResponseRequest> = {
+	encode(message: AskResponseRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.responseType !== "") {
+			writer.uint32(18).string(message.responseType)
+		}
+		if (message.text !== "") {
+			writer.uint32(26).string(message.text)
+		}
+		for (const v of message.images) {
+			writer.uint32(34).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): AskResponseRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseAskResponseRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.responseType = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.text = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.images.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): AskResponseRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			responseType: isSet(object.responseType) ? globalThis.String(object.responseType) : "",
+			text: isSet(object.text) ? globalThis.String(object.text) : "",
+			images: globalThis.Array.isArray(object?.images) ? object.images.map((e: any) => globalThis.String(e)) : [],
+		}
+	},
+
+	toJSON(message: AskResponseRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.responseType !== "") {
+			obj.responseType = message.responseType
+		}
+		if (message.text !== "") {
+			obj.text = message.text
+		}
+		if (message.images?.length) {
+			obj.images = message.images
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<AskResponseRequest>, I>>(base?: I): AskResponseRequest {
+		return AskResponseRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<AskResponseRequest>, I>>(object: I): AskResponseRequest {
+		const message = createBaseAskResponseRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.responseType = object.responseType ?? ""
+		message.text = object.text ?? ""
+		message.images = object.images?.map((e) => e) || []
+		return message
+	},
+}
+
 export type TaskServiceDefinition = typeof TaskServiceDefinition
 export const TaskServiceDefinition = {
 	name: "TaskService",
@@ -1049,6 +1166,15 @@ export const TaskServiceDefinition = {
 			requestType: GetTaskHistoryRequest,
 			requestStream: false,
 			responseType: TaskHistoryArray,
+			responseStream: false,
+			options: {},
+		},
+		/** Sends a response to a previous ask operation */
+		askResponse: {
+			name: "askResponse",
+			requestType: AskResponseRequest,
+			requestStream: false,
+			responseType: Empty,
 			responseStream: false,
 			options: {},
 		},
