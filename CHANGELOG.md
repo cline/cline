@@ -2,16 +2,11 @@
 
 ## 3.16.0
 
-### Minor Changes
-
 -   c6e8b04: Recent task list is now collapsible, allowing users to hide their recent tasks (e.g. when sharing their screen).
 -   aabe4ae: Add detection for new users to display special components
 -   6c18d51: adds global endpoint for vertex ai users
 -   080ed7c: Add Tailwind CSS IntelliSense to the the recommended extensions list
 -   5147e28: new workflow feature
-
-### Patch Changes
-
 -   c0b3c69: fix eternal loading states when the last message is a checkpoint
 -   570ece3: selectImages protos migration
 -   8d8452e: askResponse protobus migration
