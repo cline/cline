@@ -203,7 +203,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							style={{
 								textAlign: "center",
 								color: "var(--vscode-descriptionForeground)",
-								fontSize: "0.9em",
+								fontSize: "var(--vscode-font-size)",
 								padding: "10px 0",
 							}}>
 							No recent tasks
