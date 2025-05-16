@@ -6,6 +6,7 @@ import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
 import Tooltip from "@/components/common/Tooltip"
+import styled from "styled-components"
 
 const ClineRulesToggleModal: React.FC = () => {
 	const {
@@ -139,48 +140,47 @@ const ClineRulesToggleModal: React.FC = () => {
 						}}
 					/>
 
-					<div className="flex justify-between items-center mb-2.5">
-						<div className="m-0 text-base font-semibold">{currentView === "rules" ? "Cline Rules" : "Workflows"}</div>
-
-						<div className="flex items-center">
-							<div
-								className="flex items-center bg-[var(--vscode-editor-background)] rounded-md p-0.5 mr-2"
-								role="tablist">
-								<button
-									className={`px-2 py-1 rounded-md text-xs transition-colors cursor-pointer select-none ${
-										currentView === "rules"
-											? "bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]"
-											: ""
-									}`}
-									onClick={() => setCurrentView("rules")}
-									role="tab"
-									aria-selected={currentView === "rules"}
-									style={{ outline: "none" }}>
-									Rules
-								</button>
-								<button
-									className={`px-2 py-1 rounded-md text-xs transition-colors cursor-pointer select-none ${
-										currentView === "workflows"
-											? "bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)]"
-											: ""
-									}`}
-									onClick={() => setCurrentView("workflows")}
-									role="tab"
-									aria-selected={currentView === "workflows"}
-									style={{ outline: "none" }}>
-									Workflows
-								</button>
-							</div>
-
-							<VSCodeButton
-								appearance="icon"
-								onClick={() => {
-									vscode.postMessage({
-										type: "openExtensionSettings",
-									})
-									setIsVisible(false)
-								}}></VSCodeButton>
+					{/* Tabs container */}
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							marginBottom: "10px",
+						}}>
+						<div
+							style={{
+								display: "flex",
+								gap: "1px",
+								borderBottom: "1px solid var(--vscode-panel-border)",
+							}}>
+							<TabButton isActive={currentView === "rules"} onClick={() => setCurrentView("rules")}>
+								Rules
+							</TabButton>
+							<TabButton isActive={currentView === "workflows"} onClick={() => setCurrentView("workflows")}>
+								Workflows
+							</TabButton>
 						</div>
+					</div>
+
+					{/* Description text */}
+					<div className="text-xs text-[var(--vscode-descriptionForeground)] mb-4">
+						{currentView === "rules" ? (
+							<p>
+								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
+								include context and preferences for your projects or globally for every conversation.
+							</p>
+						) : (
+							<p>
+								Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks,
+								such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
+								<span
+									className=" 
+								text-[var(--vscode-foreground)] font-bold">
+									/workflow-name
+								</span>{" "}
+								in the chat.
+							</p>
+						)}
 					</div>
 
 					{currentView === "rules" ? (
@@ -195,7 +195,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									isGlobal={true}
 									ruleType={"cline"}
 									showNewRule={true}
-									showNoRules={true}
+									showNoRules={false}
 								/>
 							</div>
 
@@ -227,9 +227,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									isGlobal={false}
 									ruleType={"windsurf"}
 									showNewRule={true}
-									showNoRules={
-										localRules.length === 0 && cursorRules.length === 0 && windsurfRules.length === 0
-									}
+									showNoRules={false}
 								/>
 							</div>
 						</>
@@ -244,7 +242,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								isGlobal={false}
 								ruleType={"workflow"}
 								showNewRule={true}
-								showNoRules={workflows.length === 0}
+								showNoRules={false}
 							/>
 						</div>
 					)}
@@ -253,5 +251,35 @@ const ClineRulesToggleModal: React.FC = () => {
 		</div>
 	)
 }
+
+const StyledTabButton = styled.button<{ isActive: boolean }>`
+	background: none;
+	border: none;
+	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
+	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 13px;
+	margin-bottom: -1px;
+	font-family: inherit;
+
+	&:hover {
+		color: var(--vscode-foreground);
+	}
+`
+
+export const TabButton = ({
+	children,
+	isActive,
+	onClick,
+}: {
+	children: React.ReactNode
+	isActive: boolean
+	onClick: () => void
+}) => (
+	<StyledTabButton isActive={isActive} onClick={onClick}>
+		{children}
+	</StyledTabButton>
+)
 
 export default ClineRulesToggleModal
