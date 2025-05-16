@@ -1,5 +1,13 @@
 import { memo, useCallback, useState } from "react"
-import { anthropicModels, ApiConfiguration, bedrockModels, geminiDefaultModelId, geminiModels, vertexModels } from "@shared/api"
+import {
+	anthropicModels,
+	ApiConfiguration,
+	bedrockModels,
+	geminiDefaultModelId,
+	geminiModels,
+	vertexDefaultModelId,
+	vertexModels,
+} from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 
@@ -87,37 +95,52 @@ interface ThinkingBudgetSliderProps {
 
 const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration, maxBudget }: ThinkingBudgetSliderProps) => {
 	const maxTokens = (): number => {
-		if (apiConfiguration?.apiProvider === "gemini") {
-			if (apiConfiguration.apiModelId === "claude-3-7-sonnet@20250219") {
-				return vertexModels["claude-3-7-sonnet@20250219"].thinkingConfig.maxBudget
+		const provider = apiConfiguration?.apiProvider
+		const modelId = apiConfiguration?.apiModelId
+
+		if (provider === "vertex") {
+			if (modelId === "claude-3-7-sonnet@20250219" || modelId === "gemini-2.5-flash-preview-04-17") {
+				return vertexModels[modelId].thinkingConfig.maxBudget
+			}
+			return vertexModels[vertexDefaultModelId].maxTokens
+		}
+
+		if (provider === "gemini") {
+			if (modelId === "gemini-2.5-flash-preview-04-17") {
+				return geminiModels[modelId].thinkingConfig.maxBudget
 			}
 			return geminiModels[geminiDefaultModelId].maxTokens
 		}
-		if (apiConfiguration?.apiProvider === "anthropic") {
+
+		if (provider === "anthropic") {
 			return anthropicModels["claude-3-7-sonnet-20250219"].thinkingConfig.maxBudget
 		}
-		if (apiConfiguration?.apiProvider === "bedrock") {
+
+		if (provider === "bedrock") {
 			return bedrockModels["anthropic.claude-3-7-sonnet-20250219-v1:0"].thinkingConfig.maxBudget
 		}
+
 		return 0
 	}
-	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
 
 	const getThinkingBudgetPercentage = (): number => {
-		if (apiConfiguration?.apiModelId === "gemini-2-5-gemini-2.5-flash-preview-04-17") {
-			return 1.0 // Gemini2.5 Flash is 100%
-		} else if (
-			(apiConfiguration?.apiProvider === "anthropic" && apiConfiguration.apiModelId === "claude-3-7-sonnet-20250219") ||
-			(apiConfiguration?.apiProvider === "bedrock" &&
-				apiConfiguration.apiModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
-			(apiConfiguration?.apiProvider === "vertex" && apiConfiguration.apiModelId === "claude-3-7-sonnet@20250219")
+		const provider = apiConfiguration?.apiProvider
+		const modelId = apiConfiguration?.apiModelId
+
+		if (provider === "gemini" && modelId === "gemini-2.5-flash-preview-04-17") {
+			return 1.0 // 100%
+		}
+
+		if (
+			(provider === "anthropic" && modelId === "claude-3-7-sonnet-20250219") ||
+			(provider === "bedrock" && modelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+			(provider === "vertex" && modelId === "claude-3-7-sonnet@20250219")
 		) {
-			return 0.5 // Claude3.7 is 50%(32K Token)
+			return 0.5 // 50%
 		}
 
 		return DEFAULT_MAX_PERCENTAGE
 	}
-
 	const maxSliderValue = (() => {
 		if (maxBudget !== undefined) {
 			return maxBudget
