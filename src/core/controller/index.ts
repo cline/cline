@@ -145,7 +145,17 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			enableCheckpointsSetting,
+			isNewUser,
+			taskHistory,
 		} = await getAllExtensionState(this.context)
+
+		const NEW_USER_TASK_COUNT_THRESHOLD = 10
+
+		// Check if the user has completed enough tasks to no longer be considered a "new user"
+		if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
+			await updateGlobalState(this.context, "isNewUser", false)
+			await this.postStateToWebview()
+		}
 
 		if (autoApprovalSettings) {
 			const updatedAutoApprovalSettings = {
@@ -1345,6 +1355,7 @@ export class Controller {
 			enableCheckpointsSetting,
 			globalClineRulesToggles,
 			shellIntegrationTimeout,
+			isNewUser,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1384,6 +1395,7 @@ export class Controller {
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
 			shellIntegrationTimeout,
+			isNewUser,
 		}
 	}
 

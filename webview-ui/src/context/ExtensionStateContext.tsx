@@ -79,6 +79,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
+		isNewUser: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
