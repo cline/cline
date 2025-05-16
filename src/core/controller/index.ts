@@ -50,6 +50,7 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
+import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -325,6 +326,7 @@ export class Controller {
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
 				await refreshExternalRulesToggles(this.context, cwd)
+				await refreshWorkflowToggles(this.context, cwd)
 				await this.postStateToWebview()
 				break
 			case "openInBrowser":
@@ -473,6 +475,16 @@ export class Controller {
 					await this.postStateToWebview()
 				} else {
 					console.error("toggleCursorRule: Missing or invalid parameters")
+				}
+				break
+			}
+			case "toggleWorkflow": {
+				const { workflowPath, enabled } = message
+				if (workflowPath && typeof enabled === "boolean") {
+					const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+					toggles[workflowPath] = enabled
+					await updateWorkspaceState(this.context, "workflowToggles", toggles)
+					await this.postStateToWebview()
 				}
 				break
 			}
@@ -1356,6 +1368,8 @@ export class Controller {
 		const localCursorRulesToggles =
 			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
 
+		const workflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1383,6 +1397,7 @@ export class Controller {
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
+			workflowToggles: workflowToggles || {},
 			shellIntegrationTimeout,
 		}
 	}

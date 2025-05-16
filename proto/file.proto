@@ -85,6 +85,7 @@ message RuleFileRequest {
   bool is_global = 2;            // Common field for all operations
   optional string rule_path = 3; // Path field for deleteRuleFile (optional)
   optional string filename = 4;  // Filename field for createRuleFile (optional)
+  optional string type = 5;      // Type of the file to create (optional)
 }
 
 // Result for rule file operations with meaningful data only

@@ -78,6 +78,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
+		workflowToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -272,6 +273,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
+		workflowToggles: state.workflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
