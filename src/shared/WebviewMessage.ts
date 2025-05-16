@@ -26,7 +26,6 @@ export interface WebviewMessage {
 		| "autoApprovalSettings"
 		| "browserRelaunchResult"
 		| "togglePlanActMode"
-		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
