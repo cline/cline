@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "구성에서 서버 \"{{serverName}}\"을(를) 찾을 수 없습니다",
 		"custom_storage_path_set": "사용자 지정 저장 경로 설정됨: {{path}}",
 		"default_storage_path": "기본 저장 경로로 되돌아갔습니다",
-		"settings_imported": "설정이 성공적으로 가져와졌습니다."
+		"settings_imported": "설정이 성공적으로 가져와졌습니다.",
+		"settings_import_failed": "설정 가져오기 실패: {{error}}."
 	},
 	"answers": {
 		"yes": "예",

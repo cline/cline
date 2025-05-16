@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "Server \"{{serverName}}\" nicht in der Konfiguration gefunden",
 		"custom_storage_path_set": "Benutzerdefinierter Speicherpfad festgelegt: {{path}}",
 		"default_storage_path": "Auf Standardspeicherpfad zurückgesetzt",
-		"settings_imported": "Einstellungen erfolgreich importiert."
+		"settings_imported": "Einstellungen erfolgreich importiert.",
+		"settings_import_failed": "Fehler beim Importieren der Einstellungen: {{error}}."
 	},
 	"answers": {
 		"yes": "Ja",

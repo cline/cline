@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "सर्वर \"{{serverName}}\" कॉन्फ़िगरेशन में नहीं मिला",
 		"custom_storage_path_set": "कस्टम स्टोरेज पाथ सेट किया गया: {{path}}",
 		"default_storage_path": "डिफ़ॉल्ट स्टोरेज पाथ का उपयोग पुनः शुरू किया गया",
-		"settings_imported": "सेटिंग्स सफलतापूर्वक इम्पोर्ट की गईं।"
+		"settings_imported": "सेटिंग्स सफलतापूर्वक इम्पोर्ट की गईं।",
+		"settings_import_failed": "सेटिंग्स इम्पोर्ट करने में विफल: {{error}}।"
 	},
 	"answers": {
 		"yes": "हां",

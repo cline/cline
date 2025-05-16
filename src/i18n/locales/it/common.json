@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "Server \"{{serverName}}\" non trovato nella configurazione",
 		"custom_storage_path_set": "Percorso di archiviazione personalizzato impostato: {{path}}",
 		"default_storage_path": "Tornato al percorso di archiviazione predefinito",
-		"settings_imported": "Impostazioni importate con successo."
+		"settings_imported": "Impostazioni importate con successo.",
+		"settings_import_failed": "Importazione delle impostazioni fallita: {{error}}."
 	},
 	"answers": {
 		"yes": "Sì",

@@ -3,13 +3,14 @@ import * as path from "path"
 import fs from "fs/promises"
 
 import * as vscode from "vscode"
-import { z } from "zod"
+import { z, ZodError } from "zod"
 
 import { globalSettingsSchema } from "../../schemas"
 
 import { ProviderSettingsManager, providerProfilesSchema } from "./ProviderSettingsManager"
 import { ContextProxy } from "./ContextProxy"
 import { CustomModesManager } from "./CustomModesManager"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 type ImportOptions = {
 	providerSettingsManager: ProviderSettingsManager
@@ -34,15 +35,14 @@ export const importSettings = async ({ providerSettingsManager, contextProxy, cu
 
 	const schema = z.object({
 		providerProfiles: providerProfilesSchema,
-		globalSettings: globalSettingsSchema,
+		globalSettings: globalSettingsSchema.optional(),
 	})
 
 	try {
 		const previousProviderProfiles = await providerSettingsManager.export()
 
-		const { providerProfiles: newProviderProfiles, globalSettings } = schema.parse(
-			JSON.parse(await fs.readFile(uris[0].fsPath, "utf-8")),
-		)
+		const data = JSON.parse(await fs.readFile(uris[0].fsPath, "utf-8"))
+		const { providerProfiles: newProviderProfiles, globalSettings = {} } = schema.parse(data)
 
 		const providerProfiles = {
 			currentApiConfigName: newProviderProfiles.currentApiConfigName,
@@ -79,7 +79,16 @@ export const importSettings = async ({ providerSettingsManager, contextProxy, cu
 
 		return { providerProfiles, globalSettings, success: true }
 	} catch (e) {
-		return { success: false }
+		let error = "Unknown error"
+
+		if (e instanceof ZodError) {
+			error = e.issues.map((issue) => `[${issue.path.join(".")}]: ${issue.message}`).join("\n")
+			telemetryService.captureSchemaValidationError({ schemaName: "ImportExport", error: e })
+		} else if (e instanceof Error) {
+			error = e.message
+		}
+
+		return { success: false, error }
 	}
 }
 
@@ -96,6 +105,14 @@ export const exportSettings = async ({ providerSettingsManager, contextProxy }: 
 	try {
 		const providerProfiles = await providerSettingsManager.export()
 		const globalSettings = await contextProxy.export()
+
+		// It's okay if there are no global settings, but if there are no
+		// provider profile configured then don't export. If we wanted to
+		// support this case then the `importSettings` function would need to
+		// be updated to handle the case where there are no provider profiles.
+		if (typeof providerProfiles === "undefined") {
+			return
+		}
 
 		const dirname = path.dirname(uri.fsPath)
 		await fs.mkdir(dirname, { recursive: true })

@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "在設定中沒有找到伺服器\"{{serverName}}\"",
 		"custom_storage_path_set": "自訂儲存路徑已設定：{{path}}",
 		"default_storage_path": "已恢復使用預設儲存路徑",
-		"settings_imported": "設定已成功匯入。"
+		"settings_imported": "設定已成功匯入。",
+		"settings_import_failed": "設定匯入失敗：{{error}}。"
 	},
 	"answers": {
 		"yes": "是",

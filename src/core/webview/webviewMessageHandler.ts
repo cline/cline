@@ -245,20 +245,23 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		case "exportTaskWithId":
 			provider.exportTaskWithId(message.text!)
 			break
-		case "importSettings":
-			const { success } = await importSettings({
+		case "importSettings": {
+			const result = await importSettings({
 				providerSettingsManager: provider.providerSettingsManager,
 				contextProxy: provider.contextProxy,
 				customModesManager: provider.customModesManager,
 			})
 
-			if (success) {
+			if (result.success) {
 				provider.settingsImportedAt = Date.now()
 				await provider.postStateToWebview()
 				await vscode.window.showInformationMessage(t("common:info.settings_imported"))
+			} else if (result.error) {
+				await vscode.window.showErrorMessage(t("common:errors.settings_import_failed", { error: result.error }))
 			}
 
 			break
+		}
 		case "exportSettings":
 			await exportSettings({
 				providerSettingsManager: provider.providerSettingsManager,

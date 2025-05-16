@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "Serveur \"{{serverName}}\" introuvable dans la configuration",
 		"custom_storage_path_set": "Chemin de stockage personnalisé défini : {{path}}",
 		"default_storage_path": "Retour au chemin de stockage par défaut",
-		"settings_imported": "Paramètres importés avec succès."
+		"settings_imported": "Paramètres importés avec succès.",
+		"settings_import_failed": "Échec de l'importation des paramètres : {{error}}."
 	},
 	"answers": {
 		"yes": "Oui",

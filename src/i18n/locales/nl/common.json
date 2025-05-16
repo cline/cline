@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "Server \"{{serverName}}\" niet gevonden in configuratie",
 		"custom_storage_path_set": "Aangepast opslagpad ingesteld: {{path}}",
 		"default_storage_path": "Terug naar standaard opslagpad",
-		"settings_imported": "Instellingen succesvol geïmporteerd."
+		"settings_imported": "Instellingen succesvol geïmporteerd.",
+		"settings_import_failed": "Importeren van instellingen mislukt: {{error}}."
 	},
 	"answers": {
 		"yes": "Ja",

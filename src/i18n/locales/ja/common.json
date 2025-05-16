@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "サーバー\"{{serverName}}\"が設定内に見つかりません",
 		"custom_storage_path_set": "カスタムストレージパスが設定されました：{{path}}",
 		"default_storage_path": "デフォルトのストレージパスに戻りました",
-		"settings_imported": "設定が正常にインポートされました。"
+		"settings_imported": "設定が正常にインポートされました。",
+		"settings_import_failed": "設定のインポートに失敗しました：{{error}}。"
 	},
 	"answers": {
 		"yes": "はい",

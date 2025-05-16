@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "Serwer \"{{serverName}}\" nie znaleziony w konfiguracji",
 		"custom_storage_path_set": "Ustawiono niestandardową ścieżkę przechowywania: {{path}}",
 		"default_storage_path": "Wznowiono używanie domyślnej ścieżki przechowywania",
-		"settings_imported": "Ustawienia zaimportowane pomyślnie."
+		"settings_imported": "Ustawienia zaimportowane pomyślnie.",
+		"settings_import_failed": "Nie udało się zaimportować ustawień: {{error}}."
 	},
 	"answers": {
 		"yes": "Tak",

@@ -67,7 +67,8 @@
 		"mcp_server_not_found": "Servidor \"{{serverName}}\" no encontrado en la configuración",
 		"custom_storage_path_set": "Ruta de almacenamiento personalizada establecida: {{path}}",
 		"default_storage_path": "Se ha vuelto a usar la ruta de almacenamiento predeterminada",
-		"settings_imported": "Configuración importada correctamente."
+		"settings_imported": "Configuración importada correctamente.",
+		"settings_import_failed": "Error al importar la configuración: {{error}}."
 	},
 	"answers": {
 		"yes": "Sí",
