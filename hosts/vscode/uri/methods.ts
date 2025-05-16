@@ -3,12 +3,12 @@
 
 // Import all method implementations
 import { registerMethod } from "./index"
-import { condense } from "./condense"
-import { reportBug } from "./reportBug"
+import { fileAdapter, joinPathAdapter, parseAdapter } from "./adapter"
 
-// Register all slash service methods
+// Register all uri service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
-	registerMethod("condense", condense)
-	registerMethod("reportBug", reportBug)
+	registerMethod("file", fileAdapter)
+	registerMethod("joinPath", joinPathAdapter)
+	registerMethod("parse", parseAdapter)
 }
