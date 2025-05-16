@@ -44,22 +44,21 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Task Timeline:</b> See the history of your coding journey with a visual timeline of checkpoints, letting
-					you understand what Cline did at a glance.
+					<b>Workflows:</b> Create and manage workflow files that can be injected into conversations via slash commands,
+					making it easy to automate repetitive tasks.
 				</li>
 				<li>
-					<b>UX Improvements:</b> Type while Cline works, smarter auto-scrolling, new copy buttons for task headers and
-					messages, and a simplified home interface for a smoother experience.
+					<b>Collapsible Task List:</b> Hide your recent tasks when sharing your screen to keep your prompts private.
 				</li>
 				<li>
-					<b>Commit Message Generation:</b> Let Cline help craft meaningful commit messages based on your changes.
+					<b>Global Endpoint for Vertex AI:</b> Improved availability and reduced rate limiting errors for Vertex AI
+					users.
 				</li>
 				<li>
-					<b>Quote Replies:</b> Easily reference previous messages with new quote reply support for clearer
-					conversations.
+					<b>New User Experience:</b> Special components and guidance for new users to help them get started with Cline.
 				</li>
 				<li>
-					<b>Auto Caching for Gemini:</b> Native support for Gemini's recently released Implicit Caching.
+					<b>UI Improvements:</b> Fixed loading states and improved settings organization for a smoother experience.
 				</li>
 			</ul>
 			<Accordion isCompact className="pl-0">
@@ -75,20 +74,19 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					}}>
 					<ul style={ulStyle}>
 						<li>
-							<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price
-							tracking for Gemini models.
+							<b>Task Timeline:</b> See the history of your coding journey with a visual timeline of checkpoints.
 						</li>
 						<li>
-							<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their
-							contents easily.
+							<b>UX Improvements:</b> Type while Cline works, smarter auto-scrolling, and copy buttons for task
+							headers and messages.
+						</li>
+						<li>
+							<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price
+							tracking.
 						</li>
 						<li>
 							<b>Global Cline Rules:</b> Store multiple rules files in Documents/Cline/Rules to share between
 							projects.
-						</li>
-						<li>
-							<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a
-							new task.
 						</li>
 					</ul>
 				</AccordionItem>
