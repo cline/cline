@@ -1,16 +1,15 @@
 # Changelog
 
-## 3.16.0
+## [3.16.0]
 
--   c6e8b04: Recent task list is now collapsible, allowing users to hide their recent tasks (e.g. when sharing their screen).
--   aabe4ae: Add detection for new users to display special components
--   6c18d51: adds global endpoint for vertex ai users
--   080ed7c: Add Tailwind CSS IntelliSense to the the recommended extensions list
--   5147e28: new workflow feature
--   c0b3c69: fix eternal loading states when the last message is a checkpoint
--   570ece3: selectImages protos migration
--   8d8452e: askResponse protobus migration
--   cd1ff2a: Finishing the migration of Vscode Advanced settings to Settings Webview
+-   Add new workflow feature allowing users to create and manage workflow files that can be injected into conversations via slash commands
+-   Add collapsible recent task list, allowing users to hide their task history when sharing their screen
+-   Add global endpoint option for Vertex AI users, providing higher availability and reducing 429 errors
+-   Add detection for new users to display special components and guidance
+-   Add Tailwind CSS IntelliSense to the recommended extensions list
+-   Fix eternal loading states when the last message is a checkpoint
+-   Improve settings organization by migrating VSCode Advanced settings to Settings Webview
+-   Internal improvements to message handling system (protobus migrations)
 
 ## [3.15.5]
 
