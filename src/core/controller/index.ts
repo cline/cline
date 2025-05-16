@@ -66,7 +66,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "may-09-2025_17:11:00" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "may-16-2025_16:11:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
