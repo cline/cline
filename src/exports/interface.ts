@@ -7,6 +7,7 @@ import { Socket } from "node:net"
 
 import type {
 	GlobalSettings,
+	ProviderName,
 	ProviderSettings,
 	ProviderSettingsEntry,
 	ClineMessage,
@@ -19,6 +20,7 @@ import type {
 
 export type {
 	GlobalSettings,
+	ProviderName,
 	ProviderSettings,
 	ProviderSettingsEntry,
 	ClineMessage,
@@ -36,6 +38,14 @@ export type {
 import { RooCodeEventName, IpcOrigin, IpcMessageType } from "../schemas"
 
 export { RooCodeEventName, IpcOrigin, IpcMessageType }
+
+/**
+ * Constants
+ */
+
+import { providerNames } from "../schemas"
+
+export { providerNames }
 
 /**
  * RooCodeAPI
