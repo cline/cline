@@ -3,13 +3,12 @@
 ## [3.16.0]
 
 -   Add new workflow feature allowing users to create and manage workflow files that can be injected into conversations via slash commands
--   Add collapsible recent task list, allowing users to hide their task history when sharing their screen
--   Add global endpoint option for Vertex AI users, providing higher availability and reducing 429 errors
+-   Add collapsible recent task list, allowing users to hide their task history when sharing their screen (Thanks @cosmix!)
+-   Add global endpoint option for Vertex AI users, providing higher availability and reducing 429 errors (Thanks @soniqua!)
 -   Add detection for new users to display special components and guidance
 -   Add Tailwind CSS IntelliSense to the recommended extensions list
--   Fix eternal loading states when the last message is a checkpoint
+-   Fix eternal loading states when the last message is a checkpoint (Thanks @BarreiroT!)
 -   Improve settings organization by migrating VSCode Advanced settings to Settings Webview
--   Internal improvements to message handling system (protobus migrations)
 
 ## [3.15.5]
 
