@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.17.2] - 2025-05-15
+
+- Revert "Switch to the new Roo message parser" (appears to cause a tool parsing bug)
+- Lock the versions of vsce and ovsx
+
 ## [3.17.1] - 2025-05-15
 
 - Fix the display of the command to execute during approval
