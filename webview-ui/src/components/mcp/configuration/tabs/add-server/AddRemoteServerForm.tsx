@@ -5,6 +5,7 @@ import { LINKS } from "@/constants"
 import { McpServiceClient } from "@/services/grpc-client"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServers } from "@shared/proto/mcp"
 
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
@@ -39,14 +40,14 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 		setShowConnectingMessage(true)
 
 		try {
-			const servers = await McpServiceClient.addRemoteMcpServer({
+			const servers:McpServers = await McpServiceClient.addRemoteMcpServer({
 				serverName: serverName.trim(),
 				serverUrl: serverUrl.trim(),
 			})
 
 			setIsSubmitting(false)
 
-			const mcpServers = convertProtoMcpServersToMcpServers(servers)
+			const mcpServers = convertProtoMcpServersToMcpServers(servers.mcpServers)
 			setMcpServers(mcpServers)
 
 			setServerName("")
