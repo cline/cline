@@ -111,6 +111,11 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 			const actionId = action.id
 			const subActionId = action.subAction?.id
 
+			if (actionId === "enableAutoApprove") {
+				setAutoApproveEnabled(value)
+				return
+			}
+
 			if (actionId === "enableAll" || subActionId === "enableAll") {
 				toggleAll(action, value)
 				return
@@ -182,6 +187,20 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 		[autoApprovalSettings],
 	)
 
+	const setAutoApproveEnabled = useCallback(
+		(checked: boolean) => {
+			vscode.postMessage({
+				type: "autoApprovalSettings",
+				autoApprovalSettings: {
+					...autoApprovalSettings,
+					version: (autoApprovalSettings.version ?? 1) + 1,
+					enabled: checked,
+				},
+			})
+		},
+		[autoApprovalSettings],
+	)
+
 	const toggleAll = useCallback(
 		(action: ActionMetadata, checked: boolean) => {
 			let actions = { ...autoApprovalSettings.actions }
@@ -196,6 +215,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					...autoApprovalSettings,
 					version: (autoApprovalSettings.version ?? 1) + 1,
 					actions,
+					enabled: checked,
 				},
 			})
 		},
@@ -204,13 +224,16 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 
 	// Check if action is enabled
 	const isChecked = (action: ActionMetadata): boolean => {
-		if (action.id === "enableNotifications") {
-			return autoApprovalSettings.enableNotifications
+		switch (action.id) {
+			case "enableAll":
+				return Object.values(autoApprovalSettings.actions).every(Boolean)
+			case "enableNotifications":
+				return autoApprovalSettings.enableNotifications
+			case "enableAutoApprove":
+				return autoApprovalSettings.enabled
+			default:
+				return autoApprovalSettings.actions[action.id] ?? false
 		}
-		if (action.id === "enableAll") {
-			return Object.values(autoApprovalSettings.actions).every(Boolean)
-		}
-		return autoApprovalSettings.actions[action.id] ?? false
 	}
 
 	// Check if action is favorited

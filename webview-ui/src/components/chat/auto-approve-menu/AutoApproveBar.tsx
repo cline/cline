@@ -32,6 +32,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				isFavorited={isFavorited}
 				onToggle={updateAction}
 				condensed={true}
+				showIcon={false}
 			/>
 		)
 	}
@@ -67,14 +68,18 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		]
 	}
 
+	// Check if action is enabled
 	const isChecked = (action: ActionMetadata): boolean => {
-		if (action.id === "enableNotifications") {
-			return autoApprovalSettings.enableNotifications
+		switch (action.id) {
+			case "enableAll":
+				return Object.values(autoApprovalSettings.actions).every(Boolean)
+			case "enableNotifications":
+				return autoApprovalSettings.enableNotifications
+			case "enableAutoApprove":
+				return autoApprovalSettings.enabled
+			default:
+				return autoApprovalSettings.actions[action.id] ?? false
 		}
-		if (action.id === "enableAll") {
-			return Object.values(autoApprovalSettings.actions).every(Boolean)
-		}
-		return autoApprovalSettings.actions[action.id] ?? false
 	}
 
 	const isFavorited = (action: ActionMetadata): boolean => {
