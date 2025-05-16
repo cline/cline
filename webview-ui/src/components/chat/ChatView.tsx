@@ -18,7 +18,7 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
-import { TaskServiceClient, SlashServiceClient } from "@/services/grpc-client"
+import { TaskServiceClient, SlashServiceClient, FileServiceClient } from "@/services/grpc-client"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import Announcement from "@/components/chat/Announcement"
@@ -632,8 +632,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	const selectImages = useCallback(() => {
-		vscode.postMessage({ type: "selectImages" })
+	const selectImages = useCallback(async () => {
+		try {
+			const response = await FileServiceClient.selectImages({})
+			if (response && response.values && response.values.length > 0) {
+				setSelectedImages((prevImages) => [...prevImages, ...response.values].slice(0, MAX_IMAGES_PER_MESSAGE))
+			}
+		} catch (error) {
+			console.error("Error selecting images:", error)
+		}
 	}, [])
 
 	const shouldDisableImages = !selectedModelInfo.supportsImages || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
