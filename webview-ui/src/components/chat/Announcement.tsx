@@ -45,7 +45,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<ul style={ulStyle}>
 				<li>
 					<b>Workflows:</b> Create and manage workflow files that can be injected into conversations via slash commands,
-					making it easy to reuse common instructions.
+					making it easy to automate repetitive tasks.
 				</li>
 				<li>
 					<b>Collapsible Task List:</b> Hide your recent tasks when sharing your screen to keep your prompts private.
