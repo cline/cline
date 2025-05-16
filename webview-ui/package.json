@@ -45,7 +45,8 @@
 		"remark-stringify": "^11.0.0",
 		"styled-components": "^6.1.15",
 		"unified": "^11.0.5",
-		"uuid": "^9.0.1"
+		"uuid": "^9.0.1",
+		"zustand": "^5.0.4"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.17.0",
