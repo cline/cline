@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { EmptyRequest } from "./common"
+import { Empty, EmptyRequest, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -91,6 +91,14 @@ export const StateServiceDefinition = {
 			requestStream: false,
 			responseType: State,
 			responseStream: true,
+			options: {},
+		},
+		toggleFavoriteModel: {
+			name: "toggleFavoriteModel",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
 			options: {},
 		},
 	},

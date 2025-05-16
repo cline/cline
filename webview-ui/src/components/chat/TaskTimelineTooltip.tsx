@@ -1,14 +1,16 @@
 import React from "react"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_RED, COLOR_PURPLE, COLOR_GREEN } from "./colors"
+import { Tooltip } from "@heroui/react"
 
 // Color mapping for different message types
 
 interface TaskTimelineTooltipProps {
 	message: ClineMessage
+	children: React.ReactNode
 }
 
-const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) => {
+const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) => {
 	const getMessageDescription = (message: ClineMessage): string => {
 		if (message.type === "say") {
 			switch (message.say) {
@@ -227,53 +229,61 @@ const TaskTimelineTooltip: React.FC<TaskTimelineTooltipProps> = ({ message }) =>
 	}
 
 	return (
-		<div
-			style={{
-				backgroundColor: "var(--vscode-editor-background)",
-				color: "var(--vscode-editor-foreground)",
-				border: "1px solid var(--vscode-widget-border)",
-				borderRadius: "3px",
-				padding: "8px",
-				width: "100%", // Fill the container width
-				boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-				fontSize: "12px",
-			}}>
-			<div style={{ fontWeight: "bold", marginBottom: "4px", display: "flex", alignItems: "center" }}>
-				<div
-					style={{
-						width: "10px",
-						height: "10px",
-						minWidth: "10px", // Ensure fixed width
-						minHeight: "10px", // Ensure fixed height
-						borderRadius: "50%",
-						backgroundColor: getMessageColor(message),
-						marginRight: "8px",
-						display: "inline-block",
-						flexShrink: 0, // Prevent shrinking when space is limited
-					}}
-				/>
-				{getMessageDescription(message)}
-				{getTimestamp(message) && (
-					<span style={{ fontWeight: "normal", fontSize: "10px", marginLeft: "8px" }}>{getTimestamp(message)}</span>
-				)}
-			</div>
-			{getMessageContent(message) && (
-				<div
-					style={{
-						whiteSpace: "pre-wrap",
-						wordBreak: "break-word",
-						maxHeight: "150px",
-						overflowY: "auto",
-						fontSize: "11px",
-						fontFamily: "var(--vscode-editor-font-family)",
-						backgroundColor: "var(--vscode-textBlockQuote-background)",
-						padding: "4px",
-						borderRadius: "2px",
-					}}>
-					{getMessageContent(message)}
+		<Tooltip
+			content={
+				<div className="flex flex-col">
+					<div className="flex flex-wrap items-center font-bold mb-1">
+						<div className="mr-4 mb-0.5">
+							<div
+								style={{
+									width: "10px",
+									height: "10px",
+									minWidth: "10px", // Ensure fixed width
+									minHeight: "10px", // Ensure fixed height
+									borderRadius: "50%",
+									backgroundColor: getMessageColor(message),
+									marginRight: "8px",
+									display: "inline-block",
+									flexShrink: 0, // Prevent shrinking when space is limited
+								}}
+							/>
+							{getMessageDescription(message)}
+						</div>
+						{getTimestamp(message) && (
+							<span className="font-normal text-tiny" style={{ fontWeight: "normal", fontSize: "10px" }}>
+								{getTimestamp(message)}
+							</span>
+						)}
+					</div>
+					{getMessageContent(message) && (
+						<div
+							style={{
+								whiteSpace: "pre-wrap",
+								wordBreak: "break-word",
+								maxHeight: "150px",
+								overflowY: "auto",
+								fontSize: "11px",
+								fontFamily: "var(--vscode-editor-font-family)",
+								backgroundColor: "var(--vscode-textBlockQuote-background)",
+								padding: "4px",
+								borderRadius: "2px",
+								scrollbarWidth: "none",
+							}}>
+							{getMessageContent(message)}
+						</div>
+					)}
 				</div>
-			)}
-		</div>
+			}
+			classNames={{
+				base: "bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)] border-[var(--vscode-widget-border)] py-1 rounded-[3px] max-w-[calc(100dvw-2rem)] text-xs",
+			}}
+			shadow="sm"
+			placement="bottom"
+			disableAnimation
+			closeDelay={100}
+			isKeyboardDismissDisabled={true}>
+			{children}
+		</Tooltip>
 	)
 }
 

@@ -11,7 +11,8 @@
 		"lint": "eslint .",
 		"test": "vitest run",
 		"test:watch": "vitest dev",
-		"test:coverage": "vitest run --coverage"
+		"test:coverage": "vitest run --coverage",
+		"devtools": "react-devtools"
 	},
 	"dependencies": {
 		"@floating-ui/react": "^0.27.4",
@@ -67,6 +68,7 @@
 		"eslint-plugin-react-refresh": "^0.4.16",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
+		"react-devtools": "^6.1.2",
 		"tailwindcss": "^4.1.5",
 		"typescript": "^5.7.3",
 		"typescript-eslint": "^8.18.2",
@@ -74,6 +76,7 @@
 		"vitest": "^3.0.5"
 	},
 	"optionalDependencies": {
+		"@rollup/rollup-linux-arm64-gnu": "^4.40.0",
 		"@rollup/rollup-linux-x64-gnu": "^4.40.0",
 		"@swc/core-linux-x64-gnu": "^1.11.0",
 		"@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",

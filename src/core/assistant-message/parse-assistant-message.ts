@@ -346,9 +346,8 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 				// (e.g., if content is empty or parsing logic prioritizes tool close)
 				const contentParamName: ToolParamName = "content"
 				if (
-					(currentToolUse.name === "write_to_file" || currentToolUse.name === "new_rule") &&
-					!(contentParamName in currentToolUse.params) && // Only if not already parsed
-					toolContentSlice.includes(`<${contentParamName}>`) // Check if tag exists
+					currentToolUse.name === "write_to_file" /* || currentToolUse.name === "new_rule" */ &&
+					toolContentSlice.includes(`<${contentParamName}>`)
 				) {
 					const contentStartTag = `<${contentParamName}>`
 					const contentEndTag = `</${contentParamName}>`

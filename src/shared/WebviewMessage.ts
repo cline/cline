@@ -37,7 +37,6 @@ export interface WebviewMessage {
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"
-		| "downloadMcp"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
@@ -54,7 +53,6 @@ export interface WebviewMessage {
 		| "taskFeedback"
 		| "scrollToSettings"
 		| "searchFiles"
-		| "toggleFavoriteModel"
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleClineRule"
@@ -93,6 +91,8 @@ export interface WebviewMessage {
 	// For openInBrowser
 	url?: string
 	planActSeparateModelsSetting?: boolean
+	enableCheckpointsSetting?: boolean
+	mcpMarketplaceEnabled?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
 	// For task feedback

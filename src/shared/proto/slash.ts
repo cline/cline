@@ -24,5 +24,13 @@ export const SlashServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		condense: {
+			name: "condense",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const

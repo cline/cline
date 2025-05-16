@@ -1,15 +1,33 @@
 # Changelog
 
+## [3.15.5]
+
+-   Fix inefficient memory management in the task timeline 
+-   Fix Gemini rate limitation response not being handled properly (Thanks @BarreiroT!)
+
+## [3.15.4]
+
+-   Add gemini model back to vertex provider
+-   Add gemini telemetry
+-   Add filtering for tasks tied to the current workspace
+
+## [3.15.3]
+
+-   Add Fireworks API Provider
+-   Fix minor visual issues with auto-approve menu
+-   Fix one instance of terminal not getting output
+-   Fix 'Chrome was launched but debug port is not responding' error
+
 ## [3.15.2]
 
-- Added details to auto approve menu and more sensible default controls
-- Add detailed configuration options for LiteLLM provider
-- Add webview telemetry for users who have opted in to telemetry
-- Update Gemini in OpenRouter/Cline providers to use implicit caching
-- Fix freezing issues during rendering of large streaming text
-- Fix grey screen webview crashes by releasing memory after every diff edit
-- Fix breaking out of diff auto-scroll
-- Fix IME composition Enter auto‑sending edited message
+-   Added details to auto approve menu and more sensible default controls
+-   Add detailed configuration options for LiteLLM provider
+-   Add webview telemetry for users who have opted in to telemetry
+-   Update Gemini in OpenRouter/Cline providers to use implicit caching
+-   Fix freezing issues during rendering of large streaming text
+-   Fix grey screen webview crashes by releasing memory after every diff edit
+-   Fix breaking out of diff auto-scroll
+-   Fix IME composition Enter auto‑sending edited message
 
 ## [3.15.1]
 

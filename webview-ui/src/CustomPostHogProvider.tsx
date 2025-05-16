@@ -5,10 +5,14 @@ import { posthogConfig } from "@shared/services/config/posthog-config"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
-	const { telemetrySetting } = useExtensionState()
+	const { telemetrySetting, vscMachineId } = useExtensionState()
 	const isTelemetryEnabled = telemetrySetting !== "disabled"
 
 	useEffect(() => {
+		if (vscMachineId.length === 0) {
+			return
+		}
+
 		posthog.init(posthogConfig.apiKey, {
 			api_host: posthogConfig.host,
 			ui_host: posthogConfig.uiHost,
@@ -16,6 +20,9 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			disable_session_recording: true,
 			capture_pageview: false,
 			capture_dead_clicks: true,
+			bootstrap: {
+				distinctID: vscMachineId,
+			},
 		})
 
 		if (isTelemetryEnabled) {
@@ -23,7 +30,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 		} else {
 			posthog.opt_out_capturing()
 		}
-	}, [isTelemetryEnabled])
+	}, [isTelemetryEnabled, vscMachineId])
 
 	return <PostHogProvider client={posthog}>{children}</PostHogProvider>
 }
