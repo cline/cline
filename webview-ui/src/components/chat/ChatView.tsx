@@ -983,6 +983,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)
 			}
 
+			// We display certain statuses for the last message only
+			// If the last message is a checkpoint, we want to show the status of the previous message
+			const nextMessage = index < groupedMessages.length - 1 && groupedMessages[index + 1]
+			const isNextCheckpoint = !Array.isArray(nextMessage) && nextMessage && nextMessage?.say === "checkpoint_created"
+			const isLastMessageGroup = isNextCheckpoint && index === groupedMessages.length - 2
+
+			const isLast = index === groupedMessages.length - 1 || isLastMessageGroup
+
 			// regular message
 			return (
 				<ChatRow
@@ -991,7 +999,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					isExpanded={expandedRows[messageOrGroup.ts] || false}
 					onToggleExpand={() => toggleRowExpansion(messageOrGroup.ts)}
 					lastModifiedMessage={modifiedMessages.at(-1)}
-					isLast={index === groupedMessages.length - 1}
+					isLast={isLast}
 					onHeightChange={handleRowHeightChange}
 					inputValue={inputValue}
 					sendMessageFromChatRow={handleSendMessage}
