@@ -1178,6 +1178,15 @@ export const TaskServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Records task feedback (thumbs up/down) */
+		taskFeedback: {
+			name: "taskFeedback",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
 
