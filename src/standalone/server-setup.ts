@@ -20,6 +20,7 @@ import { checkpointRestore } from "../core/controller/checkpoints/checkpointRest
 
 // File Service
 import { openFile } from "../core/controller/file/openFile"
+import { selectImages } from "../core/controller/file/selectImages"
 import { openImage } from "../core/controller/file/openImage"
 import { deleteRuleFile } from "../core/controller/file/deleteRuleFile"
 import { createRuleFile } from "../core/controller/file/createRuleFile"
@@ -94,6 +95,7 @@ export function addServices(
 	// File Service
 	server.addService(proto.cline.FileService.service, {
 		openFile: wrapper(openFile, controller),
+		selectImages: wrapper(selectImages, controller),
 		openImage: wrapper(openImage, controller),
 		deleteRuleFile: wrapper(deleteRuleFile, controller),
 		createRuleFile: wrapper(createRuleFile, controller),

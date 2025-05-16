@@ -14,7 +14,6 @@ import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMi
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { fetchOpenGraphData } from "@integrations/misc/link-preview"
 import { handleFileServiceRequest } from "./file"
-import { selectImages } from "@integrations/misc/process-images"
 import { getTheme } from "@integrations/theme/getTheme"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
@@ -319,13 +318,6 @@ export class Controller {
 			case "didShowAnnouncement":
 				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
 				await this.postStateToWebview()
-				break
-			case "selectImages":
-				const images = await selectImages()
-				await this.postMessageToWebview({
-					type: "selectedImages",
-					images,
-				})
 				break
 			case "resetState":
 				await this.resetState()

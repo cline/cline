@@ -16,7 +16,6 @@ export interface WebviewMessage {
 		| "reportBug"
 		| "askResponse"
 		| "didShowAnnouncement"
-		| "selectImages"
 		| "resetState"
 		| "openInBrowser"
 		| "openMention"
