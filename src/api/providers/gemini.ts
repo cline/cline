@@ -73,8 +73,25 @@ export class GeminiHandler implements ApiHandler {
 	 * @param messages The conversation history to include in the message
 	 * @returns An async generator that yields chunks of the response with accurate immediate costs
 	 */
-	@withRetry()
+	@withRetry({
+		maxRetries: 4,
+		baseDelay: 2000,
+		maxDelay: 15000,
+	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		// --- Cline: Modified for testing 429 error (50% chance) ---
+		const shouldThrowFakeError = Math.random() < 1
+		if (shouldThrowFakeError && systemPrompt.length > 100) {
+			// systemPrompt.length > 100 was auto-added, can be removed if not the desired condition
+			const fakeError: any = new Error("Fake 429 Too Many Requests for testing (50% chance).")
+			fakeError.status = 429
+			fakeError.name = "ClientError" // Mimicking Gemini's error structure
+			// fakeError.headers = { "retry-after": "5" }; // Optional: to test retry-after header
+			console.warn("GEMINI_HANDLER: INTENTIONALLY THROWING FAKE 429 ERROR FOR TESTING (50% chance)")
+			throw fakeError
+		}
+		// --- End Cline: Modified for testing 429 error ---
+
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
