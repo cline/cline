@@ -279,6 +279,7 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!visibleWebview) {
 				// Ensure the sidebar view is visible
 				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				await setTimeoutPromise(100) // Give UI time to update
 				visibleWebview = WebviewProvider.getSidebarInstance()
 			}
 
@@ -334,6 +335,7 @@ export function activate(context: vscode.ExtensionContext) {
 				if (!visibleWebview) {
 					// Ensure the sidebar view is visible
 					await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+					await setTimeoutPromise(100) // Give UI time to update
 					visibleWebview = WebviewProvider.getSidebarInstance()
 				}
 				await visibleWebview?.controller.addSelectedTerminalOutputToChat(terminalContents, terminal.name)
