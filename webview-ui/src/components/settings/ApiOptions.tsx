@@ -1231,6 +1231,62 @@ const ApiOptions = ({
 								}}>
 								Enable R1 messages format
 							</VSCodeCheckbox>
+							<VSCodeCheckbox
+								checked={!!apiConfiguration?.openAiModelInfo?.isReasoningModelFamily}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
+									let modelInfo = apiConfiguration?.openAiModelInfo
+										? { ...apiConfiguration.openAiModelInfo }
+										: { ...openAiModelInfoSaneDefaults }
+									modelInfo = { ...modelInfo, isReasoningModelFamily: isChecked }
+									// Reset reasoning effort if unchecked
+									if (!isChecked) {
+										modelInfo.reasoningEffort = undefined
+									}
+									setApiConfiguration({
+										...apiConfiguration,
+										openAiModelInfo: modelInfo,
+									})
+								}}>
+								Is Reasoning Model Family (e.g., o3, gemini-2.5)
+							</VSCodeCheckbox>
+							{apiConfiguration?.openAiModelInfo?.isReasoningModelFamily && (
+								<div style={{ marginTop: "5px", marginBottom: "5px" }}>
+									<label htmlFor="reasoning-effort-dropdown">
+										<span style={{ fontWeight: 500 }}>Reasoning Effort</span>
+									</label>
+									<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
+										<VSCodeDropdown
+											id="reasoning-effort-dropdown"
+											style={{ minWidth: 130, marginTop: 3 }}
+											value={apiConfiguration?.openAiModelInfo?.reasoningEffort || "medium"}
+											onChange={(e: any) => {
+												const modelInfo = apiConfiguration?.openAiModelInfo
+													? { ...apiConfiguration.openAiModelInfo }
+													: { ...openAiModelInfoSaneDefaults }
+												modelInfo.reasoningEffort = e.target.value
+												setApiConfiguration({
+													...apiConfiguration,
+													openAiModelInfo: modelInfo,
+												})
+											}}>
+											<VSCodeOption value="low">low</VSCodeOption>
+											<VSCodeOption value="medium">medium</VSCodeOption>
+											<VSCodeOption value="high">high</VSCodeOption>
+										</VSCodeDropdown>
+									</DropdownContainer>
+									<p
+										style={{
+											fontSize: "12px",
+											marginTop: 3,
+											marginBottom: "10px",
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										Controls the amount of reasoning the model performs. Higher effort may yield better
+										results but increase latency and cost.
+									</p>
+								</div>
+							)}
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
 									value={
@@ -2105,7 +2161,7 @@ const ApiOptions = ({
 										<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
 											<VSCodeDropdown
 												id="reasoning-effort-dropdown"
-												style={{ width: "100%", marginTop: 3 }}
+												style={{ minWidth: 130, marginTop: 3 }}
 												value={apiConfiguration?.reasoningEffort || "high"}
 												onChange={(e: any) => {
 													setApiConfiguration({
