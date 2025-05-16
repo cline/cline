@@ -16,7 +16,6 @@ export interface WebviewMessage {
 		| "reportBug"
 		| "askResponse"
 		| "didShowAnnouncement"
-		| "selectImages"
 		| "resetState"
 		| "openInBrowser"
 		| "openMention"
@@ -37,7 +36,6 @@ export interface WebviewMessage {
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"
-		| "downloadMcp"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
@@ -54,12 +52,12 @@ export interface WebviewMessage {
 		| "taskFeedback"
 		| "scrollToSettings"
 		| "searchFiles"
-		| "toggleFavoriteModel"
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleClineRule"
 		| "toggleCursorRule"
 		| "toggleWindsurfRule"
+		| "toggleWorkflow"
 		| "deleteClineRule"
 		| "copyToClipboard"
 		| "updateTerminalConnectionTimeout"
@@ -92,6 +90,8 @@ export interface WebviewMessage {
 	// For openInBrowser
 	url?: string
 	planActSeparateModelsSetting?: boolean
+	enableCheckpointsSetting?: boolean
+	mcpMarketplaceEnabled?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
 	// For task feedback
@@ -110,9 +110,10 @@ export interface WebviewMessage {
 	grpc_request_cancel?: {
 		request_id: string // ID of the request to cancel
 	}
-	// For cline rules
+	// For cline rules and workflows
 	isGlobal?: boolean
 	rulePath?: string
+	workflowPath?: string
 	enabled?: boolean
 	filename?: string
 

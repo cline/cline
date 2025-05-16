@@ -259,7 +259,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform, workflowToggles } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -373,6 +373,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showContextMenu, setShowContextMenu])
 
+		useEffect(() => {
+			const handleClickOutsideSlashMenu = (event: MouseEvent) => {
+				if (
+					slashCommandsMenuContainerRef.current &&
+					!slashCommandsMenuContainerRef.current.contains(event.target as Node)
+				) {
+					setShowSlashCommandsMenu(false)
+				}
+			}
+
+			if (showSlashCommandsMenu) {
+				document.addEventListener("mousedown", handleClickOutsideSlashMenu)
+			}
+
+			return () => {
+				document.removeEventListener("mousedown", handleClickOutsideSlashMenu)
+			}
+		}, [showSlashCommandsMenu])
+
 		const handleMentionSelect = useCallback(
 			(type: ContextMenuOptionType, value?: string) => {
 				if (type === ContextMenuOptionType.NoResults) {
@@ -463,13 +482,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedSlashCommandsIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							const commands = getMatchingSlashCommands(slashCommandsQuery)
+							// Get commands with workflow toggles
+							const allCommands = getMatchingSlashCommands(slashCommandsQuery, workflowToggles)
 
-							if (commands.length === 0) {
+							if (allCommands.length === 0) {
 								return prevIndex
 							}
 
-							const newIndex = (prevIndex + direction + commands.length) % commands.length
+							// Calculate total command count
+							const totalCommandCount = allCommands.length
+
+							// Create wraparound navigation - moves from last item to first and vice versa
+							const newIndex = (prevIndex + direction + totalCommandCount) % totalCommandCount
 							return newIndex
 						})
 						return
@@ -477,7 +501,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
-						const commands = getMatchingSlashCommands(slashCommandsQuery)
+						const commands = getMatchingSlashCommands(slashCommandsQuery, workflowToggles)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
 						}
@@ -880,7 +904,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// extract and validate the exact command text
 				const commandText = processedText.substring(slashIndex + 1, endIndex)
-				const isValidCommand = validateSlashCommand(commandText)
+				const isValidCommand = validateSlashCommand(commandText, workflowToggles)
 
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
@@ -893,7 +917,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [])
+		}, [workflowToggles])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1036,6 +1060,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
 				case "together":
 					return `${selectedProvider}:${apiConfiguration.togetherModelId}`
+				case "fireworks":
+					return `fireworks:${apiConfiguration.fireworksModelId}`
 				case "lmstudio":
 					return `${selectedProvider}:${apiConfiguration.lmStudioModelId}`
 				case "ollama":
@@ -1371,6 +1397,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 								onMouseDown={handleMenuMouseDown}
 								query={slashCommandsQuery}
+								workflowToggles={workflowToggles}
 							/>
 						</div>
 					)}

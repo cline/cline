@@ -76,6 +76,8 @@ class PostHogClient {
 			BROWSER_TOOL_END: "task.browser_tool_end",
 			// Tracks when browser errors occur
 			BROWSER_ERROR: "task.browser_error",
+			// Tracks Gemini API specific performance metrics
+			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
 			// Collection of all task events
 			TASK_COLLECTION: "task.collection",
 		},
@@ -724,6 +726,43 @@ class PostHogClient {
 					taskId,
 					qty,
 					mode,
+				},
+			},
+			collect,
+		)
+	}
+
+	/**
+	 * Captures Gemini API performance metrics.
+	 * @param taskId Unique identifier for the task
+	 * @param modelId Specific Gemini model ID
+	 * @param data Performance data including TTFT, durations, token counts, cache stats, and API success status
+	 * @param collect If true, collect event instead of sending
+	 */
+	public captureGeminiApiPerformance(
+		taskId: string,
+		modelId: string,
+		data: {
+			ttftSec?: number
+			totalDurationSec?: number
+			promptTokens: number
+			outputTokens: number
+			cacheReadTokens: number
+			cacheHit: boolean
+			cacheHitPercentage?: number
+			apiSuccess: boolean
+			apiError?: string
+			throughputTokensPerSec?: number
+		},
+		collect: boolean = false,
+	) {
+		this.capture(
+			{
+				event: PostHogClient.EVENTS.TASK.GEMINI_API_PERFORMANCE,
+				properties: {
+					taskId,
+					modelId,
+					...data,
 				},
 			},
 			collect,

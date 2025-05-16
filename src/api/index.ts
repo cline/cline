@@ -19,6 +19,7 @@ import { DoubaoHandler } from "./providers/doubao"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { ClineHandler } from "./providers/cline"
 import { LiteLlmHandler } from "./providers/litellm"
+import { FireworksHandler } from "./providers/fireworks"
 import { AskSageHandler } from "./providers/asksage"
 import { XAIHandler } from "./providers/xai"
 import { SambanovaHandler } from "./providers/sambanova"
@@ -58,6 +59,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new DeepSeekHandler(options)
 		case "requesty":
 			return new RequestyHandler(options)
+		case "fireworks":
+			return new FireworksHandler(options)
 		case "together":
 			return new TogetherHandler(options)
 		case "qwen":

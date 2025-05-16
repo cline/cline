@@ -19,6 +19,7 @@ export type ApiProvider =
 	| "vscode-lm"
 	| "cline"
 	| "litellm"
+	| "fireworks"
 	| "asksage"
 	| "xai"
 	| "sambanova"
@@ -70,12 +71,15 @@ export interface ApiHandlerOptions {
 	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
+	fireworksApiKey?: string
+	fireworksModelId?: string
+	fireworksModelMaxCompletionTokens?: number
+	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
 	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: LanguageModelChatSelector
-	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
@@ -561,14 +565,6 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 export type GeminiModelId = keyof typeof geminiModels
 export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
 export const geminiModels = {
-	"gemini-2.5-pro-exp-03-25": {
-		maxTokens: 65536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
 	"gemini-2.5-pro-preview-05-06": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,

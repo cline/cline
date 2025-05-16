@@ -17,14 +17,44 @@ type HistoryViewProps = {
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
+// Tailwind-styled radio with custom icon support - works independently of VSCodeRadioGroup but looks the same
+// Used for workspace and favorites filters
+
+interface CustomFilterRadioProps {
+	checked: boolean
+	onChange: () => void
+	icon: string
+	label: string
+}
+
+const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadioProps) => {
+	return (
+		<div
+			onClick={onChange}
+			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-[var(--vscode-font-size)] select-none">
+			<div
+				className={`w-[14px] h-[14px] rounded-full border border-[var(--vscode-checkbox-border)] relative flex justify-center items-center mr-[6px] ${
+					checked ? "bg-[var(--vscode-checkbox-background)]" : "bg-transparent"
+				}`}>
+				{checked && <div className="w-[6px] h-[6px] rounded-full bg-[var(--vscode-checkbox-foreground)]" />}
+			</div>
+			<span className="flex items-center gap-[3px]">
+				<div className={`codicon codicon-${icon} text-[var(--vscode-button-background)] text-base`} />
+				{label}
+			</span>
+		</div>
+	)
+}
+
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { taskHistory, totalTasksSize } = useExtensionState()
+	const { taskHistory, totalTasksSize, filePaths } = useExtensionState()
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
 	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(false)
 
 	// Keep track of pending favorite toggle operations
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
@@ -39,24 +69,23 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				favoritesOnly: showFavoritesOnly,
 				searchQuery: searchQuery || undefined,
 				sortBy: sortOption,
+				currentWorkspaceOnly: showCurrentWorkspaceOnly,
 			})
 			setFilteredTasks(response.tasks || [])
 		} catch (error) {
 			console.error("Error loading task history:", error)
-			// Fallback to client-side filtering
-			setFilteredTasks(
-				taskHistory.filter((item) => {
-					const valid = item.ts && item.task
-					return valid && (!showFavoritesOnly || item.isFavorited)
-				}),
-			)
 		}
-	}, [showFavoritesOnly, searchQuery, sortOption, taskHistory])
+	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption, taskHistory])
 
 	// Load when filters change
 	useEffect(() => {
+		// Force a complete refresh when both filters are active
+		// to ensure proper combined filtering
+		if (showFavoritesOnly && showCurrentWorkspaceOnly) {
+			setFilteredTasks([])
+		}
 		loadTaskHistory()
-	}, [loadTaskHistory])
+	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly])
 
 	const toggleFavorite = useCallback(
 		async (taskId: string, currentValue: boolean) => {
@@ -69,8 +98,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					isFavorited: !currentValue,
 				})
 
-				// Refresh if favorites filter is active
-				if (showFavoritesOnly) {
+				// Refresh if either filter is active to ensure proper combined filtering
+				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
 					loadTaskHistory()
 				}
 			} catch (err) {
@@ -320,46 +349,18 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<VSCodeRadio value="mostRelevant" disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }}>
 								Most Relevant
 							</VSCodeRadio>
-							<div
-								onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-								style={{
-									display: "flex",
-									alignItems: "center",
-									marginLeft: "6px",
-									cursor: "pointer",
-								}}>
-								<div
-									style={{
-										width: "14px",
-										height: "14px",
-										borderRadius: "50%",
-										border: "1px solid var(--vscode-checkbox-border)",
-										backgroundColor: showFavoritesOnly ? "var(--vscode-checkbox-background)" : "transparent",
-										position: "relative",
-										display: "flex",
-										justifyContent: "center",
-										alignItems: "center",
-										marginRight: "6px",
-									}}>
-									{showFavoritesOnly && (
-										<div
-											style={{
-												width: "6px",
-												height: "6px",
-												borderRadius: "50%",
-												backgroundColor: "var(--vscode-checkbox-foreground)",
-											}}
-										/>
-									)}
-								</div>
-								<span style={{ display: "flex", alignItems: "center", gap: "6px", userSelect: "none" }}>
-									<div
-										className="codicon codicon-star-full"
-										style={{ color: "var(--vscode-button-background)", fontSize: "14px" }}
-									/>
-									Favorites
-								</span>
-							</div>
+							<CustomFilterRadio
+								checked={showCurrentWorkspaceOnly}
+								onChange={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}
+								icon="workspace"
+								label="Workspace"
+							/>
+							<CustomFilterRadio
+								checked={showFavoritesOnly}
+								onChange={() => setShowFavoritesOnly(!showFavoritesOnly)}
+								icon="star-full"
+								label="Favorites"
+							/>
 						</VSCodeRadioGroup>
 
 						<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>

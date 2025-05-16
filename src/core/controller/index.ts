@@ -14,7 +14,6 @@ import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMi
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { fetchOpenGraphData } from "@integrations/misc/link-preview"
 import { handleFileServiceRequest } from "./file"
-import { selectImages } from "@integrations/misc/process-images"
 import { getTheme } from "@integrations/theme/getTheme"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
@@ -51,6 +50,7 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
+import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -145,6 +145,7 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
+			enableCheckpointsSetting,
 		} = await getAllExtensionState(this.context)
 
 		if (autoApprovalSettings) {
@@ -168,6 +169,7 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
+			enableCheckpointsSetting ?? true,
 			customInstructions,
 			task,
 			images,
@@ -271,12 +273,6 @@ export class Controller {
 				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
 				await this.initTask(message.text, message.images)
 				break
-			case "condense":
-				this.task?.handleWebviewAskResponse("yesButtonClicked")
-				break
-			case "reportBug":
-				this.task?.handleWebviewAskResponse("yesButtonClicked")
-				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
 					await updateApiConfiguration(this.context, message.apiConfiguration)
@@ -324,19 +320,13 @@ export class Controller {
 				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
 				await this.postStateToWebview()
 				break
-			case "selectImages":
-				const images = await selectImages()
-				await this.postMessageToWebview({
-					type: "selectedImages",
-					images,
-				})
-				break
 			case "resetState":
 				await this.resetState()
 				break
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
 				await refreshExternalRulesToggles(this.context, cwd)
+				await refreshWorkflowToggles(this.context, cwd)
 				await this.postStateToWebview()
 				break
 			case "openInBrowser":
@@ -377,19 +367,6 @@ export class Controller {
 			}
 			case "fetchMcpMarketplace": {
 				await this.fetchMcpMarketplace(message.bool)
-				break
-			}
-			case "downloadMcp": {
-				if (message.mcpId) {
-					// 1. Toggle to act mode if we are in plan mode
-					const { chatSettings } = await this.getStateToPostToWebview()
-					if (chatSettings.mode === "plan") {
-						await this.togglePlanActModeWithChatSettings({ mode: "act" })
-					}
-
-					// 2. download MCP
-					await this.downloadMcp(message.mcpId)
-				}
 				break
 			}
 			case "silentlyRefreshMcpMarketplace": {
@@ -501,6 +478,16 @@ export class Controller {
 				}
 				break
 			}
+			case "toggleWorkflow": {
+				const { workflowPath, enabled } = message
+				if (workflowPath && typeof enabled === "boolean") {
+					const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+					toggles[workflowPath] = enabled
+					await updateWorkspaceState(this.context, "workflowToggles", toggles)
+					await this.postStateToWebview()
+				}
+				break
+			}
 			case "requestTotalTasksSize": {
 				this.refreshTotalTasksSize()
 				break
@@ -582,6 +569,22 @@ export class Controller {
 				// plan act setting
 				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)
 
+				if (typeof message.enableCheckpointsSetting === "boolean") {
+					await updateGlobalState(this.context, "enableCheckpointsSetting", message.enableCheckpointsSetting)
+				}
+
+				if (typeof message.mcpMarketplaceEnabled === "boolean") {
+					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
+				}
+
+				// chat settings (including preferredLanguage and openAIReasoningEffort)
+				if (message.chatSettings) {
+					await updateGlobalState(this.context, "chatSettings", message.chatSettings)
+					if (this.task) {
+						this.task.chatSettings = message.chatSettings
+					}
+				}
+
 				// after settings are updated, post state to webview
 				await this.postStateToWebview()
 
@@ -607,27 +610,6 @@ export class Controller {
 					this.refreshTotalTasksSize()
 				}
 				this.postMessageToWebview({ type: "relinquishControl" })
-				break
-			}
-			case "toggleFavoriteModel": {
-				if (message.modelId) {
-					const { apiConfiguration } = await getAllExtensionState(this.context)
-					const favoritedModelIds = apiConfiguration.favoritedModelIds || []
-
-					// Toggle favorite status
-					const updatedFavorites = favoritedModelIds.includes(message.modelId)
-						? favoritedModelIds.filter((id) => id !== message.modelId)
-						: [...favoritedModelIds, message.modelId]
-
-					await updateGlobalState(this.context, "favoritedModelIds", updatedFavorites)
-
-					// Capture telemetry for model favorite toggle
-					const isFavorited = !favoritedModelIds.includes(message.modelId)
-					telemetryService.captureModelFavoritesUsage(message.modelId, isFavorited)
-
-					// Post state to webview without changing any other configuration
-					await this.postStateToWebview()
-				}
 				break
 			}
 			case "grpc_request": {
@@ -1027,92 +1009,6 @@ export class Controller {
 		}
 	}
 
-	private async downloadMcp(mcpId: string) {
-		try {
-			// First check if we already have this MCP server installed
-			const servers = this.mcpHub?.getServers() || []
-			const isInstalled = servers.some((server: McpServer) => server.name === mcpId)
-
-			if (isInstalled) {
-				throw new Error("This MCP server is already installed")
-			}
-
-			// Fetch server details from marketplace
-			const response = await axios.post<McpDownloadResponse>(
-				"https://api.cline.bot/v1/mcp/download",
-				{ mcpId },
-				{
-					headers: { "Content-Type": "application/json" },
-					timeout: 10000,
-				},
-			)
-
-			if (!response.data) {
-				throw new Error("Invalid response from MCP marketplace API")
-			}
-
-			console.log("[downloadMcp] Response from download API", { response })
-
-			const mcpDetails = response.data
-
-			// Validate required fields
-			if (!mcpDetails.githubUrl) {
-				throw new Error("Missing GitHub URL in MCP download response")
-			}
-			if (!mcpDetails.readmeContent) {
-				throw new Error("Missing README content in MCP download response")
-			}
-
-			// Send details to webview
-			await this.postMessageToWebview({
-				type: "mcpDownloadDetails",
-				mcpDownloadDetails: mcpDetails,
-			})
-
-			// Create task with context from README and added guidelines for MCP server installation
-			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
-- Start by loading the MCP documentation.
-- Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
-- Create the directory for the new MCP server before starting installation.
-- Make sure you read the user's existing cline_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
-- Use commands aligned with the user's shell and operating system best practices.
-- The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
-- Once installed, demonstrate the server's capabilities by using one of its tools.
-Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
-
-			// Initialize task and show chat view
-			await this.initTask(task)
-			await this.postMessageToWebview({
-				type: "action",
-				action: "chatButtonClicked",
-			})
-		} catch (error) {
-			console.error("Failed to download MCP:", error)
-			let errorMessage = "Failed to download MCP"
-
-			if (axios.isAxiosError(error)) {
-				if (error.code === "ECONNABORTED") {
-					errorMessage = "Request timed out. Please try again."
-				} else if (error.response?.status === 404) {
-					errorMessage = "MCP server not found in marketplace."
-				} else if (error.response?.status === 500) {
-					errorMessage = "Internal server error. Please try again later."
-				} else if (!error.response && error.request) {
-					errorMessage = "Network error. Please check your internet connection."
-				}
-			} else if (error instanceof Error) {
-				errorMessage = error.message
-			}
-
-			// Show error in both notification and marketplace UI
-			vscode.window.showErrorMessage(errorMessage)
-			await this.postMessageToWebview({
-				type: "mcpDownloadDetails",
-				error: errorMessage,
-			})
-		}
-	}
-
 	// OpenRouter
 
 	async handleOpenRouterCallback(code: string) {
@@ -1458,6 +1354,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			enableCheckpointsSetting,
 			globalClineRulesToggles,
 			shellIntegrationTimeout,
 		} = await getAllExtensionState(this.context)
@@ -1470,6 +1367,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		const localCursorRulesToggles =
 			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+
+		const workflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1492,11 +1391,13 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
+			workflowToggles: workflowToggles || {},
 			shellIntegrationTimeout,
 		}
 	}

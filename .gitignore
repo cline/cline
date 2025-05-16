@@ -1,5 +1,6 @@
 out
 dist
+dist-standalone
 node_modules
 tmp
 .vscode-test/
