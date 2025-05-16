@@ -49,6 +49,11 @@ export class OpenAiHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
+		let top_p: number | undefined = this.options.openAiModelInfo?.top_p ?? openAiModelInfoSaneDefaults.top_p
+		let frequency_penalty: number | undefined =
+			this.options.openAiModelInfo?.frequency_penalty ?? openAiModelInfoSaneDefaults.frequency_penalty
+		let presence_penalty: number | undefined =
+			this.options.openAiModelInfo?.presence_penalty ?? openAiModelInfoSaneDefaults.presence_penalty
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
 		let maxTokens: number | undefined
 
@@ -64,7 +69,11 @@ export class OpenAiHandler implements ApiHandler {
 
 		if (isReasoningModelFamily) {
 			openAiMessages = [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
-			temperature = undefined // does not support temperature
+			// Reasoning models don't support these parameters
+			temperature = undefined
+			top_p = undefined
+			frequency_penalty = undefined
+			presence_penalty = undefined
 			reasoningEffort = (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium"
 		}
 
@@ -72,6 +81,9 @@ export class OpenAiHandler implements ApiHandler {
 			model: modelId,
 			messages: openAiMessages,
 			temperature,
+			top_p,
+			frequency_penalty,
+			presence_penalty,
 			max_tokens: maxTokens,
 			reasoning_effort: reasoningEffort,
 			stream: true,
