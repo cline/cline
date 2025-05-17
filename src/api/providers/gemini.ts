@@ -73,7 +73,11 @@ export class GeminiHandler implements ApiHandler {
 	 * @param messages The conversation history to include in the message
 	 * @returns An async generator that yields chunks of the response with accurate immediate costs
 	 */
-	@withRetry()
+	@withRetry({
+		maxRetries: 4,
+		baseDelay: 2000,
+		maxDelay: 15000,
+	})
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)

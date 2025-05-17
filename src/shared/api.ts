@@ -88,6 +88,7 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	requestTimeoutMs?: number
+	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
