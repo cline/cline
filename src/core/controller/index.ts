@@ -347,12 +347,6 @@ export class Controller {
 			case "openMention":
 				openMention(message.text)
 				break
-			case "taskCompletionViewChanges": {
-				if (message.number) {
-					await this.task?.presentMultifileDiff(message.number, true)
-				}
-				break
-			}
 			case "accountLogoutClicked": {
 				await this.handleSignOut()
 				break
