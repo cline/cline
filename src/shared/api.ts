@@ -23,6 +23,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "nebula-block"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -88,6 +89,7 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	requestTimeoutMs?: number
+	nebulaBlockApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1759,3 +1761,57 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
 }
+
+// Nebula Block
+export type NebulaBlockModelId = keyof typeof nebulaBlockModels
+export const nebulaBlockDefaultModelId: NebulaBlockModelId = "deepseek-ai/DeepSeek-V3-0324"
+export const nebulaBlockModels = {
+	"deepseek-ai/DeepSeek-V3-0324": {
+		maxTokens: 4_096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"deepseek-ai/DeepSeek-R1-Distill-Llama-70B": {
+		maxTokens: 4_096,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": {
+		maxTokens: 16_384,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"meta-llama/Llama-3.3-70B-Instruct": {
+		maxTokens: 4_096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.35,
+		outputPrice: 0.35,
+	},
+	"Qwen/QwQ-32B": {
+		maxTokens: 4_096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.08,
+		outputPrice: 1.08,
+	},
+	"Qwen/Qwen2.5-Coder-32B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+} as const satisfies Record<string, ModelInfo>
