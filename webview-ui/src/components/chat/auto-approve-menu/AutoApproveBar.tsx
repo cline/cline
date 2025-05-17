@@ -81,7 +81,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		return favorites.includes(action.id)
 	}
 
-	const updateAction = useCallback(() => {
+	const updateAction = useCallback(async (action: ActionMetadata, checked: boolean) => {
 		// This is just a placeholder since we need to pass it to AutoApproveMenuItem
 		// The actual implementation is in the modal component
 	}, [])
