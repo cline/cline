@@ -6,11 +6,18 @@ import { fileURLToPath } from "url"
 import { execSync } from "child_process"
 import { globby } from "globby"
 import chalk from "chalk"
-
 import { createRequire } from "module"
 const require = createRequire(import.meta.url)
 const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 const tsProtoPlugin = require.resolve("ts-proto/protoc-gen-ts_proto")
+
+const isWindows = process.platform === "win32"
+const pluginPath = isWindows ? path.join(path.dirname(tsProtoPlugin), "protoc-gen-ts_proto.cmd") : tsProtoPlugin
+
+if (isWindows) {
+	const cmdContent = `@echo off\nnode "${tsProtoPlugin}" %*`
+	await fs.writeFile(pluginPath, cmdContent)
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const SCRIPT_DIR = path.dirname(__filename)
@@ -55,16 +62,16 @@ async function main() {
 
 	// Process all proto files
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
-	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, absolute: true })
+	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR })
 
 	// Build the protoc command with proper path handling for cross-platform
 	const tsProtocCommand = [
 		protoc,
 		`--proto_path="${SCRIPT_DIR}"`,
-		`--plugin=protoc-gen-ts_proto="${tsProtoPlugin}"`,
+		`--plugin=protoc-gen-ts_proto="${pluginPath}"`,
 		`--ts_proto_out="${TS_OUT_DIR}"`,
 		"--ts_proto_opt=outputServices=generic-definitions,env=node,esModuleInterop=true,useDate=false,useOptionals=messages",
-		...protoFiles,
+		...protoFiles.map((file) => path.join(SCRIPT_DIR, file)),
 	].join(" ")
 	try {
 		console.log(chalk.cyan(`Generating TypeScript code for:\n${protoFiles.join("\n")}...`))
@@ -83,7 +90,7 @@ async function main() {
 		`--proto_path="${SCRIPT_DIR}"`,
 		`--descriptor_set_out="${descriptorFile}"`,
 		"--include_imports",
-		...protoFiles,
+		...protoFiles.map((file) => path.join(SCRIPT_DIR, file)),
 	].join(" ")
 	try {
 		console.log(chalk.cyan("Generating descriptor set..."))
