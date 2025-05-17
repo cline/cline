@@ -151,6 +151,7 @@ const ApiOptions = ({
 	const [geminiBaseUrlSelected, setGeminiBaseUrlSelected] = useState(!!apiConfiguration?.geminiBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
+	const [awsAppInfProfileSelected, setAwsAppInfProfileSelected] = useState(!!apiConfiguration?.awsBedrockAppInfProfile)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
@@ -760,6 +761,31 @@ const ApiOptions = ({
 								type="url"
 								onInput={handleInputChange("awsBedrockEndpoint")}
 								placeholder="Enter VPC Endpoint URL (optional)"
+							/>
+						)}
+
+						<VSCodeCheckbox
+							checked={awsAppInfProfileSelected}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setAwsAppInfProfileSelected(isChecked)
+								if (!isChecked) {
+									setApiConfiguration({
+										...apiConfiguration,
+										awsBedrockAppInfProfile: "",
+									})
+								}
+							}}>
+							Use an Application Inference Profile
+						</VSCodeCheckbox>
+
+						{awsAppInfProfileSelected && (
+							<VSCodeTextField
+								value={apiConfiguration?.awsBedrockAppInfProfile || ""}
+								style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
+								type="url"
+								onInput={handleInputChange("awsBedrockAppInfProfile")}
+								placeholder="Enter Application Inference Profile (optional)"
 							/>
 						)}
 
