@@ -1,11 +1,11 @@
-import { useCallback, useRef, useState, useMemo } from "react"
+import { useRef, useState, useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import AutoApproveModal from "./AutoApproveModal"
 import { ACTION_METADATA, NOTIFICATIONS_SETTING } from "./constants"
-import { ActionMetadata } from "./types"
 
 interface AutoApproveBarProps {
 	style?: React.CSSProperties
@@ -13,10 +13,11 @@ interface AutoApproveBarProps {
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const { autoApprovalSettings } = useExtensionState()
+	const { isChecked, isFavorited, updateAction } = useAutoApproveActions()
+
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 
-	// Favorites are derived from autoApprovalSettings
 	const favorites = useMemo(() => autoApprovalSettings.favorites || [], [autoApprovalSettings.favorites])
 
 	// Render a favorited item with a checkbox
@@ -67,29 +68,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 			)),
 		]
 	}
-
-	// Check if action is enabled
-	const isChecked = (action: ActionMetadata): boolean => {
-		switch (action.id) {
-			case "enableAll":
-				return Object.values(autoApprovalSettings.actions).every(Boolean)
-			case "enableNotifications":
-				return autoApprovalSettings.enableNotifications
-			case "enableAutoApprove":
-				return autoApprovalSettings.enabled
-			default:
-				return autoApprovalSettings.actions[action.id] ?? false
-		}
-	}
-
-	const isFavorited = (action: ActionMetadata): boolean => {
-		return favorites.includes(action.id)
-	}
-
-	const updateAction = useCallback(() => {
-		// This is just a placeholder since we need to pass it to AutoApproveMenuItem
-		// The actual implementation is in the modal component
-	}, [])
 
 	return (
 		<div
