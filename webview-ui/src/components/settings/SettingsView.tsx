@@ -17,6 +17,7 @@ import ApiOptions from "./ApiOptions"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { StateServiceClient } from "@/services/grpc-client"
 import FeatureSettingsSection from "./FeatureSettingsSection"
 import BrowserSettingsSection from "./BrowserSettingsSection"
 import TerminalSettingsSection from "./TerminalSettingsSection"
@@ -148,8 +149,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	useEvent("message", handleMessage)
 
-	const handleResetState = () => {
-		vscode.postMessage({ type: "resetState" })
+	const handleResetState = async () => {
+		try {
+			await StateServiceClient.resetState({})
+		} catch (error) {
+			console.error("Failed to reset state:", error)
+		}
 	}
 
 	const handleTabChange = (tab: "plan" | "act") => {

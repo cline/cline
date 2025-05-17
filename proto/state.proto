@@ -7,6 +7,7 @@ service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
+  rpc resetState(EmptyRequest) returns (Empty);
 }
 
 message State {

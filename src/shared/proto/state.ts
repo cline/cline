@@ -101,6 +101,14 @@ export const StateServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		resetState: {
+			name: "resetState",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
 
