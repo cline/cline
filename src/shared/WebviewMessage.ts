@@ -15,7 +15,6 @@ export interface WebviewMessage {
 		| "condense"
 		| "reportBug"
 		| "didShowAnnouncement"
-		| "resetState"
 		| "openInBrowser"
 		| "openMention"
 		| "showChatView"

@@ -327,9 +327,6 @@ export class Controller {
 				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
 				await this.postStateToWebview()
 				break
-			case "resetState":
-				await this.resetState()
-				break
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
 				await refreshExternalRulesToggles(this.context, cwd)
@@ -1606,19 +1603,4 @@ Commit message:`
 	}
 
 	// dev
-
-	async resetState() {
-		vscode.window.showInformationMessage("Resetting state...")
-		await resetExtensionState(this.context)
-		if (this.task) {
-			this.task.abortTask()
-			this.task = undefined
-		}
-		vscode.window.showInformationMessage("State reset")
-		await this.postStateToWebview()
-		await this.postMessageToWebview({
-			type: "action",
-			action: "chatButtonClicked",
-		})
-	}
 }

@@ -50,6 +50,7 @@ import { condense } from "../core/controller/slash/condense"
 import { getLatestState } from "../core/controller/state/getLatestState"
 import { subscribeToState } from "../core/controller/state/subscribeToState"
 import { toggleFavoriteModel } from "../core/controller/state/toggleFavoriteModel"
+import { resetState } from "../core/controller/state/resetState"
 
 // Task Service
 import { cancelTask } from "../core/controller/task/cancelTask"
@@ -135,6 +136,7 @@ export function addServices(
 		getLatestState: wrapper(getLatestState, controller),
 		subscribeToState: wrapStreamingResponse(subscribeToState, controller),
 		toggleFavoriteModel: wrapper(toggleFavoriteModel, controller),
+		resetState: wrapper(resetState, controller),
 	})
 
 	// Task Service
