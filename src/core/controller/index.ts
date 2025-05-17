@@ -338,9 +338,6 @@ export class Controller {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
 				break
-			case "fetchOpenGraphData":
-				this.fetchOpenGraphData(message.text!)
-				break
 			case "openMention":
 				openMention(message.text)
 				break
@@ -1474,30 +1471,6 @@ export class Controller {
 	// }
 
 	// secrets
-
-	// Open Graph Data
-
-	async fetchOpenGraphData(url: string) {
-		try {
-			// Use the fetchOpenGraphData function from link-preview.ts
-			const ogData = await fetchOpenGraphData(url)
-
-			// Send the data back to the webview
-			await this.postMessageToWebview({
-				type: "openGraphData",
-				openGraphData: ogData,
-				url: url,
-			})
-		} catch (error) {
-			console.error(`Error fetching Open Graph data for ${url}:`, error)
-			// Send an error response
-			await this.postMessageToWebview({
-				type: "openGraphData",
-				error: `Failed to fetch Open Graph data: ${error}`,
-				url: url,
-			})
-		}
-	}
 
 	// Git commit message generation
 

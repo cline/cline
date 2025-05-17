@@ -67,6 +67,7 @@ import { taskFeedback } from "../core/controller/task/taskFeedback"
 
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
+import { fetchOpenGraphData } from "../core/controller/web/fetchOpenGraphData"
 
 export function addServices(
 	server: grpc.Server,
@@ -157,5 +158,6 @@ export function addServices(
 	// Web Service
 	server.addService(proto.cline.WebService.service, {
 		checkIsImageUrl: wrapper(checkIsImageUrl, controller),
+		fetchOpenGraphData: wrapper(fetchOpenGraphData, controller),
 	})
 }
