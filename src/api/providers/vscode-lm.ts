@@ -7,6 +7,7 @@ import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
+import { withRetry } from "../retry"
 
 // Cline does not update VSCode type definitions or engine requirements to maintain compatibility.
 // This declaration (as seen in src/integrations/TerminalManager.ts) provides types for the Language Model API in newer versions of VSCode.
@@ -406,6 +407,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		return content
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// Ensure clean state before starting a new request
 		this.ensureCleanState()
