@@ -103,19 +103,19 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 				/>
 
 				<div className="flex justify-between items-center mb-3">
-					<div className="m-0 text-base font-semibold">Auto-approve Settings</div>
+					<HeroTooltip
+						content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
+						placement="top">
+						<div className="text-base font-semibold mb-1">Auto-approve Settings</div>
+					</HeroTooltip>
 					<VSCodeButton appearance="icon" onClick={() => setIsVisible(false)}>
 						<span className="codicon codicon-close text-[10px]"></span>
 					</VSCodeButton>
 				</div>
 
-				<HeroTooltip
-					content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
-					placement="top">
-					<div className="mb-3">
-						<span className="text-[color:var(--vscode-foreground)] font-medium">Actions:</span>
-					</div>
-				</HeroTooltip>
+				<div className="mb-2.5">
+					<span className="text-[color:var(--vscode-foreground)] font-medium">Actions:</span>
+				</div>
 
 				<div
 					ref={itemsContainerRef}
@@ -148,7 +148,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					))}
 				</div>
 
-				<div className="mb-3">
+				<div className="mb-2.5">
 					<span className="text-[color:var(--vscode-foreground)] font-medium">Quick Settings:</span>
 				</div>
 
