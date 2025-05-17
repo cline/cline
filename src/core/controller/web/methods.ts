@@ -4,9 +4,11 @@
 // Import all method implementations
 import { registerMethod } from "./index"
 import { checkIsImageUrl } from "./checkIsImageUrl"
+import { fetchOpenGraphData } from "./fetchOpenGraphData"
 
 // Register all web service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("checkIsImageUrl", checkIsImageUrl)
+	registerMethod("fetchOpenGraphData", fetchOpenGraphData)
 }

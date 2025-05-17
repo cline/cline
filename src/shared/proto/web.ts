@@ -15,6 +15,15 @@ export interface IsImageUrl {
 	url: string
 }
 
+export interface OpenGraphData {
+	title: string
+	description: string
+	image: string
+	url: string
+	siteName: string
+	type: string
+}
+
 function createBaseIsImageUrl(): IsImageUrl {
 	return { isImage: false, url: "" }
 }
@@ -91,6 +100,146 @@ export const IsImageUrl: MessageFns<IsImageUrl> = {
 	},
 }
 
+function createBaseOpenGraphData(): OpenGraphData {
+	return { title: "", description: "", image: "", url: "", siteName: "", type: "" }
+}
+
+export const OpenGraphData: MessageFns<OpenGraphData> = {
+	encode(message: OpenGraphData, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.title !== "") {
+			writer.uint32(10).string(message.title)
+		}
+		if (message.description !== "") {
+			writer.uint32(18).string(message.description)
+		}
+		if (message.image !== "") {
+			writer.uint32(26).string(message.image)
+		}
+		if (message.url !== "") {
+			writer.uint32(34).string(message.url)
+		}
+		if (message.siteName !== "") {
+			writer.uint32(42).string(message.siteName)
+		}
+		if (message.type !== "") {
+			writer.uint32(50).string(message.type)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): OpenGraphData {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseOpenGraphData()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.title = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.description = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.image = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.url = reader.string()
+					continue
+				}
+				case 5: {
+					if (tag !== 42) {
+						break
+					}
+
+					message.siteName = reader.string()
+					continue
+				}
+				case 6: {
+					if (tag !== 50) {
+						break
+					}
+
+					message.type = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): OpenGraphData {
+		return {
+			title: isSet(object.title) ? globalThis.String(object.title) : "",
+			description: isSet(object.description) ? globalThis.String(object.description) : "",
+			image: isSet(object.image) ? globalThis.String(object.image) : "",
+			url: isSet(object.url) ? globalThis.String(object.url) : "",
+			siteName: isSet(object.siteName) ? globalThis.String(object.siteName) : "",
+			type: isSet(object.type) ? globalThis.String(object.type) : "",
+		}
+	},
+
+	toJSON(message: OpenGraphData): unknown {
+		const obj: any = {}
+		if (message.title !== "") {
+			obj.title = message.title
+		}
+		if (message.description !== "") {
+			obj.description = message.description
+		}
+		if (message.image !== "") {
+			obj.image = message.image
+		}
+		if (message.url !== "") {
+			obj.url = message.url
+		}
+		if (message.siteName !== "") {
+			obj.siteName = message.siteName
+		}
+		if (message.type !== "") {
+			obj.type = message.type
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<OpenGraphData>, I>>(base?: I): OpenGraphData {
+		return OpenGraphData.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<OpenGraphData>, I>>(object: I): OpenGraphData {
+		const message = createBaseOpenGraphData()
+		message.title = object.title ?? ""
+		message.description = object.description ?? ""
+		message.image = object.image ?? ""
+		message.url = object.url ?? ""
+		message.siteName = object.siteName ?? ""
+		message.type = object.type ?? ""
+		return message
+	},
+}
+
 export type WebServiceDefinition = typeof WebServiceDefinition
 export const WebServiceDefinition = {
 	name: "WebService",
@@ -101,6 +250,14 @@ export const WebServiceDefinition = {
 			requestType: StringRequest,
 			requestStream: false,
 			responseType: IsImageUrl,
+			responseStream: false,
+			options: {},
+		},
+		fetchOpenGraphData: {
+			name: "fetchOpenGraphData",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: OpenGraphData,
 			responseStream: false,
 			options: {},
 		},
