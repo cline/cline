@@ -36,3 +36,7 @@ logs
 
 # Vite development
 .vite-port
+
+# IntelliJ and Qodo plugin folders
+.idea/
+.qodo/

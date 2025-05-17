@@ -34,8 +34,15 @@ const copyWasmFiles = {
 
 			// tiktoken WASM file
 			fs.copyFileSync(
-				path.join(nodeModulesDir, "tiktoken", "tiktoken_bg.wasm"),
+				path.join(nodeModulesDir, "tiktoken", "lite", "tiktoken_bg.wasm"),
 				path.join(distDir, "tiktoken_bg.wasm"),
+			)
+
+			// Also copy to the workers directory
+			fs.mkdirSync(path.join(distDir, "workers"), { recursive: true })
+			fs.copyFileSync(
+				path.join(nodeModulesDir, "tiktoken", "lite", "tiktoken_bg.wasm"),
+				path.join(distDir, "workers", "tiktoken_bg.wasm"),
 			)
 
 			// Main tree-sitter WASM file
