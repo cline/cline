@@ -208,6 +208,7 @@ export class McpHub {
 					command: config.command,
 					args: config.args,
 					env: {
+						...process.env,
 						...config.env,
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
 						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
