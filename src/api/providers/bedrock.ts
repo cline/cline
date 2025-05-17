@@ -63,7 +63,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const previousEnv = process.env
 		delete process.env["AWS_PROFILE"]
 		const stream = await client.messages.create({
-			model: modelId,
+			model: modelId.includes("/") ? encodeURIComponent(modelId) : modelId,
 			max_tokens: model.info.maxTokens || 8192,
 			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			temperature: reasoningOn ? undefined : 0,
@@ -276,9 +276,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * If the model ID is an ARN that contains a slash, you will get the URL encoded ARN.
 	 */
 	async getModelId(): Promise<string> {
-		if (this.options.awsBedrockCustomSelected && this.getModel().id.includes("/")) {
-			return encodeURIComponent(this.getModel().id)
-		}
 		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
