@@ -11,6 +11,8 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
 
+import "highlight.js/styles/github-dark.css"
+
 interface MarkdownBlockProps {
 	markdown?: string
 }
