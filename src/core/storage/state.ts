@@ -115,6 +115,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		requestyModelInfo,
 		togetherApiKey,
 		togetherModelId,
+		netmindApiKey,
+		netmindModelId,
 		qwenApiKey,
 		doubaoApiKey,
 		mistralApiKey,
@@ -201,7 +203,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "requestyModelId") as Promise<string | undefined>,
 		getGlobalState(context, "requestyModelInfo") as Promise<ModelInfo | undefined>,
 		getSecret(context, "togetherApiKey") as Promise<string | undefined>,
+		getSecret(context, "netmindApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "togetherModelId") as Promise<string | undefined>,
+		getGlobalState(context, "netmindModelId") as Promise<string | undefined>,
 		getSecret(context, "qwenApiKey") as Promise<string | undefined>,
 		getSecret(context, "doubaoApiKey") as Promise<string | undefined>,
 		getSecret(context, "mistralApiKey") as Promise<string | undefined>,
@@ -329,6 +333,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			requestyModelInfo,
 			togetherApiKey,
 			togetherModelId,
+			netmindApiKey,
+			netmindModelId,
 			qwenApiKey,
 			qwenApiLine,
 			doubaoApiKey,
@@ -424,6 +430,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		requestyModelInfo,
 		togetherApiKey,
 		togetherModelId,
+		netmindApiKey,
+		netmindModelId,
 		qwenApiKey,
 		doubaoApiKey,
 		mistralApiKey,
@@ -481,6 +489,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "deepSeekApiKey", deepSeekApiKey)
 	await storeSecret(context, "requestyApiKey", requestyApiKey)
 	await storeSecret(context, "togetherApiKey", togetherApiKey)
+	await storeSecret(context, "netmindApiKey", netmindApiKey)
 	await storeSecret(context, "qwenApiKey", qwenApiKey)
 	await storeSecret(context, "doubaoApiKey", doubaoApiKey)
 	await storeSecret(context, "mistralApiKey", mistralApiKey)
@@ -499,6 +508,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "requestyModelId", requestyModelId)
 	await updateGlobalState(context, "requestyModelInfo", requestyModelInfo)
 	await updateGlobalState(context, "togetherModelId", togetherModelId)
+	await updateGlobalState(context, "netmindModelId", netmindModelId)
 	await storeSecret(context, "asksageApiKey", asksageApiKey)
 	await updateGlobalState(context, "asksageApiUrl", asksageApiUrl)
 	await updateGlobalState(context, "thinkingBudgetTokens", thinkingBudgetTokens)
@@ -525,6 +535,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"deepSeekApiKey",
 		"requestyApiKey",
 		"togetherApiKey",
+		"netmindApiKey",
 		"qwenApiKey",
 		"doubaoApiKey",
 		"mistralApiKey",

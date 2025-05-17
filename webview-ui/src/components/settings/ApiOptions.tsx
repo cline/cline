@@ -319,6 +319,7 @@ const ApiOptions = ({
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
 					<VSCodeOption value="fireworks">Fireworks</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
+					<VSCodeOption value="netmind">Netmind</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
@@ -1481,6 +1482,72 @@ const ApiOptions = ({
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "netmind" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.netmindApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("netmindApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.netmindApiKey && (
+							<VSCodeLink
+								href="https://www.netmind.ai/user/apiToken"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Netmind API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.netmindModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("netmindModelId")}
+						placeholder={"Enter Model ID..."}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						{!apiConfiguration?.netmindModelId && (
+							<VSCodeLink
+								href="https://www.netmind.ai/user/modelsLibrary"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Netmind model ID here.
+							</VSCodeLink>
+						)}
+					</p>
 					<p
 						style={{
 							fontSize: "12px",
