@@ -16,8 +16,11 @@ const cwd = process.cwd()
 process.chdir(BUILD_DIR)
 try {
 	execSync("npm install", { stdio: "inherit" })
+	// Move the vscode directory into node_modules.
+	// It can't be installed using npm because it will create a symlink which is not portable.
+	fs.renameSync("vscode", path.join("node_modules", "vscode"))
 } catch (error) {
-	console.error("Error running npm install:", error)
+	console.error("Error during setup:", error)
 	process.exit(1)
 } finally {
 	process.chdir(cwd)
