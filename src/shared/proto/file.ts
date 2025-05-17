@@ -915,15 +915,6 @@ export const FileServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
-		/** Select images from the file system and return as data URLs */
-		selectImages: {
-			name: "selectImages",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: StringArray,
-			responseStream: false,
-			options: {},
-		},
 		/** Opens an image in the system viewer */
 		openImage: {
 			name: "openImage",
@@ -957,6 +948,15 @@ export const FileServiceDefinition = {
 			requestType: StringRequest,
 			requestStream: false,
 			responseType: GitCommits,
+			responseStream: false,
+			options: {},
+		},
+		/** Select images from the file system and return as data URLs */
+		selectImages: {
+			name: "selectImages",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: StringArray,
 			responseStream: false,
 			options: {},
 		},
