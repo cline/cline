@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.16.1]
+
+-   Add Enable auto approve toggle switch, allowing users to easily turn auto-approve functionality on or off without losing their action settings
+-   Improve Gemini retry handling with better UI feedback, showing retry progress during API request attempts
+-   Fix memory leak issue that could occur during long sessions with multiple tasks
+-   Improve UI for Gemini model retry attempts with clearer status updates
+-   Fix quick actions functionality in auto-approve settings
+-   Update UI styling for auto-approve menu items to conserve space
+
 ## [3.16.0]
 
 -   Add new workflow feature allowing users to create and manage workflow files that can be injected into conversations via slash commands
