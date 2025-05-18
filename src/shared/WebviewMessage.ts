@@ -28,7 +28,6 @@ export interface WebviewMessage {
 		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
 		| "accountLogoutClicked"
 		| "showAccountViewClicked"
 		| "authStateChanged"
