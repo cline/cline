@@ -21,7 +21,6 @@ export interface WebviewMessage {
 		| "refreshClineRules"
 		| "openMcpSettings"
 		| "restartMcpServer"
-		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserRelaunchResult"
 		| "togglePlanActMode"

@@ -11,6 +11,7 @@ service McpService {
   rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
   rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
   rpc downloadMcp(StringRequest) returns (Empty);
+  rpc deleteMcpServer(DeleteMcpServerRequest) returns (McpServers);
 }
 
 message ToggleMcpServerRequest {
@@ -29,6 +30,11 @@ message AddRemoteMcpServerRequest {
   Metadata metadata = 1;
   string server_name = 2;
   string server_url = 3;
+}
+
+message DeleteMcpServerRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
 }
 
 message McpTool {
