@@ -21,7 +21,6 @@ export interface ExtensionMessage {
 		| "lmStudioModels"
 		| "theme"
 		| "workspaceUpdated"
-		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
 		| "openAiModels"
@@ -52,7 +51,6 @@ export interface ExtensionMessage {
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
 		| "focusChatInput"
-	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]

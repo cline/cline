@@ -35,21 +35,19 @@ describe("Chat Integration Tests", () => {
                                         }
                                     });
                                     break;
-                                case 'invoke':
-                                    if (message.invoke === 'primaryButtonClick') {
-                                        vscode.postMessage({ 
-                                            type: 'grpc_request',
-                                            grpc_request: {
-                                                service: 'cline.TaskService',
-                                                method: 'askResponse',
-                                                message: {
-                                                    responseType: 'yesButtonClicked'
-                                                },
-                                                request_id: 'test-request-id',
-                                                is_streaming: false
-                                            }
-                                        });
-                                    }
+                                case 'primaryButtonClick':
+                                    vscode.postMessage({ 
+                                        type: 'grpc_request',
+                                        grpc_request: {
+                                            service: 'cline.TaskService',
+                                            method: 'askResponse',
+                                            message: {
+                                                responseType: 'yesButtonClicked'
+                                            },
+                                            request_id: 'test-request-id',
+                                            is_streaming: false
+                                        }
+                                    });
                                     break;
                             }
                         });
@@ -141,10 +139,9 @@ describe("Chat Integration Tests", () => {
 			})
 		})
 
-		// Trigger tool approval
+		// Trigger tool approval using the new gRPC pattern directly
 		await panel.webview.postMessage({
-			type: "invoke",
-			invoke: "primaryButtonClick",
+			type: "primaryButtonClick",
 		})
 
 		// Verify gRPC request was sent with correct parameters

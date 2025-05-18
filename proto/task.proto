@@ -7,6 +7,8 @@ option java_multiple_files = true;
 import "common.proto";
 
 service TaskService {
+  // Triggers actions in the ChatView component
+  rpc invoke(InvokeRequest) returns (Empty);
   // Cancels the currently running task
   rpc cancelTask(EmptyRequest) returns (Empty);
   // Clears the current task
@@ -100,6 +102,14 @@ message TaskItem {
 message AskResponseRequest {
   Metadata metadata = 1;
   string response_type = 2; 
+  string text = 3;
+  repeated string images = 4;
+}
+
+// Request for invoke operation
+message InvokeRequest {
+  Metadata metadata = 1;
+  string action = 2;
   string text = 3;
   repeated string images = 4;
 }

@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { Controller } from "@core/controller"
 import { ClineAPI } from "./cline"
 import { getGlobalState } from "@core/storage/state"
+import { TaskServiceClient } from "webview-ui/src/services/grpc-client"
 
 export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {
@@ -22,11 +23,10 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarContr
 				type: "action",
 				action: "chatButtonClicked",
 			})
-			await sidebarController.postMessageToWebview({
-				type: "invoke",
-				invoke: "sendMessage",
-				text: task,
-				images: images,
+			await TaskServiceClient.invoke({
+				action: "sendMessage",
+				text: task || "",
+				images: images || [],
 			})
 			outputChannel.appendLine(
 				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`,
@@ -37,27 +37,28 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarContr
 			outputChannel.appendLine(
 				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`,
 			)
-			await sidebarController.postMessageToWebview({
-				type: "invoke",
-				invoke: "sendMessage",
-				text: message,
-				images: images,
+			await TaskServiceClient.invoke({
+				action: "sendMessage",
+				text: message || "",
+				images: images || [],
 			})
 		},
 
 		pressPrimaryButton: async () => {
 			outputChannel.appendLine("Pressing primary button")
-			await sidebarController.postMessageToWebview({
-				type: "invoke",
-				invoke: "primaryButtonClick",
+			await TaskServiceClient.invoke({
+				action: "primaryButtonClick",
+				text: "",
+				images: [],
 			})
 		},
 
 		pressSecondaryButton: async () => {
 			outputChannel.appendLine("Pressing secondary button")
-			await sidebarController.postMessageToWebview({
-				type: "invoke",
-				invoke: "secondaryButtonClick",
+			await TaskServiceClient.invoke({
+				action: "secondaryButtonClick",
+				text: "",
+				images: [],
 			})
 		},
 	}

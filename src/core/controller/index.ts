@@ -23,7 +23,7 @@ import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -297,11 +297,10 @@ export class Controller {
 				await this.postStateToWebview()
 				break
 			case "optionsResponse":
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: message.text,
-				})
+				// Handle options response directly
+				if (this.task) {
+					await this.task.handleWebviewAskResponse("messageResponse", message.text || "", [])
+				}
 				break
 			case "openInBrowser":
 				if (message.url) {
@@ -376,15 +375,6 @@ export class Controller {
 
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
-			case "invoke": {
-				if (message.text) {
-					await this.postMessageToWebview({
-						type: "invoke",
-						invoke: message.text as Invoke,
-					})
-				}
 				break
 			}
 			// telemetry
@@ -636,12 +626,14 @@ export class Controller {
 			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
-					images: chatContent?.images,
-				})
+				if (this.task) {
+					// Directly call the task's handleWebviewAskResponse method
+					await this.task.handleWebviewAskResponse(
+						"messageResponse",
+						chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
+						chatContent?.images || [],
+					)
+				}
 			} else {
 				this.cancelTask()
 			}
@@ -1276,7 +1268,7 @@ export class Controller {
 			localWorkflowToggles: localWorkflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
-			isNewUser,
+			 isNewUser,
 		}
 	}
 
