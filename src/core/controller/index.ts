@@ -499,14 +499,6 @@ export class Controller {
 				this.refreshTotalTasksSize()
 				break
 			}
-			case "restartMcpServer": {
-				try {
-					await this.mcpHub?.restartConnection(message.text!)
-				} catch (error) {
-					console.error(`Failed to retry connection for ${message.text}:`, error)
-				}
-				break
-			}
 			case "deleteMcpServer": {
 				if (message.serverName) {
 					this.mcpHub?.deleteServer(message.serverName)
