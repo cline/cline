@@ -20,11 +20,11 @@ import { checkpointRestore } from "../core/controller/checkpoints/checkpointRest
 
 // File Service
 import { openFile } from "../core/controller/file/openFile"
-import { selectImages } from "../core/controller/file/selectImages"
 import { openImage } from "../core/controller/file/openImage"
 import { deleteRuleFile } from "../core/controller/file/deleteRuleFile"
 import { createRuleFile } from "../core/controller/file/createRuleFile"
 import { searchCommits } from "../core/controller/file/searchCommits"
+import { selectImages } from "../core/controller/file/selectImages"
 import { getRelativePaths } from "../core/controller/file/getRelativePaths"
 import { searchFiles } from "../core/controller/file/searchFiles"
 
@@ -33,6 +33,7 @@ import { toggleMcpServer } from "../core/controller/mcp/toggleMcpServer"
 import { updateMcpTimeout } from "../core/controller/mcp/updateMcpTimeout"
 import { addRemoteMcpServer } from "../core/controller/mcp/addRemoteMcpServer"
 import { downloadMcp } from "../core/controller/mcp/downloadMcp"
+import { restartMcpServer } from "../core/controller/mcp/restartMcpServer"
 
 // Models Service
 import { getOllamaModels } from "../core/controller/models/getOllamaModels"
@@ -96,11 +97,11 @@ export function addServices(
 	// File Service
 	server.addService(proto.cline.FileService.service, {
 		openFile: wrapper(openFile, controller),
-		selectImages: wrapper(selectImages, controller),
 		openImage: wrapper(openImage, controller),
 		deleteRuleFile: wrapper(deleteRuleFile, controller),
 		createRuleFile: wrapper(createRuleFile, controller),
 		searchCommits: wrapper(searchCommits, controller),
+		selectImages: wrapper(selectImages, controller),
 		getRelativePaths: wrapper(getRelativePaths, controller),
 		searchFiles: wrapper(searchFiles, controller),
 	})
@@ -111,6 +112,7 @@ export function addServices(
 		updateMcpTimeout: wrapper(updateMcpTimeout, controller),
 		addRemoteMcpServer: wrapper(addRemoteMcpServer, controller),
 		downloadMcp: wrapper(downloadMcp, controller),
+		restartMcpServer: wrapper(restartMcpServer, controller),
 	})
 
 	// Models Service
