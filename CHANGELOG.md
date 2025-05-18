@@ -1,13 +1,13 @@
 # Changelog
 
-## 3.16.1
+## [3.16.1]
 
--   1470563: taskFeedback protobus migration
--   8ab35a5: fix: Address memory leak by bypassing subscribeToState gRPC stream for state updates
--   2ba2b5b: fetchOpenGraphData protobus migration
--   12820a4: Changing UX and UI for gemini models attempts
--   0dad8e1: resetState protobus migration
--   8e3adb4: Add Enable auto approve toggle
+-   Add Enable auto approve toggle switch, allowing users to easily turn auto-approve functionality on or off without losing their action settings
+-   Improve Gemini retry handling with better UI feedback, showing retry progress during API request attempts
+-   Fix memory leak issue that could occur during long sessions with multiple tasks
+-   Improve UI for Gemini model retry attempts with clearer status updates
+-   Fix quick actions functionality in auto-approve settings
+-   Update UI styling for auto-approve menu items to conserve space
 
 ## [3.16.0]
 
