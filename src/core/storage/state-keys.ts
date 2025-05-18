@@ -20,6 +20,7 @@ export type SecretKey =
 	| "asksageApiKey"
 	| "xaiApiKey"
 	| "sambanovaApiKey"
+	| "nebulaBlockApiKey"
 
 export type GlobalStateKey =
 	| "apiProvider"
