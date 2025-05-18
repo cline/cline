@@ -2,11 +2,17 @@ import axios from "axios"
 
 import { ModelInfo } from "../../../shared/api"
 
-export async function getUnboundModels(): Promise<Record<string, ModelInfo>> {
+export async function getUnboundModels(apiKey?: string | null): Promise<Record<string, ModelInfo>> {
 	const models: Record<string, ModelInfo> = {}
 
 	try {
-		const response = await axios.get("https://api.getunbound.ai/models")
+		const headers: Record<string, string> = {}
+
+		if (apiKey) {
+			headers["Authorization"] = `Bearer ${apiKey}`
+		}
+
+		const response = await axios.get("https://api.getunbound.ai/models", { headers })
 
 		if (response.data) {
 			const rawModels: Record<string, any> = response.data
@@ -40,6 +46,7 @@ export async function getUnboundModels(): Promise<Record<string, ModelInfo>> {
 		}
 	} catch (error) {
 		console.error(`Error fetching Unbound models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+		throw new Error(`Failed to fetch Unbound models: ${error instanceof Error ? error.message : "Unknown error"}`)
 	}
 
 	return models

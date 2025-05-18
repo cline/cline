@@ -65,7 +65,8 @@ export const getModels = async (
 			models = await getGlamaModels()
 			break
 		case "unbound":
-			models = await getUnboundModels()
+			// Unbound models endpoint requires an API key to fetch application specific models
+			models = await getUnboundModels(apiKey)
 			break
 		case "litellm":
 			if (apiKey && baseUrl) {
