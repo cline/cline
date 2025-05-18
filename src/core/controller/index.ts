@@ -1334,7 +1334,10 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(state)
+		// For testing: Bypass gRPC stream and send state directly
+		console.log("[Controller Test Revert] Posting full state via direct 'state' message.")
+		await this.postMessageToWebview({ type: "state", state: state })
+		// await sendStateUpdate(state) // Original line for the GrPC stream
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
