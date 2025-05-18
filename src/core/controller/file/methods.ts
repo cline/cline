@@ -8,6 +8,7 @@ import { deleteRuleFile } from "./deleteRuleFile"
 import { getRelativePaths } from "./getRelativePaths"
 import { openFile } from "./openFile"
 import { openImage } from "./openImage"
+import { openMention } from "./openMention"
 import { searchCommits } from "./searchCommits"
 import { searchFiles } from "./searchFiles"
 import { selectImages } from "./selectImages"
@@ -20,6 +21,7 @@ export function registerAllMethods(): void {
 	registerMethod("getRelativePaths", getRelativePaths)
 	registerMethod("openFile", openFile)
 	registerMethod("openImage", openImage)
+	registerMethod("openMention", openMention)
 	registerMethod("searchCommits", searchCommits)
 	registerMethod("searchFiles", searchFiles)
 	registerMethod("selectImages", selectImages)

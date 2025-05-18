@@ -21,6 +21,7 @@ import { checkpointRestore } from "../core/controller/checkpoints/checkpointRest
 // File Service
 import { openFile } from "../core/controller/file/openFile"
 import { openImage } from "../core/controller/file/openImage"
+import { openMention } from "../core/controller/file/openMention"
 import { deleteRuleFile } from "../core/controller/file/deleteRuleFile"
 import { createRuleFile } from "../core/controller/file/createRuleFile"
 import { searchCommits } from "../core/controller/file/searchCommits"
@@ -101,6 +102,7 @@ export function addServices(
 	server.addService(proto.cline.FileService.service, {
 		openFile: wrapper(openFile, controller),
 		openImage: wrapper(openImage, controller),
+		openMention: wrapper(openMention, controller),
 		deleteRuleFile: wrapper(deleteRuleFile, controller),
 		createRuleFile: wrapper(createRuleFile, controller),
 		searchCommits: wrapper(searchCommits, controller),

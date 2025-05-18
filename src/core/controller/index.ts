@@ -338,9 +338,6 @@ export class Controller {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
 				break
-			case "openMention":
-				openMention(message.text)
-				break
 			case "accountLogoutClicked": {
 				await this.handleSignOut()
 				break

@@ -16,7 +16,6 @@ export interface WebviewMessage {
 		| "reportBug"
 		| "didShowAnnouncement"
 		| "openInBrowser"
-		| "openMention"
 		| "showChatView"
 		| "refreshClineRules"
 		| "openMcpSettings"
