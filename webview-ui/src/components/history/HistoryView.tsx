@@ -5,6 +5,7 @@ import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect, useCallback } from "react"
 import Fuse, { FuseResult } from "fuse.js"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { useTotalTasksSize } from "@/hooks/useTotalTasksSize"
 import { formatLargeNumber } from "@/utils/format"
 import { formatSize } from "@/utils/format"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
@@ -47,7 +48,7 @@ const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadio
 }
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { taskHistory, totalTasksSize, filePaths } = useExtensionState()
+	const { taskHistory, filePaths } = useExtensionState()
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -131,10 +132,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [])
 	useEvent("message", handleMessage)
 
-	// Request total tasks size when component mounts
-	useEffect(() => {
-		vscode.postMessage({ type: "requestTotalTasksSize" })
-	}, [])
+	const { totalTasksSize: hookTasksSize } = useTotalTasksSize()
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -698,7 +696,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								setDeleteAllDisabled(true)
 								vscode.postMessage({ type: "clearAllTaskHistory" })
 							}}>
-							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
+							Delete All History{hookTasksSize !== null ? ` (${formatSize(hookTasksSize)})` : ""}
 						</DangerButton>
 					)}
 				</div>

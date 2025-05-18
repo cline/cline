@@ -31,7 +31,6 @@ import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
 import { extractCommitMessage } from "@integrations/git/commit-message-generator"
-import { getTotalTasksSize } from "@utils/storage"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
 	getAllExtensionState,
@@ -390,11 +389,6 @@ export class Controller {
 				}
 				break
 			}
-			case "requestTotalTasksSize": {
-				this.refreshTotalTasksSize()
-				break
-			}
-
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
 				break
@@ -1167,16 +1161,17 @@ export class Controller {
 	}
 
 	async refreshTotalTasksSize() {
-		getTotalTasksSize(this.context.globalStorageUri.fsPath)
-			.then((newTotalSize) => {
-				this.postMessageToWebview({
-					type: "totalTasksSize",
-					totalTasksSize: newTotalSize,
-				})
+		try {
+			const emptyRequest = { value: "" }
+			await handleGrpcRequest(this, {
+				service: "cline.TaskService",
+				method: "getTotalTasksSize",
+				message: emptyRequest,
+				request_id: `task_size_${Date.now()}`,
 			})
-			.catch((error) => {
-				console.error("Error calculating total tasks size:", error)
-			})
+		} catch (error) {
+			console.error("Error updating task size via gRPC:", error)
+		}
 	}
 
 	async deleteTaskWithId(id: string) {

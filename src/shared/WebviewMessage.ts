@@ -34,7 +34,6 @@ export interface WebviewMessage {
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
 		| "optionsResponse"
-		| "requestTotalTasksSize"
 		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
