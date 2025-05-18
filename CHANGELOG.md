@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.16.1
+
+### Patch Changes
+
+-   1470563: taskFeedback protobus migration
+-   8ab35a5: fix: Address memory leak by bypassing subscribeToState gRPC stream for state updates
+-   2ba2b5b: fetchOpenGraphData protobus migration
+-   12820a4: Changing UX and UI for gemini models attempts
+-   0dad8e1: resetState protobus migration
+-   8e3adb4: Add Enable auto approve toggle
+
 ## [3.16.0]
 
 -   Add new workflow feature allowing users to create and manage workflow files that can be injected into conversations via slash commands
