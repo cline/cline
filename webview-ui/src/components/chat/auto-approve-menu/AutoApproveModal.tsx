@@ -1,11 +1,10 @@
-import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
+import React, { useRef, useState, useEffect } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { vscode } from "@/utils/vscode"
 import { VSCodeTextField, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import { ActionMetadata } from "./types"
@@ -28,15 +27,14 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	NOTIFICATIONS_SETTING,
 }) => {
 	const { autoApprovalSettings } = useExtensionState()
+	const { isChecked, isFavorited, toggleFavorite, updateAction, updateMaxRequests } = useAutoApproveActions()
+
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
 	const [containerWidth, setContainerWidth] = useState(0)
-
-	// Favorites are derived from autoApprovalSettings
-	const favorites = useMemo(() => autoApprovalSettings.favorites || [], [autoApprovalSettings.favorites])
 
 	useClickAway(modalRef, (e) => {
 		// Skip if click was on the button that toggles the modal
@@ -83,141 +81,6 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 		}
 	}, [isVisible])
 
-	const toggleFavorite = useCallback(
-		(actionId: string) => {
-			const currentFavorites = autoApprovalSettings.favorites || []
-			let newFavorites: string[]
-
-			if (currentFavorites.includes(actionId)) {
-				newFavorites = currentFavorites.filter((id) => id !== actionId)
-			} else {
-				newFavorites = [...currentFavorites, actionId]
-			}
-
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					favorites: newFavorites,
-				},
-			})
-		},
-		[autoApprovalSettings],
-	)
-
-	const updateAction = useCallback(
-		(action: ActionMetadata, value: boolean) => {
-			const actionId = action.id
-			const subActionId = action.subAction?.id
-
-			if (actionId === "enableAll" || subActionId === "enableAll") {
-				toggleAll(action, value)
-				return
-			}
-
-			if (actionId === "enableNotifications" || subActionId === "enableNotifications") {
-				updateNotifications(action, value)
-				return
-			}
-
-			let newActions = {
-				...autoApprovalSettings.actions,
-				[actionId]: value,
-			}
-
-			if (value === false && subActionId) {
-				newActions[subActionId] = false
-			}
-
-			if (value === true && action.parentActionId) {
-				newActions[action.parentActionId as keyof AutoApprovalSettings["actions"]] = true
-			}
-
-			// Check if this will result in any enabled actions
-			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
-
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					actions: newActions,
-					enabled: willHaveEnabledActions,
-				},
-			})
-		},
-		[autoApprovalSettings],
-	)
-
-	const updateMaxRequests = useCallback(
-		(maxRequests: number) => {
-			const currentSettings = autoApprovalSettings
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...currentSettings,
-					version: (currentSettings.version ?? 1) + 1,
-					maxRequests,
-				},
-			})
-		},
-		[autoApprovalSettings],
-	)
-
-	const updateNotifications = useCallback(
-		(action: ActionMetadata, checked: boolean) => {
-			if (action.id === "enableNotifications") {
-				const currentSettings = autoApprovalSettings
-				vscode.postMessage({
-					type: "autoApprovalSettings",
-					autoApprovalSettings: {
-						...currentSettings,
-						version: (currentSettings.version ?? 1) + 1,
-						enableNotifications: checked,
-					},
-				})
-			}
-		},
-		[autoApprovalSettings],
-	)
-
-	const toggleAll = useCallback(
-		(action: ActionMetadata, checked: boolean) => {
-			let actions = { ...autoApprovalSettings.actions }
-
-			for (const action of Object.keys(actions)) {
-				actions[action as keyof AutoApprovalSettings["actions"]] = checked
-			}
-
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					actions,
-				},
-			})
-		},
-		[autoApprovalSettings],
-	)
-
-	// Check if action is enabled
-	const isChecked = (action: ActionMetadata): boolean => {
-		if (action.id === "enableNotifications") {
-			return autoApprovalSettings.enableNotifications
-		}
-		if (action.id === "enableAll") {
-			return Object.values(autoApprovalSettings.actions).every(Boolean)
-		}
-		return autoApprovalSettings.actions[action.id] ?? false
-	}
-
-	// Check if action is favorited
-	const isFavorited = (action: ActionMetadata): boolean => {
-		return favorites.includes(action.id)
-	}
-
 	if (!isVisible) return null
 
 	return (
@@ -240,19 +103,19 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 				/>
 
 				<div className="flex justify-between items-center mb-3">
-					<div className="m-0 text-base font-semibold">Auto-approve Settings</div>
+					<HeroTooltip
+						content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
+						placement="top">
+						<div className="text-base font-semibold mb-1">Auto-approve Settings</div>
+					</HeroTooltip>
 					<VSCodeButton appearance="icon" onClick={() => setIsVisible(false)}>
 						<span className="codicon codicon-close text-[10px]"></span>
 					</VSCodeButton>
 				</div>
 
-				<HeroTooltip
-					content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
-					placement="top">
-					<div className="mb-3">
-						<span className="text-[color:var(--vscode-foreground)] font-medium">Actions:</span>
-					</div>
-				</HeroTooltip>
+				<div className="mb-2.5">
+					<span className="text-[color:var(--vscode-foreground)] font-medium">Actions:</span>
+				</div>
 
 				<div
 					ref={itemsContainerRef}
@@ -285,7 +148,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					))}
 				</div>
 
-				<div className="mb-3">
+				<div className="mb-2.5">
 					<span className="text-[color:var(--vscode-foreground)] font-medium">Quick Settings:</span>
 				</div>
 
