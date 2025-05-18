@@ -1533,6 +1533,11 @@ export type ChutesModelId =
 	| "deepseek-ai/DeepSeek-V3-Base"
 	| "deepseek-ai/DeepSeek-R1-Zero"
 	| "deepseek-ai/DeepSeek-V3-0324"
+	| "Qwen/Qwen3-235B-A22B"
+	| "Qwen/Qwen3-32B"
+	| "Qwen/Qwen3-30B-A3B"
+	| "Qwen/Qwen3-14B"
+	| "Qwen/Qwen3-8B"
 	| "microsoft/MAI-DS-R1-FP8"
 	| "tngtech/DeepSeek-R1T-Chimera"
 export const chutesDefaultModelId: ChutesModelId = "deepseek-ai/DeepSeek-R1"
@@ -1662,6 +1667,51 @@ export const chutesModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "DeepSeek V3 (0324) model.",
+	},
+	"Qwen/Qwen3-235B-A22B": {
+		maxTokens: 32768,
+		contextWindow: 40960,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Qwen3 235B A22B model.",
+	},
+	"Qwen/Qwen3-32B": {
+		maxTokens: 32768,
+		contextWindow: 40960,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Qwen3 32B model.",
+	},
+	"Qwen/Qwen3-30B-A3B": {
+		maxTokens: 32768,
+		contextWindow: 40960,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Qwen3 30B A3B model.",
+	},
+	"Qwen/Qwen3-14B": {
+		maxTokens: 32768,
+		contextWindow: 40960,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Qwen3 14B model.",
+	},
+	"Qwen/Qwen3-8B": {
+		maxTokens: 32768,
+		contextWindow: 40960,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Qwen3 8B model.",
 	},
 	"microsoft/MAI-DS-R1-FP8": {
 		maxTokens: 32768,
