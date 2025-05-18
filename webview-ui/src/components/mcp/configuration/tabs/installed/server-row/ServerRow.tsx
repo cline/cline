@@ -19,6 +19,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { McpServers, UpdateMcpTimeoutRequest } from "@shared/proto/mcp"
+import { StringRequest } from "@shared/proto/common"
 // constant JSX.Elements
 const TimeoutOptions = [
 	{ value: "30", label: "30 seconds" },
@@ -99,9 +100,9 @@ const ServerRow = ({
 
 		// Make the gRPC call
 		McpServiceClient.restartMcpServer({
-			serverName: server.name,
-		})
-			.then((response) => {
+			value: server.name,
+		} as StringRequest)
+			.then((response: McpServers) => {
 				// Update with the final state from the server
 				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
 				setMcpServers(mcpServers)
