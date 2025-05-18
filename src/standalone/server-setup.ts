@@ -64,6 +64,7 @@ import { deleteNonFavoritedTasks } from "../core/controller/task/deleteNonFavori
 import { getTaskHistory } from "../core/controller/task/getTaskHistory"
 import { askResponse } from "../core/controller/task/askResponse"
 import { taskFeedback } from "../core/controller/task/taskFeedback"
+import { taskCompletionViewChanges } from "../core/controller/task/taskCompletionViewChanges"
 
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
@@ -153,6 +154,7 @@ export function addServices(
 		getTaskHistory: wrapper(getTaskHistory, controller),
 		askResponse: wrapper(askResponse, controller),
 		taskFeedback: wrapper(taskFeedback, controller),
+		taskCompletionViewChanges: wrapper(taskCompletionViewChanges, controller),
 	})
 
 	// Web Service

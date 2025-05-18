@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata, StringArrayRequest, StringRequest } from "./common"
+import { Empty, EmptyRequest, Int64Request, Metadata, StringArrayRequest, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -1182,6 +1182,15 @@ export const TaskServiceDefinition = {
 		taskFeedback: {
 			name: "taskFeedback",
 			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		/** Shows task completion changes diff in a view */
+		taskCompletionViewChanges: {
+			name: "taskCompletionViewChanges",
+			requestType: Int64Request,
 			requestStream: false,
 			responseType: Empty,
 			responseStream: false,

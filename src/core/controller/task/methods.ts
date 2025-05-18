@@ -12,6 +12,7 @@ import { exportTaskWithId } from "./exportTaskWithId"
 import { getTaskHistory } from "./getTaskHistory"
 import { newTask } from "./newTask"
 import { showTaskWithId } from "./showTaskWithId"
+import { taskCompletionViewChanges } from "./taskCompletionViewChanges"
 import { taskFeedback } from "./taskFeedback"
 import { toggleTaskFavorite } from "./toggleTaskFavorite"
 
@@ -27,6 +28,7 @@ export function registerAllMethods(): void {
 	registerMethod("getTaskHistory", getTaskHistory)
 	registerMethod("newTask", newTask)
 	registerMethod("showTaskWithId", showTaskWithId)
+	registerMethod("taskCompletionViewChanges", taskCompletionViewChanges)
 	registerMethod("taskFeedback", taskFeedback)
 	registerMethod("toggleTaskFavorite", toggleTaskFavorite)
 }
