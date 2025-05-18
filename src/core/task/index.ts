@@ -232,6 +232,37 @@ export class Task {
 		let effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			taskId: this.taskId,
+			onRetryAttempt: (attempt: number, maxRetries: number, delay: number, error: any) => {
+				const lastApiReqStartedIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
+				if (lastApiReqStartedIndex !== -1) {
+					try {
+						const currentApiReqInfo: ClineApiReqInfo = JSON.parse(
+							this.clineMessages[lastApiReqStartedIndex].text || "{}",
+						)
+						currentApiReqInfo.retryStatus = {
+							attempt: attempt, // attempt is already 1-indexed from retry.ts
+							maxAttempts: maxRetries, // total attempts
+							delaySec: Math.round(delay / 1000),
+							errorSnippet: error?.message ? `${String(error.message).substring(0, 50)}...` : undefined,
+						}
+						// Clear previous cancelReason and streamingFailedMessage if we are retrying
+						delete currentApiReqInfo.cancelReason
+						delete currentApiReqInfo.streamingFailedMessage
+						this.clineMessages[lastApiReqStartedIndex].text = JSON.stringify(currentApiReqInfo)
+
+						// Post the updated state to the webview so the UI reflects the retry attempt
+						this.postStateToWebview().catch((e) =>
+							console.error("Error posting state to webview in onRetryAttempt:", e),
+						)
+
+						console.log(
+							`[Task ${this.taskId}] API Auto-Retry Status Update: Attempt ${attempt}/${maxRetries}, Delay: ${delay}ms`,
+						)
+					} catch (e) {
+						console.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
+					}
+				}
+			},
 		}
 
 		if (apiConfiguration.apiProvider === "openai" || apiConfiguration.apiProvider === "openai-native") {
@@ -1655,6 +1686,20 @@ export class Task {
 				}
 
 				const errorMessage = this.formatErrorWithStatusCode(error)
+
+				// Update the 'api_req_started' message to reflect final failure before asking user to manually retry
+				const lastApiReqStartedIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
+				if (lastApiReqStartedIndex !== -1) {
+					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(this.clineMessages[lastApiReqStartedIndex].text || "{}")
+					delete currentApiReqInfo.retryStatus
+
+					this.clineMessages[lastApiReqStartedIndex].text = JSON.stringify({
+						...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
+						cancelReason: "retries_exhausted", // Indicate that automatic retries failed
+						streamingFailedMessage: errorMessage,
+					} satisfies ClineApiReqInfo)
+					// this.ask will trigger postStateToWebview, so this change should be picked up.
+				}
 
 				const { response } = await this.ask("api_req_failed", errorMessage)
 
@@ -3799,8 +3844,11 @@ export class Task {
 			// fortunately api_req_finished was always parsed out for the gui anyways, so it remains solely for legacy purposes to keep track of prices in tasks from history
 			// (it's worth removing a few months from now)
 			const updateApiReqMsg = (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+				const currentApiReqInfo: ClineApiReqInfo = JSON.parse(this.clineMessages[lastApiReqIndex].text || "{}")
+				delete currentApiReqInfo.retryStatus // Clear retry status when request is finalized
+
 				this.clineMessages[lastApiReqIndex].text = JSON.stringify({
-					...JSON.parse(this.clineMessages[lastApiReqIndex].text || "{}"),
+					...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWrites: cacheWriteTokens,
