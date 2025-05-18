@@ -924,7 +924,7 @@ export const FileServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
-		/** Opens a mention (file path, problem, terminal, or URL) */
+		/** Opens a mention link (file, path, URL, etc) from sent message */
 		openMention: {
 			name: "openMention",
 			requestType: StringRequest,
