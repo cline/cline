@@ -259,7 +259,7 @@ export class Task {
 							`[Task ${this.taskId}] API Auto-Retry Status Update: Attempt ${attempt}/${maxRetries}, Delay: ${delay}ms`,
 						)
 					} catch (e) {
-						console.error("[Task ${this.taskId}] Error updating api_req_started with retryStatus:", e)
+						console.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
 					}
 				}
 			},
