@@ -2,8 +2,6 @@
 
 ## 3.16.1
 
-### Patch Changes
-
 -   1470563: taskFeedback protobus migration
 -   8ab35a5: fix: Address memory leak by bypassing subscribeToState gRPC stream for state updates
 -   2ba2b5b: fetchOpenGraphData protobus migration
