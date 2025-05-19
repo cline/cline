@@ -3,6 +3,7 @@ import { useClickAway, useWindowSize } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
+import { FileServiceClient } from "@/services/grpc-client"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
 import Tooltip from "@/components/common/Tooltip"
@@ -15,6 +16,8 @@ const ClineRulesToggleModal: React.FC = () => {
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
 		workflowToggles = {},
+		setGlobalClineRulesToggles,
+		setLocalClineRulesToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -52,14 +55,25 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
-	// Handle toggle rule
+	// Handle toggle rule using gRPC
 	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
-		vscode.postMessage({
-			type: "toggleClineRule",
+		FileServiceClient.toggleClineRule({
 			isGlobal,
 			rulePath,
 			enabled,
 		})
+			.then((response) => {
+				// Update the local state with the response
+				if (response.globalClineRulesToggles?.toggles) {
+					setGlobalClineRulesToggles(response.globalClineRulesToggles.toggles)
+				}
+				if (response.localClineRulesToggles?.toggles) {
+					setLocalClineRulesToggles(response.localClineRulesToggles.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Cline rule:", error)
+			})
 	}
 
 	const toggleCursorRule = (rulePath: string, enabled: boolean) => {
