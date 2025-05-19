@@ -103,6 +103,7 @@ export class McpHub {
 
 	getServers(): McpServer[] {
 		// Only return enabled servers
+
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
@@ -177,6 +178,120 @@ export class McpHub {
 		const settings = await this.readAndValidateMcpSettingsFile()
 		if (settings) {
 			await this.updateServerConnections(settings.mcpServers)
+		}
+	}
+
+	private async connectToServerRPC(
+		name: string,
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema>,
+	): Promise<void> {
+		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
+		this.connections = this.connections.filter((conn) => conn.server.name !== name)
+
+		try {
+			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
+			const client = new Client(
+				{
+					name: "Cline",
+					version: this.clientVersion,
+				},
+				{
+					capabilities: {},
+				},
+			)
+
+			let transport: StdioClientTransport | SSEClientTransport
+
+			if (config.transportType === "sse") {
+				transport = new SSEClientTransport(new URL(config.url), {})
+			} else {
+				transport = new StdioClientTransport({
+					command: config.command,
+					args: config.args,
+					env: {
+						...config.env,
+						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
+					},
+					stderr: "pipe", // necessary for stderr to be available
+				})
+			}
+
+			transport.onerror = async (error) => {
+				console.error(`Transport error for "${name}":`, error)
+				const connection = this.connections.find((conn) => conn.server.name === name)
+				if (connection) {
+					connection.server.status = "disconnected"
+					this.appendErrorMessage(connection, error.message)
+				}
+			}
+
+			transport.onclose = async () => {
+				const connection = this.connections.find((conn) => conn.server.name === name)
+				if (connection) {
+					connection.server.status = "disconnected"
+				}
+			}
+
+			const connection: McpConnection = {
+				server: {
+					name,
+					config: JSON.stringify(config),
+					status: "connecting",
+					disabled: config.disabled,
+				},
+				client,
+				transport,
+			}
+			this.connections.push(connection)
+
+			if (config.transportType === "stdio") {
+				// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
+				// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
+				await transport.start()
+				const stderrStream = (transport as StdioClientTransport).stderr
+				if (stderrStream) {
+					stderrStream.on("data", async (data: Buffer) => {
+						const output = data.toString()
+						// Check if output contains INFO level log
+						const isInfoLog = !/\berror\b/i.test(output)
+
+						if (isInfoLog) {
+							// Log normal informational messages
+							console.info(`Server "${name}" info:`, output)
+						} else {
+							// Treat as error log
+							console.error(`Server "${name}" stderr:`, output)
+							const connection = this.connections.find((conn) => conn.server.name === name)
+							if (connection) {
+								this.appendErrorMessage(connection, output)
+							}
+						}
+					})
+				} else {
+					console.error(`No stderr stream for ${name}`)
+				}
+				transport.start = async () => {} // No-op now, .connect() won't fail
+			}
+
+			// Connect
+			await client.connect(transport)
+
+			connection.server.status = "connected"
+			connection.server.error = ""
+
+			// Initial fetch of tools and resources
+			connection.server.tools = await this.fetchToolsList(name)
+			connection.server.resources = await this.fetchResourcesList(name)
+			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+		} catch (error) {
+			// Update status with error
+			const connection = this.connections.find((conn) => conn.server.name === name)
+			if (connection) {
+				connection.server.status = "disconnected"
+				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
+			}
+			throw error
 		}
 	}
 
@@ -492,6 +607,36 @@ export class McpHub {
 	private removeAllFileWatchers() {
 		this.fileWatchers.forEach((watcher) => watcher.close())
 		this.fileWatchers.clear()
+	}
+
+	async restartConnectionRPC(serverName: string): Promise<McpServer[]> {
+		this.isConnecting = true
+
+		// Get existing connection and update its status
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		const inMemoryConfig = connection?.server.config
+		if (inMemoryConfig) {
+			connection.server.status = "connecting"
+			connection.server.error = ""
+			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
+			try {
+				await this.deleteConnection(serverName)
+				// Try to connect again using existing config
+				await this.connectToServerRPC(serverName, JSON.parse(inMemoryConfig))
+			} catch (error) {
+				console.error(`Failed to restart connection for ${serverName}:`, error)
+			}
+		}
+
+		this.isConnecting = false
+
+		const config = await this.readAndValidateMcpSettingsFile()
+		if (!config) {
+			throw new Error("Failed to read or validate MCP settings")
+		}
+
+		const serverOrder = Object.keys(config.mcpServers || {})
+		return this.getSortedMcpServers(serverOrder)
 	}
 
 	async restartConnection(serverName: string): Promise<void> {

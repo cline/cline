@@ -11,6 +11,7 @@ service McpService {
   rpc updateMcpTimeout(UpdateMcpTimeoutRequest) returns (McpServers);
   rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
   rpc downloadMcp(StringRequest) returns (Empty);
+  rpc restartMcpServer(StringRequest) returns (McpServers);
 }
 
 message ToggleMcpServerRequest {
