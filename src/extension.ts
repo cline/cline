@@ -29,7 +29,6 @@ let outputChannel: vscode.OutputChannel
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
-	// Added async
 	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
@@ -40,20 +39,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Version checking for autoupdate notification
 	const currentVersion = context.extension.packageJSON.version
 	const previousVersion = context.globalState.get<string>("clineVersion")
-
-	if (!previousVersion || currentVersion !== previousVersion) {
-		Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
-		// Logic to bring Cline to front and show update notification will go here.
-		// For now, we'll just log and plan to update the stored version later,
-		// after the UI actions are performed.
-		// Placeholder for UI actions:
-		// await bringClineToFrontAndNotify(context, currentVersion);
-
-		// After UI actions (or if no specific UI action is needed immediately before webview init):
-		// await context.globalState.update("clineVersion", currentVersion);
-		// We will move the actual update of clineVersion to after the UI is shown.
-	}
-
 	const sidebarWebview = new WebviewProvider(context, outputChannel)
 
 	// Initialize test mode and add disposables to context
@@ -69,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Perform post-update actions if necessary
 	if (!previousVersion || currentVersion !== previousVersion) {
-		// It's a first run or an update.
+		Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
 		const lastShownPopupNotificationVersion = context.globalState.get<string>("clineLastPopupNotificationVersion")
 
 		if (currentVersion !== lastShownPopupNotificationVersion) {
@@ -77,7 +62,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const message = `Cline has been updated to v${currentVersion}!`
 			Logger.log(`Showing update notification: ${message}`)
 			await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-			await new Promise((resolve) => setTimeout(resolve, 200)) // Allow time for focus
+			await new Promise((resolve) => setTimeout(resolve, 200))
 			let targetInstance = WebviewProvider.getVisibleInstance()
 			targetInstance = WebviewProvider.getSidebarInstance()
 			vscode.window.showInformationMessage(message, "Open Cline").then(async (selection) => {
@@ -85,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					Logger.log("User clicked 'Open Cline' from update notification.")
 					if (!targetInstance) {
 						await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-						await new Promise((resolve) => setTimeout(resolve, 200)) // Allow time for focus
+						await new Promise((resolve) => setTimeout(resolve, 200))
 						targetInstance = WebviewProvider.getSidebarInstance()
 					}
 					if (!targetInstance) {
@@ -325,9 +310,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const textRange = range instanceof vscode.Range ? range : editor.selection
 			const selectedText = editor.document.getText(textRange)
 
-			if (!selectedText.trim() && !(diagnostics && diagnostics.length > 0)) {
-				// Allow if there are diagnostics even with empty text
-				vscode.window.showInformationMessage("Please select some code or ensure there are diagnostics to add to Cline.")
+			if (!selectedText.trim()) {
 				return
 			}
 
@@ -337,7 +320,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			await visibleWebview?.controller.addSelectedCodeToChat(
-				selectedText, // Can be empty if only diagnostics are present
+				selectedText,
 				filePath,
 				languageId,
 				Array.isArray(diagnostics) ? diagnostics : undefined,
@@ -401,10 +384,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.languages.registerCodeActionsProvider(
 			"*",
 			new (class implements vscode.CodeActionProvider {
-				public static readonly providedCodeActionKinds = [
-					vscode.CodeActionKind.QuickFix,
-					vscode.CodeActionKind.Refactor, // Added for more general actions
-				]
+				public static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix, vscode.CodeActionKind.Refactor]
 
 				provideCodeActions(
 					document: vscode.TextDocument,
@@ -439,7 +419,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					addAction.command = {
 						command: "cline.addToChat",
 						title: "Add to Cline",
-						arguments: [expandedRange, context.diagnostics], // Pass diagnostics, might be empty
+						arguments: [expandedRange, context.diagnostics],
 					}
 					actions.push(addAction)
 
@@ -464,7 +444,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					// Fix with Cline (Only if diagnostics exist)
 					if (context.diagnostics.length > 0) {
 						const fixAction = new vscode.CodeAction("Fix with Cline", vscode.CodeActionKind.QuickFix)
-						fixAction.isPreferred = true // Make it more prominent if there are errors
+						fixAction.isPreferred = true
 						fixAction.command = {
 							command: "cline.fixWithCline",
 							title: "Fix with Cline",
@@ -507,7 +487,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Register "Explain with Cline" command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.explainCode", async (range: vscode.Range) => {
 			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
@@ -529,7 +508,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Register "Improve with Cline" command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.improveCode", async (range: vscode.Range) => {
 			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
