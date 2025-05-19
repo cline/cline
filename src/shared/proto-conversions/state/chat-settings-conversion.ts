@@ -8,8 +8,9 @@ import { ChatContent as ProtoChatContent, ChatSettings as ProtoChatSettings, Pla
 export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSettings): ProtoChatSettings {
 	return {
 		mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
+		//mode: chatSettings.mode,
 		preferredLanguage: chatSettings.preferredLanguage,
-		openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+		openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 	}
 }
 
@@ -20,7 +21,7 @@ export function convertProtoChatSettingsToChatSettings(protoChatSettings: ProtoC
 	return {
 		mode: protoChatSettings.mode === PlanActMode.PLAN ? "plan" : "act",
 		preferredLanguage: protoChatSettings.preferredLanguage,
-		openAIReasoningEffort: protoChatSettings.openAiReasoningEffort as "low" | "medium" | "high" | undefined,
+		openAIReasoningEffort: protoChatSettings.openAIReasoningEffort as "low" | "medium" | "high" | undefined,
 	}
 }
 
