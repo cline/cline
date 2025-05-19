@@ -517,13 +517,6 @@ export class Controller {
 				})
 				break
 			}
-			case "scrollToSettings": {
-				await this.postMessageToWebview({
-					type: "scrollToSettings",
-					text: message.text,
-				})
-				break
-			}
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
 					await this.updateTelemetrySetting(message.telemetrySetting)
