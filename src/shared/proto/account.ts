@@ -5,28 +5,28 @@
 // source: account.proto
 
 /* eslint-disable */
-import { EmptyRequest, String } from "./common";
+import { EmptyRequest, String } from "./common"
 
-export const protobufPackage = "cline";
+export const protobufPackage = "cline"
 
 /** Service for account-related operations */
-export type AccountServiceDefinition = typeof AccountServiceDefinition;
+export type AccountServiceDefinition = typeof AccountServiceDefinition
 export const AccountServiceDefinition = {
-  name: "AccountService",
-  fullName: "cline.AccountService",
-  methods: {
-    /**
-     * Handles the user clicking the login link in the UI.
-     * Generates a secure nonce for state validation, stores it in secrets,
-     * and opens the authentication URL in the external browser.
-     */
-    accountLoginClicked: {
-      name: "accountLoginClicked",
-      requestType: EmptyRequest,
-      requestStream: false,
-      responseType: String,
-      responseStream: false,
-      options: {},
-    },
-  },
-} as const;
+	name: "AccountService",
+	fullName: "cline.AccountService",
+	methods: {
+		/**
+		 * Handles the user clicking the login link in the UI.
+		 * Generates a secure nonce for state validation, stores it in secrets,
+		 * and opens the authentication URL in the external browser.
+		 */
+		accountLoginClicked: {
+			name: "accountLoginClicked",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: String,
+			responseStream: false,
+			options: {},
+		},
+	},
+} as const

@@ -34,5 +34,5 @@ export {
 	TaskServiceClient,
 	WebServiceClient,
 	ModelsServiceClient,
-	SlashServiceClient
+	SlashServiceClient,
 }

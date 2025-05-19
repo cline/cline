@@ -9,9 +9,7 @@ import { subscribeToState } from "./subscribeToState"
 import { toggleFavoriteModel } from "./toggleFavoriteModel"
 
 // Streaming methods for this service
-export const streamingMethods = [
-  "subscribeToState"
-]
+export const streamingMethods = ["subscribeToState"]
 
 // Register all state service methods
 export function registerAllMethods(): void {
