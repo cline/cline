@@ -5,139 +5,134 @@
 // source: state.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, StringRequest } from "./common"
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { Empty, EmptyRequest, StringRequest } from "./common";
 
-export const protobufPackage = "cline"
+export const protobufPackage = "cline";
 
 export interface State {
-	stateJson: string
+  stateJson: string;
 }
 
 function createBaseState(): State {
-	return { stateJson: "" }
+  return { stateJson: "" };
 }
 
 export const State: MessageFns<State> = {
-	encode(message: State, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.stateJson !== "") {
-			writer.uint32(10).string(message.stateJson)
-		}
-		return writer
-	},
+  encode(message: State, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.stateJson !== "") {
+      writer.uint32(10).string(message.stateJson);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): State {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseState()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): State {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseState();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.stateJson = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.stateJson = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): State {
-		return { stateJson: isSet(object.stateJson) ? globalThis.String(object.stateJson) : "" }
-	},
+  fromJSON(object: any): State {
+    return { stateJson: isSet(object.stateJson) ? globalThis.String(object.stateJson) : "" };
+  },
 
-	toJSON(message: State): unknown {
-		const obj: any = {}
-		if (message.stateJson !== "") {
-			obj.stateJson = message.stateJson
-		}
-		return obj
-	},
+  toJSON(message: State): unknown {
+    const obj: any = {};
+    if (message.stateJson !== "") {
+      obj.stateJson = message.stateJson;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<State>, I>>(base?: I): State {
-		return State.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<State>, I>>(object: I): State {
-		const message = createBaseState()
-		message.stateJson = object.stateJson ?? ""
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<State>, I>>(base?: I): State {
+    return State.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<State>, I>>(object: I): State {
+    const message = createBaseState();
+    message.stateJson = object.stateJson ?? "";
+    return message;
+  },
+};
 
-export type StateServiceDefinition = typeof StateServiceDefinition
+export type StateServiceDefinition = typeof StateServiceDefinition;
 export const StateServiceDefinition = {
-	name: "StateService",
-	fullName: "cline.StateService",
-	methods: {
-		getLatestState: {
-			name: "getLatestState",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: State,
-			responseStream: false,
-			options: {},
-		},
-		subscribeToState: {
-			name: "subscribeToState",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: State,
-			responseStream: true,
-			options: {},
-		},
-		toggleFavoriteModel: {
-			name: "toggleFavoriteModel",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		resetState: {
-			name: "resetState",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-	},
-} as const
+  name: "StateService",
+  fullName: "cline.StateService",
+  methods: {
+    getLatestState: {
+      name: "getLatestState",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: State,
+      responseStream: false,
+      options: {},
+    },
+    subscribeToState: {
+      name: "subscribeToState",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: State,
+      responseStream: true,
+      options: {},
+    },
+    toggleFavoriteModel: {
+      name: "toggleFavoriteModel",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    resetState: {
+      name: "resetState",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-	? T
-	: T extends globalThis.Array<infer U>
-		? globalThis.Array<DeepPartial<U>>
-		: T extends ReadonlyArray<infer U>
-			? ReadonlyArray<DeepPartial<U>>
-			: T extends {}
-				? { [K in keyof T]?: DeepPartial<T[K]> }
-				: Partial<T>
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
 
-type KeysOfUnion<T> = T extends T ? keyof T : never
-export type Exact<P, I extends P> = P extends Builtin
-	? P
-	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+export type Exact<P, I extends P> = P extends Builtin ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function isSet(value: any): boolean {
-	return value !== null && value !== undefined
+  return value !== null && value !== undefined;
 }
 
 export interface MessageFns<T> {
-	encode(message: T, writer?: BinaryWriter): BinaryWriter
-	decode(input: BinaryReader | Uint8Array, length?: number): T
-	fromJSON(object: any): T
-	toJSON(message: T): unknown
-	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T
-	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T
+  encode(message: T, writer?: BinaryWriter): BinaryWriter;
+  decode(input: BinaryReader | Uint8Array, length?: number): T;
+  fromJSON(object: any): T;
+  toJSON(message: T): unknown;
+  create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
+  fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
 }
