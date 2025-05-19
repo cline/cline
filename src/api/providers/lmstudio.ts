@@ -7,6 +7,7 @@ import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../..
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
+import { XmlMatcher } from "../../utils/xml-matcher"
 
 const LMSTUDIO_DEFAULT_TEMPERATURE = 0
 
@@ -44,17 +45,29 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 			}
 
 			const results = await this.client.chat.completions.create(params)
-
+			
+			const matcher = new XmlMatcher(
+				"think",
+				(chunk) =>
+					({
+						type: chunk.matched ? "reasoning" : "text",
+						text: chunk.data,
+					}) as const,
+			)
+			
 			// Stream handling
 			// @ts-ignore
 			for await (const chunk of results) {
 				const delta = chunk.choices[0]?.delta
+
 				if (delta?.content) {
-					yield {
-						type: "text",
-						text: delta.content,
+					for (const chunk of matcher.update(delta.content)) {
+						yield chunk
 					}
 				}
+			}
+			for (const chunk of matcher.final()) {
+				yield chunk
 			}
 		} catch (error) {
 			// LM Studio doesn't return an error code/body for now
