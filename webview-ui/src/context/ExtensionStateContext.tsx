@@ -46,6 +46,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setShellIntegrationTimeout: (value: number) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
+	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 
 	// Navigation
 	setShowMcp: (value: boolean) => void
@@ -382,6 +383,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				shellIntegrationTimeout: value,
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
+		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		setChatSettings: (value) => {
 			setState((prevState) => ({
