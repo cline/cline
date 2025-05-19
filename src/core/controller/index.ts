@@ -1162,7 +1162,7 @@ export class Controller {
 
 	async refreshTotalTasksSize() {
 		try {
-			const emptyRequest = { value: "" }
+			const emptyRequest = EmptyRequest.create()
 			await handleGrpcRequest(this, {
 				service: "cline.TaskService",
 				method: "getTotalTasksSize",
