@@ -77,7 +77,9 @@ export async function openFile(filePath: string, options: OpenFileOptions = {}) 
 
 		const document = await vscode.workspace.openTextDocument(uri)
 		const selection =
-			options.line !== undefined ? new vscode.Selection(options.line - 1, 0, options.line - 1, 0) : undefined
+			options.line !== undefined
+				? new vscode.Selection(Math.max(options.line - 1, 0), 0, Math.max(options.line - 1, 0), 0)
+				: undefined
 		await vscode.window.showTextDocument(document, {
 			preview: false,
 			selection,
