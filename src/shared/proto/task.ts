@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata, StringArrayRequest, StringRequest } from "./common"
+import { Empty, EmptyRequest, Int64Request, Metadata, StringArrayRequest, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -50,6 +50,7 @@ export interface GetTaskHistoryRequest {
 	favoritesOnly: boolean
 	searchQuery: string
 	sortBy: string
+	currentWorkspaceOnly: boolean
 }
 
 /** Response for task history */
@@ -70,6 +71,14 @@ export interface TaskItem {
 	tokensOut: number
 	cacheWrites: number
 	cacheReads: number
+}
+
+/** Request for ask response operation */
+export interface AskResponseRequest {
+	metadata?: Metadata | undefined
+	responseType: string
+	text: string
+	images: string[]
 }
 
 function createBaseNewTaskRequest(): NewTaskRequest {
@@ -550,7 +559,7 @@ export const DeleteNonFavoritedTasksResults: MessageFns<DeleteNonFavoritedTasksR
 }
 
 function createBaseGetTaskHistoryRequest(): GetTaskHistoryRequest {
-	return { metadata: undefined, favoritesOnly: false, searchQuery: "", sortBy: "" }
+	return { metadata: undefined, favoritesOnly: false, searchQuery: "", sortBy: "", currentWorkspaceOnly: false }
 }
 
 export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
@@ -566,6 +575,9 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 		}
 		if (message.sortBy !== "") {
 			writer.uint32(34).string(message.sortBy)
+		}
+		if (message.currentWorkspaceOnly !== false) {
+			writer.uint32(40).bool(message.currentWorkspaceOnly)
 		}
 		return writer
 	},
@@ -609,6 +621,14 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 					message.sortBy = reader.string()
 					continue
 				}
+				case 5: {
+					if (tag !== 40) {
+						break
+					}
+
+					message.currentWorkspaceOnly = reader.bool()
+					continue
+				}
 			}
 			if ((tag & 7) === 4 || tag === 0) {
 				break
@@ -624,6 +644,7 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 			favoritesOnly: isSet(object.favoritesOnly) ? globalThis.Boolean(object.favoritesOnly) : false,
 			searchQuery: isSet(object.searchQuery) ? globalThis.String(object.searchQuery) : "",
 			sortBy: isSet(object.sortBy) ? globalThis.String(object.sortBy) : "",
+			currentWorkspaceOnly: isSet(object.currentWorkspaceOnly) ? globalThis.Boolean(object.currentWorkspaceOnly) : false,
 		}
 	},
 
@@ -641,6 +662,9 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 		if (message.sortBy !== "") {
 			obj.sortBy = message.sortBy
 		}
+		if (message.currentWorkspaceOnly !== false) {
+			obj.currentWorkspaceOnly = message.currentWorkspaceOnly
+		}
 		return obj
 	},
 
@@ -654,6 +678,7 @@ export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
 		message.favoritesOnly = object.favoritesOnly ?? false
 		message.searchQuery = object.searchQuery ?? ""
 		message.sortBy = object.sortBy ?? ""
+		message.currentWorkspaceOnly = object.currentWorkspaceOnly ?? false
 		return message
 	},
 }
@@ -949,6 +974,115 @@ export const TaskItem: MessageFns<TaskItem> = {
 	},
 }
 
+function createBaseAskResponseRequest(): AskResponseRequest {
+	return { metadata: undefined, responseType: "", text: "", images: [] }
+}
+
+export const AskResponseRequest: MessageFns<AskResponseRequest> = {
+	encode(message: AskResponseRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.responseType !== "") {
+			writer.uint32(18).string(message.responseType)
+		}
+		if (message.text !== "") {
+			writer.uint32(26).string(message.text)
+		}
+		for (const v of message.images) {
+			writer.uint32(34).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): AskResponseRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseAskResponseRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.responseType = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.text = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.images.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): AskResponseRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			responseType: isSet(object.responseType) ? globalThis.String(object.responseType) : "",
+			text: isSet(object.text) ? globalThis.String(object.text) : "",
+			images: globalThis.Array.isArray(object?.images) ? object.images.map((e: any) => globalThis.String(e)) : [],
+		}
+	},
+
+	toJSON(message: AskResponseRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.responseType !== "") {
+			obj.responseType = message.responseType
+		}
+		if (message.text !== "") {
+			obj.text = message.text
+		}
+		if (message.images?.length) {
+			obj.images = message.images
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<AskResponseRequest>, I>>(base?: I): AskResponseRequest {
+		return AskResponseRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<AskResponseRequest>, I>>(object: I): AskResponseRequest {
+		const message = createBaseAskResponseRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.responseType = object.responseType ?? ""
+		message.text = object.text ?? ""
+		message.images = object.images?.map((e) => e) || []
+		return message
+	},
+}
+
 export type TaskServiceDefinition = typeof TaskServiceDefinition
 export const TaskServiceDefinition = {
 	name: "TaskService",
@@ -1032,6 +1166,33 @@ export const TaskServiceDefinition = {
 			requestType: GetTaskHistoryRequest,
 			requestStream: false,
 			responseType: TaskHistoryArray,
+			responseStream: false,
+			options: {},
+		},
+		/** Sends a response to a previous ask operation */
+		askResponse: {
+			name: "askResponse",
+			requestType: AskResponseRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		/** Records task feedback (thumbs up/down) */
+		taskFeedback: {
+			name: "taskFeedback",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		/** Shows task completion changes diff in a view */
+		taskCompletionViewChanges: {
+			name: "taskCompletionViewChanges",
+			requestType: Int64Request,
+			requestStream: false,
+			responseType: Empty,
 			responseStream: false,
 			options: {},
 		},

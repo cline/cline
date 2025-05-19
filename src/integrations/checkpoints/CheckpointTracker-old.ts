@@ -21,15 +21,17 @@ class CheckpointTracker {
 		this.cwd = cwd
 	}
 
-	public static async create(taskId: string, provider?: ClineProvider): Promise<CheckpointTracker | undefined> {
+	public static async create(
+		taskId: string,
+		enableCheckpointsSetting: boolean,
+		provider?: ClineProvider,
+	): Promise<CheckpointTracker | undefined> {
 		try {
 			if (!provider) {
 				throw new Error("Provider is required to create a checkpoint tracker")
 			}
 
-			// Check if checkpoints are disabled in VS Code settings
-			const enableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
-			if (!enableCheckpoints) {
+			if (!enableCheckpointsSetting) {
 				return undefined // Don't create tracker when disabled
 			}
 

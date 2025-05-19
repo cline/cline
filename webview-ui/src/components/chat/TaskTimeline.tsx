@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useRef, useEffect } from "react"
+import React, { useMemo, useState, useRef, useEffect, useCallback } from "react"
+import { Virtuoso } from "react-virtuoso"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
@@ -94,8 +95,6 @@ const getBlockColor = (message: ClineMessage): string => {
 }
 
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
-	const [hoveredMessage, setHoveredMessage] = useState<ClineMessage | null>(null)
-	const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const scrollableRef = useRef<HTMLDivElement>(null)
 
@@ -136,25 +135,46 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 		}
 	}, [taskTimelinePropsMessages])
 
+	// Calculate the item size (width of block + gap)
+	const itemWidth = parseInt(BLOCK_WIDTH.replace("px", "")) + parseInt(BLOCK_GAP.replace("px", ""))
+
+	// Virtuoso requires a reference to scroll to the end
+	const virtuosoRef = useRef<any>(null)
+
+	// Render a timeline block
+	const TimelineBlock = useCallback(
+		(index: number) => {
+			const message = taskTimelinePropsMessages[index]
+			return (
+				<TaskTimelineTooltip message={message}>
+					<div
+						style={{
+							width: BLOCK_WIDTH,
+							height: "100%",
+							backgroundColor: getBlockColor(message),
+							flexShrink: 0,
+							cursor: "pointer",
+							marginRight: BLOCK_GAP,
+						}}
+					/>
+				</TaskTimelineTooltip>
+			)
+		},
+		[taskTimelinePropsMessages],
+	)
+
+	// Scroll to the end when messages change
+	useEffect(() => {
+		if (virtuosoRef.current && taskTimelinePropsMessages.length > 0) {
+			virtuosoRef.current.scrollToIndex({
+				index: taskTimelinePropsMessages.length - 1,
+				align: "end",
+			})
+		}
+	}, [taskTimelinePropsMessages])
+
 	if (taskTimelinePropsMessages.length === 0) {
 		return null
-	}
-
-	const handleMouseEnter = (message: ClineMessage, event: React.MouseEvent<HTMLDivElement>) => {
-		setHoveredMessage(message)
-
-		const viewportWidth = window.innerWidth
-		const tooltipWidth = viewportWidth - TOOLTIP_MARGIN * 2
-
-		// Center the tooltip horizontally in the viewport
-		const x = TOOLTIP_MARGIN
-
-		setTooltipPosition({ x, y: event.clientY })
-	}
-
-	const handleMouseLeave = () => {
-		setHoveredMessage(null)
-		setTooltipPosition(null)
 	}
 
 	return (
@@ -167,55 +187,32 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				marginBottom: "4px",
 				overflow: "hidden",
 			}}>
-			<div
-				ref={scrollableRef}
-				style={{
-					display: "flex",
-					height: TIMELINE_HEIGHT,
-					overflowX: "auto",
-					scrollbarWidth: "none",
-					msOverflowStyle: "none",
-					width: "100%",
-					WebkitOverflowScrolling: "touch",
-					gap: BLOCK_GAP, // Using flexbox gap instead of marginRight
-				}}>
-				<style>
-					{`
-            /* Hide scrollbar for Chrome, Safari and Opera */
-            div::-webkit-scrollbar {
-              display: none;
-            }
-          `}
-				</style>
-				{taskTimelinePropsMessages.map((message, index) => (
-					<div
-						key={index}
-						style={{
-							width: BLOCK_WIDTH,
-							height: "100%",
-							backgroundColor: getBlockColor(message),
-							flexShrink: 0,
-							cursor: "pointer",
-						}}
-						onMouseEnter={(e) => handleMouseEnter(message, e)}
-						onMouseLeave={handleMouseLeave}
-					/>
-				))}
-			</div>
+			<style>
+				{`
+					/* Hide scrollbar for Chrome, Safari and Opera */
+					.timeline-virtuoso::-webkit-scrollbar {
+						display: none;
+					}
+					.timeline-virtuoso {
+						scrollbar-width: none;
+						-ms-overflow-style: none;
+					}
+				`}
+			</style>
 
-			{hoveredMessage && containerRef.current && tooltipPosition && (
-				<div
-					style={{
-						position: "fixed",
-						left: `${tooltipPosition.x}px`,
-						top: `${tooltipPosition.y + 20}px`,
-						zIndex: 1000,
-						pointerEvents: "none",
-						width: `calc(100% - ${TOOLTIP_MARGIN * 2}px)`,
-					}}>
-					<TaskTimelineTooltip message={hoveredMessage} />
-				</div>
-			)}
+			<Virtuoso
+				ref={virtuosoRef}
+				className="timeline-virtuoso"
+				style={{
+					height: TIMELINE_HEIGHT,
+					width: "100%",
+				}}
+				totalCount={taskTimelinePropsMessages.length}
+				itemContent={TimelineBlock}
+				horizontalDirection={true}
+				increaseViewportBy={12}
+				fixedItemHeight={itemWidth}
+			/>
 		</div>
 	)
 }

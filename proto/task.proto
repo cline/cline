@@ -25,6 +25,12 @@ service TaskService {
   rpc deleteNonFavoritedTasks(EmptyRequest) returns (DeleteNonFavoritedTasksResults);
   // Gets filtered task history
   rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
+  // Sends a response to a previous ask operation
+  rpc askResponse(AskResponseRequest) returns (Empty);
+  // Records task feedback (thumbs up/down)
+  rpc taskFeedback(StringRequest) returns (Empty);
+  // Shows task completion changes diff in a view
+  rpc taskCompletionViewChanges(Int64Request) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -67,6 +73,7 @@ message GetTaskHistoryRequest {
   bool favorites_only = 2;
   string search_query = 3;
   string sort_by = 4;
+  bool current_workspace_only = 5;
 }
 
 // Response for task history
@@ -87,4 +94,12 @@ message TaskItem {
   int32 tokens_out = 8;
   int32 cache_writes = 9;
   int32 cache_reads = 10;
+}
+
+// Request for ask response operation
+message AskResponseRequest {
+  Metadata metadata = 1;
+  string response_type = 2; 
+  string text = 3;
+  repeated string images = 4;
 }
