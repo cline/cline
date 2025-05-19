@@ -75,6 +75,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
+		mcpDefaultPanelState: "expanded", // Default value, will be overwritten by extension state
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)

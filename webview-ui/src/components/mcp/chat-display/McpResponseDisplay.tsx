@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react"
 import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react" // Import ProgressRing
+import { useExtensionState } from "../../../context/ExtensionStateContext"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
@@ -116,7 +117,8 @@ interface UrlMatch {
 }
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
-	const [isExpanded, setIsExpanded] = useState(false) // Collapsed by default
+	const { mcpDefaultPanelState } = useExtensionState() // Get setting from context
+	const [isExpanded, setIsExpanded] = useState(mcpDefaultPanelState === "expanded") // Initialize with context setting
 	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
 	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(() => {
 		// Get saved preference from localStorage, default to 'rich'
@@ -149,6 +151,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	const toggleExpand = useCallback(() => {
 		setIsExpanded((prev) => !prev)
 	}, [])
+
+	// Effect to update isExpanded if mcpDefaultPanelState changes from context
+	useEffect(() => {
+		setIsExpanded(mcpDefaultPanelState === "expanded")
+	}, [mcpDefaultPanelState])
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {

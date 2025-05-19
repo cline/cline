@@ -271,6 +271,16 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.mcp.defaultPanelState": {
+					"type": "string",
+					"default": "expanded",
+					"description": "Controls the default state (collapsed or expanded) of the MCP response panel in the chat.",
+					"enum": [
+						"expanded",
+						"collapsed"
+					],
+					"scope": "window"
 				}
 			}
 		}

@@ -1334,6 +1334,7 @@ export class Controller {
 			planActSeparateModelsSetting,
 			globalClineRulesToggles,
 			shellIntegrationTimeout,
+			mcpDefaultPanelState,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1372,6 +1373,7 @@ export class Controller {
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
 			shellIntegrationTimeout,
+			mcpDefaultPanelState: mcpDefaultPanelState || "collapsed",
 		}
 	}
 

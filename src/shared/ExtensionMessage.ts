@@ -143,6 +143,7 @@ export interface ExtensionState {
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	mcpDefaultPanelState: "collapsed" | "expanded"
 }
 
 export interface ClineMessage {

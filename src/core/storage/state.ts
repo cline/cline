@@ -242,6 +242,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 
 	const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
+	const mcpDefaultPanelState = vscode.workspace
+		.getConfiguration("cline")
+		.get<"collapsed" | "expanded">("mcp.defaultPanelState", "expanded")
+
 	// Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
 	// On win11 state sometimes initializes as empty string instead of undefined
 	let planActSeparateModelsSetting: boolean | undefined = undefined
@@ -346,6 +350,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeAwsBedrockCustomSelected,
 		previousModeAwsBedrockCustomModelBaseId,
 		mcpMarketplaceEnabled,
+		mcpDefaultPanelState,
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
 		shellIntegrationTimeout: shellIntegrationTimeout || 4000,
