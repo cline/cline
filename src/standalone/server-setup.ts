@@ -53,6 +53,7 @@ import { getLatestState } from "../core/controller/state/getLatestState"
 import { subscribeToState } from "../core/controller/state/subscribeToState"
 import { toggleFavoriteModel } from "../core/controller/state/toggleFavoriteModel"
 import { resetState } from "../core/controller/state/resetState"
+import { togglePlanActMode } from "../core/controller/state/togglePlanActMode"
 
 // Task Service
 import { cancelTask } from "../core/controller/task/cancelTask"
@@ -143,6 +144,7 @@ export function addServices(
 		subscribeToState: wrapStreamingResponse(subscribeToState, controller),
 		toggleFavoriteModel: wrapper(toggleFavoriteModel, controller),
 		resetState: wrapper(resetState, controller),
+		togglePlanActMode: wrapper(togglePlanActMode, controller),
 	})
 
 	// Task Service

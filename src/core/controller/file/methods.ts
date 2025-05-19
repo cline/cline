@@ -3,6 +3,7 @@
 
 // Import all method implementations
 import { registerMethod } from "./index"
+import { copyToClipboard } from "./copyToClipboard"
 import { createRuleFile } from "./createRuleFile"
 import { deleteRuleFile } from "./deleteRuleFile"
 import { getRelativePaths } from "./getRelativePaths"
@@ -15,6 +16,7 @@ import { selectImages } from "./selectImages"
 // Register all file service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
+	registerMethod("copyToClipboard", copyToClipboard)
 	registerMethod("createRuleFile", createRuleFile)
 	registerMethod("deleteRuleFile", deleteRuleFile)
 	registerMethod("getRelativePaths", getRelativePaths)

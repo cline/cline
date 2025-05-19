@@ -14,6 +14,22 @@ export interface State {
 	stateJson: string
 }
 
+export interface TogglePlanActModeRequest {
+	chatSettings?: ChatSettings | undefined
+	chatContent?: ChatContent | undefined
+}
+
+export interface ChatSettings {
+	mode: string
+	preferredLanguage?: string | undefined
+	openAiReasoningEffort?: string | undefined
+}
+
+export interface ChatContent {
+	message?: string | undefined
+	images: string[]
+}
+
 function createBaseState(): State {
 	return { stateJson: "" }
 }
@@ -72,6 +88,258 @@ export const State: MessageFns<State> = {
 	},
 }
 
+function createBaseTogglePlanActModeRequest(): TogglePlanActModeRequest {
+	return { chatSettings: undefined, chatContent: undefined }
+}
+
+export const TogglePlanActModeRequest: MessageFns<TogglePlanActModeRequest> = {
+	encode(message: TogglePlanActModeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.chatSettings !== undefined) {
+			ChatSettings.encode(message.chatSettings, writer.uint32(10).fork()).join()
+		}
+		if (message.chatContent !== undefined) {
+			ChatContent.encode(message.chatContent, writer.uint32(18).fork()).join()
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): TogglePlanActModeRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseTogglePlanActModeRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.chatSettings = ChatSettings.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.chatContent = ChatContent.decode(reader, reader.uint32())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): TogglePlanActModeRequest {
+		return {
+			chatSettings: isSet(object.chatSettings) ? ChatSettings.fromJSON(object.chatSettings) : undefined,
+			chatContent: isSet(object.chatContent) ? ChatContent.fromJSON(object.chatContent) : undefined,
+		}
+	},
+
+	toJSON(message: TogglePlanActModeRequest): unknown {
+		const obj: any = {}
+		if (message.chatSettings !== undefined) {
+			obj.chatSettings = ChatSettings.toJSON(message.chatSettings)
+		}
+		if (message.chatContent !== undefined) {
+			obj.chatContent = ChatContent.toJSON(message.chatContent)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<TogglePlanActModeRequest>, I>>(base?: I): TogglePlanActModeRequest {
+		return TogglePlanActModeRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<TogglePlanActModeRequest>, I>>(object: I): TogglePlanActModeRequest {
+		const message = createBaseTogglePlanActModeRequest()
+		message.chatSettings =
+			object.chatSettings !== undefined && object.chatSettings !== null
+				? ChatSettings.fromPartial(object.chatSettings)
+				: undefined
+		message.chatContent =
+			object.chatContent !== undefined && object.chatContent !== null
+				? ChatContent.fromPartial(object.chatContent)
+				: undefined
+		return message
+	},
+}
+
+function createBaseChatSettings(): ChatSettings {
+	return { mode: "", preferredLanguage: undefined, openAiReasoningEffort: undefined }
+}
+
+export const ChatSettings: MessageFns<ChatSettings> = {
+	encode(message: ChatSettings, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.mode !== "") {
+			writer.uint32(10).string(message.mode)
+		}
+		if (message.preferredLanguage !== undefined) {
+			writer.uint32(18).string(message.preferredLanguage)
+		}
+		if (message.openAiReasoningEffort !== undefined) {
+			writer.uint32(26).string(message.openAiReasoningEffort)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ChatSettings {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseChatSettings()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.mode = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.preferredLanguage = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.openAiReasoningEffort = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ChatSettings {
+		return {
+			mode: isSet(object.mode) ? globalThis.String(object.mode) : "",
+			preferredLanguage: isSet(object.preferredLanguage) ? globalThis.String(object.preferredLanguage) : undefined,
+			openAiReasoningEffort: isSet(object.openAiReasoningEffort)
+				? globalThis.String(object.openAiReasoningEffort)
+				: undefined,
+		}
+	},
+
+	toJSON(message: ChatSettings): unknown {
+		const obj: any = {}
+		if (message.mode !== "") {
+			obj.mode = message.mode
+		}
+		if (message.preferredLanguage !== undefined) {
+			obj.preferredLanguage = message.preferredLanguage
+		}
+		if (message.openAiReasoningEffort !== undefined) {
+			obj.openAiReasoningEffort = message.openAiReasoningEffort
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ChatSettings>, I>>(base?: I): ChatSettings {
+		return ChatSettings.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ChatSettings>, I>>(object: I): ChatSettings {
+		const message = createBaseChatSettings()
+		message.mode = object.mode ?? ""
+		message.preferredLanguage = object.preferredLanguage ?? undefined
+		message.openAiReasoningEffort = object.openAiReasoningEffort ?? undefined
+		return message
+	},
+}
+
+function createBaseChatContent(): ChatContent {
+	return { message: undefined, images: [] }
+}
+
+export const ChatContent: MessageFns<ChatContent> = {
+	encode(message: ChatContent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.message !== undefined) {
+			writer.uint32(10).string(message.message)
+		}
+		for (const v of message.images) {
+			writer.uint32(18).string(v!)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ChatContent {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseChatContent()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.message = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.images.push(reader.string())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ChatContent {
+		return {
+			message: isSet(object.message) ? globalThis.String(object.message) : undefined,
+			images: globalThis.Array.isArray(object?.images) ? object.images.map((e: any) => globalThis.String(e)) : [],
+		}
+	},
+
+	toJSON(message: ChatContent): unknown {
+		const obj: any = {}
+		if (message.message !== undefined) {
+			obj.message = message.message
+		}
+		if (message.images?.length) {
+			obj.images = message.images
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ChatContent>, I>>(base?: I): ChatContent {
+		return ChatContent.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ChatContent>, I>>(object: I): ChatContent {
+		const message = createBaseChatContent()
+		message.message = object.message ?? undefined
+		message.images = object.images?.map((e) => e) || []
+		return message
+	},
+}
+
 export type StateServiceDefinition = typeof StateServiceDefinition
 export const StateServiceDefinition = {
 	name: "StateService",
@@ -104,6 +372,14 @@ export const StateServiceDefinition = {
 		resetState: {
 			name: "resetState",
 			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		togglePlanActMode: {
+			name: "togglePlanActMode",
+			requestType: TogglePlanActModeRequest,
 			requestStream: false,
 			responseType: Empty,
 			responseStream: false,
