@@ -81,6 +81,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		workflowToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 		isNewUser: false,
+		mcpDefaultPanelState: "expanded", // Default value, will be overwritten by extension state
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)

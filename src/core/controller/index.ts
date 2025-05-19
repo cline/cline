@@ -1343,6 +1343,7 @@ export class Controller {
 			globalClineRulesToggles,
 			shellIntegrationTimeout,
 			isNewUser,
+			mcpDefaultPanelState,
 		} = await getAllExtensionState(this.context)
 
 		const localClineRulesToggles =
@@ -1386,6 +1387,7 @@ export class Controller {
 			workflowToggles: workflowToggles || {},
 			shellIntegrationTimeout,
 			isNewUser,
+			mcpDefaultPanelState: mcpDefaultPanelState || "collapsed",
 		}
 	}
 
