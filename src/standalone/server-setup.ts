@@ -19,6 +19,7 @@ import { checkpointDiff } from "../core/controller/checkpoints/checkpointDiff"
 import { checkpointRestore } from "../core/controller/checkpoints/checkpointRestore"
 
 // File Service
+import { copyToClipboard } from "../core/controller/file/copyToClipboard"
 import { openFile } from "../core/controller/file/openFile"
 import { openImage } from "../core/controller/file/openImage"
 import { deleteRuleFile } from "../core/controller/file/deleteRuleFile"
@@ -100,6 +101,7 @@ export function addServices(
 
 	// File Service
 	server.addService(proto.cline.FileService.service, {
+		copyToClipboard: wrapper(copyToClipboard, controller),
 		openFile: wrapper(openFile, controller),
 		openImage: wrapper(openImage, controller),
 		deleteRuleFile: wrapper(deleteRuleFile, controller),

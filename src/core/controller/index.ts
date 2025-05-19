@@ -607,14 +607,6 @@ export class Controller {
 				break
 			}
 
-			case "copyToClipboard": {
-				try {
-					await vscode.env.clipboard.writeText(message.text || "")
-				} catch (error) {
-					console.error("Error copying to clipboard:", error)
-				}
-				break
-			}
 			case "updateTerminalConnectionTimeout": {
 				if (message.shellIntegrationTimeout !== undefined) {
 					const timeout = message.shellIntegrationTimeout
