@@ -22,6 +22,9 @@ service FileService {
   
   // Search git commits in the workspace
   rpc searchCommits(StringRequest) returns (GitCommits);
+
+  // Select images from the file system and return as data URLs
+  rpc selectImages(EmptyRequest) returns (StringArray);
   
   // Convert URIs to workspace-relative paths
   rpc getRelativePaths(RelativePathsRequest) returns (RelativePaths);
@@ -82,6 +85,7 @@ message RuleFileRequest {
   bool is_global = 2;            // Common field for all operations
   optional string rule_path = 3; // Path field for deleteRuleFile (optional)
   optional string filename = 4;  // Filename field for createRuleFile (optional)
+  optional string type = 5;      // Type of the file to create (optional)
 }
 
 // Result for rule file operations with meaningful data only

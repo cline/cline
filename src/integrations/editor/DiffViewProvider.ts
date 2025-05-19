@@ -433,12 +433,6 @@ export class DiffViewProvider {
 
 	// close editor if open?
 	async reset() {
-		// releasing memory by clearing the diff editor
-		try {
-			await this.closeAllDiffViews()
-		} catch (error) {
-			console.error("Error closing diff views:", error)
-		}
 		this.editType = undefined
 		this.isEditing = false
 		this.originalContent = undefined

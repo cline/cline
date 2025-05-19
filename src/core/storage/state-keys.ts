@@ -83,8 +83,11 @@ export type GlobalStateKey =
 	| "thinkingBudgetTokens"
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
+	| "enableCheckpointsSetting"
+	| "mcpMarketplaceEnabled"
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
+	| "isNewUser"
 
 export type LocalStateKey = "localClineRulesToggles"

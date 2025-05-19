@@ -14,7 +14,6 @@ import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMi
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { fetchOpenGraphData } from "@integrations/misc/link-preview"
 import { handleFileServiceRequest } from "./file"
-import { selectImages } from "@integrations/misc/process-images"
 import { getTheme } from "@integrations/theme/getTheme"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
@@ -51,6 +50,7 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
+import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -66,7 +66,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "may-09-2025_17:11:00" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "may-16-2025_16:11:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -145,7 +145,18 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
+			enableCheckpointsSetting,
+			isNewUser,
+			taskHistory,
 		} = await getAllExtensionState(this.context)
+
+		const NEW_USER_TASK_COUNT_THRESHOLD = 10
+
+		// Check if the user has completed enough tasks to no longer be considered a "new user"
+		if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
+			await updateGlobalState(this.context, "isNewUser", false)
+			await this.postStateToWebview()
+		}
 
 		if (autoApprovalSettings) {
 			const updatedAutoApprovalSettings = {
@@ -168,6 +179,7 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			shellIntegrationTimeout,
+			enableCheckpointsSetting ?? true,
 			customInstructions,
 			task,
 			images,
@@ -311,26 +323,14 @@ export class Controller {
 				const browserSession = new BrowserSession(this.context, browserSettings)
 				await browserSession.relaunchChromeDebugMode(this)
 				break
-			case "askResponse":
-				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
-				break
 			case "didShowAnnouncement":
 				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
 				await this.postStateToWebview()
 				break
-			case "selectImages":
-				const images = await selectImages()
-				await this.postMessageToWebview({
-					type: "selectedImages",
-					images,
-				})
-				break
-			case "resetState":
-				await this.resetState()
-				break
 			case "refreshClineRules":
 				await refreshClineRulesToggles(this.context, cwd)
 				await refreshExternalRulesToggles(this.context, cwd)
+				await refreshWorkflowToggles(this.context, cwd)
 				await this.postStateToWebview()
 				break
 			case "openInBrowser":
@@ -338,18 +338,9 @@ export class Controller {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
 				break
-			case "fetchOpenGraphData":
-				this.fetchOpenGraphData(message.text!)
-				break
 			case "openMention":
 				openMention(message.text)
 				break
-			case "taskCompletionViewChanges": {
-				if (message.number) {
-					await this.task?.presentMultifileDiff(message.number, true)
-				}
-				break
-			}
 			case "accountLogoutClicked": {
 				await this.handleSignOut()
 				break
@@ -377,11 +368,6 @@ export class Controller {
 				await this.silentlyRefreshMcpMarketplace()
 				break
 			}
-			case "taskFeedback":
-				if (message.feedbackType && this.task?.taskId) {
-					telemetryService.captureTaskFeedback(this.task.taskId, message.feedbackType)
-				}
-				break
 			// case "openMcpMarketplaceServerDetails": {
 			// 	if (message.text) {
 			// 		const response = await fetch(`https://api.cline.bot/v1/mcp/marketplace/item?mcpId=${message.mcpId}`)
@@ -482,16 +468,18 @@ export class Controller {
 				}
 				break
 			}
-			case "requestTotalTasksSize": {
-				this.refreshTotalTasksSize()
+			case "toggleWorkflow": {
+				const { workflowPath, enabled } = message
+				if (workflowPath && typeof enabled === "boolean") {
+					const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+					toggles[workflowPath] = enabled
+					await updateWorkspaceState(this.context, "workflowToggles", toggles)
+					await this.postStateToWebview()
+				}
 				break
 			}
-			case "restartMcpServer": {
-				try {
-					await this.mcpHub?.restartConnection(message.text!)
-				} catch (error) {
-					console.error(`Failed to retry connection for ${message.text}:`, error)
-				}
+			case "requestTotalTasksSize": {
+				this.refreshTotalTasksSize()
 				break
 			}
 			case "deleteMcpServer": {
@@ -562,6 +550,22 @@ export class Controller {
 
 				// plan act setting
 				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)
+
+				if (typeof message.enableCheckpointsSetting === "boolean") {
+					await updateGlobalState(this.context, "enableCheckpointsSetting", message.enableCheckpointsSetting)
+				}
+
+				if (typeof message.mcpMarketplaceEnabled === "boolean") {
+					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
+				}
+
+				// chat settings (including preferredLanguage and openAIReasoningEffort)
+				if (message.chatSettings) {
+					await updateGlobalState(this.context, "chatSettings", message.chatSettings)
+					if (this.task) {
+						this.task.chatSettings = message.chatSettings
+					}
+				}
 
 				// after settings are updated, post state to webview
 				await this.postStateToWebview()
@@ -1316,7 +1320,10 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(state)
+		// For testing: Bypass gRPC stream and send state directly
+		console.log("[Controller Test Revert] Posting full state via direct 'state' message.")
+		await this.postMessageToWebview({ type: "state", state: state })
+		// await sendStateUpdate(state) // Original line for the GrPC stream
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -1332,8 +1339,10 @@ export class Controller {
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			enableCheckpointsSetting,
 			globalClineRulesToggles,
 			shellIntegrationTimeout,
+			isNewUser,
 			mcpDefaultPanelState,
 		} = await getAllExtensionState(this.context)
 
@@ -1345,6 +1354,8 @@ export class Controller {
 
 		const localCursorRulesToggles =
 			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
+
+		const workflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1367,12 +1378,15 @@ export class Controller {
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
+			workflowToggles: workflowToggles || {},
 			shellIntegrationTimeout,
+			isNewUser,
 			mcpDefaultPanelState: mcpDefaultPanelState || "collapsed",
 		}
 	}
@@ -1448,30 +1462,6 @@ export class Controller {
 	// }
 
 	// secrets
-
-	// Open Graph Data
-
-	async fetchOpenGraphData(url: string) {
-		try {
-			// Use the fetchOpenGraphData function from link-preview.ts
-			const ogData = await fetchOpenGraphData(url)
-
-			// Send the data back to the webview
-			await this.postMessageToWebview({
-				type: "openGraphData",
-				openGraphData: ogData,
-				url: url,
-			})
-		} catch (error) {
-			console.error(`Error fetching Open Graph data for ${url}:`, error)
-			// Send an error response
-			await this.postMessageToWebview({
-				type: "openGraphData",
-				error: `Failed to fetch Open Graph data: ${error}`,
-				url: url,
-			})
-		}
-	}
 
 	// Git commit message generation
 
@@ -1577,19 +1567,4 @@ Commit message:`
 	}
 
 	// dev
-
-	async resetState() {
-		vscode.window.showInformationMessage("Resetting state...")
-		await resetExtensionState(this.context)
-		if (this.task) {
-			this.task.abortTask()
-			this.task = undefined
-		}
-		vscode.window.showInformationMessage("State reset")
-		await this.postStateToWebview()
-		await this.postMessageToWebview({
-			type: "action",
-			action: "chatButtonClicked",
-		})
-	}
 }

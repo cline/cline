@@ -18,11 +18,10 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
-import { TaskServiceClient, SlashServiceClient } from "@/services/grpc-client"
+import { TaskServiceClient, SlashServiceClient, FileServiceClient } from "@/services/grpc-client"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import Announcement from "@/components/chat/Announcement"
-import AutoApproveMenu from "@/components/chat/auto-approve-menu/AutoApproveMenu"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import ChatTextArea from "@/components/chat/ChatTextArea"
@@ -34,7 +33,7 @@ import remarkStringify from "remark-stringify"
 import rehypeRemark from "rehype-remark"
 import rehypeParse from "rehype-parse"
 import HomeHeader from "../welcome/HomeHeader"
-
+import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
@@ -464,25 +463,22 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_completed_task":
 						case "mistake_limit_reached":
 						case "new_task": // user can provide feedback or reject the new task suggestion
-							vscode.postMessage({
-								type: "askResponse",
-								askResponse: "messageResponse",
+							await TaskServiceClient.askResponse({
+								responseType: "messageResponse",
 								text: messageToSend,
 								images,
 							})
 							break
 						case "condense":
-							vscode.postMessage({
-								type: "askResponse",
-								askResponse: "messageResponse",
+							await TaskServiceClient.askResponse({
+								responseType: "messageResponse",
 								text: messageToSend,
 								images,
 							})
 							break
 						case "report_bug":
-							vscode.postMessage({
-								type: "askResponse",
-								askResponse: "messageResponse",
+							await TaskServiceClient.askResponse({
+								responseType: "messageResponse",
 								text: messageToSend,
 								images,
 							})
@@ -526,16 +522,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
 					if (trimmedInput || (images && images.length > 0)) {
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "yesButtonClicked",
+						await TaskServiceClient.askResponse({
+							responseType: "yesButtonClicked",
 							text: trimmedInput,
 							images: images,
 						})
 					} else {
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "yesButtonClicked",
+						await TaskServiceClient.askResponse({
+							responseType: "yesButtonClicked",
 						})
 					}
 					// Clear input state after sending
@@ -592,17 +586,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "browser_action_launch":
 				case "use_mcp_server":
 					if (trimmedInput || (images && images.length > 0)) {
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "noButtonClicked",
+						await TaskServiceClient.askResponse({
+							responseType: "noButtonClicked",
 							text: trimmedInput,
 							images: images,
 						})
 					} else {
 						// responds to the API with a "This operation failed" and lets it try again
-						vscode.postMessage({
-							type: "askResponse",
-							askResponse: "noButtonClicked",
+						await TaskServiceClient.askResponse({
+							responseType: "noButtonClicked",
 						})
 					}
 					// Clear input state after sending
@@ -633,8 +625,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	const selectImages = useCallback(() => {
-		vscode.postMessage({ type: "selectImages" })
+	const selectImages = useCallback(async () => {
+		try {
+			const response = await FileServiceClient.selectImages({})
+			if (response && response.values && response.values.length > 0) {
+				setSelectedImages((prevImages) => [...prevImages, ...response.values].slice(0, MAX_IMAGES_PER_MESSAGE))
+			}
+		} catch (error) {
+			console.error("Error selecting images:", error)
+		}
 	}, [])
 
 	const shouldDisableImages = !selectedModelInfo.supportsImages || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
@@ -977,6 +976,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)
 			}
 
+			// We display certain statuses for the last message only
+			// If the last message is a checkpoint, we want to show the status of the previous message
+			const nextMessage = index < groupedMessages.length - 1 && groupedMessages[index + 1]
+			const isNextCheckpoint = !Array.isArray(nextMessage) && nextMessage && nextMessage?.say === "checkpoint_created"
+			const isLastMessageGroup = isNextCheckpoint && index === groupedMessages.length - 2
+
+			const isLast = index === groupedMessages.length - 1 || isLastMessageGroup
+
 			// regular message
 			return (
 				<ChatRow
@@ -985,7 +992,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					isExpanded={expandedRows[messageOrGroup.ts] || false}
 					onToggleExpand={() => toggleRowExpansion(messageOrGroup.ts)}
 					lastModifiedMessage={modifiedMessages.at(-1)}
-					isLast={index === groupedMessages.length - 1}
+					isLast={isLast}
 					onHeightChange={handleRowHeightChange}
 					inputValue={inputValue}
 					sendMessageFromChatRow={handleSendMessage}
@@ -1047,7 +1054,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				</div>
 			)}
 
-			{!task && <AutoApproveMenu />}
+			{!task && <AutoApproveBar />}
 
 			{task && (
 				<>
@@ -1081,7 +1088,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							initialTopMostItemIndex={groupedMessages.length - 1}
 						/>
 					</div>
-					<AutoApproveMenu />
+					<AutoApproveBar />
 					{showScrollToBottom ? (
 						<div
 							style={{

@@ -6,6 +6,7 @@ import { vscode } from "@/utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
 import Tooltip from "@/components/common/Tooltip"
+import styled from "styled-components"
 
 const ClineRulesToggleModal: React.FC = () => {
 	const {
@@ -13,6 +14,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		localClineRulesToggles = {},
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
+		workflowToggles = {},
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -20,6 +22,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
+	const [currentView, setCurrentView] = useState<"rules" | "workflows">("rules")
 
 	useEffect(() => {
 		if (isVisible) {
@@ -42,6 +45,10 @@ const ClineRulesToggleModal: React.FC = () => {
 		.sort(([a], [b]) => a.localeCompare(b))
 
 	const windsurfRules = Object.entries(localWindsurfRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	const workflows = Object.entries(workflowToggles || {})
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
@@ -71,6 +78,14 @@ const ClineRulesToggleModal: React.FC = () => {
 		})
 	}
 
+	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {
+		vscode.postMessage({
+			type: "toggleWorkflow",
+			workflowPath,
+			enabled,
+		})
+	}
+
 	// Close modal when clicking outside
 	useClickAway(modalRef, () => {
 		setIsVisible(false)
@@ -91,7 +106,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	return (
 		<div ref={modalRef}>
 			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
-				<Tooltip tipText="Manage Cline Rules" visible={isVisible ? false : undefined}>
+				<Tooltip tipText="Manage Cline Rules & Workflows" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
 						aria-label="Cline Rules"
@@ -125,68 +140,146 @@ const ClineRulesToggleModal: React.FC = () => {
 						}}
 					/>
 
-					<div className="flex justify-between items-center mb-2.5">
-						<div className="m-0 text-base font-semibold">Cline Rules</div>
-
-						<VSCodeButton
-							appearance="icon"
-							onClick={() => {
-								vscode.postMessage({
-									type: "openExtensionSettings",
-								})
-								setIsVisible(false)
-							}}></VSCodeButton>
+					{/* Tabs container */}
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							marginBottom: "10px",
+						}}>
+						<div
+							style={{
+								display: "flex",
+								gap: "1px",
+								borderBottom: "1px solid var(--vscode-panel-border)",
+							}}>
+							<TabButton isActive={currentView === "rules"} onClick={() => setCurrentView("rules")}>
+								Rules
+							</TabButton>
+							<TabButton isActive={currentView === "workflows"} onClick={() => setCurrentView("workflows")}>
+								Workflows
+							</TabButton>
+						</div>
 					</div>
 
-					{/* Global Rules Section */}
-					<div className="mb-3">
-						<div className="text-sm font-normal mb-2">Global Rules</div>
-						<RulesToggleList
-							rules={globalRules}
-							toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
-							listGap="small"
-							isGlobal={true}
-							ruleType={"cline"}
-							showNewRule={true}
-							showNoRules={true}
-						/>
+					{/* Description text */}
+					<div className="text-xs text-[var(--vscode-descriptionForeground)] mb-4">
+						{currentView === "rules" ? (
+							<p>
+								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
+								include context and preferences for your projects or globally for every conversation.
+							</p>
+						) : (
+							<p>
+								Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks,
+								such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
+								<span
+									className=" 
+								text-[var(--vscode-foreground)] font-bold">
+									/workflow-name
+								</span>{" "}
+								in the chat.
+							</p>
+						)}
 					</div>
 
-					{/* Local Rules Section */}
-					<div style={{ marginBottom: -10 }}>
-						<div className="text-sm font-normal mb-2">Workspace Rules</div>
-						<RulesToggleList
-							rules={localRules}
-							toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
-							listGap="small"
-							isGlobal={false}
-							ruleType={"cline"}
-							showNewRule={false}
-							showNoRules={false}
-						/>
-						<RulesToggleList
-							rules={cursorRules}
-							toggleRule={toggleCursorRule}
-							listGap="small"
-							isGlobal={false}
-							ruleType={"cursor"}
-							showNewRule={false}
-							showNoRules={false}
-						/>
-						<RulesToggleList
-							rules={windsurfRules}
-							toggleRule={toggleWindsurfRule}
-							listGap="small"
-							isGlobal={false}
-							ruleType={"windsurf"}
-							showNewRule={true}
-							showNoRules={localRules.length === 0 && cursorRules.length === 0 && windsurfRules.length === 0}
-						/>
-					</div>
+					{currentView === "rules" ? (
+						<>
+							{/* Global Rules Section */}
+							<div className="mb-3">
+								<div className="text-sm font-normal mb-2">Global Rules</div>
+								<RulesToggleList
+									rules={globalRules}
+									toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
+									listGap="small"
+									isGlobal={true}
+									ruleType={"cline"}
+									showNewRule={true}
+									showNoRules={false}
+								/>
+							</div>
+
+							{/* Local Rules Section */}
+							<div style={{ marginBottom: -10 }}>
+								<div className="text-sm font-normal mb-2">Workspace Rules</div>
+								<RulesToggleList
+									rules={localRules}
+									toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"cline"}
+									showNewRule={false}
+									showNoRules={false}
+								/>
+								<RulesToggleList
+									rules={cursorRules}
+									toggleRule={toggleCursorRule}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"cursor"}
+									showNewRule={false}
+									showNoRules={false}
+								/>
+								<RulesToggleList
+									rules={windsurfRules}
+									toggleRule={toggleWindsurfRule}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"windsurf"}
+									showNewRule={true}
+									showNoRules={false}
+								/>
+							</div>
+						</>
+					) : (
+						/* Workflows section */
+						<div style={{ marginBottom: -10 }}>
+							<div className="text-sm font-normal mb-2">Workspace Workflows</div>
+							<RulesToggleList
+								rules={workflows}
+								toggleRule={toggleWorkflow}
+								listGap="small"
+								isGlobal={false}
+								ruleType={"workflow"}
+								showNewRule={true}
+								showNoRules={false}
+							/>
+						</div>
+					)}
 				</div>
 			)}
 		</div>
 	)
 }
+
+const StyledTabButton = styled.button<{ isActive: boolean }>`
+	background: none;
+	border: none;
+	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
+	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 13px;
+	margin-bottom: -1px;
+	font-family: inherit;
+
+	&:hover {
+		color: var(--vscode-foreground);
+	}
+`
+
+export const TabButton = ({
+	children,
+	isActive,
+	onClick,
+}: {
+	children: React.ReactNode
+	isActive: boolean
+	onClick: () => void
+}) => (
+	<StyledTabButton isActive={isActive} onClick={onClick}>
+		{children}
+	</StyledTabButton>
+)
 
 export default ClineRulesToggleModal

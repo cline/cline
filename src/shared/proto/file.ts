@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, Metadata, StringRequest } from "./common"
+import { Empty, EmptyRequest, Metadata, StringArray, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -73,6 +73,8 @@ export interface RuleFileRequest {
 	rulePath?: string | undefined
 	/** Filename field for createRuleFile (optional) */
 	filename?: string | undefined
+	/** Type of the file to create (optional) */
+	type?: string | undefined
 }
 
 /** Result for rule file operations with meaningful data only */
@@ -682,7 +684,7 @@ export const GitCommit: MessageFns<GitCommit> = {
 }
 
 function createBaseRuleFileRequest(): RuleFileRequest {
-	return { metadata: undefined, isGlobal: false, rulePath: undefined, filename: undefined }
+	return { metadata: undefined, isGlobal: false, rulePath: undefined, filename: undefined, type: undefined }
 }
 
 export const RuleFileRequest: MessageFns<RuleFileRequest> = {
@@ -698,6 +700,9 @@ export const RuleFileRequest: MessageFns<RuleFileRequest> = {
 		}
 		if (message.filename !== undefined) {
 			writer.uint32(34).string(message.filename)
+		}
+		if (message.type !== undefined) {
+			writer.uint32(42).string(message.type)
 		}
 		return writer
 	},
@@ -741,6 +746,14 @@ export const RuleFileRequest: MessageFns<RuleFileRequest> = {
 					message.filename = reader.string()
 					continue
 				}
+				case 5: {
+					if (tag !== 42) {
+						break
+					}
+
+					message.type = reader.string()
+					continue
+				}
 			}
 			if ((tag & 7) === 4 || tag === 0) {
 				break
@@ -756,6 +769,7 @@ export const RuleFileRequest: MessageFns<RuleFileRequest> = {
 			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
 			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : undefined,
 			filename: isSet(object.filename) ? globalThis.String(object.filename) : undefined,
+			type: isSet(object.type) ? globalThis.String(object.type) : undefined,
 		}
 	},
 
@@ -773,6 +787,9 @@ export const RuleFileRequest: MessageFns<RuleFileRequest> = {
 		if (message.filename !== undefined) {
 			obj.filename = message.filename
 		}
+		if (message.type !== undefined) {
+			obj.type = message.type
+		}
 		return obj
 	},
 
@@ -786,6 +803,7 @@ export const RuleFileRequest: MessageFns<RuleFileRequest> = {
 		message.isGlobal = object.isGlobal ?? false
 		message.rulePath = object.rulePath ?? undefined
 		message.filename = object.filename ?? undefined
+		message.type = object.type ?? undefined
 		return message
 	},
 }
@@ -930,6 +948,15 @@ export const FileServiceDefinition = {
 			requestType: StringRequest,
 			requestStream: false,
 			responseType: GitCommits,
+			responseStream: false,
+			options: {},
+		},
+		/** Select images from the file system and return as data URLs */
+		selectImages: {
+			name: "selectImages",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: StringArray,
 			responseStream: false,
 			options: {},
 		},
