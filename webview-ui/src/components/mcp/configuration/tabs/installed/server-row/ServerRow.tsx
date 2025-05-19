@@ -47,6 +47,7 @@ const ServerRow = ({
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
+	const [isRestarting, setIsRestarting] = useState(false)
 
 	const getStatusColor = useCallback((status: McpServer["status"]) => {
 		switch (status) {
@@ -94,10 +95,24 @@ const ServerRow = ({
 	}
 
 	const handleRestart = () => {
-		vscode.postMessage({
-			type: "restartMcpServer",
-			text: server.name,
-		})
+		// Set local state to show "connecting" status
+		setIsRestarting(true)
+
+		// Make the gRPC call
+		McpServiceClient.restartMcpServer({
+			value: server.name,
+		} as StringRequest)
+			.then((response: McpServers) => {
+				// Update with the final state from the server
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+				setIsRestarting(false)
+			})
+			.catch((error) => {
+				// Reset the restarting state
+				setIsRestarting(false)
+				console.error("Error restarting MCP server", error)
+			})
 	}
 
 	const handleDelete = () => {
@@ -180,7 +195,7 @@ const ServerRow = ({
 								e.stopPropagation()
 								handleRestart()
 							}}
-							disabled={server.status === "connecting"}>
+							disabled={server.status === "connecting" || isRestarting}>
 							<span className="codicon codicon-sync"></span>
 						</VSCodeButton>
 						{hasTrashIcon && (
@@ -276,7 +291,7 @@ const ServerRow = ({
 							width: "calc(100% - 20px)",
 							margin: "0 10px 10px 10px",
 						}}>
-						{server.status === "connecting" ? "Retrying..." : "Retry Connection"}
+						{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
 					</VSCodeButton>
 
 					<DangerButton
@@ -372,12 +387,12 @@ const ServerRow = ({
 						<VSCodeButton
 							appearance="secondary"
 							onClick={handleRestart}
-							disabled={server.status === "connecting"}
+							disabled={server.status === "connecting" || isRestarting}
 							style={{
 								width: "calc(100% - 14px)",
 								margin: "0 7px 3px 7px",
 							}}>
-							{server.status === "connecting" ? "Restarting..." : "Restart Server"}
+							{server.status === "connecting" || isRestarting ? "Restarting..." : "Restart Server"}
 						</VSCodeButton>
 
 						<DangerButton

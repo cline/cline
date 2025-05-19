@@ -341,12 +341,6 @@ export class Controller {
 			case "openMention":
 				openMention(message.text)
 				break
-			case "taskCompletionViewChanges": {
-				if (message.number) {
-					await this.task?.presentMultifileDiff(message.number, true)
-				}
-				break
-			}
 			case "accountLogoutClicked": {
 				await this.handleSignOut()
 				break
@@ -488,14 +482,7 @@ export class Controller {
 				this.refreshTotalTasksSize()
 				break
 			}
-			case "restartMcpServer": {
-				try {
-					await this.mcpHub?.restartConnection(message.text!)
-				} catch (error) {
-					console.error(`Failed to retry connection for ${message.text}:`, error)
-				}
-				break
-			}
+
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
 				break

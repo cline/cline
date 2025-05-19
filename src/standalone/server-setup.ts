@@ -33,6 +33,7 @@ import { toggleMcpServer } from "../core/controller/mcp/toggleMcpServer"
 import { updateMcpTimeout } from "../core/controller/mcp/updateMcpTimeout"
 import { addRemoteMcpServer } from "../core/controller/mcp/addRemoteMcpServer"
 import { downloadMcp } from "../core/controller/mcp/downloadMcp"
+import { restartMcpServer } from "../core/controller/mcp/restartMcpServer"
 import { deleteMcpServer } from "../core/controller/mcp/deleteMcpServer"
 
 // Models Service
@@ -65,6 +66,7 @@ import { deleteNonFavoritedTasks } from "../core/controller/task/deleteNonFavori
 import { getTaskHistory } from "../core/controller/task/getTaskHistory"
 import { askResponse } from "../core/controller/task/askResponse"
 import { taskFeedback } from "../core/controller/task/taskFeedback"
+import { taskCompletionViewChanges } from "../core/controller/task/taskCompletionViewChanges"
 
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
@@ -115,6 +117,7 @@ export function addServices(
 		updateMcpTimeout: wrapper(updateMcpTimeout, controller),
 		addRemoteMcpServer: wrapper(addRemoteMcpServer, controller),
 		downloadMcp: wrapper(downloadMcp, controller),
+		restartMcpServer: wrapper(restartMcpServer, controller),
 		deleteMcpServer: wrapper(deleteMcpServer, controller),
 	})
 
@@ -155,6 +158,7 @@ export function addServices(
 		getTaskHistory: wrapper(getTaskHistory, controller),
 		askResponse: wrapper(askResponse, controller),
 		taskFeedback: wrapper(taskFeedback, controller),
+		taskCompletionViewChanges: wrapper(taskCompletionViewChanges, controller),
 	})
 
 	// Web Service
