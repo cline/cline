@@ -35,7 +35,6 @@ export interface WebviewMessage {
 		| "fetchMcpMarketplace"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
-		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
 		| "openSettings"
 		| "invoke"
