@@ -28,13 +28,31 @@ let outputChannel: vscode.OutputChannel
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
+	// Added async
 	outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
 
 	ErrorService.initialize()
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
+
+	// Version checking for autoupdate notification
+	const currentVersion = context.extension.packageJSON.version
+	const previousVersion = context.globalState.get<string>("clineVersion")
+
+	if (!previousVersion || currentVersion !== previousVersion) {
+		Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
+		// Logic to bring Cline to front and show update notification will go here.
+		// For now, we'll just log and plan to update the stored version later,
+		// after the UI actions are performed.
+		// Placeholder for UI actions:
+		// await bringClineToFrontAndNotify(context, currentVersion);
+
+		// After UI actions (or if no specific UI action is needed immediately before webview init):
+		// await context.globalState.update("clineVersion", currentVersion);
+		// We will move the actual update of clineVersion to after the UI is shown.
+	}
 
 	const sidebarWebview = new WebviewProvider(context, outputChannel)
 
@@ -48,6 +66,45 @@ export function activate(context: vscode.ExtensionContext) {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),
 	)
+
+	// Perform post-update actions if necessary
+	if (!previousVersion || currentVersion !== previousVersion) {
+		// It's a first run or an update.
+		const lastShownPopupNotificationVersion = context.globalState.get<string>("clineLastPopupNotificationVersion")
+
+		if (currentVersion !== lastShownPopupNotificationVersion) {
+			// Show VS Code popup notification as this version hasn't been notified yet.
+			const message = `Cline has been updated to v${currentVersion}!`
+			Logger.log(`Showing update notification: ${message}`)
+			await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+			await new Promise((resolve) => setTimeout(resolve, 200)) // Allow time for focus
+			let targetInstance = WebviewProvider.getVisibleInstance()
+			targetInstance = WebviewProvider.getSidebarInstance()
+			vscode.window.showInformationMessage(message, "Open Cline").then(async (selection) => {
+				if (selection === "Open Cline") {
+					Logger.log("User clicked 'Open Cline' from update notification.")
+					if (!targetInstance) {
+						await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+						await new Promise((resolve) => setTimeout(resolve, 200)) // Allow time for focus
+						targetInstance = WebviewProvider.getSidebarInstance()
+					}
+					if (!targetInstance) {
+						const tabInstances = WebviewProvider.getTabInstances()
+						if (tabInstances.length > 0) {
+							const panelView = tabInstances[tabInstances.length - 1].view as vscode.WebviewPanel
+							panelView.reveal(panelView.viewColumn)
+						} else {
+							await vscode.commands.executeCommand("cline.openInNewTab")
+						}
+					}
+				}
+			})
+			// Record that we've shown the popup for this version.
+			await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
+		}
+		// Always update the main version tracker for the next launch.
+		await context.globalState.update("clineVersion", currentVersion)
+	}
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
@@ -257,17 +314,20 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
+			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
 			const editor = vscode.window.activeTextEditor
 			if (!editor) {
 				return
 			}
 
 			// Use provided range if available, otherwise use current selection
-			// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
 			const textRange = range instanceof vscode.Range ? range : editor.selection
 			const selectedText = editor.document.getText(textRange)
 
-			if (!selectedText) {
+			if (!selectedText.trim() && !(diagnostics && diagnostics.length > 0)) {
+				// Allow if there are diagnostics even with empty text
+				vscode.window.showInformationMessage("Please select some code or ensure there are diagnostics to add to Cline.")
 				return
 			}
 
@@ -277,7 +337,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			await visibleWebview?.controller.addSelectedCodeToChat(
-				selectedText,
+				selectedText, // Can be empty if only diagnostics are present
 				filePath,
 				languageId,
 				Array.isArray(diagnostics) ? diagnostics : undefined,
@@ -341,45 +401,86 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.languages.registerCodeActionsProvider(
 			"*",
 			new (class implements vscode.CodeActionProvider {
-				public static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix]
+				public static readonly providedCodeActionKinds = [
+					vscode.CodeActionKind.QuickFix,
+					vscode.CodeActionKind.Refactor, // Added for more general actions
+				]
 
 				provideCodeActions(
 					document: vscode.TextDocument,
 					range: vscode.Range,
 					context: vscode.CodeActionContext,
 				): vscode.CodeAction[] {
-					// Expand range to include surrounding 3 lines
-					const expandedRange = new vscode.Range(
-						Math.max(0, range.start.line - 3),
-						0,
-						Math.min(document.lineCount - 1, range.end.line + 3),
-						document.lineAt(Math.min(document.lineCount - 1, range.end.line + 3)).text.length,
-					)
+					const actions: vscode.CodeAction[] = []
+					const editor = vscode.window.activeTextEditor // Get active editor for selection check
 
+					// Expand range to include surrounding 3 lines or use selection if broader
+					const selection = editor?.selection
+					let expandedRange = range
+					if (
+						editor &&
+						selection &&
+						!selection.isEmpty &&
+						selection.contains(range.start) &&
+						selection.contains(range.end)
+					) {
+						expandedRange = selection
+					} else {
+						expandedRange = new vscode.Range(
+							Math.max(0, range.start.line - 3),
+							0,
+							Math.min(document.lineCount - 1, range.end.line + 3),
+							document.lineAt(Math.min(document.lineCount - 1, range.end.line + 3)).text.length,
+						)
+					}
+
+					// Add to Cline (Always available)
 					const addAction = new vscode.CodeAction("Add to Cline", vscode.CodeActionKind.QuickFix)
 					addAction.command = {
 						command: "cline.addToChat",
 						title: "Add to Cline",
-						arguments: [expandedRange, context.diagnostics],
+						arguments: [expandedRange, context.diagnostics], // Pass diagnostics, might be empty
 					}
+					actions.push(addAction)
 
-					const fixAction = new vscode.CodeAction("Fix with Cline", vscode.CodeActionKind.QuickFix)
-					fixAction.command = {
-						command: "cline.fixWithCline",
-						title: "Fix with Cline",
-						arguments: [expandedRange, context.diagnostics],
+					// Explain with Cline (Always available)
+					const explainAction = new vscode.CodeAction("Explain with Cline", vscode.CodeActionKind.RefactorExtract) // Using a refactor kind
+					explainAction.command = {
+						command: "cline.explainCode",
+						title: "Explain with Cline",
+						arguments: [expandedRange],
 					}
+					actions.push(explainAction)
 
-					// Only show actions when there are errors
+					// Improve with Cline (Always available)
+					const improveAction = new vscode.CodeAction("Improve with Cline", vscode.CodeActionKind.RefactorRewrite) // Using a refactor kind
+					improveAction.command = {
+						command: "cline.improveCode",
+						title: "Improve with Cline",
+						arguments: [expandedRange],
+					}
+					actions.push(improveAction)
+
+					// Fix with Cline (Only if diagnostics exist)
 					if (context.diagnostics.length > 0) {
-						return [addAction, fixAction]
-					} else {
-						return []
+						const fixAction = new vscode.CodeAction("Fix with Cline", vscode.CodeActionKind.QuickFix)
+						fixAction.isPreferred = true // Make it more prominent if there are errors
+						fixAction.command = {
+							command: "cline.fixWithCline",
+							title: "Fix with Cline",
+							arguments: [expandedRange, context.diagnostics],
+						}
+						actions.push(fixAction)
 					}
+					return actions
 				}
 			})(),
 			{
-				providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
+				providedCodeActionKinds: [
+					vscode.CodeActionKind.QuickFix,
+					vscode.CodeActionKind.RefactorExtract,
+					vscode.CodeActionKind.RefactorRewrite,
+				],
 			},
 		),
 	)
@@ -406,21 +507,115 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register "Explain with Cline" command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.explainCode", async (range: vscode.Range) => {
+			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
+			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
+			const editor = vscode.window.activeTextEditor
+			if (!editor) {
+				return
+			}
+			const selectedText = editor.document.getText(range)
+			if (!selectedText.trim()) {
+				vscode.window.showInformationMessage("Please select some code to explain.")
+				return
+			}
+			const filePath = editor.document.uri.fsPath
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
+			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
+			await visibleWebview?.controller.initTask(prompt)
+		}),
+	)
+
+	// Register "Improve with Cline" command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.improveCode", async (range: vscode.Range) => {
+			await vscode.commands.executeCommand("cline.focusChatInput") // Ensure Cline is visible and input focused
+			await pWaitFor(() => !!WebviewProvider.getVisibleInstance())
+			const editor = vscode.window.activeTextEditor
+			if (!editor) {
+				return
+			}
+			const selectedText = editor.document.getText(range)
+			if (!selectedText.trim()) {
+				vscode.window.showInformationMessage("Please select some code to improve.")
+				return
+			}
+			const filePath = editor.document.uri.fsPath
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
+			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
+			await visibleWebview?.controller.initTask(prompt)
+		}),
+	)
+
 	// Register the focusChatInput command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.focusChatInput", () => {
-			let visibleWebview = WebviewProvider.getVisibleInstance()
-			if (!visibleWebview) {
-				vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-				visibleWebview = WebviewProvider.getSidebarInstance()
-				// showing the extension will call didBecomeVisible which focuses it already
-				// but it doesn't focus if a tab is selected which focusChatInput accounts for
-			}
+		vscode.commands.registerCommand("cline.focusChatInput", async () => {
+			let activeWebviewProvider: WebviewProvider | undefined = WebviewProvider.getVisibleInstance()
 
-			visibleWebview?.controller.postMessageToWebview({
-				type: "action",
-				action: "focusChatInput",
-			})
+			// If a tab is visible and active, ensure it's fully revealed (might be redundant but safe)
+			if (activeWebviewProvider?.view && activeWebviewProvider.view.hasOwnProperty("reveal")) {
+				const panelView = activeWebviewProvider.view as vscode.WebviewPanel
+				panelView.reveal(panelView.viewColumn)
+			} else if (!activeWebviewProvider) {
+				// No webview is currently visible, try to activate the sidebar
+				Logger.log("FocusChatInput: No visible Cline instance, trying to focus sidebar.")
+				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				await new Promise((resolve) => setTimeout(resolve, 200)) // Allow time for focus
+				activeWebviewProvider = WebviewProvider.getSidebarInstance()
+
+				if (!activeWebviewProvider) {
+					// Sidebar didn't become active (might be closed or not in current view container)
+					// Check for existing tab panels
+					Logger.log("FocusChatInput: Sidebar not found or not visible, checking for existing tab panels.")
+					const tabInstances = WebviewProvider.getTabInstances()
+					if (tabInstances.length > 0) {
+						const potentialTabInstance = tabInstances[tabInstances.length - 1] // Get the most recent one
+						if (potentialTabInstance.view && potentialTabInstance.view.hasOwnProperty("reveal")) {
+							const panelView = potentialTabInstance.view as vscode.WebviewPanel
+							Logger.log(`FocusChatInput: Revealing existing Cline tab panel: ${panelView.title}`)
+							panelView.reveal(panelView.viewColumn)
+							activeWebviewProvider = potentialTabInstance
+						}
+					}
+				}
+
+				if (!activeWebviewProvider) {
+					// No existing Cline view found at all, open a new tab
+					Logger.log("FocusChatInput: No existing Cline view found, opening in a new tab.")
+					await vscode.commands.executeCommand("cline.openInNewTab")
+					// After openInNewTab, a new webview is created. We need to get this new instance.
+					// It might take a moment for it to register.
+					await pWaitFor(
+						() => {
+							const visibleInstance = WebviewProvider.getVisibleInstance()
+							// Ensure a boolean is returned
+							return !!(visibleInstance?.view && visibleInstance.view.hasOwnProperty("reveal"))
+						},
+						{ timeout: 2000 },
+					).catch(() => {
+						Logger.log("FocusChatInput: Timeout waiting for new tab to become visible.")
+					})
+					activeWebviewProvider = WebviewProvider.getVisibleInstance()
+				}
+			}
+			// At this point, activeWebviewProvider should be the one we want to send the message to.
+			// It could still be undefined if opening a new tab failed or timed out.
+			if (activeWebviewProvider) {
+				Logger.log("FocusChatInput: Sending focusChatInput message to active webview.")
+				activeWebviewProvider.controller.postMessageToWebview({
+					type: "action",
+					action: "focusChatInput",
+				})
+			} else {
+				Logger.log("FocusChatInput: Could not find or activate a Cline webview to focus.")
+				vscode.window.showErrorMessage(
+					"Could not activate Cline view. Please try opening it manually from the Activity Bar.",
+				)
+			}
 		}),
 	)
 

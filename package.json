@@ -126,6 +126,16 @@
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
 				"icon": "$(robot)"
+			},
+			{
+				"command": "cline.explainCode",
+				"title": "Explain with Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.improveCode",
+				"title": "Improve with Cline",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
@@ -140,6 +150,12 @@
 			{
 				"command": "cline.generateGitCommitMessage",
 				"when": "scmProvider == git"
+			},
+			{
+				"command": "cline.focusChatInput",
+				"key": "ctrl+shift+l",
+				"mac": "cmd+shift+l",
+				"when": "true"
 			}
 		],
 		"menus": {
