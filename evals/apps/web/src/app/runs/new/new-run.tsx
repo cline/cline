@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import fuzzysort from "fuzzysort"
 import { toast } from "sonner"
 import { X, Rocket, Check, ChevronsUpDown, HardDriveUpload, CircleCheck } from "lucide-react"
+import { Dialog, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 import { globalSettingsSchema, providerSettingsSchema, rooCodeDefaults } from "@evals/types"
 
@@ -83,6 +84,10 @@ export function NewRun() {
 
 	const [model, suite, settings] = watch(["model", "suite", "settings", "concurrency"])
 
+	const [systemPromptDialogOpen, setSystemPromptDialogOpen] = useState(false)
+	const [systemPrompt, setSystemPrompt] = useState("")
+	const systemPromptRef = useRef<HTMLTextAreaElement>(null)
+
 	const onSubmit = useCallback(
 		async (values: FormValues) => {
 			try {
@@ -97,13 +102,13 @@ export function NewRun() {
 					values.settings = { ...(values.settings || {}), openRouterModelId }
 				}
 
-				const { id } = await createRun(values)
+				const { id } = await createRun({ ...values, systemPrompt })
 				router.push(`/runs/${id}`)
 			} catch (e) {
 				toast.error(e instanceof Error ? e.message : "An unknown error occurred.")
 			}
 		},
-		[mode, model, models.data, router],
+		[mode, model, models.data, router, systemPrompt],
 	)
 
 	const onFilterModels = useCallback(
@@ -313,6 +318,10 @@ export function NewRun() {
 							)}
 							<FormMessage />
 						</FormItem>
+
+						<Button type="button" variant="secondary" onClick={() => setSystemPromptDialogOpen(true)}>
+							Import Foot Gun System Prompt
+						</Button>
 					</div>
 
 					<FormField
@@ -394,6 +403,21 @@ export function NewRun() {
 				onClick={() => router.push("/")}>
 				<X className="size-6" />
 			</Button>
+			<Dialog open={systemPromptDialogOpen} onOpenChange={setSystemPromptDialogOpen}>
+				<DialogContent>
+					<DialogTitle>Import Foot Gun System Prompt</DialogTitle>
+					<textarea
+						ref={systemPromptRef}
+						value={systemPrompt}
+						onChange={(e) => setSystemPrompt(e.target.value)}
+						placeholder="Paste or type your system prompt here..."
+						className="w-full min-h-[120px] border rounded p-2"
+					/>
+					<DialogFooter>
+						<Button onClick={() => setSystemPromptDialogOpen(false)}>Done</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</>
 	)
 }

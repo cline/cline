@@ -14,7 +14,7 @@ import * as db from "@evals/db"
 import { CreateRun } from "@/lib/schemas"
 import { getExercisesForLanguage } from "./exercises"
 
-export async function createRun({ suite, exercises = [], ...values }: CreateRun) {
+export async function createRun({ suite, exercises = [], systemPrompt, ...values }: CreateRun) {
 	const run = await db.createRun({
 		...values,
 		socketPath: path.join(os.tmpdir(), `roo-code-evals-${crypto.randomUUID()}.sock`),
@@ -45,13 +45,22 @@ export async function createRun({ suite, exercises = [], ...values }: CreateRun)
 	try {
 		const logFile = fs.openSync(`/tmp/roo-code-evals-${run.id}.log`, "a")
 
-		const process = spawn("pnpm", ["--filter", "@evals/cli", "dev", "run", "all", "--runId", run.id.toString()], {
-			detached: true,
-			stdio: ["ignore", logFile, logFile],
-		})
+		const env: NodeJS.ProcessEnv = systemPrompt
+			? { ...process.env, FOOTGUN_SYSTEM_PROMPT: systemPrompt }
+			: process.env
 
-		process.unref()
-		await db.updateRun(run.id, { pid: process.pid })
+		const childProcess = spawn(
+			"pnpm",
+			["--filter", "@evals/cli", "dev", "run", "all", "--runId", run.id.toString()],
+			{
+				detached: true,
+				stdio: ["ignore", logFile, logFile],
+				env,
+			},
+		)
+
+		childProcess.unref()
+		await db.updateRun(run.id, { pid: childProcess.pid })
 	} catch (error) {
 		console.error(error)
 	}
