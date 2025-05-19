@@ -92,7 +92,7 @@ jobs:
                   cd webview-ui
                   # Ensure coverage dependency is installed
                   npm install --no-save @vitest/coverage-v8
-                  npm run test:coverage > webview_coverage.txt 2>&1 || true
+                  npm run test:coverage > webview_coverage.txt 2>&1
                   cd ..
                   PYTHONPATH=.github/scripts python -m coverage_check extract-coverage webview-ui/webview_coverage.txt --type=webview --github-output --verbose
 
