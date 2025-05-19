@@ -152,13 +152,21 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 	}
 
-	const toggleWorkflow = (isGlobal: boolean, workflowPath: string, enabled: boolean) => {
-		vscode.postMessage({
-			type: "toggleWorkflow",
+	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {
+		FileServiceClient.toggleWorkflow({
 			workflowPath,
 			enabled,
 			isGlobal,
 		})
+			.then((response) => {
+				// Update the local state with the response
+				if (response.toggles) {
+					setLocalWorkflowsToggles(response.toggles)
+				}
+			})
+			.catch((err: Error) => {
+				console.error("Failed to toggle workflow:", err)
+			})
 	}
 
 	// Close modal when clicking outside

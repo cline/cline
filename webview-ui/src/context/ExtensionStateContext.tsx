@@ -714,6 +714,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				globalWorkflowToggles: toggles,
 			})),
+
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,

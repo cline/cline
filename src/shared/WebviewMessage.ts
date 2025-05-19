@@ -19,7 +19,6 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleWorkflow"
 		| "executeQuickWin"
 
 	text?: string
