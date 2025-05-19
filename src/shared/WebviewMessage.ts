@@ -20,7 +20,6 @@ export interface WebviewMessage {
 		| "showChatView"
 		| "refreshClineRules"
 		| "openMcpSettings"
-		| "restartMcpServer"
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserRelaunchResult"
