@@ -16,8 +16,9 @@ message State {
 }
 
 message TogglePlanActModeRequest {
-  ChatSettings chat_settings = 1;
-  optional ChatContent chat_content = 2;
+  Metadata metadata = 1;
+  ChatSettings chat_settings = 2;
+  optional ChatContent chat_content = 3;
 }
 
 message ChatSettings {

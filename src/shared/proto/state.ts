@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, StringRequest } from "./common"
+import { Empty, EmptyRequest, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -15,6 +15,7 @@ export interface State {
 }
 
 export interface TogglePlanActModeRequest {
+	metadata?: Metadata | undefined
 	chatSettings?: ChatSettings | undefined
 	chatContent?: ChatContent | undefined
 }
@@ -89,16 +90,19 @@ export const State: MessageFns<State> = {
 }
 
 function createBaseTogglePlanActModeRequest(): TogglePlanActModeRequest {
-	return { chatSettings: undefined, chatContent: undefined }
+	return { metadata: undefined, chatSettings: undefined, chatContent: undefined }
 }
 
 export const TogglePlanActModeRequest: MessageFns<TogglePlanActModeRequest> = {
 	encode(message: TogglePlanActModeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
 		if (message.chatSettings !== undefined) {
-			ChatSettings.encode(message.chatSettings, writer.uint32(10).fork()).join()
+			ChatSettings.encode(message.chatSettings, writer.uint32(18).fork()).join()
 		}
 		if (message.chatContent !== undefined) {
-			ChatContent.encode(message.chatContent, writer.uint32(18).fork()).join()
+			ChatContent.encode(message.chatContent, writer.uint32(26).fork()).join()
 		}
 		return writer
 	},
@@ -115,11 +119,19 @@ export const TogglePlanActModeRequest: MessageFns<TogglePlanActModeRequest> = {
 						break
 					}
 
-					message.chatSettings = ChatSettings.decode(reader, reader.uint32())
+					message.metadata = Metadata.decode(reader, reader.uint32())
 					continue
 				}
 				case 2: {
 					if (tag !== 18) {
+						break
+					}
+
+					message.chatSettings = ChatSettings.decode(reader, reader.uint32())
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
 						break
 					}
 
@@ -137,6 +149,7 @@ export const TogglePlanActModeRequest: MessageFns<TogglePlanActModeRequest> = {
 
 	fromJSON(object: any): TogglePlanActModeRequest {
 		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
 			chatSettings: isSet(object.chatSettings) ? ChatSettings.fromJSON(object.chatSettings) : undefined,
 			chatContent: isSet(object.chatContent) ? ChatContent.fromJSON(object.chatContent) : undefined,
 		}
@@ -144,6 +157,9 @@ export const TogglePlanActModeRequest: MessageFns<TogglePlanActModeRequest> = {
 
 	toJSON(message: TogglePlanActModeRequest): unknown {
 		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
 		if (message.chatSettings !== undefined) {
 			obj.chatSettings = ChatSettings.toJSON(message.chatSettings)
 		}
@@ -158,6 +174,8 @@ export const TogglePlanActModeRequest: MessageFns<TogglePlanActModeRequest> = {
 	},
 	fromPartial<I extends Exact<DeepPartial<TogglePlanActModeRequest>, I>>(object: I): TogglePlanActModeRequest {
 		const message = createBaseTogglePlanActModeRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
 		message.chatSettings =
 			object.chatSettings !== undefined && object.chatSettings !== null
 				? ChatSettings.fromPartial(object.chatSettings)
