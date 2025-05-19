@@ -40,7 +40,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 		setShowConnectingMessage(true)
 
 		try {
-			const servers:McpServers = await McpServiceClient.addRemoteMcpServer({
+			const servers: McpServers = await McpServiceClient.addRemoteMcpServer({
 				serverName: serverName.trim(),
 				serverUrl: serverUrl.trim(),
 			})
