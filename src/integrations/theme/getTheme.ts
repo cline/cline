@@ -3,6 +3,8 @@ import * as path from "path"
 import * as fs from "fs/promises"
 import { convertTheme } from "monaco-vscode-textmate-theme-converter/lib/cjs"
 
+import { Package } from "../../schemas"
+
 const defaultThemes: Record<string, string> = {
 	"Default Dark Modern": "dark_modern",
 	"Dark+": "dark_plus",
@@ -141,5 +143,5 @@ export function mergeJson(
 }
 
 function getExtensionUri(): vscode.Uri {
-	return vscode.extensions.getExtension("rooveterinaryinc.roo-cline")!.extensionUri
+	return vscode.extensions.getExtension(`${Package.publisher}.${Package.name}`)!.extensionUri
 }

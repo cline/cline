@@ -1,6 +1,6 @@
 import * as path from "path"
 import * as vscode from "vscode"
-import { getTaskDirectoryPath } from "../../shared/storagePathManager"
+import { getTaskDirectoryPath } from "../../utils/storage"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { fileExistsAtPath } from "../../utils/fs"
 import fs from "fs/promises"

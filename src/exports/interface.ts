@@ -43,9 +43,9 @@ export { RooCodeEventName, IpcOrigin, IpcMessageType }
  * Constants
  */
 
-import { providerNames } from "../schemas"
+import { providerNames, Package } from "../schemas"
 
-export { providerNames }
+export { providerNames, Package }
 
 /**
  * RooCodeAPI

@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 
+import { Package } from "../../schemas"
 import { ApiHandlerOptions, glamaDefaultModelId, glamaDefaultModelInfo } from "../../shared/api"
 
 import { ApiStream } from "../transform/stream"
@@ -14,7 +15,9 @@ import { RouterProvider } from "./router-provider"
 const GLAMA_DEFAULT_TEMPERATURE = 0
 
 const DEFAULT_HEADERS = {
-	"X-Glama-Metadata": JSON.stringify({ labels: [{ key: "app", value: "vscode.rooveterinaryinc.roo-cline" }] }),
+	"X-Glama-Metadata": JSON.stringify({
+		labels: [{ key: "app", value: `vscode.${Package.publisher}.${Package.name}` }],
+	}),
 }
 
 export class GlamaHandler extends RouterProvider implements SingleCompletionHandler {

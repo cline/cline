@@ -7,7 +7,7 @@ import { combineCommandSequences } from "../../shared/combineCommandSequences"
 import { getApiMetrics } from "../../shared/getApiMetrics"
 import { findLastIndex } from "../../shared/array"
 import { HistoryItem } from "../../shared/HistoryItem"
-import { getTaskDirectoryPath } from "../../shared/storagePathManager"
+import { getTaskDirectoryPath } from "../../utils/storage"
 
 const taskSizeCache = new NodeCache({ stdTTL: 30, checkperiod: 5 * 60 })
 

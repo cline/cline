@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import fs from "fs/promises"
 import * as path from "path"
 
+import { Package } from "../schemas"
 import { getWorkspacePath } from "../utils/path"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { openClineInNewTab } from "../activate/registerCommands"
@@ -112,7 +113,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			provider = await openClineInNewTab({ context: this.context, outputChannel: this.outputChannel })
 			this.registerListeners(provider)
 		} else {
-			await vscode.commands.executeCommand("roo-cline.SidebarProvider.focus")
+			await vscode.commands.executeCommand(`${Package.name}.SidebarProvider.focus`)
 
 			provider = this.sidebarProvider
 		}
@@ -122,7 +123,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 			if (configuration.allowedCommands) {
 				await vscode.workspace
-					.getConfiguration("roo-cline")
+					.getConfiguration(Package.name)
 					.update("allowedCommands", configuration.allowedCommands, vscode.ConfigurationTarget.Global)
 			}
 		}

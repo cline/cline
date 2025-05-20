@@ -13,7 +13,7 @@ mock/
 
 # Builds
 bin/
-roo-cline-*.vsix
+*.vsix
 
 # Local prompts and rules
 /local-prompts

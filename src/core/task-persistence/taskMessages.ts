@@ -5,7 +5,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { ClineMessage } from "../../shared/ExtensionMessage"
-import { getTaskDirectoryPath } from "../../shared/storagePathManager"
+import { getTaskDirectoryPath } from "../../utils/storage"
 
 export type ReadTaskMessagesOptions = {
 	taskId: string

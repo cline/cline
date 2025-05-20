@@ -32,7 +32,18 @@ interface SupportPromptConfig {
 	template: string
 }
 
-const supportPromptConfigs: Record<string, SupportPromptConfig> = {
+type SupportPromptType =
+	| "ENHANCE"
+	| "EXPLAIN"
+	| "FIX"
+	| "IMPROVE"
+	| "ADD_TO_CONTEXT"
+	| "TERMINAL_ADD_TO_CONTEXT"
+	| "TERMINAL_FIX"
+	| "TERMINAL_EXPLAIN"
+	| "NEW_TASK"
+
+const supportPromptConfigs: Record<SupportPromptType, SupportPromptConfig> = {
 	ENHANCE: {
 		template: `Generate an enhanced version of this prompt (reply with only the enhanced prompt - no conversation, explanations, lead-in, bullet points, placeholders, or surrounding quotes):
 
@@ -123,8 +134,6 @@ Please provide:
 		template: `\${userInput}`,
 	},
 } as const
-
-type SupportPromptType = keyof typeof supportPromptConfigs
 
 export const supportPrompt = {
 	default: Object.fromEntries(Object.entries(supportPromptConfigs).map(([key, config]) => [key, config.template])),

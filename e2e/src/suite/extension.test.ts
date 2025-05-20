@@ -1,24 +1,47 @@
 import * as assert from "assert"
 import * as vscode from "vscode"
 
+import { Package } from "@roo-code/types"
+
 suite("Roo Code Extension", () => {
 	test("Commands should be registered", async () => {
 		const expectedCommands = [
-			"roo-cline.plusButtonClicked",
-			"roo-cline.mcpButtonClicked",
-			"roo-cline.historyButtonClicked",
-			"roo-cline.popoutButtonClicked",
-			"roo-cline.settingsButtonClicked",
-			"roo-cline.openInNewTab",
-			"roo-cline.explainCode",
-			"roo-cline.fixCode",
-			"roo-cline.improveCode",
+			"SidebarProvider.open",
+			"SidebarProvider.focus",
+			"SidebarProvider.resetViewLocation",
+			"SidebarProvider.toggleVisibility",
+			"SidebarProvider.removeView",
+			"activationCompleted",
+			"plusButtonClicked",
+			"mcpButtonClicked",
+			"promptsButtonClicked",
+			"popoutButtonClicked",
+			"openInNewTab",
+			"settingsButtonClicked",
+			"historyButtonClicked",
+			"showHumanRelayDialog",
+			"registerHumanRelayCallback",
+			"unregisterHumanRelayCallback",
+			"handleHumanRelayResponse",
+			"newTask",
+			"setCustomStoragePath",
+			"focusInput",
+			"acceptInput",
+			"explainCode",
+			"fixCode",
+			"improveCode",
+			"addToContext",
+			"terminalAddToContext",
+			"terminalFixCommand",
+			"terminalExplainCommand",
 		]
 
-		const commands = await vscode.commands.getCommands(true)
+		const commands = new Set(
+			(await vscode.commands.getCommands(true)).filter((cmd) => cmd.startsWith(Package.name)),
+		)
 
-		for (const cmd of expectedCommands) {
-			assert.ok(commands.includes(cmd), `Command ${cmd} should be registered`)
+		for (const command of expectedCommands) {
+			assert.ok(commands.has(`${Package.name}.${command}`), `Command ${command} should be registered`)
 		}
 	})
 })

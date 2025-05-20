@@ -14,6 +14,7 @@ try {
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
 
+import { Package } from "./schemas"
 import { ContextProxy } from "./core/config/ContextProxy"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
@@ -65,7 +66,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	TerminalRegistry.initialize()
 
 	// Get default commands from configuration.
-	const defaultCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
+	const defaultCommands = vscode.workspace.getConfiguration(Package.name).get<string[]>("allowedCommands") || []
 
 	// Initialize global state if not already set.
 	if (!context.globalState.get("allowedCommands")) {
@@ -123,7 +124,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	registerTerminalActions(context)
 
 	// Allows other extensions to activate once Roo is ready.
-	vscode.commands.executeCommand("roo-cline.activationCompleted")
+	vscode.commands.executeCommand(`${Package.name}.activationCompleted`)
 
 	// Implements the `RooCodeAPI` interface.
 	const socketPath = process.env.ROO_CODE_IPC_SOCKET_PATH

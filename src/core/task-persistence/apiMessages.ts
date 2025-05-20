@@ -6,7 +6,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { fileExistsAtPath } from "../../utils/fs"
 
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import { getTaskDirectoryPath } from "../../shared/storagePathManager"
+import { getTaskDirectoryPath } from "../../utils/storage"
 
 export type ApiMessage = Anthropic.MessageParam & { ts?: number; isSummary?: boolean }
 

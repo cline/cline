@@ -2,9 +2,9 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 
 import { ModelInfo } from "../../shared/api"
-import { ApiHandler, SingleCompletionHandler } from "../index"
+import { getCommand } from "../../utils/commands"
 import { ApiStream } from "../transform/stream"
-
+import { ApiHandler, SingleCompletionHandler } from "../index"
 /**
  * Human Relay API processor
  * This processor does not directly call the API, but interacts with the model through human operations copy and paste.
@@ -111,17 +111,17 @@ function getMessageContent(message: Anthropic.Messages.MessageParam): string {
  */
 async function showHumanRelayDialog(promptText: string): Promise<string | undefined> {
 	return new Promise<string | undefined>((resolve) => {
-		// Create a unique request ID
+		// Create a unique request ID.
 		const requestId = Date.now().toString()
 
-		// Register a global callback function
+		// Register a global callback function.
 		vscode.commands.executeCommand(
-			"roo-cline.registerHumanRelayCallback",
+			getCommand("registerHumanRelayCallback"),
 			requestId,
 			(response: string | undefined) => resolve(response),
 		)
 
-		// Open the dialog box directly using the current panel
-		vscode.commands.executeCommand("roo-cline.showHumanRelayDialog", { requestId, promptText })
+		// Open the dialog box directly using the current panel.
+		vscode.commands.executeCommand(getCommand("showHumanRelayDialog"), { requestId, promptText })
 	})
 }

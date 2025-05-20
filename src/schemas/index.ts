@@ -7,6 +7,61 @@ import { z } from "zod"
 import { Equals, Keys, AssertEqual } from "../utils/type-fu"
 
 /**
+ * Extension
+ */
+
+import { publisher, name, version } from "../../package.json"
+
+export const Package = {
+	publisher,
+	name,
+	version,
+} as const
+
+/**
+ * CodeAction
+ */
+
+export type CodeActionName = "EXPLAIN" | "FIX" | "IMPROVE" | "ADD_TO_CONTEXT" | "NEW_TASK"
+
+export type CodeActionId = "explainCode" | "fixCode" | "improveCode" | "addToContext" | "newTask"
+
+/**
+ * TerminalAction
+ */
+
+export type TerminalActionName = "ADD_TO_CONTEXT" | "FIX" | "EXPLAIN"
+
+export type TerminalActionPromptType = `TERMINAL_${TerminalActionName}`
+
+export type TerminalActionId = "terminalAddToContext" | "terminalFixCommand" | "terminalExplainCommand"
+
+/**
+ * Command
+ */
+
+const commandIds = [
+	"activationCompleted",
+	"plusButtonClicked",
+	"mcpButtonClicked",
+	"promptsButtonClicked",
+	"popoutButtonClicked",
+	"openInNewTab",
+	"settingsButtonClicked",
+	"historyButtonClicked",
+	"showHumanRelayDialog",
+	"registerHumanRelayCallback",
+	"unregisterHumanRelayCallback",
+	"handleHumanRelayResponse",
+	"newTask",
+	"setCustomStoragePath",
+	"focusInput",
+	"acceptInput",
+] as const
+
+export type CommandId = (typeof commandIds)[number]
+
+/**
  * ProviderName
  */
 

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { jest } from "@jest/globals" // Or 'jest' if using Jest
-import { version } from "../../../../../package.json"
+
+import { Package } from "@roo/schemas"
 
 import Announcement from "../Announcement"
 
@@ -31,7 +32,7 @@ jest.mock("@src/i18n/TranslationContext", () => ({
 
 describe("Announcement", () => {
 	const mockHideAnnouncement = jest.fn()
-	const expectedVersion = version
+	const expectedVersion = Package.version
 
 	it("renders the announcement with the version number from package.json", () => {
 		render(<Announcement hideAnnouncement={mockHideAnnouncement} />)

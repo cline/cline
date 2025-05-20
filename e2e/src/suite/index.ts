@@ -3,7 +3,7 @@ import Mocha from "mocha"
 import { glob } from "glob"
 import * as vscode from "vscode"
 
-import type { RooCodeAPI } from "../../../src/exports/roo-code"
+import { type RooCodeAPI, Package } from "@roo-code/types"
 
 import { waitFor } from "./utils"
 
@@ -12,7 +12,7 @@ declare global {
 }
 
 export async function run() {
-	const extension = vscode.extensions.getExtension<RooCodeAPI>("RooVeterinaryInc.roo-cline")
+	const extension = vscode.extensions.getExtension<RooCodeAPI>(`${Package.publisher}.${Package.name}`)
 
 	if (!extension) {
 		throw new Error("Extension not found")
@@ -26,7 +26,7 @@ export async function run() {
 		openRouterModelId: "google/gemini-2.0-flash-001",
 	})
 
-	await vscode.commands.executeCommand("roo-cline.SidebarProvider.focus")
+	await vscode.commands.executeCommand(`${Package.name}.SidebarProvider.focus`)
 	await waitFor(() => api.isReady())
 
 	// Expose the API to the tests.

@@ -5,7 +5,7 @@ import NodeCache from "node-cache"
 import sanitize from "sanitize-filename"
 
 import { ContextProxy } from "../../../core/config/ContextProxy"
-import { getCacheDirectoryPath } from "../../../shared/storagePathManager"
+import { getCacheDirectoryPath } from "../../../utils/storage"
 import { RouterName, ModelRecord } from "../../../shared/api"
 import { fileExistsAtPath } from "../../../utils/fs"
 
