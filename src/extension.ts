@@ -358,6 +358,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	const CONTEXT_LINES_TO_EXPAND = 3
+	const START_OF_LINE_CHAR_INDEX = 0
+	const LINE_COUNT_ADJUSTMENT_FOR_ZERO_INDEXING = 1
+
 	// Register code action provider
 	context.subscriptions.push(
 		vscode.languages.registerCodeActionsProvider(
@@ -386,10 +390,18 @@ export async function activate(context: vscode.ExtensionContext) {
 						expandedRange = selection
 					} else {
 						expandedRange = new vscode.Range(
-							Math.max(0, range.start.line - 3),
-							0,
-							Math.min(document.lineCount - 1, range.end.line + 3),
-							document.lineAt(Math.min(document.lineCount - 1, range.end.line + 3)).text.length,
+							Math.max(0, range.start.line - CONTEXT_LINES_TO_EXPAND),
+							START_OF_LINE_CHAR_INDEX,
+							Math.min(
+								document.lineCount - LINE_COUNT_ADJUSTMENT_FOR_ZERO_INDEXING,
+								range.end.line + CONTEXT_LINES_TO_EXPAND,
+							),
+							document.lineAt(
+								Math.min(
+									document.lineCount - LINE_COUNT_ADJUSTMENT_FOR_ZERO_INDEXING,
+									range.end.line + CONTEXT_LINES_TO_EXPAND,
+								),
+							).text.length,
 						)
 					}
 
