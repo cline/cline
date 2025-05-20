@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 
 import { ContextCondense } from "@roo/schemas"
+import { Markdown } from "./Markdown"
 
 const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, summary }: ContextCondense) => {
 	const { t } = useTranslation()
@@ -25,9 +26,13 @@ const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, summary
 			</div>
 
 			{isExpanded && (
-				<div className="mt-2 ml-6 p-3 bg-vscode-editor-background rounded text-vscode-foreground text-sm">
-					<h3 className="font-bold mb-2">{t("chat:contextCondense.conversationSummary")}</h3>
-					{summary}
+				<div className="mt-2 ml-0 p-4 bg-vscode-editor-background rounded text-vscode-foreground text-sm">
+					<h3 className="font-bold mb-4" style={{ marginBottom: 20, marginTop: -4, marginLeft: 8 }}>
+						{t("chat:contextCondense.conversationSummary")}
+					</h3>
+					<div style={{ marginLeft: -24 }}>
+						<Markdown markdown={summary} />
+					</div>
 				</div>
 			)}
 		</div>
