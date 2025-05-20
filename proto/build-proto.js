@@ -55,7 +55,7 @@ async function main() {
 
 	// Process all proto files
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
-	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, absolute: true })
+	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, realpath: true })
 
 	// Build the protoc command with proper path handling for cross-platform
 	const tsProtocCommand = [
