@@ -1,6 +1,5 @@
-import { ContentBlock, SystemContentBlock } from "@aws-sdk/client-bedrock-runtime"
+import { ContentBlock, SystemContentBlock, BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
 
 import { MultiPointStrategy } from "../multi-point-strategy"
 import { CacheStrategyConfig, ModelInfo, CachePointPlacement } from "../types"

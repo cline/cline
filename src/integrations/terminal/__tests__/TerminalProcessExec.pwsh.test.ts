@@ -7,8 +7,7 @@ import { TerminalProcess } from "../TerminalProcess"
 import { Terminal } from "../Terminal"
 import { TerminalRegistry } from "../TerminalRegistry"
 import { createPowerShellStream } from "./streamUtils/pwshStream"
-import { createPowerShellMockStream } from "./streamUtils"
-import { isPowerShellCoreAvailable } from "./streamUtils"
+import { createPowerShellMockStream, isPowerShellCoreAvailable } from "./streamUtils"
 
 // Skip this test if PowerShell Core is not available
 const hasPwsh = isPowerShellCoreAvailable()

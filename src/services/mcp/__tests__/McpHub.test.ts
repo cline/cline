@@ -1,7 +1,6 @@
-import type { McpHub as McpHubType } from "../McpHub"
+import type { McpHub as McpHubType, McpConnection } from "../McpHub"
 import type { ClineProvider } from "../../../core/webview/ClineProvider"
 import type { ExtensionContext, Uri } from "vscode"
-import type { McpConnection } from "../McpHub"
 import { ServerConfigSchema } from "../McpHub"
 
 const fs = require("fs/promises")

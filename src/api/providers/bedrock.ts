@@ -4,6 +4,8 @@ import {
 	ConverseCommand,
 	BedrockRuntimeClientConfig,
 	ContentBlock,
+	Message,
+	SystemContentBlock,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromIni } from "@aws-sdk/credential-providers"
 import { Anthropic } from "@anthropic-ai/sdk"
@@ -19,7 +21,6 @@ import { ProviderSettings } from "../../schemas"
 import { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
 import { logger } from "../../utils/logging"
-import { Message, SystemContentBlock } from "@aws-sdk/client-bedrock-runtime"
 // New cache-related imports
 import { MultiPointStrategy } from "../transform/cache-strategy/multi-point-strategy"
 import { ModelInfo as CacheModelInfo } from "../transform/cache-strategy/types"

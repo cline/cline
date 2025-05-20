@@ -1,5 +1,4 @@
-import fs from "fs"
-import { createReadStream } from "fs"
+import fs, { createReadStream } from "fs"
 import { createInterface } from "readline"
 
 /**
