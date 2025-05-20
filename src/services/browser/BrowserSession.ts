@@ -159,13 +159,11 @@ export class BrowserSession {
 				throw new Error("Chrome was launched but debug port is not responding")
 			}
 
-			// The result will be returned directly through the gRPC response
 			return {
 				success: true,
 				message: `Browser successfully launched with debug mode\nUsing: ${installation}`,
 			}
 		} catch (error) {
-			// The error will be returned directly through the gRPC response
 			return {
 				success: false,
 				message: `Failed to relaunch Chrome: ${error instanceof Error ? error.message : String(error)}`,
