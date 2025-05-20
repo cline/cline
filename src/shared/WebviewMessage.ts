@@ -22,7 +22,6 @@ export interface WebviewMessage {
 		| "openMcpSettings"
 		| "autoApprovalSettings"
 		| "browserRelaunchResult"
-		| "togglePlanActMode"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
