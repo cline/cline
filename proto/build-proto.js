@@ -10,11 +10,15 @@ import chalk from "chalk"
 import { createRequire } from "module"
 const require = createRequire(import.meta.url)
 const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
-const tsProtoPlugin = require.resolve("ts-proto/protoc-gen-ts_proto")
 
 const __filename = fileURLToPath(import.meta.url)
 const SCRIPT_DIR = path.dirname(__filename)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
+
+const isWindows = process.platform === "win32"
+const tsProtoPlugin = isWindows
+	? path.join(ROOT_DIR, "node_modules", ".bin", "protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
+	: require.resolve("ts-proto/protoc-gen-ts_proto")
 
 // List of gRPC services
 // To add a new service, simply add it to this map and run this script
