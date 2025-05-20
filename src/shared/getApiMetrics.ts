@@ -72,9 +72,14 @@ export function getApiMetrics(messages: ClineMessage[]) {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i]
 		if (message.type === "say" && message.say === "api_req_started" && message.text) {
-			const parsedText: ParsedApiReqStartedTextType = JSON.parse(message.text)
-			const { tokensIn, tokensOut, cacheWrites, cacheReads } = parsedText
-			result.contextTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+			try {
+				const parsedText: ParsedApiReqStartedTextType = JSON.parse(message.text)
+				const { tokensIn, tokensOut, cacheWrites, cacheReads } = parsedText
+				result.contextTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+			} catch (error) {
+				console.error("Error parsing JSON:", error)
+				continue
+			}
 		} else if (message.type === "say" && message.say === "condense_context") {
 			result.contextTokens = message.contextCondense?.newContextTokens ?? 0
 		}
