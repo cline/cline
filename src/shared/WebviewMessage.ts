@@ -51,7 +51,6 @@ export interface WebviewMessage {
 		| "toggleWorkflow"
 		| "deleteClineRule"
 		| "updateTerminalConnectionTimeout"
-		| "setActiveQuote"
 
 	// | "relaunchChromeDebugMode"
 	text?: string

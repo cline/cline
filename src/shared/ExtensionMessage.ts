@@ -44,7 +44,6 @@ export interface ExtensionMessage {
 		| "browserRelaunchResult"
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
-		| "setActiveQuote"
 	text?: string
 	action?:
 		| "chatButtonClicked"
