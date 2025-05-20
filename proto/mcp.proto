@@ -13,6 +13,7 @@ service McpService {
   rpc downloadMcp(StringRequest) returns (Empty);
   rpc restartMcpServer(StringRequest) returns (McpServers);
   rpc deleteMcpServer(StringRequest) returns (McpServers);
+  rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
 }
 
 message ToggleMcpServerRequest {
@@ -31,6 +32,13 @@ message AddRemoteMcpServerRequest {
   Metadata metadata = 1;
   string server_name = 2;
   string server_url = 3;
+}
+
+message ToggleToolAutoApproveRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  repeated string tool_names = 3;
+  bool auto_approve = 4;
 }
 
 message McpTool {

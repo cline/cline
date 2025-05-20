@@ -21,10 +21,8 @@ export interface WebviewMessage {
 		| "refreshClineRules"
 		| "openMcpSettings"
 		| "autoApprovalSettings"
-		| "browserRelaunchResult"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
 		| "showAccountViewClicked"
 		| "authStateChanged"
 		| "authCallback"
@@ -40,18 +38,12 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
-		| "relaunchChromeDebugMode"
-		| "scrollToSettings"
 		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleClineRule"
-		| "toggleCursorRule"
 		| "toggleWindsurfRule"
 		| "toggleWorkflow"
-		| "deleteClineRule"
 
-	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
 	apiConfiguration?: ApiConfiguration

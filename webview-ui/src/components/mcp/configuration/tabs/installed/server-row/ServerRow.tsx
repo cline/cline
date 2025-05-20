@@ -134,12 +134,18 @@ const ServerRow = ({
 	const handleAutoApproveChange = () => {
 		if (!server.name) return
 
-		vscode.postMessage({
-			type: "toggleToolAutoApprove",
+		McpServiceClient.toggleToolAutoApprove({
 			serverName: server.name,
 			toolNames: server.tools?.map((tool) => tool.name) || [],
 			autoApprove: !server.tools?.every((tool) => tool.autoApprove),
 		})
+			.then((response) => {
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+			})
+			.catch((error) => {
+				console.error("Error toggling all tools auto-approve", error)
+			})
 	}
 
 	const handleToggleMcpServer = () => {

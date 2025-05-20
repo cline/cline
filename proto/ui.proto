@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+// UiService provides methods for managing UI interactions
+service UiService {
+  // Scrolls to a specific settings section in the settings view
+  rpc scrollToSettings(StringRequest) returns (Empty);
+}
+
