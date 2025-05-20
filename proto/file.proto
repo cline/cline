@@ -34,6 +34,9 @@ service FileService {
 
   // Search for files in the workspace with fuzzy matching
   rpc searchFiles(FileSearchRequest) returns (FileSearchResults);
+  
+  // Toggle a Cline rule (enable or disable)
+  rpc toggleClineRule(ToggleClineRuleRequest) returns (ToggleClineRules);
 }
 
 // Request to convert a list of URIs to relative paths
@@ -96,4 +99,23 @@ message RuleFile {
   string file_path = 1;     // Path to the rule file
   string display_name = 2;  // Filename for display purposes
   bool already_exists = 3;  // For createRuleFile, indicates if file already existed
+}
+
+// Request to toggle a Cline rule
+message ToggleClineRuleRequest {
+  Metadata metadata = 1;
+  bool is_global = 2;     // Whether this is a global rule or workspace rule
+  string rule_path = 3;   // Path to the rule file
+  bool enabled = 4;       // Whether to enable or disable the rule
+}
+
+// Maps from filepath to enabled/disabled status, matching app's ClineRulesToggles type
+message ClineRulesToggles {
+  map<string, bool> toggles = 1;
+}
+
+// Response for toggleClineRule operation
+message ToggleClineRules {
+  ClineRulesToggles global_cline_rules_toggles = 1;
+  ClineRulesToggles local_cline_rules_toggles = 2;
 }

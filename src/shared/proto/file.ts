@@ -87,6 +87,33 @@ export interface RuleFile {
 	alreadyExists: boolean
 }
 
+/** Request to toggle a Cline rule */
+export interface ToggleClineRuleRequest {
+	metadata?: Metadata | undefined
+	/** Whether this is a global rule or workspace rule */
+	isGlobal: boolean
+	/** Path to the rule file */
+	rulePath: string
+	/** Whether to enable or disable the rule */
+	enabled: boolean
+}
+
+/** Maps from filepath to enabled/disabled status, matching app's ClineRulesToggles type */
+export interface ClineRulesToggles {
+	toggles: { [key: string]: boolean }
+}
+
+export interface ClineRulesToggles_TogglesEntry {
+	key: string
+	value: boolean
+}
+
+/** Response for toggleClineRule operation */
+export interface ToggleClineRules {
+	globalClineRulesToggles?: ClineRulesToggles | undefined
+	localClineRulesToggles?: ClineRulesToggles | undefined
+}
+
 function createBaseRelativePathsRequest(): RelativePathsRequest {
 	return { metadata: undefined, uris: [] }
 }
@@ -900,6 +927,356 @@ export const RuleFile: MessageFns<RuleFile> = {
 	},
 }
 
+function createBaseToggleClineRuleRequest(): ToggleClineRuleRequest {
+	return { metadata: undefined, isGlobal: false, rulePath: "", enabled: false }
+}
+
+export const ToggleClineRuleRequest: MessageFns<ToggleClineRuleRequest> = {
+	encode(message: ToggleClineRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.isGlobal !== false) {
+			writer.uint32(16).bool(message.isGlobal)
+		}
+		if (message.rulePath !== "") {
+			writer.uint32(26).string(message.rulePath)
+		}
+		if (message.enabled !== false) {
+			writer.uint32(32).bool(message.enabled)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ToggleClineRuleRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseToggleClineRuleRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.isGlobal = reader.bool()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.rulePath = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 32) {
+						break
+					}
+
+					message.enabled = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ToggleClineRuleRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
+			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
+			enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+		}
+	},
+
+	toJSON(message: ToggleClineRuleRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.isGlobal !== false) {
+			obj.isGlobal = message.isGlobal
+		}
+		if (message.rulePath !== "") {
+			obj.rulePath = message.rulePath
+		}
+		if (message.enabled !== false) {
+			obj.enabled = message.enabled
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ToggleClineRuleRequest>, I>>(base?: I): ToggleClineRuleRequest {
+		return ToggleClineRuleRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ToggleClineRuleRequest>, I>>(object: I): ToggleClineRuleRequest {
+		const message = createBaseToggleClineRuleRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.isGlobal = object.isGlobal ?? false
+		message.rulePath = object.rulePath ?? ""
+		message.enabled = object.enabled ?? false
+		return message
+	},
+}
+
+function createBaseClineRulesToggles(): ClineRulesToggles {
+	return { toggles: {} }
+}
+
+export const ClineRulesToggles: MessageFns<ClineRulesToggles> = {
+	encode(message: ClineRulesToggles, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		Object.entries(message.toggles).forEach(([key, value]) => {
+			ClineRulesToggles_TogglesEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join()
+		})
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ClineRulesToggles {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseClineRulesToggles()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					const entry1 = ClineRulesToggles_TogglesEntry.decode(reader, reader.uint32())
+					if (entry1.value !== undefined) {
+						message.toggles[entry1.key] = entry1.value
+					}
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ClineRulesToggles {
+		return {
+			toggles: isObject(object.toggles)
+				? Object.entries(object.toggles).reduce<{ [key: string]: boolean }>((acc, [key, value]) => {
+						acc[key] = Boolean(value)
+						return acc
+					}, {})
+				: {},
+		}
+	},
+
+	toJSON(message: ClineRulesToggles): unknown {
+		const obj: any = {}
+		if (message.toggles) {
+			const entries = Object.entries(message.toggles)
+			if (entries.length > 0) {
+				obj.toggles = {}
+				entries.forEach(([k, v]) => {
+					obj.toggles[k] = v
+				})
+			}
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ClineRulesToggles>, I>>(base?: I): ClineRulesToggles {
+		return ClineRulesToggles.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ClineRulesToggles>, I>>(object: I): ClineRulesToggles {
+		const message = createBaseClineRulesToggles()
+		message.toggles = Object.entries(object.toggles ?? {}).reduce<{ [key: string]: boolean }>((acc, [key, value]) => {
+			if (value !== undefined) {
+				acc[key] = globalThis.Boolean(value)
+			}
+			return acc
+		}, {})
+		return message
+	},
+}
+
+function createBaseClineRulesToggles_TogglesEntry(): ClineRulesToggles_TogglesEntry {
+	return { key: "", value: false }
+}
+
+export const ClineRulesToggles_TogglesEntry: MessageFns<ClineRulesToggles_TogglesEntry> = {
+	encode(message: ClineRulesToggles_TogglesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.key !== "") {
+			writer.uint32(10).string(message.key)
+		}
+		if (message.value !== false) {
+			writer.uint32(16).bool(message.value)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ClineRulesToggles_TogglesEntry {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseClineRulesToggles_TogglesEntry()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.key = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 16) {
+						break
+					}
+
+					message.value = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ClineRulesToggles_TogglesEntry {
+		return {
+			key: isSet(object.key) ? globalThis.String(object.key) : "",
+			value: isSet(object.value) ? globalThis.Boolean(object.value) : false,
+		}
+	},
+
+	toJSON(message: ClineRulesToggles_TogglesEntry): unknown {
+		const obj: any = {}
+		if (message.key !== "") {
+			obj.key = message.key
+		}
+		if (message.value !== false) {
+			obj.value = message.value
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ClineRulesToggles_TogglesEntry>, I>>(base?: I): ClineRulesToggles_TogglesEntry {
+		return ClineRulesToggles_TogglesEntry.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ClineRulesToggles_TogglesEntry>, I>>(object: I): ClineRulesToggles_TogglesEntry {
+		const message = createBaseClineRulesToggles_TogglesEntry()
+		message.key = object.key ?? ""
+		message.value = object.value ?? false
+		return message
+	},
+}
+
+function createBaseToggleClineRules(): ToggleClineRules {
+	return { globalClineRulesToggles: undefined, localClineRulesToggles: undefined }
+}
+
+export const ToggleClineRules: MessageFns<ToggleClineRules> = {
+	encode(message: ToggleClineRules, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.globalClineRulesToggles !== undefined) {
+			ClineRulesToggles.encode(message.globalClineRulesToggles, writer.uint32(10).fork()).join()
+		}
+		if (message.localClineRulesToggles !== undefined) {
+			ClineRulesToggles.encode(message.localClineRulesToggles, writer.uint32(18).fork()).join()
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ToggleClineRules {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseToggleClineRules()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.globalClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.localClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ToggleClineRules {
+		return {
+			globalClineRulesToggles: isSet(object.globalClineRulesToggles)
+				? ClineRulesToggles.fromJSON(object.globalClineRulesToggles)
+				: undefined,
+			localClineRulesToggles: isSet(object.localClineRulesToggles)
+				? ClineRulesToggles.fromJSON(object.localClineRulesToggles)
+				: undefined,
+		}
+	},
+
+	toJSON(message: ToggleClineRules): unknown {
+		const obj: any = {}
+		if (message.globalClineRulesToggles !== undefined) {
+			obj.globalClineRulesToggles = ClineRulesToggles.toJSON(message.globalClineRulesToggles)
+		}
+		if (message.localClineRulesToggles !== undefined) {
+			obj.localClineRulesToggles = ClineRulesToggles.toJSON(message.localClineRulesToggles)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ToggleClineRules>, I>>(base?: I): ToggleClineRules {
+		return ToggleClineRules.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ToggleClineRules>, I>>(object: I): ToggleClineRules {
+		const message = createBaseToggleClineRules()
+		message.globalClineRulesToggles =
+			object.globalClineRulesToggles !== undefined && object.globalClineRulesToggles !== null
+				? ClineRulesToggles.fromPartial(object.globalClineRulesToggles)
+				: undefined
+		message.localClineRulesToggles =
+			object.localClineRulesToggles !== undefined && object.localClineRulesToggles !== null
+				? ClineRulesToggles.fromPartial(object.localClineRulesToggles)
+				: undefined
+		return message
+	},
+}
+
 /** Service for file-related operations */
 export type FileServiceDefinition = typeof FileServiceDefinition
 export const FileServiceDefinition = {
@@ -987,6 +1364,15 @@ export const FileServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Toggle a Cline rule (enable or disable) */
+		toggleClineRule: {
+			name: "toggleClineRule",
+			requestType: ToggleClineRuleRequest,
+			requestStream: false,
+			responseType: ToggleClineRules,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
 
@@ -1006,6 +1392,10 @@ type KeysOfUnion<T> = T extends T ? keyof T : never
 export type Exact<P, I extends P> = P extends Builtin
 	? P
 	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+
+function isObject(value: any): boolean {
+	return typeof value === "object" && value !== null
+}
 
 function isSet(value: any): boolean {
 	return value !== null && value !== undefined
