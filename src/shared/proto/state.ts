@@ -10,6 +10,39 @@ import { Empty, EmptyRequest, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
+export enum PlanActMode {
+	PLAN = 0,
+	ACT = 1,
+	UNRECOGNIZED = -1,
+}
+
+export function planActModeFromJSON(object: any): PlanActMode {
+	switch (object) {
+		case 0:
+		case "PLAN":
+			return PlanActMode.PLAN
+		case 1:
+		case "ACT":
+			return PlanActMode.ACT
+		case -1:
+		case "UNRECOGNIZED":
+		default:
+			return PlanActMode.UNRECOGNIZED
+	}
+}
+
+export function planActModeToJSON(object: PlanActMode): string {
+	switch (object) {
+		case PlanActMode.PLAN:
+			return "PLAN"
+		case PlanActMode.ACT:
+			return "ACT"
+		case PlanActMode.UNRECOGNIZED:
+		default:
+			return "UNRECOGNIZED"
+	}
+}
+
 export interface State {
 	stateJson: string
 }
@@ -21,7 +54,7 @@ export interface TogglePlanActModeRequest {
 }
 
 export interface ChatSettings {
-	mode: string
+	mode: PlanActMode
 	preferredLanguage?: string | undefined
 	openAiReasoningEffort?: string | undefined
 }
@@ -189,13 +222,13 @@ export const TogglePlanActModeRequest: MessageFns<TogglePlanActModeRequest> = {
 }
 
 function createBaseChatSettings(): ChatSettings {
-	return { mode: "", preferredLanguage: undefined, openAiReasoningEffort: undefined }
+	return { mode: 0, preferredLanguage: undefined, openAiReasoningEffort: undefined }
 }
 
 export const ChatSettings: MessageFns<ChatSettings> = {
 	encode(message: ChatSettings, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.mode !== "") {
-			writer.uint32(10).string(message.mode)
+		if (message.mode !== 0) {
+			writer.uint32(8).int32(message.mode)
 		}
 		if (message.preferredLanguage !== undefined) {
 			writer.uint32(18).string(message.preferredLanguage)
@@ -214,11 +247,11 @@ export const ChatSettings: MessageFns<ChatSettings> = {
 			const tag = reader.uint32()
 			switch (tag >>> 3) {
 				case 1: {
-					if (tag !== 10) {
+					if (tag !== 8) {
 						break
 					}
 
-					message.mode = reader.string()
+					message.mode = reader.int32() as any
 					continue
 				}
 				case 2: {
@@ -248,7 +281,7 @@ export const ChatSettings: MessageFns<ChatSettings> = {
 
 	fromJSON(object: any): ChatSettings {
 		return {
-			mode: isSet(object.mode) ? globalThis.String(object.mode) : "",
+			mode: isSet(object.mode) ? planActModeFromJSON(object.mode) : 0,
 			preferredLanguage: isSet(object.preferredLanguage) ? globalThis.String(object.preferredLanguage) : undefined,
 			openAiReasoningEffort: isSet(object.openAiReasoningEffort)
 				? globalThis.String(object.openAiReasoningEffort)
@@ -258,8 +291,8 @@ export const ChatSettings: MessageFns<ChatSettings> = {
 
 	toJSON(message: ChatSettings): unknown {
 		const obj: any = {}
-		if (message.mode !== "") {
-			obj.mode = message.mode
+		if (message.mode !== 0) {
+			obj.mode = planActModeToJSON(message.mode)
 		}
 		if (message.preferredLanguage !== undefined) {
 			obj.preferredLanguage = message.preferredLanguage
@@ -275,7 +308,7 @@ export const ChatSettings: MessageFns<ChatSettings> = {
 	},
 	fromPartial<I extends Exact<DeepPartial<ChatSettings>, I>>(object: I): ChatSettings {
 		const message = createBaseChatSettings()
-		message.mode = object.mode ?? ""
+		message.mode = object.mode ?? 0
 		message.preferredLanguage = object.preferredLanguage ?? undefined
 		message.openAiReasoningEffort = object.openAiReasoningEffort ?? undefined
 		return message

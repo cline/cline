@@ -18,7 +18,6 @@ import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { StateServiceClient } from "@/services/grpc-client"
-import { Metadata } from "@shared/proto/common"
 import FeatureSettingsSection from "./FeatureSettingsSection"
 import BrowserSettingsSection from "./BrowserSettingsSection"
 import TerminalSettingsSection from "./TerminalSettingsSection"
@@ -117,7 +116,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				case "didUpdateSettings":
 					if (pendingTabChange) {
 						StateServiceClient.togglePlanActMode({
-							metadata: {} as Metadata,
 							chatSettings: {
 								mode: pendingTabChange,
 							},

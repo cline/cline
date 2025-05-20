@@ -1,13 +1,13 @@
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
-import { ChatContent as ProtoChatContent, ChatSettings as ProtoChatSettings } from "@shared/proto/state"
+import { ChatContent as ProtoChatContent, ChatSettings as ProtoChatSettings, PlanActMode } from "../../../shared/proto/state"
 
 /**
  * Converts domain ChatSettings objects to proto ChatSettings objects
  */
 export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSettings): ProtoChatSettings {
 	return {
-		mode: chatSettings.mode,
+		mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
 		preferredLanguage: chatSettings.preferredLanguage,
 		openAiReasoningEffort: chatSettings.openAIReasoningEffort,
 	}
@@ -18,7 +18,7 @@ export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSetting
  */
 export function convertProtoChatSettingsToChatSettings(protoChatSettings: ProtoChatSettings): ChatSettings {
 	return {
-		mode: protoChatSettings.mode as "plan" | "act",
+		mode: protoChatSettings.mode === PlanActMode.PLAN ? "plan" : "act",
 		preferredLanguage: protoChatSettings.preferredLanguage,
 		openAIReasoningEffort: protoChatSettings.openAiReasoningEffort as "low" | "medium" | "high" | undefined,
 	}
