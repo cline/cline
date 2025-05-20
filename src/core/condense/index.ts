@@ -119,7 +119,7 @@ export async function summarizeConversation(
 		typeof message.content === "string" ? [{ text: message.content, type: "text" as const }] : message.content,
 	)
 	const newContextTokens = outputTokens + (await apiHandler.countTokens(contextBlocks))
-	return { ...response, messages: newMessages, summary, cost, newContextTokens }
+	return { messages: newMessages, summary, cost, newContextTokens }
 }
 
 /* Returns the list of all messages since the last summary message, including the summary. Returns all messages if there is no summary. */
