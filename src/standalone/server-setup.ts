@@ -14,6 +14,7 @@ import { testBrowserConnection } from "../core/controller/browser/testBrowserCon
 import { discoverBrowser } from "../core/controller/browser/discoverBrowser"
 import { getDetectedChromePath } from "../core/controller/browser/getDetectedChromePath"
 import { updateBrowserSettings } from "../core/controller/browser/updateBrowserSettings"
+import { relaunchChromeDebugMode } from "../core/controller/browser/relaunchChromeDebugMode"
 
 // Checkpoints Service
 import { checkpointDiff } from "../core/controller/checkpoints/checkpointDiff"
@@ -101,6 +102,7 @@ export function addServices(
 		discoverBrowser: wrapper(discoverBrowser, controller),
 		getDetectedChromePath: wrapper(getDetectedChromePath, controller),
 		updateBrowserSettings: wrapper(updateBrowserSettings, controller),
+		relaunchChromeDebugMode: wrapper(relaunchChromeDebugMode, controller),
 	})
 
 	// Checkpoints Service
