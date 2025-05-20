@@ -111,6 +111,6 @@ export async function truncateConversationIfNeeded({
 			return { ...result, prevContextTokens: effectiveTokens }
 		}
 	}
-	const truncatedmessages = truncateConversation(messages, 0.5)
-	return { messages: truncatedmessages, prevContextTokens: effectiveTokens, summary: "", cost: 0 }
+	const truncatedMessages = truncateConversation(messages, 0.5)
+	return { messages: truncatedMessages, prevContextTokens: effectiveTokens, summary: "", cost: 0 }
 }
