@@ -297,7 +297,6 @@ export class Controller {
 				await this.postStateToWebview()
 				break
 			case "optionsResponse":
-				// Handle options response directly
 				if (this.task) {
 					await this.task.handleWebviewAskResponse("messageResponse", message.text || "", [])
 				}
@@ -627,7 +626,6 @@ export class Controller {
 				this.task.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
 				if (this.task) {
-					// Directly call the task's handleWebviewAskResponse method
 					await this.task.handleWebviewAskResponse(
 						"messageResponse",
 						chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
