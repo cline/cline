@@ -12,7 +12,7 @@ service BrowserService {
   rpc discoverBrowser(EmptyRequest) returns (BrowserConnection);
   rpc getDetectedChromePath(EmptyRequest) returns (ChromePath);
   rpc updateBrowserSettings(UpdateBrowserSettingsRequest) returns (Boolean);
-  rpc relaunchChromeDebugMode(EmptyRequest) returns (BrowserRelaunchMessage);
+  rpc relaunchChromeDebugMode(EmptyRequest) returns (String);
 }
 
 message BrowserConnectionInfo {
@@ -52,9 +52,4 @@ message UpdateBrowserSettingsRequest {
   optional bool remote_browser_enabled = 4;
   optional string chrome_executable_path = 5;
   optional bool disable_tool_use = 6;
-}
-
-message BrowserRelaunchMessage {
-  bool success = 1;
-  string message = 2;
 }

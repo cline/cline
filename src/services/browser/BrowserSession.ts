@@ -123,7 +123,7 @@ export class BrowserSession {
 		return stats
 	}
 
-	async relaunchChromeDebugMode(controller: Controller) {
+	async relaunchChromeDebugMode(controller: Controller): Promise<string> {
 		try {
 			const userDataDir = path.join(os.tmpdir(), "chrome-debug-profile")
 			const installation = chromeLauncher.Launcher.getFirstInstallation()
@@ -159,15 +159,9 @@ export class BrowserSession {
 				throw new Error("Chrome was launched but debug port is not responding")
 			}
 
-			return {
-				success: true,
-				message: `Browser successfully launched with debug mode\nUsing: ${installation}`,
-			}
+			return `Browser successfully launched with debug mode\nUsing: ${installation}`
 		} catch (error) {
-			return {
-				success: false,
-				message: `Failed to relaunch Chrome: ${error instanceof Error ? error.message : String(error)}`,
-			}
+			throw new Error(`Failed to relaunch Chrome: ${error instanceof Error ? error.message : globalThis.String(error)}`)
 		}
 	}
 

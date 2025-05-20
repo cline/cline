@@ -1,5 +1,4 @@
-import { BrowserRelaunchMessage } from "../../../shared/proto/browser"
-import { EmptyRequest } from "../../../shared/proto/common"
+import { EmptyRequest, String as StringMessage } from "../../../shared/proto/common"
 import { Controller } from "../index"
 import { BrowserSession } from "../../../services/browser/BrowserSession"
 
@@ -7,9 +6,9 @@ import { BrowserSession } from "../../../services/browser/BrowserSession"
  * Relaunch Chrome in debug mode
  * @param controller The controller instance
  * @param request The empty request message
- * @returns The browser relaunch result
+ * @returns The browser relaunch result as a string message
  */
-export async function relaunchChromeDebugMode(controller: Controller, request: EmptyRequest): Promise<BrowserRelaunchMessage> {
+export async function relaunchChromeDebugMode(controller: Controller, request: EmptyRequest): Promise<StringMessage> {
 	try {
 		const { browserSettings } = await controller.getStateToPostToWebview()
 		const browserSession = new BrowserSession(controller.context, browserSettings)
@@ -18,15 +17,11 @@ export async function relaunchChromeDebugMode(controller: Controller, request: E
 		await browserSession.relaunchChromeDebugMode(controller)
 
 		// The actual result will be sent via postMessageToWebview in the BrowserSession.relaunchChromeDebugMode method
-		// Here we just return a success message as a placeholder
+		// Here we just return a message as a placeholder
 		return {
-			success: true,
-			message: "Chrome relaunch initiated",
+			value: "Chrome relaunch initiated",
 		}
 	} catch (error) {
-		return {
-			success: false,
-			message: `Error relaunching Chrome: ${error instanceof Error ? error.message : String(error)}`,
-		}
+		throw new Error(`Error relaunching Chrome: ${error instanceof Error ? error.message : globalThis.String(error)}`)
 	}
 }
