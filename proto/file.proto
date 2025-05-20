@@ -37,6 +37,9 @@ service FileService {
   
   // Toggle a Cline rule (enable or disable)
   rpc toggleClineRule(ToggleClineRuleRequest) returns (ToggleClineRules);
+
+  // Toggle a Cursor rule (enable or disable)
+  rpc toggleCursorRule(ToggleCursorRuleRequest) returns (ClineRulesToggles);
 }
 
 // Request to convert a list of URIs to relative paths
@@ -118,4 +121,11 @@ message ClineRulesToggles {
 message ToggleClineRules {
   ClineRulesToggles global_cline_rules_toggles = 1;
   ClineRulesToggles local_cline_rules_toggles = 2;
+}
+
+// Request to toggle a Cursor rule
+message ToggleCursorRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2;   // Path to the rule file
+  bool enabled = 3;       // Whether to enable or disable the rule
 }

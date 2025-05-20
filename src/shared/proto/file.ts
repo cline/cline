@@ -114,6 +114,15 @@ export interface ToggleClineRules {
 	localClineRulesToggles?: ClineRulesToggles | undefined
 }
 
+/** Request to toggle a Cursor rule */
+export interface ToggleCursorRuleRequest {
+	metadata?: Metadata | undefined
+	/** Path to the rule file */
+	rulePath: string
+	/** Whether to enable or disable the rule */
+	enabled: boolean
+}
+
 function createBaseRelativePathsRequest(): RelativePathsRequest {
 	return { metadata: undefined, uris: [] }
 }
@@ -1277,6 +1286,99 @@ export const ToggleClineRules: MessageFns<ToggleClineRules> = {
 	},
 }
 
+function createBaseToggleCursorRuleRequest(): ToggleCursorRuleRequest {
+	return { metadata: undefined, rulePath: "", enabled: false }
+}
+
+export const ToggleCursorRuleRequest: MessageFns<ToggleCursorRuleRequest> = {
+	encode(message: ToggleCursorRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.rulePath !== "") {
+			writer.uint32(18).string(message.rulePath)
+		}
+		if (message.enabled !== false) {
+			writer.uint32(24).bool(message.enabled)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ToggleCursorRuleRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseToggleCursorRuleRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.rulePath = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.enabled = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ToggleCursorRuleRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
+			enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+		}
+	},
+
+	toJSON(message: ToggleCursorRuleRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.rulePath !== "") {
+			obj.rulePath = message.rulePath
+		}
+		if (message.enabled !== false) {
+			obj.enabled = message.enabled
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ToggleCursorRuleRequest>, I>>(base?: I): ToggleCursorRuleRequest {
+		return ToggleCursorRuleRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ToggleCursorRuleRequest>, I>>(object: I): ToggleCursorRuleRequest {
+		const message = createBaseToggleCursorRuleRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.rulePath = object.rulePath ?? ""
+		message.enabled = object.enabled ?? false
+		return message
+	},
+}
+
 /** Service for file-related operations */
 export type FileServiceDefinition = typeof FileServiceDefinition
 export const FileServiceDefinition = {
@@ -1370,6 +1472,15 @@ export const FileServiceDefinition = {
 			requestType: ToggleClineRuleRequest,
 			requestStream: false,
 			responseType: ToggleClineRules,
+			responseStream: false,
+			options: {},
+		},
+		/** Toggle a Cursor rule (enable or disable) */
+		toggleCursorRule: {
+			name: "toggleCursorRule",
+			requestType: ToggleCursorRuleRequest,
+			requestStream: false,
+			responseType: ClineRulesToggles,
 			responseStream: false,
 			options: {},
 		},

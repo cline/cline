@@ -422,19 +422,6 @@ export class Controller {
 				}
 				break
 			}
-			case "toggleCursorRule": {
-				const { rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean") {
-					const toggles =
-						((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
-					toggles[rulePath] = enabled
-					await updateWorkspaceState(this.context, "localCursorRulesToggles", toggles)
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleCursorRule: Missing or invalid parameters")
-				}
-				break
-			}
 			case "toggleWorkflow": {
 				const { workflowPath, enabled } = message
 				if (workflowPath && typeof enabled === "boolean") {
