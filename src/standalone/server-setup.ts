@@ -6,6 +6,7 @@ import { GrpcHandlerWrapper, GrpcStreamingResponseHandlerWrapper } from "./grpc-
 
 // Account Service
 import { accountLoginClicked } from "../core/controller/account/accountLoginClicked"
+import { accountLogoutClicked } from "../core/controller/account/accountLogoutClicked"
 
 // Browser Service
 import { getBrowserConnectionInfo } from "../core/controller/browser/getBrowserConnectionInfo"
@@ -19,6 +20,7 @@ import { checkpointDiff } from "../core/controller/checkpoints/checkpointDiff"
 import { checkpointRestore } from "../core/controller/checkpoints/checkpointRestore"
 
 // File Service
+import { copyToClipboard } from "../core/controller/file/copyToClipboard"
 import { openFile } from "../core/controller/file/openFile"
 import { openImage } from "../core/controller/file/openImage"
 import { deleteRuleFile } from "../core/controller/file/deleteRuleFile"
@@ -35,6 +37,7 @@ import { updateMcpTimeout } from "../core/controller/mcp/updateMcpTimeout"
 import { addRemoteMcpServer } from "../core/controller/mcp/addRemoteMcpServer"
 import { downloadMcp } from "../core/controller/mcp/downloadMcp"
 import { restartMcpServer } from "../core/controller/mcp/restartMcpServer"
+import { deleteMcpServer } from "../core/controller/mcp/deleteMcpServer"
 
 // Models Service
 import { getOllamaModels } from "../core/controller/models/getOllamaModels"
@@ -53,6 +56,7 @@ import { getLatestState } from "../core/controller/state/getLatestState"
 import { subscribeToState } from "../core/controller/state/subscribeToState"
 import { toggleFavoriteModel } from "../core/controller/state/toggleFavoriteModel"
 import { resetState } from "../core/controller/state/resetState"
+import { togglePlanActMode } from "../core/controller/state/togglePlanActMode"
 
 // Task Service
 import { cancelTask } from "../core/controller/task/cancelTask"
@@ -82,6 +86,7 @@ export function addServices(
 	// Account Service
 	server.addService(proto.cline.AccountService.service, {
 		accountLoginClicked: wrapper(accountLoginClicked, controller),
+		accountLogoutClicked: wrapper(accountLogoutClicked, controller),
 	})
 
 	// Browser Service
@@ -101,6 +106,7 @@ export function addServices(
 
 	// File Service
 	server.addService(proto.cline.FileService.service, {
+		copyToClipboard: wrapper(copyToClipboard, controller),
 		openFile: wrapper(openFile, controller),
 		openImage: wrapper(openImage, controller),
 		deleteRuleFile: wrapper(deleteRuleFile, controller),
@@ -119,6 +125,7 @@ export function addServices(
 		addRemoteMcpServer: wrapper(addRemoteMcpServer, controller),
 		downloadMcp: wrapper(downloadMcp, controller),
 		restartMcpServer: wrapper(restartMcpServer, controller),
+		deleteMcpServer: wrapper(deleteMcpServer, controller),
 	})
 
 	// Models Service
@@ -143,6 +150,7 @@ export function addServices(
 		subscribeToState: wrapStreamingResponse(subscribeToState, controller),
 		toggleFavoriteModel: wrapper(toggleFavoriteModel, controller),
 		resetState: wrapper(resetState, controller),
+		togglePlanActMode: wrapper(togglePlanActMode, controller),
 	})
 
 	// Task Service

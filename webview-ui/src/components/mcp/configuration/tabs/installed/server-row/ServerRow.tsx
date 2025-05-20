@@ -117,10 +117,18 @@ const ServerRow = ({
 
 	const handleDelete = () => {
 		setIsDeleting(true)
-		vscode.postMessage({
-			type: "deleteMcpServer",
-			serverName: server.name,
-		})
+		McpServiceClient.deleteMcpServer({
+			value: server.name,
+		} as StringRequest)
+			.then((response: McpServers) => {
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+				setIsDeleting(false)
+			})
+			.catch((error) => {
+				console.error("Error deleting MCP server", error)
+				setIsDeleting(false)
+			})
 	}
 
 	const handleAutoApproveChange = () => {

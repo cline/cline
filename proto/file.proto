@@ -8,6 +8,9 @@ import "common.proto";
 
 // Service for file-related operations
 service FileService {
+  // Copies text to clipboard
+  rpc copyToClipboard(StringRequest) returns (Empty);
+
   // Opens a file in the editor
   rpc openFile(StringRequest) returns (Empty);
  
