@@ -37,6 +37,7 @@ const ContextCondenseRow = ({ contextCondense }: ContextCondenseRowProps) => {
 
 			{isExpanded && (
 				<div className="mt-2 ml-6 p-3 bg-vscode-editor-background rounded text-vscode-foreground text-sm">
+					<h3 className="font-bold mb-2">Conversation Summary</h3>
 					{summary}
 				</div>
 			)}
