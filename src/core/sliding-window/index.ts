@@ -107,7 +107,7 @@ export async function truncateConversationIfNeeded({
 		return { messages, summary: "", cost: 0, prevContextTokens: effectiveTokens }
 	} else if (autoCondenseContext) {
 		const result = await summarizeConversation(messages, apiHandler, systemPrompt)
-		if (messages !== result.messages) {
+		if (result.summary) {
 			return { ...result, prevContextTokens: effectiveTokens }
 		}
 	}
