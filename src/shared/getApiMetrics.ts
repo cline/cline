@@ -39,10 +39,7 @@ export function getApiMetrics(messages: ClineMessage[]) {
 
 	// Calculate running totals
 	messages.forEach((message) => {
-		if (!message.text || message.type !== "say") {
-			return
-		}
-		if (message.say === "api_req_started") {
+		if (message.type === "say" && message.say === "api_req_started" && message.text) {
 			try {
 				const parsedText: ParsedApiReqStartedTextType = JSON.parse(message.text)
 				const { tokensIn, tokensOut, cacheWrites, cacheReads, cost } = parsedText
@@ -65,7 +62,7 @@ export function getApiMetrics(messages: ClineMessage[]) {
 			} catch (error) {
 				console.error("Error parsing JSON:", error)
 			}
-		} else if (message.say === "condense_context") {
+		} else if (message.type === "say" && message.say === "condense_context") {
 			result.totalCost += message.contextCondense?.cost ?? 0
 		}
 	})
@@ -74,13 +71,11 @@ export function getApiMetrics(messages: ClineMessage[]) {
 	result.contextTokens = 0
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i]
-		if (!message.text || message.type !== "say") {
-			continue
-		} else if (message.say === "api_req_started") {
+		if (message.type === "say" && message.say === "api_req_started" && message.text) {
 			const parsedText: ParsedApiReqStartedTextType = JSON.parse(message.text)
 			const { tokensIn, tokensOut, cacheWrites, cacheReads } = parsedText
 			result.contextTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-		} else if (message.say === "condense_context") {
+		} else if (message.type === "say" && message.say === "condense_context") {
 			result.contextTokens = message.contextCondense?.newContextTokens ?? 0
 		}
 		if (result.contextTokens) {
