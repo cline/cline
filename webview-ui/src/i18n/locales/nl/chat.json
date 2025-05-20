@@ -208,6 +208,11 @@
 		"thinking": "Denkt na",
 		"seconds": "{{count}}s"
 	},
+	"contextCondense": {
+		"title": "Context samengevat",
+		"conversationSummary": "Gespreksoverzicht",
+		"tokens": "tokens"
+	},
 	"followUpSuggest": {
 		"copyToInput": "Kopiëren naar invoer (zelfde als shift + klik)"
 	},

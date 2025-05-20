@@ -198,6 +198,11 @@
 		"thinking": "考え中",
 		"seconds": "{{count}}秒"
 	},
+	"contextCondense": {
+		"title": "コンテキスト要約",
+		"conversationSummary": "会話の要約",
+		"tokens": "トークン"
+	},
 	"followUpSuggest": {
 		"copyToInput": "入力欄にコピー（またはShift + クリック）"
 	},

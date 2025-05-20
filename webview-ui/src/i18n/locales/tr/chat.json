@@ -198,6 +198,11 @@
 		"thinking": "Düşünüyor",
 		"seconds": "{{count}}sn"
 	},
+	"contextCondense": {
+		"title": "Bağlam Özetlendi",
+		"conversationSummary": "Konuşma Özeti",
+		"tokens": "token"
+	},
 	"followUpSuggest": {
 		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)"
 	},

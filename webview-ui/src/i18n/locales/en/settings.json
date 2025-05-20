@@ -400,7 +400,7 @@
 		"warning": "⚠️",
 		"AUTO_CONDENSE_CONTEXT": {
 			"name": "Intelligently condense the context window",
-			"description": "Uses an LLM call to summarize the past conversation when the task's context window is almost full, rather than dropping old messages. Disclaimer: the cost of summarizing is not currently included in the API costs shown in the UI."
+			"description": "Uses an LLM call to summarize the past conversation when the task's context window is almost full, rather than dropping old messages."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Use experimental unified diff strategy",

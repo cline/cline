@@ -198,6 +198,11 @@
 		"thinking": "Sto pensando",
 		"seconds": "{{count}}s"
 	},
+	"contextCondense": {
+		"title": "Contesto condensato",
+		"conversationSummary": "Riepilogo della conversazione",
+		"tokens": "token"
+	},
 	"followUpSuggest": {
 		"copyToInput": "Copia nell'input (o Shift + clic)"
 	},

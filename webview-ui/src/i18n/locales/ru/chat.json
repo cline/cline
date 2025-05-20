@@ -208,6 +208,11 @@
 		"thinking": "Обдумывание",
 		"seconds": "{{count}}с"
 	},
+	"contextCondense": {
+		"title": "Контекст сжат",
+		"conversationSummary": "Сводка разговора",
+		"tokens": "токены"
+	},
 	"followUpSuggest": {
 		"copyToInput": "Скопировать во ввод (то же, что shift + клик)"
 	},

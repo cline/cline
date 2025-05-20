@@ -198,6 +198,11 @@
 		"thinking": "思考中",
 		"seconds": "{{count}}秒"
 	},
+	"contextCondense": {
+		"title": "上下文已壓縮",
+		"conversationSummary": "對話摘要",
+		"tokens": "tokens"
+	},
 	"followUpSuggest": {
 		"copyToInput": "複製到輸入框（或按住 Shift 並點選）"
 	},
