@@ -75,10 +75,10 @@
 				"group": "Features",
 				"pages": [
 					"features/cline-rules",
+					"features/slash-commands/workflows",
 					{
 						"group": "Slash Commands",
 						"pages": [
-							"features/slash-commands/workflows",
 							"features/slash-commands/new-task",
 							"features/slash-commands/new-rule",
 							"features/slash-commands/smol",
