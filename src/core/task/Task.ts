@@ -1479,6 +1479,7 @@ export class Task extends EventEmitter<ClineEvents> {
 				contextWindow,
 				apiHandler: this.api,
 				autoCondenseContext,
+				systemPrompt,
 			})
 			if (truncateResult.messages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(truncateResult.messages)

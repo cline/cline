@@ -53,6 +53,7 @@ export function truncateConversation(messages: ApiMessage[], fracToRemove: numbe
  * @param {number} maxTokens - The maximum number of tokens allowed.
  * @param {ApiHandler} apiHandler - The API handler to use for token counting.
  * @param {boolean} autoCondenseContext - Whether to use LLM summarization or sliding window implementation
+ * @param {string} systemPrompt - The system prompt, used for estimating the new context size after summarizing.
  * @returns {ApiMessage[]} The original or truncated conversation messages.
  */
 
@@ -63,6 +64,7 @@ type TruncateOptions = {
 	maxTokens?: number | null
 	apiHandler: ApiHandler
 	autoCondenseContext?: boolean
+	systemPrompt?: string
 }
 
 type TruncateResponse = SummarizeResponse & { prevContextTokens: number }
@@ -81,6 +83,7 @@ export async function truncateConversationIfNeeded({
 	maxTokens,
 	apiHandler,
 	autoCondenseContext,
+	systemPrompt,
 }: TruncateOptions): Promise<TruncateResponse> {
 	// Calculate the maximum tokens reserved for response
 	const reservedTokens = maxTokens || contextWindow * 0.2
@@ -103,7 +106,7 @@ export async function truncateConversationIfNeeded({
 	if (effectiveTokens <= allowedTokens) {
 		return { messages, summary: "", cost: 0, prevContextTokens: effectiveTokens }
 	} else if (autoCondenseContext) {
-		const result = await summarizeConversation(messages, apiHandler)
+		const result = await summarizeConversation(messages, apiHandler, systemPrompt)
 		if (messages !== result.messages) {
 			return { ...result, prevContextTokens: effectiveTokens }
 		}
