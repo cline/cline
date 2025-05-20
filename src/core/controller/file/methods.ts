@@ -13,6 +13,7 @@ import { searchCommits } from "./searchCommits"
 import { searchFiles } from "./searchFiles"
 import { selectImages } from "./selectImages"
 import { toggleClineRule } from "./toggleClineRule"
+import { toggleWindsurfRule } from "./toggleWindsurfRule"
 
 // Register all file service methods
 export function registerAllMethods(): void {
@@ -27,4 +28,5 @@ export function registerAllMethods(): void {
 	registerMethod("searchFiles", searchFiles)
 	registerMethod("selectImages", selectImages)
 	registerMethod("toggleClineRule", toggleClineRule)
+	registerMethod("toggleWindsurfRule", toggleWindsurfRule)
 }

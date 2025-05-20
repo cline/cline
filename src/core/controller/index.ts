@@ -409,19 +409,6 @@ export class Controller {
 				}
 				break
 			}
-			case "toggleWindsurfRule": {
-				const { rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean") {
-					const toggles =
-						((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
-					toggles[rulePath] = enabled
-					await updateWorkspaceState(this.context, "localWindsurfRulesToggles", toggles)
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleWindsurfRule: Missing or invalid parameters")
-				}
-				break
-			}
 			case "toggleCursorRule": {
 				const { rulePath, enabled } = message
 				if (rulePath && typeof enabled === "boolean") {

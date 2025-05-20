@@ -37,6 +37,16 @@ service FileService {
   
   // Toggle a Cline rule (enable or disable)
   rpc toggleClineRule(ToggleClineRuleRequest) returns (ToggleClineRules);
+  
+  // Toggle a Windsurf rule (enable or disable)
+  rpc toggleWindsurfRule(ToggleWindsurfRuleRequest) returns (ClineRulesToggles);
+}
+
+// Request to toggle a Windsurf rule
+message ToggleWindsurfRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2;   // Path to the rule file
+  bool enabled = 3;       // Whether to enable or disable the rule
 }
 
 // Request to convert a list of URIs to relative paths

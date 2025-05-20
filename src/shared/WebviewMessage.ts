@@ -45,7 +45,6 @@ export interface WebviewMessage {
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleCursorRule"
-		| "toggleWindsurfRule"
 		| "toggleWorkflow"
 		| "updateTerminalConnectionTimeout"
 		| "setActiveQuote"
