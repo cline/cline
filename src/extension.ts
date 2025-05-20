@@ -291,10 +291,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			// Use provided range if available, otherwise use current selection
+			// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
 			const textRange = range instanceof vscode.Range ? range : editor.selection
 			const selectedText = editor.document.getText(textRange)
 
-			if (!selectedText.trim()) {
+			if (!selectedText) {
 				return
 			}
 
