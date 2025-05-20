@@ -119,6 +119,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							type: "togglePlanActMode",
 							chatSettings: {
 								mode: pendingTabChange,
+								preferredLanguage: chatSettings.preferredLanguage,
+								openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 							},
 						})
 						setPendingTabChange(null)
