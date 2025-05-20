@@ -252,5 +252,12 @@
 		"title": "Cảnh báo thực thi lệnh",
 		"description": "Lệnh của bạn đang được thực thi mà không có tích hợp shell terminal VSCode. Để ẩn cảnh báo này, bạn có thể vô hiệu hóa tích hợp shell trong phần <strong>Terminal</strong> của <settingsLink>cài đặt Roo Code</settingsLink> hoặc khắc phục sự cố tích hợp terminal VSCode bằng liên kết bên dưới.",
 		"troubleshooting": "Nhấp vào đây để xem tài liệu tích hợp shell."
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Đã Đạt Giới Hạn Yêu Cầu Tự Động Phê Duyệt",
+			"description": "Roo đã đạt đến giới hạn tự động phê duyệt là {{count}} yêu cầu API. Bạn có muốn đặt lại bộ đếm và tiếp tục nhiệm vụ không?",
+			"button": "Đặt lại và Tiếp tục"
+		}
 	}
 }

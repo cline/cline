@@ -961,6 +961,7 @@ export const clineAsks = [
 	"resume_task",
 	"resume_completed_task",
 	"mistake_limit_reached",
+	"auto_approval_max_req_reached",
 	"browser_action_launch",
 	"use_mcp_server",
 ] as const

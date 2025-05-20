@@ -79,6 +79,11 @@
 			"allowedCommandsDescription": "Prefijos de comandos que pueden ser ejecutados automáticamente cuando \"Aprobar siempre operaciones de ejecución\" está habilitado. Añade * para permitir todos los comandos (usar con precaución).",
 			"commandPlaceholder": "Ingrese prefijo de comando (ej. 'git ')",
 			"addButton": "Añadir"
+		},
+		"apiRequestLimit": {
+			"title": "Solicitudes máximas",
+			"description": "Realizar automáticamente esta cantidad de solicitudes a la API antes de pedir aprobación para continuar con la tarea.",
+			"unlimited": "Ilimitado"
 		}
 	},
 	"providers": {

@@ -57,6 +57,7 @@ export interface WebviewMessage {
 		| "alwaysAllowBrowser"
 		| "alwaysAllowMcp"
 		| "alwaysAllowModeSwitch"
+		| "allowedMaxRequests"
 		| "alwaysAllowSubtasks"
 		| "playSound"
 		| "playTts"

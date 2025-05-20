@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react"
 import { Trans } from "react-i18next"
-import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
 import { vscode } from "@src/utils/vscode"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
@@ -25,6 +25,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		alwaysAllowModeSwitch,
 		alwaysAllowSubtasks,
 		alwaysApproveResubmit,
+		allowedMaxRequests,
 		setAlwaysAllowReadOnly,
 		setAlwaysAllowWrite,
 		setAlwaysAllowExecute,
@@ -33,6 +34,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		setAlwaysAllowModeSwitch,
 		setAlwaysAllowSubtasks,
 		setAlwaysApproveResubmit,
+		setAllowedMaxRequests,
 	} = useExtensionState()
 
 	const { t } = useAppTranslation()
@@ -196,7 +198,45 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							}}
 						/>
 					</div>
+
 					<AutoApproveToggle {...toggles} onToggle={onAutoApproveToggle} />
+
+					{/* Auto-approve API request count limit input row inspired by Cline */}
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							marginTop: "10px",
+							marginBottom: "8px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ flexShrink: 1, minWidth: 0 }}>
+							<Trans i18nKey="settings:autoApprove.apiRequestLimit.title" />:
+						</span>
+						<VSCodeTextField
+							placeholder={t("settings:autoApprove.apiRequestLimit.unlimited")}
+							value={(allowedMaxRequests ?? Infinity) === Infinity ? "" : allowedMaxRequests?.toString()}
+							onInput={(e) => {
+								const input = e.target as HTMLInputElement
+								// Remove any non-numeric characters
+								input.value = input.value.replace(/[^0-9]/g, "")
+								const value = parseInt(input.value)
+								const parsedValue = !isNaN(value) && value > 0 ? value : undefined
+								setAllowedMaxRequests(parsedValue)
+								vscode.postMessage({ type: "allowedMaxRequests", value: parsedValue })
+							}}
+							style={{ flex: 1 }}
+						/>
+					</div>
+					<div
+						style={{
+							color: "var(--vscode-descriptionForeground)",
+							fontSize: "12px",
+							marginBottom: "10px",
+						}}>
+						<Trans i18nKey="settings:autoApprove.apiRequestLimit.description" />
+					</div>
 				</div>
 			)}
 		</div>

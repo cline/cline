@@ -8,6 +8,9 @@ mock/
 
 .DS_Store
 
+# IDEs
+.idea
+
 # Builds
 bin/
 roo-cline-*.vsix

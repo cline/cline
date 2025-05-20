@@ -252,5 +252,12 @@
 		"title": "コマンド実行警告",
 		"description": "コマンドはVSCodeターミナルシェル統合なしで実行されています。この警告を非表示にするには、<settingsLink>Roo Code設定</settingsLink>の<strong>Terminal</strong>セクションでシェル統合を無効にするか、以下のリンクを使用してVSCodeターミナル統合のトラブルシューティングを行ってください。",
 		"troubleshooting": "シェル統合のドキュメントはこちらをクリック"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "自動承認リクエスト制限に達しました",
+			"description": "Rooは{{count}}件のAPI自動承認リクエスト制限に達しました。カウントをリセットしてタスクを続行しますか？",
+			"button": "リセットして続行"
+		}
 	}
 }

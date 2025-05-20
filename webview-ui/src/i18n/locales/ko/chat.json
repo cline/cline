@@ -252,5 +252,12 @@
 		"title": "명령 실행 경고",
 		"description": "명령이 VSCode 터미널 쉘 통합 없이 실행되고 있습니다. 이 경고를 숨기려면 <settingsLink>Roo Code 설정</settingsLink>의 <strong>Terminal</strong> 섹션에서 쉘 통합을 비활성화하거나 아래 링크를 사용하여 VSCode 터미널 통합 문제를 해결하세요.",
 		"troubleshooting": "쉘 통합 문서를 보려면 여기를 클릭하세요."
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "자동 승인 요청 한도 도달",
+			"description": "Roo가 {{count}}개의 API 요청(들)에 대한 자동 승인 한도에 도달했습니다. 카운트를 재설정하고 작업을 계속하시겠습니까?",
+			"button": "재설정 후 계속"
+		}
 	}
 }

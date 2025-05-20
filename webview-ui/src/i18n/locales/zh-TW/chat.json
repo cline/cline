@@ -252,5 +252,12 @@
 		"title": "命令執行警告",
 		"description": "您的命令正在沒有 VSCode 終端機 shell 整合的情況下執行。要隱藏此警告，您可以在 <settingsLink>Roo Code 設定</settingsLink>的 <strong>Terminal</strong> 部分停用 shell 整合，或使用下方連結排查 VSCode 終端機整合問題。",
 		"troubleshooting": "點擊此處查看 shell 整合文件。"
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "已達自動核准請求限制",
+			"description": "Roo 已達到 {{count}} 次 API 請求的自動核准限制。您想要重設計數並繼續工作嗎？",
+			"button": "重設並繼續"
+		}
 	}
 }

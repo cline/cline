@@ -252,5 +252,12 @@
 		"title": "Command Execution Warning",
 		"description": "Your command is being executed without VSCode terminal shell integration. To suppress this warning you can disable shell integration in the <strong>Terminal</strong> section of the <settingsLink>Roo Code settings</settingsLink> or troubleshoot VSCode terminal integration using the link below.",
 		"troubleshooting": "Click here for shell integration documentation."
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Auto-Approved Request Limit Reached",
+			"description": "Roo has reached the auto-approved limit of {{count}} API request(s). Would you like to reset the count and proceed with the task?",
+			"button": "Reset and Continue"
+		}
 	}
 }

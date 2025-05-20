@@ -252,5 +252,12 @@
 		"title": "Waarschuwing commando-uitvoering",
 		"description": "Je commando wordt uitgevoerd zonder VSCode-terminal shell-integratie. Om deze waarschuwing te onderdrukken kun je shell-integratie uitschakelen in het gedeelte <strong>Terminal</strong> van de <settingsLink>Roo Code-instellingen</settingsLink> of de VSCode-terminalintegratie oplossen via de onderstaande link.",
 		"troubleshooting": "Klik hier voor shell-integratie documentatie."
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "Limiet voor automatisch goedgekeurde verzoeken bereikt",
+			"description": "Roo heeft de automatisch goedgekeurde limiet van {{count}} API-verzoek(en) bereikt. Wil je de teller resetten en doorgaan met de taak?",
+			"button": "Resetten en doorgaan"
+		}
 	}
 }

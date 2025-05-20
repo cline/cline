@@ -79,6 +79,11 @@
 			"allowedCommandsDescription": "Command prefixes that can be auto-executed when \"Always approve execute operations\" is enabled. Add * to allow all commands (use with caution).",
 			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
 			"addButton": "Add"
+		},
+		"apiRequestLimit": {
+			"title": "Max Requests",
+			"description": "Automatically make this many API requests before asking for approval to continue with the task.",
+			"unlimited": "Unlimited"
 		}
 	},
 	"providers": {

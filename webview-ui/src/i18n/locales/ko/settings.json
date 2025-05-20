@@ -79,6 +79,11 @@
 			"allowedCommandsDescription": "\"실행 작업 항상 승인\"이 활성화되었을 때 자동 실행될 수 있는 명령 접두사. 모든 명령을 허용하려면 * 추가(주의해서 사용)",
 			"commandPlaceholder": "명령 접두사 입력(예: 'git ')",
 			"addButton": "추가"
+		},
+		"apiRequestLimit": {
+			"title": "최대 요청 수",
+			"description": "작업을 계속하기 위한 승인을 요청하기 전에 자동으로 이 수의 API 요청을 수행합니다.",
+			"unlimited": "무제한"
 		}
 	},
 	"providers": {

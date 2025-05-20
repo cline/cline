@@ -79,6 +79,11 @@
 			"allowedCommandsDescription": "当\"自动批准命令行操作\"启用时可以自动执行的命令前缀。添加 * 以允许所有命令（谨慎使用）。",
 			"commandPlaceholder": "输入命令前缀（例如 'git '）",
 			"addButton": "添加"
+		},
+		"apiRequestLimit": {
+			"title": "最大请求数",
+			"description": "在请求批准以继续执行任务之前，自动发出此数量的 API 请求。",
+			"unlimited": "无限制"
 		}
 	},
 	"providers": {

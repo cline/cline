@@ -79,6 +79,11 @@
 			"allowedCommandsDescription": "Commando-prefixen die automatisch kunnen worden uitgevoerd als 'Altijd goedkeuren voor uitvoeren' is ingeschakeld. Voeg * toe om alle commando's toe te staan (gebruik met voorzichtigheid).",
 			"commandPlaceholder": "Voer commando-prefix in (bijv. 'git ')",
 			"addButton": "Toevoegen"
+		},
+		"apiRequestLimit": {
+			"title": "Maximale verzoeken",
+			"description": "Voer automatisch dit aantal API-verzoeken uit voordat om goedkeuring wordt gevraagd om door te gaan met de taak.",
+			"unlimited": "Onbeperkt"
 		}
 	},
 	"providers": {

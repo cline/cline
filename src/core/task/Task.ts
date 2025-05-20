@@ -134,6 +134,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	readonly apiConfiguration: ProviderSettings
 	api: ApiHandler
 	private lastApiRequestTime?: number
+	private consecutiveAutoApprovedRequestsCount: number = 0
 
 	toolRepetitionDetector: ToolRepetitionDetector
 	rooIgnoreController?: RooIgnoreController
@@ -1504,6 +1505,21 @@ export class Task extends EventEmitter<ClineEvents> {
 		const cleanConversationHistory = maybeRemoveImageBlocks(messagesSinceLastSummary, this.api).map(
 			({ role, content }) => ({ role, content }),
 		)
+
+		// Check if we've reached the maximum number of auto-approved requests
+		const { allowedMaxRequests } = (await this.providerRef.deref()?.getState()) ?? {}
+		const maxRequests = allowedMaxRequests || Infinity
+
+		// Increment the counter for each new API request
+		this.consecutiveAutoApprovedRequestsCount++
+
+		if (this.consecutiveAutoApprovedRequestsCount > maxRequests) {
+			const { response } = await this.ask("auto_approval_max_req_reached", JSON.stringify({ count: maxRequests }))
+			// If we get past the promise, it means the user approved and did not start a new task
+			if (response === "yesButtonClicked") {
+				this.consecutiveAutoApprovedRequestsCount = 0
+			}
+		}
 
 		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory)
 		const iterator = stream[Symbol.asyncIterator]()

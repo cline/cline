@@ -79,6 +79,11 @@
 			"allowedCommandsDescription": "Tiền tố lệnh có thể được tự động thực thi khi \"Luôn phê duyệt các hoạt động thực thi\" được bật. Thêm * để cho phép tất cả các lệnh (sử dụng cẩn thận).",
 			"commandPlaceholder": "Nhập tiền tố lệnh (ví dụ: 'git ')",
 			"addButton": "Thêm"
+		},
+		"apiRequestLimit": {
+			"title": "Số lượng yêu cầu tối đa",
+			"description": "Tự động thực hiện số lượng API request này trước khi yêu cầu phê duyệt để tiếp tục với nhiệm vụ.",
+			"unlimited": "Không giới hạn"
 		}
 	},
 	"providers": {

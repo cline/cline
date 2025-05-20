@@ -252,5 +252,12 @@
 		"title": "Advertència d'execució d'ordres",
 		"description": "La teva ordre s'està executant sense la integració de shell del terminal VSCode. Per suprimir aquest advertiment, pots desactivar la integració de shell a la secció <strong>Terminal</strong> de la <settingsLink>configuració de Roo Code</settingsLink> o solucionar problemes d'integració del terminal VSCode utilitzant l'enllaç a continuació.",
 		"troubleshooting": "Fes clic aquí per a la documentació d'integració de shell."
+	},
+	"ask": {
+		"autoApprovedRequestLimitReached": {
+			"title": "S'ha arribat al límit de sol·licituds aprovades automàticament",
+			"description": "Roo ha arribat al límit aprovat automàticament de {{count}} sol·licitud(s) d'API. Vols reiniciar el comptador i continuar amb la tasca?",
+			"button": "Reiniciar i continuar"
+		}
 	}
 }

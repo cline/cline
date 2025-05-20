@@ -79,6 +79,11 @@
 			"allowedCommandsDescription": "Prefixos de comando que podem ser auto-executados quando \"Aprovar sempre operações de execução\" está ativado. Adicione * para permitir todos os comandos (use com cautela).",
 			"commandPlaceholder": "Digite o prefixo do comando (ex. 'git ')",
 			"addButton": "Adicionar"
+		},
+		"apiRequestLimit": {
+			"title": "Máximo de Solicitações",
+			"description": "Fazer automaticamente este número de requisições à API antes de pedir aprovação para continuar com a tarefa.",
+			"unlimited": "Ilimitado"
 		}
 	},
 	"providers": {

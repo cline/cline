@@ -79,6 +79,11 @@
 			"allowedCommandsDescription": "當「始終核准執行操作」啟用時可以自動執行的命令前綴。新增 * 以允許所有命令（請謹慎使用）。",
 			"commandPlaceholder": "輸入命令前綴（例如 'git '）",
 			"addButton": "新增"
+		},
+		"apiRequestLimit": {
+			"title": "最大請求數",
+			"description": "在請求批准以繼續執行工作之前，自動發出此數量的 API 請求。",
+			"unlimited": "無限制"
 		}
 	},
 	"providers": {
