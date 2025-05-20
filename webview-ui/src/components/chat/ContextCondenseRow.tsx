@@ -20,17 +20,15 @@ const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, summary
 					<span className="text-vscode-descriptionForeground text-sm">
 						{prevContextTokens.toLocaleString()} → {newContextTokens.toLocaleString()} {t("tokens")}
 					</span>
-					<VSCodeBadge style={{ opacity: cost > 0 ? 1 : 0 }}>${cost.toFixed(2)}</VSCodeBadge>
+					<VSCodeBadge className={cost > 0 ? "opacity-100" : "opacity-0"}>${cost.toFixed(2)}</VSCodeBadge>
 				</div>
 				<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 			</div>
 
 			{isExpanded && (
 				<div className="mt-2 ml-0 p-4 bg-vscode-editor-background rounded text-vscode-foreground text-sm">
-					<h3 className="font-bold mb-4" style={{ marginBottom: 20, marginTop: -4, marginLeft: 8 }}>
-						{t("chat:contextCondense.conversationSummary")}
-					</h3>
-					<div style={{ marginLeft: -24 }}>
+					<h3 className="font-bold mb-5 -mt-1 ml-2">{t("chat:contextCondense.conversationSummary")}</h3>
+					<div className="-ml-6">
 						<Markdown markdown={summary} />
 					</div>
 				</div>
