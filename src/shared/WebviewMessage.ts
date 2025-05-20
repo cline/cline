@@ -39,7 +39,6 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
-		| "scrollToSettings"
 		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
