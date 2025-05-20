@@ -18,7 +18,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
-import { FileServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 
 interface CopyButtonProps {
@@ -1226,10 +1226,9 @@ export const ChatRowContent = ({
 										disabled={seeNewChangesDisabled}
 										onClick={() => {
 											setSeeNewChangesDisabled(true)
-											vscode.postMessage({
-												type: "taskCompletionViewChanges",
-												number: message.ts,
-											})
+											TaskServiceClient.taskCompletionViewChanges({
+												value: message.ts,
+											}).catch((err) => console.error("Failed to show task completion view changes:", err))
 										}}
 										style={{
 											cursor: seeNewChangesDisabled ? "wait" : "pointer",
@@ -1390,10 +1389,11 @@ export const ChatRowContent = ({
 											disabled={seeNewChangesDisabled}
 											onClick={() => {
 												setSeeNewChangesDisabled(true)
-												vscode.postMessage({
-													type: "taskCompletionViewChanges",
-													number: message.ts,
-												})
+												TaskServiceClient.taskCompletionViewChanges({
+													value: message.ts,
+												}).catch((err) =>
+													console.error("Failed to show task completion view changes:", err),
+												)
 											}}>
 											<i
 												className="codicon codicon-new-file"
