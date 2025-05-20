@@ -29,6 +29,7 @@ import { searchCommits } from "../core/controller/file/searchCommits"
 import { selectImages } from "../core/controller/file/selectImages"
 import { getRelativePaths } from "../core/controller/file/getRelativePaths"
 import { searchFiles } from "../core/controller/file/searchFiles"
+import { toggleClineRule } from "../core/controller/file/toggleClineRule"
 
 // Mcp Service
 import { toggleMcpServer } from "../core/controller/mcp/toggleMcpServer"
@@ -114,6 +115,7 @@ export function addServices(
 		selectImages: wrapper(selectImages, controller),
 		getRelativePaths: wrapper(getRelativePaths, controller),
 		searchFiles: wrapper(searchFiles, controller),
+		toggleClineRule: wrapper(toggleClineRule, controller),
 	})
 
 	// Mcp Service

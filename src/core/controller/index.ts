@@ -409,30 +409,6 @@ export class Controller {
 				}
 				break
 			}
-			case "toggleClineRule": {
-				const { isGlobal, rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
-					if (isGlobal) {
-						const toggles =
-							((await getGlobalState(this.context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
-						toggles[rulePath] = enabled
-						await updateGlobalState(this.context, "globalClineRulesToggles", toggles)
-					} else {
-						const toggles =
-							((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
-						toggles[rulePath] = enabled
-						await updateWorkspaceState(this.context, "localClineRulesToggles", toggles)
-					}
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleClineRule: Missing or invalid parameters", {
-						rulePath,
-						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
-						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
-					})
-				}
-				break
-			}
 			case "toggleWindsurfRule": {
 				const { rulePath, enabled } = message
 				if (rulePath && typeof enabled === "boolean") {
