@@ -411,7 +411,6 @@
 		"say": "^0.16.0",
 		"serialize-error": "^11.0.3",
 		"simple-git": "^3.27.0",
-		"sound-play": "^1.1.0",
 		"string-similarity": "^4.0.4",
 		"strip-ansi": "^7.1.0",
 		"strip-bom": "^5.0.0",

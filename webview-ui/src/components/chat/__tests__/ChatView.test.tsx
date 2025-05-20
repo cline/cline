@@ -36,6 +36,14 @@ jest.mock("@src/utils/vscode", () => ({
 	},
 }))
 
+// Mock use-sound hook
+const mockPlayFunction = jest.fn()
+jest.mock("use-sound", () => {
+	return jest.fn().mockImplementation(() => {
+		return [mockPlayFunction]
+	})
+})
+
 // Mock components that use ESM dependencies
 jest.mock("../BrowserSessionRow", () => ({
 	__esModule: true,
@@ -773,7 +781,10 @@ describe("ChatView - Auto Approval Tests", () => {
 })
 
 describe("ChatView - Sound Playing Tests", () => {
-	beforeEach(() => jest.clearAllMocks())
+	beforeEach(() => {
+		jest.clearAllMocks()
+		mockPlayFunction.mockClear()
+	})
 
 	it("does not play sound for auto-approved browser actions", async () => {
 		renderChatView()
@@ -821,10 +832,7 @@ describe("ChatView - Sound Playing Tests", () => {
 		})
 
 		// Verify no sound was played
-		expect(vscode.postMessage).not.toHaveBeenCalledWith({
-			type: "playSound",
-			audioType: expect.any(String),
-		})
+		expect(mockPlayFunction).not.toHaveBeenCalled()
 	})
 
 	it("plays notification sound for non-auto-approved browser actions", async () => {
@@ -874,10 +882,7 @@ describe("ChatView - Sound Playing Tests", () => {
 
 		// Verify notification sound was played
 		await waitFor(() => {
-			expect(vscode.postMessage).toHaveBeenCalledWith({
-				type: "playSound",
-				audioType: "notification",
-			})
+			expect(mockPlayFunction).toHaveBeenCalled()
 		})
 	})
 
@@ -924,10 +929,7 @@ describe("ChatView - Sound Playing Tests", () => {
 
 		// Verify celebration sound was played
 		await waitFor(() => {
-			expect(vscode.postMessage).toHaveBeenCalledWith({
-				type: "playSound",
-				audioType: "celebration",
-			})
+			expect(mockPlayFunction).toHaveBeenCalled()
 		})
 	})
 
@@ -974,10 +976,7 @@ describe("ChatView - Sound Playing Tests", () => {
 
 		// Verify progress_loop sound was played
 		await waitFor(() => {
-			expect(vscode.postMessage).toHaveBeenCalledWith({
-				type: "playSound",
-				audioType: "progress_loop",
-			})
+			expect(mockPlayFunction).toHaveBeenCalled()
 		})
 	})
 })
