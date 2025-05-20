@@ -48,7 +48,7 @@ describe("CustomModesManager", () => {
 		;(fs.mkdir as jest.Mock).mockResolvedValue(undefined)
 		;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 			if (path === mockSettingsPath) {
-				return JSON.stringify({ customModes: [] })
+				return yaml.stringify({ customModes: [] })
 			}
 			throw new Error("File not found")
 		})
@@ -68,7 +68,7 @@ describe("CustomModesManager", () => {
 
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				if (path === mockRoomodes) {
 					return yaml.stringify({ customModes: roomodesModes })
@@ -94,10 +94,10 @@ describe("CustomModesManager", () => {
 
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				if (path === mockRoomodes) {
-					return JSON.stringify({ customModes: roomodesModes })
+					return yaml.stringify({ customModes: roomodesModes })
 				}
 				throw new Error("File not found")
 			})
@@ -122,7 +122,7 @@ describe("CustomModesManager", () => {
 			})
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -133,15 +133,15 @@ describe("CustomModesManager", () => {
 			expect(modes[0].slug).toBe("mode1")
 		})
 
-		it("should handle invalid JSON in .roomodes", async () => {
+		it("should handle invalid YAML in .roomodes", async () => {
 			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
 
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				if (path === mockRoomodes) {
-					return "invalid json"
+					return "invalid yaml content"
 				}
 				throw new Error("File not found")
 			})
@@ -158,7 +158,7 @@ describe("CustomModesManager", () => {
 			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -180,7 +180,7 @@ describe("CustomModesManager", () => {
 			})
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -200,7 +200,7 @@ describe("CustomModesManager", () => {
 			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -225,7 +225,7 @@ describe("CustomModesManager", () => {
 			const updatedSettingsModes = [updatedMode]
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: updatedSettingsModes })
+					return yaml.stringify({ customModes: updatedSettingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -246,7 +246,7 @@ describe("CustomModesManager", () => {
 			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -264,7 +264,7 @@ describe("CustomModesManager", () => {
 			// Mock the updated file content (empty)
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: [] })
+					return yaml.stringify({ customModes: [] })
 				}
 				throw new Error("File not found")
 			})
@@ -282,7 +282,7 @@ describe("CustomModesManager", () => {
 			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -310,7 +310,7 @@ describe("CustomModesManager", () => {
 			const updatedSettingsModes = [updatedMode]
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: updatedSettingsModes })
+					return yaml.stringify({ customModes: updatedSettingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -328,7 +328,7 @@ describe("CustomModesManager", () => {
 			})
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: updatedSettingsModes })
+					return yaml.stringify({ customModes: updatedSettingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -343,7 +343,7 @@ describe("CustomModesManager", () => {
 			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: settingsModes })
+					return yaml.stringify({ customModes: settingsModes })
 				}
 				throw new Error("File not found")
 			})
@@ -369,7 +369,7 @@ describe("CustomModesManager", () => {
 				})
 				;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 					if (path === mockSettingsPath) {
-						return JSON.stringify({ customModes: settingsModes })
+						return yaml.stringify({ customModes: settingsModes })
 					}
 					throw new Error("File not found")
 				})
@@ -390,7 +390,7 @@ describe("CustomModesManager", () => {
 				})
 				;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 					if (path === mockSettingsPath) {
-						return JSON.stringify({ customModes: settingsModes })
+						return yaml.stringify({ customModes: settingsModes })
 					}
 					throw new Error("File not found")
 				})
@@ -434,10 +434,10 @@ describe("CustomModesManager", () => {
 
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockRoomodes) {
-					return JSON.stringify(roomodesContent)
+					return yaml.stringify(roomodesContent)
 				}
 				if (path === mockSettingsPath) {
-					return JSON.stringify(settingsContent)
+					return yaml.stringify(settingsContent)
 				}
 				throw new Error("File not found")
 			})
@@ -502,13 +502,13 @@ describe("CustomModesManager", () => {
 			})
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify({ customModes: [] })
+					return yaml.stringify({ customModes: [] })
 				}
 				if (path === mockRoomodes) {
 					if (!roomodesContent) {
 						throw new Error("File not found")
 					}
-					return JSON.stringify(roomodesContent)
+					return yaml.stringify(roomodesContent)
 				}
 				throw new Error("File not found")
 			})
@@ -564,7 +564,7 @@ describe("CustomModesManager", () => {
 			let settingsContent = { customModes: [] }
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify(settingsContent)
+					return yaml.stringify(settingsContent)
 				}
 				throw new Error("File not found")
 			})
@@ -629,16 +629,13 @@ describe("CustomModesManager", () => {
 
 			await manager.getCustomModesFilePath()
 
-			expect(fs.writeFile).toHaveBeenCalledWith(
-				settingsPath,
-				expect.stringMatching(/^\{\s+"customModes":\s+\[\s*\]\s*\}$/),
-			)
+			expect(fs.writeFile).toHaveBeenCalledWith(settingsPath, expect.stringMatching(/^customModes: \[\]/))
 		})
 
 		it("watches file for changes", async () => {
 			const configPath = path.join(mockStoragePath, "settings", GlobalFileNames.customModes)
 
-			;(fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ customModes: [] }))
+			;(fs.readFile as jest.Mock).mockResolvedValue(yaml.stringify({ customModes: [] }))
 			;(arePathsEqual as jest.Mock).mockImplementation((path1: string, path2: string) => {
 				return path.normalize(path1) === path.normalize(path2)
 			})
@@ -673,7 +670,7 @@ describe("CustomModesManager", () => {
 			let settingsContent = { customModes: [existingMode] }
 			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
 				if (path === mockSettingsPath) {
-					return JSON.stringify(settingsContent)
+					return yaml.stringify(settingsContent)
 				}
 				throw new Error("File not found")
 			})
@@ -718,9 +715,9 @@ describe("CustomModesManager", () => {
 	})
 
 	describe("updateModesInFile", () => {
-		it("handles corrupted JSON content gracefully", async () => {
-			const corruptedJson = "{ invalid json content"
-			;(fs.readFile as jest.Mock).mockResolvedValue(corruptedJson)
+		it("handles corrupted YAML content gracefully", async () => {
+			const corruptedYaml = "customModes: [invalid yaml content"
+			;(fs.readFile as jest.Mock).mockResolvedValue(corruptedYaml)
 
 			const newMode: ModeConfig = {
 				slug: "test-mode",
@@ -732,7 +729,7 @@ describe("CustomModesManager", () => {
 
 			await manager.updateCustomMode("test-mode", newMode)
 
-			// Verify that a valid JSON structure was written
+			// Verify that a valid YAML structure was written
 			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
 			const writtenContent = yaml.parse(writeCall[1])
 			expect(writtenContent).toEqual({
