@@ -518,7 +518,15 @@ export class Task extends EventEmitter<ClineEvents> {
 						this.lastMessageTs = sayTs
 					}
 
-					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images, partial })
+					await this.addToClineMessages({
+						ts: sayTs,
+						type: "say",
+						say: type,
+						text,
+						images,
+						partial,
+						contextCondense,
+					})
 				}
 			} else {
 				// New now have a complete version of a previously partial message.
@@ -548,7 +556,7 @@ export class Task extends EventEmitter<ClineEvents> {
 						this.lastMessageTs = sayTs
 					}
 
-					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images })
+					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images, contextCondense })
 				}
 			}
 		} else {

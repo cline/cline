@@ -928,7 +928,7 @@ export const ChatRowContent = ({
 						/>
 					)
 				case "condense_context":
-					return <ContextCondenseRow ts={message.ts} contextCondense={message.contextCondense} />
+					return <ContextCondenseRow contextCondense={message.contextCondense} />
 				default:
 					return (
 						<>
