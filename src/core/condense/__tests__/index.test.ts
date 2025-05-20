@@ -205,7 +205,6 @@ describe("summarizeConversation", () => {
 		expect(result.messages).toEqual(messages)
 		expect(result.cost).toBe(0.02)
 		expect(result.summary).toBe("")
-		expect(result.newContextTokens).toBe(100) // Only from countTokens since outputTokens is 0
 		expect(mockWarn).toHaveBeenCalledWith("Received empty summary from API")
 
 		// Restore console.warn

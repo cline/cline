@@ -70,10 +70,10 @@ export async function summarizeConversation(
 		return response // Not enough messages to warrant a summary
 	}
 	const keepMessages = messages.slice(-N_MESSAGES_TO_KEEP)
-	for (const message of keepMessages) {
-		if (message.isSummary) {
-			return response // We recently summarized these messages; it's too soon to summarize again.
-		}
+	// Check if there's a recent summary in the messages we're keeping
+	const recentSummaryExists = keepMessages.some((message) => message.isSummary)
+	if (recentSummaryExists) {
+		return response // We recently summarized these messages; it's too soon to summarize again.
 	}
 	const finalRequestMessage: Anthropic.MessageParam = {
 		role: "user",
