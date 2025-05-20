@@ -29,4 +29,3 @@ jobs:
                   days-before-pr-close: -1
                   exempt-issue-labels: "pinned,security"
                   repo-token: ${{ secrets.GITHUB_TOKEN }}
-                  debug-only: true
