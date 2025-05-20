@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react"
-import ContextCondenseRow from "../ContextCondenseRow"
+import { ContextCondenseRow } from "../ContextCondenseRow"
 import { ContextCondense } from "@roo/schemas"
 
 // Mock the i18n hook

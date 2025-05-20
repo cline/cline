@@ -31,7 +31,7 @@ import { ProgressIndicator } from "./ProgressIndicator"
 import { Markdown } from "./Markdown"
 import { CommandExecution } from "./CommandExecution"
 import { CommandExecutionError } from "./CommandExecutionError"
-import ContextCondenseRow from "./ContextCondenseRow"
+import { ContextCondenseRow } from "./ContextCondenseRow"
 
 interface ChatRowProps {
 	message: ClineMessage
