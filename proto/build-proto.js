@@ -30,6 +30,7 @@ const serviceNameMap = {
 	web: "cline.WebService",
 	models: "cline.ModelsService",
 	slash: "cline.SlashService",
+	ui: "cline.UiService",
 	// Add new services here - no other code changes needed!
 }
 const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
