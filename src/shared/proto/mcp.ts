@@ -1020,6 +1020,14 @@ export const McpServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		deleteMcpServer: {
+			name: "deleteMcpServer",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: McpServers,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
 

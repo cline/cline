@@ -12,6 +12,7 @@ service McpService {
   rpc addRemoteMcpServer(AddRemoteMcpServerRequest) returns (McpServers);
   rpc downloadMcp(StringRequest) returns (Empty);
   rpc restartMcpServer(StringRequest) returns (McpServers);
+  rpc deleteMcpServer(StringRequest) returns (McpServers);
 }
 
 message ToggleMcpServerRequest {

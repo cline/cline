@@ -35,6 +35,7 @@ import { updateMcpTimeout } from "../core/controller/mcp/updateMcpTimeout"
 import { addRemoteMcpServer } from "../core/controller/mcp/addRemoteMcpServer"
 import { downloadMcp } from "../core/controller/mcp/downloadMcp"
 import { restartMcpServer } from "../core/controller/mcp/restartMcpServer"
+import { deleteMcpServer } from "../core/controller/mcp/deleteMcpServer"
 
 // Models Service
 import { getOllamaModels } from "../core/controller/models/getOllamaModels"
@@ -119,6 +120,7 @@ export function addServices(
 		addRemoteMcpServer: wrapper(addRemoteMcpServer, controller),
 		downloadMcp: wrapper(downloadMcp, controller),
 		restartMcpServer: wrapper(restartMcpServer, controller),
+		deleteMcpServer: wrapper(deleteMcpServer, controller),
 	})
 
 	// Models Service
