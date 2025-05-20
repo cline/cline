@@ -159,17 +159,17 @@ export class BrowserSession {
 				throw new Error("Chrome was launched but debug port is not responding")
 			}
 
-			controller?.postMessageToWebview({
-				type: "browserRelaunchResult",
+			// The result will be returned directly through the gRPC response
+			return {
 				success: true,
-				text: `Browser successfully launched with debug mode\nUsing: ${installation}`,
-			})
+				message: `Browser successfully launched with debug mode\nUsing: ${installation}`,
+			}
 		} catch (error) {
-			controller?.postMessageToWebview({
-				type: "browserRelaunchResult",
+			// The error will be returned directly through the gRPC response
+			return {
 				success: false,
-				text: `Failed to relaunch Chrome: ${error instanceof Error ? error.message : String(error)}`,
-			})
+				message: `Failed to relaunch Chrome: ${error instanceof Error ? error.message : String(error)}`,
+			}
 		}
 	}
 

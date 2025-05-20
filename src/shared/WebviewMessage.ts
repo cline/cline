@@ -21,7 +21,6 @@ export interface WebviewMessage {
 		| "refreshClineRules"
 		| "openMcpSettings"
 		| "autoApprovalSettings"
-		| "browserRelaunchResult"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "toggleToolAutoApprove"
@@ -40,7 +39,7 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
-		| "relaunchChromeDebugMode"
+		| "scrollToSettings"
 		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
@@ -50,7 +49,6 @@ export interface WebviewMessage {
 		| "updateTerminalConnectionTimeout"
 		| "setActiveQuote"
 
-	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
 	apiConfiguration?: ApiConfiguration

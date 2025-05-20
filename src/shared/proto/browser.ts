@@ -49,6 +49,11 @@ export interface UpdateBrowserSettingsRequest {
 	disableToolUse?: boolean | undefined
 }
 
+export interface BrowserRelaunchMessage {
+	success: boolean
+	message: string
+}
+
 function createBaseBrowserConnectionInfo(): BrowserConnectionInfo {
 	return { isConnected: false, isRemote: false, host: undefined }
 }
@@ -669,6 +674,82 @@ export const UpdateBrowserSettingsRequest: MessageFns<UpdateBrowserSettingsReque
 	},
 }
 
+function createBaseBrowserRelaunchMessage(): BrowserRelaunchMessage {
+	return { success: false, message: "" }
+}
+
+export const BrowserRelaunchMessage: MessageFns<BrowserRelaunchMessage> = {
+	encode(message: BrowserRelaunchMessage, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.success !== false) {
+			writer.uint32(8).bool(message.success)
+		}
+		if (message.message !== "") {
+			writer.uint32(18).string(message.message)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): BrowserRelaunchMessage {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseBrowserRelaunchMessage()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 8) {
+						break
+					}
+
+					message.success = reader.bool()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.message = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): BrowserRelaunchMessage {
+		return {
+			success: isSet(object.success) ? globalThis.Boolean(object.success) : false,
+			message: isSet(object.message) ? globalThis.String(object.message) : "",
+		}
+	},
+
+	toJSON(message: BrowserRelaunchMessage): unknown {
+		const obj: any = {}
+		if (message.success !== false) {
+			obj.success = message.success
+		}
+		if (message.message !== "") {
+			obj.message = message.message
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<BrowserRelaunchMessage>, I>>(base?: I): BrowserRelaunchMessage {
+		return BrowserRelaunchMessage.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<BrowserRelaunchMessage>, I>>(object: I): BrowserRelaunchMessage {
+		const message = createBaseBrowserRelaunchMessage()
+		message.success = object.success ?? false
+		message.message = object.message ?? ""
+		return message
+	},
+}
+
 export type BrowserServiceDefinition = typeof BrowserServiceDefinition
 export const BrowserServiceDefinition = {
 	name: "BrowserService",
@@ -711,6 +792,14 @@ export const BrowserServiceDefinition = {
 			requestType: UpdateBrowserSettingsRequest,
 			requestStream: false,
 			responseType: Boolean,
+			responseStream: false,
+			options: {},
+		},
+		relaunchChromeDebugMode: {
+			name: "relaunchChromeDebugMode",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: BrowserRelaunchMessage,
 			responseStream: false,
 			options: {},
 		},
