@@ -59,31 +59,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		if (currentVersion !== lastShownPopupNotificationVersion) {
 			// Show VS Code popup notification as this version hasn't been notified yet.
-			const message = `Cline has been updated to v${currentVersion}!`
+			const message = `Cline has been updated to v${currentVersion}`
 			Logger.log(`Showing update notification: ${message}`)
 			await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 			await new Promise((resolve) => setTimeout(resolve, 200))
-			let targetInstance = WebviewProvider.getVisibleInstance()
-			targetInstance = WebviewProvider.getSidebarInstance()
-			vscode.window.showInformationMessage(message, "Open Cline").then(async (selection) => {
-				if (selection === "Open Cline") {
-					Logger.log("User clicked 'Open Cline' from update notification.")
-					if (!targetInstance) {
-						await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-						await new Promise((resolve) => setTimeout(resolve, 200))
-						targetInstance = WebviewProvider.getSidebarInstance()
-					}
-					if (!targetInstance) {
-						const tabInstances = WebviewProvider.getTabInstances()
-						if (tabInstances.length > 0) {
-							const panelView = tabInstances[tabInstances.length - 1].view as vscode.WebviewPanel
-							panelView.reveal(panelView.viewColumn)
-						} else {
-							await vscode.commands.executeCommand("cline.openInNewTab")
-						}
-					}
-				}
-			})
+			vscode.window.showInformationMessage(message)
 			// Record that we've shown the popup for this version.
 			await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
 		}
