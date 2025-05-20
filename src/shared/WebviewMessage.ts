@@ -11,7 +11,6 @@ export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
 		| "webviewDidLaunch"
-		| "newTask"
 		| "condense"
 		| "reportBug"
 		| "didShowAnnouncement"
@@ -35,7 +34,6 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
-		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleWorkflow"

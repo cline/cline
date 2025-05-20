@@ -55,7 +55,6 @@ import {
 	doubaoDefaultModelId,
 	liteLlmModelInfoSaneDefaults,
 } from "@shared/api"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -286,7 +285,7 @@ const ApiOptions = ({
 				ModelsServiceClient.refreshOpenAiModels({
 					baseUrl,
 					apiKey,
-				}).catch((error) => {
+				}).catch((error: unknown) => {
 					console.error("Failed to refresh OpenAI models:", error)
 				})
 			}, 500)
