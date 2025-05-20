@@ -128,6 +128,21 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Implements the `RooCodeAPI` interface.
 	const socketPath = process.env.ROO_CODE_IPC_SOCKET_PATH
 	const enableLogging = typeof socketPath === "string"
+
+	// Watch the core files and automatically reload the extension host
+	const enableCoreAutoReload = process.env?.NODE_ENV === "development"
+	if (enableCoreAutoReload) {
+		console.log(`♻️♻️♻️ Core auto-reloading is ENABLED!`)
+		const watcher = vscode.workspace.createFileSystemWatcher(
+			new vscode.RelativePattern(context.extensionPath, "src/**/*.ts"),
+		)
+		watcher.onDidChange((uri) => {
+			console.log(`♻️ File changed: ${uri.fsPath}. Reloading host…`)
+			vscode.commands.executeCommand("workbench.action.reloadWindow")
+		})
+		context.subscriptions.push(watcher)
+	}
+
 	return new API(outputChannel, provider, socketPath, enableLogging)
 }
 
