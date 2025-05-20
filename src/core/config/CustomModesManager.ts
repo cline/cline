@@ -7,6 +7,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual, getWorkspacePath } from "../../utils/path"
 import { logger } from "../../utils/logging"
 import { GlobalFileNames } from "../../shared/globalFileNames"
+import * as yaml from "yaml"
 
 const ROOMODES_FILENAME = ".roomodes"
 
@@ -71,7 +72,7 @@ export class CustomModesManager {
 	private async loadModesFromFile(filePath: string): Promise<ModeConfig[]> {
 		try {
 			const content = await fs.readFile(filePath, "utf-8")
-			const settings = JSON.parse(content)
+			const settings = yaml.parse(content)
 			const result = customModesSettingsSchema.safeParse(settings)
 			if (!result.success) {
 				return []
@@ -140,7 +141,7 @@ export class CustomModesManager {
 					let config: any
 
 					try {
-						config = JSON.parse(content)
+						config = yaml.parse(content)
 					} catch (error) {
 						console.error(error)
 						vscode.window.showErrorMessage(errorMessage)
@@ -296,7 +297,7 @@ export class CustomModesManager {
 		let settings
 
 		try {
-			settings = JSON.parse(content)
+			settings = yaml.parse(content)
 		} catch (error) {
 			console.error(`[CustomModesManager] Failed to parse JSON from ${filePath}:`, error)
 			settings = { customModes: [] }
