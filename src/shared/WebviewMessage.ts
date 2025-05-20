@@ -50,7 +50,6 @@ export interface WebviewMessage {
 		| "toggleWindsurfRule"
 		| "toggleWorkflow"
 		| "deleteClineRule"
-		| "updateTerminalConnectionTimeout"
 
 	// | "relaunchChromeDebugMode"
 	text?: string

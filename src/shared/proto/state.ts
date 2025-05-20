@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata, StringRequest } from "./common"
+import { Empty, EmptyRequest, Int64, Int64Request, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -433,6 +433,14 @@ export const StateServiceDefinition = {
 			requestType: TogglePlanActModeRequest,
 			requestStream: false,
 			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		updateTerminalConnectionTimeout: {
+			name: "updateTerminalConnectionTimeout",
+			requestType: Int64Request,
+			requestStream: false,
+			responseType: Int64,
 			responseStream: false,
 			options: {},
 		},
