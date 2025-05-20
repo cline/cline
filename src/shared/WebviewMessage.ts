@@ -24,7 +24,6 @@ export interface WebviewMessage {
 		| "browserRelaunchResult"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
 		| "showAccountViewClicked"
 		| "authStateChanged"
 		| "authCallback"

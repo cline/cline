@@ -8,6 +8,7 @@ import { deleteMcpServer } from "./deleteMcpServer"
 import { downloadMcp } from "./downloadMcp"
 import { restartMcpServer } from "./restartMcpServer"
 import { toggleMcpServer } from "./toggleMcpServer"
+import { toggleToolAutoApprove } from "./toggleToolAutoApprove"
 import { updateMcpTimeout } from "./updateMcpTimeout"
 
 // Register all mcp service methods
@@ -18,5 +19,6 @@ export function registerAllMethods(): void {
 	registerMethod("downloadMcp", downloadMcp)
 	registerMethod("restartMcpServer", restartMcpServer)
 	registerMethod("toggleMcpServer", toggleMcpServer)
+	registerMethod("toggleToolAutoApprove", toggleToolAutoApprove)
 	registerMethod("updateMcpTimeout", updateMcpTimeout)
 }
