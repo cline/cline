@@ -53,7 +53,6 @@ export interface WebviewMessage {
 		| "toggleWindsurfRule"
 		| "toggleWorkflow"
 		| "deleteClineRule"
-		| "copyToClipboard"
 		| "updateTerminalConnectionTimeout"
 		| "setActiveQuote"
 
