@@ -14,6 +14,7 @@ import { searchFiles } from "./searchFiles"
 import { selectImages } from "./selectImages"
 import { toggleClineRule } from "./toggleClineRule"
 import { toggleCursorRule } from "./toggleCursorRule"
+import { toggleWindsurfRule } from "./toggleWindsurfRule"
 
 // Register all file service methods
 export function registerAllMethods(): void {
@@ -29,4 +30,5 @@ export function registerAllMethods(): void {
 	registerMethod("selectImages", selectImages)
 	registerMethod("toggleClineRule", toggleClineRule)
 	registerMethod("toggleCursorRule", toggleCursorRule)
+	registerMethod("toggleWindsurfRule", toggleWindsurfRule)
 }

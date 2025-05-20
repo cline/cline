@@ -8,6 +8,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
 import Tooltip from "@/components/common/Tooltip"
 import styled from "styled-components"
+import { ClineRulesToggles, ToggleWindsurfRuleRequest } from "@shared/proto/file"
 
 const ClineRulesToggleModal: React.FC = () => {
 	const {
@@ -19,6 +20,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
+		setLocalWindsurfRulesToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -94,11 +96,18 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	const toggleWindsurfRule = (rulePath: string, enabled: boolean) => {
-		vscode.postMessage({
-			type: "toggleWindsurfRule",
+		FileServiceClient.toggleWindsurfRule({
 			rulePath,
 			enabled,
-		})
+		} as ToggleWindsurfRuleRequest)
+			.then((response: ClineRulesToggles) => {
+				if (response.toggles) {
+					setLocalWindsurfRulesToggles(response.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Windsurf rule:", error)
+			})
 	}
 
 	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {

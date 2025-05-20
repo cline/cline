@@ -54,6 +54,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -531,6 +532,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				localCursorRulesToggles: toggles,
+			})),
+		setLocalWindsurfRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localWindsurfRulesToggles: toggles,
 			})),
 		setMcpTab,
 	}

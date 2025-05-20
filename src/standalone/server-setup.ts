@@ -32,6 +32,7 @@ import { getRelativePaths } from "../core/controller/file/getRelativePaths"
 import { searchFiles } from "../core/controller/file/searchFiles"
 import { toggleClineRule } from "../core/controller/file/toggleClineRule"
 import { toggleCursorRule } from "../core/controller/file/toggleCursorRule"
+import { toggleWindsurfRule } from "../core/controller/file/toggleWindsurfRule"
 
 // Mcp Service
 import { toggleMcpServer } from "../core/controller/mcp/toggleMcpServer"
@@ -124,6 +125,7 @@ export function addServices(
 		searchFiles: wrapper(searchFiles, controller),
 		toggleClineRule: wrapper(toggleClineRule, controller),
 		toggleCursorRule: wrapper(toggleCursorRule, controller),
+		toggleWindsurfRule: wrapper(toggleWindsurfRule, controller),
 	})
 
 	// Mcp Service

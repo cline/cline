@@ -10,6 +10,15 @@ import { Empty, EmptyRequest, Metadata, StringArray, StringRequest } from "./com
 
 export const protobufPackage = "cline"
 
+/** Request to toggle a Windsurf rule */
+export interface ToggleWindsurfRuleRequest {
+	metadata?: Metadata | undefined
+	/** Path to the rule file */
+	rulePath: string
+	/** Whether to enable or disable the rule */
+	enabled: boolean
+}
+
 /** Request to convert a list of URIs to relative paths */
 export interface RelativePathsRequest {
 	metadata?: Metadata | undefined
@@ -121,6 +130,99 @@ export interface ToggleCursorRuleRequest {
 	rulePath: string
 	/** Whether to enable or disable the rule */
 	enabled: boolean
+}
+
+function createBaseToggleWindsurfRuleRequest(): ToggleWindsurfRuleRequest {
+	return { metadata: undefined, rulePath: "", enabled: false }
+}
+
+export const ToggleWindsurfRuleRequest: MessageFns<ToggleWindsurfRuleRequest> = {
+	encode(message: ToggleWindsurfRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.rulePath !== "") {
+			writer.uint32(18).string(message.rulePath)
+		}
+		if (message.enabled !== false) {
+			writer.uint32(24).bool(message.enabled)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ToggleWindsurfRuleRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseToggleWindsurfRuleRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.rulePath = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 24) {
+						break
+					}
+
+					message.enabled = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ToggleWindsurfRuleRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
+			enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+		}
+	},
+
+	toJSON(message: ToggleWindsurfRuleRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.rulePath !== "") {
+			obj.rulePath = message.rulePath
+		}
+		if (message.enabled !== false) {
+			obj.enabled = message.enabled
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ToggleWindsurfRuleRequest>, I>>(base?: I): ToggleWindsurfRuleRequest {
+		return ToggleWindsurfRuleRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ToggleWindsurfRuleRequest>, I>>(object: I): ToggleWindsurfRuleRequest {
+		const message = createBaseToggleWindsurfRuleRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.rulePath = object.rulePath ?? ""
+		message.enabled = object.enabled ?? false
+		return message
+	},
 }
 
 function createBaseRelativePathsRequest(): RelativePathsRequest {
@@ -1479,6 +1581,15 @@ export const FileServiceDefinition = {
 		toggleCursorRule: {
 			name: "toggleCursorRule",
 			requestType: ToggleCursorRuleRequest,
+			requestStream: false,
+			responseType: ClineRulesToggles,
+			responseStream: false,
+			options: {},
+		},
+		/** Toggle a Windsurf rule (enable or disable) */
+		toggleWindsurfRule: {
+			name: "toggleWindsurfRule",
+			requestType: ToggleWindsurfRuleRequest,
 			requestStream: false,
 			responseType: ClineRulesToggles,
 			responseStream: false,
