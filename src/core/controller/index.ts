@@ -341,10 +341,6 @@ export class Controller {
 			case "openMention":
 				openMention(message.text)
 				break
-			case "accountLogoutClicked": {
-				await this.handleSignOut()
-				break
-			}
 			case "showAccountViewClicked": {
 				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
 				break

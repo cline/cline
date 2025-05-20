@@ -6,6 +6,7 @@ import { GrpcHandlerWrapper, GrpcStreamingResponseHandlerWrapper } from "./grpc-
 
 // Account Service
 import { accountLoginClicked } from "../core/controller/account/accountLoginClicked"
+import { accountLogoutClicked } from "../core/controller/account/accountLogoutClicked"
 
 // Browser Service
 import { getBrowserConnectionInfo } from "../core/controller/browser/getBrowserConnectionInfo"
@@ -83,6 +84,7 @@ export function addServices(
 	// Account Service
 	server.addService(proto.cline.AccountService.service, {
 		accountLoginClicked: wrapper(accountLoginClicked, controller),
+		accountLogoutClicked: wrapper(accountLogoutClicked, controller),
 	})
 
 	// Browser Service
