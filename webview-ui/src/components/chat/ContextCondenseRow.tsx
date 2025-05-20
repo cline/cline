@@ -4,18 +4,9 @@ import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 
 import { ContextCondense } from "@roo/schemas"
 
-interface ContextCondenseRowProps {
-	contextCondense?: ContextCondense
-}
-
-const ContextCondenseRow = ({ contextCondense }: ContextCondenseRowProps) => {
+const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, summary }: ContextCondense) => {
 	const { t } = useTranslation()
 	const [isExpanded, setIsExpanded] = useState(false)
-
-	if (!contextCondense) {
-		return null
-	}
-	const { cost, prevContextTokens, newContextTokens, summary } = contextCondense
 
 	return (
 		<div className="mb-2">
