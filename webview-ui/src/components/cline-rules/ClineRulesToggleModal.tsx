@@ -19,6 +19,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		workflowToggles = {},
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
+		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
@@ -79,11 +80,19 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	const toggleCursorRule = (rulePath: string, enabled: boolean) => {
-		vscode.postMessage({
-			type: "toggleCursorRule",
+		FileServiceClient.toggleCursorRule({
 			rulePath,
 			enabled,
 		})
+			.then((response) => {
+				// Update the local state with the response
+				if (response.toggles) {
+					setLocalCursorRulesToggles(response.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Cursor rule:", error)
+			})
 	}
 
 	const toggleWindsurfRule = (rulePath: string, enabled: boolean) => {

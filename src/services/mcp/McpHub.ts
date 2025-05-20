@@ -793,6 +793,58 @@ export class McpHub {
 		)
 	}
 
+	/**
+	 * RPC variant of toggleToolAutoApprove that returns the updated servers instead of notifying the webview
+	 * @param serverName The name of the MCP server
+	 * @param toolNames Array of tool names to toggle auto-approve for
+	 * @param shouldAllow Whether to enable or disable auto-approve
+	 * @returns Array of updated MCP servers
+	 */
+	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
+		try {
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Initialize autoApprove if it doesn't exist
+			if (!config.mcpServers[serverName].autoApprove) {
+				config.mcpServers[serverName].autoApprove = []
+			}
+
+			const autoApprove = config.mcpServers[serverName].autoApprove
+			for (const toolName of toolNames) {
+				const toolIndex = autoApprove.indexOf(toolName)
+
+				if (shouldAllow && toolIndex === -1) {
+					// Add tool to autoApprove list
+					autoApprove.push(toolName)
+				} else if (!shouldAllow && toolIndex !== -1) {
+					// Remove tool from autoApprove list
+					autoApprove.splice(toolIndex, 1)
+				}
+			}
+
+			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+
+			// Update the tools list to reflect the change
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection && connection.server.tools) {
+				// Update the autoApprove property of each tool in the in-memory server object
+				connection.server.tools = connection.server.tools.map((tool) => ({
+					...tool,
+					autoApprove: autoApprove.includes(tool.name),
+				}))
+			}
+
+			// Return sorted servers without notifying webview
+			const serverOrder = Object.keys(config.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
+		} catch (error) {
+			console.error("Failed to update autoApprove settings:", error)
+			throw error // Re-throw to ensure the error is properly handled
+		}
+	}
+
 	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()

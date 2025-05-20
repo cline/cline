@@ -14,6 +14,7 @@ import { testBrowserConnection } from "../core/controller/browser/testBrowserCon
 import { discoverBrowser } from "../core/controller/browser/discoverBrowser"
 import { getDetectedChromePath } from "../core/controller/browser/getDetectedChromePath"
 import { updateBrowserSettings } from "../core/controller/browser/updateBrowserSettings"
+import { relaunchChromeDebugMode } from "../core/controller/browser/relaunchChromeDebugMode"
 
 // Checkpoints Service
 import { checkpointDiff } from "../core/controller/checkpoints/checkpointDiff"
@@ -30,6 +31,7 @@ import { selectImages } from "../core/controller/file/selectImages"
 import { getRelativePaths } from "../core/controller/file/getRelativePaths"
 import { searchFiles } from "../core/controller/file/searchFiles"
 import { toggleClineRule } from "../core/controller/file/toggleClineRule"
+import { toggleCursorRule } from "../core/controller/file/toggleCursorRule"
 import { toggleWindsurfRule } from "../core/controller/file/toggleWindsurfRule"
 
 // Mcp Service
@@ -39,6 +41,7 @@ import { addRemoteMcpServer } from "../core/controller/mcp/addRemoteMcpServer"
 import { downloadMcp } from "../core/controller/mcp/downloadMcp"
 import { restartMcpServer } from "../core/controller/mcp/restartMcpServer"
 import { deleteMcpServer } from "../core/controller/mcp/deleteMcpServer"
+import { toggleToolAutoApprove } from "../core/controller/mcp/toggleToolAutoApprove"
 
 // Models Service
 import { getOllamaModels } from "../core/controller/models/getOllamaModels"
@@ -100,6 +103,7 @@ export function addServices(
 		discoverBrowser: wrapper(discoverBrowser, controller),
 		getDetectedChromePath: wrapper(getDetectedChromePath, controller),
 		updateBrowserSettings: wrapper(updateBrowserSettings, controller),
+		relaunchChromeDebugMode: wrapper(relaunchChromeDebugMode, controller),
 	})
 
 	// Checkpoints Service
@@ -120,6 +124,7 @@ export function addServices(
 		getRelativePaths: wrapper(getRelativePaths, controller),
 		searchFiles: wrapper(searchFiles, controller),
 		toggleClineRule: wrapper(toggleClineRule, controller),
+		toggleCursorRule: wrapper(toggleCursorRule, controller),
 		toggleWindsurfRule: wrapper(toggleWindsurfRule, controller),
 	})
 
@@ -131,6 +136,7 @@ export function addServices(
 		downloadMcp: wrapper(downloadMcp, controller),
 		restartMcpServer: wrapper(restartMcpServer, controller),
 		deleteMcpServer: wrapper(deleteMcpServer, controller),
+		toggleToolAutoApprove: wrapper(toggleToolAutoApprove, controller),
 	})
 
 	// Models Service

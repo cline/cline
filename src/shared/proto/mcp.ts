@@ -71,6 +71,13 @@ export interface AddRemoteMcpServerRequest {
 	serverUrl: string
 }
 
+export interface ToggleToolAutoApproveRequest {
+	metadata?: Metadata | undefined
+	serverName: string
+	toolNames: string[]
+	autoApprove: boolean
+}
+
 export interface McpTool {
 	name: string
 	description?: string | undefined
@@ -383,6 +390,115 @@ export const AddRemoteMcpServerRequest: MessageFns<AddRemoteMcpServerRequest> = 
 			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
 		message.serverName = object.serverName ?? ""
 		message.serverUrl = object.serverUrl ?? ""
+		return message
+	},
+}
+
+function createBaseToggleToolAutoApproveRequest(): ToggleToolAutoApproveRequest {
+	return { metadata: undefined, serverName: "", toolNames: [], autoApprove: false }
+}
+
+export const ToggleToolAutoApproveRequest: MessageFns<ToggleToolAutoApproveRequest> = {
+	encode(message: ToggleToolAutoApproveRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.metadata !== undefined) {
+			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
+		}
+		if (message.serverName !== "") {
+			writer.uint32(18).string(message.serverName)
+		}
+		for (const v of message.toolNames) {
+			writer.uint32(26).string(v!)
+		}
+		if (message.autoApprove !== false) {
+			writer.uint32(32).bool(message.autoApprove)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): ToggleToolAutoApproveRequest {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseToggleToolAutoApproveRequest()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.metadata = Metadata.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.serverName = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.toolNames.push(reader.string())
+					continue
+				}
+				case 4: {
+					if (tag !== 32) {
+						break
+					}
+
+					message.autoApprove = reader.bool()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): ToggleToolAutoApproveRequest {
+		return {
+			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+			toolNames: globalThis.Array.isArray(object?.toolNames) ? object.toolNames.map((e: any) => globalThis.String(e)) : [],
+			autoApprove: isSet(object.autoApprove) ? globalThis.Boolean(object.autoApprove) : false,
+		}
+	},
+
+	toJSON(message: ToggleToolAutoApproveRequest): unknown {
+		const obj: any = {}
+		if (message.metadata !== undefined) {
+			obj.metadata = Metadata.toJSON(message.metadata)
+		}
+		if (message.serverName !== "") {
+			obj.serverName = message.serverName
+		}
+		if (message.toolNames?.length) {
+			obj.toolNames = message.toolNames
+		}
+		if (message.autoApprove !== false) {
+			obj.autoApprove = message.autoApprove
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<ToggleToolAutoApproveRequest>, I>>(base?: I): ToggleToolAutoApproveRequest {
+		return ToggleToolAutoApproveRequest.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<ToggleToolAutoApproveRequest>, I>>(object: I): ToggleToolAutoApproveRequest {
+		const message = createBaseToggleToolAutoApproveRequest()
+		message.metadata =
+			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
+		message.serverName = object.serverName ?? ""
+		message.toolNames = object.toolNames?.map((e) => e) || []
+		message.autoApprove = object.autoApprove ?? false
 		return message
 	},
 }
@@ -1023,6 +1139,14 @@ export const McpServiceDefinition = {
 		deleteMcpServer: {
 			name: "deleteMcpServer",
 			requestType: StringRequest,
+			requestStream: false,
+			responseType: McpServers,
+			responseStream: false,
+			options: {},
+		},
+		toggleToolAutoApprove: {
+			name: "toggleToolAutoApprove",
+			requestType: ToggleToolAutoApproveRequest,
 			requestStream: false,
 			responseType: McpServers,
 			responseStream: false,
