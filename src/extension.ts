@@ -57,10 +57,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
 		const lastShownPopupNotificationVersion = context.globalState.get<string>("clineLastPopupNotificationVersion")
 
-		if (currentVersion !== lastShownPopupNotificationVersion) {
+		if (currentVersion !== lastShownPopupNotificationVersion && previousVersion) {
 			// Show VS Code popup notification as this version hasn't been notified yet.
 			const message = `Cline has been updated to v${currentVersion}`
-			Logger.log(`Showing update notification: ${message}`)
 			await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 			await new Promise((resolve) => setTimeout(resolve, 200))
 			vscode.window.showInformationMessage(message)
@@ -520,7 +519,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				panelView.reveal(panelView.viewColumn)
 			} else if (!activeWebviewProvider) {
 				// No webview is currently visible, try to activate the sidebar
-				Logger.log("FocusChatInput: No visible Cline instance, trying to focus sidebar.")
 				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 				await new Promise((resolve) => setTimeout(resolve, 200)) // Allow time for focus
 				activeWebviewProvider = WebviewProvider.getSidebarInstance()
@@ -528,13 +526,11 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (!activeWebviewProvider) {
 					// Sidebar didn't become active (might be closed or not in current view container)
 					// Check for existing tab panels
-					Logger.log("FocusChatInput: Sidebar not found or not visible, checking for existing tab panels.")
 					const tabInstances = WebviewProvider.getTabInstances()
 					if (tabInstances.length > 0) {
 						const potentialTabInstance = tabInstances[tabInstances.length - 1] // Get the most recent one
 						if (potentialTabInstance.view && potentialTabInstance.view.hasOwnProperty("reveal")) {
 							const panelView = potentialTabInstance.view as vscode.WebviewPanel
-							Logger.log(`FocusChatInput: Revealing existing Cline tab panel: ${panelView.title}`)
 							panelView.reveal(panelView.viewColumn)
 							activeWebviewProvider = potentialTabInstance
 						}
@@ -543,7 +539,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				if (!activeWebviewProvider) {
 					// No existing Cline view found at all, open a new tab
-					Logger.log("FocusChatInput: No existing Cline view found, opening in a new tab.")
 					await vscode.commands.executeCommand("cline.openInNewTab")
 					// After openInNewTab, a new webview is created. We need to get this new instance.
 					// It might take a moment for it to register.
@@ -554,22 +549,19 @@ export async function activate(context: vscode.ExtensionContext) {
 							return !!(visibleInstance?.view && visibleInstance.view.hasOwnProperty("reveal"))
 						},
 						{ timeout: 2000 },
-					).catch(() => {
-						Logger.log("FocusChatInput: Timeout waiting for new tab to become visible.")
-					})
+					)
 					activeWebviewProvider = WebviewProvider.getVisibleInstance()
 				}
 			}
 			// At this point, activeWebviewProvider should be the one we want to send the message to.
 			// It could still be undefined if opening a new tab failed or timed out.
 			if (activeWebviewProvider) {
-				Logger.log("FocusChatInput: Sending focusChatInput message to active webview.")
 				activeWebviewProvider.controller.postMessageToWebview({
 					type: "action",
 					action: "focusChatInput",
 				})
 			} else {
-				Logger.log("FocusChatInput: Could not find or activate a Cline webview to focus.")
+				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
 				vscode.window.showErrorMessage(
 					"Could not activate Cline view. Please try opening it manually from the Activity Bar.",
 				)
