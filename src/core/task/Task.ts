@@ -492,16 +492,9 @@ export class Task extends EventEmitter<ClineEvents> {
 		if (!summary) {
 			return
 		}
-		const lastMessageContent = this.apiConversationHistory.at(-1)?.content
 		await this.overwriteApiConversationHistory(messages)
 		const { contextTokens } = this.getTokenUsage()
-		const lastContent =
-			typeof lastMessageContent === "string"
-				? [{ type: "text" as const, text: lastMessageContent }]
-				: lastMessageContent
-		const lastMessageTokens = lastContent ? await this.api.countTokens(lastContent) : 0
-		const prevContextTokens = contextTokens + lastMessageTokens
-		const contextCondense: ContextCondense = { summary, cost, newContextTokens, prevContextTokens }
+		const contextCondense: ContextCondense = { summary, cost, newContextTokens, prevContextTokens: contextTokens }
 		await this.say(
 			"condense_context",
 			undefined /* text */,
