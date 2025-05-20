@@ -69,6 +69,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const modeShortcutText = `${isMac ? "⌘" : "Ctrl"} + . ${t("chat:forNextMode")}`
 	const {
 		clineMessages: messages,
+		currentTaskItem,
 		taskHistory,
 		apiConfiguration,
 		mcpServers,
@@ -138,6 +139,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const lastTtsRef = useRef<string>("")
 	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
 	const [showCheckpointWarning, setShowCheckpointWarning] = useState<boolean>(false)
+	const [isCondensing, setIsCondensing] = useState<boolean>(false)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -619,15 +621,26 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							handleSecondaryButtonClick(message.text ?? "", message.images ?? [])
 							break
 					}
+					break
+				case "condenseTaskContextResponse":
+					if (message.text && message.text === currentTaskItem?.id) {
+						if (isCondensing && sendingDisabled) {
+							setSendingDisabled(false)
+						}
+						setIsCondensing(false)
+					}
+					break
 			}
 			// textAreaRef.current is not explicitly required here since React
 			// guarantees that ref will be stable across re-renders, and we're
 			// not using its value but its reference.
 		},
 		[
+			isCondensing,
 			isHidden,
 			sendingDisabled,
 			enableButtons,
+			currentTaskItem,
 			handleChatReset,
 			handleSendMessage,
 			handleSetChatBoxMessage,
@@ -1242,6 +1255,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		},
 	}))
 
+	const handleCondenseContext = (taskId: string) => {
+		if (isCondensing || sendingDisabled) {
+			return
+		}
+		setIsCondensing(true)
+		setSendingDisabled(true)
+		vscode.postMessage({ type: "condenseTaskContextRequest", text: taskId })
+	}
+
 	return (
 		<div className={isHidden ? "hidden" : "fixed top-0 left-0 right-0 bottom-0 flex flex-col overflow-hidden"}>
 			{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} />}
@@ -1256,6 +1278,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						cacheReads={apiMetrics.totalCacheReads}
 						totalCost={apiMetrics.totalCost}
 						contextTokens={apiMetrics.contextTokens}
+						buttonsDisabled={sendingDisabled}
+						handleCondenseContext={handleCondenseContext}
 						onClose={handleTaskCloseButtonClick}
 					/>
 

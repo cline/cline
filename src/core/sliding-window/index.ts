@@ -64,7 +64,7 @@ type TruncateOptions = {
 	maxTokens?: number | null
 	apiHandler: ApiHandler
 	autoCondenseContext?: boolean
-	systemPrompt?: string
+	systemPrompt: string
 }
 
 type TruncateResponse = SummarizeResponse & { prevContextTokens: number }

@@ -10,7 +10,8 @@
 		"contextWindow": "上下文长度：",
 		"closeAndStart": "关闭任务并开始新任务",
 		"export": "导出任务历史",
-		"delete": "删除任务（Shift + 点击跳过确认）"
+		"delete": "删除任务（Shift + 点击跳过确认）",
+		"condenseContext": "压缩任务上下文"
 	},
 	"unpin": "取消置顶",
 	"pin": "置顶",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "上下文已压缩",
-		"conversationSummary": "对话摘要",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

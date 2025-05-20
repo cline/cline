@@ -10,7 +10,8 @@
 		"contextWindow": "Lunghezza del contesto:",
 		"closeAndStart": "Chiudi attività e iniziane una nuova",
 		"export": "Esporta cronologia attività",
-		"delete": "Elimina attività (Shift + Clic per saltare la conferma)"
+		"delete": "Elimina attività (Shift + Clic per saltare la conferma)",
+		"condenseContext": "Condensa contesto attività"
 	},
 	"unpin": "Rilascia",
 	"pin": "Fissa",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Contesto condensato",
-		"conversationSummary": "Riepilogo della conversazione",
 		"tokens": "token"
 	},
 	"followUpSuggest": {

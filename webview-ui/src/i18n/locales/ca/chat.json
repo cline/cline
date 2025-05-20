@@ -10,7 +10,8 @@
 		"contextWindow": "Finestra de context:",
 		"closeAndStart": "Tancar tasca i iniciar-ne una de nova",
 		"export": "Exportar historial de tasques",
-		"delete": "Eliminar tasca (Shift + Clic per ometre confirmació)"
+		"delete": "Eliminar tasca (Shift + Clic per ometre confirmació)",
+		"condenseContext": "Condensar context de la tasca"
 	},
 	"unpin": "Desfixar",
 	"pin": "Fixar",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Context condensat",
-		"conversationSummary": "Resum de la conversa",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

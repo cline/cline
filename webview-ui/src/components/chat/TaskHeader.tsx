@@ -28,6 +28,8 @@ export interface TaskHeaderProps {
 	cacheReads?: number
 	totalCost: number
 	contextTokens: number
+	buttonsDisabled: boolean
+	handleCondenseContext: (taskId: string) => void
 	onClose: () => void
 }
 
@@ -40,6 +42,8 @@ const TaskHeader = ({
 	cacheReads,
 	totalCost,
 	contextTokens,
+	buttonsDisabled,
+	handleCondenseContext,
 	onClose,
 }: TaskHeaderProps) => {
 	const { t } = useTranslation()
@@ -152,7 +156,13 @@ const TaskHeader = ({
 										</span>
 									)}
 								</div>
-								{!totalCost && <TaskActions item={currentTaskItem} />}
+								{!totalCost && (
+									<TaskActions
+										item={currentTaskItem}
+										buttonsDisabled={buttonsDisabled}
+										handleCondenseContext={handleCondenseContext}
+									/>
+								)}
 							</div>
 
 							{doesModelSupportPromptCache &&
@@ -181,7 +191,11 @@ const TaskHeader = ({
 										<span className="font-bold">{t("chat:task.apiCost")}</span>
 										<span>${totalCost?.toFixed(2)}</span>
 									</div>
-									<TaskActions item={currentTaskItem} />
+									<TaskActions
+										item={currentTaskItem}
+										buttonsDisabled={buttonsDisabled}
+										handleCondenseContext={handleCondenseContext}
+									/>
 								</div>
 							)}
 						</div>

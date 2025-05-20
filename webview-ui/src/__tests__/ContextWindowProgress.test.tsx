@@ -56,6 +56,8 @@ describe("ContextWindowProgress", () => {
 			totalCost: 0.001,
 			contextTokens: 1000,
 			onClose: jest.fn(),
+			buttonsDisabled: false,
+			handleCondenseContext: jest.fn((_taskId: string) => {}),
 		}
 
 		return render(

@@ -10,7 +10,8 @@
 		"contextWindow": "Okno kontekstu:",
 		"closeAndStart": "Zamknij zadanie i rozpocznij nowe",
 		"export": "Eksportuj historię zadań",
-		"delete": "Usuń zadanie (Shift + Kliknięcie, aby pominąć potwierdzenie)"
+		"delete": "Usuń zadanie (Shift + Kliknięcie, aby pominąć potwierdzenie)",
+		"condenseContext": "Skondensuj kontekst zadania"
 	},
 	"unpin": "Odepnij",
 	"pin": "Przypnij",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Kontekst skondensowany",
-		"conversationSummary": "Podsumowanie rozmowy",
 		"tokens": "tokeny"
 	},
 	"followUpSuggest": {

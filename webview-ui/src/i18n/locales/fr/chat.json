@@ -10,7 +10,8 @@
 		"contextWindow": "Durée du contexte :",
 		"closeAndStart": "Fermer la tâche et en commencer une nouvelle",
 		"export": "Exporter l'historique des tâches",
-		"delete": "Supprimer la tâche (Shift + Clic pour ignorer la confirmation)"
+		"delete": "Supprimer la tâche (Shift + Clic pour ignorer la confirmation)",
+		"condenseContext": "Condenser le contexte de la tâche"
 	},
 	"unpin": "Désépingler",
 	"pin": "Épingler",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Contexte condensé",
-		"conversationSummary": "Résumé de la conversation",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

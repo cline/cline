@@ -40,6 +40,8 @@ describe("TaskHeader", () => {
 		doesModelSupportPromptCache: true,
 		totalCost: 0.05,
 		contextTokens: 200,
+		buttonsDisabled: false,
+		handleCondenseContext: jest.fn(),
 		onClose: jest.fn(),
 	}
 

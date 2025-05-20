@@ -10,7 +10,8 @@
 		"contextWindow": "コンテキストウィンドウ:",
 		"closeAndStart": "タスクを閉じて新しいタスクを開始",
 		"export": "タスク履歴をエクスポート",
-		"delete": "タスクを削除（Shift + クリックで確認をスキップ）"
+		"delete": "タスクを削除（Shift + クリックで確認をスキップ）",
+		"condenseContext": "タスクコンテキストを圧縮"
 	},
 	"unpin": "ピン留めを解除",
 	"pin": "ピン留め",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "コンテキスト要約",
-		"conversationSummary": "会話の要約",
 		"tokens": "トークン"
 	},
 	"followUpSuggest": {

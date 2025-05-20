@@ -10,7 +10,8 @@
 		"contextWindow": "Contextlengte:",
 		"closeAndStart": "Taak sluiten en een nieuwe starten",
 		"export": "Taakgeschiedenis exporteren",
-		"delete": "Taak verwijderen (Shift + Klik om bevestiging over te slaan)"
+		"delete": "Taak verwijderen (Shift + Klik om bevestiging over te slaan)",
+		"condenseContext": "Taakcontext samenvatten"
 	},
 	"unpin": "Losmaken",
 	"pin": "Vastmaken",
@@ -210,7 +211,6 @@
 	},
 	"contextCondense": {
 		"title": "Context samengevat",
-		"conversationSummary": "Gespreksoverzicht",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

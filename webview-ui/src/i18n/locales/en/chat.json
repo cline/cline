@@ -7,6 +7,7 @@
 		"tokens": "Tokens:",
 		"cache": "Cache:",
 		"apiCost": "API Cost:",
+		"condenseContext": "Condense task context",
 		"contextWindow": "Context Length:",
 		"closeAndStart": "Close task and start a new one",
 		"export": "Export task history",
@@ -131,7 +132,6 @@
 	},
 	"contextCondense": {
 		"title": "Context Condensed",
-		"conversationSummary": "Conversation Summary",
 		"tokens": "tokens"
 	},
 	"instructions": {

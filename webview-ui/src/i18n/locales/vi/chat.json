@@ -10,7 +10,8 @@
 		"contextWindow": "Chiều dài bối cảnh:",
 		"closeAndStart": "Đóng nhiệm vụ và bắt đầu nhiệm vụ mới",
 		"export": "Xuất lịch sử nhiệm vụ",
-		"delete": "Xóa nhiệm vụ (Shift + Click để bỏ qua xác nhận)"
+		"delete": "Xóa nhiệm vụ (Shift + Click để bỏ qua xác nhận)",
+		"condenseContext": "Cô đọng ngữ cảnh tác vụ"
 	},
 	"unpin": "Bỏ ghim khỏi đầu",
 	"pin": "Ghim lên đầu",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Ngữ cảnh đã tóm tắt",
-		"conversationSummary": "Tóm tắt cuộc hội thoại",
 		"tokens": "token"
 	},
 	"followUpSuggest": {

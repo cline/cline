@@ -57,12 +57,13 @@ export type SummarizeResponse = {
  *
  * @param {ApiMessage[]} messages - The conversation messages
  * @param {ApiHandler} apiHandler - The API handler to use for token counting.
+ * @param {string} systemPrompt - The system prompt for API requests, which should be considered in the context token count
  * @returns {SummarizeResponse} - The result of the summarization operation (see above)
  */
 export async function summarizeConversation(
 	messages: ApiMessage[],
 	apiHandler: ApiHandler,
-	systemPrompt?: string,
+	systemPrompt: string,
 ): Promise<SummarizeResponse> {
 	const response: SummarizeResponse = { messages, cost: 0, summary: "" }
 	const messagesToSummarize = getMessagesSinceLastSummary(messages.slice(0, -N_MESSAGES_TO_KEEP))
@@ -111,10 +112,10 @@ export async function summarizeConversation(
 
 	// Count the tokens in the context for the next API request
 	// We only estimate the tokens in summaryMesage if outputTokens is 0, otherwise we use outputTokens
-	const contextMessages = outputTokens ? [...keepMessages] : [summaryMessage, ...keepMessages]
-	if (systemPrompt) {
-		contextMessages.unshift({ role: "user", content: systemPrompt })
-	}
+	const systemPromptMessage: ApiMessage = { role: "user", content: systemPrompt }
+	const contextMessages = outputTokens
+		? [systemPromptMessage, ...keepMessages]
+		: [systemPromptMessage, summaryMessage, ...keepMessages]
 	const contextBlocks = contextMessages.flatMap((message) =>
 		typeof message.content === "string" ? [{ text: message.content, type: "text" as const }] : message.content,
 	)

@@ -10,7 +10,8 @@
 		"contextWindow": "Janela de contexto:",
 		"closeAndStart": "Fechar tarefa e iniciar nova",
 		"export": "Exportar histórico de tarefas",
-		"delete": "Excluir tarefa (Shift + Clique para pular confirmação)"
+		"delete": "Excluir tarefa (Shift + Clique para pular confirmação)",
+		"condenseContext": "Condensar contexto da tarefa"
 	},
 	"unpin": "Desfixar",
 	"pin": "Fixar",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Contexto condensado",
-		"conversationSummary": "Resumo da conversa",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

@@ -10,7 +10,8 @@
 		"contextWindow": "Bağlam Uzunluğu:",
 		"closeAndStart": "Görevi kapat ve yeni bir görev başlat",
 		"export": "Görev geçmişini dışa aktar",
-		"delete": "Görevi sil (Onayı atlamak için Shift + Tıkla)"
+		"delete": "Görevi sil (Onayı atlamak için Shift + Tıkla)",
+		"condenseContext": "Görev bağlamını yoğunlaştır"
 	},
 	"unpin": "Sabitlemeyi iptal et",
 	"pin": "Sabitle",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Bağlam Özetlendi",
-		"conversationSummary": "Konuşma Özeti",
 		"tokens": "token"
 	},
 	"followUpSuggest": {

@@ -1111,6 +1111,22 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		await downloadTask(historyItem.ts, apiConversationHistory)
 	}
 
+	/* Condenses a task's message history to use fewer tokens. */
+	async condenseTaskContext(taskId: string) {
+		let task: Task | undefined
+		for (let i = this.clineStack.length - 1; i >= 0; i--) {
+			if (this.clineStack[i].taskId === taskId) {
+				task = this.clineStack[i]
+				break
+			}
+		}
+		if (!task) {
+			throw new Error(`Task with id ${taskId} not found in stack`)
+		}
+		await task.condenseContext()
+		await this.postMessageToWebview({ type: "condenseTaskContextResponse", text: taskId })
+	}
+
 	// this function deletes a task from task hidtory, and deletes it's checkpoints and delete the task folder
 	async deleteTaskWithId(id: string) {
 		try {

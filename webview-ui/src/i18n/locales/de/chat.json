@@ -10,7 +10,8 @@
 		"contextWindow": "Kontextfenster:",
 		"closeAndStart": "Aufgabe schließen und neue starten",
 		"export": "Aufgabenverlauf exportieren",
-		"delete": "Aufgabe löschen (Shift + Klick zum Überspringen der Bestätigung)"
+		"delete": "Aufgabe löschen (Shift + Klick zum Überspringen der Bestätigung)",
+		"condenseContext": "Task-Kontext komprimieren"
 	},
 	"unpin": "Lösen von oben",
 	"pin": "Anheften",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Kontext komprimiert",
-		"conversationSummary": "Gesprächszusammenfassung",
 		"tokens": "Tokens"
 	},
 	"followUpSuggest": {

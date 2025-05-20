@@ -10,7 +10,8 @@
 		"contextWindow": "Longitud del contexto:",
 		"closeAndStart": "Cerrar tarea e iniciar una nueva",
 		"export": "Exportar historial de tareas",
-		"delete": "Eliminar tarea (Shift + Clic para omitir confirmación)"
+		"delete": "Eliminar tarea (Shift + Clic para omitir confirmación)",
+		"condenseContext": "Condensar contexto de la tarea"
 	},
 	"unpin": "Desfijar",
 	"pin": "Fijar",
@@ -200,7 +201,6 @@
 	},
 	"contextCondense": {
 		"title": "Contexto condensado",
-		"conversationSummary": "Resumen de la conversación",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

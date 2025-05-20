@@ -27,10 +27,7 @@ export const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, 
 
 			{isExpanded && (
 				<div className="mt-2 ml-0 p-4 bg-vscode-editor-background rounded text-vscode-foreground text-sm">
-					<h3 className="font-bold mb-5 -mt-1 ml-2">{t("chat:contextCondense.conversationSummary")}</h3>
-					<div className="-ml-6">
-						<Markdown markdown={summary} />
-					</div>
+					<Markdown markdown={summary} />
 				</div>
 			)}
 		</div>

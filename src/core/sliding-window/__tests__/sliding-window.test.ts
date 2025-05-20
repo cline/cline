@@ -248,6 +248,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 
 		// Check the new return type
@@ -276,6 +277,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 
 		expect(result).toEqual({
@@ -302,6 +304,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo1.contextWindow,
 			maxTokens: modelInfo1.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 
 		const result2 = await truncateConversationIfNeeded({
@@ -310,6 +313,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo2.contextWindow,
 			maxTokens: modelInfo2.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 
 		expect(result1.messages).toEqual(result2.messages)
@@ -325,6 +329,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo1.contextWindow,
 			maxTokens: modelInfo1.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 
 		const result4 = await truncateConversationIfNeeded({
@@ -333,6 +338,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo2.contextWindow,
 			maxTokens: modelInfo2.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 
 		expect(result3.messages).toEqual(result4.messages)
@@ -363,6 +369,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(resultWithSmall).toEqual({
 			messages: messagesWithSmallContent,
@@ -392,6 +399,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(resultWithLarge.messages).not.toEqual(messagesWithLargeContent) // Should truncate
 		expect(resultWithLarge.summary).toBe("")
@@ -414,6 +422,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(resultWithVeryLarge.messages).not.toEqual(messagesWithVeryLargeContent) // Should truncate
 		expect(resultWithVeryLarge.summary).toBe("")
@@ -439,6 +448,7 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result).toEqual({
 			messages: expectedResult,
@@ -524,6 +534,7 @@ describe("truncateConversationIfNeeded", () => {
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
 			autoCondenseContext: true,
+			systemPrompt: "System prompt",
 		})
 
 		// Verify summarizeConversation was called
@@ -559,6 +570,7 @@ describe("truncateConversationIfNeeded", () => {
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
 			autoCondenseContext: false,
+			systemPrompt: "System prompt",
 		})
 
 		// Verify summarizeConversation was not called
@@ -612,6 +624,7 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result1).toEqual({
 			messages: messagesWithSmallContent,
@@ -627,6 +640,7 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result2.messages).not.toEqual(messagesWithSmallContent)
 		expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction
@@ -650,6 +664,7 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result1).toEqual({
 			messages: messagesWithSmallContent,
@@ -665,6 +680,7 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result2.messages).not.toEqual(messagesWithSmallContent)
 		expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction
@@ -687,6 +703,7 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result1.messages).toEqual(messagesWithSmallContent)
 
@@ -697,6 +714,7 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result2).not.toEqual(messagesWithSmallContent)
 		expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction
@@ -717,6 +735,7 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result1.messages).toEqual(messagesWithSmallContent)
 
@@ -727,6 +746,7 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			systemPrompt: "System prompt",
 		})
 		expect(result2).not.toEqual(messagesWithSmallContent)
 		expect(result2.messages.length).toBe(3) // Truncated with 0.5 fraction
