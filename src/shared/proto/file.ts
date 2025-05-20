@@ -906,6 +906,15 @@ export const FileServiceDefinition = {
 	name: "FileService",
 	fullName: "cline.FileService",
 	methods: {
+		/** Copies text to clipboard */
+		copyToClipboard: {
+			name: "copyToClipboard",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
 		/** Opens a file in the editor */
 		openFile: {
 			name: "openFile",

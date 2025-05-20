@@ -31,9 +31,14 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
 	totalTasksSize: number | null
+
 	// View state
 	showMcp: boolean
 	mcpTab?: McpViewTab
+	showSettings: boolean
+	showHistory: boolean
+	showAccount: boolean
+	showAnnouncement: boolean
 
 	// Setters
 	setApiConfiguration: (config: ApiConfiguration) => void
@@ -47,9 +52,23 @@ interface ExtensionStateContextType extends ExtensionState {
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 
-	// Navigation
+	// Navigation state setters
 	setShowMcp: (value: boolean) => void
 	setMcpTab: (tab?: McpViewTab) => void
+
+	// Navigation functions
+	navigateToMcp: (tab?: McpViewTab) => void
+	navigateToSettings: () => void
+	navigateToHistory: () => void
+	navigateToAccount: () => void
+	navigateToChat: () => void
+
+	// Hide functions
+	hideSettings: () => void
+	hideHistory: () => void
+	hideAccount: () => void
+	hideAnnouncement: () => void
+	closeMcpView: () => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -60,6 +79,64 @@ export const ExtensionStateContextProvider: React.FC<{
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
+	const [showSettings, setShowSettings] = useState(false)
+	const [showHistory, setShowHistory] = useState(false)
+	const [showAccount, setShowAccount] = useState(false)
+	const [showAnnouncement, setShowAnnouncement] = useState(false)
+
+	// Helper for MCP view
+	const closeMcpView = useCallback(() => {
+		setShowMcp(false)
+		setMcpTab(undefined)
+	}, [setShowMcp, setMcpTab])
+
+	// Hide functions
+	const hideSettings = useCallback(() => setShowSettings(false), [setShowSettings])
+	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
+	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
+	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
+
+	// Navigation functions
+	const navigateToMcp = useCallback(
+		(tab?: McpViewTab) => {
+			setShowSettings(false)
+			setShowHistory(false)
+			setShowAccount(false)
+			if (tab) {
+				setMcpTab(tab)
+			}
+			setShowMcp(true)
+		},
+		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount],
+	)
+
+	const navigateToSettings = useCallback(() => {
+		setShowHistory(false)
+		closeMcpView()
+		setShowAccount(false)
+		setShowSettings(true)
+	}, [setShowSettings, setShowHistory, closeMcpView, setShowAccount])
+
+	const navigateToHistory = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowAccount(false)
+		setShowHistory(true)
+	}, [setShowSettings, closeMcpView, setShowAccount, setShowHistory])
+
+	const navigateToAccount = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(true)
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount])
+
+	const navigateToChat = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -100,6 +177,26 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
+			case "action": {
+				switch (message.action!) {
+					case "mcpButtonClicked":
+						navigateToMcp(message.tab)
+						break
+					case "settingsButtonClicked":
+						navigateToSettings()
+						break
+					case "historyButtonClicked":
+						navigateToHistory()
+						break
+					case "accountButtonClicked":
+						navigateToAccount()
+						break
+					case "chatButtonClicked":
+						navigateToChat()
+						break
+				}
+				break
+			}
 			case "state": {
 				// Handler for direct state messages
 				if (message.state) {
@@ -335,12 +432,29 @@ export const ExtensionStateContextProvider: React.FC<{
 		totalTasksSize,
 		showMcp,
 		mcpTab,
+		showSettings,
+		showHistory,
+		showAccount,
+		showAnnouncement,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
 		workflowToggles: state.workflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
+
+		// Navigation functions
+		navigateToMcp,
+		navigateToSettings,
+		navigateToHistory,
+		navigateToAccount,
+		navigateToChat,
+
+		// Hide functions
+		hideSettings,
+		hideHistory,
+		hideAccount,
+		hideAnnouncement,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -383,6 +497,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
 		setShowMcp,
+		closeMcpView,
 		setChatSettings: (value) => {
 			setState((prevState) => ({
 				...prevState,

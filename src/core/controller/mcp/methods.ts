@@ -4,7 +4,9 @@
 // Import all method implementations
 import { registerMethod } from "./index"
 import { addRemoteMcpServer } from "./addRemoteMcpServer"
+import { deleteMcpServer } from "./deleteMcpServer"
 import { downloadMcp } from "./downloadMcp"
+import { restartMcpServer } from "./restartMcpServer"
 import { toggleMcpServer } from "./toggleMcpServer"
 import { updateMcpTimeout } from "./updateMcpTimeout"
 
@@ -12,7 +14,9 @@ import { updateMcpTimeout } from "./updateMcpTimeout"
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("addRemoteMcpServer", addRemoteMcpServer)
+	registerMethod("deleteMcpServer", deleteMcpServer)
 	registerMethod("downloadMcp", downloadMcp)
+	registerMethod("restartMcpServer", restartMcpServer)
 	registerMethod("toggleMcpServer", toggleMcpServer)
 	registerMethod("updateMcpTimeout", updateMcpTimeout)
 }
