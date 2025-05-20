@@ -198,6 +198,11 @@
 		"thinking": "생각 중",
 		"seconds": "{{count}}초"
 	},
+	"contextCondense": {
+		"title": "컨텍스트 요약됨",
+		"conversationSummary": "대화 요약",
+		"tokens": "토큰"
+	},
 	"followUpSuggest": {
 		"copyToInput": "입력창에 복사 (또는 Shift + 클릭)"
 	},

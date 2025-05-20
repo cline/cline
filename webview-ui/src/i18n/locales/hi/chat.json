@@ -198,6 +198,11 @@
 		"thinking": "विचार कर रहा है",
 		"seconds": "{{count}} सेकंड"
 	},
+	"contextCondense": {
+		"title": "संदर्भ संक्षिप्त किया गया",
+		"conversationSummary": "वार्तालाप का सारांश",
+		"tokens": "टोकन"
+	},
 	"followUpSuggest": {
 		"copyToInput": "इनपुट में कॉपी करें (या Shift + क्लिक)"
 	},
