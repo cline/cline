@@ -69,10 +69,11 @@ describe("summarizeConversation", () => {
 		// Reset mocks
 		jest.clearAllMocks()
 
-		// Setup mock stream
+		// Setup mock stream with usage information
 		mockStream = (async function* () {
 			yield { type: "text" as const, text: "This is " }
 			yield { type: "text" as const, text: "a summary" }
+			yield { type: "usage" as const, totalCost: 0.05, outputTokens: 150 }
 		})()
 
 		// Setup mock API handler
@@ -103,7 +104,10 @@ describe("summarizeConversation", () => {
 		]
 
 		const result = await summarizeConversation(messages, mockApiHandler)
-		expect(result).toEqual(messages)
+		expect(result.messages).toEqual(messages)
+		expect(result.cost).toBe(0)
+		expect(result.summary).toBe("")
+		expect(result.newContextTokens).toBeUndefined()
 		expect(mockApiHandler.createMessage).not.toHaveBeenCalled()
 	})
 
@@ -119,7 +123,10 @@ describe("summarizeConversation", () => {
 		]
 
 		const result = await summarizeConversation(messages, mockApiHandler)
-		expect(result).toEqual(messages)
+		expect(result.messages).toEqual(messages)
+		expect(result.cost).toBe(0)
+		expect(result.summary).toBe("")
+		expect(result.newContextTokens).toBeUndefined()
 		expect(mockApiHandler.createMessage).not.toHaveBeenCalled()
 	})
 
@@ -142,17 +149,22 @@ describe("summarizeConversation", () => {
 
 		// Verify the structure of the result
 		// The result should be: original messages (except last N) + summary + last N messages
-		expect(result.length).toBe(messages.length + 1) // Original + summary
+		expect(result.messages.length).toBe(messages.length + 1) // Original + summary
 
 		// Check that the summary message was inserted correctly
-		const summaryMessage = result[result.length - N_MESSAGES_TO_KEEP - 1]
+		const summaryMessage = result.messages[result.messages.length - N_MESSAGES_TO_KEEP - 1]
 		expect(summaryMessage.role).toBe("assistant")
 		expect(summaryMessage.content).toBe("This is a summary")
 		expect(summaryMessage.isSummary).toBe(true)
 
 		// Check that the last N_MESSAGES_TO_KEEP messages are preserved
 		const lastMessages = messages.slice(-N_MESSAGES_TO_KEEP)
-		expect(result.slice(-N_MESSAGES_TO_KEEP)).toEqual(lastMessages)
+		expect(result.messages.slice(-N_MESSAGES_TO_KEEP)).toEqual(lastMessages)
+
+		// Check the cost and token counts
+		expect(result.cost).toBe(0.05)
+		expect(result.summary).toBe("This is a summary")
+		expect(result.newContextTokens).toBe(250) // 150 output tokens + 100 from countTokens
 	})
 
 	it("should handle empty summary response", async () => {
@@ -172,9 +184,10 @@ describe("summarizeConversation", () => {
 		const mockWarn = jest.fn()
 		console.warn = mockWarn
 
-		// Setup empty summary response
+		// Setup empty summary response with usage information
 		const emptyStream = (async function* () {
 			yield { type: "text" as const, text: "" }
+			yield { type: "usage" as const, totalCost: 0.02, outputTokens: 0 }
 		})()
 
 		// Create a new mock for createMessage that returns empty stream
@@ -189,7 +202,10 @@ describe("summarizeConversation", () => {
 		const result = await summarizeConversation(messages, mockApiHandler)
 
 		// Should return original messages when summary is empty
-		expect(result).toEqual(messages)
+		expect(result.messages).toEqual(messages)
+		expect(result.cost).toBe(0.02)
+		expect(result.summary).toBe("")
+		expect(result.newContextTokens).toBe(100) // Only from countTokens since outputTokens is 0
 		expect(mockWarn).toHaveBeenCalledWith("Received empty summary from API")
 
 		// Restore console.warn
@@ -224,5 +240,38 @@ describe("summarizeConversation", () => {
 		// Check that maybeRemoveImageBlocks was called with the correct messages
 		const mockCallArgs = (maybeRemoveImageBlocks as jest.Mock).mock.calls[0][0] as any[]
 		expect(mockCallArgs[mockCallArgs.length - 1]).toEqual(expectedFinalMessage)
+	})
+
+	it("should calculate newContextTokens correctly with systemPrompt", async () => {
+		const messages: ApiMessage[] = [
+			{ role: "user", content: "Hello", ts: 1 },
+			{ role: "assistant", content: "Hi there", ts: 2 },
+			{ role: "user", content: "How are you?", ts: 3 },
+			{ role: "assistant", content: "I'm good", ts: 4 },
+			{ role: "user", content: "What's new?", ts: 5 },
+			{ role: "assistant", content: "Not much", ts: 6 },
+			{ role: "user", content: "Tell me more", ts: 7 },
+		]
+
+		const systemPrompt = "You are a helpful assistant."
+
+		// Create a stream with usage information
+		const streamWithUsage = (async function* () {
+			yield { type: "text" as const, text: "This is a summary with system prompt" }
+			yield { type: "usage" as const, totalCost: 0.06, outputTokens: 200 }
+		})()
+
+		// Override the mock for this test
+		mockApiHandler.createMessage = jest.fn().mockReturnValue(streamWithUsage) as any
+
+		const result = await summarizeConversation(messages, mockApiHandler, systemPrompt)
+
+		// Verify that countTokens was called with the correct messages including system prompt
+		expect(mockApiHandler.countTokens).toHaveBeenCalled()
+
+		// Check the newContextTokens calculation includes system prompt
+		expect(result.newContextTokens).toBe(300) // 200 output tokens + 100 from countTokens
+		expect(result.cost).toBe(0.06)
+		expect(result.summary).toBe("This is a summary with system prompt")
 	})
 })
