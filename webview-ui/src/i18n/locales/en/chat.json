@@ -129,6 +129,11 @@
 		},
 		"current": "Current"
 	},
+	"contextCondense": {
+		"title": "Context Condensed",
+		"conversationSummary": "Conversation Summary",
+		"tokens": "tokens"
+	},
 	"instructions": {
 		"wantsToFetch": "Roo wants to fetch detailed instructions to assist with the current task"
 	},

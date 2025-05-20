@@ -15,11 +15,9 @@ const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, summary
 				onClick={() => setIsExpanded(!isExpanded)}>
 				<div className="flex items-center gap-2 flex-grow">
 					<span className="codicon codicon-compress text-blue-400" />
-					<span className="font-bold text-vscode-foreground">
-						{t("chat:contextCondense.title", "Context Condensed")}
-					</span>
+					<span className="font-bold text-vscode-foreground">{t("chat:contextCondense.title")}</span>
 					<span className="text-vscode-descriptionForeground text-sm">
-						{prevContextTokens.toLocaleString()} → {newContextTokens.toLocaleString()} tokens
+						{prevContextTokens.toLocaleString()} → {newContextTokens.toLocaleString()} {t("tokens")}
 					</span>
 					<VSCodeBadge style={{ opacity: cost > 0 ? 1 : 0 }}>${cost.toFixed(2)}</VSCodeBadge>
 				</div>
@@ -28,7 +26,7 @@ const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, summary
 
 			{isExpanded && (
 				<div className="mt-2 ml-6 p-3 bg-vscode-editor-background rounded text-vscode-foreground text-sm">
-					<h3 className="font-bold mb-2">Conversation Summary</h3>
+					<h3 className="font-bold mb-2">{t("chat:contextCondense.conversationSummary")}</h3>
 					{summary}
 				</div>
 			)}
