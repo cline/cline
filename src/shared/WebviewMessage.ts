@@ -44,7 +44,6 @@ export interface WebviewMessage {
 		| "toggleWindsurfRule"
 		| "toggleWorkflow"
 		| "updateTerminalConnectionTimeout"
-		| "setActiveQuote"
 
 	text?: string
 	disabled?: boolean
