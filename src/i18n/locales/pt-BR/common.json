@@ -55,7 +55,8 @@
 		"failed_delete_repo": "Falha ao excluir o repositório ou ramificação associada: {{error}}",
 		"failed_remove_directory": "Falha ao remover o diretório de tarefas: {{error}}",
 		"custom_storage_path_unusable": "O caminho de armazenamento personalizado \"{{path}}\" não pode ser usado, será usado o caminho padrão",
-		"cannot_access_path": "Não é possível acessar o caminho {{path}}: {{error}}"
+		"cannot_access_path": "Não é possível acessar o caminho {{path}}: {{error}}",
+		"settings_import_failed": "Falha ao importar configurações: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Nenhum conteúdo do terminal selecionado",
@@ -71,8 +72,7 @@
 		"mcp_server_not_found": "Servidor \"{{serverName}}\" não encontrado na configuração",
 		"custom_storage_path_set": "Caminho de armazenamento personalizado definido: {{path}}",
 		"default_storage_path": "Retornado ao caminho de armazenamento padrão",
-		"settings_imported": "Configurações importadas com sucesso.",
-		"settings_import_failed": "Falha ao importar configurações: {{error}}."
+		"settings_imported": "Configurações importadas com sucesso."
 	},
 	"answers": {
 		"yes": "Sim",

@@ -51,7 +51,8 @@
 		"failed_delete_repo": "Impossibile eliminare il repository o il ramo associato: {{error}}",
 		"failed_remove_directory": "Impossibile rimuovere la directory delle attività: {{error}}",
 		"custom_storage_path_unusable": "Il percorso di archiviazione personalizzato \"{{path}}\" non è utilizzabile, verrà utilizzato il percorso predefinito",
-		"cannot_access_path": "Impossibile accedere al percorso {{path}}: {{error}}"
+		"cannot_access_path": "Impossibile accedere al percorso {{path}}: {{error}}",
+		"settings_import_failed": "Importazione delle impostazioni fallita: {{error}}."
 	},
 	"warnings": {
 		"no_terminal_content": "Nessun contenuto del terminale selezionato",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "Server \"{{serverName}}\" non trovato nella configurazione",
 		"custom_storage_path_set": "Percorso di archiviazione personalizzato impostato: {{path}}",
 		"default_storage_path": "Tornato al percorso di archiviazione predefinito",
-		"settings_imported": "Impostazioni importate con successo.",
-		"settings_import_failed": "Importazione delle impostazioni fallita: {{error}}."
+		"settings_imported": "Impostazioni importate con successo."
 	},
 	"answers": {
 		"yes": "Sì",

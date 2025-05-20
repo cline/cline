@@ -51,7 +51,8 @@
 		"failed_delete_repo": "Không thể xóa kho lưu trữ hoặc nhánh liên quan: {{error}}",
 		"failed_remove_directory": "Không thể xóa thư mục nhiệm vụ: {{error}}",
 		"custom_storage_path_unusable": "Đường dẫn lưu trữ tùy chỉnh \"{{path}}\" không thể sử dụng được, sẽ sử dụng đường dẫn mặc định",
-		"cannot_access_path": "Không thể truy cập đường dẫn {{path}}: {{error}}"
+		"cannot_access_path": "Không thể truy cập đường dẫn {{path}}: {{error}}",
+		"settings_import_failed": "Nhập cài đặt thất bại: {{error}}."
 	},
 	"warnings": {
 		"no_terminal_content": "Không có nội dung terminal được chọn",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "Không tìm thấy máy chủ \"{{serverName}}\" trong cấu hình",
 		"custom_storage_path_set": "Đã thiết lập đường dẫn lưu trữ tùy chỉnh: {{path}}",
 		"default_storage_path": "Đã quay lại sử dụng đường dẫn lưu trữ mặc định",
-		"settings_imported": "Cài đặt đã được nhập thành công.",
-		"settings_import_failed": "Nhập cài đặt thất bại: {{error}}."
+		"settings_imported": "Cài đặt đã được nhập thành công."
 	},
 	"answers": {
 		"yes": "Có",

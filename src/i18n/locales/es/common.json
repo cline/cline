@@ -51,7 +51,8 @@
 		"failed_delete_repo": "Error al eliminar el repositorio o rama asociada: {{error}}",
 		"failed_remove_directory": "Error al eliminar el directorio de tareas: {{error}}",
 		"custom_storage_path_unusable": "La ruta de almacenamiento personalizada \"{{path}}\" no es utilizable, se usará la ruta predeterminada",
-		"cannot_access_path": "No se puede acceder a la ruta {{path}}: {{error}}"
+		"cannot_access_path": "No se puede acceder a la ruta {{path}}: {{error}}",
+		"settings_import_failed": "Error al importar la configuración: {{error}}."
 	},
 	"warnings": {
 		"no_terminal_content": "No hay contenido de terminal seleccionado",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "Servidor \"{{serverName}}\" no encontrado en la configuración",
 		"custom_storage_path_set": "Ruta de almacenamiento personalizada establecida: {{path}}",
 		"default_storage_path": "Se ha vuelto a usar la ruta de almacenamiento predeterminada",
-		"settings_imported": "Configuración importada correctamente.",
-		"settings_import_failed": "Error al importar la configuración: {{error}}."
+		"settings_imported": "Configuración importada correctamente."
 	},
 	"answers": {
 		"yes": "Sí",

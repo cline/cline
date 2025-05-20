@@ -51,7 +51,8 @@
 		"failed_delete_repo": "删除关联的影子仓库或分支失败：{{error}}",
 		"failed_remove_directory": "删除任务目录失败：{{error}}",
 		"custom_storage_path_unusable": "自定义存储路径 \"{{path}}\" 不可用，将使用默认路径",
-		"cannot_access_path": "无法访问路径 {{path}}：{{error}}"
+		"cannot_access_path": "无法访问路径 {{path}}：{{error}}",
+		"settings_import_failed": "设置导入失败：{{error}}。"
 	},
 	"warnings": {
 		"no_terminal_content": "没有选择终端内容",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "在配置中未找到服务器\"{{serverName}}\"",
 		"custom_storage_path_set": "自定义存储路径已设置：{{path}}",
 		"default_storage_path": "已恢复使用默认存储路径",
-		"settings_imported": "设置已成功导入。",
-		"settings_import_failed": "设置导入失败：{{error}}。"
+		"settings_imported": "设置已成功导入。"
 	},
 	"answers": {
 		"yes": "是",

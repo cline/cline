@@ -51,7 +51,8 @@
 		"failed_remove_directory": "Verwijderen van taakmap mislukt: {{error}}",
 		"custom_storage_path_unusable": "Aangepast opslagpad \"{{path}}\" is onbruikbaar, standaardpad wordt gebruikt",
 		"cannot_access_path": "Kan pad {{path}} niet openen: {{error}}",
-		"failed_update_project_mcp": "Bijwerken van project MCP-servers mislukt"
+		"failed_update_project_mcp": "Bijwerken van project MCP-servers mislukt",
+		"settings_import_failed": "Importeren van instellingen mislukt: {{error}}."
 	},
 	"warnings": {
 		"no_terminal_content": "Geen terminalinhoud geselecteerd",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "Server \"{{serverName}}\" niet gevonden in configuratie",
 		"custom_storage_path_set": "Aangepast opslagpad ingesteld: {{path}}",
 		"default_storage_path": "Terug naar standaard opslagpad",
-		"settings_imported": "Instellingen succesvol geïmporteerd.",
-		"settings_import_failed": "Importeren van instellingen mislukt: {{error}}."
+		"settings_imported": "Instellingen succesvol geïmporteerd."
 	},
 	"answers": {
 		"yes": "Ja",

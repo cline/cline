@@ -51,7 +51,8 @@
 		"failed_delete_repo": "関連するシャドウリポジトリまたはブランチの削除に失敗しました：{{error}}",
 		"failed_remove_directory": "タスクディレクトリの削除に失敗しました：{{error}}",
 		"custom_storage_path_unusable": "カスタムストレージパス \"{{path}}\" が使用できないため、デフォルトパスを使用します",
-		"cannot_access_path": "パス {{path}} にアクセスできません：{{error}}"
+		"cannot_access_path": "パス {{path}} にアクセスできません：{{error}}",
+		"settings_import_failed": "設定のインポートに失敗しました：{{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "選択されたターミナルコンテンツがありません",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "サーバー\"{{serverName}}\"が設定内に見つかりません",
 		"custom_storage_path_set": "カスタムストレージパスが設定されました：{{path}}",
 		"default_storage_path": "デフォルトのストレージパスに戻りました",
-		"settings_imported": "設定が正常にインポートされました。",
-		"settings_import_failed": "設定のインポートに失敗しました：{{error}}。"
+		"settings_imported": "設定が正常にインポートされました。"
 	},
 	"answers": {
 		"yes": "はい",

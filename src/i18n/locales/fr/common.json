@@ -51,7 +51,8 @@
 		"failed_delete_repo": "Échec de la suppression du repo fantôme ou de la branche associée : {{error}}",
 		"failed_remove_directory": "Échec de la suppression du répertoire de tâches : {{error}}",
 		"custom_storage_path_unusable": "Le chemin de stockage personnalisé \"{{path}}\" est inutilisable, le chemin par défaut sera utilisé",
-		"cannot_access_path": "Impossible d'accéder au chemin {{path}} : {{error}}"
+		"cannot_access_path": "Impossible d'accéder au chemin {{path}} : {{error}}",
+		"settings_import_failed": "Échec de l'importation des paramètres : {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Aucun contenu de terminal sélectionné",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "Serveur \"{{serverName}}\" introuvable dans la configuration",
 		"custom_storage_path_set": "Chemin de stockage personnalisé défini : {{path}}",
 		"default_storage_path": "Retour au chemin de stockage par défaut",
-		"settings_imported": "Paramètres importés avec succès.",
-		"settings_import_failed": "Échec de l'importation des paramètres : {{error}}."
+		"settings_imported": "Paramètres importés avec succès."
 	},
 	"answers": {
 		"yes": "Oui",

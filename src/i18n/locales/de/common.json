@@ -51,7 +51,8 @@
 		"failed_delete_repo": "Fehler beim Löschen des zugehörigen Shadow-Repositorys oder -Zweigs: {{error}}",
 		"failed_remove_directory": "Fehler beim Entfernen des Aufgabenverzeichnisses: {{error}}",
 		"custom_storage_path_unusable": "Benutzerdefinierter Speicherpfad \"{{path}}\" ist nicht verwendbar, Standardpfad wird verwendet",
-		"cannot_access_path": "Zugriff auf Pfad {{path}} nicht möglich: {{error}}"
+		"cannot_access_path": "Zugriff auf Pfad {{path}} nicht möglich: {{error}}",
+		"settings_import_failed": "Fehler beim Importieren der Einstellungen: {{error}}."
 	},
 	"warnings": {
 		"no_terminal_content": "Kein Terminal-Inhalt ausgewählt",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "Server \"{{serverName}}\" nicht in der Konfiguration gefunden",
 		"custom_storage_path_set": "Benutzerdefinierter Speicherpfad festgelegt: {{path}}",
 		"default_storage_path": "Auf Standardspeicherpfad zurückgesetzt",
-		"settings_imported": "Einstellungen erfolgreich importiert.",
-		"settings_import_failed": "Fehler beim Importieren der Einstellungen: {{error}}."
+		"settings_imported": "Einstellungen erfolgreich importiert."
 	},
 	"answers": {
 		"yes": "Ja",

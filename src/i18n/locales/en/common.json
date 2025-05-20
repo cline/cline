@@ -51,7 +51,8 @@
 		"failed_remove_directory": "Failed to remove task directory: {{error}}",
 		"custom_storage_path_unusable": "Custom storage path \"{{path}}\" is unusable, will use default path",
 		"cannot_access_path": "Cannot access path {{path}}: {{error}}",
-		"failed_update_project_mcp": "Failed to update project MCP servers"
+		"failed_update_project_mcp": "Failed to update project MCP servers",
+		"settings_import_failed": "Settings import failed: {{error}}."
 	},
 	"warnings": {
 		"no_terminal_content": "No terminal content selected",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "Server \"{{serverName}}\" not found in configuration",
 		"custom_storage_path_set": "Custom storage path set: {{path}}",
 		"default_storage_path": "Reverted to using default storage path",
-		"settings_imported": "Settings imported successfully.",
-		"settings_import_failed": "Settings import failed: {{error}}."
+		"settings_imported": "Settings imported successfully."
 	},
 	"answers": {
 		"yes": "Yes",

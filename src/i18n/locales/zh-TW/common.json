@@ -51,7 +51,8 @@
 		"failed_delete_repo": "刪除關聯的影子倉庫或分支失敗：{{error}}",
 		"failed_remove_directory": "刪除工作目錄失敗：{{error}}",
 		"custom_storage_path_unusable": "自訂儲存路徑 \"{{path}}\" 無法使用，將使用預設路徑",
-		"cannot_access_path": "無法存取路徑 {{path}}：{{error}}"
+		"cannot_access_path": "無法存取路徑 {{path}}：{{error}}",
+		"settings_import_failed": "設定匯入失敗：{{error}}。"
 	},
 	"warnings": {
 		"no_terminal_content": "沒有選擇終端機內容",
@@ -67,8 +68,7 @@
 		"mcp_server_not_found": "在設定中沒有找到伺服器\"{{serverName}}\"",
 		"custom_storage_path_set": "自訂儲存路徑已設定：{{path}}",
 		"default_storage_path": "已恢復使用預設儲存路徑",
-		"settings_imported": "設定已成功匯入。",
-		"settings_import_failed": "設定匯入失敗：{{error}}。"
+		"settings_imported": "設定已成功匯入。"
 	},
 	"answers": {
 		"yes": "是",
