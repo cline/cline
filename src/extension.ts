@@ -53,21 +53,26 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	// Perform post-update actions if necessary
-	if (!previousVersion || currentVersion !== previousVersion) {
-		Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
-		const lastShownPopupNotificationVersion = context.globalState.get<string>("clineLastPopupNotificationVersion")
+	try {
+		if (!previousVersion || currentVersion !== previousVersion) {
+			Logger.log(`Cline version changed: ${previousVersion} -> ${currentVersion}. First run or update detected.`)
+			const lastShownPopupNotificationVersion = context.globalState.get<string>("clineLastPopupNotificationVersion")
 
-		if (currentVersion !== lastShownPopupNotificationVersion && previousVersion) {
-			// Show VS Code popup notification as this version hasn't been notified yet without doing it for fresh installs
-			const message = `Cline has been updated to v${currentVersion}`
-			await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-			await new Promise((resolve) => setTimeout(resolve, 200))
-			vscode.window.showInformationMessage(message)
-			// Record that we've shown the popup for this version.
-			await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
+			if (currentVersion !== lastShownPopupNotificationVersion && previousVersion) {
+				// Show VS Code popup notification as this version hasn't been notified yet without doing it for fresh installs
+				const message = `Cline has been updated to v${currentVersion}`
+				await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+				await new Promise((resolve) => setTimeout(resolve, 200))
+				vscode.window.showInformationMessage(message)
+				// Record that we've shown the popup for this version.
+				await context.globalState.update("clineLastPopupNotificationVersion", currentVersion)
+			}
+			// Always update the main version tracker for the next launch.
+			await context.globalState.update("clineVersion", currentVersion)
 		}
-		// Always update the main version tracker for the next launch.
-		await context.globalState.update("clineVersion", currentVersion)
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
 	}
 
 	context.subscriptions.push(
