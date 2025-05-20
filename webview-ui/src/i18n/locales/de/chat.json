@@ -207,8 +207,8 @@
 		"copyToInput": "In Eingabefeld kopieren (oder Shift + Klick)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.17 veröffentlicht",
-		"description": "Roo Code 3.17 bringt leistungsstarke neue Funktionen und Verbesserungen basierend auf deinem Feedback.",
+		"title": "🎉 Roo Code {{version}} veröffentlicht",
+		"description": "Roo Code {{version}} bringt leistungsstarke neue Funktionen und Verbesserungen basierend auf deinem Feedback.",
 		"whatsNew": "Was ist neu",
 		"feature1": "<bold>Implizites Caching für Gemini</bold>: Gemini API-Aufrufe werden jetzt automatisch zwischengespeichert, wodurch API-Kosten reduziert werden",
 		"feature2": "<bold>Intelligentere Modusauswahl</bold>: Modusdefinitionen können jetzt Hinweise enthalten, wann jeder Modus verwendet werden sollte, was eine bessere Orchestrierung ermöglicht",

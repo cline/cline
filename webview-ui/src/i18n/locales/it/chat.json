@@ -207,8 +207,8 @@
 		"copyToInput": "Copia nell'input (o Shift + clic)"
 	},
 	"announcement": {
-		"title": "🎉 Rilasciato Roo Code 3.17",
-		"description": "Roo Code 3.17 introduce potenti nuove funzionalità e miglioramenti basati sui tuoi feedback.",
+		"title": "🎉 Rilasciato Roo Code {{version}}",
+		"description": "Roo Code {{version}} introduce potenti nuove funzionalità e miglioramenti basati sui tuoi feedback.",
 		"whatsNew": "Novità",
 		"feature1": "<bold>Caching implicito per Gemini</bold>: Le chiamate API Gemini vengono ora memorizzate automaticamente nella cache, riducendo i costi API",
 		"feature2": "<bold>Selezione della modalità più intelligente</bold>: Le definizioni delle modalità possono ora includere indicazioni su quando ogni modalità dovrebbe essere utilizzata, permettendo una migliore orchestrazione",

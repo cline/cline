@@ -4,6 +4,7 @@ import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@src/components/ui"
+import { version } from "../../../../package.json"
 
 interface AnnouncementProps {
 	hideAnnouncement: () => void
@@ -34,8 +35,8 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 			}}>
 			<DialogContent className="max-w-96">
 				<DialogHeader>
-					<DialogTitle>{t("chat:announcement.title")}</DialogTitle>
-					<DialogDescription>{t("chat:announcement.description")}</DialogDescription>
+					<DialogTitle>{t("chat:announcement.title", { version })}</DialogTitle>
+					<DialogDescription>{t("chat:announcement.description", { version })}</DialogDescription>
 				</DialogHeader>
 				<div>
 					<h3>{t("chat:announcement.whatsNew")}</h3>

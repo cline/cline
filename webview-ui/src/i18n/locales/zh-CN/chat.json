@@ -207,8 +207,8 @@
 		"copyToInput": "复制到输入框（或按住Shift点击）"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.17 已发布",
-		"description": "Roo Code 3.17 带来基于您反馈的强大新功能和改进。",
+		"title": "🎉 Roo Code {{version}} 已发布",
+		"description": "Roo Code {{version}} 带来基于您反馈的强大新功能和改进。",
 		"whatsNew": "新特性",
 		"feature1": "<bold>Gemini 的隐式缓存</bold>: Gemini API 调用现在会自动缓存，降低 API 费用",
 		"feature2": "<bold>更智能的模式选择</bold>: 模式定义现在可以包含何时使用每种模式的指导，实现更好的协调",

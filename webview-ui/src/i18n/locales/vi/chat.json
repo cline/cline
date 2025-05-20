@@ -207,8 +207,8 @@
 		"copyToInput": "Sao chép vào ô nhập liệu (hoặc Shift + nhấp chuột)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.17 Đã phát hành",
-		"description": "Roo Code 3.17 mang đến các tính năng mạnh mẽ và cải tiến mới dựa trên phản hồi của bạn.",
+		"title": "🎉 Roo Code {{version}} Đã phát hành",
+		"description": "Roo Code {{version}} mang đến các tính năng mạnh mẽ và cải tiến mới dựa trên phản hồi của bạn.",
 		"whatsNew": "Có gì mới",
 		"feature1": "<bold>Bộ nhớ đệm ngầm cho Gemini</bold>: Các lệnh gọi API Gemini hiện được tự động lưu vào bộ nhớ đệm, giảm chi phí API",
 		"feature2": "<bold>Lựa chọn chế độ thông minh hơn</bold>: Định nghĩa chế độ giờ đây có thể bao gồm hướng dẫn về thời điểm nên sử dụng mỗi chế độ, cho phép điều phối tốt hơn",

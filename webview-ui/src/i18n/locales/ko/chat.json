@@ -207,8 +207,8 @@
 		"copyToInput": "입력창에 복사 (또는 Shift + 클릭)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.17 출시",
-		"description": "Roo Code 3.17은 사용자 피드백을 기반으로 강력한 새로운 기능과 개선사항을 제공합니다.",
+		"title": "🎉 Roo Code {{version}} 출시",
+		"description": "Roo Code {{version}}은 사용자 피드백을 기반으로 강력한 새로운 기능과 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
 		"feature1": "<bold>Gemini용 암시적 캐싱</bold>: Gemini API 호출이 이제 자동으로 캐시되어 API 비용이 절감됩니다",
 		"feature2": "<bold>더 스마트한 모드 선택</bold>: 모드 정의에 각 모드를 언제 사용해야 하는지에 대한 지침을 포함할 수 있어 더 나은 오케스트레이션이 가능해졌습니다",

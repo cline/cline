@@ -195,8 +195,8 @@
 		"description": "Met automatisch goedkeuren kan Roo Code acties uitvoeren zonder om toestemming te vragen. Schakel dit alleen in voor acties die je volledig vertrouwt. Meer gedetailleerde configuratie beschikbaar in de <settingsLink>Instellingen</settingsLink>."
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.17 uitgebracht",
-		"description": "Roo Code 3.17 brengt krachtige nieuwe functies en verbeteringen op basis van jouw feedback.",
+		"title": "🎉 Roo Code {{version}} uitgebracht",
+		"description": "Roo Code {{version}} brengt krachtige nieuwe functies en verbeteringen op basis van jouw feedback.",
 		"feature1": "<bold>Impliciete caching voor Gemini</bold>: Gemini API-aanroepen worden nu automatisch gecachet, waardoor API-kosten worden verlaagd",
 		"feature2": "<bold>Slimmere modusselectie</bold>: Modusdefinities kunnen nu richtlijnen bevatten over wanneer elke modus moet worden gebruikt, wat betere orchestratie mogelijk maakt",
 		"feature3": "<bold>Intelligente contextcompressie</bold>: Vat gespreksgeschiedenis intelligent samen wanneer de context vol raakt in plaats van deze af te kappen (inschakelen in Instellingen -> Experimenteel)",
