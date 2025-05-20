@@ -154,7 +154,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			if (this.view && "title" in this.view) {
 				// Check if the view object has a title property
 				const isMac = process.platform === "darwin"
-				const shortcutDisplay = isMac ? " (⌘⇧L)" : " (Ctrl+Shift+L)"
+				const shortcutDisplay = isMac ? " (⌘+')" : " (Ctrl+')"
 				const baseTitle = this.context.extension.packageJSON.displayName || "Cline"
 				const newTitleWithShortcut = `${baseTitle}${shortcutDisplay}`
 

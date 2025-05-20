@@ -153,9 +153,11 @@
 			},
 			{
 				"command": "cline.focusChatInput",
-				"key": "ctrl+shift+l",
-				"mac": "cmd+shift+l",
-				"when": "true"
+				"key": "cmd+'",
+				"mac": "cmd+'",
+				"win": "ctrl+'",
+				"linux": "ctrl+'",
+				"when": "!editorHasSelection"
 			}
 		],
 		"menus": {
