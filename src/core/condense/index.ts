@@ -45,22 +45,33 @@ Example summary structure:
 Output only the summary of the conversation so far, without any additional commentary or explanation.
 `
 
+export type SummarizeResponse = {
+	messages: ApiMessage[] // The messages after summarization
+	summary: string // The summary text; empty string for no summary
+	cost: number // The cost of the summarization operation
+	newContextTokens?: number // The number of tokens in the context for the next API request
+}
+
 /**
  * Summarizes the conversation messages using an LLM call
  *
  * @param {ApiMessage[]} messages - The conversation messages
  * @param {ApiHandler} apiHandler - The API handler to use for token counting.
- * @returns {ApiMessage[]} - The input messages, potentially including a new summary message before the last message.
+ * @returns {SummarizeResponse} - The result of the summarization operation (see above)
  */
-export async function summarizeConversation(messages: ApiMessage[], apiHandler: ApiHandler): Promise<ApiMessage[]> {
+export async function summarizeConversation(
+	messages: ApiMessage[],
+	apiHandler: ApiHandler,
+): Promise<SummarizeResponse> {
+	const response: SummarizeResponse = { messages, cost: 0, summary: "" }
 	const messagesToSummarize = getMessagesSinceLastSummary(messages.slice(0, -N_MESSAGES_TO_KEEP))
 	if (messagesToSummarize.length <= 1) {
-		return messages // Not enough messages to warrant a summary
+		return response // Not enough messages to warrant a summary
 	}
 	const keepMessages = messages.slice(-N_MESSAGES_TO_KEEP)
 	for (const message of keepMessages) {
 		if (message.isSummary) {
-			return messages // We recently summarized these messages; it's too soon to summarize again.
+			return response // We recently summarized these messages; it's too soon to summarize again.
 		}
 	}
 	const finalRequestMessage: Anthropic.MessageParam = {
@@ -73,16 +84,21 @@ export async function summarizeConversation(messages: ApiMessage[], apiHandler: 
 	// Note: this doesn't need to be a stream, consider using something like apiHandler.completePrompt
 	const stream = apiHandler.createMessage(SUMMARY_PROMPT, requestMessages)
 	let summary = ""
-	// TODO(canyon): compute usage and cost for this operation and update the global metrics.
+	let cost = 0
+	let outputTokens = 0
 	for await (const chunk of stream) {
 		if (chunk.type === "text") {
 			summary += chunk.text
+		} else if (chunk.type === "usage") {
+			// Record final usage chunk only
+			cost = chunk.totalCost ?? 0
+			outputTokens = chunk.outputTokens ?? 0
 		}
 	}
 	summary = summary.trim()
 	if (summary.length === 0) {
 		console.warn("Received empty summary from API")
-		return messages
+		return { ...response, cost }
 	}
 	const summaryMessage: ApiMessage = {
 		role: "assistant",
@@ -90,8 +106,16 @@ export async function summarizeConversation(messages: ApiMessage[], apiHandler: 
 		ts: keepMessages[0].ts,
 		isSummary: true,
 	}
+	const newMessages = [...messages.slice(0, -N_MESSAGES_TO_KEEP), summaryMessage, ...keepMessages]
 
-	return [...messages.slice(0, -N_MESSAGES_TO_KEEP), summaryMessage, ...keepMessages]
+	// Count the tokens in the context for the next API request
+	// We only estimate the tokens in summaryMesage if outputTokens is 0, otherwise we use outputTokens
+	const contextMessages = outputTokens ? [...keepMessages] : [summaryMessage, ...keepMessages]
+	const contextBlocks = contextMessages.flatMap((message) =>
+		typeof message.content === "string" ? [{ text: message.content, type: "text" as const }] : message.content,
+	)
+	const newContextTokens = outputTokens + (await apiHandler.countTokens(contextBlocks))
+	return { ...response, messages: newMessages, summary, cost, newContextTokens }
 }
 
 /* Returns the list of all messages since the last summary message, including the summary. Returns all messages if there is no summary. */

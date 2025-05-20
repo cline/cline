@@ -31,6 +31,7 @@ import { ProgressIndicator } from "./ProgressIndicator"
 import { Markdown } from "./Markdown"
 import { CommandExecution } from "./CommandExecution"
 import { CommandExecutionError } from "./CommandExecutionError"
+import ContextCondenseRow from "./ContextCondenseRow"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -926,6 +927,8 @@ export const ChatRowContent = ({
 							checkpoint={message.checkpoint}
 						/>
 					)
+				case "condense_context":
+					return <ContextCondenseRow ts={message.ts} contextCondense={message.contextCondense} />
 				default:
 					return (
 						<>

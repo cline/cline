@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../../api"
-import { summarizeConversation } from "../condense"
+import { summarizeConversation, SummarizeResponse } from "../condense"
 import { ApiMessage } from "../task-persistence/apiMessages"
 
 /**
@@ -65,6 +65,8 @@ type TruncateOptions = {
 	autoCondenseContext?: boolean
 }
 
+type TruncateResponse = SummarizeResponse & { prevContextTokens: number }
+
 /**
  * Conditionally truncates the conversation messages if the total token count
  * exceeds the model's limit, considering the size of incoming content.
@@ -79,7 +81,7 @@ export async function truncateConversationIfNeeded({
 	maxTokens,
 	apiHandler,
 	autoCondenseContext,
-}: TruncateOptions): Promise<ApiMessage[]> {
+}: TruncateOptions): Promise<TruncateResponse> {
 	// Calculate the maximum tokens reserved for response
 	const reservedTokens = maxTokens || contextWindow * 0.2
 
@@ -99,12 +101,13 @@ export async function truncateConversationIfNeeded({
 
 	// Determine if truncation is needed and apply if necessary
 	if (effectiveTokens <= allowedTokens) {
-		return messages
+		return { messages, summary: "", cost: 0, prevContextTokens: effectiveTokens }
 	} else if (autoCondenseContext) {
-		const summarizedMessages = await summarizeConversation(messages, apiHandler)
-		if (messages !== summarizedMessages) {
-			return summarizedMessages
+		const result = await summarizeConversation(messages, apiHandler)
+		if (messages !== result.messages) {
+			return { ...result, prevContextTokens: effectiveTokens }
 		}
 	}
-	return truncateConversation(messages, 0.5)
+	const truncatedmessages = truncateConversation(messages, 0.5)
+	return { messages: truncatedmessages, prevContextTokens: effectiveTokens, summary: "", cost: 0 }
 }
