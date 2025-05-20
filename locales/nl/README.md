@@ -14,7 +14,7 @@
 <div align="center">
   <h1>Roo Code (voorheen Roo Cline)</h1>
   <p align="center">
-  <img src="https://media.githubusercontent.com/media/RooVetGit/Roo-Code/main/assets/docs/demo.gif" width="100%" />
+  <img src="https://media.githubusercontent.com/media/RooCodeInc/Roo-Code/main/assets/docs/demo.gif" width="100%" />
   </p>
   <p>Verbind met ontwikkelaars, draag ideeën bij en blijf op de hoogte met de nieuwste AI-gestuurde coderingstools.</p>
   
@@ -27,7 +27,7 @@
 <div align="center">
 
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/Download%20op%20VS%20Marketplace-blauw?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Download op VS Marketplace"></a>
-<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Feature%20Requests-geel?style=for-the-badge" alt="Feature Requests"></a>
+<a href="https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Feature%20Requests-geel?style=for-the-badge" alt="Feature Requests"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/Beoordeel%20%26%20Review-groen?style=for-the-badge" alt="Beoordeel & Review"></a>
 <a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Documentatie-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentatie"></a>
 
@@ -117,7 +117,7 @@ Laat Roo Code werken zoals jij wilt met:
 
 - **Discord:** [Word lid van onze Discord-server](https://discord.gg/roocode) voor directe hulp en discussies
 - **Reddit:** [Bezoek onze subreddit](https://www.reddit.com/r/RooCode) om ervaringen en tips te delen
-- **GitHub:** Meld [problemen](https://github.com/RooVetGit/Roo-Code/issues) of vraag [features](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) aan
+- **GitHub:** Meld [problemen](https://github.com/RooCodeInc/Roo-Code/issues) of vraag [features](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) aan
 
 ---
 
@@ -126,7 +126,7 @@ Laat Roo Code werken zoals jij wilt met:
 1. **Kloon** de repo:
 
 ```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
+git clone https://github.com/RooCodeInc/Roo-Code.git
 ```
 
 2. **Installeer afhankelijkheden**:

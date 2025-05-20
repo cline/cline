@@ -46,7 +46,7 @@ Esmenta la relació amb aquestes àrees als teus PRs.
 ### 3. Uneix-te a la comunitat Roo Code
 
 - **Principal:** Uneix-te al nostre [Discord](https://discord.gg/roocode) i envia un DM a **Hannes Rudolph (`hrudolph`)**.
-- **Alternativa:** Els col·laboradors experimentats poden participar directament via [GitHub Projects](https://github.com/orgs/RooVetGit/projects/1).
+- **Alternativa:** Els col·laboradors experimentats poden participar directament via [GitHub Projects](https://github.com/orgs/RooCodeInc/projects/1).
 
 ## Trobar i planificar la teva contribució
 
@@ -60,7 +60,7 @@ Esmenta la relació amb aquestes àrees als teus PRs.
 
 Totes les contribucions han de començar amb una Issue de GitHub.
 
-- **Revisar issues existents:** Cerca a [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues).
+- **Revisar issues existents:** Cerca a [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
 - **Crear una issue:** Utilitza les plantilles adequades:
     - **Errors:** Plantilla "Bug Report".
     - **Funcionalitats:** Plantilla "Detailed Feature Proposal". Es requereix aprovació abans de començar.
@@ -70,14 +70,14 @@ Totes les contribucions han de començar amb una Issue de GitHub.
 
 ### Decidir en què treballar
 
-- Consulta el [Projecte GitHub](https://github.com/orgs/RooVetGit/projects/1) per trobar "Good First Issues" no assignades.
-- Per a documentació, visita [Roo Code Docs](https://github.com/RooVetGit/Roo-Code-Docs).
+- Consulta el [Projecte GitHub](https://github.com/orgs/RooCodeInc/projects/1) per trobar "Good First Issues" no assignades.
+- Per a documentació, visita [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
 
 ### Informar d'errors
 
 - Comprova primer els informes existents.
-- Crea nous informes d'errors utilitzant la [plantilla "Bug Report"](https://github.com/RooVetGit/Roo-Code/issues/new/choose).
-- **Vulnerabilitats de seguretat:** Informa de manera privada via [security advisories](https://github.com/RooVetGit/Roo-Code/security/advisories/new).
+- Crea nous informes d'errors utilitzant la [plantilla "Bug Report"](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
+- **Vulnerabilitats de seguretat:** Informa de manera privada via [security advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
 ## Procés de desenvolupament i enviament
 

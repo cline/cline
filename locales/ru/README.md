@@ -14,7 +14,7 @@
 <div align="center">
   <h1>Roo Code (ранее Roo Cline)</h1>
   <p align="center">
-  <img src="https://media.githubusercontent.com/media/RooVetGit/Roo-Code/main/assets/docs/demo.gif" width="100%" />
+  <img src="https://media.githubusercontent.com/media/RooCodeInc/Roo-Code/main/assets/docs/demo.gif" width="100%" />
   </p>
   <p>Общайтесь с разработчиками, делитесь идеями и будьте в курсе последних инструментов программирования с поддержкой ИИ.</p>
   
@@ -28,7 +28,7 @@
 <div align="center">
 
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/Скачать_в_VS_Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Скачать в VS Marketplace"></a>
-<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Запросы_функций-yellow?style=for-the-badge" alt="Запросы функций"></a>
+<a href="https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Запросы_функций-yellow?style=for-the-badge" alt="Запросы функций"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/Оценить_и_отзыв-green?style=for-the-badge" alt="Оценить и отзыв"></a>
 <a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Документация-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Документация"></a>
 
@@ -118,7 +118,7 @@ MCP расширяет возможности Roo Code, позволяя доб�
 
 - **Discord:** [Присоединяйтесь к нашему серверу Discord](https://discord.gg/roocode) для помощи в реальном времени и обсуждений
 - **Reddit:** [Посетите наш subreddit](https://www.reddit.com/r/RooCode) чтобы поделиться опытом и советами
-- **GitHub:** Сообщайте об [ошибках](https://github.com/RooVetGit/Roo-Code/issues) или запрашивайте [функции](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+- **GitHub:** Сообщайте об [ошибках](https://github.com/RooCodeInc/Roo-Code/issues) или запрашивайте [функции](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
 
 ---
 
@@ -127,7 +127,7 @@ MCP расширяет возможности Roo Code, позволяя доб�
 1. **Клонируйте** репозиторий:
 
 ```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
+git clone https://github.com/RooCodeInc/Roo-Code.git
 ```
 
 2. **Установите зависимости**:

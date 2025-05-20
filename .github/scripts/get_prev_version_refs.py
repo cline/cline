@@ -10,7 +10,7 @@ def run_git_command(command):
 
 def parse_merge_commit(line):
     # Parse merge commit messages like:
-    # "355dc82 Merge pull request #71 from RooVetGit/better-error-handling"
+    # "355dc82 Merge pull request #71 from RooCodeInc/better-error-handling"
     pattern = r"([a-f0-9]+)\s+Merge pull request #(\d+) from (.+)"
     match = re.match(pattern, line)
     if match:

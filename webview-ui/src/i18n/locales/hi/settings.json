@@ -468,7 +468,7 @@
 		"useCustomModel": "कस्टम उपयोग करें: {{modelId}}"
 	},
 	"footer": {
-		"feedback": "यदि आपके कोई प्रश्न या प्रतिक्रिया है, तो <githubLink>github.com/RooVetGit/Roo-Code</githubLink> पर एक मुद्दा खोलने या <redditLink>reddit.com/r/RooCode</redditLink> या <discordLink>discord.gg/roocode</discordLink> में शामिल होने में संकोच न करें",
+		"feedback": "यदि आपके कोई प्रश्न या प्रतिक्रिया है, तो <githubLink>github.com/RooCodeInc/Roo-Code</githubLink> पर एक मुद्दा खोलने या <redditLink>reddit.com/r/RooCode</redditLink> या <discordLink>discord.gg/roocode</discordLink> में शामिल होने में संकोच न करें",
 		"telemetry": {
 			"label": "गुमनाम त्रुटि और उपयोग रिपोर्टिंग की अनुमति दें",
 			"description": "गुमनाम उपयोग डेटा और त्रुटि रिपोर्ट भेजकर Roo Code को बेहतर बनाने में मदद करें। कोड, प्रॉम्प्ट, या व्यक्तिगत जानकारी कभी भी नहीं भेजी जाती है। अधिक विवरण के लिए हमारी गोपनीयता नीति देखें।"

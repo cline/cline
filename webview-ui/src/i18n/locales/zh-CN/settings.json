@@ -468,7 +468,7 @@
 		"useCustomModel": "使用自定义：{{modelId}}"
 	},
 	"footer": {
-		"feedback": "如果您有任何问题或反馈，请随时在 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 上提出问题或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink>",
+		"feedback": "如果您有任何问题或反馈，请随时在 <githubLink>github.com/RooCodeInc/Roo-Code</githubLink> 上提出问题或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink>",
 		"telemetry": {
 			"label": "允许匿名数据收集",
 			"description": "匿名收集错误报告和使用数据（不含代码/提示/个人信息），详情见隐私政策"

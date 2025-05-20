@@ -7,7 +7,7 @@ NOTE: This is MacOS only for now!
 Clone the Roo Code repo:
 
 ```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
+git clone https://github.com/RooCodeInc/Roo-Code.git
 cd Roo-Code
 ```
 

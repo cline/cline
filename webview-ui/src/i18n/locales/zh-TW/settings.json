@@ -468,7 +468,7 @@
 		"useCustomModel": "使用自訂模型：{{modelId}}"
 	},
 	"footer": {
-		"feedback": "若您有任何問題或建議，歡迎至 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 提出 issue，或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink> 討論。",
+		"feedback": "若您有任何問題或建議，歡迎至 <githubLink>github.com/RooCodeInc/Roo-Code</githubLink> 提出 issue，或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink> 討論。",
 		"telemetry": {
 			"label": "允許匿名錯誤與使用情況回報",
 			"description": "透過傳送匿名的使用資料與錯誤回報，協助改善 Roo Code。我們絕不會傳送您的程式碼、提示或個人資訊。詳細資訊請參閱我們的隱私權政策。"

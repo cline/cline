@@ -26,7 +26,7 @@
 <h1>Roo Code (anciennement Roo Cline)</h1>
 
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/T%C3%A9l%C3%A9charger%20sur%20VS%20Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Télécharger sur VS Marketplace"></a>
-<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Demandes%20de%20fonctionnalit%C3%A9s-yellow?style=for-the-badge" alt="Demandes de fonctionnalités"></a>
+<a href="https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Demandes%20de%20fonctionnalit%C3%A9s-yellow?style=for-the-badge" alt="Demandes de fonctionnalités"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/%C3%89valuer%20%26%20Commenter-green?style=for-the-badge" alt="Évaluer & Commenter"></a>
 <a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Documentation-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
 
@@ -116,7 +116,7 @@ Faites fonctionner Roo Code à votre manière avec :
 
 - **Discord :** [Rejoignez notre serveur Discord](https://discord.gg/roocode) pour une aide en temps réel et des discussions
 - **Reddit :** [Visitez notre subreddit](https://www.reddit.com/r/RooCode) pour partager des expériences et des astuces
-- **GitHub :** Signalez des [problèmes](https://github.com/RooVetGit/Roo-Code/issues) ou demandez de nouvelles [fonctionnalités](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+- **GitHub :** Signalez des [problèmes](https://github.com/RooCodeInc/Roo-Code/issues) ou demandez de nouvelles [fonctionnalités](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
 
 ---
 
@@ -125,7 +125,7 @@ Faites fonctionner Roo Code à votre manière avec :
 1. **Clonez** le dépôt :
 
 ```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
+git clone https://github.com/RooCodeInc/Roo-Code.git
 ```
 
 2. **Installez les dépendances** :

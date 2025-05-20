@@ -46,7 +46,7 @@ Vermeld de afstemming met deze gebieden in je PR's.
 ### 3. Word lid van de Roo Code-community
 
 - **Hoofdmethode:** Word lid van onze [Discord](https://discord.gg/roocode) en stuur een DM naar **Hannes Rudolph (`hrudolph`)**.
-- **Alternatief:** Ervaren bijdragers kunnen direct meedoen via [GitHub Projects](https://github.com/orgs/RooVetGit/projects/1).
+- **Alternatief:** Ervaren bijdragers kunnen direct meedoen via [GitHub Projects](https://github.com/orgs/RooCodeInc/projects/1).
 
 ## Je bijdrage vinden & plannen
 
@@ -60,7 +60,7 @@ Vermeld de afstemming met deze gebieden in je PR's.
 
 Elke bijdrage moet beginnen met een GitHub Issue.
 
-- **Bestaande issues controleren:** Zoek in [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues).
+- **Bestaande issues controleren:** Zoek in [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
 - **Issue aanmaken:** Gebruik de juiste templates:
     - **Bugs:** "Bug Report"-template.
     - **Functies:** "Detailed Feature Proposal"-template. Goedkeuring vereist voor je begint.
@@ -70,14 +70,14 @@ Elke bijdrage moet beginnen met een GitHub Issue.
 
 ### Bepalen waar je aan werkt
 
-- Bekijk het [GitHub Project](https://github.com/orgs/RooVetGit/projects/1) voor niet-toegewezen "Good First Issues".
-- Voor documentatie, bezoek [Roo Code Docs](https://github.com/RooVetGit/Roo-Code-Docs).
+- Bekijk het [GitHub Project](https://github.com/orgs/RooCodeInc/projects/1) voor niet-toegewezen "Good First Issues".
+- Voor documentatie, bezoek [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
 
 ### Bugs of problemen melden
 
 - Controleer eerst of er al meldingen zijn.
-- Maak nieuwe bugmeldingen met de ["Bug Report"-template](https://github.com/RooVetGit/Roo-Code/issues/new/choose).
-- **Beveiligingsproblemen:** Meld privé via [security advisories](https://github.com/RooVetGit/Roo-Code/security/advisories/new).
+- Maak nieuwe bugmeldingen met de ["Bug Report"-template](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
+- **Beveiligingsproblemen:** Meld privé via [security advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
 ## Ontwikkelings- & indieningsproces
 

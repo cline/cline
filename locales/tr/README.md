@@ -26,7 +26,7 @@
 <h1>Roo Code (önceki adıyla Roo Cline)</h1>
 
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/VS%20Marketplace%27den%20İndir-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="VS Marketplace'den İndir"></a>
-<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Özellik%20İstekleri-yellow?style=for-the-badge" alt="Özellik İstekleri"></a>
+<a href="https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Özellik%20İstekleri-yellow?style=for-the-badge" alt="Özellik İstekleri"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/Değerlendir%20%26%20İnceleme-green?style=for-the-badge" alt="Değerlendir & İnceleme"></a>
 <a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Dokümantasyon-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Dokümantasyon"></a>
 
@@ -116,7 +116,7 @@ Roo Code'u kendi tarzınıza göre çalıştırın:
 
 - **Discord:** Gerçek zamanlı yardım ve tartışmalar için [Discord sunucumuza katılın](https://discord.gg/roocode)
 - **Reddit:** Deneyimlerinizi ve ipuçlarınızı paylaşmak için [subreddit'imizi ziyaret edin](https://www.reddit.com/r/RooCode)
-- **GitHub:** [Sorunları bildirin](https://github.com/RooVetGit/Roo-Code/issues) veya [özellik talep edin](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+- **GitHub:** [Sorunları bildirin](https://github.com/RooCodeInc/Roo-Code/issues) veya [özellik talep edin](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
 
 ---
 
@@ -125,7 +125,7 @@ Roo Code'u kendi tarzınıza göre çalıştırın:
 1. Depoyu **klonlayın**:
 
 ```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
+git clone https://github.com/RooCodeInc/Roo-Code.git
 ```
 
 2. **Bağımlılıkları yükleyin**:

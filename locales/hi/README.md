@@ -26,7 +26,7 @@
 <h1>Roo Code (पूर्व में Roo Cline)</h1>
 
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/VS%20Marketplace%20पर%20डाउनलोड%20करें-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="VS Marketplace पर डाउनलोड करें"></a>
-<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/फीचर%20अनुरोध-yellow?style=for-the-badge" alt="फीचर अनुरोध"></a>
+<a href="https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/फीचर%20अनुरोध-yellow?style=for-the-badge" alt="फीचर अनुरोध"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/रेट%20%26%20समीक्षा-green?style=for-the-badge" alt="रेट & समीक्षा"></a>
 <a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/दस्तावेज़ीकरण-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="दस्तावेज़ीकरण"></a>
 
@@ -116,7 +116,7 @@ MCP आपको असीमित कस्टम टूल्स जोड़
 
 - **Discord:** रीयल-टाइम मदद और चर्चाओं के लिए [हमारे Discord सर्वर में शामिल हों](https://discord.gg/roocode)
 - **Reddit:** अनुभव और टिप्स साझा करने के लिए [हमारे subreddit पर जाएं](https://www.reddit.com/r/RooCode)
-- **GitHub:** [समस्याओं की रिपोर्ट करें](https://github.com/RooVetGit/Roo-Code/issues) या [फीचर अनुरोध करें](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+- **GitHub:** [समस्याओं की रिपोर्ट करें](https://github.com/RooCodeInc/Roo-Code/issues) या [फीचर अनुरोध करें](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
 
 ---
 
@@ -125,7 +125,7 @@ MCP आपको असीमित कस्टम टूल्स जोड़
 1. रिपो **क्लोन** करें:
 
 ```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
+git clone https://github.com/RooCodeInc/Roo-Code.git
 ```
 
 2. **डिपेंडेंसीज इंस्टॉल** करें:

@@ -46,7 +46,7 @@ Mencione o alinhamento com estas áreas em seus PRs.
 ### 3. Junte-se à Comunidade Roo Code
 
 - **Principal:** Junte-se ao nosso [Discord](https://discord.gg/roocode) e envie um DM para **Hannes Rudolph (`hrudolph`)**.
-- **Alternativa:** Colaboradores experientes podem participar diretamente via [GitHub Projects](https://github.com/orgs/RooVetGit/projects/1).
+- **Alternativa:** Colaboradores experientes podem participar diretamente via [GitHub Projects](https://github.com/orgs/RooCodeInc/projects/1).
 
 ## Encontrando & Planejando sua Contribuição
 
@@ -60,7 +60,7 @@ Mencione o alinhamento com estas áreas em seus PRs.
 
 Todas as contribuições devem começar com uma Issue do GitHub.
 
-- **Verificar issues existentes:** Procure em [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues).
+- **Verificar issues existentes:** Procure em [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
 - **Criar uma issue:** Use os templates apropriados:
     - **Bugs:** Template "Bug Report".
     - **Recursos:** Template "Detailed Feature Proposal". Aprovação necessária antes de começar.
@@ -70,14 +70,14 @@ Todas as contribuições devem começar com uma Issue do GitHub.
 
 ### Decidindo no que Trabalhar
 
-- Confira o [Projeto GitHub](https://github.com/orgs/RooVetGit/projects/1) para "Good First Issues" não atribuídas.
-- Para documentação, visite [Roo Code Docs](https://github.com/RooVetGit/Roo-Code-Docs).
+- Confira o [Projeto GitHub](https://github.com/orgs/RooCodeInc/projects/1) para "Good First Issues" não atribuídas.
+- Para documentação, visite [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
 
 ### Relatando Bugs
 
 - Verifique primeiro se já existem relatórios.
-- Crie novos relatórios de bugs usando o [template "Bug Report"](https://github.com/RooVetGit/Roo-Code/issues/new/choose).
-- **Vulnerabilidades de segurança:** Relate de forma privada via [security advisories](https://github.com/RooVetGit/Roo-Code/security/advisories/new).
+- Crie novos relatórios de bugs usando o [template "Bug Report"](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
+- **Vulnerabilidades de segurança:** Relate de forma privada via [security advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
 ## Processo de Desenvolvimento & Submissão
 

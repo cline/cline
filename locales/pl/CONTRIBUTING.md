@@ -46,7 +46,7 @@ Wspomnij o powiązaniu z tymi obszarami w swoich PR.
 ### 3. Dołącz do społeczności Roo Code
 
 - **Główna metoda:** Dołącz do naszego [Discorda](https://discord.gg/roocode) i wyślij wiadomość prywatną do **Hannes Rudolph (`hrudolph`)**.
-- **Alternatywa:** Doświadczeni współtwórcy mogą angażować się bezpośrednio przez [GitHub Projects](https://github.com/orgs/RooVetGit/projects/1).
+- **Alternatywa:** Doświadczeni współtwórcy mogą angażować się bezpośrednio przez [GitHub Projects](https://github.com/orgs/RooCodeInc/projects/1).
 
 ## Znajdowanie i planowanie swojego wkładu
 
@@ -60,7 +60,7 @@ Wspomnij o powiązaniu z tymi obszarami w swoich PR.
 
 Każdy wkład musi zaczynać się od GitHub Issue.
 
-- **Sprawdź istniejące issues:** Przeszukaj [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues).
+- **Sprawdź istniejące issues:** Przeszukaj [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
 - **Utwórz issue:** Używaj odpowiednich szablonów:
     - **Błędy:** Szablon "Bug Report".
     - **Funkcje:** Szablon "Detailed Feature Proposal". Wymagane zatwierdzenie przed rozpoczęciem.
@@ -70,14 +70,14 @@ Każdy wkład musi zaczynać się od GitHub Issue.
 
 ### Decydowanie, nad czym pracować
 
-- Sprawdź [Projekt GitHub](https://github.com/orgs/RooVetGit/projects/1) w poszukiwaniu nieprzypisanych "Good First Issues".
-- W kwestii dokumentacji odwiedź [Roo Code Docs](https://github.com/RooVetGit/Roo-Code-Docs).
+- Sprawdź [Projekt GitHub](https://github.com/orgs/RooCodeInc/projects/1) w poszukiwaniu nieprzypisanych "Good First Issues".
+- W kwestii dokumentacji odwiedź [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
 
 ### Zgłaszanie błędów
 
 - Najpierw sprawdź istniejące zgłoszenia.
-- Twórz nowe zgłoszenia błędów używając [szablonu "Bug Report"](https://github.com/RooVetGit/Roo-Code/issues/new/choose).
-- **Luki bezpieczeństwa:** Zgłaszaj prywatnie przez [security advisories](https://github.com/RooVetGit/Roo-Code/security/advisories/new).
+- Twórz nowe zgłoszenia błędów używając [szablonu "Bug Report"](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
+- **Luki bezpieczeństwa:** Zgłaszaj prywatnie przez [security advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
 ## Proces rozwoju i zgłaszania
 

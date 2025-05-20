@@ -14,7 +14,7 @@ English • [Català](locales/ca/README.md) • [Deutsch](locales/de/README.md) 
 <div align="center">
   <h1>Roo Code (prev. Roo Cline)</h1>
   <p align="center">
-  <img src="https://media.githubusercontent.com/media/RooVetGit/Roo-Code/main/assets/docs/demo.gif" width="100%" />
+  <img src="https://media.githubusercontent.com/media/RooCodeInc/Roo-Code/main/assets/docs/demo.gif" width="100%" />
   </p>
   <p>Connect with developers, contribute ideas, and stay ahead with the latest AI-powered coding tools.</p>
   
@@ -28,7 +28,7 @@ English • [Català](locales/ca/README.md) • [Deutsch](locales/de/README.md) 
 <div align="center">
 
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/Download%20on%20VS%20Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Download on VS Marketplace"></a>
-<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Feature%20Requests-yellow?style=for-the-badge" alt="Feature Requests"></a>
+<a href="https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Feature%20Requests-yellow?style=for-the-badge" alt="Feature Requests"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/Rate%20%26%20Review-green?style=for-the-badge" alt="Rate & Review"></a>
 <a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Documentation-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
 
@@ -118,7 +118,7 @@ Make Roo Code work your way with:
 
 - **Discord:** [Join our Discord server](https://discord.gg/roocode) for real-time help and discussions
 - **Reddit:** [Visit our subreddit](https://www.reddit.com/r/RooCode) to share experiences and tips
-- **GitHub:** Report [issues](https://github.com/RooVetGit/Roo-Code/issues) or request [features](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+- **GitHub:** Report [issues](https://github.com/RooCodeInc/Roo-Code/issues) or request [features](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
 
 ---
 
@@ -127,7 +127,7 @@ Make Roo Code work your way with:
 1. **Clone** the repo:
 
 ```sh
-git clone https://github.com/RooVetGit/Roo-Code.git
+git clone https://github.com/RooCodeInc/Roo-Code.git
 ```
 
 2. **Install dependencies**:

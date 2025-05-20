@@ -9,8 +9,8 @@ body:
 
         This template is for submitting specific, actionable proposals that you or others intend to implement after discussion and approval. It's a key part of our [Issue-First Approach](../../CONTRIBUTING.md).
 
-        - **For general ideas or less defined suggestions**, please use [GitHub Discussions](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first.
-        - **Before submitting**, please search existing [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues) and [Discussions](https://github.com/RooVetGit/Roo-Code/discussions) to avoid duplicates.
+        - **For general ideas or less defined suggestions**, please use [GitHub Discussions](https://github.com/RooCodeInc/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first.
+        - **Before submitting**, please search existing [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues) and [Discussions](https://github.com/RooCodeInc/Roo-Code/discussions) to avoid duplicates.
 
         For guidance or to discuss your idea, join the [Roo Code Discord](https://discord.gg/roocode) and DM **Hannes Rudolph** (`hrudolph`).
 

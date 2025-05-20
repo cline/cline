@@ -46,7 +46,7 @@ Lộ trình của chúng mình định hướng dự án. Hãy điều chỉnh �
 ### 3. Tham gia cộng đồng Roo Code
 
 - **Cách chính:** Tham gia [Discord](https://discord.gg/roocode) của chúng mình và nhắn tin trực tiếp cho **Hannes Rudolph (`hrudolph`)**.
-- **Cách thay thế:** Cộng tác viên có kinh nghiệm có thể tham gia trực tiếp qua [GitHub Projects](https://github.com/orgs/RooVetGit/projects/1).
+- **Cách thay thế:** Cộng tác viên có kinh nghiệm có thể tham gia trực tiếp qua [GitHub Projects](https://github.com/orgs/RooCodeInc/projects/1).
 
 ## Tìm kiếm & lên kế hoạch đóng góp
 
@@ -60,7 +60,7 @@ Lộ trình của chúng mình định hướng dự án. Hãy điều chỉnh �
 
 Mọi đóng góp đều phải bắt đầu bằng một GitHub Issue.
 
-- **Kiểm tra issue hiện có:** Tìm kiếm trong [GitHub Issues](https://github.com/RooVetGit/Roo-Code/issues).
+- **Kiểm tra issue hiện có:** Tìm kiếm trong [GitHub Issues](https://github.com/RooCodeInc/Roo-Code/issues).
 - **Tạo issue mới:** Sử dụng mẫu phù hợp:
     - **Lỗi:** Mẫu "Bug Report".
     - **Tính năng:** Mẫu "Detailed Feature Proposal". Cần được phê duyệt trước khi bắt đầu.
@@ -70,14 +70,14 @@ Mọi đóng góp đều phải bắt đầu bằng một GitHub Issue.
 
 ### Quyết định việc cần làm
 
-- Xem [Dự án GitHub](https://github.com/orgs/RooVetGit/projects/1) để tìm "Good First Issues" chưa được gán.
-- Về tài liệu, hãy xem [Roo Code Docs](https://github.com/RooVetGit/Roo-Code-Docs).
+- Xem [Dự án GitHub](https://github.com/orgs/RooCodeInc/projects/1) để tìm "Good First Issues" chưa được gán.
+- Về tài liệu, hãy xem [Roo Code Docs](https://github.com/RooCodeInc/Roo-Code-Docs).
 
 ### Báo cáo lỗi
 
 - Kiểm tra báo cáo hiện có trước.
-- Tạo báo cáo lỗi mới bằng [mẫu "Bug Report"](https://github.com/RooVetGit/Roo-Code/issues/new/choose).
-- **Lỗ hổng bảo mật:** Báo cáo riêng qua [security advisories](https://github.com/RooVetGit/Roo-Code/security/advisories/new).
+- Tạo báo cáo lỗi mới bằng [mẫu "Bug Report"](https://github.com/RooCodeInc/Roo-Code/issues/new/choose).
+- **Lỗ hổng bảo mật:** Báo cáo riêng qua [security advisories](https://github.com/RooCodeInc/Roo-Code/security/advisories/new).
 
 ## Quy trình phát triển & gửi bài
 
