@@ -1071,6 +1071,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "litellm":
 					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
 				case "requesty":
+					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
 				case "anthropic":
 				case "openrouter":
 				default:
