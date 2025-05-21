@@ -6,6 +6,7 @@ import { GrpcHandlerWrapper, GrpcStreamingResponseHandlerWrapper } from "./grpc-
 
 // Account Service
 import { accountLoginClicked } from "../core/controller/account/accountLoginClicked"
+import { accountLogoutClicked } from "../core/controller/account/accountLogoutClicked"
 
 // Browser Service
 import { getBrowserConnectionInfo } from "../core/controller/browser/getBrowserConnectionInfo"
@@ -13,20 +14,27 @@ import { testBrowserConnection } from "../core/controller/browser/testBrowserCon
 import { discoverBrowser } from "../core/controller/browser/discoverBrowser"
 import { getDetectedChromePath } from "../core/controller/browser/getDetectedChromePath"
 import { updateBrowserSettings } from "../core/controller/browser/updateBrowserSettings"
+import { relaunchChromeDebugMode } from "../core/controller/browser/relaunchChromeDebugMode"
 
 // Checkpoints Service
 import { checkpointDiff } from "../core/controller/checkpoints/checkpointDiff"
 import { checkpointRestore } from "../core/controller/checkpoints/checkpointRestore"
 
 // File Service
+import { copyToClipboard } from "../core/controller/file/copyToClipboard"
 import { openFile } from "../core/controller/file/openFile"
 import { openImage } from "../core/controller/file/openImage"
+import { openMention } from "../core/controller/file/openMention"
 import { deleteRuleFile } from "../core/controller/file/deleteRuleFile"
 import { createRuleFile } from "../core/controller/file/createRuleFile"
 import { searchCommits } from "../core/controller/file/searchCommits"
 import { selectImages } from "../core/controller/file/selectImages"
 import { getRelativePaths } from "../core/controller/file/getRelativePaths"
 import { searchFiles } from "../core/controller/file/searchFiles"
+import { toggleClineRule } from "../core/controller/file/toggleClineRule"
+import { toggleCursorRule } from "../core/controller/file/toggleCursorRule"
+import { toggleWindsurfRule } from "../core/controller/file/toggleWindsurfRule"
+import { refreshRules } from "../core/controller/file/refreshRules"
 
 // Mcp Service
 import { toggleMcpServer } from "../core/controller/mcp/toggleMcpServer"
@@ -34,6 +42,9 @@ import { updateMcpTimeout } from "../core/controller/mcp/updateMcpTimeout"
 import { addRemoteMcpServer } from "../core/controller/mcp/addRemoteMcpServer"
 import { downloadMcp } from "../core/controller/mcp/downloadMcp"
 import { restartMcpServer } from "../core/controller/mcp/restartMcpServer"
+import { deleteMcpServer } from "../core/controller/mcp/deleteMcpServer"
+import { toggleToolAutoApprove } from "../core/controller/mcp/toggleToolAutoApprove"
+import { refreshMcpMarketplace } from "../core/controller/mcp/refreshMcpMarketplace"
 
 // Models Service
 import { getOllamaModels } from "../core/controller/models/getOllamaModels"
@@ -52,6 +63,8 @@ import { getLatestState } from "../core/controller/state/getLatestState"
 import { subscribeToState } from "../core/controller/state/subscribeToState"
 import { toggleFavoriteModel } from "../core/controller/state/toggleFavoriteModel"
 import { resetState } from "../core/controller/state/resetState"
+import { togglePlanActMode } from "../core/controller/state/togglePlanActMode"
+import { updateTerminalConnectionTimeout } from "../core/controller/state/updateTerminalConnectionTimeout"
 
 // Task Service
 import { cancelTask } from "../core/controller/task/cancelTask"
@@ -67,6 +80,9 @@ import { askResponse } from "../core/controller/task/askResponse"
 import { taskFeedback } from "../core/controller/task/taskFeedback"
 import { taskCompletionViewChanges } from "../core/controller/task/taskCompletionViewChanges"
 
+// Ui Service
+import { scrollToSettings } from "../core/controller/ui/scrollToSettings"
+
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
 import { fetchOpenGraphData } from "../core/controller/web/fetchOpenGraphData"
@@ -81,6 +97,7 @@ export function addServices(
 	// Account Service
 	server.addService(proto.cline.AccountService.service, {
 		accountLoginClicked: wrapper(accountLoginClicked, controller),
+		accountLogoutClicked: wrapper(accountLogoutClicked, controller),
 	})
 
 	// Browser Service
@@ -90,6 +107,7 @@ export function addServices(
 		discoverBrowser: wrapper(discoverBrowser, controller),
 		getDetectedChromePath: wrapper(getDetectedChromePath, controller),
 		updateBrowserSettings: wrapper(updateBrowserSettings, controller),
+		relaunchChromeDebugMode: wrapper(relaunchChromeDebugMode, controller),
 	})
 
 	// Checkpoints Service
@@ -100,14 +118,20 @@ export function addServices(
 
 	// File Service
 	server.addService(proto.cline.FileService.service, {
+		copyToClipboard: wrapper(copyToClipboard, controller),
 		openFile: wrapper(openFile, controller),
 		openImage: wrapper(openImage, controller),
+		openMention: wrapper(openMention, controller),
 		deleteRuleFile: wrapper(deleteRuleFile, controller),
 		createRuleFile: wrapper(createRuleFile, controller),
 		searchCommits: wrapper(searchCommits, controller),
 		selectImages: wrapper(selectImages, controller),
 		getRelativePaths: wrapper(getRelativePaths, controller),
 		searchFiles: wrapper(searchFiles, controller),
+		toggleClineRule: wrapper(toggleClineRule, controller),
+		toggleCursorRule: wrapper(toggleCursorRule, controller),
+		toggleWindsurfRule: wrapper(toggleWindsurfRule, controller),
+		refreshRules: wrapper(refreshRules, controller),
 	})
 
 	// Mcp Service
@@ -117,6 +141,9 @@ export function addServices(
 		addRemoteMcpServer: wrapper(addRemoteMcpServer, controller),
 		downloadMcp: wrapper(downloadMcp, controller),
 		restartMcpServer: wrapper(restartMcpServer, controller),
+		deleteMcpServer: wrapper(deleteMcpServer, controller),
+		toggleToolAutoApprove: wrapper(toggleToolAutoApprove, controller),
+		refreshMcpMarketplace: wrapper(refreshMcpMarketplace, controller),
 	})
 
 	// Models Service
@@ -141,6 +168,8 @@ export function addServices(
 		subscribeToState: wrapStreamingResponse(subscribeToState, controller),
 		toggleFavoriteModel: wrapper(toggleFavoriteModel, controller),
 		resetState: wrapper(resetState, controller),
+		togglePlanActMode: wrapper(togglePlanActMode, controller),
+		updateTerminalConnectionTimeout: wrapper(updateTerminalConnectionTimeout, controller),
 	})
 
 	// Task Service
@@ -157,6 +186,11 @@ export function addServices(
 		askResponse: wrapper(askResponse, controller),
 		taskFeedback: wrapper(taskFeedback, controller),
 		taskCompletionViewChanges: wrapper(taskCompletionViewChanges, controller),
+	})
+
+	// Ui Service
+	server.addService(proto.cline.UiService.service, {
+		scrollToSettings: wrapper(scrollToSettings, controller),
 	})
 
 	// Web Service

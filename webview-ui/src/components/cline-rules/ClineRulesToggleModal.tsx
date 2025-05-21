@@ -3,10 +3,13 @@ import { useClickAway, useWindowSize } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
+import { FileServiceClient } from "@/services/grpc-client"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
 import Tooltip from "@/components/common/Tooltip"
 import styled from "styled-components"
+import { ClineRulesToggles, RefreshedRules, ToggleWindsurfRuleRequest } from "@shared/proto/file"
+import { EmptyRequest } from "@shared/proto/common"
 
 const ClineRulesToggleModal: React.FC = () => {
 	const {
@@ -15,6 +18,11 @@ const ClineRulesToggleModal: React.FC = () => {
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
 		workflowToggles = {},
+		setGlobalClineRulesToggles,
+		setLocalClineRulesToggles,
+		setLocalCursorRulesToggles,
+		setLocalWindsurfRulesToggles,
+		setWorkflowToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -26,7 +34,28 @@ const ClineRulesToggleModal: React.FC = () => {
 
 	useEffect(() => {
 		if (isVisible) {
-			vscode.postMessage({ type: "refreshClineRules" })
+			FileServiceClient.refreshRules({} as EmptyRequest)
+				.then((response: RefreshedRules) => {
+					// Update state with the response data using all available setters
+					if (response.globalClineRulesToggles?.toggles) {
+						setGlobalClineRulesToggles(response.globalClineRulesToggles.toggles)
+					}
+					if (response.localClineRulesToggles?.toggles) {
+						setLocalClineRulesToggles(response.localClineRulesToggles.toggles)
+					}
+					if (response.localCursorRulesToggles?.toggles) {
+						setLocalCursorRulesToggles(response.localCursorRulesToggles.toggles)
+					}
+					if (response.localWindsurfRulesToggles?.toggles) {
+						setLocalWindsurfRulesToggles(response.localWindsurfRulesToggles.toggles)
+					}
+					if (response.workflowToggles?.toggles) {
+						setWorkflowToggles(response.workflowToggles.toggles)
+					}
+				})
+				.catch((error) => {
+					console.error("Failed to refresh rules:", error)
+				})
 		}
 	}, [isVisible])
 
@@ -52,30 +81,56 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
-	// Handle toggle rule
+	// Handle toggle rule using gRPC
 	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
-		vscode.postMessage({
-			type: "toggleClineRule",
+		FileServiceClient.toggleClineRule({
 			isGlobal,
 			rulePath,
 			enabled,
 		})
+			.then((response) => {
+				// Update the local state with the response
+				if (response.globalClineRulesToggles?.toggles) {
+					setGlobalClineRulesToggles(response.globalClineRulesToggles.toggles)
+				}
+				if (response.localClineRulesToggles?.toggles) {
+					setLocalClineRulesToggles(response.localClineRulesToggles.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Cline rule:", error)
+			})
 	}
 
 	const toggleCursorRule = (rulePath: string, enabled: boolean) => {
-		vscode.postMessage({
-			type: "toggleCursorRule",
+		FileServiceClient.toggleCursorRule({
 			rulePath,
 			enabled,
 		})
+			.then((response) => {
+				// Update the local state with the response
+				if (response.toggles) {
+					setLocalCursorRulesToggles(response.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Cursor rule:", error)
+			})
 	}
 
 	const toggleWindsurfRule = (rulePath: string, enabled: boolean) => {
-		vscode.postMessage({
-			type: "toggleWindsurfRule",
+		FileServiceClient.toggleWindsurfRule({
 			rulePath,
 			enabled,
-		})
+		} as ToggleWindsurfRuleRequest)
+			.then((response: ClineRulesToggles) => {
+				if (response.toggles) {
+					setLocalWindsurfRulesToggles(response.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Windsurf rule:", error)
+			})
 	}
 
 	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {

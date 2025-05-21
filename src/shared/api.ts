@@ -483,6 +483,19 @@ export const vertexModels = {
 			outputPrice: 3.5,
 		},
 	},
+	"gemini-2.5-flash-preview-05-20": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
+	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
 		contextWindow: 1_048_576,
@@ -600,6 +613,18 @@ export const geminiModels = {
 				cacheReadsPrice: 0.625,
 			},
 		],
+	},
+	"gemini-2.5-flash-preview-05-20": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		thinkingConfig: {
+			maxBudget: 24576,
+			outputPrice: 3.5,
+		},
 	},
 	"gemini-2.5-flash-preview-04-17": {
 		maxTokens: 65536,
