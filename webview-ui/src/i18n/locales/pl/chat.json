@@ -11,7 +11,7 @@
 		"closeAndStart": "Zamknij zadanie i rozpocznij nowe",
 		"export": "Eksportuj historię zadań",
 		"delete": "Usuń zadanie (Shift + Kliknięcie, aby pominąć potwierdzenie)",
-		"condenseContext": "Skondensuj kontekst zadania"
+		"condenseContext": "Inteligentnie skondensuj kontekst"
 	},
 	"unpin": "Odepnij",
 	"pin": "Przypnij",

@@ -11,7 +11,7 @@
 		"closeAndStart": "關閉現有工作並開始一項新的工作",
 		"export": "匯出工作紀錄",
 		"delete": "刪除工作（按住 Shift 並點選可跳過確認）",
-		"condenseContext": "壓縮工作上下文"
+		"condenseContext": "智慧壓縮上下文"
 	},
 	"unpin": "取消置頂",
 	"pin": "置頂",

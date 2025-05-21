@@ -11,7 +11,7 @@
 		"closeAndStart": "Chiudi attività e iniziane una nuova",
 		"export": "Esporta cronologia attività",
 		"delete": "Elimina attività (Shift + Clic per saltare la conferma)",
-		"condenseContext": "Condensa contesto attività"
+		"condenseContext": "Condensa contesto in modo intelligente"
 	},
 	"unpin": "Rilascia",
 	"pin": "Fissa",

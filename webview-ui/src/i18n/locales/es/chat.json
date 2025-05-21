@@ -11,7 +11,7 @@
 		"closeAndStart": "Cerrar tarea e iniciar una nueva",
 		"export": "Exportar historial de tareas",
 		"delete": "Eliminar tarea (Shift + Clic para omitir confirmación)",
-		"condenseContext": "Condensar contexto de la tarea"
+		"condenseContext": "Condensar contexto de forma inteligente"
 	},
 	"unpin": "Desfijar",
 	"pin": "Fijar",

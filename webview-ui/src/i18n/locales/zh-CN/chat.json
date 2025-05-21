@@ -11,7 +11,7 @@
 		"closeAndStart": "关闭任务并开始新任务",
 		"export": "导出任务历史",
 		"delete": "删除任务（Shift + 点击跳过确认）",
-		"condenseContext": "压缩任务上下文"
+		"condenseContext": "智能压缩上下文"
 	},
 	"unpin": "取消置顶",
 	"pin": "置顶",

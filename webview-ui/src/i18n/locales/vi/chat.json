@@ -11,7 +11,7 @@
 		"closeAndStart": "Đóng nhiệm vụ và bắt đầu nhiệm vụ mới",
 		"export": "Xuất lịch sử nhiệm vụ",
 		"delete": "Xóa nhiệm vụ (Shift + Click để bỏ qua xác nhận)",
-		"condenseContext": "Cô đọng ngữ cảnh tác vụ"
+		"condenseContext": "Cô đọng ngữ cảnh thông minh"
 	},
 	"unpin": "Bỏ ghim khỏi đầu",
 	"pin": "Ghim lên đầu",

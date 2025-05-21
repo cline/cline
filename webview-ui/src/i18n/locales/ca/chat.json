@@ -11,7 +11,7 @@
 		"closeAndStart": "Tancar tasca i iniciar-ne una de nova",
 		"export": "Exportar historial de tasques",
 		"delete": "Eliminar tasca (Shift + Clic per ometre confirmació)",
-		"condenseContext": "Condensar context de la tasca"
+		"condenseContext": "Condensar context de forma intel·ligent"
 	},
 	"unpin": "Desfixar",
 	"pin": "Fixar",
