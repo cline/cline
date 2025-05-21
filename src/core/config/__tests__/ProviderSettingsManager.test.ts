@@ -222,7 +222,7 @@ describe("ProviderSettingsManager", () => {
 
 			const newConfig: ProviderSettings = {
 				apiProvider: "vertex",
-				apiModelId: "gemini-2.5-flash-preview-04-17",
+				apiModelId: "gemini-2.5-flash-preview-05-20",
 				vertexKeyFile: "test-key-file",
 			}
 
