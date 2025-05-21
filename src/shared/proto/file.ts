@@ -16,7 +16,8 @@ export interface RefreshedRules {
 	localClineRulesToggles?: ClineRulesToggles | undefined
 	localCursorRulesToggles?: ClineRulesToggles | undefined
 	localWindsurfRulesToggles?: ClineRulesToggles | undefined
-	workflowToggles?: ClineRulesToggles | undefined
+	localWorkflowToggles?: ClineRulesToggles | undefined
+	globalWorkflowToggles?: ClineRulesToggles | undefined
 }
 
 /** Request to toggle a Windsurf rule */

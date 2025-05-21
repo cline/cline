@@ -4117,7 +4117,7 @@ export class Task {
 		// Track if we need to check clinerulesFile
 		let needsClinerulesFileCheck = false
 
-		const workflowToggles = await refreshWorkflowToggles(this.getContext(), cwd)
+		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.getContext(), cwd)
 
 		const processUserContent = async () => {
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
@@ -4143,7 +4143,8 @@ export class Task {
 							// when parsing slash commands, we still want to allow the user to provide their desired context
 							const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
 								parsedText,
-								workflowToggles,
+								localWorkflowToggles,
+								globalWorkflowToggles,
 							)
 
 							if (needsCheck) {
