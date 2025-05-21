@@ -148,7 +148,8 @@ function createBaseRefreshedRules(): RefreshedRules {
 		localClineRulesToggles: undefined,
 		localCursorRulesToggles: undefined,
 		localWindsurfRulesToggles: undefined,
-		workflowToggles: undefined,
+		localWorkflowToggles: undefined,
+		globalWorkflowToggles: undefined,
 	}
 }
 
@@ -166,8 +167,11 @@ export const RefreshedRules: MessageFns<RefreshedRules> = {
 		if (message.localWindsurfRulesToggles !== undefined) {
 			ClineRulesToggles.encode(message.localWindsurfRulesToggles, writer.uint32(34).fork()).join()
 		}
-		if (message.workflowToggles !== undefined) {
-			ClineRulesToggles.encode(message.workflowToggles, writer.uint32(42).fork()).join()
+		if (message.localWorkflowToggles !== undefined) {
+			ClineRulesToggles.encode(message.localWorkflowToggles, writer.uint32(42).fork()).join()
+		}
+		if (message.globalWorkflowToggles !== undefined) {
+			ClineRulesToggles.encode(message.globalWorkflowToggles, writer.uint32(50).fork()).join()
 		}
 		return writer
 	},
@@ -216,7 +220,15 @@ export const RefreshedRules: MessageFns<RefreshedRules> = {
 						break
 					}
 
-					message.workflowToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					message.localWorkflowToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					continue
+				}
+				case 6: {
+					if (tag !== 50) {
+						break
+					}
+
+					message.globalWorkflowToggles = ClineRulesToggles.decode(reader, reader.uint32())
 					continue
 				}
 			}
@@ -242,7 +254,12 @@ export const RefreshedRules: MessageFns<RefreshedRules> = {
 			localWindsurfRulesToggles: isSet(object.localWindsurfRulesToggles)
 				? ClineRulesToggles.fromJSON(object.localWindsurfRulesToggles)
 				: undefined,
-			workflowToggles: isSet(object.workflowToggles) ? ClineRulesToggles.fromJSON(object.workflowToggles) : undefined,
+			localWorkflowToggles: isSet(object.localWorkflowToggles)
+				? ClineRulesToggles.fromJSON(object.localWorkflowToggles)
+				: undefined,
+			globalWorkflowToggles: isSet(object.globalWorkflowToggles)
+				? ClineRulesToggles.fromJSON(object.globalWorkflowToggles)
+				: undefined,
 		}
 	},
 
@@ -260,8 +277,11 @@ export const RefreshedRules: MessageFns<RefreshedRules> = {
 		if (message.localWindsurfRulesToggles !== undefined) {
 			obj.localWindsurfRulesToggles = ClineRulesToggles.toJSON(message.localWindsurfRulesToggles)
 		}
-		if (message.workflowToggles !== undefined) {
-			obj.workflowToggles = ClineRulesToggles.toJSON(message.workflowToggles)
+		if (message.localWorkflowToggles !== undefined) {
+			obj.localWorkflowToggles = ClineRulesToggles.toJSON(message.localWorkflowToggles)
+		}
+		if (message.globalWorkflowToggles !== undefined) {
+			obj.globalWorkflowToggles = ClineRulesToggles.toJSON(message.globalWorkflowToggles)
 		}
 		return obj
 	},
@@ -287,9 +307,13 @@ export const RefreshedRules: MessageFns<RefreshedRules> = {
 			object.localWindsurfRulesToggles !== undefined && object.localWindsurfRulesToggles !== null
 				? ClineRulesToggles.fromPartial(object.localWindsurfRulesToggles)
 				: undefined
-		message.workflowToggles =
-			object.workflowToggles !== undefined && object.workflowToggles !== null
-				? ClineRulesToggles.fromPartial(object.workflowToggles)
+		message.localWorkflowToggles =
+			object.localWorkflowToggles !== undefined && object.localWorkflowToggles !== null
+				? ClineRulesToggles.fromPartial(object.localWorkflowToggles)
+				: undefined
+		message.globalWorkflowToggles =
+			object.globalWorkflowToggles !== undefined && object.globalWorkflowToggles !== null
+				? ClineRulesToggles.fromPartial(object.globalWorkflowToggles)
 				: undefined
 		return message
 	},
