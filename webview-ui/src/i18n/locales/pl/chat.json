@@ -211,9 +211,9 @@
 		"title": "🎉 Roo Code {{version}} wydany",
 		"description": "Roo Code {{version}} przynosi potężne nowe funkcje i ulepszenia na podstawie Twoich opinii.",
 		"whatsNew": "Co nowego",
-		"feature1": "<bold>Niejawne buforowanie dla Gemini</bold>: Wywołania API Gemini są teraz automatycznie buforowane, co zmniejsza koszty API",
-		"feature2": "<bold>Inteligentniejszy wybór trybu</bold>: Definicje trybów mogą teraz zawierać wskazówki dotyczące tego, kiedy każdy tryb powinien być używany, umożliwiając lepszą orkiestrację",
-		"feature3": "<bold>Inteligentne kondensowanie kontekstu</bold>: Inteligentnie podsumowuje historię rozmów, gdy kontekst zapełnia się, zamiast obcinania (włącz w Ustawienia -> Eksperymentalne)",
+		"feature1": "<bold>Modele podglądu Gemini 2.5 Flash</bold>: Uzyskaj dostęp do najnowszych modeli Gemini Flash zapewniających szybsze i bardziej efektywne odpowiedzi",
+		"feature2": "<bold>Inteligentne kondensowanie kontekstu</bold>: Nowy przycisk w nagłówku zadania pozwala na inteligentne kondensowanie treści z wizualną informacją zwrotną",
+		"feature3": "<bold>Wsparcie YAML dla definicji trybów</bold>: Twórz i dostosowuj tryby łatwiej dzięki wsparciu dla YAML",
 		"hideButton": "Ukryj ogłoszenie",
 		"detailsDiscussLinks": "Uzyskaj więcej szczegółów i dołącz do dyskusji na <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},

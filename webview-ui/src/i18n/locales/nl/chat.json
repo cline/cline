@@ -198,9 +198,9 @@
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} uitgebracht",
 		"description": "Roo Code {{version}} brengt krachtige nieuwe functies en verbeteringen op basis van jouw feedback.",
-		"feature1": "<bold>Impliciete caching voor Gemini</bold>: Gemini API-aanroepen worden nu automatisch gecachet, waardoor API-kosten worden verlaagd",
-		"feature2": "<bold>Slimmere modusselectie</bold>: Modusdefinities kunnen nu richtlijnen bevatten over wanneer elke modus moet worden gebruikt, wat betere orchestratie mogelijk maakt",
-		"feature3": "<bold>Intelligente contextcompressie</bold>: Vat gespreksgeschiedenis intelligent samen wanneer de context vol raakt in plaats van deze af te kappen (inschakelen in Instellingen -> Experimenteel)",
+		"feature1": "<bold>Gemini 2.5 Flash preview-modellen</bold>: Toegang tot de nieuwste Gemini Flash-modellen voor snellere en efficiëntere antwoorden",
+		"feature2": "<bold>Intelligente contextcompressie</bold>: Nieuwe knop in de taakheader waarmee je content intelligent kunt comprimeren met visuele feedback",
+		"feature3": "<bold>YAML-ondersteuning voor modusdefinities</bold>: Maak en pas modi eenvoudiger aan met YAML-ondersteuning",
 		"hideButton": "Aankondiging verbergen",
 		"detailsDiscussLinks": "Meer details en discussie in <discordLink>Discord</discordLink> en <redditLink>Reddit</redditLink> 🚀",
 		"whatsNew": "Wat is er nieuw"

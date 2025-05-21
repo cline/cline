@@ -211,9 +211,9 @@
 		"title": "🎉 Roo Code {{version}} publicat",
 		"description": "Roo Code {{version}} porta noves funcionalitats potents i millores basades en els teus comentaris.",
 		"whatsNew": "Novetats",
-		"feature1": "<bold>Emmagatzematge en caché implícit per a Gemini</bold>: Les crides a l'API de Gemini ara s'emmagatzemen automàticament en caché, reduint els costos d'API",
-		"feature2": "<bold>Selecció de mode més intel·ligent</bold>: Les definicions de mode ara poden incloure orientació sobre quan s'ha d'utilitzar cada mode, permetent una millor orquestració",
-		"feature3": "<bold>Condensació intel·ligent del context</bold>: Resumeix de manera intel·ligent l'historial de converses quan el context s'omple en lloc de truncar-lo (activa-ho a Configuració -> Experimental)",
+		"feature1": "<bold>Models de vista prèvia Gemini 2.5 Flash</bold>: Accedeix als darrers models Gemini Flash per a respostes més ràpides i eficients",
+		"feature2": "<bold>Condensació intel·ligent de context</bold>: Nou botó a la capçalera de tasques que et permet condensar intel·ligentment el contingut amb retroalimentació visual",
+		"feature3": "<bold>Suport YAML per a definicions de mode</bold>: Crea i personalitza modes més fàcilment amb suport YAML",
 		"hideButton": "Amagar anunci",
 		"detailsDiscussLinks": "Obtingues més detalls i participa a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},

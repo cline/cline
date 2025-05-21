@@ -211,9 +211,9 @@
 		"title": "🎉 Roo Code {{version}} 已發布",
 		"description": "Roo Code {{version}} 帶來基於您意見回饋的強大新功能與改進。",
 		"whatsNew": "新功能",
-		"feature1": "<bold>Gemini 的隱式快取</bold>: Gemini API 呼叫現在自動快取，降低 API 費用",
-		"feature2": "<bold>更智慧的模式選擇</bold>: 模式定義現在可以包含何時應使用各個模式的指引，實現更好的協調",
-		"feature3": "<bold>智慧上下文壓縮</bold>: 當上下文填滿時，智慧地摘要對話歷史而非截斷（在設定 -> 實驗性功能中啟用）",
+		"feature1": "<bold>Gemini 2.5 Flash 預覽模型</bold>: 存取最新的 Gemini Flash 模型，獲得更快速高效的回應",
+		"feature2": "<bold>智慧上下文壓縮</bold>: 工作標題中的新按鈕讓您能夠智慧壓縮內容並提供視覺回饋",
+		"feature3": "<bold>模式定義的 YAML 支援</bold>: 透過 YAML 支援更輕鬆地建立和自訂模式",
 		"hideButton": "隱藏公告",
 		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
 	},

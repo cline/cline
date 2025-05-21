@@ -211,9 +211,9 @@
 		"title": "🎉 Roo Code {{version}} Đã phát hành",
 		"description": "Roo Code {{version}} mang đến các tính năng mạnh mẽ và cải tiến mới dựa trên phản hồi của bạn.",
 		"whatsNew": "Có gì mới",
-		"feature1": "<bold>Bộ nhớ đệm ngầm cho Gemini</bold>: Các lệnh gọi API Gemini hiện được tự động lưu vào bộ nhớ đệm, giảm chi phí API",
-		"feature2": "<bold>Lựa chọn chế độ thông minh hơn</bold>: Định nghĩa chế độ giờ đây có thể bao gồm hướng dẫn về thời điểm nên sử dụng mỗi chế độ, cho phép điều phối tốt hơn",
-		"feature3": "<bold>Ngắn gọn hóa bối cảnh thông minh</bold>: Tóm tắt thông minh lịch sử cuộc trò chuyện khi bối cảnh đầy thay vì cắt bỏ (bật trong Cài đặt -> Thử nghiệm)",
+		"feature1": "<bold>Mô hình xem trước Gemini 2.5 Flash</bold>: Truy cập các mô hình Gemini Flash mới nhất cho phản hồi nhanh hơn và hiệu quả hơn",
+		"feature2": "<bold>Cô đọng ngữ cảnh thông minh</bold>: Nút mới trong tiêu đề nhiệm vụ cho phép bạn cô đọng nội dung một cách thông minh với phản hồi trực quan",
+		"feature3": "<bold>Hỗ trợ YAML cho định nghĩa chế độ</bold>: Tạo và tùy chỉnh chế độ dễ dàng hơn với hỗ trợ YAML",
 		"hideButton": "Ẩn thông báo",
 		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
 	},

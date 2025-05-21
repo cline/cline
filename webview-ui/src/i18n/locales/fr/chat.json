@@ -211,9 +211,9 @@
 		"title": "🎉 Roo Code {{version}} est sortie",
 		"description": "Roo Code {{version}} apporte de puissantes nouvelles fonctionnalités et améliorations basées sur vos retours.",
 		"whatsNew": "Quoi de neuf",
-		"feature1": "<bold>Mise en cache implicite pour Gemini</bold> : Les appels à l'API Gemini sont désormais automatiquement mis en cache, réduisant les coûts d'API",
-		"feature2": "<bold>Sélection de mode plus intelligente</bold> : Les définitions de mode peuvent maintenant inclure des indications sur quand chaque mode doit être utilisé, permettant une meilleure orchestration",
-		"feature3": "<bold>Condensation intelligente du contexte</bold> : Résume intelligemment l'historique des conversations lorsque le contexte se remplit au lieu de le tronquer (activer dans Paramètres -> Expérimental)",
+		"feature1": "<bold>Modèles de prévisualisation Gemini 2.5 Flash</bold> : Accédez aux derniers modèles Gemini Flash pour des réponses plus rapides et plus efficaces",
+		"feature2": "<bold>Condensation intelligente du contexte</bold> : Nouveau bouton dans l'en-tête de tâche qui vous permet de condenser intelligemment le contenu avec un retour visuel",
+		"feature3": "<bold>Support YAML pour les définitions de mode</bold> : Créez et personnalisez les modes plus facilement avec le support YAML",
 		"hideButton": "Masquer l'annonce",
 		"detailsDiscussLinks": "Obtenez plus de détails et participez aux discussions sur <discordLink>Discord</discordLink> et <redditLink>Reddit</redditLink> 🚀"
 	},

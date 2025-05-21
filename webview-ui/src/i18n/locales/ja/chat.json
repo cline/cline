@@ -211,9 +211,9 @@
 		"title": "🎉 Roo Code {{version}} リリース",
 		"description": "Roo Code {{version}}は、あなたのフィードバックに基づく強力な新機能と改善をもたらします。",
 		"whatsNew": "新機能",
-		"feature1": "<bold>Geminiの暗黙的キャッシング</bold>: Gemini APIコールが自動的にキャッシュされるようになり、APIコストが削減されます",
-		"feature2": "<bold>よりスマートなモード選択</bold>: モード定義に各モードをいつ使用すべきかの指針を含めることができるようになり、より優れた調整が可能になります",
-		"feature3": "<bold>インテリジェントなコンテキスト圧縮</bold>: コンテキストが一杯になったときに切り捨てる代わりに、会話履歴をインテリジェントに要約します（設定 -> 実験的機能で有効化）",
+		"feature1": "<bold>Gemini 2.5 Flash プレビューモデル</bold>: より高速かつ効率的な応答のために最新のGemini Flashモデルにアクセス",
+		"feature2": "<bold>インテリジェントなコンテキスト圧縮</bold>: タスクヘッダーの新しいボタンで視覚的なフィードバックを得ながらコンテンツをインテリジェントに圧縮可能",
+		"feature3": "<bold>モード定義のYAMLサポート</bold>: YAMLサポートによりモードをより簡単に作成・カスタマイズ可能",
 		"hideButton": "通知を非表示",
 		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
 	},

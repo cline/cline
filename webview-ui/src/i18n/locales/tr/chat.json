@@ -211,9 +211,9 @@
 		"title": "🎉 Roo Code {{version}} Yayınlandı",
 		"description": "Roo Code {{version}} geri bildirimlerinize dayalı güçlü yeni özellikler ve iyileştirmeler getiriyor.",
 		"whatsNew": "Yenilikler",
-		"feature1": "<bold>Gemini için Örtük Önbelleğe Alma</bold>: Gemini API çağrıları artık otomatik olarak önbelleğe alınıyor, API maliyetlerini azaltıyor",
-		"feature2": "<bold>Daha Akıllı Mod Seçimi</bold>: Mod tanımları artık her modun ne zaman kullanılması gerektiğine dair rehberlik içerebiliyor, daha iyi orkestrasyon sağlıyor",
-		"feature3": "<bold>Akıllı Bağlam Yoğunlaştırma</bold>: Bağlam dolduğunda kesip atmak yerine konuşma geçmişini akıllıca özetliyor (Ayarlar -> Deneysel bölümünden etkinleştirin)",
+		"feature1": "<bold>Gemini 2.5 Flash Önizleme Modelleri</bold>: Daha hızlı ve verimli yanıtlar için en yeni Gemini Flash modellerine erişin",
+		"feature2": "<bold>Akıllı Bağlam Yoğunlaştırma</bold>: Görev başlığındaki yeni düğme, görsel geri bildirimle içeriği akıllıca yoğunlaştırmanızı sağlar",
+		"feature3": "<bold>Mod Tanımlamaları için YAML Desteği</bold>: YAML desteğiyle modları daha kolay oluşturun ve özelleştirin",
 		"hideButton": "Duyuruyu gizle",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
 	},

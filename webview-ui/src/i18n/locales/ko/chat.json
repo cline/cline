@@ -211,9 +211,9 @@
 		"title": "🎉 Roo Code {{version}} 출시",
 		"description": "Roo Code {{version}}은 사용자 피드백을 기반으로 강력한 새로운 기능과 개선사항을 제공합니다.",
 		"whatsNew": "새로운 기능",
-		"feature1": "<bold>Gemini용 암시적 캐싱</bold>: Gemini API 호출이 이제 자동으로 캐시되어 API 비용이 절감됩니다",
-		"feature2": "<bold>더 스마트한 모드 선택</bold>: 모드 정의에 각 모드를 언제 사용해야 하는지에 대한 지침을 포함할 수 있어 더 나은 오케스트레이션이 가능해졌습니다",
-		"feature3": "<bold>지능적인 컨텍스트 압축</bold>: 컨텍스트가 가득 찼을 때 잘라내는 대신 대화 기록을 지능적으로 요약합니다(설정 -> 실험적 기능에서 활성화)",
+		"feature1": "<bold>Gemini 2.5 Flash 프리뷰 모델</bold>: 더 빠르고 효율적인 응답을 위한 최신 Gemini Flash 모델에 접근 가능",
+		"feature2": "<bold>지능적인 컨텍스트 압축</bold>: 작업 헤더의 새 버튼으로 시각적 피드백과 함께 컨텍스트를 지능적으로 압축할 수 있습니다",
+		"feature3": "<bold>모드 정의를 위한 YAML 지원</bold>: YAML 지원으로 모드를 더 쉽게 생성하고 사용자 정의할 수 있습니다",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
 	},

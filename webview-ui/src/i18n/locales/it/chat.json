@@ -211,9 +211,9 @@
 		"title": "🎉 Rilasciato Roo Code {{version}}",
 		"description": "Roo Code {{version}} introduce potenti nuove funzionalità e miglioramenti basati sui tuoi feedback.",
 		"whatsNew": "Novità",
-		"feature1": "<bold>Caching implicito per Gemini</bold>: Le chiamate API Gemini vengono ora memorizzate automaticamente nella cache, riducendo i costi API",
-		"feature2": "<bold>Selezione della modalità più intelligente</bold>: Le definizioni delle modalità possono ora includere indicazioni su quando ogni modalità dovrebbe essere utilizzata, permettendo una migliore orchestrazione",
-		"feature3": "<bold>Condensazione intelligente del contesto</bold>: Riassume in modo intelligente la cronologia delle conversazioni quando il contesto si riempie invece di troncarla (abilitare in Impostazioni -> Sperimentale)",
+		"feature1": "<bold>Modelli di anteprima Gemini 2.5 Flash</bold>: Accedi agli ultimi modelli Gemini Flash per risposte più veloci ed efficienti",
+		"feature2": "<bold>Condensazione intelligente del contesto</bold>: Nuovo pulsante nell'intestazione dell'attività che ti permette di condensare intelligentemente il contenuto con feedback visivo",
+		"feature3": "<bold>Supporto YAML per definizioni di modalità</bold>: Crea e personalizza le modalità più facilmente con il supporto YAML",
 		"hideButton": "Nascondi annuncio",
 		"detailsDiscussLinks": "Ottieni maggiori dettagli e partecipa alle discussioni su <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},
