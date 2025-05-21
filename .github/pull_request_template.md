@@ -81,3 +81,9 @@ Does this PR necessitate updates to user-facing documentation?
 ### Additional Notes
 
 <!-- Add any other context, questions, or information for reviewers here. -->
+
+### Get in Touch
+
+<!--
+Please provide your Discord username for reviewers or maintainers to reach you if they have questions about your PR
+-->
