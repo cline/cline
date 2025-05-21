@@ -1,0 +1,10 @@
+# EXAMPLE USAGE:
+#
+#   Refer for explanation to following link:
+#   https://lefthook.dev/configuration/
+#
+pre-commit:
+  parallel: true
+  jobs:
+    - run: npm run lint
+    - run: npm run format
