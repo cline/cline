@@ -30,6 +30,7 @@ import { arePathsEqual } from "@utils/path"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
@@ -38,10 +39,10 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 5000
 export type McpConnection = {
 	server: McpServer
 	client: Client
-	transport: StdioClientTransport | SSEClientTransport
+	transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 }
 
-export type McpTransportType = "stdio" | "sse"
+export type McpTransportType = "stdio" | "sse" | "http"
 
 export type McpServerConfig = z.infer<typeof ServerConfigSchema>
 
@@ -54,22 +55,23 @@ const BaseConfigSchema = z.object({
 })
 
 const SseConfigSchema = BaseConfigSchema.extend({
+	transportType: z.literal("sse"),
 	url: z.string().url(),
-}).transform((config) => ({
-	...config,
-	transportType: "sse" as const,
-}))
+})
 
 const StdioConfigSchema = BaseConfigSchema.extend({
+	transportType: z.literal("stdio"),
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
-}).transform((config) => ({
-	...config,
-	transportType: "stdio" as const,
-}))
+})
 
-const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema])
+const StreamableHTTPConfigSchema = BaseConfigSchema.extend({
+	transportType: z.literal("http"),
+	url: z.string().url(),
+})
+
+const ServerConfigSchema = z.discriminatedUnion("transportType", [StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
 
 const McpSettingsSchema = z.object({
 	mcpServers: z.record(ServerConfigSchema),
@@ -183,7 +185,7 @@ export class McpHub {
 
 	private async connectToServerRPC(
 		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema>,
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -200,10 +202,12 @@ export class McpHub {
 				},
 			)
 
-			let transport: StdioClientTransport | SSEClientTransport
+			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			if (config.transportType === "sse") {
 				transport = new SSEClientTransport(new URL(config.url), {})
+			} else if (config.transportType === "http") {
+				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {
 				transport = new StdioClientTransport({
 					command: config.command,
@@ -297,7 +301,7 @@ export class McpHub {
 
 	private async connectToServer(
 		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema>,
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -314,10 +318,12 @@ export class McpHub {
 				},
 			)
 
-			let transport: StdioClientTransport | SSEClientTransport
+			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			if (config.transportType === "sse") {
 				transport = new SSEClientTransport(new URL(config.url), {})
+			} else if (config.transportType === "http") {
+				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {
 				transport = new StdioClientTransport({
 					command: config.command,
