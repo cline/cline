@@ -8,7 +8,6 @@ import { ChatContent as ProtoChatContent, ChatSettings as ProtoChatSettings, Pla
 export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSettings): ProtoChatSettings {
 	return {
 		mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-		//mode: chatSettings.mode,
 		preferredLanguage: chatSettings.preferredLanguage,
 		openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 	}

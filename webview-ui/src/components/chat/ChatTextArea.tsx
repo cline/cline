@@ -966,7 +966,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
 			}
 			setTimeout(() => {
-				//const newMode = chatSettings.mode === "plan" ? "act" : "plan"
 				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
 				StateServiceClient.togglePlanActMode({
 					chatSettings: {
