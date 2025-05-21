@@ -3,13 +3,17 @@ title: "Code Commands"
 sidebarTitle: "Code Commands"
 ---
 
-Cline's code commands bring AI assistance directly into your editor, letting you interact with your code without leaving your workflow. With a simple right-click, you can add code to Cline, fix errors, or generate documentation.
+Cline's code commands bring AI assistance directly into your editor, letting you interact with your code without leaving your workflow. With a simple right-click, you can add code to Cline, and through the lightbulb menu, you can fix errors, get explanations, or improve your code.
 
 ## Available Code Commands
 
-When you right-click on code in your editor, you'll see several Cline commands:
+When you interact with code in your editor, you can access Cline commands in two ways:
 
-### Add to Cline
+### Right-Click Context Menu
+
+When you right-click on selected code, you'll see:
+
+#### Add to Cline
 
 The "Add to Cline" command sends your selected code to the Cline chat panel. This is perfect for:
 
@@ -23,9 +27,13 @@ When you use this command, Cline automatically includes:
 -   The selected code with proper formatting
 -   The programming language for accurate syntax highlighting
 
-### Fix with Cline
+### Lightbulb Menu (Code Actions)
 
-The "Fix with Cline" command appears when you right-click on code that has errors or warnings. This command:
+When you see a lightbulb icon in your editor, click it to access these Cline commands:
+
+#### Fix with Cline
+
+The "Fix with Cline" command appears in the lightbulb menu when your code has errors or warnings. This command:
 
 1. Captures the selected code
 2. Identifies the errors or warnings from VSCode's diagnostics
@@ -34,39 +42,48 @@ The "Fix with Cline" command appears when you right-click on code that has error
 
 This is incredibly useful for quickly resolving syntax errors, linter warnings, or type issues without having to manually describe the problem.
 
-### Generate Documentation
+#### Explain with Cline
 
-The "Generate Documentation" command helps you create documentation for your code. When you select a function, class, or module and use this command, Cline:
+The "Explain with Cline" command helps you understand complex code. When you select code and use this command from the lightbulb menu, Cline:
 
-1. Analyzes the code structure and purpose
-2. Generates appropriate documentation comments
-3. Follows your project's documentation style (JSDoc, docstrings, etc.)
-4. Includes parameter descriptions, return values, and examples
+1. Analyzes the selected code
+2. Provides a clear explanation of what the code does
+3. Breaks down complex logic into understandable parts
+4. Highlights important patterns or techniques used
+
+#### Improve with Cline
+
+The "Improve with Cline" command helps you enhance your code. When you select code and use this command from the lightbulb menu, Cline:
+
+1. Analyzes the selected code for potential improvements
+2. Suggests optimizations, refactorings, or better practices
+3. Explains the reasoning behind the suggested changes
+4. Provides improved code that maintains the original functionality
 
 ## How to Use Code Commands
 
 Using Cline's code commands is simple:
 
+### For Right-Click Commands:
+
 1. Select the code you want to work with
 2. Right-click to open the context menu
-3. Choose the appropriate Cline command
+3. Choose "Add to Cline"
 4. View the result in the Cline chat panel
 
-You can then:
+### For Lightbulb Menu Commands:
+
+1. Select the code you want to work with
+2. Look for the lightbulb icon that appears in the editor gutter
+3. Click the lightbulb to see available actions
+4. Choose the appropriate Cline command (Fix, Explain, or Improve)
+5. View the result in the Cline chat panel
+
+After using any command, you can:
 
 -   Ask follow-up questions
 -   Request modifications to the solution
 -   Apply the changes back to your code
-
-## Code Actions
-
-In addition to the context menu commands, Cline also integrates with VSCode's code actions system. When you see a lightbulb icon in your editor, you can click it to see available actions, including:
-
--   Fix with Cline
--   Explain with Cline
--   Optimize with Cline
-
-These code actions appear contextually based on the code and any diagnostics, giving you AI assistance exactly when and where you need it.
 
 ## How It Works Under the Hood
 
@@ -84,7 +101,8 @@ When you use a code command, here's what happens behind the scenes:
 
     - For "Add to Cline," the code is formatted and sent to the chat panel
     - For "Fix with Cline," the code and diagnostics are analyzed and a fix is generated
-    - For "Generate Documentation," the code structure is parsed and appropriate documentation is created
+    - For "Explain with Cline," the code is analyzed to provide a clear explanation
+    - For "Improve with Cline," the code is analyzed for potential optimizations and improvements
 
 4. **Integration with Chat**: The results appear in the Cline chat panel, where you can:
     - See the AI's response
