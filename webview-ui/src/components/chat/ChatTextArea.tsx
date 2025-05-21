@@ -970,6 +970,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					type: "togglePlanActMode",
 					chatSettings: {
 						mode: newMode,
+						preferredLanguage: chatSettings.preferredLanguage,
+						openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 					},
 					chatContent: {
 						message: inputValue.trim() ? inputValue : undefined,
