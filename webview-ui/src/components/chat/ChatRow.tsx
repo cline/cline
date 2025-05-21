@@ -18,7 +18,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
-import { FileServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 
 interface CopyButtonProps {
@@ -208,12 +208,12 @@ export const ChatRowContent = ({
 		selectedText: "",
 	})
 	const contentRef = useRef<HTMLDivElement>(null)
-	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
+	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
-			return [info.cost, info.cancelReason, info.streamingFailedMessage]
+			return [info.cost, info.cancelReason, info.streamingFailedMessage, info.retryStatus]
 		}
-		return [undefined, undefined, undefined]
+		return [undefined, undefined, undefined, undefined]
 	}, [message.text, message.say])
 
 	// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
@@ -444,6 +444,17 @@ export const ChatRowContent = ({
 
 						if (apiRequestFailedMessage) {
 							return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
+						}
+						// New: Check for retryStatus to modify the title
+						if (retryStatus && cost == null && !apiReqCancelReason) {
+							const retryOperations = retryStatus.maxAttempts > 0 ? retryStatus.maxAttempts - 1 : 0
+							return (
+								<span
+									style={{
+										color: normalColor,
+										fontWeight: "bold",
+									}}>{`API Request (Retrying failed attempt ${retryStatus.attempt}/${retryOperations})...`}</span>
+							)
 						}
 
 						return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
@@ -1215,10 +1226,9 @@ export const ChatRowContent = ({
 										disabled={seeNewChangesDisabled}
 										onClick={() => {
 											setSeeNewChangesDisabled(true)
-											vscode.postMessage({
-												type: "taskCompletionViewChanges",
-												number: message.ts,
-											})
+											TaskServiceClient.taskCompletionViewChanges({
+												value: message.ts,
+											}).catch((err) => console.error("Failed to show task completion view changes:", err))
 										}}
 										style={{
 											cursor: seeNewChangesDisabled ? "wait" : "pointer",
@@ -1379,10 +1389,11 @@ export const ChatRowContent = ({
 											disabled={seeNewChangesDisabled}
 											onClick={() => {
 												setSeeNewChangesDisabled(true)
-												vscode.postMessage({
-													type: "taskCompletionViewChanges",
-													number: message.ts,
-												})
+												TaskServiceClient.taskCompletionViewChanges({
+													value: message.ts,
+												}).catch((err) =>
+													console.error("Failed to show task completion view changes:", err),
+												)
 											}}>
 											<i
 												className="codicon codicon-new-file"

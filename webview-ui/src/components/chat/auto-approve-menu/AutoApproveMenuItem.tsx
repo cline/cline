@@ -11,6 +11,7 @@ interface AutoApproveMenuItemProps {
 	onToggle: (action: ActionMetadata, checked: boolean) => void
 	onToggleFavorite?: (actionId: string) => void
 	condensed?: boolean
+	showIcon?: boolean
 }
 
 const CheckboxContainer = styled.div<{
@@ -77,6 +78,7 @@ const AutoApproveMenuItem = ({
 	onToggle,
 	onToggleFavorite,
 	condensed = false,
+	showIcon = true,
 }: AutoApproveMenuItemProps) => {
 	const checked = isChecked(action)
 	const favorited = isFavorited?.(action)
@@ -93,7 +95,7 @@ const AutoApproveMenuItem = ({
 					<CheckboxContainer isFavorited={favorited} onClick={onChange}>
 						<div className="left-content">
 							<VSCodeCheckbox checked={checked} />
-							<span className={`codicon ${action.icon} icon`}></span>
+							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
 							<span className="label">{condensed ? action.shortName : action.label}</span>
 						</div>
 						{onToggleFavorite && !condensed && (

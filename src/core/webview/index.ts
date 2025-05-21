@@ -149,6 +149,28 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			this.controller.clearTask()
 
 			this.outputChannel.appendLine("Webview view resolved")
+
+			// Set the title to include the keyboard shortcut
+			if (this.view && "title" in this.view) {
+				// Check if the view object has a title property
+				const isMac = process.platform === "darwin"
+				const shortcutDisplay = isMac ? " (⌘+')" : " (Ctrl+')"
+				const baseTitle = this.context.extension.packageJSON.displayName || "Cline"
+				const newTitleWithShortcut = `${baseTitle}${shortcutDisplay}`
+
+				const currentTitle = this.view.title
+
+				if (typeof currentTitle === "string") {
+					if (!currentTitle.includes(shortcutDisplay)) {
+						// Title exists and is a string, but doesn't have the shortcut
+						this.view.title = newTitleWithShortcut
+					}
+					// If it includes shortcutDisplay, do nothing
+				} else {
+					// Title is undefined or not a string (e.g., for sidebar initially)
+					this.view.title = newTitleWithShortcut
+				}
+			}
 		}
 	}
 
@@ -328,6 +350,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			<!DOCTYPE html>
 			<html lang="en">
 				<head>
+					<script src="http://localhost:8097"></script> 
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">

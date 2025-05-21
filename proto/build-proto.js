@@ -10,11 +10,15 @@ import chalk from "chalk"
 import { createRequire } from "module"
 const require = createRequire(import.meta.url)
 const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
-const tsProtoPlugin = require.resolve("ts-proto/protoc-gen-ts_proto")
 
 const __filename = fileURLToPath(import.meta.url)
 const SCRIPT_DIR = path.dirname(__filename)
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..")
+
+const isWindows = process.platform === "win32"
+const tsProtoPlugin = isWindows
+	? path.join(ROOT_DIR, "node_modules", ".bin", "protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
+	: require.resolve("ts-proto/protoc-gen-ts_proto")
 
 // List of gRPC services
 // To add a new service, simply add it to this map and run this script
@@ -30,6 +34,7 @@ const serviceNameMap = {
 	web: "cline.WebService",
 	models: "cline.ModelsService",
 	slash: "cline.SlashService",
+	ui: "cline.UiService",
 	// Add new services here - no other code changes needed!
 }
 const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src", "core", "controller", serviceKey))
@@ -55,7 +60,7 @@ async function main() {
 
 	// Process all proto files
 	console.log(chalk.cyan("Processing proto files from"), SCRIPT_DIR)
-	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, absolute: true })
+	const protoFiles = await globby("*.proto", { cwd: SCRIPT_DIR, realpath: true })
 
 	// Build the protoc command with proper path handling for cross-platform
 	const tsProtocCommand = [

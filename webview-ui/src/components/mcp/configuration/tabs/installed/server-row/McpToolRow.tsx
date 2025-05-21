@@ -1,7 +1,8 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { McpTool } from "@shared/mcp"
-import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServiceClient } from "@/services/grpc-client"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -11,20 +12,26 @@ type McpToolRowProps = {
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
+	const { setMcpServers } = useExtensionState()
+
 	// Accept the event object
 	const handleAutoApproveChange = (event: any) => {
-		// Only proceed if the event was triggered by a direct user interaction
-
 		if (!serverName) {
 			return
 		}
 
-		vscode.postMessage({
-			type: "toggleToolAutoApprove",
+		McpServiceClient.toggleToolAutoApprove({
 			serverName,
 			toolNames: [tool.name],
 			autoApprove: !tool.autoApprove,
 		})
+			.then((response) => {
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+			})
+			.catch((error) => {
+				console.error("Error toggling tool auto-approve", error)
+			})
 	}
 	return (
 		<div

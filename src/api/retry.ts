@@ -54,6 +54,15 @@ export function withRetry(options: RetryOptions = {}) {
 						delay = Math.min(maxDelay, baseDelay * Math.pow(2, attempt))
 					}
 
+					const handlerInstance = this as any
+					if (handlerInstance.options?.onRetryAttempt) {
+						try {
+							handlerInstance.options.onRetryAttempt(attempt + 1, maxRetries, delay, error)
+						} catch (e) {
+							console.error("Error in onRetryAttempt callback:", e)
+						}
+					}
+
 					await new Promise((resolve) => setTimeout(resolve, delay))
 				}
 			}

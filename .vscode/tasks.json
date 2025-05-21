@@ -4,6 +4,16 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "compile-standalone",
+			"type": "npm",
+			"script": "compile-standalone",
+			"group": "build",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
 			"label": "npm: protos",
 			"type": "npm",
 			"script": "protos",

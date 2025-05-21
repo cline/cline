@@ -14,59 +14,34 @@ export interface WebviewMessage {
 		| "newTask"
 		| "condense"
 		| "reportBug"
-		| "askResponse"
 		| "didShowAnnouncement"
-		| "selectImages"
-		| "resetState"
 		| "openInBrowser"
-		| "openMention"
 		| "showChatView"
-		| "refreshClineRules"
 		| "openMcpSettings"
-		| "restartMcpServer"
-		| "deleteMcpServer"
 		| "autoApprovalSettings"
-		| "browserRelaunchResult"
 		| "togglePlanActMode"
-		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
-		| "accountLogoutClicked"
 		| "showAccountViewClicked"
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"
-		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "openSettings"
-		| "fetchOpenGraphData"
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
-		| "relaunchChromeDebugMode"
-		| "taskFeedback"
-		| "scrollToSettings"
 		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleClineRule"
-		| "toggleCursorRule"
-		| "toggleWindsurfRule"
-		| "deleteClineRule"
-		| "copyToClipboard"
-		| "updateTerminalConnectionTimeout"
-		| "setActiveQuote"
+		| "toggleWorkflow"
 
-	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
-	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
@@ -90,10 +65,10 @@ export interface WebviewMessage {
 	// For openInBrowser
 	url?: string
 	planActSeparateModelsSetting?: boolean
+	enableCheckpointsSetting?: boolean
+	mcpMarketplaceEnabled?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
-	// For task feedback
-	feedbackType?: TaskFeedbackType
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel
@@ -108,9 +83,10 @@ export interface WebviewMessage {
 	grpc_request_cancel?: {
 		request_id: string // ID of the request to cancel
 	}
-	// For cline rules
+	// For cline rules and workflows
 	isGlobal?: boolean
 	rulePath?: string
+	workflowPath?: string
 	enabled?: boolean
 	filename?: string
 
