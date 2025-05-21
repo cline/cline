@@ -1,0 +1,49 @@
+---
+title: "@ Mentions Overview"
+sidebarTitle: "Overview"
+---
+
+@ mentions allow you to include context from your workspace in your conversations with Cline. By typing "@" followed by a reference, you can bring in files, folders, problems, terminal output, git information, and even web content without leaving the chat interface.
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/at-mentions.png" alt="At Mentions" />
+</Frame>
+
+## How to Use @ Mentions
+
+When you type "@" in the chat input, a context menu appears showing you what you can reference:
+
+1. Type "@" in the chat input
+2. Select a category (files, folders, terminal, problems, etc.)
+3. Choose the specific item you want to reference
+4. Send your message as usual
+
+## Real-world Example
+
+Before @ mentions, whenever I hit an error, I had to:
+
+1. Copy the error message
+2. Paste it into chat
+3. Copy the relevant code files
+4. Paste those into chat
+5. Describe how they relate
+
+Now I just do:
+
+```
+I'm getting this error when running my app: @terminal
+
+Here's my component code: @/src/components/Button.jsx
+
+And the API call: @/src/api/users.js
+
+What am I doing wrong?
+```
+
+Cline sees the full terminal output and the complete file contents, including imports and related code I might have overlooked. This means solutions are more accurate because Cline has the complete picture.
+
+## Start Using @ Mentions
+
+Next time you're asking Cline for help, try using @ mentions instead of copying and pasting. It's faster, provides better context, and ensures Cline has all the information needed to give you the best assistance.
+
+Just remember: the more relevant context you provide with @ mentions, the more accurate and helpful Cline's responses will be.

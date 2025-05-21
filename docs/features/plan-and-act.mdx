@@ -1,8 +1,7 @@
 ---
-title: "Plan & Act Modes: A Guide to Effective AI Development"
+title: "Plan & Act"
+sidebarTitle: "Plan & Act"
 ---
-
-## Overview
 
 Plan & Act modes represent Cline's approach to structured AI development, emphasizing thoughtful planning before implementation. This dual-mode system helps developers create more maintainable, accurate code while reducing iteration time.
 
@@ -13,27 +12,37 @@ Plan & Act modes represent Cline's approach to structured AI development, emphas
 	/>
 </Frame>
 
-### Understanding the Modes
+#### Plan Mode: Think First
 
-#### Plan Mode
+Plan mode is where you and Cline figure out what you're trying to build and how you'll build it. In this mode, Cline:
 
--   Optimized for context gathering and strategy
--   Cannot make changes to your codebase
--   Focused on understanding requirements and creating implementation plans
--   Enables full file reading for comprehensive project understanding
+-   Can read your entire codebase to understand the context
+-   Won't make any changes to your files
+-   Focuses on understanding requirements and creating a strategy
+-   Helps identify potential issues before you write a single line of code
 
-#### Act Mode
+#### Act Mode: Build It
 
--   Streamlined for implementation based on established plans
--   Has access to all of Cline's building capabilities
--   Maintains context from the planning phase
--   Can execute changes to your codebase
+Once you've got a plan, you switch to Act mode. Now Cline:
+
+-   Has all the building capabilities at its disposal
+-   Can make changes to your codebase
+-   Still remembers everything from your planning session
+-   Executes the strategy you worked out together
 
 <Frame>
 	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(5).png" alt="Act mode capabilities" />
 </Frame>
 
 ### Workflow Guide
+
+When I'm working on a new feature or fixing a complex bug, here's what works for me:
+
+1. I start in Plan mode and tell Cline what I want to build
+2. Cline helps me explore the codebase, looking at relevant files
+3. Together we figure out the best approach, considering edge cases and potential issues
+4. When I'm confident in our plan, I switch to Act mode
+5. Cline implements the solution based on our planning
 
 #### 1. Start with Plan Mode
 
@@ -113,19 +122,21 @@ Complex projects often require multiple plan-act cycles:
 
 ### Common Patterns
 
-#### When to Use Plan Mode
+#### When to Use Each Mode
 
--   Starting new features
--   Debugging complex issues
--   Architectural decisions
--   Requirements analysis
+I've found Plan mode works best when:
 
-#### When to Use Act Mode
+-   Starting something new where the approach isn't obvious
+-   Debugging a tricky issue where I'm not sure what's wrong
+-   Making architectural decisions that will affect multiple parts of the codebase
+-   Trying to understand a complex workflow or feature
 
--   Implementing agreed solutions
--   Making routine changes
--   Following established patterns
--   Executing test cases
+And Act mode is perfect for:
+
+-   Implementing a solution we've already planned out
+-   Making routine changes where the approach is clear
+-   Following established patterns in the codebase
+-   Running tests and making minor adjustments
 
 <Frame>
 	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(6).png" alt="Mode usage patterns" />
@@ -142,4 +153,4 @@ Share your experiences and improvements:
 
 ---
 
-Remember: The time invested in planning pays dividends in implementation quality and maintenance efficiency
+Remember: The time invested in planning pays dividends in implementation quality and maintenance efficiency.
