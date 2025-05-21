@@ -784,7 +784,7 @@ export class McpHub {
 			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 		}
 
-		return await connection.client.request(
+		const result = await connection.client.request(
 			{
 				method: "tools/call",
 				params: {
@@ -797,6 +797,11 @@ export class McpHub {
 				timeout,
 			},
 		)
+
+		return {
+			...result,
+			content: result.content ?? [],
+		}
 	}
 
 	/**
