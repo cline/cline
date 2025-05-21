@@ -1514,6 +1514,15 @@ export const FileServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		/** Opens a mention (file, path, git commit, problem, terminal, or URL) */
+		openMention: {
+			name: "openMention",
+			requestType: StringRequest,
+			requestStream: false,
+			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
 		/** Deletes a rule file from either global or workspace rules directory */
 		deleteRuleFile: {
 			name: "deleteRuleFile",

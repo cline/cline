@@ -16,6 +16,9 @@ service FileService {
  
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
+  
+  // Opens a mention (file, path, git commit, problem, terminal, or URL)
+  rpc openMention(StringRequest) returns (Empty);
 
   // Deletes a rule file from either global or workspace rules directory
   rpc deleteRuleFile(RuleFileRequest) returns (RuleFile);
