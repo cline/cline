@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.17.0
+
+### Minor Changes
+
+-   ee9ddef: Put all the navigation state and message handling and navigation functions in the extension state context instead of the app.tsx
+-   c7c1d37: Migrate setActiveQuote to protobus
+-   78c3c5e: Migrate toggleToolAutoApprove to protobus
+-   7a24c10: Migrate toggleClineRule to protobus
+-   7fe7605: Migrate updateTerminalConnectionTimeout to protobus
+-   c47503a: migrate accountLogoutClicked to protobus
+-   f0e3524: Migrate toggleWindsurfRule to protobus
+-   43357c1: Migrate restartMcpServer to protobus
+-   1de02e9: Migrate silentlyRefreshMcpMarketplace to protobus
+-   14a056e: Migrate toggleCursorRule to protobus
+-   5efbf77: Migrate the deleteMcpServer message to protobus
+
+### Patch Changes
+
+-   6938809: Fix edge case of changing language in settings
+-   fe13ce8: feat: added gemini flash 05-20
+-   c3caec2: togglePlanActMode protobus migration
+-   eb19731: taskCompletionViewChanges protobus migration
+-   644280b: copyToClipboard protobus migration
+-   b737911: Fixing bug in toggle plan and act
+-   086879d: scrollToSetting protobus migration
+-   08d4240: openMention protobus migration
+-   e6da7c7: browserRelaunchResult protobus migration
+-   6b243ee: Remind VS code users of clines existence(Open Cline on AutoUpdate+KeyboardShortcuts+Lightbulb icons)
+
 ## [3.16.1]
 
 -   Add Enable auto approve toggle switch, allowing users to easily turn auto-approve functionality on or off without losing their action settings
