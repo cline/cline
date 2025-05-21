@@ -6,7 +6,6 @@
 -   Add documentation links to rules & workflows UI
 -   Improve error handling for Mistral SDK API
 -   Add support for Streameable HTTP Transport for MCPs
--   Fix TypeScript type errors in MCP hub
 
 ## [3.16.2]
 
