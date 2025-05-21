@@ -310,8 +310,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				languageId,
 				Array.isArray(diagnostics) ? diagnostics : undefined,
 			)
-			const taskId = visibleWebview?.controller.task?.taskId
-			telemetryService.captureButtonClick("codeAction_addToChat", taskId)
+			telemetryService.captureButtonClick("codeAction_addToChat", visibleWebview?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -483,8 +482,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Send to sidebar provider with diagnostics
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			await visibleWebview?.controller.fixWithCline(selectedText, filePath, languageId, diagnostics)
-			const taskId = visibleWebview?.controller.task?.taskId
-			telemetryService.captureButtonClick("codeAction_fixWithCline", taskId)
+			telemetryService.captureButtonClick("codeAction_fixWithCline", visibleWebview?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -506,8 +504,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
-			const taskId = visibleWebview?.controller.task?.taskId
-			telemetryService.captureButtonClick("codeAction_explainCode", taskId)
+			telemetryService.captureButtonClick("codeAction_explainCode", visibleWebview?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -529,8 +526,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const fileMention = visibleWebview?.controller.getFileMentionFromPath(filePath) || filePath
 			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
-			const taskId = visibleWebview?.controller.task?.taskId
-			telemetryService.captureButtonClick("codeAction_improveCode", taskId)
+			telemetryService.captureButtonClick("codeAction_improveCode", visibleWebview?.controller.task?.taskId, true)
 		}),
 	)
 
@@ -592,8 +588,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					"Could not activate Cline view. Please try opening it manually from the Activity Bar.",
 				)
 			}
-			const taskId = activeWebviewProvider?.controller.task?.taskId
-			telemetryService.captureButtonClick("command_focusChatInput", taskId)
+			telemetryService.captureButtonClick("command_focusChatInput", activeWebviewProvider?.controller.task?.taskId, true)
 		}),
 	)
 
