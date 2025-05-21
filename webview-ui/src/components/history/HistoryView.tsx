@@ -134,20 +134,21 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const { totalTasksSize, setTotalTasksSize } = extensionStateContext
 
-	useEffect(() => {
-		const fetchTotalTasksSize = async () => {
-			try {
-				const response = await TaskServiceClient.getTotalTasksSize({})
-				if (response && typeof response.value === "number") {
-					setTotalTasksSize?.(response.value || 0)
-				}
-			} catch (error) {
-				console.error("Error getting total tasks size:", error)
+	const fetchTotalTasksSize = useCallback(async () => {
+		try {
+			const response = await TaskServiceClient.getTotalTasksSize({})
+			if (response && typeof response.value === "number") {
+				setTotalTasksSize?.(response.value || 0)
 			}
+		} catch (error) {
+			console.error("Error getting total tasks size:", error)
 		}
-
-		fetchTotalTasksSize()
 	}, [setTotalTasksSize])
+
+	// Request total tasks size when component mounts
+	useEffect(() => {
+		fetchTotalTasksSize()
+	}, [fetchTotalTasksSize])
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -173,16 +174,26 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 	}, [])
 
-	const handleDeleteHistoryItem = useCallback((id: string) => {
-		TaskServiceClient.deleteTasksWithIds({ value: [id] })
-	}, [])
+	const handleDeleteHistoryItem = useCallback(
+		(id: string) => {
+			TaskServiceClient.deleteTasksWithIds({ value: [id] })
+				.then(() => fetchTotalTasksSize())
+				.catch((error) => console.error("Error deleting task:", error))
+		},
+		[fetchTotalTasksSize],
+	)
 
-	const handleDeleteSelectedHistoryItems = useCallback((ids: string[]) => {
-		if (ids.length > 0) {
-			TaskServiceClient.deleteTasksWithIds({ value: ids })
-			setSelectedItems([])
-		}
-	}, [])
+	const handleDeleteSelectedHistoryItems = useCallback(
+		(ids: string[]) => {
+			if (ids.length > 0) {
+				TaskServiceClient.deleteTasksWithIds({ value: ids })
+					.then(() => fetchTotalTasksSize())
+					.catch((error) => console.error("Error deleting tasks:", error))
+				setSelectedItems([])
+			}
+		},
+		[fetchTotalTasksSize],
+	)
 
 	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
