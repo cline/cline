@@ -3,6 +3,7 @@ import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { convertToR1Format } from "@api/transform/r1-format"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { CLAUDE_4_SONNET } from "@/shared/modelcards/claude-sonnet-4"
 
 export async function createOpenRouterStream(
 	client: OpenAI,
@@ -23,6 +24,9 @@ export async function createOpenRouterStream(
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
 	// handles direct model.id match logic
 	switch (model.id) {
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.DEFAULT:
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.BETA:
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.THINKING:
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
 		case "anthropic/claude-3.7-sonnet:thinking":
@@ -79,6 +83,9 @@ export async function createOpenRouterStream(
 	// (models usually default to max tokens allowed)
 	let maxTokens: number | undefined
 	switch (model.id) {
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.DEFAULT:
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.BETA:
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.THINKING:
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
 		case "anthropic/claude-3.7-sonnet:thinking":
@@ -112,6 +119,9 @@ export async function createOpenRouterStream(
 
 	let reasoning: { max_tokens: number } | undefined = undefined
 	switch (model.id) {
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.DEFAULT:
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.BETA:
+		case CLAUDE_4_SONNET.IDS.OPENROUTER.THINKING:
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
 		case "anthropic/claude-3.7-sonnet:thinking":

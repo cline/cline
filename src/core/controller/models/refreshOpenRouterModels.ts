@@ -6,6 +6,7 @@ import path from "path"
 import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
 import { GlobalFileNames } from "@core/storage/disk"
+import { CLAUDE_4_SONNET } from "@/shared/modelcards/claude-sonnet-4"
 
 /**
  * Refreshes the OpenRouter models and returns the updated model list
@@ -43,6 +44,11 @@ export async function refreshOpenRouterModels(
 				}
 
 				switch (rawModel.id) {
+					case CLAUDE_4_SONNET.IDS.OPENROUTER.DEFAULT:
+					case CLAUDE_4_SONNET.IDS.OPENROUTER.BETA:
+					case CLAUDE_4_SONNET.IDS.OPENROUTER.THINKING:
+					case CLAUDE_4_SONNET.IDS.OPENROUTER.HYPHENATED:
+					case CLAUDE_4_SONNET.IDS.OPENROUTER.DOTTED:
 					case "anthropic/claude-3-7-sonnet":
 					case "anthropic/claude-3-7-sonnet:beta":
 					case "anthropic/claude-3.7-sonnet":

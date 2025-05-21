@@ -5,6 +5,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
 import { ApiStream } from "@api/transform/stream"
 import { GeminiHandler } from "./gemini"
+import { CLAUDE_4_SONNET } from "@/shared/modelcards/claude-sonnet-4"
 
 export class VertexHandler implements ApiHandler {
 	private geminiHandler: GeminiHandler
@@ -41,10 +42,14 @@ export class VertexHandler implements ApiHandler {
 
 		// Claude implementation
 		let budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn =
+			typeof modelId === "string" && (modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0
+				? true
+				: false
 		let stream
 
 		switch (modelId) {
+			case CLAUDE_4_SONNET.IDS.VERTEX:
 			case "claude-3-7-sonnet@20250219":
 			case "claude-3-5-sonnet-v2@20241022":
 			case "claude-3-5-sonnet@20240620":
@@ -221,15 +226,17 @@ export class VertexHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: VertexModelId; info: ModelInfo } {
+	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
-		if (modelId && modelId in vertexModels) {
-			const id = modelId as VertexModelId
-			return { id, info: vertexModels[id] }
+		if (modelId && typeof modelId === "string" && modelId in vertexModels) {
+			return { id: modelId, info: vertexModels[modelId as VertexModelId] }
 		}
+
+		// Ensure vertexDefaultModelId is treated as a string
+		const defaultId = String(vertexDefaultModelId)
 		return {
-			id: vertexDefaultModelId,
-			info: vertexModels[vertexDefaultModelId],
+			id: defaultId,
+			info: vertexModels[defaultId as VertexModelId],
 		}
 	}
 }

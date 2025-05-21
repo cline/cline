@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { withRetry } from "../retry"
 import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "@shared/api"
+import { CLAUDE_4_SONNET } from "@/shared/modelcards/claude-sonnet-4"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
@@ -24,10 +25,14 @@ export class AnthropicHandler implements ApiHandler {
 		const modelId = model.id
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn =
+			typeof modelId === "string" && (modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0
+				? true
+				: false
 
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
+			case CLAUDE_4_SONNET.IDS.ANTHROPIC:
 			case "claude-3-7-sonnet-20250219":
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
@@ -96,6 +101,7 @@ export class AnthropicHandler implements ApiHandler {
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 						switch (modelId) {
+							case CLAUDE_4_SONNET.IDS.ANTHROPIC:
 							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
@@ -210,15 +216,17 @@ export class AnthropicHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: AnthropicModelId; info: ModelInfo } {
+	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
-		if (modelId && modelId in anthropicModels) {
-			const id = modelId as AnthropicModelId
-			return { id, info: anthropicModels[id] }
+		if (modelId && typeof modelId === "string" && modelId in anthropicModels) {
+			return { id: modelId, info: anthropicModels[modelId as AnthropicModelId] }
 		}
+
+		// Ensure anthropicDefaultModelId is treated as a string
+		const defaultId = String(anthropicDefaultModelId)
 		return {
-			id: anthropicDefaultModelId,
-			info: anthropicModels[anthropicDefaultModelId],
+			id: defaultId,
+			info: anthropicModels[defaultId as AnthropicModelId],
 		}
 	}
 }

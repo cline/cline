@@ -7,6 +7,7 @@ import ApiOptions from "@/components/settings/ApiOptions"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
+import { LEADING_MODEL_UI } from "@shared/leadingModel"
 
 const WelcomeView = memo(() => {
 	const { apiConfiguration } = useExtensionState()
@@ -38,8 +39,8 @@ const WelcomeView = memo(() => {
 				</div>
 				<p>
 					I can do all kinds of tasks thanks to breakthroughs in{" "}
-					<VSCodeLink href="https://www.anthropic.com/claude/sonnet" className="inline">
-						Claude 3.7 Sonnet's
+					<VSCodeLink href={LEADING_MODEL_UI.DOC_URL} className="inline">
+						{LEADING_MODEL_UI.DISPLAY_NAME}'s
 					</VSCodeLink>
 					agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use
 					a browser, and execute terminal commands <i>(with your permission, of course)</i>. I can even use MCP to
@@ -47,8 +48,8 @@ const WelcomeView = memo(() => {
 				</p>
 
 				<p className="text-[var(--vscode-descriptionForeground)]">
-					Sign up for an account to get started for free, or use an API key that provides access to models like Claude
-					3.7 Sonnet.
+					Sign up for an account to get started for free, or use an API key that provides access to models like{" "}
+					{LEADING_MODEL_UI.DISPLAY_NAME}.
 				</p>
 
 				<VSCodeButton appearance="primary" onClick={handleLogin} className="w-full mt-1">

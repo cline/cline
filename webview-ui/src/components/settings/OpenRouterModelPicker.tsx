@@ -5,6 +5,8 @@ import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { openRouterDefaultModelId } from "@shared/api"
+import { CLAUDE_4_SONNET } from "@shared/modelcards/claude-sonnet-4"
+import { LEADING_MODEL_UI } from "@shared/modelcards/leadingModel"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { vscode } from "@/utils/vscode"
@@ -42,7 +44,7 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "anthropic/claude-3.7-sonnet",
+		id: LEADING_MODEL_UI.OPENROUTER_ID,
 		description: "Leading model for agentic coding",
 		label: "Best",
 	},
@@ -199,9 +201,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 
 	const showBudgetSlider = useMemo(() => {
 		return (
+			// Claude 3.7 support for backward compatibility
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
-			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking") ||
+			// Claude 4 Sonnet patterns
+			selectedModelId?.toLowerCase().includes(CLAUDE_4_SONNET.IDS.OPENROUTER.DEFAULT.toLowerCase()) ||
+			selectedModelId?.toLowerCase().includes(CLAUDE_4_SONNET.IDS.OPENROUTER.DOTTED.toLowerCase()) ||
+			selectedModelId?.toLowerCase().includes(CLAUDE_4_SONNET.IDS.OPENROUTER.THINKING.toLowerCase())
 		)
 	}, [selectedModelId])
 
@@ -335,8 +342,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3.7-sonnet")}>
-							anthropic/claude-3.7-sonnet.
+							onClick={() => handleModelChange(LEADING_MODEL_UI.OPENROUTER_ID)}>
+							{LEADING_MODEL_UI.DISPLAY_NAME}
 						</VSCodeLink>
 						You can also try searching "free" for no-cost options currently available.
 					</>

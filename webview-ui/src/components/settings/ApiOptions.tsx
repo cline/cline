@@ -63,6 +63,8 @@ import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKE
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 import RequestyModelPicker from "./RequestyModelPicker"
 import { useOpenRouterKeyInfo } from "../ui/hooks/useOpenRouterKeyInfo"
+import { CLAUDE_4_SONNET } from "@shared/modelcards/claude-sonnet-4"
+import { LEADING_MODEL_UI } from "@shared/modelcards/leadingModel"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -870,7 +872,7 @@ const ApiOptions = ({
 							<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 3} className="dropdown-container">
 								<VSCodeDropdown
 									id="bedrock-base-model-dropdown"
-									value={apiConfiguration?.awsBedrockCustomModelBaseId || bedrockDefaultModelId}
+									value={apiConfiguration?.awsBedrockCustomModelBaseId || (bedrockDefaultModelId as string)}
 									onChange={handleInputChange("awsBedrockCustomModelBaseId")}
 									style={{ width: "100%" }}>
 									<VSCodeOption value="">Select a model...</VSCodeOption>
@@ -1540,7 +1542,7 @@ const ApiOptions = ({
 								}}>
 								The VS Code Language Model API allows you to run models provided by other VS Code extensions
 								(including but not limited to GitHub Copilot). The easiest way to get started is to install the
-								Copilot extension from the VS Marketplace and enabling Claude 3.7 Sonnet.
+								Copilot extension from the VS Marketplace and enabling {LEADING_MODEL_UI.DISPLAY_NAME}.
 							</p>
 						)}
 
@@ -2074,8 +2076,12 @@ const ApiOptions = ({
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
 						</DropdownContainer>
 
-						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
-							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
+						{((selectedProvider === "anthropic" &&
+							(selectedModelId === "claude-3-7-sonnet-20250219" ||
+								selectedModelId === CLAUDE_4_SONNET.IDS.ANTHROPIC)) ||
+							(selectedProvider === "vertex" &&
+								(selectedModelId === "claude-3-7-sonnet@20250219" ||
+									selectedModelId === CLAUDE_4_SONNET.IDS.VERTEX))) && (
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 

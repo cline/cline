@@ -1,4 +1,5 @@
 import type { LanguageModelChatSelector } from "../api/providers/types"
+import { CLAUDE_4_SONNET, CLAUDE_4_SONNET_DATE } from "./modelcards/claude-sonnet-4"
 
 export type ApiProvider =
 	| "anthropic"
@@ -136,8 +137,18 @@ export interface OpenAiCompatibleModelInfo extends ModelInfo {
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
-export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
+export const anthropicDefaultModelId: AnthropicModelId = CLAUDE_4_SONNET.IDS.ANTHROPIC
 export const anthropicModels = {
+	[CLAUDE_4_SONNET.IDS.ANTHROPIC]: {
+		maxTokens: CLAUDE_4_SONNET.SPECS.MAX_TOKENS,
+		contextWindow: CLAUDE_4_SONNET.SPECS.CONTEXT_WINDOW,
+		supportsImages: CLAUDE_4_SONNET.SPECS.SUPPORTS_IMAGES,
+		supportsPromptCache: CLAUDE_4_SONNET.SPECS.SUPPORTS_PROMPT_CACHE,
+		inputPrice: CLAUDE_4_SONNET.SPECS.INPUT_PRICE,
+		outputPrice: CLAUDE_4_SONNET.SPECS.OUTPUT_PRICE,
+		cacheWritesPrice: CLAUDE_4_SONNET.SPECS.CACHE_WRITES_PRICE,
+		cacheReadsPrice: CLAUDE_4_SONNET.SPECS.CACHE_READS_PRICE,
+	},
 	"claude-3-7-sonnet-20250219": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -195,8 +206,18 @@ export const anthropicModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+export const bedrockDefaultModelId: BedrockModelId = CLAUDE_4_SONNET.IDS.BEDROCK
 export const bedrockModels = {
+	[CLAUDE_4_SONNET.IDS.BEDROCK]: {
+		maxTokens: CLAUDE_4_SONNET.SPECS.MAX_TOKENS,
+		contextWindow: CLAUDE_4_SONNET.SPECS.CONTEXT_WINDOW,
+		supportsImages: CLAUDE_4_SONNET.SPECS.SUPPORTS_IMAGES,
+		supportsPromptCache: CLAUDE_4_SONNET.SPECS.SUPPORTS_PROMPT_CACHE,
+		inputPrice: CLAUDE_4_SONNET.SPECS.INPUT_PRICE,
+		outputPrice: CLAUDE_4_SONNET.SPECS.OUTPUT_PRICE,
+		cacheWritesPrice: CLAUDE_4_SONNET.SPECS.CACHE_WRITES_PRICE,
+		cacheReadsPrice: CLAUDE_4_SONNET.SPECS.CACHE_READS_PRICE,
+	},
 	"amazon.nova-premier-v1:0": {
 		maxTokens: 10_000,
 		contextWindow: 1_000_000,
@@ -315,7 +336,7 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-3.7-sonnet" // will always exist in openRouterModels
+export const openRouterDefaultModelId = CLAUDE_4_SONNET.IDS.OPENROUTER.DEFAULT // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -326,15 +347,28 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	outputPrice: 15.0,
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
-	description:
-		"Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and extended, step-by-step processing for complex tasks. The model demonstrates notable improvements in coding, particularly in front-end development and full-stack updates, and excels in agentic workflows, where it can autonomously navigate multi-step processes. \n\nClaude 3.7 Sonnet maintains performance parity with its predecessor in standard mode while offering an extended reasoning mode for enhanced accuracy in math, coding, and instruction-following tasks.\n\nRead more at the [blog post here](https://www.anthropic.com/news/claude-3-7-sonnet)",
+	description: CLAUDE_4_SONNET.DESCRIPTION,
 }
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-3-7-sonnet@20250219"
+export const vertexDefaultModelId: VertexModelId = CLAUDE_4_SONNET.IDS.VERTEX
 export const vertexModels = {
+	[CLAUDE_4_SONNET.IDS.VERTEX]: {
+		maxTokens: CLAUDE_4_SONNET.SPECS.MAX_TOKENS,
+		contextWindow: CLAUDE_4_SONNET.SPECS.CONTEXT_WINDOW,
+		supportsImages: CLAUDE_4_SONNET.SPECS.SUPPORTS_IMAGES,
+		supportsPromptCache: CLAUDE_4_SONNET.SPECS.SUPPORTS_PROMPT_CACHE,
+		inputPrice: CLAUDE_4_SONNET.SPECS.INPUT_PRICE,
+		outputPrice: CLAUDE_4_SONNET.SPECS.OUTPUT_PRICE,
+		cacheWritesPrice: CLAUDE_4_SONNET.SPECS.CACHE_WRITES_PRICE,
+		cacheReadsPrice: CLAUDE_4_SONNET.SPECS.CACHE_READS_PRICE,
+		thinkingConfig: {
+			maxBudget: CLAUDE_4_SONNET.SPECS.THINKING_MAX_BUDGET,
+			outputPrice: CLAUDE_4_SONNET.SPECS.OUTPUT_PRICE,
+		},
+	},
 	"claude-3-7-sonnet@20250219": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -1495,7 +1529,7 @@ export const mistralModels = {
 // LiteLLM
 // https://docs.litellm.ai/docs/
 export type LiteLLMModelId = string
-export const liteLlmDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
+export const liteLlmDefaultModelId = CLAUDE_4_SONNET.IDS.ANTHROPIC
 export interface LiteLLMModelInfo extends ModelInfo {
 	temperature?: number
 }
@@ -1780,7 +1814,7 @@ export const sambanovaModels = {
 
 // Requesty
 // https://requesty.ai/models
-export const requestyDefaultModelId = "anthropic/claude-3-7-sonnet-latest"
+export const requestyDefaultModelId = CLAUDE_4_SONNET.IDS.REQUESTY
 export const requestyDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
