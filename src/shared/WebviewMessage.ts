@@ -26,7 +26,6 @@ export interface WebviewMessage {
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"
-		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"

@@ -55,6 +55,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
+	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -500,6 +501,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				shellIntegrationTimeout: value,
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
+		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
 		setChatSettings: (value) => {

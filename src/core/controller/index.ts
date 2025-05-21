@@ -346,10 +346,6 @@ export class Controller {
 				await this.fetchMcpMarketplace(message.bool)
 				break
 			}
-			case "silentlyRefreshMcpMarketplace": {
-				await this.silentlyRefreshMcpMarketplace()
-				break
-			}
 			// case "openMcpMarketplaceServerDetails": {
 			// 	if (message.text) {
 			// 		const response = await fetch(`https://api.cline.bot/v1/mcp/marketplace/item?mcpId=${message.mcpId}`)
@@ -827,6 +823,40 @@ export class Controller {
 		}
 	}
 
+	private async fetchMcpMarketplaceFromApiRPC(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
+		try {
+			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
+				headers: {
+					"Content-Type": "application/json",
+				},
+			})
+
+			if (!response.data) {
+				throw new Error("Invalid response from MCP marketplace API")
+			}
+
+			const catalog: McpMarketplaceCatalog = {
+				items: (response.data || []).map((item: any) => ({
+					...item,
+					githubStars: item.githubStars ?? 0,
+					downloadCount: item.downloadCount ?? 0,
+					tags: item.tags ?? [],
+				})),
+			}
+
+			// Store in global state
+			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
+			return catalog
+		} catch (error) {
+			console.error("Failed to fetch MCP marketplace:", error)
+			if (!silent) {
+				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
+				throw new Error(errorMessage)
+			}
+			return undefined
+		}
+	}
+
 	async silentlyRefreshMcpMarketplace() {
 		try {
 			const catalog = await this.fetchMcpMarketplaceFromApi(true)
@@ -838,6 +868,20 @@ export class Controller {
 			}
 		} catch (error) {
 			console.error("Failed to silently refresh MCP marketplace:", error)
+		}
+	}
+
+	/**
+	 * RPC variant that silently refreshes the MCP marketplace catalog and returns the result
+	 * Unlike silentlyRefreshMcpMarketplace, this doesn't post a message to the webview
+	 * @returns MCP marketplace catalog or undefined if refresh failed
+	 */
+	async silentlyRefreshMcpMarketplaceRPC() {
+		try {
+			return await this.fetchMcpMarketplaceFromApiRPC(true)
+		} catch (error) {
+			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
+			return undefined
 		}
 	}
 

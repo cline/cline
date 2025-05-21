@@ -14,6 +14,7 @@ service McpService {
   rpc restartMcpServer(StringRequest) returns (McpServers);
   rpc deleteMcpServer(StringRequest) returns (McpServers);
   rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
+  rpc refreshMcpMarketplace(EmptyRequest) returns (McpMarketplaceCatalog);
 }
 
 message ToggleMcpServerRequest {
@@ -84,4 +85,29 @@ message McpServer {
 
 message McpServers {
   repeated McpServer mcp_servers = 1;
+}
+
+message McpMarketplaceItem {
+  string mcp_id = 1;
+  string github_url = 2;
+  string name = 3;
+  string author = 4;
+  string description = 5;
+  string codicon_icon = 6;
+  string logo_url = 7;
+  string category = 8;
+  repeated string tags = 9;
+  bool requires_api_key = 10;
+  optional string readme_content = 11;
+  optional string llms_installation_content = 12;
+  bool is_recommended = 13;
+  int32 github_stars = 14;
+  int32 download_count = 15;
+  string created_at = 16;
+  string updated_at = 17;
+  string last_github_sync = 18;
+}
+
+message McpMarketplaceCatalog {
+  repeated McpMarketplaceItem items = 1;
 }

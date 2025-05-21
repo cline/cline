@@ -43,6 +43,7 @@ import { downloadMcp } from "../core/controller/mcp/downloadMcp"
 import { restartMcpServer } from "../core/controller/mcp/restartMcpServer"
 import { deleteMcpServer } from "../core/controller/mcp/deleteMcpServer"
 import { toggleToolAutoApprove } from "../core/controller/mcp/toggleToolAutoApprove"
+import { refreshMcpMarketplace } from "../core/controller/mcp/refreshMcpMarketplace"
 
 // Models Service
 import { getOllamaModels } from "../core/controller/models/getOllamaModels"
@@ -140,6 +141,7 @@ export function addServices(
 		restartMcpServer: wrapper(restartMcpServer, controller),
 		deleteMcpServer: wrapper(deleteMcpServer, controller),
 		toggleToolAutoApprove: wrapper(toggleToolAutoApprove, controller),
+		refreshMcpMarketplace: wrapper(refreshMcpMarketplace, controller),
 	})
 
 	// Models Service

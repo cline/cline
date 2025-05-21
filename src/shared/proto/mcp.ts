@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, Metadata, StringRequest } from "./common"
+import { Empty, EmptyRequest, Metadata, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -113,6 +113,31 @@ export interface McpServer {
 
 export interface McpServers {
 	mcpServers: McpServer[]
+}
+
+export interface McpMarketplaceItem {
+	mcpId: string
+	githubUrl: string
+	name: string
+	author: string
+	description: string
+	codiconIcon: string
+	logoUrl: string
+	category: string
+	tags: string[]
+	requiresApiKey: boolean
+	readmeContent?: string | undefined
+	llmsInstallationContent?: string | undefined
+	isRecommended: boolean
+	githubStars: number
+	downloadCount: number
+	createdAt: string
+	updatedAt: string
+	lastGithubSync: string
+}
+
+export interface McpMarketplaceCatalog {
+	items: McpMarketplaceItem[]
 }
 
 function createBaseToggleMcpServerRequest(): ToggleMcpServerRequest {
@@ -1091,6 +1116,419 @@ export const McpServers: MessageFns<McpServers> = {
 	},
 }
 
+function createBaseMcpMarketplaceItem(): McpMarketplaceItem {
+	return {
+		mcpId: "",
+		githubUrl: "",
+		name: "",
+		author: "",
+		description: "",
+		codiconIcon: "",
+		logoUrl: "",
+		category: "",
+		tags: [],
+		requiresApiKey: false,
+		readmeContent: undefined,
+		llmsInstallationContent: undefined,
+		isRecommended: false,
+		githubStars: 0,
+		downloadCount: 0,
+		createdAt: "",
+		updatedAt: "",
+		lastGithubSync: "",
+	}
+}
+
+export const McpMarketplaceItem: MessageFns<McpMarketplaceItem> = {
+	encode(message: McpMarketplaceItem, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.mcpId !== "") {
+			writer.uint32(10).string(message.mcpId)
+		}
+		if (message.githubUrl !== "") {
+			writer.uint32(18).string(message.githubUrl)
+		}
+		if (message.name !== "") {
+			writer.uint32(26).string(message.name)
+		}
+		if (message.author !== "") {
+			writer.uint32(34).string(message.author)
+		}
+		if (message.description !== "") {
+			writer.uint32(42).string(message.description)
+		}
+		if (message.codiconIcon !== "") {
+			writer.uint32(50).string(message.codiconIcon)
+		}
+		if (message.logoUrl !== "") {
+			writer.uint32(58).string(message.logoUrl)
+		}
+		if (message.category !== "") {
+			writer.uint32(66).string(message.category)
+		}
+		for (const v of message.tags) {
+			writer.uint32(74).string(v!)
+		}
+		if (message.requiresApiKey !== false) {
+			writer.uint32(80).bool(message.requiresApiKey)
+		}
+		if (message.readmeContent !== undefined) {
+			writer.uint32(90).string(message.readmeContent)
+		}
+		if (message.llmsInstallationContent !== undefined) {
+			writer.uint32(98).string(message.llmsInstallationContent)
+		}
+		if (message.isRecommended !== false) {
+			writer.uint32(104).bool(message.isRecommended)
+		}
+		if (message.githubStars !== 0) {
+			writer.uint32(112).int32(message.githubStars)
+		}
+		if (message.downloadCount !== 0) {
+			writer.uint32(120).int32(message.downloadCount)
+		}
+		if (message.createdAt !== "") {
+			writer.uint32(130).string(message.createdAt)
+		}
+		if (message.updatedAt !== "") {
+			writer.uint32(138).string(message.updatedAt)
+		}
+		if (message.lastGithubSync !== "") {
+			writer.uint32(146).string(message.lastGithubSync)
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): McpMarketplaceItem {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseMcpMarketplaceItem()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.mcpId = reader.string()
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.githubUrl = reader.string()
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.name = reader.string()
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.author = reader.string()
+					continue
+				}
+				case 5: {
+					if (tag !== 42) {
+						break
+					}
+
+					message.description = reader.string()
+					continue
+				}
+				case 6: {
+					if (tag !== 50) {
+						break
+					}
+
+					message.codiconIcon = reader.string()
+					continue
+				}
+				case 7: {
+					if (tag !== 58) {
+						break
+					}
+
+					message.logoUrl = reader.string()
+					continue
+				}
+				case 8: {
+					if (tag !== 66) {
+						break
+					}
+
+					message.category = reader.string()
+					continue
+				}
+				case 9: {
+					if (tag !== 74) {
+						break
+					}
+
+					message.tags.push(reader.string())
+					continue
+				}
+				case 10: {
+					if (tag !== 80) {
+						break
+					}
+
+					message.requiresApiKey = reader.bool()
+					continue
+				}
+				case 11: {
+					if (tag !== 90) {
+						break
+					}
+
+					message.readmeContent = reader.string()
+					continue
+				}
+				case 12: {
+					if (tag !== 98) {
+						break
+					}
+
+					message.llmsInstallationContent = reader.string()
+					continue
+				}
+				case 13: {
+					if (tag !== 104) {
+						break
+					}
+
+					message.isRecommended = reader.bool()
+					continue
+				}
+				case 14: {
+					if (tag !== 112) {
+						break
+					}
+
+					message.githubStars = reader.int32()
+					continue
+				}
+				case 15: {
+					if (tag !== 120) {
+						break
+					}
+
+					message.downloadCount = reader.int32()
+					continue
+				}
+				case 16: {
+					if (tag !== 130) {
+						break
+					}
+
+					message.createdAt = reader.string()
+					continue
+				}
+				case 17: {
+					if (tag !== 138) {
+						break
+					}
+
+					message.updatedAt = reader.string()
+					continue
+				}
+				case 18: {
+					if (tag !== 146) {
+						break
+					}
+
+					message.lastGithubSync = reader.string()
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): McpMarketplaceItem {
+		return {
+			mcpId: isSet(object.mcpId) ? globalThis.String(object.mcpId) : "",
+			githubUrl: isSet(object.githubUrl) ? globalThis.String(object.githubUrl) : "",
+			name: isSet(object.name) ? globalThis.String(object.name) : "",
+			author: isSet(object.author) ? globalThis.String(object.author) : "",
+			description: isSet(object.description) ? globalThis.String(object.description) : "",
+			codiconIcon: isSet(object.codiconIcon) ? globalThis.String(object.codiconIcon) : "",
+			logoUrl: isSet(object.logoUrl) ? globalThis.String(object.logoUrl) : "",
+			category: isSet(object.category) ? globalThis.String(object.category) : "",
+			tags: globalThis.Array.isArray(object?.tags) ? object.tags.map((e: any) => globalThis.String(e)) : [],
+			requiresApiKey: isSet(object.requiresApiKey) ? globalThis.Boolean(object.requiresApiKey) : false,
+			readmeContent: isSet(object.readmeContent) ? globalThis.String(object.readmeContent) : undefined,
+			llmsInstallationContent: isSet(object.llmsInstallationContent)
+				? globalThis.String(object.llmsInstallationContent)
+				: undefined,
+			isRecommended: isSet(object.isRecommended) ? globalThis.Boolean(object.isRecommended) : false,
+			githubStars: isSet(object.githubStars) ? globalThis.Number(object.githubStars) : 0,
+			downloadCount: isSet(object.downloadCount) ? globalThis.Number(object.downloadCount) : 0,
+			createdAt: isSet(object.createdAt) ? globalThis.String(object.createdAt) : "",
+			updatedAt: isSet(object.updatedAt) ? globalThis.String(object.updatedAt) : "",
+			lastGithubSync: isSet(object.lastGithubSync) ? globalThis.String(object.lastGithubSync) : "",
+		}
+	},
+
+	toJSON(message: McpMarketplaceItem): unknown {
+		const obj: any = {}
+		if (message.mcpId !== "") {
+			obj.mcpId = message.mcpId
+		}
+		if (message.githubUrl !== "") {
+			obj.githubUrl = message.githubUrl
+		}
+		if (message.name !== "") {
+			obj.name = message.name
+		}
+		if (message.author !== "") {
+			obj.author = message.author
+		}
+		if (message.description !== "") {
+			obj.description = message.description
+		}
+		if (message.codiconIcon !== "") {
+			obj.codiconIcon = message.codiconIcon
+		}
+		if (message.logoUrl !== "") {
+			obj.logoUrl = message.logoUrl
+		}
+		if (message.category !== "") {
+			obj.category = message.category
+		}
+		if (message.tags?.length) {
+			obj.tags = message.tags
+		}
+		if (message.requiresApiKey !== false) {
+			obj.requiresApiKey = message.requiresApiKey
+		}
+		if (message.readmeContent !== undefined) {
+			obj.readmeContent = message.readmeContent
+		}
+		if (message.llmsInstallationContent !== undefined) {
+			obj.llmsInstallationContent = message.llmsInstallationContent
+		}
+		if (message.isRecommended !== false) {
+			obj.isRecommended = message.isRecommended
+		}
+		if (message.githubStars !== 0) {
+			obj.githubStars = Math.round(message.githubStars)
+		}
+		if (message.downloadCount !== 0) {
+			obj.downloadCount = Math.round(message.downloadCount)
+		}
+		if (message.createdAt !== "") {
+			obj.createdAt = message.createdAt
+		}
+		if (message.updatedAt !== "") {
+			obj.updatedAt = message.updatedAt
+		}
+		if (message.lastGithubSync !== "") {
+			obj.lastGithubSync = message.lastGithubSync
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<McpMarketplaceItem>, I>>(base?: I): McpMarketplaceItem {
+		return McpMarketplaceItem.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<McpMarketplaceItem>, I>>(object: I): McpMarketplaceItem {
+		const message = createBaseMcpMarketplaceItem()
+		message.mcpId = object.mcpId ?? ""
+		message.githubUrl = object.githubUrl ?? ""
+		message.name = object.name ?? ""
+		message.author = object.author ?? ""
+		message.description = object.description ?? ""
+		message.codiconIcon = object.codiconIcon ?? ""
+		message.logoUrl = object.logoUrl ?? ""
+		message.category = object.category ?? ""
+		message.tags = object.tags?.map((e) => e) || []
+		message.requiresApiKey = object.requiresApiKey ?? false
+		message.readmeContent = object.readmeContent ?? undefined
+		message.llmsInstallationContent = object.llmsInstallationContent ?? undefined
+		message.isRecommended = object.isRecommended ?? false
+		message.githubStars = object.githubStars ?? 0
+		message.downloadCount = object.downloadCount ?? 0
+		message.createdAt = object.createdAt ?? ""
+		message.updatedAt = object.updatedAt ?? ""
+		message.lastGithubSync = object.lastGithubSync ?? ""
+		return message
+	},
+}
+
+function createBaseMcpMarketplaceCatalog(): McpMarketplaceCatalog {
+	return { items: [] }
+}
+
+export const McpMarketplaceCatalog: MessageFns<McpMarketplaceCatalog> = {
+	encode(message: McpMarketplaceCatalog, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		for (const v of message.items) {
+			McpMarketplaceItem.encode(v!, writer.uint32(10).fork()).join()
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): McpMarketplaceCatalog {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseMcpMarketplaceCatalog()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.items.push(McpMarketplaceItem.decode(reader, reader.uint32()))
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): McpMarketplaceCatalog {
+		return {
+			items: globalThis.Array.isArray(object?.items) ? object.items.map((e: any) => McpMarketplaceItem.fromJSON(e)) : [],
+		}
+	},
+
+	toJSON(message: McpMarketplaceCatalog): unknown {
+		const obj: any = {}
+		if (message.items?.length) {
+			obj.items = message.items.map((e) => McpMarketplaceItem.toJSON(e))
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<McpMarketplaceCatalog>, I>>(base?: I): McpMarketplaceCatalog {
+		return McpMarketplaceCatalog.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<McpMarketplaceCatalog>, I>>(object: I): McpMarketplaceCatalog {
+		const message = createBaseMcpMarketplaceCatalog()
+		message.items = object.items?.map((e) => McpMarketplaceItem.fromPartial(e)) || []
+		return message
+	},
+}
+
 export type McpServiceDefinition = typeof McpServiceDefinition
 export const McpServiceDefinition = {
 	name: "McpService",
@@ -1149,6 +1587,14 @@ export const McpServiceDefinition = {
 			requestType: ToggleToolAutoApproveRequest,
 			requestStream: false,
 			responseType: McpServers,
+			responseStream: false,
+			options: {},
+		},
+		refreshMcpMarketplace: {
+			name: "refreshMcpMarketplace",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: McpMarketplaceCatalog,
 			responseStream: false,
 			options: {},
 		},

@@ -6,6 +6,7 @@ import { registerMethod } from "./index"
 import { addRemoteMcpServer } from "./addRemoteMcpServer"
 import { deleteMcpServer } from "./deleteMcpServer"
 import { downloadMcp } from "./downloadMcp"
+import { refreshMcpMarketplace } from "./refreshMcpMarketplace"
 import { restartMcpServer } from "./restartMcpServer"
 import { toggleMcpServer } from "./toggleMcpServer"
 import { toggleToolAutoApprove } from "./toggleToolAutoApprove"
@@ -17,6 +18,7 @@ export function registerAllMethods(): void {
 	registerMethod("addRemoteMcpServer", addRemoteMcpServer)
 	registerMethod("deleteMcpServer", deleteMcpServer)
 	registerMethod("downloadMcp", downloadMcp)
+	registerMethod("refreshMcpMarketplace", refreshMcpMarketplace)
 	registerMethod("restartMcpServer", restartMcpServer)
 	registerMethod("toggleMcpServer", toggleMcpServer)
 	registerMethod("toggleToolAutoApprove", toggleToolAutoApprove)
