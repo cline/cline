@@ -1,14 +1,12 @@
 # Changelog
 
-## 3.17.0
+## [3.16.3]
 
--   c6dbbdb: Migrate openSettings message to use state navigation handlers
--   36c0192: Migrate refreshClineRules to protobus
--   8356e05: Support Streameable Http Transport for MCPs
--   eae28f1: Fix Typescript type errors in MCP hub
--   47eacdc: Added documentation links to rules & workflows UI
--   9f19276: Handle Mistral SDK API errors
--   b669dfb: Add devstral-small to the Mistral model list
+-   Add devstral-small-2505 to the Mistral model list, a new specialized coding model from Mistral AI (Thanks @BarreiroT!)
+-   Add documentation links to rules & workflows UI
+-   Improve error handling for Mistral SDK API
+-   Add support for Streameable HTTP Transport for MCPs
+-   Fix TypeScript type errors in MCP hub
 
 ## [3.16.2]
 
