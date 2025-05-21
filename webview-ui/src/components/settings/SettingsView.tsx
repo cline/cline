@@ -115,7 +115,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			switch (message.type) {
 				case "didUpdateSettings":
 					if (pendingTabChange) {
-						StateServiceClient.togglePlanActMode({
+						vscode.postMessage({
+							type: "togglePlanActMode",
 							chatSettings: {
 								mode: pendingTabChange,
 							},

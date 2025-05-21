@@ -305,6 +305,11 @@ export class Controller {
 					}
 				}
 				break
+			case "togglePlanActMode":
+				if (message.chatSettings) {
+					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
+				}
+				break
 			case "optionsResponse":
 				await this.postMessageToWebview({
 					type: "invoke",
