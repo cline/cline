@@ -88,7 +88,14 @@
 					},
 					{
 						"group": "@ Mentions",
-						"pages": ["features/at-mentions/overview"]
+						"pages": [
+							"features/at-mentions/overview",
+							"features/at-mentions/file-mentions",
+							"features/at-mentions/terminal-mentions",
+							"features/at-mentions/problem-mentions",
+							"features/at-mentions/git-mentions",
+							"features/at-mentions/url-mentions"
+						]
 					}
 				]
 			},
