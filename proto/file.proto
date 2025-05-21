@@ -57,7 +57,7 @@ service FileService {
   rpc openTaskHistory(StringRequest) returns (Empty);
   
   // Toggles a workflow on or off
-  rpc toggleWorkflow(ToggleWorkflowRequest) returns (Empty);
+  rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
 }
 
 // Response for refreshRules operation

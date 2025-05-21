@@ -159,7 +159,6 @@ const ClineRulesToggleModal: React.FC = () => {
 			isGlobal,
 		})
 			.then((response) => {
-				// Update the local state with the response
 				if (response.toggles) {
 					setLocalWorkflowsToggles(response.toggles)
 				}
