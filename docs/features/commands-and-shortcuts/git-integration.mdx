@@ -54,11 +54,11 @@ This process uses your current Cline API configuration, so the quality of the ge
 The commit message generation leverages VSCode's Git extension API to access repository information:
 
 1. When you trigger the command:
-    - Cline uses `getWorkingState()` to get the current diff
+    - Cline gets the current diff
     - It sends this to the AI with specific instructions for commit message formatting
-    - It uses `extractCommitMessage()` to parse the AI's response
+    - It parses the AI's response
     - It accesses the Git extension API to set the commit message
 
-This seamless integration with Git makes it easy to generate high-quality commit messages without disrupting your workflow.
+This integration with Git makes it easy to generate high-quality commit messages without disrupting your workflow.
 
 Next time you're struggling to write a good commit message, try using Cline's commit message generation. You'll save time and improve your version control workflow with AI assistance right where you need it.
