@@ -82,6 +82,7 @@ import { taskCompletionViewChanges } from "../core/controller/task/taskCompletio
 
 // Ui Service
 import { scrollToSettings } from "../core/controller/ui/scrollToSettings"
+import { onDidShowAnnouncement } from "../core/controller/ui/onDidShowAnnouncement"
 
 // Web Service
 import { checkIsImageUrl } from "../core/controller/web/checkIsImageUrl"
@@ -191,6 +192,7 @@ export function addServices(
 	// Ui Service
 	server.addService(proto.cline.UiService.service, {
 		scrollToSettings: wrapper(scrollToSettings, controller),
+		onDidShowAnnouncement: wrapper(onDidShowAnnouncement, controller),
 	})
 
 	// Web Service

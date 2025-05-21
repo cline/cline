@@ -14,7 +14,6 @@ export interface WebviewMessage {
 		| "newTask"
 		| "condense"
 		| "reportBug"
-		| "didShowAnnouncement"
 		| "openInBrowser"
 		| "showChatView"
 		| "openMcpSettings"

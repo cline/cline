@@ -317,10 +317,6 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			case "didShowAnnouncement":
-				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
-				await this.postStateToWebview()
-				break
 			case "openInBrowser":
 				if (message.url) {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
