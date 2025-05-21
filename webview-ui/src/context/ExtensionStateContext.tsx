@@ -3,6 +3,7 @@ import { useEvent } from "react-use"
 import { StateServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { DEFAULT_GIT_SETTINGS, GitSettings } from "@shared/GitSettings"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
 import {
 	ApiConfiguration,
@@ -50,6 +51,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setMcpMarketplaceEnabled: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setChatSettings: (value: ChatSettings) => void
+	setGitSettings: (value: GitSettings) => void
 	setMcpServers: (value: McpServer[]) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
@@ -152,6 +154,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
+		gitSettings: DEFAULT_GIT_SETTINGS,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
 		vscMachineId: "",
@@ -545,6 +548,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				workflowToggles: toggles,
+			})),
+		setGitSettings: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				gitSettings: value,
 			})),
 		setMcpTab,
 	}

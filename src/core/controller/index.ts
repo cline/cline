@@ -30,7 +30,7 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
-import { extractCommitMessage } from "@integrations/git/commit-message-generator"
+import { extractCommitMessage, formatGitDiffPrompt } from "@integrations/git/commit-message-generator"
 import { getTotalTasksSize } from "@utils/storage"
 import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
 import {
@@ -458,6 +458,11 @@ export class Controller {
 					if (this.task) {
 						this.task.chatSettings = message.chatSettings
 					}
+				}
+
+				// git settings
+				if (message.gitSettings) {
+					await updateGlobalState(this.context, "gitSettings", message.gitSettings)
 				}
 
 				// after settings are updated, post state to webview
@@ -1253,6 +1258,7 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			gitSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
@@ -1304,6 +1310,7 @@ export class Controller {
 			workflowToggles: workflowToggles || {},
 			shellIntegrationTimeout,
 			isNewUser,
+			gitSettings,
 		}
 	}
 
@@ -1406,18 +1413,11 @@ export class Controller {
 				},
 				async (progress, token) => {
 					try {
-						// Format the git diff into a prompt
-						const prompt = `Based on the following git diff, generate a concise and descriptive commit message:
+						// Get the git settings
+						const { gitSettings } = await getAllExtensionState(this.context)
 
-${gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff}
-
-The commit message should:
-1. Start with a short summary (50-72 characters)
-2. Use the imperative mood (e.g., "Add feature" not "Added feature")
-3. Describe what was changed and why
-4. Be clear and descriptive
-
-Commit message:`
+						// Format the git diff into a prompt using the custom instructions if available
+						const prompt = formatGitDiffPrompt(gitDiff, gitSettings?.commitMessageInstructions)
 
 						// Get the current API configuration
 						const { apiConfiguration } = await getAllExtensionState(this.context)

@@ -56,6 +56,7 @@ export type GlobalStateKey =
 	| "globalClineRulesToggles"
 	| "browserSettings"
 	| "chatSettings"
+	| "gitSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"

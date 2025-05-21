@@ -2,12 +2,14 @@ import * as vscode from "vscode"
 import { DEFAULT_CHAT_SETTINGS, OpenAIReasoningEffort } from "@shared/ChatSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { DEFAULT_GIT_SETTINGS } from "@shared/GitSettings"
 import { GlobalStateKey, SecretKey } from "./state-keys"
 import { ApiConfiguration, ApiProvider, BedrockModelId, ModelInfo } from "@shared/api"
 import { HistoryItem } from "@shared/HistoryItem"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { BrowserSettings } from "@shared/BrowserSettings"
 import { ChatSettings } from "@shared/ChatSettings"
+import { GitSettings } from "@shared/GitSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { ClineRulesToggles } from "@shared/cline-rules"
@@ -128,6 +130,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		autoApprovalSettings,
 		browserSettings,
 		chatSettings,
+		gitSettings,
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
@@ -215,6 +218,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 		getGlobalState(context, "browserSettings") as Promise<BrowserSettings | undefined>,
 		getGlobalState(context, "chatSettings") as Promise<ChatSettings | undefined>,
+		getGlobalState(context, "gitSettings") as Promise<GitSettings | undefined>,
 		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		getGlobalState(context, "liteLlmBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
@@ -367,6 +371,10 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		chatSettings: {
 			...DEFAULT_CHAT_SETTINGS, // Apply defaults first
 			...(chatSettings || {}), // Spread fetched chatSettings, which includes preferredLanguage, and openAIReasoningEffort
+		},
+		gitSettings: {
+			...DEFAULT_GIT_SETTINGS, // Apply defaults first
+			...(gitSettings || {}), // Spread fetched gitSettings
 		},
 		userInfo,
 		previousModeApiProvider,
