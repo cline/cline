@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import { ApiHandler } from "../../api"
 import { ApiMessage } from "../task-persistence/apiMessages"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 export const N_MESSAGES_TO_KEEP = 3
 
@@ -58,13 +59,16 @@ export type SummarizeResponse = {
  * @param {ApiMessage[]} messages - The conversation messages
  * @param {ApiHandler} apiHandler - The API handler to use for token counting.
  * @param {string} systemPrompt - The system prompt for API requests, which should be considered in the context token count
+ * @param {string} taskId - The task ID for the conversation, used for telemetry
  * @returns {SummarizeResponse} - The result of the summarization operation (see above)
  */
 export async function summarizeConversation(
 	messages: ApiMessage[],
 	apiHandler: ApiHandler,
 	systemPrompt: string,
+	taskId: string,
 ): Promise<SummarizeResponse> {
+	telemetryService.captureContextCondensed(taskId)
 	const response: SummarizeResponse = { messages, cost: 0, summary: "" }
 	const messagesToSummarize = getMessagesSinceLastSummary(messages.slice(0, -N_MESSAGES_TO_KEEP))
 	if (messagesToSummarize.length <= 1) {

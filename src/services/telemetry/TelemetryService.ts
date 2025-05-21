@@ -120,6 +120,14 @@ class TelemetryService {
 		this.captureEvent(PostHogClient.EVENTS.TASK.CHECKPOINT_RESTORED, { taskId })
 	}
 
+	public captureContextCondensed(taskId: string): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.CONTEXT_CONDENSED, { taskId })
+	}
+
+	public captureSlidingWindowTruncation(taskId: string): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.SLIDING_WINDOW_TRUNCATION, { taskId })
+	}
+
 	public captureCodeActionUsed(actionType: string): void {
 		this.captureEvent(PostHogClient.EVENTS.TASK.CODE_ACTION_USED, { actionType })
 	}

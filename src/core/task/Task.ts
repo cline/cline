@@ -488,7 +488,7 @@ export class Task extends EventEmitter<ClineEvents> {
 			summary,
 			cost,
 			newContextTokens = 0,
-		} = await summarizeConversation(this.apiConversationHistory, this.api, systemPrompt)
+		} = await summarizeConversation(this.apiConversationHistory, this.api, systemPrompt, this.taskId)
 		if (!summary) {
 			return
 		}
@@ -1518,6 +1518,7 @@ export class Task extends EventEmitter<ClineEvents> {
 				autoCondenseContext,
 				autoCondenseContextPercent,
 				systemPrompt,
+				taskId: this.taskId,
 			})
 			if (truncateResult.messages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(truncateResult.messages)

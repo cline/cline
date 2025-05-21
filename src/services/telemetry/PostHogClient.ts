@@ -28,6 +28,8 @@ export class PostHogClient {
 			CHECKPOINT_DIFFED: "Checkpoint Diffed",
 			CODE_ACTION_USED: "Code Action Used",
 			PROMPT_ENHANCED: "Prompt Enhanced",
+			CONTEXT_CONDENSED: "Context Condensed",
+			SLIDING_WINDOW_TRUNCATION: "Sliding Window Truncation",
 		},
 		ERRORS: {
 			SCHEMA_VALIDATION_ERROR: "Schema Validation Error",
