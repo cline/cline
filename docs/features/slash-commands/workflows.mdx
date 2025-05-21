@@ -9,7 +9,7 @@ To invoke a workflow, type `/[workflow-name.md]` in the chat.
 
 ## How to Create and Use Workflows
 
-Workflows live alongside Cline Rules. Creating one is straightforward:
+Workflows live alongside [Cline Rules](/features/cline-rules). Creating one is straightforward:
 
 <Frame>
 	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/workflows.png" alt="Workflows tab in Cline" />
@@ -22,9 +22,9 @@ Workflows live alongside Cline Rules. Creating one is straightforward:
 
 The real power comes from how you structure your workflow files. You can:
 
--   Leverage Cline's built-in tools like `ask_followup_question`, `read_file`, and `search_files`
+-   Leverage Cline's [built-in tools](/exploring-clines-tools/cline-tools-guide) like `ask_followup_question`, `read_file`, `search_files`, and `new_task`
 -   Use command-line tools you already have installed like `gh` or `docker`
--   Reference external MCP tool calls like Slack or Whatsapp
+-   Reference external [MCP tool calls](/mcp/mcp-overview) like Slack or Whatsapp
 -   Chain multiple actions together in a specific sequence
 
 ## Real-world Example
@@ -416,7 +416,7 @@ When I get a new PR to review, I used to manually gather context: checking the P
 2. Paste in the PR number
 3. Let Cline handle everything else
 
-My workflow uses the `gh` command-line tool to:
+My workflow uses the `gh` command-line tool and Cline's built in `ask_followup_question` to:
 
 -   Pull the PR description and comments
 -   Examine the diff
