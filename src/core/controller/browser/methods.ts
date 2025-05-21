@@ -6,6 +6,7 @@ import { registerMethod } from "./index"
 import { discoverBrowser } from "./discoverBrowser"
 import { getBrowserConnectionInfo } from "./getBrowserConnectionInfo"
 import { getDetectedChromePath } from "./getDetectedChromePath"
+import { relaunchChromeDebugMode } from "./relaunchChromeDebugMode"
 import { testBrowserConnection } from "./testBrowserConnection"
 import { updateBrowserSettings } from "./updateBrowserSettings"
 
@@ -15,6 +16,7 @@ export function registerAllMethods(): void {
 	registerMethod("discoverBrowser", discoverBrowser)
 	registerMethod("getBrowserConnectionInfo", getBrowserConnectionInfo)
 	registerMethod("getDetectedChromePath", getDetectedChromePath)
+	registerMethod("relaunchChromeDebugMode", relaunchChromeDebugMode)
 	registerMethod("testBrowserConnection", testBrowserConnection)
 	registerMethod("updateBrowserSettings", updateBrowserSettings)
 }
