@@ -5,7 +5,7 @@ import { posthogConfig } from "@shared/services/config/posthog-config"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
-	const { telemetrySetting, vscMachineId } = useExtensionState()
+	const { telemetrySetting, vscMachineId, version } = useExtensionState()
 	const isTelemetryEnabled = telemetrySetting !== "disabled"
 
 	useEffect(() => {
@@ -22,6 +22,12 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			capture_dead_clicks: true,
 			bootstrap: {
 				distinctID: vscMachineId,
+			},
+			before_send: (payload) => {
+				if (payload?.properties) {
+					payload.properties.extension_version = version
+				}
+				return payload
 			},
 		})
 

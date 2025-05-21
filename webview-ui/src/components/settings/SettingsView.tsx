@@ -241,7 +241,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<div className="mb-[5px]">
 					<VSCodeCheckbox
 						className="mb-[5px]"
-						checked={telemetrySetting === "enabled"}
+						checked={telemetrySetting !== "disabled"}
 						onChange={(e: any) => {
 							const checked = e.target.checked === true
 							setTelemetrySetting(checked ? "enabled" : "disabled")
