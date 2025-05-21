@@ -55,7 +55,20 @@ export class QwenHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		if (isDeepseekReasoner) {
+
+		// Configuration for extended thinking
+		const budgetTokens = this.options.thinkingBudgetTokens || 0
+		const enableThinking = budgetTokens !== 0 ? true : false
+		const thinkingArgs = enableThinking
+			? {
+					enable_thinking: true,
+					thinking_budget: budgetTokens,
+				}
+			: {
+					enable_thinking: false,
+				}
+
+		if (isDeepseekReasoner || enableThinking) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 		const stream = await this.client.chat.completions.create({
@@ -64,7 +77,8 @@ export class QwenHandler implements ApiHandler {
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(model.id === "deepseek-r1" ? {} : { temperature: 0 }),
+			...(model.id === "deepseek-r1" || enableThinking ? {} : { temperature: 0 }),
+			...thinkingArgs,
 		})
 
 		for await (const chunk of stream) {
