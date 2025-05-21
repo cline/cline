@@ -1,9 +1,9 @@
 # Changelog
 
-## [3.17.0]
+## [3.16.2]
 
--   Add support for Gemini 2.5 Flash Preview 05-20 model to Vertex AI provider with massive 1M token context window
--   Add keyboard shortcut (Cmd+Shift+L) to quickly focus Cline from anywhere in VS Code
+-   Add support for Gemini 2.5 Flash Preview 05-20 model to Vertex AI provider with massive 1M token context window (Thanks @omercelik!)
+-   Add keyboard shortcut (Cmd+') to quickly focus Cline from anywhere in VS Code
 -   Add lightbulb actions for selected text with options to "Add to Cline", "Explain with Cline", and "Improve with Cline"
 -   Automatically focus Cline window after extension updates
 
