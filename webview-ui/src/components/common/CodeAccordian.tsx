@@ -11,7 +11,7 @@ import CodeBlock from "./CodeBlock"
 interface CodeAccordianProps {
 	path?: string
 	code?: string
-	language?: string | undefined
+	language: string
 	progressStatus?: ToolProgressStatus
 	isLoading?: boolean
 	isExpanded: boolean
@@ -29,7 +29,7 @@ const CodeAccordian = ({
 	isFeedback,
 	onToggleExpand,
 }: CodeAccordianProps) => {
-	const inferredLanguage = useMemo(() => language ?? (path ? getLanguageFromPath(path) : undefined), [path, language])
+	const inferredLanguage = useMemo(() => language ?? (path ? getLanguageFromPath(path) : "txt"), [path, language])
 	const source = useMemo(() => code.trim(), [code])
 	const hasHeader = Boolean(path || isFeedback)
 
