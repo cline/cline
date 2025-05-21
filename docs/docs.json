@@ -75,10 +75,12 @@
 				"group": "Features",
 				"pages": [
 					"features/auto-approve",
-					"features/plan-and-act",
+					"features/checkpoints",
 					"features/cline-rules",
-					"features/slash-commands/workflows",
 					"features/drag-and-drop",
+					"features/plan-and-act",
+					"features/slash-commands/workflows",
+					"features/editing-messages",
 					{
 						"group": "@ Mentions",
 						"pages": [
@@ -115,10 +117,8 @@
 				"group": "Exploring Cline's Tools",
 				"pages": [
 					"exploring-clines-tools/cline-tools-guide",
-					"exploring-clines-tools/checkpoints",
 					"exploring-clines-tools/new-task-tool",
-					"exploring-clines-tools/remote-browser-support",
-					"exploring-clines-tools/slash-commands"
+					"exploring-clines-tools/remote-browser-support"
 				]
 			},
 			{
