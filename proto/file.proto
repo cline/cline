@@ -57,7 +57,8 @@ message RefreshedRules {
   ClineRulesToggles local_cline_rules_toggles = 2;
   ClineRulesToggles local_cursor_rules_toggles = 3;
   ClineRulesToggles local_windsurf_rules_toggles = 4;
-  ClineRulesToggles workflow_toggles = 5;
+  ClineRulesToggles local_workflow_toggles = 5;
+  ClineRulesToggles global_workflow_toggles = 6;
 }
 
 // Request to toggle a Windsurf rule

@@ -23,8 +23,8 @@ export async function refreshRules(controller: Controller, _request: EmptyReques
 			localClineRulesToggles: { toggles: localToggles },
 			localCursorRulesToggles: { toggles: cursorLocalToggles },
 			localWindsurfRulesToggles: { toggles: windsurfLocalToggles },
-			globalWorkflowToggles: { toggles: globalWorkflowToggles },
 			localWorkflowToggles: { toggles: localWorkflowToggles },
+			globalWorkflowToggles: { toggles: globalWorkflowToggles },
 		}
 	} catch (error) {
 		console.error("Failed to refresh rules:", error)
