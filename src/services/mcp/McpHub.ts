@@ -42,7 +42,7 @@ export type McpConnection = {
 	transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 }
 
-export type McpTransportType = "stdio" | "sse" | "streamable-http"
+export type McpTransportType = "stdio" | "sse" | "http"
 
 export type McpServerConfig = z.infer<typeof ServerConfigSchema>
 
@@ -67,7 +67,7 @@ const StdioConfigSchema = BaseConfigSchema.extend({
 })
 
 const StreamableHTTPConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("streamable-http"),
+	transportType: z.literal("http"),
 	url: z.string().url(),
 })
 
@@ -185,7 +185,7 @@ export class McpHub {
 
 	private async connectToServerRPC(
 		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema>,
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -202,10 +202,12 @@ export class McpHub {
 				},
 			)
 
-			let transport: StdioClientTransport | SSEClientTransport
+			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			if (config.transportType === "sse") {
 				transport = new SSEClientTransport(new URL(config.url), {})
+			} else if (config.transportType === "http") {
+				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {
 				transport = new StdioClientTransport({
 					command: config.command,
@@ -320,7 +322,7 @@ export class McpHub {
 
 			if (config.transportType === "sse") {
 				transport = new SSEClientTransport(new URL(config.url), {})
-			} else if (config.transportType === "streamable-http") {
+			} else if (config.transportType === "http") {
 				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {
 				transport = new StdioClientTransport({
