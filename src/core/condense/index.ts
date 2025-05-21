@@ -60,6 +60,7 @@ export type SummarizeResponse = {
  * @param {ApiHandler} apiHandler - The API handler to use for token counting.
  * @param {string} systemPrompt - The system prompt for API requests, which should be considered in the context token count
  * @param {string} taskId - The task ID for the conversation, used for telemetry
+ * @param {boolean} isAutomaticTrigger - Whether the summarization is triggered automatically
  * @returns {SummarizeResponse} - The result of the summarization operation (see above)
  */
 export async function summarizeConversation(
@@ -67,8 +68,9 @@ export async function summarizeConversation(
 	apiHandler: ApiHandler,
 	systemPrompt: string,
 	taskId: string,
+	isAutomaticTrigger?: boolean,
 ): Promise<SummarizeResponse> {
-	telemetryService.captureContextCondensed(taskId)
+	telemetryService.captureContextCondensed(taskId, isAutomaticTrigger ?? false)
 	const response: SummarizeResponse = { messages, cost: 0, summary: "" }
 	const messagesToSummarize = getMessagesSinceLastSummary(messages.slice(0, -N_MESSAGES_TO_KEEP))
 	if (messagesToSummarize.length <= 1) {

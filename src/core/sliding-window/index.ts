@@ -113,7 +113,7 @@ export async function truncateConversationIfNeeded({
 		const contextPercent = (100 * prevContextTokens) / contextWindow
 		if (contextPercent >= autoCondenseContextPercent || prevContextTokens > allowedTokens) {
 			// Attempt to intelligently condense the context
-			const result = await summarizeConversation(messages, apiHandler, systemPrompt, taskId)
+			const result = await summarizeConversation(messages, apiHandler, systemPrompt, taskId, true)
 			if (result.summary) {
 				return { ...result, prevContextTokens }
 			}

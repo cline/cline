@@ -525,7 +525,13 @@ describe("truncateConversationIfNeeded", () => {
 		})
 
 		// Verify summarizeConversation was called with the right parameters
-		expect(summarizeSpy).toHaveBeenCalledWith(messagesWithSmallContent, mockApiHandler, "System prompt", taskId)
+		expect(summarizeSpy).toHaveBeenCalledWith(
+			messagesWithSmallContent,
+			mockApiHandler,
+			"System prompt",
+			taskId,
+			true,
+		)
 
 		// Verify the result contains the summary information
 		expect(result).toMatchObject({
@@ -663,7 +669,13 @@ describe("truncateConversationIfNeeded", () => {
 		})
 
 		// Verify summarizeConversation was called with the right parameters
-		expect(summarizeSpy).toHaveBeenCalledWith(messagesWithSmallContent, mockApiHandler, "System prompt", taskId)
+		expect(summarizeSpy).toHaveBeenCalledWith(
+			messagesWithSmallContent,
+			mockApiHandler,
+			"System prompt",
+			taskId,
+			true,
+		)
 
 		// Verify the result contains the summary information
 		expect(result).toMatchObject({
