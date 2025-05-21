@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Ngưỡng kích hoạt nén ngữ cảnh thông minh",
+			"description": "Khi cửa sổ ngữ cảnh đạt đến ngưỡng này, Roo sẽ tự động nén nó."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Nén cửa sổ ngữ cảnh một cách thông minh",
-			"description": "Sử dụng một lệnh gọi LLM để tóm tắt cuộc trò chuyện trước đó khi cửa sổ ngữ cảnh của tác vụ gần đầy, thay vì loại bỏ các tin nhắn cũ. Lưu ý: chi phí tóm tắt hiện không được tính vào chi phí API hiển thị trong giao diện người dùng."
+			"name": "Tự động kích hoạt nén ngữ cảnh thông minh",
+			"description": "Nén ngữ cảnh thông minh sử dụng một lệnh gọi LLM để tóm tắt cuộc trò chuyện trước đó khi cửa sổ ngữ cảnh của tác vụ đạt đến ngưỡng đã định, thay vì loại bỏ các tin nhắn cũ khi ngữ cảnh đầy."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Sử dụng chiến lược diff thống nhất thử nghiệm",

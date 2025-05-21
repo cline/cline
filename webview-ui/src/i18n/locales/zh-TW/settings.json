@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "觸發智慧上下文壓縮的閾值",
+			"description": "當上下文視窗達到此閾值時，Roo 將自動壓縮它。"
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "智慧壓縮上下文視窗",
-			"description": "當工作的上下文視窗接近填滿時，使用 LLM 呼叫來摘要過去的對話，而非捨棄舊訊息。注意：目前 UI 中顯示的 API 費用並未包含摘要的成本。"
+			"name": "自動觸發智慧上下文壓縮",
+			"description": "智慧上下文壓縮使用 LLM 呼叫來摘要過去的對話，在工作的上下文視窗達到預設閾值時進行，而非在上下文填滿時捨棄舊訊息。"
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "使用實驗性統一差異比對策略",

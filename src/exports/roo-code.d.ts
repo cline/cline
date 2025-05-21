@@ -71,6 +71,7 @@ type GlobalSettings = {
 	alwaysAllowExecute?: boolean | undefined
 	allowedCommands?: string[] | undefined
 	allowedMaxRequests?: number | undefined
+	autoCondenseContextPercent?: number | undefined
 	browserToolEnabled?: boolean | undefined
 	browserViewportSize?: string | undefined
 	screenshotQuality?: number | undefined
@@ -805,6 +806,7 @@ type IpcMessage =
 								alwaysAllowExecute?: boolean | undefined
 								allowedCommands?: string[] | undefined
 								allowedMaxRequests?: number | undefined
+								autoCondenseContextPercent?: number | undefined
 								browserToolEnabled?: boolean | undefined
 								browserViewportSize?: string | undefined
 								screenshotQuality?: number | undefined
@@ -1279,6 +1281,7 @@ type TaskCommand =
 					alwaysAllowExecute?: boolean | undefined
 					allowedCommands?: string[] | undefined
 					allowedMaxRequests?: number | undefined
+					autoCondenseContextPercent?: number | undefined
 					browserToolEnabled?: boolean | undefined
 					browserViewportSize?: string | undefined
 					screenshotQuality?: number | undefined

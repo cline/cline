@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Drempelwaarde om intelligente contextcompressie te activeren",
+			"description": "Wanneer het contextvenster deze drempelwaarde bereikt, zal Roo het automatisch comprimeren."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Contextvenster intelligent comprimeren",
-			"description": "Gebruikt een LLM-aanroep om eerdere gesprekken samen te vatten wanneer het contextvenster van de taak bijna vol is, in plaats van oude berichten te verwijderen. Let op: de kosten van het samenvatten zijn momenteel niet inbegrepen in de API-kosten die in de interface worden getoond."
+			"name": "Automatisch intelligente contextcompressie activeren",
+			"description": "Intelligente contextcompressie gebruikt een LLM-aanroep om eerdere gesprekken samen te vatten wanneer het contextvenster van de taak een vooraf ingestelde drempelwaarde bereikt, in plaats van oude berichten te verwijderen wanneer de context vol is."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Experimentele unified diff-strategie gebruiken",

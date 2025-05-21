@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "触发智能上下文压缩的阈值",
+			"description": "当上下文窗口达到此阈值时，Roo 将自动压缩它。"
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "智能压缩上下文窗口",
-			"description": "当任务上下文窗口接近填满时，使用 LLM 调用来总结过去的对话，而不是删除旧消息。注意：目前 UI 中显示的 API 费用不包括总结的成本。"
+			"name": "自动触发智能上下文压缩",
+			"description": "智能上下文压缩使用 LLM 调用来总结过去的对话，在任务上下文窗口达到预设阈值时进行，而不是在上下文填满时丢弃旧消息。"
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "启用diff更新工具",

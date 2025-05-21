@@ -248,6 +248,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 
@@ -277,6 +279,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 
@@ -304,6 +308,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo1.contextWindow,
 			maxTokens: modelInfo1.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 
@@ -313,6 +319,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo2.contextWindow,
 			maxTokens: modelInfo2.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 
@@ -329,6 +337,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo1.contextWindow,
 			maxTokens: modelInfo1.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 
@@ -338,6 +348,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo2.contextWindow,
 			maxTokens: modelInfo2.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 
@@ -369,6 +381,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(resultWithSmall).toEqual({
@@ -399,6 +413,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(resultWithLarge.messages).not.toEqual(messagesWithLargeContent) // Should truncate
@@ -422,6 +438,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(resultWithVeryLarge.messages).not.toEqual(messagesWithVeryLargeContent) // Should truncate
@@ -448,6 +466,8 @@ describe("truncateConversationIfNeeded", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result).toEqual({
@@ -488,6 +508,7 @@ describe("truncateConversationIfNeeded", () => {
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
 			autoCondenseContext: true,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 
@@ -534,6 +555,7 @@ describe("truncateConversationIfNeeded", () => {
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
 			autoCondenseContext: true,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 
@@ -570,6 +592,7 @@ describe("truncateConversationIfNeeded", () => {
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
 			autoCondenseContext: false,
+			autoCondenseContextPercent: 50, // This shouldn't matter since autoCondenseContext is false
 			systemPrompt: "System prompt",
 		})
 
@@ -579,6 +602,94 @@ describe("truncateConversationIfNeeded", () => {
 		// Verify it used truncation
 		expect(result).toEqual({
 			messages: expectedMessages,
+			summary: "",
+			cost: 0,
+			prevContextTokens: totalTokens,
+		})
+
+		// Clean up
+		summarizeSpy.mockRestore()
+	})
+
+	it("should use summarizeConversation when autoCondenseContext is true and context percent exceeds threshold", async () => {
+		// Mock the summarizeConversation function
+		const mockSummary = "This is a summary of the conversation"
+		const mockCost = 0.05
+		const mockSummarizeResponse: condenseModule.SummarizeResponse = {
+			messages: [
+				{ role: "user", content: "First message" },
+				{ role: "assistant", content: mockSummary, isSummary: true },
+				{ role: "user", content: "Last message" },
+			],
+			summary: mockSummary,
+			cost: mockCost,
+			newContextTokens: 100,
+		}
+
+		const summarizeSpy = jest
+			.spyOn(condenseModule, "summarizeConversation")
+			.mockResolvedValue(mockSummarizeResponse)
+
+		const modelInfo = createModelInfo(100000, 30000)
+		// Set tokens to be below the allowedTokens threshold but above the percentage threshold
+		const contextWindow = modelInfo.contextWindow
+		const totalTokens = 60000 // Below allowedTokens but 60% of context window
+		const messagesWithSmallContent = [...messages.slice(0, -1), { ...messages[messages.length - 1], content: "" }]
+
+		const result = await truncateConversationIfNeeded({
+			messages: messagesWithSmallContent,
+			totalTokens,
+			contextWindow,
+			maxTokens: modelInfo.maxTokens,
+			apiHandler: mockApiHandler,
+			autoCondenseContext: true,
+			autoCondenseContextPercent: 50, // Set threshold to 50% - our tokens are at 60%
+			systemPrompt: "System prompt",
+		})
+
+		// Verify summarizeConversation was called with the right parameters
+		expect(summarizeSpy).toHaveBeenCalledWith(messagesWithSmallContent, mockApiHandler, "System prompt")
+
+		// Verify the result contains the summary information
+		expect(result).toMatchObject({
+			messages: mockSummarizeResponse.messages,
+			summary: mockSummary,
+			cost: mockCost,
+			prevContextTokens: totalTokens,
+		})
+
+		// Clean up
+		summarizeSpy.mockRestore()
+	})
+
+	it("should not use summarizeConversation when autoCondenseContext is true but context percent is below threshold", async () => {
+		// Reset any previous mock calls
+		jest.clearAllMocks()
+		const summarizeSpy = jest.spyOn(condenseModule, "summarizeConversation")
+
+		const modelInfo = createModelInfo(100000, 30000)
+		// Set tokens to be below both the allowedTokens threshold and the percentage threshold
+		const contextWindow = modelInfo.contextWindow
+		const totalTokens = 40000 // 40% of context window
+		const messagesWithSmallContent = [...messages.slice(0, -1), { ...messages[messages.length - 1], content: "" }]
+
+		const result = await truncateConversationIfNeeded({
+			messages: messagesWithSmallContent,
+			totalTokens,
+			contextWindow,
+			maxTokens: modelInfo.maxTokens,
+			apiHandler: mockApiHandler,
+			autoCondenseContext: true,
+			autoCondenseContextPercent: 50, // Set threshold to 50% - our tokens are at 40%
+			systemPrompt: "System prompt",
+		})
+
+		// Verify summarizeConversation was not called
+		expect(summarizeSpy).not.toHaveBeenCalled()
+
+		// Verify no truncation or summarization occurred
+		expect(result).toEqual({
+			messages: messagesWithSmallContent,
 			summary: "",
 			cost: 0,
 			prevContextTokens: totalTokens,
@@ -624,6 +735,8 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result1).toEqual({
@@ -640,6 +753,8 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result2.messages).not.toEqual(messagesWithSmallContent)
@@ -664,6 +779,8 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result1).toEqual({
@@ -680,6 +797,8 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result2.messages).not.toEqual(messagesWithSmallContent)
@@ -703,6 +822,8 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result1.messages).toEqual(messagesWithSmallContent)
@@ -714,6 +835,8 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result2).not.toEqual(messagesWithSmallContent)
@@ -735,6 +858,8 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result1.messages).toEqual(messagesWithSmallContent)
@@ -746,6 +871,8 @@ describe("getMaxTokens", () => {
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 			apiHandler: mockApiHandler,
+			autoCondenseContext: false,
+			autoCondenseContextPercent: 100,
 			systemPrompt: "System prompt",
 		})
 		expect(result2).not.toEqual(messagesWithSmallContent)

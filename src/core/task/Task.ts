@@ -1460,8 +1460,14 @@ export class Task extends EventEmitter<ClineEvents> {
 	}
 
 	public async *attemptApiRequest(retryAttempt: number = 0): ApiStream {
-		const { apiConfiguration, autoApprovalEnabled, alwaysApproveResubmit, requestDelaySeconds, experiments } =
-			(await this.providerRef.deref()?.getState()) ?? {}
+		const {
+			apiConfiguration,
+			autoApprovalEnabled,
+			alwaysApproveResubmit,
+			requestDelaySeconds,
+			experiments,
+			autoCondenseContextPercent = 100,
+		} = (await this.providerRef.deref()?.getState()) ?? {}
 
 		let rateLimitDelay = 0
 
@@ -1510,6 +1516,7 @@ export class Task extends EventEmitter<ClineEvents> {
 				contextWindow,
 				apiHandler: this.api,
 				autoCondenseContext,
+				autoCondenseContextPercent,
 				systemPrompt,
 			})
 			if (truncateResult.messages !== this.apiConversationHistory) {

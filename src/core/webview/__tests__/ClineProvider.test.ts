@@ -412,6 +412,7 @@ describe("ClineProvider", () => {
 			showRooIgnoredFiles: true,
 			renderContext: "sidebar",
 			maxReadFileLine: 500,
+			autoCondenseContextPercent: 100,
 		}
 
 		const message: ExtensionMessage = {
@@ -581,6 +582,27 @@ describe("ClineProvider", () => {
 
 		const state = await provider.getState()
 		expect(state.alwaysApproveResubmit).toBe(false)
+	})
+
+	test("autoCondenseContextPercent defaults to 100", async () => {
+		// Mock globalState.get to return undefined for autoCondenseContextPercent
+		;(mockContext.globalState.get as jest.Mock).mockImplementation((key: string) =>
+			key === "autoCondenseContextPercent" ? undefined : null,
+		)
+
+		const state = await provider.getState()
+		expect(state.autoCondenseContextPercent).toBe(100)
+	})
+
+	test("handles autoCondenseContextPercent message", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+		await messageHandler({ type: "autoCondenseContextPercent", value: 75 })
+
+		expect(updateGlobalStateSpy).toHaveBeenCalledWith("autoCondenseContextPercent", 75)
+		expect(mockContext.globalState.update).toHaveBeenCalledWith("autoCondenseContextPercent", 75)
+		expect(mockPostMessage).toHaveBeenCalled()
 	})
 
 	it("loads saved API config when switching modes", async () => {

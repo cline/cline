@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Próg wyzwalający inteligentną kondensację kontekstu",
+			"description": "Gdy okno kontekstu osiągnie ten próg, Roo automatycznie je skondensuje."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Inteligentnie kondensuj okno kontekstu",
-			"description": "Używa wywołania LLM do podsumowania wcześniejszej rozmowy, gdy okno kontekstu zadania jest prawie pełne, zamiast usuwać stare wiadomości. Zastrzeżenie: koszt podsumowania nie jest obecnie uwzględniony w kosztach API pokazywanych w interfejsie."
+			"name": "Automatycznie wyzwalaj inteligentną kondensację kontekstu",
+			"description": "Inteligentna kondensacja kontekstu używa wywołania LLM do podsumowania wcześniejszej rozmowy, gdy okno kontekstu zadania osiągnie ustawiony próg, zamiast usuwać stare wiadomości, gdy kontekst się zapełni."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Użyj eksperymentalnej ujednoliconej strategii diff",

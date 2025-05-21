@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Schwellenwert für intelligente Kontextkomprimierung",
+			"description": "Wenn das Kontextfenster diesen Schwellenwert erreicht, wird Roo es automatisch komprimieren."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Kontextfenster intelligent komprimieren",
-			"description": "Verwendet einen LLM-Aufruf, um das vorherige Gespräch zusammenzufassen, wenn das Kontextfenster der Aufgabe fast voll ist, anstatt alte Nachrichten zu verwerfen. Hinweis: Die Kosten für die Zusammenfassung sind derzeit nicht in den in der Benutzeroberfläche angezeigten API-Kosten enthalten."
+			"name": "Intelligente Kontextkomprimierung automatisch auslösen",
+			"description": "Intelligente Kontextkomprimierung verwendet einen LLM-Aufruf, um das vorherige Gespräch zusammenzufassen, wenn das Kontextfenster der Aufgabe einen voreingestellten Schwellenwert erreicht, anstatt alte Nachrichten zu verwerfen, wenn der Kontext voll ist."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Experimentelle einheitliche Diff-Strategie verwenden",

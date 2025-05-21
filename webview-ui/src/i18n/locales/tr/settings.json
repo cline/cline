@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Akıllı bağlam sıkıştırmayı tetikleyecek eşik",
+			"description": "Bağlam penceresi bu eşiğe ulaştığında, Roo otomatik olarak sıkıştıracaktır."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Bağlam penceresini akıllıca sıkıştır",
-			"description": "Görevin bağlam penceresi neredeyse dolduğunda, eski mesajları atmak yerine önceki konuşmayı özetlemek için bir LLM çağrısı kullanır. Not: Özetleme maliyeti şu anda arayüzde gösterilen API maliyetlerine dahil değildir."
+			"name": "Akıllı bağlam sıkıştırmayı otomatik olarak tetikle",
+			"description": "Akıllı bağlam sıkıştırma, görevin bağlam penceresi önceden belirlenmiş bir eşiğe ulaştığında, bağlam dolduğunda eski mesajları atmak yerine önceki konuşmayı özetlemek için bir LLM çağrısı kullanır."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Deneysel birleştirilmiş diff stratejisini kullan",

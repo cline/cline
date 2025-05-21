@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "지능적 컨텍스트 압축을 트리거하는 임계값",
+			"description": "컨텍스트 창이 이 임계값에 도달하면 Roo가 자동으로 압축합니다."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "컨텍스트 창을 지능적으로 압축",
-			"description": "작업의 컨텍스트 창이 거의 가득 찼을 때 이전 메시지를 삭제하는 대신 LLM 호출을 사용하여 이전 대화를 요약합니다. 참고: 요약 비용은 현재 UI에 표시된 API 비용에 포함되지 않습니다."
+			"name": "지능적 컨텍스트 압축 자동 트리거",
+			"description": "지능적 컨텍스트 압축은 작업의 컨텍스트 창이 사전 설정된 임계값에 도달했을 때 컨텍스트가 가득 차서 이전 메시지를 삭제하는 대신 LLM 호출을 사용하여 이전 대화를 요약합니다."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "실험적 통합 diff 전략 사용",

@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Soglia per attivare la condensazione intelligente del contesto",
+			"description": "Quando la finestra di contesto raggiunge questa soglia, Roo la condenserà automaticamente."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Condensa intelligentemente la finestra di contesto",
-			"description": "Utilizza una chiamata LLM per riassumere la conversazione precedente quando la finestra di contesto dell'attività è quasi piena, invece di eliminare i messaggi vecchi. Avviso: il costo della sintesi non è attualmente incluso nei costi API mostrati nell'interfaccia."
+			"name": "Attiva automaticamente la condensazione intelligente del contesto",
+			"description": "La condensazione intelligente del contesto utilizza una chiamata LLM per riassumere la conversazione precedente quando la finestra di contesto dell'attività raggiunge una soglia preimpostata, invece di eliminare i messaggi vecchi quando il contesto si riempie."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usa strategia diff unificata sperimentale",

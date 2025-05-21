@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Threshold to trigger intelligent context condensing",
+			"description": "When the context window reaches this threshold, Roo will automatically condense it."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Intelligently condense the context window",
-			"description": "Uses an LLM call to summarize the past conversation when the task's context window is almost full, rather than dropping old messages."
+			"name": "Automatically trigger intelligent context condensing",
+			"description": "Intelligent context condensing uses an LLM call to summarize the past conversation when the task's context window reaches a preset threshold, rather than dropping old messages when the context fills."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Use experimental unified diff strategy",

@@ -6,19 +6,24 @@ import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "@roo/shared/
 
 import { cn } from "@/lib/utils"
 
-import { SetExperimentEnabled } from "./types"
+import { SetCachedStateField, SetExperimentEnabled } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { ExperimentalFeature } from "./ExperimentalFeature"
+import { Slider } from "@/components/ui/"
 
 type ExperimentalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	experiments: Record<ExperimentId, boolean>
 	setExperimentEnabled: SetExperimentEnabled
+	autoCondenseContextPercent: number
+	setCachedStateField: SetCachedStateField<"autoCondenseContextPercent">
 }
 
 export const ExperimentalSettings = ({
 	experiments,
 	setExperimentEnabled,
+	autoCondenseContextPercent,
+	setCachedStateField,
 	className,
 	...props
 }: ExperimentalSettingsProps) => {
@@ -46,6 +51,31 @@ export const ExperimentalSettings = ({
 							}
 						/>
 					))}
+				{experiments[EXPERIMENT_IDS.AUTO_CONDENSE_CONTEXT] && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div className="flex items-center gap-4 font-bold">
+							<span className="codicon codicon-fold" />
+							<div>{t("settings:experimental.autoCondenseContextPercent.label")}</div>
+						</div>
+						<div>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={10}
+									max={100}
+									step={1}
+									value={[autoCondenseContextPercent]}
+									onValueChange={([value]) =>
+										setCachedStateField("autoCondenseContextPercent", value)
+									}
+								/>
+								<span className="w-20">{autoCondenseContextPercent}%</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:experimental.autoCondenseContextPercent.description")}
+							</div>
+						</div>
+					</div>
+				)}
 			</Section>
 		</div>
 	)

@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Llindar per activar la condensació intel·ligent de context",
+			"description": "Quan la finestra de context assoleix aquest llindar, Roo la condensarà automàticament."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Condensar intel·ligentment la finestra de context",
-			"description": "Utilitza una crida LLM per resumir la conversa anterior quan la finestra de context de la tasca està gairebé plena, en lloc d'eliminar missatges antics. Avís: el cost de resumir actualment no s'inclou en els costos d'API mostrats a la interfície."
+			"name": "Activar automàticament la condensació intel·ligent de context",
+			"description": "La condensació intel·ligent de context utilitza una crida LLM per resumir la conversa anterior quan la finestra de context de la tasca assoleix un llindar predefinit, en lloc d'eliminar missatges antics quan el context s'omple."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Utilitzar estratègia diff unificada experimental",

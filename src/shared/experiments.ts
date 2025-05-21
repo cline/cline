@@ -4,8 +4,8 @@ import { AssertEqual, Equals, Keys, Values } from "../utils/type-fu"
 export type { ExperimentId }
 
 export const EXPERIMENT_IDS = {
-	AUTO_CONDENSE_CONTEXT: "autoCondenseContext",
 	POWER_STEERING: "powerSteering",
+	AUTO_CONDENSE_CONTEXT: "autoCondenseContext",
 } as const satisfies Record<string, ExperimentId>
 
 type _AssertExperimentIds = AssertEqual<Equals<ExperimentId, Values<typeof EXPERIMENT_IDS>>>
@@ -17,8 +17,8 @@ interface ExperimentConfig {
 }
 
 export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
-	AUTO_CONDENSE_CONTEXT: { enabled: false },
 	POWER_STEERING: { enabled: false },
+	AUTO_CONDENSE_CONTEXT: { enabled: false }, // Keep this last, there is a slider below it in the UI
 }
 
 export const experimentDefault = Object.fromEntries(

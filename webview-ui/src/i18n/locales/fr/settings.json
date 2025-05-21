@@ -403,9 +403,13 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"autoCondenseContextPercent": {
+			"label": "Seuil pour déclencher la condensation intelligente du contexte",
+			"description": "Lorsque la fenêtre de contexte atteint ce seuil, Roo la condensera automatiquement."
+		},
 		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Condenser intelligemment la fenêtre de contexte",
-			"description": "Utilise un appel LLM pour résumer la conversation précédente lorsque la fenêtre de contexte de la tâche est presque pleine, plutôt que de supprimer les anciens messages. Avertissement : le coût de la synthèse n'est actuellement pas inclus dans les coûts API affichés dans l'interface."
+			"name": "Déclencher automatiquement la condensation intelligente du contexte",
+			"description": "La condensation intelligente du contexte utilise un appel LLM pour résumer la conversation passée lorsque la fenêtre de contexte de la tâche atteint un seuil prédéfini, plutôt que de supprimer les anciens messages lorsque le contexte est plein."
 		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Utiliser la stratégie diff unifiée expérimentale",

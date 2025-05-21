@@ -750,6 +750,7 @@ export const globalSettingsSchema = z.object({
 	alwaysAllowExecute: z.boolean().optional(),
 	allowedCommands: z.array(z.string()).optional(),
 	allowedMaxRequests: z.number().optional(),
+	autoCondenseContextPercent: z.number().optional(),
 
 	browserToolEnabled: z.boolean().optional(),
 	browserViewportSize: z.string().optional(),
@@ -830,6 +831,7 @@ const globalSettingsRecord: GlobalSettingsRecord = {
 	alwaysAllowExecute: undefined,
 	allowedCommands: undefined,
 	allowedMaxRequests: undefined,
+	autoCondenseContextPercent: undefined,
 
 	browserToolEnabled: undefined,
 	browserViewportSize: undefined,
