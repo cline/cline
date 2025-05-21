@@ -10,6 +10,7 @@ import { getRelativePaths } from "./getRelativePaths"
 import { openFile } from "./openFile"
 import { openImage } from "./openImage"
 import { openMention } from "./openMention"
+import { refreshRules } from "./refreshRules"
 import { searchCommits } from "./searchCommits"
 import { searchFiles } from "./searchFiles"
 import { selectImages } from "./selectImages"
@@ -27,6 +28,7 @@ export function registerAllMethods(): void {
 	registerMethod("openFile", openFile)
 	registerMethod("openImage", openImage)
 	registerMethod("openMention", openMention)
+	registerMethod("refreshRules", refreshRules)
 	registerMethod("searchCommits", searchCommits)
 	registerMethod("searchFiles", searchFiles)
 	registerMethod("selectImages", selectImages)

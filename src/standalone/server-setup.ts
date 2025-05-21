@@ -34,6 +34,7 @@ import { searchFiles } from "../core/controller/file/searchFiles"
 import { toggleClineRule } from "../core/controller/file/toggleClineRule"
 import { toggleCursorRule } from "../core/controller/file/toggleCursorRule"
 import { toggleWindsurfRule } from "../core/controller/file/toggleWindsurfRule"
+import { refreshRules } from "../core/controller/file/refreshRules"
 
 // Mcp Service
 import { toggleMcpServer } from "../core/controller/mcp/toggleMcpServer"
@@ -130,6 +131,7 @@ export function addServices(
 		toggleClineRule: wrapper(toggleClineRule, controller),
 		toggleCursorRule: wrapper(toggleCursorRule, controller),
 		toggleWindsurfRule: wrapper(toggleWindsurfRule, controller),
+		refreshRules: wrapper(refreshRules, controller),
 	})
 
 	// Mcp Service
