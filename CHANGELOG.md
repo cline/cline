@@ -2,8 +2,6 @@
 
 ## 3.17.0
 
-### Minor Changes
-
 -   ee9ddef: Put all the navigation state and message handling and navigation functions in the extension state context instead of the app.tsx
 -   c7c1d37: Migrate setActiveQuote to protobus
 -   78c3c5e: Migrate toggleToolAutoApprove to protobus
@@ -15,9 +13,6 @@
 -   1de02e9: Migrate silentlyRefreshMcpMarketplace to protobus
 -   14a056e: Migrate toggleCursorRule to protobus
 -   5efbf77: Migrate the deleteMcpServer message to protobus
-
-### Patch Changes
-
 -   6938809: Fix edge case of changing language in settings
 -   fe13ce8: feat: added gemini flash 05-20
 -   c3caec2: togglePlanActMode protobus migration
