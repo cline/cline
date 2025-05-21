@@ -492,7 +492,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				mcpMarketplaceEnabled: value,
 			})),
-		// Export the actual UI visibility setter, not modifying the shouldShowAnnouncement flag
 		setShowAnnouncement,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
