@@ -9,7 +9,7 @@ export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSetting
 	return {
 		mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
 		preferredLanguage: chatSettings.preferredLanguage,
-		openAIReasoningEffort: chatSettings.openAIReasoningEffort,
+		openAiReasoningEffort: chatSettings.openAIReasoningEffort,
 	}
 }
 
@@ -20,7 +20,7 @@ export function convertProtoChatSettingsToChatSettings(protoChatSettings: ProtoC
 	return {
 		mode: protoChatSettings.mode === PlanActMode.PLAN ? "plan" : "act",
 		preferredLanguage: protoChatSettings.preferredLanguage,
-		openAIReasoningEffort: protoChatSettings.openAIReasoningEffort as "low" | "medium" | "high" | undefined,
+		openAIReasoningEffort: protoChatSettings.openAiReasoningEffort as "low" | "medium" | "high" | undefined,
 	}
 }
 
