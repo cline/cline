@@ -110,7 +110,6 @@ export class LiteLlmHandler implements ApiHandler {
 
 		if (this.options.taskId) {
 			// LiteLLM expects metadata as an additional field in the payload.
-			// Using 'as any' if the OpenAI SDK type doesn't directly include 'metadata'.
 			;(requestPayload as any).metadata = {
 				cline_task_id: this.options.taskId,
 			}
