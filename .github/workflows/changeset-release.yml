@@ -58,7 +58,7 @@ jobs:
           title: "Changeset version bump"
           version: npm run version-packages # This performs the changeset version bump
         env:
-          GITHUB_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Job 2: Process version bump PR created by R00-B0T
   changeset-pr-edit-approve:
@@ -92,7 +92,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           ref: ${{ steps.checkout-ref.outputs.git_ref }}
 
@@ -156,4 +156,4 @@ jobs:
         if: false # Needs enablePullRequestAutoMerge in repo settings to work contains(github.event.pull_request.labels.*.name, 'changelog-ready')
         run: gh pr merge --auto --merge ${{ github.event.pull_request.number }}
         env:
-          GH_TOKEN: ${{ secrets.CROSS_REPO_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
