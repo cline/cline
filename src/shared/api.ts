@@ -926,6 +926,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 2,
 		cacheReadsPrice: 8,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 20,
 		},
 	},
@@ -939,6 +940,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 2,
 		cacheReadsPrice: 8,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 20,
 		},
 	},
@@ -952,6 +954,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 0.75,
 		cacheReadsPrice: 3,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 7.5,
 		},
 	},
@@ -965,6 +968,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 1,
 		cacheReadsPrice: 4,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 10,
 		},
 	},
@@ -978,6 +982,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 0.5,
 		cacheReadsPrice: 2,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 5,
 		},
 	},
@@ -991,6 +996,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 1.2,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 3,
 		},
 	},
@@ -1004,6 +1010,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 1.2,
 		thinkingConfig: {
+			maxBudget: 30_720,
 			outputPrice: 3,
 		},
 	},
@@ -1017,6 +1024,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 1.2,
 		thinkingConfig: {
+			maxBudget: 30_720,
 			outputPrice: 3,
 		},
 	},
@@ -1100,6 +1108,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 0.8,
 		cacheReadsPrice: 2,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 16,
 		},
 	},
@@ -1113,6 +1122,7 @@ export const internationalQwenModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.6,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 6,
 		},
 	},
@@ -1239,6 +1249,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 2,
 		cacheReadsPrice: 8,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 20,
 		},
 	},
@@ -1252,6 +1263,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 2,
 		cacheReadsPrice: 8,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 20,
 		},
 	},
@@ -1265,6 +1277,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 0.75,
 		cacheReadsPrice: 3,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 7.5,
 		},
 	},
@@ -1278,6 +1291,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 1,
 		cacheReadsPrice: 4,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 10,
 		},
 	},
@@ -1291,6 +1305,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 0.5,
 		cacheReadsPrice: 2,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 5,
 		},
 	},
@@ -1304,6 +1319,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 1.2,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 3,
 		},
 	},
@@ -1317,6 +1333,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 1.2,
 		thinkingConfig: {
+			maxBudget: 30_720,
 			outputPrice: 3,
 		},
 	},
@@ -1330,6 +1347,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 1.2,
 		thinkingConfig: {
+			maxBudget: 30_720,
 			outputPrice: 3,
 		},
 	},
@@ -1413,6 +1431,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 0.8,
 		cacheReadsPrice: 2,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 16,
 		},
 	},
@@ -1426,6 +1445,7 @@ export const mainlandQwenModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.6,
 		thinkingConfig: {
+			maxBudget: 38_912,
 			outputPrice: 6,
 		},
 	},

@@ -2092,7 +2092,11 @@ const ApiOptions = ({
 						</DropdownContainer>
 
 						{SUPPORTED_THINKING_MODELS[selectedProvider]?.includes(selectedModelId) && (
-							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+							<ThinkingBudgetSlider
+								apiConfiguration={apiConfiguration}
+								setApiConfiguration={setApiConfiguration}
+								maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
+							/>
 						)}
 
 						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
