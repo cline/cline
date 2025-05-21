@@ -44,27 +44,63 @@ export async function useMcpToolTool(
 
 			if (mcp_arguments) {
 				try {
+					// First try to parse as JSON directly
 					parsedArguments = JSON.parse(mcp_arguments)
 				} catch (error) {
-					cline.consecutiveMistakeCount++
-					cline.recordToolError("use_mcp_tool")
-					await cline.say("error", `Roo tried to use ${tool_name} with an invalid JSON argument. Retrying...`)
+					// If direct parsing fails, try to handle it as a raw string that might need escaping
+					try {
+						// Check if it looks like a JSON object already (starts with { or [)
+						const trimmed = mcp_arguments.trim()
+						if (
+							(trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+							(trimmed.startsWith("[") && trimmed.endsWith("]"))
+						) {
+							// If it looks like JSON but couldn't be parsed, then it's truly invalid
+							cline.consecutiveMistakeCount++
+							cline.recordToolError("use_mcp_tool")
+							await cline.say(
+								"error",
+								`Roo tried to use ${tool_name} with an invalid JSON argument. Retrying...`,
+							)
 
-					pushToolResult(
-						formatResponse.toolError(formatResponse.invalidMcpToolArgumentError(server_name, tool_name)),
-					)
+							pushToolResult(
+								formatResponse.toolError(
+									formatResponse.invalidMcpToolArgumentError(server_name, tool_name),
+								),
+							)
+							return
+						}
 
-					return
+						// Otherwise, handle it as a raw string input - automatically place it in a properly escaped JSON object
+						// This assumes the MCP tool expects an object with an 'input_data' field
+						parsedArguments = {
+							input_data: mcp_arguments,
+						}
+
+						console.log("Auto-escaped code for MCP tool:", tool_name)
+					} catch (nestedError) {
+						cline.consecutiveMistakeCount++
+						cline.recordToolError("use_mcp_tool")
+						await cline.say("error", `Failed to process arguments for ${tool_name}. Please try again.`)
+
+						pushToolResult(
+							formatResponse.toolError(
+								formatResponse.invalidMcpToolArgumentError(server_name, tool_name),
+							),
+						)
+						return
+					}
 				}
 			}
 
 			cline.consecutiveMistakeCount = 0
 
+			// Create the approval message with the properly formatted arguments
 			const completeMessage = JSON.stringify({
 				type: "use_mcp_tool",
 				serverName: server_name,
 				toolName: tool_name,
-				arguments: mcp_arguments,
+				arguments: parsedArguments ? JSON.stringify(parsedArguments) : mcp_arguments,
 			} satisfies ClineAskUseMcpServer)
 
 			const didApprove = await askApproval("use_mcp_server", completeMessage)
