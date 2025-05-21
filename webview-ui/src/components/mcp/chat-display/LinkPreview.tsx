@@ -238,11 +238,14 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 						maxWidth: "512px",
 						overflow: "auto",
 					}}
-					onClick={() => {
-						vscode.postMessage({
-							type: "openInBrowser",
-							url: DOMPurify.sanitize(url),
-						})
+					onClick={async () => {
+						try {
+							await WebServiceClient.openInBrowser({
+								value: DOMPurify.sanitize(url),
+							})
+						} catch (err) {
+							console.error("Error opening URL in browser:", err)
+						}
 					}}>
 					<div style={{ fontWeight: "bold" }}>{errorDisplay}</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
@@ -275,11 +278,14 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					height: "128px",
 					maxWidth: "512px",
 				}}
-				onClick={() => {
-					vscode.postMessage({
-						type: "openInBrowser",
-						url: DOMPurify.sanitize(url),
-					})
+				onClick={async () => {
+					try {
+						await WebServiceClient.openInBrowser({
+							value: DOMPurify.sanitize(url),
+						})
+					} catch (err) {
+						console.error("Error opening URL in browser:", err)
+					}
 				}}>
 				{data.image && (
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>

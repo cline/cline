@@ -1,5 +1,6 @@
 import React from "react"
 import { vscode } from "@/utils/vscode"
+import { WebServiceClient } from "@/services/grpc-client"
 import DOMPurify from "dompurify"
 import { getSafeHostname, formatUrlForOpening, checkIfImageUrl } from "./utils/mcpRichUtil"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
@@ -232,11 +233,14 @@ class ImagePreview extends React.Component<
 						borderRadius: "4px",
 						color: "var(--vscode-errorForeground)",
 					}}
-					onClick={() => {
-						vscode.postMessage({
-							type: "openInBrowser",
-							url: DOMPurify.sanitize(url),
-						})
+					onClick={async () => {
+						try {
+							await WebServiceClient.openInBrowser({
+								value: DOMPurify.sanitize(url),
+							})
+						} catch (err) {
+							console.error("Error opening URL in browser:", err)
+						}
 					}}>
 					<div style={{ fontWeight: "bold" }}>Failed to load image</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
@@ -256,11 +260,14 @@ class ImagePreview extends React.Component<
 					maxWidth: "100%",
 					cursor: "pointer",
 				}}
-				onClick={() => {
-					vscode.postMessage({
-						type: "openInBrowser",
-						url: DOMPurify.sanitize(formatUrlForOpening(url)),
-					})
+				onClick={async () => {
+					try {
+						await WebServiceClient.openInBrowser({
+							value: DOMPurify.sanitize(formatUrlForOpening(url)),
+						})
+					} catch (err) {
+						console.error("Error opening URL in browser:", err)
+					}
 				}}>
 				{/\.svg(\?.*)?$/i.test(url) ? (
 					// Special handling for SVG images
