@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.17.0
+
+### Minor Changes
+
+-   c6dbbdb: Migrate openSettings message to use state navigation handlers
+-   36c0192: Migrate refreshClineRules to protobus
+-   8356e05: Support Streameable Http Transport for MCPs
+
+### Patch Changes
+
+-   eae28f1: Fix Typescript type errors in MCP hub
+-   47eacdc: Added documentation links to rules & workflows UI
+-   9f19276: Handle Mistral SDK API errors
+-   b669dfb: Add devstral-small to the Mistral model list
+
 ## [3.16.2]
 
 -   Add support for Gemini 2.5 Flash Preview 05-20 model to Vertex AI provider with massive 1M token context window (Thanks @omercelik!)
