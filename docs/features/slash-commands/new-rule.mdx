@@ -1,0 +1,42 @@
+---
+title: "New Rule Command"
+sidebarTitle: "/newrule"
+---
+
+`/newrule` is a slash command that lets you teach Cline your preferred way of working. It creates a markdown file in your `.clinerules` directory that acts like persistent instructions for how Cline should behave when helping with your projects.
+
+Think of it as setting up house rules that Cline will always follow, so you don't have to repeat your preferences in every conversation.
+
+#### Using the `/newrule` Slash Command
+
+When you want Cline to consistently follow certain guidelines:
+
+-   Type `/newrule` in the chat
+-   Cline will help you create a structured rule file by asking about your preferences for:
+    -   Communication style (verbose vs. concise)
+    -   Development workflows
+    -   Coding standards
+    -   Project context
+    -   Any other specific guidelines
+-   You'll review the rule file before it's created
+-   Once approved, Cline creates a markdown file in your `.clinerules` directory that will automatically be loaded for future conversations
+
+#### Example
+
+I used `/newrule` when I was fed up with repeating the same instructions on every new task. I had specific preferences for how I wanted my React components structured, which testing library to use, and even my preferred variable naming style.
+
+Instead of typing these preferences each time, I just used `/newrule` and worked with Cline to create a detailed rule file. We built a markdown file that covered everything from code organization to my preference for functional components over class components.
+
+Now whenever I chat with Cline about my React project, it automatically follows these guidelines without me having to remind it. The best part is that I can create different rule files for different projects, so Cline adapts to whatever codebase I'm working on.
+
+#### Inspiration
+
+Here's how I use `/newrule` to make my development smoother:
+
+-   I created a rule file for each major project with specific architectural patterns and library preferences, so Cline always generates code that matches our existing codebase.
+
+-   For my team's shared projects, we have a common rule file that ensures consistent code style and documentation practices regardless of who's using Cline.
+
+-   When working with legacy code, I made a rule file that reminds Cline about the quirks and constraints of the old system, so it never suggests modern approaches that won't integrate well.
+
+-   I even have a personal rule file for my side projects with all my opinionated preferences - two-space indentation, arrow functions everywhere, and my exact folder structure requirements.

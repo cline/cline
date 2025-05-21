@@ -31,9 +31,19 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 		}
 	}, [mcpMarketplaceEnabled, activeTab])
 
+	// Get setter for MCP marketplace catalog from context
+	const { setMcpMarketplaceCatalog } = useExtensionState()
+
 	useEffect(() => {
 		if (mcpMarketplaceEnabled) {
-			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
+			McpServiceClient.refreshMcpMarketplace({})
+				.then((response) => {
+					setMcpMarketplaceCatalog(response)
+				})
+				.catch((error) => {
+					console.error("Error refreshing MCP marketplace:", error)
+				})
+
 			McpServiceClient.getLatestMcpServers({})
 				.then((response: McpServers) => {
 					if (response.mcpServers) {

@@ -72,6 +72,22 @@
 				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
 			},
 			{
+				"group": "Features",
+				"pages": [
+					"features/cline-rules",
+					"features/slash-commands/workflows",
+					{
+						"group": "Slash Commands",
+						"pages": [
+							"features/slash-commands/new-task",
+							"features/slash-commands/new-rule",
+							"features/slash-commands/smol",
+							"features/slash-commands/report-bug"
+						]
+					}
+				]
+			},
+			{
 				"group": "Exploring Cline's Tools",
 				"pages": [
 					"exploring-clines-tools/cline-tools-guide",

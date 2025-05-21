@@ -4,17 +4,25 @@
 // Import all method implementations
 import { registerMethod } from "./index"
 import { addRemoteMcpServer } from "./addRemoteMcpServer"
+import { deleteMcpServer } from "./deleteMcpServer"
 import { downloadMcp } from "./downloadMcp"
+import { refreshMcpMarketplace } from "./refreshMcpMarketplace"
+import { restartMcpServer } from "./restartMcpServer"
 import { getLatestMcpServers } from "./getLatestMcpServers"
 import { toggleMcpServer } from "./toggleMcpServer"
+import { toggleToolAutoApprove } from "./toggleToolAutoApprove"
 import { updateMcpTimeout } from "./updateMcpTimeout"
 
 // Register all mcp service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("addRemoteMcpServer", addRemoteMcpServer)
+	registerMethod("deleteMcpServer", deleteMcpServer)
 	registerMethod("downloadMcp", downloadMcp)
+	registerMethod("refreshMcpMarketplace", refreshMcpMarketplace)
+	registerMethod("restartMcpServer", restartMcpServer)
 	registerMethod("getLatestMcpServers", getLatestMcpServers)
 	registerMethod("toggleMcpServer", toggleMcpServer)
+	registerMethod("toggleToolAutoApprove", toggleToolAutoApprove)
 	registerMethod("updateMcpTimeout", updateMcpTimeout)
 }
