@@ -99,7 +99,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "nebius":
-				if (!apiConfiguration.nebiusApiKey || !apiConfiguration.nebiusModelId) {
+				if (!apiConfiguration.nebiusApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break

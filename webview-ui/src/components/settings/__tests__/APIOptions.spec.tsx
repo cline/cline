@@ -201,28 +201,18 @@ describe("OpenApiInfoOptions", () => {
 	})
 })
 
-vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
-	const actual = await importOriginal()
-	return {
-		...actual,
-		useExtensionState: vi.fn(() => ({
-			apiConfiguration: {
-				apiProvider: "nebius",
-				requestyApiKey: "",
-				requestyModelId: "",
-			},
-			setApiConfiguration: vi.fn(),
-			uriScheme: "vscode",
-		})),
-	}
-})
-
 describe("ApiOptions Component", () => {
 	vi.clearAllMocks()
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		global.vscode = { postMessage: mockPostMessage } as any
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
+		global.vscode = { postMessage: mockPostMessage }
+
+		mockExtensionState({
+			apiProvider: "nebius",
+			nebiusApiKey: "",
+		})
 	})
 
 	it("renders Nebius API Key input", () => {
@@ -235,13 +225,14 @@ describe("ApiOptions Component", () => {
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
-	it("renders Nebius Model ID input", () => {
+	it("renders Nebius Model ID select with a default model", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
-		expect(modelIdInput).toBeInTheDocument()
+		const modelIdSelect = screen.getByLabelText("Model")
+		expect(modelIdSelect).toBeInTheDocument()
+		expect(modelIdSelect).toHaveValue("Qwen/Qwen2.5-32B-Instruct-fast")
 	})
 })

@@ -47,8 +47,8 @@ import {
 	askSageDefaultURL,
 	xaiDefaultModelId,
 	xaiModels,
-	nebiusDefaultModelId,
 	nebiusModels,
+	nebiusDefaultModelId,
 	sambanovaModels,
 	sambanovaDefaultModelId,
 	doubaoModels,
@@ -1897,28 +1897,21 @@ const ApiOptions = ({
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Nebius API Key</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.nebiusModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("nebiusModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
 					<p
 						style={{
 							fontSize: "12px",
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						This key is stored locally and only used to make API requests from this extension.
+						This key is stored locally and only used to make API requests from this extension.{" "}
 						{!apiConfiguration?.nebiusApiKey && (
 							<VSCodeLink
-								href="https://studio.nebius.com/"
+								href="https://studio.nebius.com/settings/api-keys"
 								style={{
 									display: "inline",
 									fontSize: "inherit",
 								}}>
-								You can get a Nebius API key by signing up here.
+								You can get a Nebius API key by signing up here.{" "}
 							</VSCodeLink>
 						)}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
@@ -2110,7 +2103,6 @@ const ApiOptions = ({
 				selectedProvider !== "vscode-lm" &&
 				selectedProvider !== "litellm" &&
 				selectedProvider !== "requesty" &&
-				selectedProvider !== "nebius" &&
 				selectedProvider !== "bedrock" &&
 				showModelOptions && (
 					<>
@@ -2133,6 +2125,7 @@ const ApiOptions = ({
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
+							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||

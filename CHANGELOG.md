@@ -252,7 +252,6 @@
 
 -   Add UI for adding remote servers
 -   Add Mentions Feature Guide and update related documentation
--   Add Nebius AI Studio provider integration with support for Qwen and Llama models
 -   Fix bug where menu would open in sidebar and open tab
 -   Fix issue with Cline accounts not showing user info in popout tabs
 -   Fix bug where menu buttons wouldn't open view in sidebar

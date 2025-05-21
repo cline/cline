@@ -84,7 +84,6 @@ export type GlobalStateKey =
 	| "thinkingBudgetTokens"
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
-	| "nebiusModelId"
 	| "enableCheckpointsSetting"
 	| "mcpMarketplaceEnabled"
 	| "favoritedModelIds"

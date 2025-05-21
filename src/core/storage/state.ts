@@ -156,7 +156,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		reasoningEffort,
 		sambanovaApiKey,
 		nebiusApiKey,
-		nebiusModelId,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
 		globalClineRulesToggles,
@@ -245,7 +244,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "reasoningEffort") as Promise<string | undefined>,
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
-		getGlobalState(context, "nebiusModelId") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "globalClineRulesToggles") as Promise<ClineRulesToggles | undefined>,
@@ -358,7 +356,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			xaiApiKey,
 			sambanovaApiKey,
 			nebiusApiKey,
-			nebiusModelId,
 			favoritedModelIds,
 			requestTimeoutMs,
 		},
@@ -452,7 +449,6 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		clineApiKey,
 		sambanovaApiKey,
 		nebiusApiKey,
-		nebiusModelId,
 		favoritedModelIds,
 	} = apiConfiguration
 	await updateGlobalState(context, "apiProvider", apiProvider)
@@ -514,7 +510,6 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "clineApiKey", clineApiKey)
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
-	await updateGlobalState(context, "nebiusModelId", nebiusModelId)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
 }

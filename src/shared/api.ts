@@ -83,7 +83,6 @@ export interface ApiHandlerOptions {
 	vsCodeLmModelSelector?: LanguageModelChatSelector
 	qwenApiLine?: string
 	nebiusApiKey?: string
-	nebiusModelId?: string
 	asksageApiUrl?: string
 	asksageApiKey?: string
 	xaiApiKey?: string
@@ -1557,9 +1556,6 @@ export const askSageModels = {
 
 // Nebius AI Studio
 // https://docs.nebius.com/studio/inference/models
-export type nebiusModelId = keyof typeof nebiusModels
-export const nebiusDefaultModelId: nebiusModelId = "Qwen/Qwen2.5-32B-Instruct-fast"
-export const nebiusDefaultURL: string = "https://api.studio.nebius.ai/v1"
 export const nebiusModels = {
 	"deepseek-ai/DeepSeek-V3": {
 		maxTokens: 32_000,
@@ -1568,6 +1564,14 @@ export const nebiusModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.5,
 		outputPrice: 1.5,
+	},
+	"deepseek-ai/DeepSeek-V3-0324-fast": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 6,
 	},
 	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 32_000,
@@ -1585,14 +1589,6 @@ export const nebiusModels = {
 		inputPrice: 2,
 		outputPrice: 6,
 	},
-	"Qwen/Qwen2.5-32B-Instruct-fast": {
-		maxTokens: 8_192,
-		contextWindow: 32_768,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.13,
-		outputPrice: 0.4,
-	},
 	"meta-llama/Llama-3.3-70B-Instruct-fast": {
 		maxTokens: 32_000,
 		contextWindow: 96_000,
@@ -1601,7 +1597,49 @@ export const nebiusModels = {
 		inputPrice: 0.25,
 		outputPrice: 0.75,
 	},
-}
+	"Qwen/Qwen2.5-32B-Instruct-fast": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.13,
+		outputPrice: 0.4,
+	},
+	"Qwen/Qwen2.5-Coder-32B-Instruct-fast": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"Qwen/Qwen3-4B-fast": {
+		maxTokens: 32_000,
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.08,
+		outputPrice: 0.24,
+	},
+	"Qwen/Qwen3-30B-A3B-fast": {
+		maxTokens: 32_000,
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.9,
+	},
+	"Qwen/Qwen3-235B-A22B": {
+		maxTokens: 32_000,
+		contextWindow: 41_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+	},
+} as const satisfies Record<string, ModelInfo>
+export type NebiusModelId = keyof typeof nebiusModels
+export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies NebiusModelId
 
 // X AI
 // https://docs.x.ai/docs/api-reference

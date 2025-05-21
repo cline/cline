@@ -5,43 +5,28 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
-import {
-	nebiusDefaultURL,
-	nebiusDefaultModelId,
-	nebiusModels,
-	ModelInfo,
-	ApiHandlerOptions,
-	nebiusModelId,
-} from "../../shared/api"
+import { nebiusDefaultModelId, nebiusModels, type ModelInfo, type ApiHandlerOptions, type NebiusModelId } from "../../shared/api"
 
 export class NebiusHandler implements ApiHandler {
-	private options: ApiHandlerOptions
 	private client: OpenAI
 
-	constructor(options: ApiHandlerOptions) {
-		this.options = options
+	constructor(private readonly options: ApiHandlerOptions) {
 		this.client = new OpenAI({
-			baseURL: nebiusDefaultURL,
+			baseURL: "https://api.studio.nebius.ai/v1",
 			apiKey: this.options.nebiusApiKey,
 		})
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const modelId = this.options.nebiusModelId ?? ""
-		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const model = this.getModel()
 
-		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
-
-		if (isDeepseekReasoner) {
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-		}
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = model.id.includes("DeepSeek-R1")
+			? convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+			: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
 
 		const stream = await this.client.chat.completions.create({
-			model: modelId,
+			model: model.id,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
@@ -73,15 +58,12 @@ export class NebiusHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: nebiusModelId; info: ModelInfo } {
-		const modelId = this.options.nebiusModelId ?? ""
-		if (modelId && modelId in nebiusModels) {
-			const id = modelId as nebiusModelId
-			return { id, info: nebiusModels[id] }
+	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.apiModelId
+
+		if (modelId !== undefined && modelId in nebiusModels) {
+			return { id: modelId, info: nebiusModels[modelId as NebiusModelId] }
 		}
-		return {
-			id: nebiusDefaultModelId,
-			info: nebiusModels[nebiusDefaultModelId],
-		}
+		return { id: nebiusDefaultModelId, info: nebiusModels[nebiusDefaultModelId] }
 	}
 }

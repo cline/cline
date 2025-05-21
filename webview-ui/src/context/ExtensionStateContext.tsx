@@ -246,7 +246,7 @@ export const ExtensionStateContextProvider: React.FC<{
 									config.asksageApiKey,
 									config.xaiApiKey,
 									config.sambanovaApiKey,
-                  config.nebiusApiKey,
+									config.nebiusApiKey,
 								].some((key) => key !== undefined)
 							: false
 
