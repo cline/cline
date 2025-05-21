@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Fix edge case of changing language in settings
+Adding Telemetry for button clicks
