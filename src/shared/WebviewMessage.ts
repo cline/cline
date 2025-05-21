@@ -30,7 +30,6 @@ export interface WebviewMessage {
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "openSettings"
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"

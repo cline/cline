@@ -423,13 +423,6 @@ export class Controller {
 				break
 			}
 			// telemetry
-			case "openSettings": {
-				await this.postMessageToWebview({
-					type: "action",
-					action: "settingsButtonClicked",
-				})
-				break
-			}
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
 					await this.updateTelemetrySetting(message.telemetrySetting)
