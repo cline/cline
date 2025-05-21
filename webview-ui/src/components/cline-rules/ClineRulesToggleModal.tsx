@@ -8,7 +8,8 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
 import Tooltip from "@/components/common/Tooltip"
 import styled from "styled-components"
-import { ClineRulesToggles, ToggleWindsurfRuleRequest } from "@shared/proto/file"
+import { ClineRulesToggles, RefreshedRules, ToggleWindsurfRuleRequest } from "@shared/proto/file"
+import { EmptyRequest } from "@shared/proto/common"
 
 const ClineRulesToggleModal: React.FC = () => {
 	const {
@@ -21,6 +22,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
+		setWorkflowToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -32,7 +34,28 @@ const ClineRulesToggleModal: React.FC = () => {
 
 	useEffect(() => {
 		if (isVisible) {
-			vscode.postMessage({ type: "refreshClineRules" })
+			FileServiceClient.refreshRules({} as EmptyRequest)
+				.then((response: RefreshedRules) => {
+					// Update state with the response data using all available setters
+					if (response.globalClineRulesToggles?.toggles) {
+						setGlobalClineRulesToggles(response.globalClineRulesToggles.toggles)
+					}
+					if (response.localClineRulesToggles?.toggles) {
+						setLocalClineRulesToggles(response.localClineRulesToggles.toggles)
+					}
+					if (response.localCursorRulesToggles?.toggles) {
+						setLocalCursorRulesToggles(response.localCursorRulesToggles.toggles)
+					}
+					if (response.localWindsurfRulesToggles?.toggles) {
+						setLocalWindsurfRulesToggles(response.localWindsurfRulesToggles.toggles)
+					}
+					if (response.workflowToggles?.toggles) {
+						setWorkflowToggles(response.workflowToggles.toggles)
+					}
+				})
+				.catch((error) => {
+					console.error("Failed to refresh rules:", error)
+				})
 		}
 	}, [isVisible])
 

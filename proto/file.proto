@@ -46,6 +46,18 @@ service FileService {
   
   // Toggle a Windsurf rule (enable or disable)
   rpc toggleWindsurfRule(ToggleWindsurfRuleRequest) returns (ClineRulesToggles);
+  
+  // Refreshes all rule toggles (Cline, External, and Workflows)
+  rpc refreshRules(EmptyRequest) returns (RefreshedRules);
+}
+
+// Response for refreshRules operation
+message RefreshedRules {
+  ClineRulesToggles global_cline_rules_toggles = 1;
+  ClineRulesToggles local_cline_rules_toggles = 2;
+  ClineRulesToggles local_cursor_rules_toggles = 3;
+  ClineRulesToggles local_windsurf_rules_toggles = 4;
+  ClineRulesToggles workflow_toggles = 5;
 }
 
 // Request to toggle a Windsurf rule

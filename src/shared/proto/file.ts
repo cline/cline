@@ -10,6 +10,15 @@ import { Empty, EmptyRequest, Metadata, StringArray, StringRequest } from "./com
 
 export const protobufPackage = "cline"
 
+/** Response for refreshRules operation */
+export interface RefreshedRules {
+	globalClineRulesToggles?: ClineRulesToggles | undefined
+	localClineRulesToggles?: ClineRulesToggles | undefined
+	localCursorRulesToggles?: ClineRulesToggles | undefined
+	localWindsurfRulesToggles?: ClineRulesToggles | undefined
+	workflowToggles?: ClineRulesToggles | undefined
+}
+
 /** Request to toggle a Windsurf rule */
 export interface ToggleWindsurfRuleRequest {
 	metadata?: Metadata | undefined
@@ -130,6 +139,159 @@ export interface ToggleCursorRuleRequest {
 	rulePath: string
 	/** Whether to enable or disable the rule */
 	enabled: boolean
+}
+
+function createBaseRefreshedRules(): RefreshedRules {
+	return {
+		globalClineRulesToggles: undefined,
+		localClineRulesToggles: undefined,
+		localCursorRulesToggles: undefined,
+		localWindsurfRulesToggles: undefined,
+		workflowToggles: undefined,
+	}
+}
+
+export const RefreshedRules: MessageFns<RefreshedRules> = {
+	encode(message: RefreshedRules, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+		if (message.globalClineRulesToggles !== undefined) {
+			ClineRulesToggles.encode(message.globalClineRulesToggles, writer.uint32(10).fork()).join()
+		}
+		if (message.localClineRulesToggles !== undefined) {
+			ClineRulesToggles.encode(message.localClineRulesToggles, writer.uint32(18).fork()).join()
+		}
+		if (message.localCursorRulesToggles !== undefined) {
+			ClineRulesToggles.encode(message.localCursorRulesToggles, writer.uint32(26).fork()).join()
+		}
+		if (message.localWindsurfRulesToggles !== undefined) {
+			ClineRulesToggles.encode(message.localWindsurfRulesToggles, writer.uint32(34).fork()).join()
+		}
+		if (message.workflowToggles !== undefined) {
+			ClineRulesToggles.encode(message.workflowToggles, writer.uint32(42).fork()).join()
+		}
+		return writer
+	},
+
+	decode(input: BinaryReader | Uint8Array, length?: number): RefreshedRules {
+		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
+		let end = length === undefined ? reader.len : reader.pos + length
+		const message = createBaseRefreshedRules()
+		while (reader.pos < end) {
+			const tag = reader.uint32()
+			switch (tag >>> 3) {
+				case 1: {
+					if (tag !== 10) {
+						break
+					}
+
+					message.globalClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					continue
+				}
+				case 2: {
+					if (tag !== 18) {
+						break
+					}
+
+					message.localClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					continue
+				}
+				case 3: {
+					if (tag !== 26) {
+						break
+					}
+
+					message.localCursorRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					continue
+				}
+				case 4: {
+					if (tag !== 34) {
+						break
+					}
+
+					message.localWindsurfRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					continue
+				}
+				case 5: {
+					if (tag !== 42) {
+						break
+					}
+
+					message.workflowToggles = ClineRulesToggles.decode(reader, reader.uint32())
+					continue
+				}
+			}
+			if ((tag & 7) === 4 || tag === 0) {
+				break
+			}
+			reader.skip(tag & 7)
+		}
+		return message
+	},
+
+	fromJSON(object: any): RefreshedRules {
+		return {
+			globalClineRulesToggles: isSet(object.globalClineRulesToggles)
+				? ClineRulesToggles.fromJSON(object.globalClineRulesToggles)
+				: undefined,
+			localClineRulesToggles: isSet(object.localClineRulesToggles)
+				? ClineRulesToggles.fromJSON(object.localClineRulesToggles)
+				: undefined,
+			localCursorRulesToggles: isSet(object.localCursorRulesToggles)
+				? ClineRulesToggles.fromJSON(object.localCursorRulesToggles)
+				: undefined,
+			localWindsurfRulesToggles: isSet(object.localWindsurfRulesToggles)
+				? ClineRulesToggles.fromJSON(object.localWindsurfRulesToggles)
+				: undefined,
+			workflowToggles: isSet(object.workflowToggles) ? ClineRulesToggles.fromJSON(object.workflowToggles) : undefined,
+		}
+	},
+
+	toJSON(message: RefreshedRules): unknown {
+		const obj: any = {}
+		if (message.globalClineRulesToggles !== undefined) {
+			obj.globalClineRulesToggles = ClineRulesToggles.toJSON(message.globalClineRulesToggles)
+		}
+		if (message.localClineRulesToggles !== undefined) {
+			obj.localClineRulesToggles = ClineRulesToggles.toJSON(message.localClineRulesToggles)
+		}
+		if (message.localCursorRulesToggles !== undefined) {
+			obj.localCursorRulesToggles = ClineRulesToggles.toJSON(message.localCursorRulesToggles)
+		}
+		if (message.localWindsurfRulesToggles !== undefined) {
+			obj.localWindsurfRulesToggles = ClineRulesToggles.toJSON(message.localWindsurfRulesToggles)
+		}
+		if (message.workflowToggles !== undefined) {
+			obj.workflowToggles = ClineRulesToggles.toJSON(message.workflowToggles)
+		}
+		return obj
+	},
+
+	create<I extends Exact<DeepPartial<RefreshedRules>, I>>(base?: I): RefreshedRules {
+		return RefreshedRules.fromPartial(base ?? ({} as any))
+	},
+	fromPartial<I extends Exact<DeepPartial<RefreshedRules>, I>>(object: I): RefreshedRules {
+		const message = createBaseRefreshedRules()
+		message.globalClineRulesToggles =
+			object.globalClineRulesToggles !== undefined && object.globalClineRulesToggles !== null
+				? ClineRulesToggles.fromPartial(object.globalClineRulesToggles)
+				: undefined
+		message.localClineRulesToggles =
+			object.localClineRulesToggles !== undefined && object.localClineRulesToggles !== null
+				? ClineRulesToggles.fromPartial(object.localClineRulesToggles)
+				: undefined
+		message.localCursorRulesToggles =
+			object.localCursorRulesToggles !== undefined && object.localCursorRulesToggles !== null
+				? ClineRulesToggles.fromPartial(object.localCursorRulesToggles)
+				: undefined
+		message.localWindsurfRulesToggles =
+			object.localWindsurfRulesToggles !== undefined && object.localWindsurfRulesToggles !== null
+				? ClineRulesToggles.fromPartial(object.localWindsurfRulesToggles)
+				: undefined
+		message.workflowToggles =
+			object.workflowToggles !== undefined && object.workflowToggles !== null
+				? ClineRulesToggles.fromPartial(object.workflowToggles)
+				: undefined
+		return message
+	},
 }
 
 function createBaseToggleWindsurfRuleRequest(): ToggleWindsurfRuleRequest {
@@ -1601,6 +1763,15 @@ export const FileServiceDefinition = {
 			requestType: ToggleWindsurfRuleRequest,
 			requestStream: false,
 			responseType: ClineRulesToggles,
+			responseStream: false,
+			options: {},
+		},
+		/** Refreshes all rule toggles (Cline, External, and Workflows) */
+		refreshRules: {
+			name: "refreshRules",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: RefreshedRules,
 			responseStream: false,
 			options: {},
 		},
