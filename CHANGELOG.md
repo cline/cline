@@ -4,8 +4,8 @@
 
 -   Add devstral-small-2505 to the Mistral model list, a new specialized coding model from Mistral AI (Thanks @BarreiroT!)
 -   Add documentation links to rules & workflows UI
--   Improve error handling for Mistral SDK API
 -   Add support for Streameable HTTP Transport for MCPs
+-   Improve error handling for Mistral SDK API
 
 ## [3.16.2]
 
