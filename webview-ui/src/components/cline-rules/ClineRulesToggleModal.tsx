@@ -4,7 +4,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
 import { FileServiceClient } from "@/services/grpc-client"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import RulesToggleList from "./RulesToggleList"
 import Tooltip from "@/components/common/Tooltip"
 import styled from "styled-components"
@@ -222,7 +222,13 @@ const ClineRulesToggleModal: React.FC = () => {
 						{currentView === "rules" ? (
 							<p>
 								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
-								include context and preferences for your projects or globally for every conversation.
+								include context and preferences for your projects or globally for every conversation.{" "}
+								<VSCodeLink
+									href="https://docs.cline.bot/features/cline-rules"
+									style={{ display: "inline" }}
+									className="text-xs">
+									Docs
+								</VSCodeLink>
 							</p>
 						) : (
 							<p>
@@ -233,7 +239,13 @@ const ClineRulesToggleModal: React.FC = () => {
 								text-[var(--vscode-foreground)] font-bold">
 									/workflow-name
 								</span>{" "}
-								in the chat.
+								in the chat.{" "}
+								<VSCodeLink
+									href="https://docs.cline.bot/features/slash-commands/workflows"
+									style={{ display: "inline" }}
+									className="text-xs">
+									Docs
+								</VSCodeLink>
 							</p>
 						)}
 					</div>
