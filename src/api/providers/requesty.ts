@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { withRetry } from "../retry"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { calculateApiCostOpenAI } from "../../utils/cost"
-import { ApiStream } from "../transform/stream"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { calculateApiCostOpenAI } from "@utils/cost"
+import { ApiStream } from "@api/transform/stream"
 
 export class RequestyHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -32,9 +32,9 @@ export class RequestyHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 
-		const reasoningEffort = this.options.o3MiniReasoningEffort || "medium"
+		const reasoningEffort = this.options.reasoningEffort || "medium"
 		const reasoning = { reasoning_effort: reasoningEffort }
-		const reasoningArgs = model.id === "openai/o3-mini" ? reasoning : {}
+		const reasoningArgs = model.id.startsWith("openai/o") ? reasoning : {}
 
 		const thinkingBudget = this.options.thinkingBudgetTokens || 0
 		const thinking =

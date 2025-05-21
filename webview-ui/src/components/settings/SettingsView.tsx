@@ -1,5 +1,14 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeCheckbox,
+	VSCodeDropdown,
+	VSCodeLink,
+	VSCodeOption,
+	VSCodeTextArea,
+} from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState } from "react"
+import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
+import { OpenAIReasoningEffort } from "@shared/ChatSettings"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
@@ -8,8 +17,11 @@ import ApiOptions from "./ApiOptions"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { StateServiceClient } from "@/services/grpc-client"
+import FeatureSettingsSection from "./FeatureSettingsSection"
 import BrowserSettingsSection from "./BrowserSettingsSection"
-
+import TerminalSettingsSection from "./TerminalSettingsSection"
+import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
 const { IS_DEV } = process.env
 
 type SettingsViewProps = {
@@ -26,8 +38,11 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		telemetrySetting,
 		setTelemetrySetting,
 		chatSettings,
+		setChatSettings,
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
+		enableCheckpointsSetting,
+		mcpMarketplaceEnabled,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -66,6 +81,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
 			telemetrySetting,
+			enableCheckpointsSetting,
+			mcpMarketplaceEnabled,
 			apiConfiguration: apiConfigurationToSubmit,
 		})
 
@@ -81,16 +98,16 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	// validate as soon as the component is mounted
 	/*
-    useEffect will use stale values of variables if they are not included in the dependency array. 
-    so trying to use useEffect with a dependency array of only one value for example will use any 
-    other variables' old values. In most cases you don't want this, and should opt to use react-use 
-    hooks.
+	useEffect will use stale values of variables if they are not included in the dependency array. 
+	so trying to use useEffect with a dependency array of only one value for example will use any 
+	other variables' old values. In most cases you don't want this, and should opt to use react-use 
+	hooks.
     
-        // uses someVar and anotherVar
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [someVar])
+		// uses someVar and anotherVar
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [someVar])
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-    */
+	*/
 
 	const handleMessage = useCallback(
 		(event: MessageEvent) => {
@@ -102,28 +119,32 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							type: "togglePlanActMode",
 							chatSettings: {
 								mode: pendingTabChange,
+								preferredLanguage: chatSettings.preferredLanguage,
+								openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 							},
 						})
 						setPendingTabChange(null)
 					}
 					break
-				case "scrollToSettings":
-					setTimeout(() => {
-						const elementId = message.text
-						if (elementId) {
-							const element = document.getElementById(elementId)
-							if (element) {
-								element.scrollIntoView({ behavior: "smooth" })
+				case "grpc_response":
+					if (message.grpc_response?.message?.action === "scrollToSettings") {
+						setTimeout(() => {
+							const elementId = message.grpc_response?.message?.value
+							if (elementId) {
+								const element = document.getElementById(elementId)
+								if (element) {
+									element.scrollIntoView({ behavior: "smooth" })
 
-								element.style.transition = "background-color 0.5s ease"
-								element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+									element.style.transition = "background-color 0.5s ease"
+									element.style.backgroundColor = "var(--vscode-textPreformat-background)"
 
-								setTimeout(() => {
-									element.style.backgroundColor = "transparent"
-								}, 1200)
+									setTimeout(() => {
+										element.style.backgroundColor = "transparent"
+									}, 1200)
+								}
 							}
-						}
-					}, 300)
+						}, 300)
+					}
 					break
 			}
 		},
@@ -132,8 +153,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	useEvent("message", handleMessage)
 
-	const handleResetState = () => {
-		vscode.postMessage({ type: "resetState" })
+	const handleResetState = async () => {
+		try {
+			await StateServiceClient.resetState({})
+		} catch (error) {
+			console.error("Failed to reset state:", error)
+		}
 	}
 
 	const handleTabChange = (tab: "plan" | "act") => {
@@ -148,7 +173,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		<div className="fixed top-0 left-0 right-0 bottom-0 pt-[10px] pr-0 pb-0 pl-5 flex flex-col overflow-hidden">
 			<div className="flex justify-between items-center mb-[13px] pr-[17px]">
 				<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
-				<VSCodeButton onClick={() => handleSubmit(false)}>Done</VSCodeButton>
+				<VSCodeButton onClick={() => handleSubmit(false)}>Save</VSCodeButton>
 			</div>
 			<div className="grow overflow-y-scroll pr-2 flex flex-col">
 				{/* Tabs container */}
@@ -197,6 +222,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					</p>
 				</div>
 
+				{chatSettings && <PreferredLanguageSetting chatSettings={chatSettings} setChatSettings={setChatSettings} />}
+
 				<div className="mb-[5px]">
 					<VSCodeCheckbox
 						className="mb-[5px]"
@@ -237,22 +264,22 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					</p>
 				</div>
 
+				{/* Feature Settings Section */}
+				<FeatureSettingsSection />
+
 				{/* Browser Settings Section */}
 				<BrowserSettingsSection />
 
-				<div className="mt-auto pr-2 flex justify-center">
-					<SettingsButton
-						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
-						className="mt-0 mr-0 mb-4 ml-0">
-						<i className="codicon codicon-settings-gear" />
-						Advanced Settings
-					</SettingsButton>
-				</div>
+				{/* Terminal Settings Section */}
+				<TerminalSettingsSection />
 
 				{IS_DEV && (
 					<>
 						<div className="mt-[10px] mb-1">Debug</div>
-						<VSCodeButton onClick={handleResetState} className="mt-[5px] w-auto">
+						<VSCodeButton
+							onClick={handleResetState}
+							className="mt-[5px] w-auto"
+							style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
 							Reset State
 						</VSCodeButton>
 						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">

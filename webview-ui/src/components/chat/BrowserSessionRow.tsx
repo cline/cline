@@ -6,7 +6,7 @@ import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
+import { FileServiceClient } from "@/services/grpc-client"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
 import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -19,6 +19,7 @@ interface BrowserSessionRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	onSetQuote: (text: string) => void
 }
 
 const browserSessionRowContainerInnerStyle: CSSProperties = {
@@ -109,7 +110,7 @@ const headerStyle: CSSProperties = {
 }
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
-	const { messages, isLast, onHeightChange, lastModifiedMessage } = props
+	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props
 	const { browserSettings } = useExtensionState()
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
@@ -192,7 +193,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				// Reset for next page
 				currentStateMessages = []
 				nextActionMessages = []
-			} else if (message.say === "api_req_started" || message.say === "text" || message.say === "browser_action") {
+			} else if (
+				message.say === "api_req_started" ||
+				message.say === "text" ||
+				message.say === "reasoning" ||
+				message.say === "browser_action"
+			) {
 				// These messages lead to the next result, so they should always go in nextActionMessages
 				nextActionMessages.push(message)
 			} else {
@@ -285,7 +291,13 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const [actionContent, { height: actionHeight }] = useSize(
 		<div>
 			{currentPage?.nextAction?.messages.map((message) => (
-				<BrowserSessionRowContent key={message.ts} {...props} message={message} setMaxActionHeight={setMaxActionHeight} />
+				<BrowserSessionRowContent
+					key={message.ts}
+					{...props}
+					message={message}
+					setMaxActionHeight={setMaxActionHeight}
+					onSetQuote={onSetQuote}
+				/>
 			))}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
 				<BrowserActionBox action={"launch"} text={initialUrl} />
@@ -392,10 +404,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							alt="Browser screenshot"
 							style={imgScreenshotStyle}
 							onClick={() =>
-								vscode.postMessage({
-									type: "openImage",
-									text: displayState.screenshot,
-								})
+								FileServiceClient.openImage({ value: displayState.screenshot }).catch((err) =>
+									console.error("Failed to open image:", err),
+								)
 							}
 						/>
 					) : (
@@ -480,9 +491,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	return browserSessionRow
 }, deepEqual)
 
-interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages"> {
+interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "messages" | "onHeightChange"> {
 	message: ClineMessage
 	setMaxActionHeight: (height: number) => void
+	onSetQuote: (text: string) => void
 }
 
 const BrowserSessionRowContent = ({
@@ -492,6 +504,7 @@ const BrowserSessionRowContent = ({
 	lastModifiedMessage,
 	isLast,
 	setMaxActionHeight,
+	onSetQuote,
 }: BrowserSessionRowContentProps) => {
 	if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 		return (
@@ -511,6 +524,7 @@ const BrowserSessionRowContent = ({
 			switch (message.say) {
 				case "api_req_started":
 				case "text":
+				case "reasoning":
 					return (
 						<div style={chatRowContentContainerStyle}>
 							<ChatRowContent
@@ -524,6 +538,7 @@ const BrowserSessionRowContent = ({
 								}}
 								lastModifiedMessage={lastModifiedMessage}
 								isLast={isLast}
+								onSetQuote={onSetQuote}
 							/>
 						</div>
 					)

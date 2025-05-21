@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.12.3",
+	"version": "3.16.2",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -39,7 +39,11 @@
 		"ai",
 		"llama"
 	],
-	"activationEvents": [],
+	"activationEvents": [
+		"onLanguage",
+		"onStartupFinished",
+		"workspaceContains:evals.env"
+	],
 	"main": "./dist/extension.js",
 	"contributes": {
 		"viewsContainers": {
@@ -113,8 +117,24 @@
 				"category": "Cline"
 			},
 			{
-				"command": "cline.fixWithCline",
-				"title": "Fix with Cline",
+				"command": "cline.focusChatInput",
+				"title": "Jump to Chat Input",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.generateGitCommitMessage",
+				"title": "Generate Commit Message with Cline",
+				"category": "Cline",
+				"icon": "$(robot)"
+			},
+			{
+				"command": "cline.explainCode",
+				"title": "Explain with Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.improveCode",
+				"title": "Improve with Cline",
 				"category": "Cline"
 			}
 		],
@@ -126,6 +146,18 @@
 				"win": "ctrl+'",
 				"linux": "ctrl+'",
 				"when": "editorHasSelection"
+			},
+			{
+				"command": "cline.generateGitCommitMessage",
+				"when": "scmProvider == git"
+			},
+			{
+				"command": "cline.focusChatInput",
+				"key": "cmd+'",
+				"mac": "cmd+'",
+				"win": "ctrl+'",
+				"linux": "ctrl+'",
+				"when": "!editorHasSelection"
 			}
 		],
 		"menus": {
@@ -205,96 +237,38 @@
 					"command": "cline.addTerminalOutputToChat",
 					"group": "navigation"
 				}
+			],
+			"scm/title": [
+				{
+					"command": "cline.generateGitCommitMessage",
+					"group": "navigation",
+					"when": "scmProvider == git"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "cline.generateGitCommitMessage",
+					"when": "scmProvider == git"
+				}
 			]
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {
-				"cline.vsCodeLmModelSelector": {
-					"type": "object",
-					"properties": {
-						"vendor": {
-							"type": "string",
-							"description": "The vendor of the language model (e.g. copilot)"
-						},
-						"family": {
-							"type": "string",
-							"description": "The family of the language model (e.g. gpt-4)"
-						}
-					},
-					"description": "Settings for VSCode Language Model API"
-				},
-				"cline.enableCheckpoints": {
-					"type": "boolean",
-					"default": true,
-					"description": "Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not work well with large workspaces."
-				},
-				"cline.disableBrowserTool": {
-					"type": "boolean",
-					"default": false,
-					"description": "Disables extension from spawning browser session."
-				},
-				"cline.modelSettings.o3Mini.reasoningEffort": {
-					"type": "string",
-					"enum": [
-						"low",
-						"medium",
-						"high"
-					],
-					"default": "medium",
-					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
-				},
-				"cline.chromeExecutablePath": {
-					"type": "string",
-					"default": null,
-					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
-				},
-				"cline.preferredLanguage": {
-					"type": "string",
-					"enum": [
-						"English",
-						"Arabic - العربية",
-						"Portuguese - Português (Brasil)",
-						"Czech - Čeština",
-						"French - Français",
-						"German - Deutsch",
-						"Hindi - हिन्दी",
-						"Hungarian - Magyar",
-						"Italian - Italiano",
-						"Japanese - 日本語",
-						"Korean - 한국어",
-						"Polish - Polski",
-						"Portuguese - Português (Portugal)",
-						"Russian - Русский",
-						"Simplified Chinese - 简体中文",
-						"Spanish - Español",
-						"Traditional Chinese - 繁體中文",
-						"Turkish - Türkçe"
-					],
-					"default": "English",
-					"description": "The language that Cline should use for communication."
-				},
-				"cline.mcpMarketplace.enabled": {
-					"type": "boolean",
-					"default": true,
-					"description": "Controls whether the MCP Marketplace is enabled."
-				}
-			}
+			"properties": {}
 		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run package",
 		"compile": "npm run check-types && npm run lint && node esbuild.js",
+		"compile-standalone": "npm run protos && npm run check-types && npm run lint && node esbuild.js --standalone",
+		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.js --watch",
-		"watch:esbuild:test": "IS_TEST=true node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
 		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
-		"protos": "node proto/build-proto.js && prettier src/shared/proto --write && prettier src/core/controller --write",
-		"package:test": "IS_TEST=true npm run build:webview:test && npm run check-types && npm run lint && IS_TEST=true node esbuild.js --production",
-		"build:webview:test": "cd webview-ui && IS_TEST=true npm run build",
-		"watch:test": "IS_TEST=true npm-run-all -p watch:tsc watch:esbuild:test",
-		"compile-tests": "tsc -p ./tsconfig.test.json --outDir out",
+		"protos": "node proto/build-proto.js && node scripts/generate-server-setup.mjs",
+		"postprotos": "prettier src/shared/proto src/core/controller webview-ui/src/services src/standalone/server-setup.ts --write --log-level silent",
+		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"pretest": "npm run compile-tests && npm run compile && npm run lint",
 		"check-types": "tsc --noEmit",
@@ -314,7 +288,11 @@
 		"publish:marketplace:prerelease": "vsce publish --pre-release && ovsx publish --pre-release",
 		"prepare": "husky",
 		"changeset": "changeset",
-		"version-packages": "changeset version"
+		"version-packages": "changeset version",
+		"docs": "cd docs && mintlify dev",
+		"docs:check-links": "cd docs && mintlify broken-links",
+		"docs:rename-file": "cd docs && mintlify rename",
+		"report-issue": "node scripts/report-issue.js"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",
@@ -332,13 +310,15 @@
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
-		"@vscode/test-cli": "^0.0.9",
-		"@vscode/test-electron": "^2.4.0",
+		"@vscode/test-cli": "^0.0.10",
+		"@vscode/test-electron": "^2.4.1",
 		"chai": "^4.3.10",
 		"chalk": "^5.3.0",
 		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
+		"grpc-tools": "^1.13.0",
 		"husky": "^9.1.7",
+		"mintlify": "^4.0.515",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"protoc-gen-ts": "^0.8.7",
@@ -347,6 +327,7 @@
 		"sinon": "^19.0.2",
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
+		"tsconfig-paths": "^4.2.0",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
@@ -356,8 +337,9 @@
 		"@aws-sdk/client-bedrock-runtime": "^3.758.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@google-cloud/vertexai": "^1.9.3",
-		"@google/generative-ai": "^0.18.0",
+		"@google/genai": "^0.13.0",
 		"@grpc/grpc-js": "^1.9.15",
+		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.7.0",
 		"@opentelemetry/api": "^1.4.1",
@@ -368,6 +350,7 @@
 		"@opentelemetry/semantic-conventions": "^1.30.0",
 		"@sentry/browser": "^9.12.0",
 		"@vscode/codicons": "^0.0.36",
+		"archiver": "^7.0.1",
 		"axios": "^1.8.2",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
@@ -381,11 +364,16 @@
 		"fzf": "^0.5.2",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
+		"grpc-health-check": "^2.0.2",
+		"iconv-lite": "^0.6.3",
 		"ignore": "^7.0.3",
+		"image-size": "^2.0.2",
 		"isbinaryfile": "^5.0.2",
+		"jschardet": "^3.1.4",
 		"mammoth": "^1.8.0",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"ollama": "^0.5.13",
+		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
 		"openai": "^4.83.0",
 		"os-name": "^6.0.0",
@@ -399,6 +387,7 @@
 		"simple-git": "^3.27.0",
 		"strip-ansi": "^7.1.0",
 		"tree-sitter-wasms": "^0.1.11",
+		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"

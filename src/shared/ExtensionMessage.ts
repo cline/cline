@@ -6,9 +6,10 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
-import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse, McpViewTab } from "./mcp"
+import { McpServer, McpMarketplaceCatalog, McpDownloadResponse, McpViewTab } from "./mcp"
 import { TelemetrySetting } from "./TelemetrySetting"
 import type { BalanceResponse, UsageTransaction, PaymentTransaction } from "../shared/ClineAccount"
+import { ClineRulesToggles } from "./cline-rules"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -27,39 +28,30 @@ export interface ExtensionMessage {
 		| "requestyModels"
 		| "mcpServers"
 		| "relinquishControl"
-		| "vsCodeLmModels"
-		| "requestVsCodeLmModels"
 		| "authCallback"
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
 		| "openGraphData"
-		| "isImageUrlResult"
 		| "didUpdateSettings"
-		| "addRemoteServerResult"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
-		| "detectedChromePath"
-		| "scrollToSettings"
-		| "browserRelaunchResult"
-		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
-	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"
 		| "settingsButtonClicked"
 		| "historyButtonClicked"
 		| "didBecomeVisible"
-		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
+		| "focusChatInput"
 	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
@@ -103,16 +95,13 @@ export interface ExtensionMessage {
 		type: "file" | "folder"
 		label?: string
 	}>
-	addRemoteServerResult?: {
-		success: boolean
-		serverName: string
-		error?: string
-	}
 	tab?: McpViewTab
 	grpc_response?: {
 		message?: any // JSON serialized protobuf message
 		request_id: string // Same ID as the request
 		error?: string // Optional error message
+		is_streaming?: boolean // Whether this is part of a streaming response
+		sequence_number?: number // For ordering chunks in streaming responses
 	}
 }
 
@@ -123,6 +112,7 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 export const DEFAULT_PLATFORM = "unknown"
 
 export interface ExtensionState {
+	isNewUser: boolean
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -134,10 +124,12 @@ export interface ExtensionState {
 	customInstructions?: string
 	mcpMarketplaceEnabled?: boolean
 	planActSeparateModelsSetting: boolean
+	enableCheckpointsSetting?: boolean
 	platform: Platform
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
+	shellIntegrationTimeout: number
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null
@@ -146,6 +138,11 @@ export interface ExtensionState {
 	}
 	version: string
 	vscMachineId: string
+	globalClineRulesToggles: ClineRulesToggles
+	localClineRulesToggles: ClineRulesToggles
+	workflowToggles: ClineRulesToggles
+	localCursorRulesToggles: ClineRulesToggles
+	localWindsurfRulesToggles: ClineRulesToggles
 }
 
 export interface ClineMessage {
@@ -179,6 +176,8 @@ export type ClineAsk =
 	| "browser_action_launch"
 	| "use_mcp_server"
 	| "new_task"
+	| "condense"
+	| "report_bug"
 
 export type ClineSay =
 	| "task"
@@ -206,6 +205,7 @@ export type ClineSay =
 	| "clineignore_error"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
+	| "info" // Added for general informational messages like retry status
 
 export interface ClineSayTool {
 	tool:
@@ -274,8 +274,14 @@ export interface ClineApiReqInfo {
 	cost?: number
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
+	retryStatus?: {
+		attempt: number
+		maxAttempts: number
+		delaySec: number
+		errorSnippet?: string
+	}
 }
 
-export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
+export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"

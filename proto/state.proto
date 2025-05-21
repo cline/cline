@@ -1,0 +1,39 @@
+syntax = "proto3";
+package cline;
+
+import "common.proto";
+
+service StateService {
+  rpc getLatestState(EmptyRequest) returns (State);
+  rpc subscribeToState(EmptyRequest) returns (stream State);
+  rpc toggleFavoriteModel(StringRequest) returns (Empty);
+  rpc resetState(EmptyRequest) returns (Empty);
+  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
+  rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
+}
+
+message State {
+  string state_json = 1;
+}
+
+message TogglePlanActModeRequest {
+  Metadata metadata = 1;
+  ChatSettings chat_settings = 2;
+  optional ChatContent chat_content = 3;
+}
+
+enum PlanActMode {
+  PLAN = 0;
+  ACT = 1;
+}
+
+message ChatSettings {
+  PlanActMode mode = 1;
+  optional string preferred_language = 2;
+  optional string open_ai_reasoning_effort = 3;
+}
+
+message ChatContent {
+  optional string message = 1;
+  repeated string images = 2;
+}

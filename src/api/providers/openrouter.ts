@@ -3,7 +3,7 @@ import axios from "axios"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -35,7 +35,7 @@ export class OpenRouterHandler implements ApiHandler {
 			systemPrompt,
 			messages,
 			this.getModel(),
-			this.options.o3MiniReasoningEffort,
+			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 		)
@@ -76,6 +76,8 @@ export class OpenRouterHandler implements ApiHandler {
 			if (!didOutputUsage && chunk.usage) {
 				yield {
 					type: "usage",
+					cacheWriteTokens: 0,
+					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-ignore-next-line
@@ -103,8 +105,8 @@ export class OpenRouterHandler implements ApiHandler {
 				// console.log("OpenRouter generation details:", generation)
 				return {
 					type: "usage",
-					// cacheWriteTokens: 0,
-					// cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					cacheReadTokens: generation?.native_tokens_cached || 0,
 					// openrouter generation endpoint fails often
 					inputTokens: generation?.native_tokens_prompt || 0,
 					outputTokens: generation?.native_tokens_completion || 0,

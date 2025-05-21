@@ -1,17 +1,15 @@
-import { ModelInfo } from "../../shared/api"
-import { convertToOpenAiMessages } from "./openai-format"
-import { convertToR1Format } from "./r1-format"
-import { ApiStream, ApiStreamChunk } from "./stream"
+import { ModelInfo } from "@shared/api"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { convertToR1Format } from "@api/transform/r1-format"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { OpenRouterErrorResponse } from "../providers/types"
 
 export async function createOpenRouterStream(
 	client: OpenAI,
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
-	o3MiniReasoningEffort?: string,
+	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
 ) {
@@ -22,7 +20,8 @@ export async function createOpenRouterStream(
 	]
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
-	// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
+	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
+	// handles direct model.id match logic
 	switch (model.id) {
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
@@ -145,7 +144,7 @@ export async function createOpenRouterStream(
 		stream_options: { include_usage: true },
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
-		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
+		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 	})

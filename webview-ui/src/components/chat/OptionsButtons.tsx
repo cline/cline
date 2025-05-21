@@ -26,10 +26,12 @@ export const OptionsButtons = ({
 	options,
 	selected,
 	isActive,
+	inputValue,
 }: {
 	options?: string[]
 	selected?: string
 	isActive?: boolean
+	inputValue?: string
 }) => {
 	if (!options?.length) return null
 
@@ -49,6 +51,8 @@ export const OptionsButtons = ({
 			</div> */}
 			{options.map((option, index) => (
 				<OptionButton
+					id={`options-button-${index}`}
+					className="options-button"
 					key={index}
 					isSelected={option === selected}
 					isNotSelectable={hasSelected || !isActive}
@@ -58,10 +62,10 @@ export const OptionsButtons = ({
 						}
 						vscode.postMessage({
 							type: "optionsResponse",
-							text: option,
+							text: option + (inputValue ? `: ${inputValue?.trim()}` : ""),
 						})
 					}}>
-					{option}
+					<span className="ph-no-capture">{option}</span>
 				</OptionButton>
 			))}
 		</div>

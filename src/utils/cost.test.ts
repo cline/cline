@@ -1,7 +1,7 @@
 import { describe, it } from "mocha"
 import "should"
-import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "./cost"
-import { ModelInfo } from "../shared/api"
+import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "@utils/cost"
+import { ModelInfo } from "@shared/api"
 
 describe("Cost Utilities", () => {
 	describe("calculateApiCostAnthropic", () => {
@@ -34,7 +34,6 @@ describe("Cost Utilities", () => {
 				maxTokens: 8192,
 				contextWindow: 200_000,
 				supportsImages: true,
-				supportsComputerUse: true,
 				supportsPromptCache: true,
 				inputPrice: 3.0,
 				outputPrice: 15.0,
@@ -95,7 +94,6 @@ describe("Cost Utilities", () => {
 				maxTokens: 8192,
 				contextWindow: 200_000,
 				supportsImages: true,
-				supportsComputerUse: true,
 				supportsPromptCache: true,
 				inputPrice: 3.0,
 				outputPrice: 15.0,

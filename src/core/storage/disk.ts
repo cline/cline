@@ -2,11 +2,11 @@ import * as path from "path"
 import * as vscode from "vscode"
 import fs from "fs/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { fileExistsAtPath } from "../../utils/fs"
-import { ClineMessage } from "../../shared/ExtensionMessage"
-import { TaskMetadata } from "../context/context-tracking/ContextTrackerTypes"
+import { fileExistsAtPath } from "@utils/fs"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import os from "os"
-import { execa } from "execa"
+import { execa } from "@packages/execa"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -15,6 +15,10 @@ export const GlobalFileNames = {
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
+	workflows: ".clinerules/workflows",
+	cursorRulesDir: ".cursor/rules",
+	cursorRulesFile: ".cursorrules",
+	windsurfRules: ".windsurfrules",
 	taskMetadata: "task_metadata.json",
 }
 

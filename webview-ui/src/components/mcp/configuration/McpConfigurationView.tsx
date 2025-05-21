@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
+import { McpServiceClient } from "@/services/grpc-client"
 import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
 import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
 import InstalledServersView from "./tabs/installed/InstalledServersView"
@@ -28,9 +29,20 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 		}
 	}, [mcpMarketplaceEnabled, activeTab])
 
+	// Get setter for MCP marketplace catalog from context
+	const { setMcpMarketplaceCatalog } = useExtensionState()
+
 	useEffect(() => {
 		if (mcpMarketplaceEnabled) {
-			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
+			McpServiceClient.refreshMcpMarketplace({})
+				.then((response) => {
+					// Types are structurally identical, use response directly
+					setMcpMarketplaceCatalog(response)
+				})
+				.catch((error) => {
+					console.error("Error refreshing MCP marketplace:", error)
+				})
+
 			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
 		}
 	}, [mcpMarketplaceEnabled])

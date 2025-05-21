@@ -2,9 +2,12 @@ import axios from "axios"
 import * as vscode from "vscode"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { getTheme } from "../../integrations/theme/getTheme"
-import { Controller } from "../controller"
-import { findLast } from "../../shared/array"
+import { getTheme } from "@integrations/theme/getTheme"
+import { Controller } from "@core/controller/index"
+import { findLast } from "@shared/array"
+import { readFile } from "fs/promises"
+import path from "node:path"
+
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
@@ -146,6 +149,28 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			this.controller.clearTask()
 
 			this.outputChannel.appendLine("Webview view resolved")
+
+			// Set the title to include the keyboard shortcut
+			if (this.view && "title" in this.view) {
+				// Check if the view object has a title property
+				const isMac = process.platform === "darwin"
+				const shortcutDisplay = isMac ? " (⌘+')" : " (Ctrl+')"
+				const baseTitle = this.context.extension.packageJSON.displayName || "Cline"
+				const newTitleWithShortcut = `${baseTitle}${shortcutDisplay}`
+
+				const currentTitle = this.view.title
+
+				if (typeof currentTitle === "string") {
+					if (!currentTitle.includes(shortcutDisplay)) {
+						// Title exists and is a string, but doesn't have the shortcut
+						this.view.title = newTitleWithShortcut
+					}
+					// If it includes shortcutDisplay, do nothing
+				} else {
+					// Title is undefined or not a string (e.g., for sidebar initially)
+					this.view.title = newTitleWithShortcut
+				}
+			}
 		}
 	}
 
@@ -181,6 +206,14 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
+		const katexCssUri = getUri(webview, this.context.extensionUri, [
+			"webview-ui",
+			"node_modules",
+			"katex",
+			"dist",
+			"katex.min.css",
+		])
+
 		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
 
 		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
@@ -193,7 +226,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		/*
 				content security policy of your webview to only allow scripts that have a specific nonce
 				create a content security policy meta tag so that only loading scripts with a nonce is allowed
-				As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
+				As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicitly allow for these resources. E.g.
 								<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
 		- 'unsafe-inline' is required for styles due to vscode-webview-toolkit's dynamic style injection
 		- since we pass base64 images to the webview, we need to specify img-src ${webview.cspSource} data:;
@@ -204,24 +237,50 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
 		return /*html*/ `
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
-            <meta name="theme-color" content="#000000">
-            <link rel="stylesheet" type="text/css" href="${stylesUri}">
-            <link href="${codiconsUri}" rel="stylesheet" />
-						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';">
-            <title>Cline</title>
-          </head>
-          <body>
-            <noscript>You need to enable JavaScript to run this app.</noscript>
-            <div id="root"></div>
-            <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
-          </body>
-        </html>
-      `
+			<!DOCTYPE html>
+			<html lang="en">
+				<head>
+				<meta charset="utf-8">
+				<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+				<meta name="theme-color" content="#000000">
+				<link rel="stylesheet" type="text/css" href="${stylesUri}">
+				<link href="${codiconsUri}" rel="stylesheet" />
+				<link href="${katexCssUri}" rel="stylesheet" />
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';">
+				<title>Cline</title>
+			</head>
+			<body>
+				<noscript>You need to enable JavaScript to run this app.</noscript>
+				<div id="root"></div>
+				<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+			</body>
+		</html>
+		`
+	}
+
+	/**
+	 * Reads the Vite dev server port from the generated port file to avoid conflicts
+	 * Returns a Promise that resolves to the port number
+	 * If the file doesn't exist or can't be read, it resolves to the default port
+	 */
+	private getDevServerPort(): Promise<number> {
+		const DEFAULT_PORT = 25463
+
+		const portFilePath = path.join(__dirname, "..", "webview-ui", ".vite-port")
+
+		return readFile(portFilePath, "utf8")
+			.then((portFile) => {
+				const port = parseInt(portFile.trim()) || DEFAULT_PORT
+				console.info(`[getDevServerPort] Using dev server port ${port} from .vite-port file`)
+
+				return port
+			})
+			.catch((err) => {
+				console.warn(
+					`[getDevServerPort] Port file not found or couldn't be read at ${portFilePath}, using default port: ${DEFAULT_PORT}`,
+				)
+				return DEFAULT_PORT
+			})
 	}
 
 	/**
@@ -232,7 +291,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	 * rendered within the webview panel
 	 */
 	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
-		const localPort = 25463
+		const localPort = await this.getDevServerPort()
 		const localServerUrl = `localhost:${localPort}`
 
 		// Check if local dev server is running.
@@ -256,6 +315,15 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
+		// Get KaTeX resources
+		const katexCssUri = getUri(webview, this.context.extensionUri, [
+			"webview-ui",
+			"node_modules",
+			"katex",
+			"dist",
+			"katex.min.css",
+		])
+
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
 
@@ -271,7 +339,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 		const csp = [
 			"default-src 'none'",
-			`font-src ${webview.cspSource}`,
+			`font-src ${webview.cspSource} data:`,
 			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`img-src ${webview.cspSource} https: data:`,
 			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
@@ -282,11 +350,13 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			<!DOCTYPE html>
 			<html lang="en">
 				<head>
+					<script src="http://localhost:8097"></script> 
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUri}">
 					<link href="${codiconsUri}" rel="stylesheet" />
+					<link href="${katexCssUri}" rel="stylesheet" />
 					<title>Cline</title>
 				</head>
 				<body>
