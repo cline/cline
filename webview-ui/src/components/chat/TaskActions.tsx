@@ -29,7 +29,7 @@ export const TaskActions = ({ item, buttonsDisabled, handleCondenseContext }: Ta
 			{!!item?.size && item.size > 0 && (
 				<>
 					<IconButton
-						iconClass="codicon-file-zip"
+						iconClass="codicon-fold"
 						title={t("chat:task.condenseContext")}
 						disabled={buttonsDisabled}
 						onClick={() => handleCondenseContext(item.id)}
