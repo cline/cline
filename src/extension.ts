@@ -14,8 +14,6 @@ import { Controller } from "./core/controller"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
-// テレメトリサービスをインポート
-import { telemetryService as clineTelemetryService } from "./services/posthog/telemetry/TelemetryService"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -313,7 +311,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				Array.isArray(diagnostics) ? diagnostics : undefined,
 			)
 			const taskId = visibleWebview?.controller.task?.taskId // Corrected to use .task?.taskId
-			clineTelemetryService.captureButtonClick("codeAction_addToChat", taskId) // taskId added
+			telemetryService.captureButtonClick("codeAction_addToChat", taskId) // taskId added
 		}),
 	)
 
@@ -486,7 +484,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 			await visibleWebview?.controller.fixWithCline(selectedText, filePath, languageId, diagnostics)
 			const taskId = visibleWebview?.controller.task?.taskId
-			clineTelemetryService.captureButtonClick("codeAction_fixWithCline", taskId) // taskId added
+			telemetryService.captureButtonClick("codeAction_fixWithCline", taskId) // taskId added
 		}),
 	)
 
@@ -509,7 +507,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const prompt = `Explain the following code from ${fileMention}:\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
 			const taskId = visibleWebview?.controller.task?.taskId
-			clineTelemetryService.captureButtonClick("codeAction_explainCode", taskId) // taskId added
+			telemetryService.captureButtonClick("codeAction_explainCode", taskId) // taskId added
 		}),
 	)
 
@@ -532,7 +530,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const prompt = `Improve the following code from ${fileMention} (e.g., suggest refactorings, optimizations, or better practices):\n\`\`\`${editor.document.languageId}\n${selectedText}\n\`\`\``
 			await visibleWebview?.controller.initTask(prompt)
 			const taskId = visibleWebview?.controller.task?.taskId
-			clineTelemetryService.captureButtonClick("codeAction_improveCode", taskId) // taskId added
+			telemetryService.captureButtonClick("codeAction_improveCode", taskId) // taskId added
 		}),
 	)
 
@@ -595,7 +593,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				)
 			}
 			const taskId = activeWebviewProvider?.controller.task?.taskId
-			clineTelemetryService.captureButtonClick("command_focusChatInput", taskId)
+			telemetryService.captureButtonClick("command_focusChatInput", taskId)
 		}),
 	)
 
