@@ -42,7 +42,7 @@ message ChatContent {
 // Message for auto approval settings
 message AutoApprovalSettingsRequest {
   Metadata metadata = 1;
-  
+
   message Actions {
     bool read_files = 1;
     bool read_files_externally = 2;
