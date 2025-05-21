@@ -122,7 +122,7 @@ export class DiffViewProvider {
 		const endLine = accumulatedLines.length
 		// Replace all content up to the current line with accumulated lines.
 		const edit = new vscode.WorkspaceEdit()
-		const rangeToReplace = new vscode.Range(0, 0, endLine + 1, 0)
+		const rangeToReplace = new vscode.Range(0, 0, endLine, 0)
 		const contentToReplace = accumulatedLines.slice(0, endLine + 1).join("\n") + "\n"
 		edit.replace(document.uri, rangeToReplace, this.stripAllBOMs(contentToReplace))
 		await vscode.workspace.applyEdit(edit)
@@ -130,7 +130,10 @@ export class DiffViewProvider {
 		this.activeLineController.setActiveLine(endLine)
 		this.fadedOverlayController.updateOverlayAfterLine(endLine, document.lineCount)
 		// Scroll to the current line.
-		this.scrollEditorToLine(endLine)
+		const ranges = this.activeDiffEditor?.visibleRanges
+		if (ranges && ranges.length > 0 && ranges[0].start.line < endLine && ranges[0].end.line > endLine) {
+			this.scrollEditorToLine(endLine)
+		}
 
 		// Update the streamedLines with the new accumulated content.
 		this.streamedLines = accumulatedLines
