@@ -4,6 +4,7 @@ import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 
 import { ContextCondense } from "@roo/schemas"
 import { Markdown } from "./Markdown"
+import { ProgressIndicator } from "./ProgressIndicator"
 
 export const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, summary }: ContextCondense) => {
 	const { t } = useTranslation()
@@ -14,6 +15,19 @@ export const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, 
 			<div
 				className="flex items-center justify-between cursor-pointer select-none"
 				onClick={() => setIsExpanded(!isExpanded)}>
+				<div
+					style={{
+						width: 16,
+						height: 16,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+					}}>
+					<span
+						className={`codicon codicon-check`}
+						style={{ color: "var(--vscode-charts-green)", fontSize: 16, marginBottom: "-1.5px" }}
+					/>
+				</div>
 				<div className="flex items-center gap-2 flex-grow">
 					<span className="codicon codicon-compress text-blue-400" />
 					<span className="font-bold text-vscode-foreground">{t("chat:contextCondense.title")}</span>
@@ -30,6 +44,17 @@ export const ContextCondenseRow = ({ cost, prevContextTokens, newContextTokens, 
 					<Markdown markdown={summary} />
 				</div>
 			)}
+		</div>
+	)
+}
+
+export const CondensingContextRow = () => {
+	const { t } = useTranslation()
+	return (
+		<div className="flex items-center gap-2">
+			<ProgressIndicator />
+			<span className="codicon codicon-compress text-blue-400" />
+			<span className="font-bold text-vscode-foreground">{t("chat:contextCondense.condensing")}</span>
 		</div>
 	)
 }

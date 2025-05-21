@@ -32,7 +32,7 @@ import { Markdown } from "./Markdown"
 import { CommandExecution } from "./CommandExecution"
 import { CommandExecutionError } from "./CommandExecutionError"
 import { AutoApprovedRequestLimitWarning } from "./AutoApprovedRequestLimitWarning"
-import { ContextCondenseRow } from "./ContextCondenseRow"
+import { CondensingContextRow, ContextCondenseRow } from "./ContextCondenseRow"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -929,6 +929,9 @@ export const ChatRowContent = ({
 						/>
 					)
 				case "condense_context":
+					if (message.partial) {
+						return <CondensingContextRow />
+					}
 					return message.contextCondense ? <ContextCondenseRow {...message.contextCondense} /> : null
 				default:
 					return (

@@ -201,6 +201,7 @@
 	},
 	"contextCondense": {
 		"title": "Bağlam Özetlendi",
+		"condensing": "Bağlam yoğunlaştırılıyor...",
 		"tokens": "token"
 	},
 	"followUpSuggest": {

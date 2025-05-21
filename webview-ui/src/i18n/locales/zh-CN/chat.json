@@ -201,6 +201,7 @@
 	},
 	"contextCondense": {
 		"title": "上下文已压缩",
+		"condensing": "正在压缩上下文...",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

@@ -201,6 +201,7 @@
 	},
 	"contextCondense": {
 		"title": "Kontext komprimiert",
+		"condensing": "Kontext wird komprimiert...",
 		"tokens": "Tokens"
 	},
 	"followUpSuggest": {

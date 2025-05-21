@@ -211,6 +211,7 @@
 	},
 	"contextCondense": {
 		"title": "Context samengevat",
+		"condensing": "Context aan het samenvatten...",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

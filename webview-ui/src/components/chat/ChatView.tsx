@@ -979,8 +979,18 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			result.push([...currentGroup])
 		}
 
+		if (isCondensing) {
+			// Show indicator after clicking condense button
+			result.push({
+				type: "say",
+				say: "condense_context",
+				ts: Date.now(),
+				partial: true,
+			})
+		}
+
 		return result
-	}, [visibleMessages])
+	}, [isCondensing, visibleMessages])
 
 	// scrolling
 

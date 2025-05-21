@@ -132,6 +132,7 @@
 	},
 	"contextCondense": {
 		"title": "Context Condensed",
+		"condensing": "Condensing context...",
 		"tokens": "tokens"
 	},
 	"instructions": {

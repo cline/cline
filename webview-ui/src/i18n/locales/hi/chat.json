@@ -201,6 +201,7 @@
 	},
 	"contextCondense": {
 		"title": "संदर्भ संक्षिप्त किया गया",
+		"condensing": "संदर्भ संघनित कर रहा है...",
 		"tokens": "टोकन"
 	},
 	"followUpSuggest": {

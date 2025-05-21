@@ -201,6 +201,7 @@
 	},
 	"contextCondense": {
 		"title": "Ngữ cảnh đã tóm tắt",
+		"condensing": "Đang cô đọng ngữ cảnh...",
 		"tokens": "token"
 	},
 	"followUpSuggest": {

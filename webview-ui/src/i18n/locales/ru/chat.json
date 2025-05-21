@@ -211,6 +211,7 @@
 	},
 	"contextCondense": {
 		"title": "Контекст сжат",
+		"condensing": "Сжатие контекста...",
 		"tokens": "токены"
 	},
 	"followUpSuggest": {

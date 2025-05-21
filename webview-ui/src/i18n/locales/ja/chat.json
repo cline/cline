@@ -201,6 +201,7 @@
 	},
 	"contextCondense": {
 		"title": "コンテキスト要約",
+		"condensing": "コンテキストを圧縮中...",
 		"tokens": "トークン"
 	},
 	"followUpSuggest": {

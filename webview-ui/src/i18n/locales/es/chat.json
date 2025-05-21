@@ -201,6 +201,7 @@
 	},
 	"contextCondense": {
 		"title": "Contexto condensado",
+		"condensing": "Condensando contexto...",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {
