@@ -390,7 +390,7 @@ export class Controller {
 				if (workflowPath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
 					if (isGlobal) {
 						const globalWorkflowToggles =
-							((await getGlobalState(context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
+							((await getGlobalState(this.context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
 						globalWorkflowToggles[workflowPath] = enabled
 						await updateGlobalState(this.context, "globalWorkflowToggles", globalWorkflowToggles)
 						await this.postStateToWebview()
