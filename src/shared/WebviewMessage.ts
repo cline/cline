@@ -42,7 +42,6 @@ export interface WebviewMessage {
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleWorkflow"
-		| "updateTerminalConnectionTimeout"
 
 	text?: string
 	disabled?: boolean

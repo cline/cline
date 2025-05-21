@@ -9,6 +9,7 @@ service StateService {
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(EmptyRequest) returns (Empty);
   rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
+  rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
 }
 
 message State {

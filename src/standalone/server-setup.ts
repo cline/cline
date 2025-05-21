@@ -61,6 +61,7 @@ import { subscribeToState } from "../core/controller/state/subscribeToState"
 import { toggleFavoriteModel } from "../core/controller/state/toggleFavoriteModel"
 import { resetState } from "../core/controller/state/resetState"
 import { togglePlanActMode } from "../core/controller/state/togglePlanActMode"
+import { updateTerminalConnectionTimeout } from "../core/controller/state/updateTerminalConnectionTimeout"
 
 // Task Service
 import { cancelTask } from "../core/controller/task/cancelTask"
@@ -162,6 +163,7 @@ export function addServices(
 		toggleFavoriteModel: wrapper(toggleFavoriteModel, controller),
 		resetState: wrapper(resetState, controller),
 		togglePlanActMode: wrapper(togglePlanActMode, controller),
+		updateTerminalConnectionTimeout: wrapper(updateTerminalConnectionTimeout, controller),
 	})
 
 	// Task Service
