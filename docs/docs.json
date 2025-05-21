@@ -74,6 +74,7 @@
 			{
 				"group": "Features",
 				"pages": [
+					"features/plan-and-act",
 					"features/cline-rules",
 					"features/slash-commands/workflows",
 					{
@@ -84,6 +85,17 @@
 							"features/slash-commands/smol",
 							"features/slash-commands/report-bug"
 						]
+					},
+					{
+						"group": "@ Mentions",
+						"pages": [
+							"features/at-mentions/overview",
+							"features/at-mentions/file-mentions",
+							"features/at-mentions/terminal-mentions",
+							"features/at-mentions/problem-mentions",
+							"features/at-mentions/git-mentions",
+							"features/at-mentions/url-mentions"
+						]
 					}
 				]
 			},
@@ -91,7 +103,6 @@
 				"group": "Exploring Cline's Tools",
 				"pages": [
 					"exploring-clines-tools/cline-tools-guide",
-					"exploring-clines-tools/plan-and-act-modes-a-guide-to-effective-ai-development",
 					"exploring-clines-tools/checkpoints",
 					"exploring-clines-tools/new-task-tool",
 					"exploring-clines-tools/remote-browser-support",

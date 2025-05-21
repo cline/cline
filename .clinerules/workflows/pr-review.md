@@ -1,175 +1,124 @@
----
-title: "Workflows"
-sidebarTitle: "Workflows"
----
-
-Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks, such as deploying a service or submitting a PR.
-
-To invoke a workflow, type `/[workflow-name.md]` in the chat.
-
-## How to Create and Use Workflows
-
-Workflows live alongside Cline Rules. Creating one is straightforward:
-
-<Frame>
-	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/workflows.png" alt="Workflows tab in Cline" />
-</Frame>
-
-1. Create a markdown file with clear instructions for the steps Cline should take
-2. Save it with a `.md` extension in your workflows directory
-3. To trigger a workflow, just type `/` followed by the workflow filename
-4. Provide any required parameters when prompted
-
-The real power comes from how you structure your workflow files. You can:
-
--   Leverage Cline's built-in tools like `ask_followup_question`, `read_file`, and `search_files`
--   Use command-line tools you already have installed like `gh` or `docker`
--   Reference external MCP tool calls like Slack or Whatsapp
--   Chain multiple actions together in a specific sequence
-
-## Real-world Example
-
-I created a PR Review workflow that's already saving me tons of time.
-
-````md pr-review.md [expandable]
 You have access to the `gh` terminal command. I already authenticated it for you. Please review it to use the PR that I asked you to review. You're already in the `cline` repo.
 
 <detailed_sequence_of_steps>
-
 # GitHub PR Review Process - Detailed Sequence of Steps
 
 ## 1. Gather PR Information
-
 1. Get the PR title, description, and comments:
-
-    ```bash
-    gh pr view <PR-number> --json title,body,comments
-    ```
+   ```bash
+   gh pr view <PR-number> --json title,body,comments
+   ```
 
 2. Get the full diff of the PR:
-    ```bash
-    gh pr diff <PR-number>
-    ```
+   ```bash
+   gh pr diff <PR-number>
+   ```
 
 ## 2. Understand the Context
-
 1. Identify which files were modified in the PR:
-
-    ```bash
-    gh pr view <PR-number> --json files
-    ```
+   ```bash
+   gh pr view <PR-number> --json files
+   ```
 
 2. Examine the original files in the main branch to understand the context:
-
-    ```xml
-    <read_file>
-    <path>path/to/file</path>
-    </read_file>
-    ```
+   ```xml
+   <read_file>
+   <path>path/to/file</path>
+   </read_file>
+   ```
 
 3. For specific sections of a file, you can use search_files:
-    ```xml
-    <search_files>
-    <path>path/to/directory</path>
-    <regex>search term</regex>
-    <file_pattern>*.ts</file_pattern>
-    </search_files>
-    ```
+   ```xml
+   <search_files>
+   <path>path/to/directory</path>
+   <regex>search term</regex>
+   <file_pattern>*.ts</file_pattern>
+   </search_files>
+   ```
 
 ## 3. Analyze the Changes
-
 1. For each modified file, understand:
-
-    - What was changed
-    - Why it was changed (based on PR description)
-    - How it affects the codebase
-    - Potential side effects
+   - What was changed
+   - Why it was changed (based on PR description)
+   - How it affects the codebase
+   - Potential side effects
 
 2. Look for:
-    - Code quality issues
-    - Potential bugs
-    - Performance implications
-    - Security concerns
-    - Test coverage
+   - Code quality issues
+   - Potential bugs
+   - Performance implications
+   - Security concerns
+   - Test coverage
 
 ## 4. Ask for User Confirmation
-
 1. Before making a decision, ask the user if you should approve the PR, providing your assessment and justification:
-
-    ```xml
-    <ask_followup_question>
-    <question>Based on my review of PR #<PR-number>, I recommend [approving/requesting changes]. Here's my justification:
-
-    [Detailed justification with key points about the PR quality, implementation, and any concerns]
-
-    Would you like me to proceed with this recommendation?</question>
-    <options>["Yes, approve the PR", "Yes, request changes", "No, I'd like to discuss further"]</options>
-    </ask_followup_question>
-    ```
+   ```xml
+   <ask_followup_question>
+   <question>Based on my review of PR #<PR-number>, I recommend [approving/requesting changes]. Here's my justification:
+   
+   [Detailed justification with key points about the PR quality, implementation, and any concerns]
+   
+   Would you like me to proceed with this recommendation?</question>
+   <options>["Yes, approve the PR", "Yes, request changes", "No, I'd like to discuss further"]</options>
+   </ask_followup_question>
+   ```
 
 ## 5. Ask if User Wants a Comment Drafted
-
 1. After the user decides on approval/rejection, ask if they would like a comment drafted:
-
-    ```xml
-    <ask_followup_question>
-    <question>Would you like me to draft a comment for this PR that you can copy and paste?</question>
-    <options>["Yes, please draft a comment", "No, I'll handle the comment myself"]</options>
-    </ask_followup_question>
-    ```
+   ```xml
+   <ask_followup_question>
+   <question>Would you like me to draft a comment for this PR that you can copy and paste?</question>
+   <options>["Yes, please draft a comment", "No, I'll handle the comment myself"]</options>
+   </ask_followup_question>
+   ```
 
 2. If the user wants a comment drafted, provide a well-structured comment they can copy:
+   ```
+   Thank you for this PR! Here's my assessment:
 
-    ```
-    Thank you for this PR! Here's my assessment:
+   [Detailed assessment with key points about the PR quality, implementation, and any suggestions]
 
-    [Detailed assessment with key points about the PR quality, implementation, and any suggestions]
-
-    [Include specific feedback on code quality, functionality, and testing]
-    ```
+   [Include specific feedback on code quality, functionality, and testing]
+   ```
 
 ## 6. Make a Decision
-
 1. Approve the PR if it meets quality standards:
+   ```bash
+   # For single-line comments:
+   gh pr review <PR-number> --approve --body "Your approval message"
+   
+   # For multi-line comments with proper whitespace formatting:
+   cat << EOF | gh pr review <PR-number> --approve --body-file -
+   Thanks @username for this PR! The implementation looks good.
 
-    ```bash
-    # For single-line comments:
-    gh pr review <PR-number> --approve --body "Your approval message"
+   I particularly like how you've handled X and Y.
 
-    # For multi-line comments with proper whitespace formatting:
-    cat << EOF | gh pr review <PR-number> --approve --body-file -
-    Thanks @username for this PR! The implementation looks good.
-
-    I particularly like how you've handled X and Y.
-
-    Great work!
-    EOF
-    ```
+   Great work!
+   EOF
+   ```
 
 2. Request changes if improvements are needed:
+   ```bash
+   # For single-line comments:
+   gh pr review <PR-number> --request-changes --body "Your feedback message"
+   
+   # For multi-line comments with proper whitespace formatting:
+   cat << EOF | gh pr review <PR-number> --request-changes --body-file -
+   Thanks @username for this PR!
 
-    ```bash
-    # For single-line comments:
-    gh pr review <PR-number> --request-changes --body "Your feedback message"
+   The implementation looks promising, but there are a few things to address:
 
-    # For multi-line comments with proper whitespace formatting:
-    cat << EOF | gh pr review <PR-number> --request-changes --body-file -
-    Thanks @username for this PR!
+   1. Issue one
+   2. Issue two
 
-    The implementation looks promising, but there are a few things to address:
+   Please make these changes and we can merge this.
+   EOF
+   ```
 
-    1. Issue one
-    2. Issue two
-
-    Please make these changes and we can merge this.
-    EOF
-    ```
-
-    Note: The `cat << EOF | ... --body-file -` approach preserves all whitespace and formatting without requiring temporary files. The `-` parameter tells the command to read from standard input.
-    </detailed_sequence_of_steps>
+   Note: The `cat << EOF | ... --body-file -` approach preserves all whitespace and formatting without requiring temporary files. The `-` parameter tells the command to read from standard input.
+</detailed_sequence_of_steps>
 
 <example_review_process>
-
 # Example PR Review Process
 
 Let's walk through a real example of reviewing PR #3627 which fixes the thinking mode calculation for Claude 3.7 models.
@@ -263,15 +212,12 @@ I particularly like:
 Great work!
 EOF
 ```
-
 </example_review_process>
 
 <common_gh_commands>
-
 # Common GitHub CLI Commands for PR Review
 
 ## Basic PR Commands
-
 ```bash
 # List open PRs
 gh pr list
@@ -287,7 +233,6 @@ gh pr status
 ```
 
 ## Diff and File Commands
-
 ```bash
 # Get the full diff of a PR
 gh pr diff <PR-number>
@@ -300,7 +245,6 @@ gh pr checkout <PR-number>
 ```
 
 ## Review Commands
-
 ```bash
 # Approve a PR (single-line comment)
 gh pr review <PR-number> --approve --body "Your approval message"
@@ -337,7 +281,6 @@ EOF
 ```
 
 ## Additional Commands
-
 ```bash
 # View PR checks status
 gh pr checks <PR-number>
@@ -348,11 +291,10 @@ gh pr view <PR-number> --json commits
 # Merge a PR (if you have permission)
 gh pr merge <PR-number> --merge
 ```
-
 </common_gh_commands>
 
 <general_guidelines_for_commenting>
-When reviewing a PR, please talk normally and like a friendly reviwer. You should keep it short, and start out by thanking the author of the pr and @ mentioning them.
+When reviewing a PR, please talk normally and like a friendly reviwer. You should keep it short, and start out by thanking the author of the pr and @ mentioning them. 
 
 Whether or not you approve the PR, you should then give a quick summary of the changes without being too verbose or definitive, staying humble like that this is your understanding of the changes. Kind of how I'm talking to you right now.
 
@@ -387,18 +329,17 @@ Could you add back the timeouts after focusing the sidebar? Something like:
 
 ```typescript
 await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-await setTimeoutPromise(100) // Give UI time to update
+await setTimeoutPromise(100)  // Give UI time to update
 visibleWebview = WebviewProvider.getSidebarInstance()
 ```
-
 </request_changes_comment>
 <request_changes_comment>
-Heya @alejandropta thanks for working on this!
+Heya @alejandropta thanks for working on this! 
 
 A few notes:
-1 - Adding additional info to the environment variables is fairly problematic because env variables get appended to **every single message**. I don't think this is justifiable for a somewhat niche use case.
+1 - Adding additional info to the environment variables is fairly problematic because env variables get appended to **every single message**. I don't think this is justifiable for a somewhat niche use case. 
 2 - Adding this option to settings to include that could be an option, but we want our options to be simple and straightforward for new users
-3 - We're working on revisualizing the way our settings page is displayed/organized, and this could potentially be reconciled once that is in and our settings page is more clearly delineated.
+3 - We're working on revisualizing the way our settings page is displayed/organized, and this could potentially be reconciled once that is in and our settings page is more clearly delineated. 
 
 So until the settings page is update, and this is added to settings in a way that's clean and doesn't confuse new users, I don't think we can merge this. Please bear with us.
 </request_changes_comment>
@@ -408,38 +349,3 @@ Also, don't forget to add a changeset since this fixes a user-facing bug.
 The architectural change is solid - moving the focus logic to the command handlers makes sense. Just don't want to introduce subtle timing issues by removing those timeouts.
 </request_changes_comment>
 </example_comments_that_i_have_written_before>
-````
-
-When I get a new PR to review, I used to manually gather context: checking the PR description, examining the diff, looking at surrounding files, and finally forming an opinion. Now I just:
-
-1. Type `/pr-review.md` in chat
-2. Paste in the PR number
-3. Let Cline handle everything else
-
-My workflow uses the `gh` command-line tool to:
-
--   Pull the PR description and comments
--   Examine the diff
--   Check surrounding files for context
--   Analyze potential issues
--   Asks me if it's cool approve it if everything looks good, with justification for why it should be approved
--   If I say "yes," Cline automatically approves the PR with the `gh` command
-
-This has taken my PR review process from a manual, multi-step operation to a single command that gives me everything I need to make an informed decision.
-
-> This is just one example of a workflow file. You can find more in our [prompts repository](https://github.com/cline/prompts) for inspiration.
-
-## Building Your Own Workflows
-
-The beauty of workflows is they're completely customizable to your needs. You might create workflows for all kinds of repetitive tasks:
-
--   For releases, you could have a workflow that grabs all merged PRs, builds a changelog, and handles version bumps.
--   Setting up new projects is perfect for workflows. Just run one command to create your folder structure, install dependencies, and set up configs.
--   Need to create a report? Create a workflow that grabs stats from different sources and formats them exactly how you like. You can even visualize them with a charting library and then make a presentation out of it with a library like [slidev](https://sli.dev/).
--   You can even use workflows to draft messages to your team using an MCP server like Slack or Whatsapp after you submit a PR.
-
-With Workflows, your imagination is the limit. The true potential comes from spotting those annoying repetitive tasks you do all the time.
-
-If you can describe something as "first I do X, then Y, then Z" - that's a perfect workflow candidate.
-
-Start with something small that bugs you, turn it into a workflow, and keep refining it. You'll be shocked how much of your day can be automated this way.
