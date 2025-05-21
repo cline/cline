@@ -99,14 +99,24 @@ export class LiteLlmHandler implements ApiHandler {
 			return message
 		})
 
-		const stream = await this.client.chat.completions.create({
+		const requestPayload: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
 			stream: true,
 			stream_options: { include_usage: true },
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
-		})
+		}
+
+		if (this.options.taskId) {
+			// LiteLLM expects metadata as an additional field in the payload.
+			// Using 'as any' if the OpenAI SDK type doesn't directly include 'metadata'.
+			;(requestPayload as any).metadata = {
+				cline_task_id: this.options.taskId,
+			}
+		}
+
+		const stream = await this.client.chat.completions.create(requestPayload)
 
 		const inputCost = (await this.calculateCost(1e6, 0)) || 0
 		const outputCost = (await this.calculateCost(0, 1e6)) || 0
