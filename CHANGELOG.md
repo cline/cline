@@ -1,28 +1,11 @@
 # Changelog
 
-## 3.17.0
+## [3.17.0]
 
--   ee9ddef: Put all the navigation state and message handling and navigation functions in the extension state context instead of the app.tsx
--   c7c1d37: Migrate setActiveQuote to protobus
--   78c3c5e: Migrate toggleToolAutoApprove to protobus
--   7a24c10: Migrate toggleClineRule to protobus
--   7fe7605: Migrate updateTerminalConnectionTimeout to protobus
--   c47503a: migrate accountLogoutClicked to protobus
--   f0e3524: Migrate toggleWindsurfRule to protobus
--   43357c1: Migrate restartMcpServer to protobus
--   1de02e9: Migrate silentlyRefreshMcpMarketplace to protobus
--   14a056e: Migrate toggleCursorRule to protobus
--   5efbf77: Migrate the deleteMcpServer message to protobus
--   6938809: Fix edge case of changing language in settings
--   fe13ce8: feat: added gemini flash 05-20
--   c3caec2: togglePlanActMode protobus migration
--   eb19731: taskCompletionViewChanges protobus migration
--   644280b: copyToClipboard protobus migration
--   b737911: Fixing bug in toggle plan and act
--   086879d: scrollToSetting protobus migration
--   08d4240: openMention protobus migration
--   e6da7c7: browserRelaunchResult protobus migration
--   6b243ee: Remind VS code users of clines existence(Open Cline on AutoUpdate+KeyboardShortcuts+Lightbulb icons)
+-   Add support for Gemini 2.5 Flash Preview 05-20 model to Vertex AI provider with massive 1M token context window
+-   Add keyboard shortcut (Cmd+Shift+L) to quickly focus Cline from anywhere in VS Code
+-   Add lightbulb actions for selected text with options to "Add to Cline", "Explain with Cline", and "Improve with Cline"
+-   Automatically focus Cline window after extension updates
 
 ## [3.16.1]
 
