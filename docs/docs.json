@@ -74,9 +74,22 @@
 			{
 				"group": "Features",
 				"pages": [
+					"features/auto-approve",
 					"features/plan-and-act",
 					"features/cline-rules",
 					"features/slash-commands/workflows",
+					"features/drag-and-drop",
+					{
+						"group": "@ Mentions",
+						"pages": [
+							"features/at-mentions/overview",
+							"features/at-mentions/file-mentions",
+							"features/at-mentions/terminal-mentions",
+							"features/at-mentions/problem-mentions",
+							"features/at-mentions/git-mentions",
+							"features/at-mentions/url-mentions"
+						]
+					},
 					{
 						"group": "Slash Commands",
 						"pages": [
@@ -87,14 +100,13 @@
 						]
 					},
 					{
-						"group": "@ Mentions",
+						"group": "Commands & Shortcuts",
 						"pages": [
-							"features/at-mentions/overview",
-							"features/at-mentions/file-mentions",
-							"features/at-mentions/terminal-mentions",
-							"features/at-mentions/problem-mentions",
-							"features/at-mentions/git-mentions",
-							"features/at-mentions/url-mentions"
+							"features/commands-and-shortcuts/overview",
+							"features/commands-and-shortcuts/code-commands",
+							"features/commands-and-shortcuts/terminal-integration",
+							"features/commands-and-shortcuts/git-integration",
+							"features/commands-and-shortcuts/keyboard-shortcuts"
 						]
 					}
 				]
