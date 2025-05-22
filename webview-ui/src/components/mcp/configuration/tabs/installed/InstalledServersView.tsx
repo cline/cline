@@ -1,9 +1,12 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+
+import { UiServiceClient } from "@/services/grpc-client"
+
 import ServersToggleList from "./ServersToggleList"
 const InstalledServersView = () => {
-	const { mcpServers: servers } = useExtensionState()
+	const { mcpServers: servers, navigateToSettings } = useExtensionState()
 
 	return (
 		<div style={{ padding: "16px 20px" }}>
@@ -46,10 +49,17 @@ const InstalledServersView = () => {
 				<div style={{ textAlign: "center" }}>
 					<VSCodeLink
 						onClick={() => {
-							vscode.postMessage({
-								type: "openExtensionSettings",
-								text: "cline.mcp",
-							})
+							// First open the settings panel using direct navigation
+							navigateToSettings()
+
+							// After a short delay, send a message to scroll to browser settings
+							setTimeout(async () => {
+								try {
+									await UiServiceClient.scrollToSettings({ value: "features" })
+								} catch (error) {
+									console.error("Error scrolling to mcp settings:", error)
+								}
+							}, 300)
 						}}
 						style={{ fontSize: "12px" }}>
 						Advanced MCP Settings
