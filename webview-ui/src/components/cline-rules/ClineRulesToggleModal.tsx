@@ -22,7 +22,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
-		setWorkflowToggles,
+		setLocalWorkflowsToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -50,7 +50,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						setLocalWindsurfRulesToggles(response.localWindsurfRulesToggles.toggles)
 					}
 					if (response.workflowToggles?.toggles) {
-						setWorkflowToggles(response.workflowToggles.toggles)
+						setLocalWorkflowsToggles(response.workflowToggles.toggles)
 					}
 				})
 				.catch((error) => {
@@ -134,11 +134,18 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {
-		vscode.postMessage({
-			type: "toggleWorkflow",
+		FileServiceClient.toggleWorkflow({
 			workflowPath,
 			enabled,
 		})
+			.then((response) => {
+				if (response.toggles) {
+					setLocalWorkflowsToggles(response.toggles)
+				}
+			})
+			.catch((err: Error) => {
+				console.error("Failed to toggle workflow:", err)
+			})
 	}
 
 	// Close modal when clicking outside

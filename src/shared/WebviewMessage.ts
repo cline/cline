@@ -34,7 +34,6 @@ export interface WebviewMessage {
 		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleWorkflow"
 
 	text?: string
 	disabled?: boolean

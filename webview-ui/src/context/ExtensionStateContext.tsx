@@ -56,7 +56,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
-	setWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setLocalWorkflowsToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 
 	// Navigation state setters
@@ -544,11 +544,12 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				localWindsurfRulesToggles: toggles,
 			})),
-		setWorkflowToggles: (toggles) =>
+		setLocalWorkflowsToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
 				workflowToggles: toggles,
 			})),
+
 		setMcpTab,
 	}
 
