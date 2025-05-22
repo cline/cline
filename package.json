@@ -50,8 +50,21 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
-					"icon": "assets/icons/icon.svg"
+					"title": "Cline (⌘+')",
+					"icon": "assets/icons/icon.svg",
+					"when": "isMac"
+				},
+				{
+					"id": "claude-dev-ActivityBar",
+					"title": "Cline (Ctrl+')",
+					"icon": "assets/icons/icon.svg",
+					"when": "isWindows"
+				},
+				{
+					"id": "claude-dev-ActivityBar",
+					"title": "Cline (Ctrl+')",
+					"icon": "assets/icons/icon.svg",
+					"when": "isLinux || !isMac && !isWindows"
 				}
 			]
 		},
