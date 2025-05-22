@@ -47,6 +47,8 @@ import {
 	askSageDefaultURL,
 	xaiDefaultModelId,
 	xaiModels,
+	nebiusModels,
+	nebiusDefaultModelId,
 	sambanovaModels,
 	sambanovaDefaultModelId,
 	doubaoModels,
@@ -324,6 +326,7 @@ const ApiOptions = ({
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
@@ -1884,6 +1887,52 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "nebius" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.nebiusApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("nebiusApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Nebius API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.{" "}
+						{!apiConfiguration?.nebiusApiKey && (
+							<VSCodeLink
+								href="https://studio.nebius.com/settings/api-keys"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Nebius API key by signing up here.{" "}
+							</VSCodeLink>
+						)}
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
+			{apiErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{apiErrorMessage}
+				</p>
+			)}
+
 			{selectedProvider === "xai" && (
 				<div>
 					<VSCodeTextField
@@ -1900,6 +1949,10 @@ const ApiOptions = ({
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.xaiApiKey && (
 							<VSCodeLink href="https://x.ai" style={{ display: "inline", fontSize: "inherit" }}>
@@ -2072,6 +2125,7 @@ const ApiOptions = ({
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
+							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
@@ -2488,6 +2542,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "nebius":
+			return getProviderData(nebiusModels, nebiusDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		default:

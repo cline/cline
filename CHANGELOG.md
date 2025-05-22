@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.16.3]
+
+-   Add devstral-small-2505 to the Mistral model list, a new specialized coding model from Mistral AI (Thanks @BarreiroT!)
+-   Add documentation links to rules & workflows UI
+-   Add support for Streameable HTTP Transport for MCPs (Thanks @alejandropta!)
+-   Improve error handling for Mistral SDK API
+
 ## [3.16.2]
 
 -   Add support for Gemini 2.5 Flash Preview 05-20 model to Vertex AI provider with massive 1M token context window (Thanks @omercelik!)
