@@ -42,19 +42,6 @@ const InstalledServersView = () => {
 					<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
 					Configure MCP Servers
 				</VSCodeButton>
-
-				<div style={{ textAlign: "center" }}>
-					<VSCodeLink
-						onClick={() => {
-							vscode.postMessage({
-								type: "openExtensionSettings",
-								text: "cline.mcp",
-							})
-						}}
-						style={{ fontSize: "12px" }}>
-						Advanced MCP Settings
-					</VSCodeLink>
-				</div>
 			</div>
 		</div>
 	)
