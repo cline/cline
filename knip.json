@@ -10,7 +10,7 @@
 		"**/*.test.tsx",
 		"**/stories/**",
 		"bin/**",
-		"e2e/**",
+		"apps/vscode-e2e/**",
 		"evals/**",
 		"src/activate/**",
 		"src/exports/**",

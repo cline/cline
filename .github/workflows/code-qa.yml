@@ -159,8 +159,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
       - name: Create .env.local file
-        working-directory: e2e
+        working-directory: apps/vscode-e2e
         run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.local
       - name: Run integration tests
-        working-directory: e2e
+        working-directory: apps/vscode-e2e
         run: xvfb-run -a pnpm test:ci
