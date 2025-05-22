@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.17.0
+
+### Minor Changes
+
+-   6835870: Sonnet 4 UI copy updates
+-   b97e57f: integration with nebius ai studio
+-   58f80d4: remove proto file
+-   0c30612: Migrate didShowAnnouncement message to protobus
+
+### Patch Changes
+
+-   0200286: when the assistant says to act mode we render a custom highlight with hotkey suggestion
+-   c511b91: New settings page split into tabs
+-   331da0f: no longer requires `transportType` property to be set in MCP Server configuration.
+-   782ed7f: autoApprovalSettings protobus migration
+-   c3b556d: Remove advanced settings banner
+-   a48c37e: Fix model listing for Requesty
+-   efb6ae1: Change the extension title name wording
+-   97139f7: added cancel button with alert dialogue popup to settings view
+
 ## [3.16.3]
 
 -   Add devstral-small-2505 to the Mistral model list, a new specialized coding model from Mistral AI (Thanks @BarreiroT!)
