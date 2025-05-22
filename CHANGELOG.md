@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.17.1]
+
+-   Add prompt caching for Claude 4 models on Cline and OpenRouter providers
+-   Increase max tokens for Claude Opus 4 from 4096 to 8192
+
 ## [3.17.0]
 
 -   Add support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and Vertex providers
