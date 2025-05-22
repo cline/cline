@@ -11,11 +11,14 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscod
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
+import { TelemetrySettingEnum } from "@shared/proto/state"
+import FeatureSettingsSection from "./FeatureSettingsSection"
+import BrowserSettingsSection from "./BrowserSettingsSection"
+import TerminalSettingsSection from "./TerminalSettingsSection"
+import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import ApiOptions from "./ApiOptions"
-import BrowserSettingsSection from "./BrowserSettingsSection"
-import FeatureSettingsSection from "./FeatureSettingsSection"
 import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
@@ -749,14 +752,138 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					)
 				})()}
 			</div>
+			<div className="grow overflow-y-scroll pr-2 flex flex-col">
+				{/* Tabs container */}
+				{planActSeparateModelsSetting ? (
+					<div className="border border-solid border-[var(--vscode-panel-border)] rounded-md p-[10px] mb-5 bg-[var(--vscode-panel-background)]">
+						<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
+							<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
+								Plan Mode
+							</TabButton>
+							<TabButton isActive={chatSettings.mode === "act"} onClick={() => handleTabChange("act")}>
+								Act Mode
+							</TabButton>
+						</div>
 
-			{/* Unsaved Changes Dialog */}
-			<UnsavedChangesDialog
-				open={isUnsavedChangesDialogOpen}
-				onOpenChange={setIsUnsavedChangesDialogOpen}
-				onConfirm={handleConfirmDiscard}
-				onCancel={handleCancelDiscard}
-			/>
+						{/* Content container */}
+						<div className="-mb-3">
+							<ApiOptions
+								key={chatSettings.mode}
+								showModelOptions={true}
+								apiErrorMessage={apiErrorMessage}
+								modelIdErrorMessage={modelIdErrorMessage}
+							/>
+						</div>
+					</div>
+				) : (
+					<ApiOptions
+						key={"single"}
+						showModelOptions={true}
+						apiErrorMessage={apiErrorMessage}
+						modelIdErrorMessage={modelIdErrorMessage}
+					/>
+				)}
+
+				<div className="mb-[5px]">
+					<VSCodeTextArea
+						value={customInstructions ?? ""}
+						className="w-full"
+						resize="vertical"
+						rows={4}
+						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
+						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
+						<span className="font-medium">Custom Instructions</span>
+					</VSCodeTextArea>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						These instructions are added to the end of the system prompt sent with every request.
+					</p>
+				</div>
+
+				{chatSettings && <PreferredLanguageSetting chatSettings={chatSettings} setChatSettings={setChatSettings} />}
+
+				<div className="mb-[5px]">
+					<VSCodeCheckbox
+						className="mb-[5px]"
+						checked={planActSeparateModelsSetting}
+						onChange={(e: any) => {
+							const checked = e.target.checked === true
+							setPlanActSeparateModelsSetting(checked)
+						}}>
+						Use different models for Plan and Act modes
+					</VSCodeCheckbox>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
+						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
+					</p>
+				</div>
+
+				<div className="mb-[5px]">
+					<VSCodeCheckbox
+						className="mb-[5px]"
+						checked={telemetrySetting === "enabled"}
+						onChange={async (e: any) => {
+							const checked = e.target.checked === true
+							const newSetting = checked ? "enabled" : "disabled"
+							setTelemetrySetting(newSetting)
+
+							try {
+								await StateServiceClient.updateTelemetrySetting({
+									setting: checked ? TelemetrySettingEnum.ENABLED : TelemetrySettingEnum.DISABLED,
+								})
+							} catch (error) {
+								console.error("Error updating telemetry setting:", error)
+							}
+						}}>
+						Allow anonymous error and usage reporting
+					</VSCodeCheckbox>
+					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						Help improve Cline by sending anonymous usage data and error reports. No code, prompts, or personal
+						information are ever sent. See our{" "}
+						<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" className="text-inherit">
+							telemetry overview
+						</VSCodeLink>{" "}
+						and{" "}
+						<VSCodeLink href="https://cline.bot/privacy" className="text-inherit">
+							privacy policy
+						</VSCodeLink>{" "}
+						for more details.
+					</p>
+				</div>
+
+				{/* Feature Settings Section */}
+				<FeatureSettingsSection />
+
+				{/* Browser Settings Section */}
+				<BrowserSettingsSection />
+
+				{/* Terminal Settings Section */}
+				<TerminalSettingsSection />
+
+				{IS_DEV && (
+					<>
+						<div className="mt-[10px] mb-1">Debug</div>
+						<VSCodeButton
+							onClick={handleResetState}
+							className="mt-[5px] w-auto"
+							style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
+							Reset State
+						</VSCodeButton>
+						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+							This will reset all global state and secret storage in the extension.
+						</p>
+					</>
+				)}
+
+				<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
+					<p className="break-words m-0 p-0">
+						If you have any questions or feedback, feel free to open an issue at{" "}
+						<VSCodeLink href="https://github.com/cline/cline" className="inline">
+							https://github.com/cline/cline
+						</VSCodeLink>
+					</p>
+					<p className="italic mt-[10px] mb-0 p-0">v{version}</p>
+				</div>
+			</div>
 		</Tab>
 	)
 }

@@ -17,6 +17,7 @@ service StateService {
   rpc togglePlanActMode(TogglePlanActModeRequest) returns (Boolean);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
+  rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
 }
 
 message State {
