@@ -4,9 +4,10 @@ import { getWorkingState } from "@utils/git"
 /**
  * Formats the git diff into a prompt for the AI
  * @param gitDiff The git diff to format
+ * @param instructions Optional custom instructions for the commit message format
  * @returns A formatted prompt for the AI
  */
-function formatGitDiffPrompt(gitDiff: string): string {
+export function formatGitDiffPrompt(gitDiff: string, instructions?: string): string {
 	// Limit the diff size to avoid token limits
 	const maxDiffLength = 5000
 	let truncatedDiff = gitDiff
@@ -15,15 +16,20 @@ function formatGitDiffPrompt(gitDiff: string): string {
 		truncatedDiff = gitDiff.substring(0, maxDiffLength) + "\n\n[Diff truncated due to size]"
 	}
 
+	// Use custom instructions if provided, otherwise use default
+	const commitInstructions =
+		instructions ||
+		`1. Start with a short summary (50-72 characters)
+2. Use the imperative mood (e.g., "Add feature" not "Added feature")
+3. Describe what was changed and why
+4. Be clear and descriptive`
+
 	return `Based on the following git diff, generate a concise and descriptive commit message:
 
 ${truncatedDiff}
 
 The commit message should:
-1. Start with a short summary (50-72 characters)
-2. Use the imperative mood (e.g., "Add feature" not "Added feature")
-3. Describe what was changed and why
-4. Be clear and descriptive
+${commitInstructions}
 
 Commit message:`
 }

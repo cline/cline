@@ -21,6 +21,7 @@ import { StateServiceClient } from "@/services/grpc-client"
 import FeatureSettingsSection from "./FeatureSettingsSection"
 import BrowserSettingsSection from "./BrowserSettingsSection"
 import TerminalSettingsSection from "./TerminalSettingsSection"
+import GitSettingsSection from "./GitSettingsSection"
 import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
 const { IS_DEV } = process.env
 
@@ -102,7 +103,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	so trying to use useEffect with a dependency array of only one value for example will use any 
 	other variables' old values. In most cases you don't want this, and should opt to use react-use 
 	hooks.
-    
+	  
 		// uses someVar and anotherVar
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [someVar])
@@ -272,6 +273,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 				{/* Terminal Settings Section */}
 				<TerminalSettingsSection />
+
+				{/* Git Settings Section */}
+				<GitSettingsSection />
 
 				{IS_DEV && (
 					<>
