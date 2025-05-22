@@ -65,14 +65,14 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
-          current_package_version=$(node -p "require('./package.json').version")
-          pnpm publish:marketplace
+          current_package_version=$(node -p "require('./src/package.json').version")
+          pnpm --filter roo-cline publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          current_package_version=$(node -p "require('./package.json').version")
+          current_package_version=$(node -p "require('./src/package.json').version")
 
           # Extract changelog for current version
           echo "Extracting changelog for version ${current_package_version}"
