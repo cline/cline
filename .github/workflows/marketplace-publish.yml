@@ -43,8 +43,8 @@ jobs:
         run: echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> .env
       - name: Package Extension
         run: |
-          current_package_version=$(node -p "require('./package.json').version")
-          pnpm vsix
+          current_package_version=$(node -p "require('./src/package.json').version")
+          pnpm build
           package=$(unzip -l bin/roo-cline-${current_package_version}.vsix)
           echo "$package" | grep -q "extension/package.json" || exit 1
           echo "$package" | grep -q "extension/package.nls.json" || exit 1
@@ -56,7 +56,7 @@ jobs:
           echo "$package" | grep -q ".env" || exit 1
       - name: Create and Push Git Tag
         run: |
-          current_package_version=$(node -p "require('./package.json').version")
+          current_package_version=$(node -p "require('./src/package.json').version")
           git tag -a "v${current_package_version}" -m "Release v${current_package_version}"
           git push origin "v${current_package_version}"
           echo "Successfully created and pushed git tag v${current_package_version}"
