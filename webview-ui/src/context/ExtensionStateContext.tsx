@@ -115,7 +115,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			}
 			setShowMcp(true)
 		},
-		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount],
+		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount]
 	)
 
 	const navigateToSettings = useCallback(() => {
@@ -281,7 +281,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			{},
 			{
 				onResponse: (response) => {
-					console.log("[DEBUG] got state update via subscription", response)
 					if (response.stateJson) {
 						try {
 							const stateData = JSON.parse(response.stateJson) as ExtensionState
@@ -347,7 +346,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				onComplete: () => {
 					console.log("State subscription completed")
 				},
-			},
+			}
 		)
 
 		// Still send the webviewDidLaunch message for other initialization
