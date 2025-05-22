@@ -133,24 +133,19 @@ git clone https://github.com/RooCodeInc/Roo-Code.git
 2. **Install dependencies**:
 
 ```sh
-npm run install:all
+pnpm install
 ```
 
-3. **Start the webview (Vite/React app with HMR)**:
+3. **Run the extension**:
 
-```sh
-npm run dev
-```
-
-4. **Debug**:
-   Press `F5` (or **Run** → **Start Debugging**) in VSCode to open a new session with Roo Code loaded.
+Press `F5` (or **Run** → **Start Debugging**) in VSCode to open a new window with Roo Code running.
 
 Changes to the webview will appear immediately. Changes to the core extension will require a restart of the extension host.
 
 Alternatively you can build a .vsix and install it directly in VSCode:
 
 ```sh
-npm run build
+pnpm build
 ```
 
 A `.vsix` file will appear in the `bin/` directory which can be installed with:

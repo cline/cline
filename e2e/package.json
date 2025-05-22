@@ -1,21 +1,24 @@
 {
-	"name": "e2e",
-	"version": "0.1.0",
+	"name": "@roo-code/vscode-e2e",
 	"private": true,
 	"scripts": {
 		"lint": "eslint src/**/*.ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
-		"test": "npm run build && npx dotenvx run -f .env.local -- node ./out/runTest.js",
-		"ci": "npm run vscode-test && npm run test",
-		"build": "rimraf out && tsc -p tsconfig.json",
-		"vscode-test": "cd .. && npm run vscode-test"
+		"format": "prettier --write src",
+		"test:ci": "pnpm --filter roo-cline build:development && pnpm test:run",
+		"test:run": "rimraf out && tsc -p tsconfig.json && npx dotenvx run -f .env.local -- node ./out/runTest.js",
+		"clean": "rimraf out .turbo"
 	},
 	"devDependencies": {
 		"@roo-code/types": "^1.12.0",
 		"@types/mocha": "^10.0.10",
+		"@types/node": "^22.14.1",
+		"@types/vscode": "^1.95.0",
 		"@vscode/test-cli": "^0.0.10",
 		"@vscode/test-electron": "^2.4.0",
+		"glob": "^11.0.1",
 		"mocha": "^11.1.0",
+		"rimraf": "^6.0.1",
 		"typescript": "5.8.3"
 	}
 }

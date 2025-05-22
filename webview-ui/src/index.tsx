@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client"
 
 import "./index.css"
 import App from "./App"
-import "../../node_modules/@vscode/codicons/dist/codicon.css"
+import "../node_modules/@vscode/codicons/dist/codicon.css"
 
 import { getHighlighter } from "./utils/highlighter"
 

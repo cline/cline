@@ -5,7 +5,7 @@
 	"tasks": [
 		{
 			"label": "watch",
-			"dependsOn": ["npm: dev", "npm: watch:tsc", "npm: watch:esbuild"],
+			"dependsOn": ["webview", "watch:tsc", "watch:esbuild"],
 			"presentation": {
 				"reveal": "never"
 			},
@@ -15,9 +15,9 @@
 			}
 		},
 		{
-			"label": "npm: dev",
-			"type": "npm",
-			"script": "dev",
+			"label": "webview",
+			"type": "shell",
+			"command": "pnpm --filter @roo-code/vscode-webview dev",
 			"group": "build",
 			"problemMatcher": {
 				"owner": "vite",
@@ -32,14 +32,14 @@
 			},
 			"isBackground": true,
 			"presentation": {
-				"group": "webview-ui",
+				"group": "watch",
 				"reveal": "always"
 			}
 		},
 		{
-			"label": "npm: watch:esbuild",
-			"type": "npm",
-			"script": "watch:esbuild",
+			"label": "watch:esbuild",
+			"type": "shell",
+			"command": "pnpm --filter roo-cline watch:esbuild",
 			"group": "build",
 			"problemMatcher": {
 				"owner": "esbuild",
@@ -48,8 +48,8 @@
 				},
 				"background": {
 					"activeOnStart": true,
-					"beginsPattern": "\\[watch\\] build started",
-					"endsPattern": "\\[watch\\] build finished"
+					"beginsPattern": "esbuild-problem-matcher#onStart",
+					"endsPattern": "esbuild-problem-matcher#onEnd"
 				}
 			},
 			"isBackground": true,
@@ -59,9 +59,9 @@
 			}
 		},
 		{
-			"label": "npm: watch:tsc",
-			"type": "npm",
-			"script": "watch:tsc",
+			"label": "watch:tsc",
+			"type": "shell",
+			"command": "pnpm --filter roo-cline watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,

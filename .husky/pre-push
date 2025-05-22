@@ -5,14 +5,14 @@ if [ "$branch" = "main" ]; then
   exit 1
 fi
 
-# Detect if running on Windows and use npm.cmd, otherwise use npm
+# Detect if running on Windows and use pnpm.cmd, otherwise use pnpm.
 if [ "$OS" = "Windows_NT" ]; then
-  npm_cmd="npm.cmd"
+  pnpm_cmd="pnpm.cmd"
 else
-  npm_cmd="npm"
+  pnpm_cmd="pnpm"
 fi
 
-"$npm_cmd" run compile
+"$pnpm_cmd" run lint check-types
 
 # Check for new changesets.
 NEW_CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')
@@ -20,6 +20,6 @@ echo "Changeset files: $NEW_CHANGESETS"
 
 if [ "$NEW_CHANGESETS" == "0" ]; then
   echo "-------------------------------------------------------------------------------------"
-  echo "Changes detected. Please run 'npm run changeset' to create a changeset if applicable."
+  echo "Changes detected. Please run 'pnpm changeset' to create a changeset if applicable."
   echo "-------------------------------------------------------------------------------------"
 fi

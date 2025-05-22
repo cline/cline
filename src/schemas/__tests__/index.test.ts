@@ -1,6 +1,6 @@
 // npx jest src/schemas/__tests__/index.test.ts
 
-import { contributes } from "../../../package.json"
+import { contributes } from "../../package.json"
 
 import { GLOBAL_STATE_KEYS, Package, codeActionIds, terminalActionIds, commandIds } from "../index"
 

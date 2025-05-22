@@ -92,7 +92,7 @@ git clone https://github.com/YOUR_USERNAME/Roo-Code.git
 2. **Install Dependencies:**
 
 ```
-npm run install:all
+pnpm install
 ```
 
 3. **Debugging:** Open with VS Code (`F5`).

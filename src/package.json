@@ -1,0 +1,442 @@
+{
+	"name": "roo-cline",
+	"displayName": "%extension.displayName%",
+	"description": "%extension.description%",
+	"publisher": "RooVeterinaryInc",
+	"version": "3.18.0",
+	"icon": "assets/icons/icon.png",
+	"galleryBanner": {
+		"color": "#617A91",
+		"theme": "dark"
+	},
+	"engines": {
+		"vscode": "^1.84.0",
+		"node": "20.18.1"
+	},
+	"author": {
+		"name": "Roo Code"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/RooCodeInc/Roo-Code"
+	},
+	"homepage": "https://github.com/RooCodeInc/Roo-Code",
+	"categories": [
+		"AI",
+		"Chat",
+		"Programming Languages",
+		"Education",
+		"Snippets",
+		"Testing"
+	],
+	"keywords": [
+		"cline",
+		"claude",
+		"dev",
+		"mcp",
+		"openrouter",
+		"coding",
+		"agent",
+		"autonomous",
+		"chatgpt",
+		"sonnet",
+		"ai",
+		"llama",
+		"roo code",
+		"roocode"
+	],
+	"activationEvents": [
+		"onLanguage",
+		"onStartupFinished"
+	],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "roo-cline-ActivityBar",
+					"title": "%views.activitybar.title%",
+					"icon": "assets/icons/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"roo-cline-ActivityBar": [
+				{
+					"type": "webview",
+					"id": "roo-cline.SidebarProvider",
+					"name": ""
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "roo-cline.plusButtonClicked",
+				"title": "%command.newTask.title%",
+				"icon": "$(add)"
+			},
+			{
+				"command": "roo-cline.mcpButtonClicked",
+				"title": "%command.mcpServers.title%",
+				"icon": "$(server)"
+			},
+			{
+				"command": "roo-cline.promptsButtonClicked",
+				"title": "%command.prompts.title%",
+				"icon": "$(notebook)"
+			},
+			{
+				"command": "roo-cline.historyButtonClicked",
+				"title": "%command.history.title%",
+				"icon": "$(history)"
+			},
+			{
+				"command": "roo-cline.popoutButtonClicked",
+				"title": "%command.openInEditor.title%",
+				"icon": "$(link-external)"
+			},
+			{
+				"command": "roo-cline.settingsButtonClicked",
+				"title": "%command.settings.title%",
+				"icon": "$(settings-gear)"
+			},
+			{
+				"command": "roo-cline.openInNewTab",
+				"title": "%command.openInNewTab.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "roo-cline.explainCode",
+				"title": "%command.explainCode.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "roo-cline.fixCode",
+				"title": "%command.fixCode.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "roo-cline.improveCode",
+				"title": "%command.improveCode.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "roo-cline.addToContext",
+				"title": "%command.addToContext.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "roo-cline.newTask",
+				"title": "%command.newTask.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "roo-cline.terminalAddToContext",
+				"title": "%command.terminal.addToContext.title%",
+				"category": "Terminal"
+			},
+			{
+				"command": "roo-cline.terminalFixCommand",
+				"title": "%command.terminal.fixCommand.title%",
+				"category": "Terminal"
+			},
+			{
+				"command": "roo-cline.terminalExplainCommand",
+				"title": "%command.terminal.explainCommand.title%",
+				"category": "Terminal"
+			},
+			{
+				"command": "roo-cline.setCustomStoragePath",
+				"title": "%command.setCustomStoragePath.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "roo-cline.focusInput",
+				"title": "%command.focusInput.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "roo-cline.acceptInput",
+				"title": "%command.acceptInput.title%",
+				"category": "%configuration.title%"
+			}
+		],
+		"menus": {
+			"editor/context": [
+				{
+					"submenu": "roo-cline.contextMenu",
+					"group": "navigation"
+				}
+			],
+			"roo-cline.contextMenu": [
+				{
+					"command": "roo-cline.addToContext",
+					"group": "1_actions@1"
+				},
+				{
+					"command": "roo-cline.explainCode",
+					"group": "1_actions@2"
+				},
+				{
+					"command": "roo-cline.improveCode",
+					"group": "1_actions@3"
+				}
+			],
+			"terminal/context": [
+				{
+					"submenu": "roo-cline.terminalMenu",
+					"group": "navigation"
+				}
+			],
+			"roo-cline.terminalMenu": [
+				{
+					"command": "roo-cline.terminalAddToContext",
+					"group": "1_actions@1"
+				},
+				{
+					"command": "roo-cline.terminalFixCommand",
+					"group": "1_actions@2"
+				},
+				{
+					"command": "roo-cline.terminalExplainCommand",
+					"group": "1_actions@3"
+				}
+			],
+			"view/title": [
+				{
+					"command": "roo-cline.plusButtonClicked",
+					"group": "navigation@1",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.promptsButtonClicked",
+					"group": "navigation@2",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.mcpButtonClicked",
+					"group": "navigation@3",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.historyButtonClicked",
+					"group": "navigation@4",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.popoutButtonClicked",
+					"group": "navigation@5",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.settingsButtonClicked",
+					"group": "navigation@6",
+					"when": "view == roo-cline.SidebarProvider"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "roo-cline.plusButtonClicked",
+					"group": "navigation@1",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.promptsButtonClicked",
+					"group": "navigation@2",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.mcpButtonClicked",
+					"group": "navigation@3",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.historyButtonClicked",
+					"group": "navigation@4",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.popoutButtonClicked",
+					"group": "navigation@5",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.settingsButtonClicked",
+					"group": "navigation@6",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				}
+			]
+		},
+		"submenus": [
+			{
+				"id": "roo-cline.contextMenu",
+				"label": "%views.contextMenu.label%"
+			},
+			{
+				"id": "roo-cline.terminalMenu",
+				"label": "%views.terminalMenu.label%"
+			}
+		],
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"roo-cline.allowedCommands": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"npm test",
+						"npm install",
+						"tsc",
+						"git log",
+						"git diff",
+						"git show"
+					],
+					"description": "%commands.allowedCommands.description%"
+				},
+				"roo-cline.vsCodeLmModelSelector": {
+					"type": "object",
+					"properties": {
+						"vendor": {
+							"type": "string",
+							"description": "%settings.vsCodeLmModelSelector.vendor.description%"
+						},
+						"family": {
+							"type": "string",
+							"description": "%settings.vsCodeLmModelSelector.family.description%"
+						}
+					},
+					"description": "%settings.vsCodeLmModelSelector.description%"
+				},
+				"roo-cline.customStoragePath": {
+					"type": "string",
+					"default": "",
+					"description": "%settings.customStoragePath.description%"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"lint": "eslint **/*.ts",
+		"check-types": "tsc --noEmit",
+		"pretest": "pnpm bundle",
+		"test": "jest -w=40% && vitest run",
+		"format": "prettier --write .",
+		"bundle": "pnpm clean && pnpm --filter @roo-code/build build && node esbuild.mjs",
+		"build": "pnpm bundle --production && pnpm --filter @roo-code/vscode-webview build",
+		"build:development": "pnpm bundle && pnpm --filter @roo-code/vscode-webview build",
+		"publish:marketplace": "vsce publish --no-dependencies && ovsx publish --no-dependencies",
+		"publish": "pnpm vsix && changeset publish && pnpm install --package-lock-only",
+		"version-packages": "changeset version && pnpm install --package-lock-only",
+		"vscode:prepublish": "pnpm build",
+		"vsix": "mkdirp ../bin && npx vsce package --no-dependencies --out ../bin",
+		"watch:esbuild": "pnpm bundle --watch",
+		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+		"generate-types": "tsx scripts/generate-types.mts",
+		"clean": "rimraf README.md CHANGELOG.md LICENSE dist webview-ui out .turbo"
+	},
+	"dependencies": {
+		"@anthropic-ai/bedrock-sdk": "^0.10.2",
+		"@anthropic-ai/sdk": "^0.37.0",
+		"@anthropic-ai/vertex-sdk": "^0.7.0",
+		"@aws-sdk/client-bedrock-runtime": "^3.779.0",
+		"@aws-sdk/credential-providers": "^3.806.0",
+		"@google/genai": "^0.13.0",
+		"@mistralai/mistralai": "^1.3.6",
+		"@modelcontextprotocol/sdk": "^1.9.0",
+		"@vscode/codicons": "^0.0.36",
+		"axios": "^1.7.4",
+		"cheerio": "^1.0.0",
+		"chokidar": "^4.0.1",
+		"clone-deep": "^4.0.1",
+		"default-shell": "^2.2.0",
+		"delay": "^6.0.0",
+		"diff": "^5.2.0",
+		"diff-match-patch": "^1.0.5",
+		"fast-deep-equal": "^3.1.3",
+		"fast-xml-parser": "^4.5.1",
+		"fastest-levenshtein": "^1.0.16",
+		"fzf": "^0.5.2",
+		"get-folder-size": "^5.0.0",
+		"google-auth-library": "^9.15.1",
+		"i18next": "^24.2.2",
+		"ignore": "^7.0.3",
+		"isbinaryfile": "^5.0.2",
+		"mammoth": "^1.8.0",
+		"monaco-vscode-textmate-theme-converter": "^0.1.7",
+		"node-cache": "^5.1.2",
+		"node-ipc": "^12.0.0",
+		"openai": "^4.78.1",
+		"os-name": "^6.0.0",
+		"p-wait-for": "^5.0.2",
+		"pdf-parse": "^1.1.1",
+		"pkce-challenge": "^4.1.0",
+		"posthog-node": "^4.7.0",
+		"pretty-bytes": "^6.1.1",
+		"ps-tree": "^1.2.0",
+		"puppeteer-chromium-resolver": "^23.0.0",
+		"puppeteer-core": "^23.4.0",
+		"reconnecting-eventsource": "^1.6.4",
+		"sanitize-filename": "^1.6.3",
+		"say": "^0.16.0",
+		"serialize-error": "^11.0.3",
+		"simple-git": "^3.27.0",
+		"sound-play": "^1.1.0",
+		"string-similarity": "^4.0.4",
+		"strip-ansi": "^7.1.0",
+		"strip-bom": "^5.0.0",
+		"tiktoken": "^1.0.21",
+		"tmp": "^0.2.3",
+		"tree-sitter-wasms": "^0.1.11",
+		"turndown": "^7.2.0",
+		"vscode-material-icons": "^0.1.1",
+		"web-tree-sitter": "^0.22.6",
+		"workerpool": "^9.2.0",
+		"yaml": "^2.8.0",
+		"zod": "^3.24.2"
+	},
+	"devDependencies": {
+		"@changesets/cli": "^2.27.10",
+		"@changesets/types": "^6.0.0",
+		"@jest/globals": "^29.7.0",
+		"@roo-code/build": "workspace:^",
+		"@types/clone-deep": "^4.0.4",
+		"@types/debug": "^4.1.12",
+		"@types/diff": "^5.2.1",
+		"@types/diff-match-patch": "^1.0.36",
+		"@types/glob": "^8.1.0",
+		"@types/jest": "^29.5.14",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "20.x",
+		"@types/node-cache": "^4.1.3",
+		"@types/node-ipc": "^9.2.3",
+		"@types/ps-tree": "^1.1.6",
+		"@types/string-similarity": "^4.0.2",
+		"@types/tmp": "^0.2.6",
+		"@types/turndown": "^5.0.5",
+		"@types/vscode": "^1.84.0",
+		"@typescript-eslint/eslint-plugin": "^7.14.1",
+		"@typescript-eslint/parser": "^7.11.0",
+		"@vscode/test-electron": "^2.5.2",
+		"@vscode/vsce": "3.3.2",
+		"esbuild": "^0.25.0",
+		"eslint": "^8.57.0",
+		"execa": "^9.5.2",
+		"glob": "^11.0.1",
+		"jest": "^29.7.0",
+		"jest-simple-dot-reporter": "^1.0.5",
+		"mkdirp": "^3.0.1",
+		"nock": "^14.0.4",
+		"npm-run-all2": "^8.0.1",
+		"ovsx": "0.10.2",
+		"prettier": "^3.4.2",
+		"rimraf": "^6.0.1",
+		"ts-jest": "^29.2.5",
+		"tsup": "^8.4.0",
+		"tsx": "^4.19.3",
+		"typescript": "5.8.3",
+		"vitest": "^3.1.3",
+		"zod-to-ts": "^1.2.0"
+	}
+}

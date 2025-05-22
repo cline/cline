@@ -10,9 +10,9 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}/src"],
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"outFiles": ["${workspaceFolder}/src/dist/**/*.js"],
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
 				"NODE_ENV": "development",

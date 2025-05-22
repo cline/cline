@@ -1,6 +1,6 @@
 // Updates to this file will automatically propgate to src/exports/types.ts
 // via a pre-commit hook. If you want to update the types before committing you
-// can run `npm run generate-types`.
+// can run `pnpm generate-types`.
 
 import { z } from "zod"
 
@@ -10,7 +10,7 @@ import { Equals, Keys, AssertEqual } from "../utils/type-fu"
  * Extension
  */
 
-import { publisher, name, version } from "../../package.json"
+import { publisher, name, version } from "../package.json"
 
 // These ENV variables can be defined by ESBuild when building the extension
 // in order to override the values in package.json. This allows us to build
@@ -19,10 +19,11 @@ import { publisher, name, version } from "../../package.json"
 // by VSCode, but that build artifact is not used during the transpile step of
 // the build, so we still need this override mechanism.
 export const Package = {
-	publisher: process.env.PKG_PUBLISHER || publisher,
+	publisher,
 	name: process.env.PKG_NAME || name,
 	version: process.env.PKG_VERSION || version,
 	outputChannel: process.env.PKG_OUTPUT_CHANNEL || "Roo-Code",
+	sha: process.env.PKG_SHA,
 } as const
 
 /**
@@ -595,31 +596,30 @@ export const providerSettingsSchemaDiscriminated = z.discriminatedUnion("apiProv
 	defaultSchema,
 ])
 
-export const providerSettingsSchema = z
-	.object({
-		apiProvider: providerNamesSchema.optional(),
-	})
-	.merge(anthropicSchema)
-	.merge(glamaSchema)
-	.merge(openRouterSchema)
-	.merge(bedrockSchema)
-	.merge(vertexSchema)
-	.merge(openAiSchema)
-	.merge(ollamaSchema)
-	.merge(vsCodeLmSchema)
-	.merge(lmStudioSchema)
-	.merge(geminiSchema)
-	.merge(openAiNativeSchema)
-	.merge(mistralSchema)
-	.merge(deepSeekSchema)
-	.merge(unboundSchema)
-	.merge(requestySchema)
-	.merge(humanRelaySchema)
-	.merge(fakeAiSchema)
-	.merge(xaiSchema)
-	.merge(groqSchema)
-	.merge(chutesSchema)
-	.merge(litellmSchema)
+export const providerSettingsSchema = z.object({
+	apiProvider: providerNamesSchema.optional(),
+	...anthropicSchema.shape,
+	...glamaSchema.shape,
+	...openRouterSchema.shape,
+	...bedrockSchema.shape,
+	...vertexSchema.shape,
+	...openAiSchema.shape,
+	...ollamaSchema.shape,
+	...vsCodeLmSchema.shape,
+	...lmStudioSchema.shape,
+	...geminiSchema.shape,
+	...openAiNativeSchema.shape,
+	...mistralSchema.shape,
+	...deepSeekSchema.shape,
+	...unboundSchema.shape,
+	...requestySchema.shape,
+	...humanRelaySchema.shape,
+	...fakeAiSchema.shape,
+	...xaiSchema.shape,
+	...groqSchema.shape,
+	...chutesSchema.shape,
+	...litellmSchema.shape,
+})
 
 export type ProviderSettings = z.infer<typeof providerSettingsSchema>
 

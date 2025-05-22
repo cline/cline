@@ -10,6 +10,7 @@ env:
   REPO_PATH: ${{ github.repository }}
   GIT_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
   NODE_VERSION: 20.18.1
+  PNPM_VERSION: 10.8.1
 
 jobs:
   # Job 1: Create version bump PR when changesets are merged to main
@@ -30,15 +31,18 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ env.GIT_REF }}
-
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: 'pnpm'
             
       - name: Install Dependencies
-        run: npm run install:all
+        run: pnpm install
 
       # Check if there are any new changesets to process
       - name: Check for changesets
@@ -56,7 +60,7 @@ jobs:
         with:
           commit: "changeset version bump"
           title: "Changeset version bump"
-          version: npm run version-packages # This performs the changeset version bump
+          version: pnpm --filter roo-cline version-packages # This performs the changeset version bump
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

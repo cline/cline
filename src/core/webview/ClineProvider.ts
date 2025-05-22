@@ -572,21 +572,8 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			"index.css",
 		])
 
-		const codiconsUri = getUri(webview, this.contextProxy.extensionUri, [
-			"node_modules",
-			"@vscode",
-			"codicons",
-			"dist",
-			"codicon.css",
-		])
-
-		const materialIconsUri = getUri(webview, this.contextProxy.extensionUri, [
-			"node_modules",
-			"vscode-material-icons",
-			"generated",
-			"icons",
-		])
-
+		const codiconsUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "codicons", "codicon.css"])
+		const materialIconsUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "vscode-material-icons"])
 		const imagesUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "images"])
 		const audioUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "audio"])
 
@@ -660,39 +647,12 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			"assets",
 			"index.css",
 		])
-		// The JS file from the React build output
+
 		const scriptUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "build", "assets", "index.js"])
-
-		// The codicon font from the React build output
-		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
-		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
-		// don't forget to add font-src ${webview.cspSource};
-		const codiconsUri = getUri(webview, this.contextProxy.extensionUri, [
-			"node_modules",
-			"@vscode",
-			"codicons",
-			"dist",
-			"codicon.css",
-		])
-
-		// The material icons from the React build output
-		const materialIconsUri = getUri(webview, this.contextProxy.extensionUri, [
-			"node_modules",
-			"vscode-material-icons",
-			"generated",
-			"icons",
-		])
-
+		const codiconsUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "codicons", "codicon.css"])
+		const materialIconsUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "vscode-material-icons"])
 		const imagesUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "images"])
 		const audioUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "audio"])
-
-		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
-
-		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
-		// const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "vscode.css"))
-
-		// // Same for stylesheet
-		// const stylesheetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.css"))
 
 		// Use a nonce to only allow a specific script to be run.
 		/*

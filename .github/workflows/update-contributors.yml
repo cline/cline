@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:  # Allows manual triggering
 
+env:
+  NODE_VERSION: 20.18.1
+  PNPM_VERSION: 10.8.1
+
 jobs:
   update-contributors:
     runs-on: ubuntu-latest
@@ -15,30 +19,29 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
-          
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
       - name: Disable Husky
         run: |
           echo "HUSKY=0" >> $GITHUB_ENV
           git config --global core.hooksPath /dev/null
-          
       - name: Install dependencies
-        run: npm ci
-        
+        run: pnpm install
       - name: Update contributors and format
         run: |
-          npm run update-contributors
+          pnpm update-contributors
           npx prettier --write README.md
           if git diff --quiet; then echo "changes=false" >> $GITHUB_OUTPUT; else echo "changes=true" >> $GITHUB_OUTPUT; fi
         id: check-changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Create Pull Request
         if: steps.check-changes.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v5
@@ -51,6 +54,6 @@ jobs:
           title: "Update contributors list"
           body: |
             Automated update of contributors list and related files
-            
+
             This PR was created automatically by a GitHub Action workflow and includes all changed files.
           base: main

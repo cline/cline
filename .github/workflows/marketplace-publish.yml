@@ -29,20 +29,21 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Install Dependencies
-        run: npm run install:all
+        run: pnpm install
       - name: Create .env file
         run: echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> .env
       - name: Package Extension
         run: |
           current_package_version=$(node -p "require('./package.json').version")
-          npm run vsix
+          pnpm vsix
           package=$(unzip -l bin/roo-cline-${current_package_version}.vsix)
           echo "$package" | grep -q "extension/package.json" || exit 1
           echo "$package" | grep -q "extension/package.nls.json" || exit 1
           echo "$package" | grep -q "extension/dist/extension.js" || exit 1
           echo "$package" | grep -q "extension/webview-ui/audio/celebration.wav" || exit 1
           echo "$package" | grep -q "extension/webview-ui/build/assets/index.js" || exit 1
-          echo "$package" | grep -q "extension/node_modules/@vscode/codicons/dist/codicon.ttf" || exit 1
+          echo "$package" | grep -q "extension/assets/codicons/codicon.ttf" || exit 1
+          echo "$package" | grep -q "extension/assets/vscode-material-icons/icons/3d.svg" || exit 1
           echo "$package" | grep -q ".env" || exit 1
       - name: Create and Push Git Tag
         run: |
@@ -56,7 +57,7 @@ jobs:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           current_package_version=$(node -p "require('./package.json').version")
-          npm run publish:marketplace
+          pnpm publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
       - name: Create GitHub Release
         env:

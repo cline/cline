@@ -28,11 +28,8 @@ build_extension() {
   echo "🔨 Building the Roo Code extension..."
   cd ..
   mkdir -p bin
-  npm run install-extension -- --silent --no-audit || exit 1
-  npm run install-webview -- --silent --no-audit || exit 1
-  npm run install-e2e -- --silent --no-audit || exit 1
-  npx vsce package --out bin/roo-code-latest.vsix || exit 1
-  code --install-extension bin/roo-code-latest.vsix || exit 1
+  pnpm build --out ../bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
+  code --install-extension bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
   cd evals
 }
 

@@ -1,0 +1,67 @@
+name: Nightly Publish
+
+on:
+  # push:
+  #   branches: [main]
+  workflow_run:
+    workflows: ["Code QA Roo Code"]
+    types:
+      - completed
+    branches: [main]
+  workflow_dispatch: # Allows manual triggering.
+
+env:
+  NODE_VERSION: 20.18.1
+  PNPM_VERSION: 10.8.1
+
+jobs:
+  publish-nightly:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    permissions:
+      contents: read # No tags pushed → read is enough.
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Count commits
+        id: count
+        run: echo "total=$(git rev-list --all --count)" >> $GITHUB_OUTPUT
+      - name: Patch package.json version
+        env:
+          COMMIT_COUNT: ${{ steps.count.outputs.total }}
+        run: |
+          node <<'EOF'
+            const fs = require('fs');
+            const path = require('path');
+            const pkgPath = path.join(__dirname, 'apps', 'vscode-nightly', 'package.nightly.json');
+            const pkg = JSON.parse(fs.readFileSync(pkgPath,'utf8'));
+            const [maj, min] = pkg.version.split('.');
+            pkg.version = `${maj}.${min}.${process.env.COMMIT_COUNT}`;
+            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+            console.log(`🔖 Nightly version set to ${pkg.version}`);
+          EOF
+      - name: Build VSIX
+        run: pnpm build:nightly # Produces bin/roo-code-nightly-0.0.[count].vsix
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --packagePath "bin/$(/bin/ls bin | head -n1)"
+      - name: Publish to Open VSX Registry
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish "bin/$(ls bin | head -n1)"

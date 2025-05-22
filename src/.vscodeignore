@@ -1,0 +1,33 @@
+# Exclude everything
+**
+
+# Include README.md, CHANGELOG.md and LICENSE
+!README.md
+!CHANGELOG.md
+!LICENSE
+
+# Include package.json
+!package.json
+!package.nls.*
+
+# Include the built extension
+!dist
+
+# Include the built webview
+**/*.map
+!webview-ui/audio
+!webview-ui/build/assets/*.js
+!webview-ui/build/assets/*.ttf
+!webview-ui/build/assets/*.css
+
+# Include default themes JSON files used in getTheme
+!integrations/theme/default-themes/**
+
+# Include icons and images
+!assets/codicons/**
+!assets/vscode-material-icons/**
+!assets/icons/**
+!assets/images/**
+
+# Include .env file for telemetry
+!.env

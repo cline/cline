@@ -1,0 +1,6 @@
+packages:
+    - "src"
+    - "webview-ui"
+    - "e2e"
+    - "apps/*"
+    - "packages/*"

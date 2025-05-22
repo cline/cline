@@ -9,9 +9,6 @@
 		"**/*.test.ts",
 		"**/*.test.tsx",
 		"**/stories/**",
-		"coverage/**",
-		"dist/**",
-		"out/**",
 		"bin/**",
 		"e2e/**",
 		"evals/**",
@@ -20,7 +17,8 @@
 		"src/workers/**",
 		"src/schemas/ipc.ts",
 		"src/extension.ts",
-		"scripts/**"
+		"scripts/**",
+		"vitest.config.ts"
 	],
 	"workspaces": {
 		"webview-ui": {
