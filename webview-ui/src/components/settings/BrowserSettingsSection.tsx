@@ -366,11 +366,7 @@ export const BrowserSettingsSection: React.FC = () => {
 	const isSubSettingsOpen = !(browserSettings.disableToolUse || false)
 
 	return (
-		<div
-			id="browser-settings-section"
-			style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
-			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Browser Settings</h3>
-
+		<div id="browser-settings-section" style={{ marginBottom: 20 }}>
 			{/* Master Toggle */}
 			<div style={{ marginBottom: isSubSettingsOpen ? 0 : 10 }}>
 				<VSCodeCheckbox

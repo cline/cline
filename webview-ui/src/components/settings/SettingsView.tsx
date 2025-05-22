@@ -412,7 +412,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									<Section>
 										{/* Tabs container */}
 										{planActSeparateModelsSetting ? (
-											<div className="border border-solid border-[var(--vscode-panel-border)] rounded-md p-[10px] mb-5 bg-[var(--vscode-panel-background)]">
+											<div className="rounded-md mb-5 bg-[var(--vscode-panel-background)]">
 												<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
 													<TabButton
 														isActive={chatSettings.mode === "plan"}
@@ -444,39 +444,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 												modelIdErrorMessage={modelIdErrorMessage}
 											/>
 										)}
-									</Section>
-								</div>
-							)}
-
-							{/* General Settings Tab */}
-							{activeTab === "general" && (
-								<div>
-									{renderSectionHeader("general")}
-									<Section>
-										<div className="mb-[5px]">
-											<VSCodeTextArea
-												value={customInstructions ?? ""}
-												className="w-full"
-												resize="vertical"
-												rows={4}
-												placeholder={
-													'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
-												}
-												onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-												<span className="font-medium">Custom Instructions</span>
-											</VSCodeTextArea>
-											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-												These instructions are added to the end of the system prompt sent with every
-												request.
-											</p>
-										</div>
-
-										{chatSettings && (
-											<PreferredLanguageSetting
-												chatSettings={chatSettings}
-												setChatSettings={setChatSettings}
-											/>
-										)}
 
 										<div className="mb-[5px]">
 											<VSCodeCheckbox
@@ -494,6 +461,39 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 												architect a plan for a cheaper coding model to act on.
 											</p>
 										</div>
+
+										<div className="mb-[5px]">
+											<VSCodeTextArea
+												value={customInstructions ?? ""}
+												className="w-full"
+												resize="vertical"
+												rows={4}
+												placeholder={
+													'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
+												}
+												onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
+												<span className="font-medium">Custom Instructions</span>
+											</VSCodeTextArea>
+											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+												These instructions are added to the end of the system prompt sent with every
+												request.
+											</p>
+										</div>
+									</Section>
+								</div>
+							)}
+
+							{/* General Settings Tab */}
+							{activeTab === "general" && (
+								<div>
+									{renderSectionHeader("general")}
+									<Section>
+										{chatSettings && (
+											<PreferredLanguageSetting
+												chatSettings={chatSettings}
+												setChatSettings={setChatSettings}
+											/>
+										)}
 
 										<div className="mb-[5px]">
 											<VSCodeCheckbox
