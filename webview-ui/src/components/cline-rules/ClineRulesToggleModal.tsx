@@ -141,6 +141,14 @@ const ClineRulesToggleModal: React.FC = () => {
 		})
 	}
 
+	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {
+		vscode.postMessage({
+			type: "toggleWorkflow",
+			workflowPath,
+			enabled,
+		})
+	}
+
 	// Close modal when clicking outside
 	useClickAway(modalRef, () => {
 		setIsVisible(false)

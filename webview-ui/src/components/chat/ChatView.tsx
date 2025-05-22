@@ -34,6 +34,7 @@ import rehypeRemark from "rehype-remark"
 import rehypeParse from "rehype-parse"
 import HomeHeader from "../welcome/HomeHeader"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
+import { SuggestedTasks } from "../welcome/SuggestedTasks"
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
@@ -1060,7 +1061,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				</div>
 			)}
 
-			{!task && <AutoApproveBar />}
+			{!task && (
+				<>
+					<SuggestedTasks />
+					<AutoApproveBar />
+				</>
+			)}
 
 			{task && (
 				<>

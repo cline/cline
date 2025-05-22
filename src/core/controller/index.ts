@@ -390,6 +390,16 @@ export class Controller {
 				}
 				break
 			}
+			case "toggleWorkflow": {
+				const { workflowPath, enabled } = message
+				if (workflowPath && typeof enabled === "boolean") {
+					const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+					toggles[workflowPath] = enabled
+					await updateWorkspaceState(this.context, "workflowToggles", toggles)
+					await this.postStateToWebview()
+				}
+				break
+			}
 			case "requestTotalTasksSize": {
 				this.refreshTotalTasksSize()
 				break
