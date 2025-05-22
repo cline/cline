@@ -917,7 +917,7 @@ export const internationalQwenDefaultModelId: InternationalQwenModelId = "qwen-c
 export const mainlandQwenDefaultModelId: MainlandQwenModelId = "qwen-coder-plus-latest"
 export const internationalQwenModels = {
 	"qwen3-235b-a22b": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -931,7 +931,7 @@ export const internationalQwenModels = {
 		},
 	},
 	"qwen3-32b": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -945,7 +945,7 @@ export const internationalQwenModels = {
 		},
 	},
 	"qwen3-30b-a3b": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -959,7 +959,7 @@ export const internationalQwenModels = {
 		},
 	},
 	"qwen3-14b": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -973,7 +973,7 @@ export const internationalQwenModels = {
 		},
 	},
 	"qwen3-8b": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -987,7 +987,7 @@ export const internationalQwenModels = {
 		},
 	},
 	"qwen3-4b": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1001,7 +1001,7 @@ export const internationalQwenModels = {
 		},
 	},
 	"qwen3-1.7b": {
-		maxTokens: 30_720,
+		maxTokens: 8_192,
 		contextWindow: 32_768,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1015,7 +1015,7 @@ export const internationalQwenModels = {
 		},
 	},
 	"qwen3-0.6b": {
-		maxTokens: 30_720,
+		maxTokens: 8_192,
 		contextWindow: 32_768,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1099,7 +1099,7 @@ export const internationalQwenModels = {
 		cacheReadsPrice: 7,
 	},
 	"qwen-plus-latest": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1113,7 +1113,7 @@ export const internationalQwenModels = {
 		},
 	},
 	"qwen-turbo-latest": {
-		maxTokens: 1_000_000,
+		maxTokens: 16_384,
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1240,7 +1240,7 @@ export const internationalQwenModels = {
 
 export const mainlandQwenModels = {
 	"qwen3-235b-a22b": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1254,7 +1254,7 @@ export const mainlandQwenModels = {
 		},
 	},
 	"qwen3-32b": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1268,7 +1268,7 @@ export const mainlandQwenModels = {
 		},
 	},
 	"qwen3-30b-a3b": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1282,7 +1282,7 @@ export const mainlandQwenModels = {
 		},
 	},
 	"qwen3-14b": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1296,7 +1296,7 @@ export const mainlandQwenModels = {
 		},
 	},
 	"qwen3-8b": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1310,7 +1310,7 @@ export const mainlandQwenModels = {
 		},
 	},
 	"qwen3-4b": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1324,7 +1324,7 @@ export const mainlandQwenModels = {
 		},
 	},
 	"qwen3-1.7b": {
-		maxTokens: 30_720,
+		maxTokens: 8_192,
 		contextWindow: 32_768,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1338,7 +1338,7 @@ export const mainlandQwenModels = {
 		},
 	},
 	"qwen3-0.6b": {
-		maxTokens: 30_720,
+		maxTokens: 8_192,
 		contextWindow: 32_768,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1422,7 +1422,7 @@ export const mainlandQwenModels = {
 		cacheReadsPrice: 7,
 	},
 	"qwen-plus-latest": {
-		maxTokens: 129_024,
+		maxTokens: 16_384,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -1436,7 +1436,7 @@ export const mainlandQwenModels = {
 		},
 	},
 	"qwen-turbo-latest": {
-		maxTokens: 1_000_000,
+		maxTokens: 16_384,
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: false,
