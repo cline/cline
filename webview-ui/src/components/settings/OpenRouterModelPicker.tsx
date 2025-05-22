@@ -7,7 +7,6 @@ import styled from "styled-components"
 import { openRouterDefaultModelId } from "@shared/api"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { vscode } from "@/utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -42,9 +41,14 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "anthropic/claude-3.7-sonnet",
+		id: "anthropic/claude-sonnet-4",
 		description: "Leading model for agentic coding",
 		label: "Best",
+	},
+	{
+		id: "anthropic/claude-opus-4",
+		description: "Best for general purpose tasks",
+		label: "Most Powerful $$$",
 	},
 	{
 		id: "google/gemini-2.5-pro-preview",
@@ -199,6 +203,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 
 	const showBudgetSlider = useMemo(() => {
 		return (
+			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
@@ -335,8 +341,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3.7-sonnet")}>
-							anthropic/claude-3.7-sonnet.
+							onClick={() => handleModelChange("anthropic/claude-sonnet-4")}>
+							anthropic/claude-sonnet-4.
 						</VSCodeLink>
 						You can also try searching "free" for no-cost options currently available.
 					</>
