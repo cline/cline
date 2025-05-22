@@ -330,12 +330,6 @@ importers:
         specifier: ^3.24.2
         version: 3.24.4
     devDependencies:
-      '@changesets/cli':
-        specifier: ^2.27.10
-        version: 2.29.4
-      '@changesets/types':
-        specifier: ^6.0.0
-        version: 6.1.0
       '@jest/globals':
         specifier: ^29.7.0
         version: 29.7.0
