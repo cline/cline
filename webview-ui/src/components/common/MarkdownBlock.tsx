@@ -10,16 +10,16 @@ import type { Node } from "unist"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
-import { vscode } from "@/utils/vscode"
+import { StateServiceClient } from "@/services/grpc-client"
+import { PlanActMode } from "@shared/proto/state"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => (
 	<span
 		onClick={() => {
-			vscode.postMessage({
-				type: "togglePlanActMode",
+			StateServiceClient.togglePlanActMode({
 				chatSettings: {
-					mode: "act",
+					mode: PlanActMode.ACT,
 				},
 			})
 		}}
