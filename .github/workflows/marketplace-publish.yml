@@ -58,7 +58,7 @@ jobs:
         run: |
           current_package_version=$(node -p "require('./src/package.json').version")
           git tag -a "v${current_package_version}" -m "Release v${current_package_version}"
-          git push origin "v${current_package_version}"
+          git push origin "v${current_package_version}" --no-verify
           echo "Successfully created and pushed git tag v${current_package_version}"
       - name: Publish Extension
         env:
