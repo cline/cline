@@ -152,7 +152,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 	},
 	"claude-opus-4-20250514": {
-		maxTokens: 4096,
+		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
