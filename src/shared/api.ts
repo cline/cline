@@ -277,7 +277,7 @@ export const bedrockModels = {
 		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
-		
+
 		supportsPromptCache: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
