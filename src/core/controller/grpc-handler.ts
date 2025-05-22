@@ -82,12 +82,6 @@ export class GrpcHandler {
 					sequence_number: sequenceNumber,
 				},
 			})
-			console.log("[PROTOBUS] streaming response (CHECK SEQ)", {
-				responseLength: response.length,
-				request_id: requestId,
-				is_streaming: !isLast,
-				sequence_number: sequenceNumber,
-			})
 		}
 
 		try {
