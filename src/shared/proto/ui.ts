@@ -5,33 +5,33 @@
 // source: ui.proto
 
 /* eslint-disable */
-import { Boolean, Empty, EmptyRequest, StringRequest } from "./common"
+import { Boolean, Empty, EmptyRequest, StringRequest } from "./common";
 
-export const protobufPackage = "cline"
+export const protobufPackage = "cline";
 
 /** UiService provides methods for managing UI interactions */
-export type UiServiceDefinition = typeof UiServiceDefinition
+export type UiServiceDefinition = typeof UiServiceDefinition;
 export const UiServiceDefinition = {
-	name: "UiService",
-	fullName: "cline.UiService",
-	methods: {
-		/** Scrolls to a specific settings section in the settings view */
-		scrollToSettings: {
-			name: "scrollToSettings",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Marks the current announcement as shown and returns whether an announcement should still be shown */
-		onDidShowAnnouncement: {
-			name: "onDidShowAnnouncement",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: Boolean,
-			responseStream: false,
-			options: {},
-		},
-	},
-} as const
+  name: "UiService",
+  fullName: "cline.UiService",
+  methods: {
+    /** Scrolls to a specific settings section in the settings view */
+    scrollToSettings: {
+      name: "scrollToSettings",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Marks the current announcement as shown and returns whether an announcement should still be shown */
+    onDidShowAnnouncement: {
+      name: "onDidShowAnnouncement",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: Boolean,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;

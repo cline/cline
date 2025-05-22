@@ -18,7 +18,6 @@ export const SectionHeader = ({ description, children, className, ...props }: Se
 			{...props}
 			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 20 }}>
 			<h4 className="m-0">{children}</h4>
-			sty
 			{description && <p className="text-[var(--vscode-descriptionForeground)] text-sm mt-2 mb-0">{description}</p>}
 		</div>
 	)

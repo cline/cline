@@ -5,1237 +5,1240 @@
 // source: task.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Int64Request, Metadata, StringArrayRequest, StringRequest } from "./common"
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { Empty, EmptyRequest, Int64Request, Metadata, StringArrayRequest, StringRequest } from "./common";
 
-export const protobufPackage = "cline"
+export const protobufPackage = "cline";
 
 /** Request message for creating a new task */
 export interface NewTaskRequest {
-	metadata?: Metadata | undefined
-	text: string
-	images: string[]
+  metadata?: Metadata | undefined;
+  text: string;
+  images: string[];
 }
 
 /** Request message for toggling task favorite status */
 export interface TaskFavoriteRequest {
-	metadata?: Metadata | undefined
-	taskId: string
-	isFavorited: boolean
+  metadata?: Metadata | undefined;
+  taskId: string;
+  isFavorited: boolean;
 }
 
 /** Response for task details */
 export interface TaskResponse {
-	id: string
-	task: string
-	ts: number
-	isFavorited: boolean
-	size: number
-	totalCost: number
-	tokensIn: number
-	tokensOut: number
-	cacheWrites: number
-	cacheReads: number
+  id: string;
+  task: string;
+  ts: number;
+  isFavorited: boolean;
+  size: number;
+  totalCost: number;
+  tokensIn: number;
+  tokensOut: number;
+  cacheWrites: number;
+  cacheReads: number;
 }
 
 /** Results returned when deleting non-favorited tasks */
 export interface DeleteNonFavoritedTasksResults {
-	tasksPreserved: number
-	tasksDeleted: number
+  tasksPreserved: number;
+  tasksDeleted: number;
 }
 
 /** Request for getting task history with filtering */
 export interface GetTaskHistoryRequest {
-	metadata?: Metadata | undefined
-	favoritesOnly: boolean
-	searchQuery: string
-	sortBy: string
-	currentWorkspaceOnly: boolean
+  metadata?: Metadata | undefined;
+  favoritesOnly: boolean;
+  searchQuery: string;
+  sortBy: string;
+  currentWorkspaceOnly: boolean;
 }
 
 /** Response for task history */
 export interface TaskHistoryArray {
-	tasks: TaskItem[]
-	totalCount: number
+  tasks: TaskItem[];
+  totalCount: number;
 }
 
 /** Task item details for history list */
 export interface TaskItem {
-	id: string
-	task: string
-	ts: number
-	isFavorited: boolean
-	size: number
-	totalCost: number
-	tokensIn: number
-	tokensOut: number
-	cacheWrites: number
-	cacheReads: number
+  id: string;
+  task: string;
+  ts: number;
+  isFavorited: boolean;
+  size: number;
+  totalCost: number;
+  tokensIn: number;
+  tokensOut: number;
+  cacheWrites: number;
+  cacheReads: number;
 }
 
 /** Request for ask response operation */
 export interface AskResponseRequest {
-	metadata?: Metadata | undefined
-	responseType: string
-	text: string
-	images: string[]
+  metadata?: Metadata | undefined;
+  responseType: string;
+  text: string;
+  images: string[];
 }
 
 function createBaseNewTaskRequest(): NewTaskRequest {
-	return { metadata: undefined, text: "", images: [] }
+  return { metadata: undefined, text: "", images: [] };
 }
 
 export const NewTaskRequest: MessageFns<NewTaskRequest> = {
-	encode(message: NewTaskRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.text !== "") {
-			writer.uint32(18).string(message.text)
-		}
-		for (const v of message.images) {
-			writer.uint32(26).string(v!)
-		}
-		return writer
-	},
+  encode(message: NewTaskRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.text !== "") {
+      writer.uint32(18).string(message.text);
+    }
+    for (const v of message.images) {
+      writer.uint32(26).string(v!);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): NewTaskRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseNewTaskRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): NewTaskRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseNewTaskRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.text = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.text = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.images.push(reader.string())
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.images.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): NewTaskRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			text: isSet(object.text) ? globalThis.String(object.text) : "",
-			images: globalThis.Array.isArray(object?.images) ? object.images.map((e: any) => globalThis.String(e)) : [],
-		}
-	},
+  fromJSON(object: any): NewTaskRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      text: isSet(object.text) ? globalThis.String(object.text) : "",
+      images: globalThis.Array.isArray(object?.images) ? object.images.map((e: any) => globalThis.String(e)) : [],
+    };
+  },
 
-	toJSON(message: NewTaskRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.text !== "") {
-			obj.text = message.text
-		}
-		if (message.images?.length) {
-			obj.images = message.images
-		}
-		return obj
-	},
+  toJSON(message: NewTaskRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.text !== "") {
+      obj.text = message.text;
+    }
+    if (message.images?.length) {
+      obj.images = message.images;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<NewTaskRequest>, I>>(base?: I): NewTaskRequest {
-		return NewTaskRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<NewTaskRequest>, I>>(object: I): NewTaskRequest {
-		const message = createBaseNewTaskRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.text = object.text ?? ""
-		message.images = object.images?.map((e) => e) || []
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<NewTaskRequest>, I>>(base?: I): NewTaskRequest {
+    return NewTaskRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<NewTaskRequest>, I>>(object: I): NewTaskRequest {
+    const message = createBaseNewTaskRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.text = object.text ?? "";
+    message.images = object.images?.map((e) => e) || [];
+    return message;
+  },
+};
 
 function createBaseTaskFavoriteRequest(): TaskFavoriteRequest {
-	return { metadata: undefined, taskId: "", isFavorited: false }
+  return { metadata: undefined, taskId: "", isFavorited: false };
 }
 
 export const TaskFavoriteRequest: MessageFns<TaskFavoriteRequest> = {
-	encode(message: TaskFavoriteRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.taskId !== "") {
-			writer.uint32(18).string(message.taskId)
-		}
-		if (message.isFavorited !== false) {
-			writer.uint32(24).bool(message.isFavorited)
-		}
-		return writer
-	},
+  encode(message: TaskFavoriteRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.taskId !== "") {
+      writer.uint32(18).string(message.taskId);
+    }
+    if (message.isFavorited !== false) {
+      writer.uint32(24).bool(message.isFavorited);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): TaskFavoriteRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseTaskFavoriteRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): TaskFavoriteRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTaskFavoriteRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.taskId = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.taskId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.isFavorited = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.isFavorited = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): TaskFavoriteRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
-			isFavorited: isSet(object.isFavorited) ? globalThis.Boolean(object.isFavorited) : false,
-		}
-	},
+  fromJSON(object: any): TaskFavoriteRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
+      isFavorited: isSet(object.isFavorited) ? globalThis.Boolean(object.isFavorited) : false,
+    };
+  },
 
-	toJSON(message: TaskFavoriteRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.taskId !== "") {
-			obj.taskId = message.taskId
-		}
-		if (message.isFavorited !== false) {
-			obj.isFavorited = message.isFavorited
-		}
-		return obj
-	},
+  toJSON(message: TaskFavoriteRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.taskId !== "") {
+      obj.taskId = message.taskId;
+    }
+    if (message.isFavorited !== false) {
+      obj.isFavorited = message.isFavorited;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<TaskFavoriteRequest>, I>>(base?: I): TaskFavoriteRequest {
-		return TaskFavoriteRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<TaskFavoriteRequest>, I>>(object: I): TaskFavoriteRequest {
-		const message = createBaseTaskFavoriteRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.taskId = object.taskId ?? ""
-		message.isFavorited = object.isFavorited ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<TaskFavoriteRequest>, I>>(base?: I): TaskFavoriteRequest {
+    return TaskFavoriteRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TaskFavoriteRequest>, I>>(object: I): TaskFavoriteRequest {
+    const message = createBaseTaskFavoriteRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.taskId = object.taskId ?? "";
+    message.isFavorited = object.isFavorited ?? false;
+    return message;
+  },
+};
 
 function createBaseTaskResponse(): TaskResponse {
-	return {
-		id: "",
-		task: "",
-		ts: 0,
-		isFavorited: false,
-		size: 0,
-		totalCost: 0,
-		tokensIn: 0,
-		tokensOut: 0,
-		cacheWrites: 0,
-		cacheReads: 0,
-	}
+  return {
+    id: "",
+    task: "",
+    ts: 0,
+    isFavorited: false,
+    size: 0,
+    totalCost: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+    cacheWrites: 0,
+    cacheReads: 0,
+  };
 }
 
 export const TaskResponse: MessageFns<TaskResponse> = {
-	encode(message: TaskResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.id !== "") {
-			writer.uint32(10).string(message.id)
-		}
-		if (message.task !== "") {
-			writer.uint32(18).string(message.task)
-		}
-		if (message.ts !== 0) {
-			writer.uint32(24).int64(message.ts)
-		}
-		if (message.isFavorited !== false) {
-			writer.uint32(32).bool(message.isFavorited)
-		}
-		if (message.size !== 0) {
-			writer.uint32(40).int64(message.size)
-		}
-		if (message.totalCost !== 0) {
-			writer.uint32(49).double(message.totalCost)
-		}
-		if (message.tokensIn !== 0) {
-			writer.uint32(56).int32(message.tokensIn)
-		}
-		if (message.tokensOut !== 0) {
-			writer.uint32(64).int32(message.tokensOut)
-		}
-		if (message.cacheWrites !== 0) {
-			writer.uint32(72).int32(message.cacheWrites)
-		}
-		if (message.cacheReads !== 0) {
-			writer.uint32(80).int32(message.cacheReads)
-		}
-		return writer
-	},
+  encode(message: TaskResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.task !== "") {
+      writer.uint32(18).string(message.task);
+    }
+    if (message.ts !== 0) {
+      writer.uint32(24).int64(message.ts);
+    }
+    if (message.isFavorited !== false) {
+      writer.uint32(32).bool(message.isFavorited);
+    }
+    if (message.size !== 0) {
+      writer.uint32(40).int64(message.size);
+    }
+    if (message.totalCost !== 0) {
+      writer.uint32(49).double(message.totalCost);
+    }
+    if (message.tokensIn !== 0) {
+      writer.uint32(56).int32(message.tokensIn);
+    }
+    if (message.tokensOut !== 0) {
+      writer.uint32(64).int32(message.tokensOut);
+    }
+    if (message.cacheWrites !== 0) {
+      writer.uint32(72).int32(message.cacheWrites);
+    }
+    if (message.cacheReads !== 0) {
+      writer.uint32(80).int32(message.cacheReads);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): TaskResponse {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseTaskResponse()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): TaskResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTaskResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.id = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.task = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.task = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.ts = longToNumber(reader.int64())
-					continue
-				}
-				case 4: {
-					if (tag !== 32) {
-						break
-					}
+          message.ts = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
 
-					message.isFavorited = reader.bool()
-					continue
-				}
-				case 5: {
-					if (tag !== 40) {
-						break
-					}
+          message.isFavorited = reader.bool();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
 
-					message.size = longToNumber(reader.int64())
-					continue
-				}
-				case 6: {
-					if (tag !== 49) {
-						break
-					}
+          message.size = longToNumber(reader.int64());
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
 
-					message.totalCost = reader.double()
-					continue
-				}
-				case 7: {
-					if (tag !== 56) {
-						break
-					}
+          message.totalCost = reader.double();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
 
-					message.tokensIn = reader.int32()
-					continue
-				}
-				case 8: {
-					if (tag !== 64) {
-						break
-					}
+          message.tokensIn = reader.int32();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
 
-					message.tokensOut = reader.int32()
-					continue
-				}
-				case 9: {
-					if (tag !== 72) {
-						break
-					}
+          message.tokensOut = reader.int32();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
 
-					message.cacheWrites = reader.int32()
-					continue
-				}
-				case 10: {
-					if (tag !== 80) {
-						break
-					}
+          message.cacheWrites = reader.int32();
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
 
-					message.cacheReads = reader.int32()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.cacheReads = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): TaskResponse {
-		return {
-			id: isSet(object.id) ? globalThis.String(object.id) : "",
-			task: isSet(object.task) ? globalThis.String(object.task) : "",
-			ts: isSet(object.ts) ? globalThis.Number(object.ts) : 0,
-			isFavorited: isSet(object.isFavorited) ? globalThis.Boolean(object.isFavorited) : false,
-			size: isSet(object.size) ? globalThis.Number(object.size) : 0,
-			totalCost: isSet(object.totalCost) ? globalThis.Number(object.totalCost) : 0,
-			tokensIn: isSet(object.tokensIn) ? globalThis.Number(object.tokensIn) : 0,
-			tokensOut: isSet(object.tokensOut) ? globalThis.Number(object.tokensOut) : 0,
-			cacheWrites: isSet(object.cacheWrites) ? globalThis.Number(object.cacheWrites) : 0,
-			cacheReads: isSet(object.cacheReads) ? globalThis.Number(object.cacheReads) : 0,
-		}
-	},
+  fromJSON(object: any): TaskResponse {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      task: isSet(object.task) ? globalThis.String(object.task) : "",
+      ts: isSet(object.ts) ? globalThis.Number(object.ts) : 0,
+      isFavorited: isSet(object.isFavorited) ? globalThis.Boolean(object.isFavorited) : false,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+      totalCost: isSet(object.totalCost) ? globalThis.Number(object.totalCost) : 0,
+      tokensIn: isSet(object.tokensIn) ? globalThis.Number(object.tokensIn) : 0,
+      tokensOut: isSet(object.tokensOut) ? globalThis.Number(object.tokensOut) : 0,
+      cacheWrites: isSet(object.cacheWrites) ? globalThis.Number(object.cacheWrites) : 0,
+      cacheReads: isSet(object.cacheReads) ? globalThis.Number(object.cacheReads) : 0,
+    };
+  },
 
-	toJSON(message: TaskResponse): unknown {
-		const obj: any = {}
-		if (message.id !== "") {
-			obj.id = message.id
-		}
-		if (message.task !== "") {
-			obj.task = message.task
-		}
-		if (message.ts !== 0) {
-			obj.ts = Math.round(message.ts)
-		}
-		if (message.isFavorited !== false) {
-			obj.isFavorited = message.isFavorited
-		}
-		if (message.size !== 0) {
-			obj.size = Math.round(message.size)
-		}
-		if (message.totalCost !== 0) {
-			obj.totalCost = message.totalCost
-		}
-		if (message.tokensIn !== 0) {
-			obj.tokensIn = Math.round(message.tokensIn)
-		}
-		if (message.tokensOut !== 0) {
-			obj.tokensOut = Math.round(message.tokensOut)
-		}
-		if (message.cacheWrites !== 0) {
-			obj.cacheWrites = Math.round(message.cacheWrites)
-		}
-		if (message.cacheReads !== 0) {
-			obj.cacheReads = Math.round(message.cacheReads)
-		}
-		return obj
-	},
+  toJSON(message: TaskResponse): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.task !== "") {
+      obj.task = message.task;
+    }
+    if (message.ts !== 0) {
+      obj.ts = Math.round(message.ts);
+    }
+    if (message.isFavorited !== false) {
+      obj.isFavorited = message.isFavorited;
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    if (message.totalCost !== 0) {
+      obj.totalCost = message.totalCost;
+    }
+    if (message.tokensIn !== 0) {
+      obj.tokensIn = Math.round(message.tokensIn);
+    }
+    if (message.tokensOut !== 0) {
+      obj.tokensOut = Math.round(message.tokensOut);
+    }
+    if (message.cacheWrites !== 0) {
+      obj.cacheWrites = Math.round(message.cacheWrites);
+    }
+    if (message.cacheReads !== 0) {
+      obj.cacheReads = Math.round(message.cacheReads);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<TaskResponse>, I>>(base?: I): TaskResponse {
-		return TaskResponse.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<TaskResponse>, I>>(object: I): TaskResponse {
-		const message = createBaseTaskResponse()
-		message.id = object.id ?? ""
-		message.task = object.task ?? ""
-		message.ts = object.ts ?? 0
-		message.isFavorited = object.isFavorited ?? false
-		message.size = object.size ?? 0
-		message.totalCost = object.totalCost ?? 0
-		message.tokensIn = object.tokensIn ?? 0
-		message.tokensOut = object.tokensOut ?? 0
-		message.cacheWrites = object.cacheWrites ?? 0
-		message.cacheReads = object.cacheReads ?? 0
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<TaskResponse>, I>>(base?: I): TaskResponse {
+    return TaskResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TaskResponse>, I>>(object: I): TaskResponse {
+    const message = createBaseTaskResponse();
+    message.id = object.id ?? "";
+    message.task = object.task ?? "";
+    message.ts = object.ts ?? 0;
+    message.isFavorited = object.isFavorited ?? false;
+    message.size = object.size ?? 0;
+    message.totalCost = object.totalCost ?? 0;
+    message.tokensIn = object.tokensIn ?? 0;
+    message.tokensOut = object.tokensOut ?? 0;
+    message.cacheWrites = object.cacheWrites ?? 0;
+    message.cacheReads = object.cacheReads ?? 0;
+    return message;
+  },
+};
 
 function createBaseDeleteNonFavoritedTasksResults(): DeleteNonFavoritedTasksResults {
-	return { tasksPreserved: 0, tasksDeleted: 0 }
+  return { tasksPreserved: 0, tasksDeleted: 0 };
 }
 
 export const DeleteNonFavoritedTasksResults: MessageFns<DeleteNonFavoritedTasksResults> = {
-	encode(message: DeleteNonFavoritedTasksResults, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.tasksPreserved !== 0) {
-			writer.uint32(8).int32(message.tasksPreserved)
-		}
-		if (message.tasksDeleted !== 0) {
-			writer.uint32(16).int32(message.tasksDeleted)
-		}
-		return writer
-	},
+  encode(message: DeleteNonFavoritedTasksResults, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.tasksPreserved !== 0) {
+      writer.uint32(8).int32(message.tasksPreserved);
+    }
+    if (message.tasksDeleted !== 0) {
+      writer.uint32(16).int32(message.tasksDeleted);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): DeleteNonFavoritedTasksResults {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseDeleteNonFavoritedTasksResults()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 8) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteNonFavoritedTasksResults {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteNonFavoritedTasksResults();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
 
-					message.tasksPreserved = reader.int32()
-					continue
-				}
-				case 2: {
-					if (tag !== 16) {
-						break
-					}
+          message.tasksPreserved = reader.int32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
 
-					message.tasksDeleted = reader.int32()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.tasksDeleted = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): DeleteNonFavoritedTasksResults {
-		return {
-			tasksPreserved: isSet(object.tasksPreserved) ? globalThis.Number(object.tasksPreserved) : 0,
-			tasksDeleted: isSet(object.tasksDeleted) ? globalThis.Number(object.tasksDeleted) : 0,
-		}
-	},
+  fromJSON(object: any): DeleteNonFavoritedTasksResults {
+    return {
+      tasksPreserved: isSet(object.tasksPreserved) ? globalThis.Number(object.tasksPreserved) : 0,
+      tasksDeleted: isSet(object.tasksDeleted) ? globalThis.Number(object.tasksDeleted) : 0,
+    };
+  },
 
-	toJSON(message: DeleteNonFavoritedTasksResults): unknown {
-		const obj: any = {}
-		if (message.tasksPreserved !== 0) {
-			obj.tasksPreserved = Math.round(message.tasksPreserved)
-		}
-		if (message.tasksDeleted !== 0) {
-			obj.tasksDeleted = Math.round(message.tasksDeleted)
-		}
-		return obj
-	},
+  toJSON(message: DeleteNonFavoritedTasksResults): unknown {
+    const obj: any = {};
+    if (message.tasksPreserved !== 0) {
+      obj.tasksPreserved = Math.round(message.tasksPreserved);
+    }
+    if (message.tasksDeleted !== 0) {
+      obj.tasksDeleted = Math.round(message.tasksDeleted);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<DeleteNonFavoritedTasksResults>, I>>(base?: I): DeleteNonFavoritedTasksResults {
-		return DeleteNonFavoritedTasksResults.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<DeleteNonFavoritedTasksResults>, I>>(object: I): DeleteNonFavoritedTasksResults {
-		const message = createBaseDeleteNonFavoritedTasksResults()
-		message.tasksPreserved = object.tasksPreserved ?? 0
-		message.tasksDeleted = object.tasksDeleted ?? 0
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<DeleteNonFavoritedTasksResults>, I>>(base?: I): DeleteNonFavoritedTasksResults {
+    return DeleteNonFavoritedTasksResults.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DeleteNonFavoritedTasksResults>, I>>(
+    object: I,
+  ): DeleteNonFavoritedTasksResults {
+    const message = createBaseDeleteNonFavoritedTasksResults();
+    message.tasksPreserved = object.tasksPreserved ?? 0;
+    message.tasksDeleted = object.tasksDeleted ?? 0;
+    return message;
+  },
+};
 
 function createBaseGetTaskHistoryRequest(): GetTaskHistoryRequest {
-	return { metadata: undefined, favoritesOnly: false, searchQuery: "", sortBy: "", currentWorkspaceOnly: false }
+  return { metadata: undefined, favoritesOnly: false, searchQuery: "", sortBy: "", currentWorkspaceOnly: false };
 }
 
 export const GetTaskHistoryRequest: MessageFns<GetTaskHistoryRequest> = {
-	encode(message: GetTaskHistoryRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.favoritesOnly !== false) {
-			writer.uint32(16).bool(message.favoritesOnly)
-		}
-		if (message.searchQuery !== "") {
-			writer.uint32(26).string(message.searchQuery)
-		}
-		if (message.sortBy !== "") {
-			writer.uint32(34).string(message.sortBy)
-		}
-		if (message.currentWorkspaceOnly !== false) {
-			writer.uint32(40).bool(message.currentWorkspaceOnly)
-		}
-		return writer
-	},
+  encode(message: GetTaskHistoryRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.favoritesOnly !== false) {
+      writer.uint32(16).bool(message.favoritesOnly);
+    }
+    if (message.searchQuery !== "") {
+      writer.uint32(26).string(message.searchQuery);
+    }
+    if (message.sortBy !== "") {
+      writer.uint32(34).string(message.sortBy);
+    }
+    if (message.currentWorkspaceOnly !== false) {
+      writer.uint32(40).bool(message.currentWorkspaceOnly);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): GetTaskHistoryRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseGetTaskHistoryRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): GetTaskHistoryRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetTaskHistoryRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 16) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
 
-					message.favoritesOnly = reader.bool()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.favoritesOnly = reader.bool();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.searchQuery = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.searchQuery = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.sortBy = reader.string()
-					continue
-				}
-				case 5: {
-					if (tag !== 40) {
-						break
-					}
+          message.sortBy = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
 
-					message.currentWorkspaceOnly = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.currentWorkspaceOnly = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): GetTaskHistoryRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			favoritesOnly: isSet(object.favoritesOnly) ? globalThis.Boolean(object.favoritesOnly) : false,
-			searchQuery: isSet(object.searchQuery) ? globalThis.String(object.searchQuery) : "",
-			sortBy: isSet(object.sortBy) ? globalThis.String(object.sortBy) : "",
-			currentWorkspaceOnly: isSet(object.currentWorkspaceOnly) ? globalThis.Boolean(object.currentWorkspaceOnly) : false,
-		}
-	},
+  fromJSON(object: any): GetTaskHistoryRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      favoritesOnly: isSet(object.favoritesOnly) ? globalThis.Boolean(object.favoritesOnly) : false,
+      searchQuery: isSet(object.searchQuery) ? globalThis.String(object.searchQuery) : "",
+      sortBy: isSet(object.sortBy) ? globalThis.String(object.sortBy) : "",
+      currentWorkspaceOnly: isSet(object.currentWorkspaceOnly)
+        ? globalThis.Boolean(object.currentWorkspaceOnly)
+        : false,
+    };
+  },
 
-	toJSON(message: GetTaskHistoryRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.favoritesOnly !== false) {
-			obj.favoritesOnly = message.favoritesOnly
-		}
-		if (message.searchQuery !== "") {
-			obj.searchQuery = message.searchQuery
-		}
-		if (message.sortBy !== "") {
-			obj.sortBy = message.sortBy
-		}
-		if (message.currentWorkspaceOnly !== false) {
-			obj.currentWorkspaceOnly = message.currentWorkspaceOnly
-		}
-		return obj
-	},
+  toJSON(message: GetTaskHistoryRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.favoritesOnly !== false) {
+      obj.favoritesOnly = message.favoritesOnly;
+    }
+    if (message.searchQuery !== "") {
+      obj.searchQuery = message.searchQuery;
+    }
+    if (message.sortBy !== "") {
+      obj.sortBy = message.sortBy;
+    }
+    if (message.currentWorkspaceOnly !== false) {
+      obj.currentWorkspaceOnly = message.currentWorkspaceOnly;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<GetTaskHistoryRequest>, I>>(base?: I): GetTaskHistoryRequest {
-		return GetTaskHistoryRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<GetTaskHistoryRequest>, I>>(object: I): GetTaskHistoryRequest {
-		const message = createBaseGetTaskHistoryRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.favoritesOnly = object.favoritesOnly ?? false
-		message.searchQuery = object.searchQuery ?? ""
-		message.sortBy = object.sortBy ?? ""
-		message.currentWorkspaceOnly = object.currentWorkspaceOnly ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<GetTaskHistoryRequest>, I>>(base?: I): GetTaskHistoryRequest {
+    return GetTaskHistoryRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetTaskHistoryRequest>, I>>(object: I): GetTaskHistoryRequest {
+    const message = createBaseGetTaskHistoryRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.favoritesOnly = object.favoritesOnly ?? false;
+    message.searchQuery = object.searchQuery ?? "";
+    message.sortBy = object.sortBy ?? "";
+    message.currentWorkspaceOnly = object.currentWorkspaceOnly ?? false;
+    return message;
+  },
+};
 
 function createBaseTaskHistoryArray(): TaskHistoryArray {
-	return { tasks: [], totalCount: 0 }
+  return { tasks: [], totalCount: 0 };
 }
 
 export const TaskHistoryArray: MessageFns<TaskHistoryArray> = {
-	encode(message: TaskHistoryArray, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		for (const v of message.tasks) {
-			TaskItem.encode(v!, writer.uint32(10).fork()).join()
-		}
-		if (message.totalCount !== 0) {
-			writer.uint32(16).int32(message.totalCount)
-		}
-		return writer
-	},
+  encode(message: TaskHistoryArray, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.tasks) {
+      TaskItem.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.totalCount !== 0) {
+      writer.uint32(16).int32(message.totalCount);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): TaskHistoryArray {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseTaskHistoryArray()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): TaskHistoryArray {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTaskHistoryArray();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.tasks.push(TaskItem.decode(reader, reader.uint32()))
-					continue
-				}
-				case 2: {
-					if (tag !== 16) {
-						break
-					}
+          message.tasks.push(TaskItem.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
 
-					message.totalCount = reader.int32()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.totalCount = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): TaskHistoryArray {
-		return {
-			tasks: globalThis.Array.isArray(object?.tasks) ? object.tasks.map((e: any) => TaskItem.fromJSON(e)) : [],
-			totalCount: isSet(object.totalCount) ? globalThis.Number(object.totalCount) : 0,
-		}
-	},
+  fromJSON(object: any): TaskHistoryArray {
+    return {
+      tasks: globalThis.Array.isArray(object?.tasks) ? object.tasks.map((e: any) => TaskItem.fromJSON(e)) : [],
+      totalCount: isSet(object.totalCount) ? globalThis.Number(object.totalCount) : 0,
+    };
+  },
 
-	toJSON(message: TaskHistoryArray): unknown {
-		const obj: any = {}
-		if (message.tasks?.length) {
-			obj.tasks = message.tasks.map((e) => TaskItem.toJSON(e))
-		}
-		if (message.totalCount !== 0) {
-			obj.totalCount = Math.round(message.totalCount)
-		}
-		return obj
-	},
+  toJSON(message: TaskHistoryArray): unknown {
+    const obj: any = {};
+    if (message.tasks?.length) {
+      obj.tasks = message.tasks.map((e) => TaskItem.toJSON(e));
+    }
+    if (message.totalCount !== 0) {
+      obj.totalCount = Math.round(message.totalCount);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<TaskHistoryArray>, I>>(base?: I): TaskHistoryArray {
-		return TaskHistoryArray.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<TaskHistoryArray>, I>>(object: I): TaskHistoryArray {
-		const message = createBaseTaskHistoryArray()
-		message.tasks = object.tasks?.map((e) => TaskItem.fromPartial(e)) || []
-		message.totalCount = object.totalCount ?? 0
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<TaskHistoryArray>, I>>(base?: I): TaskHistoryArray {
+    return TaskHistoryArray.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TaskHistoryArray>, I>>(object: I): TaskHistoryArray {
+    const message = createBaseTaskHistoryArray();
+    message.tasks = object.tasks?.map((e) => TaskItem.fromPartial(e)) || [];
+    message.totalCount = object.totalCount ?? 0;
+    return message;
+  },
+};
 
 function createBaseTaskItem(): TaskItem {
-	return {
-		id: "",
-		task: "",
-		ts: 0,
-		isFavorited: false,
-		size: 0,
-		totalCost: 0,
-		tokensIn: 0,
-		tokensOut: 0,
-		cacheWrites: 0,
-		cacheReads: 0,
-	}
+  return {
+    id: "",
+    task: "",
+    ts: 0,
+    isFavorited: false,
+    size: 0,
+    totalCost: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+    cacheWrites: 0,
+    cacheReads: 0,
+  };
 }
 
 export const TaskItem: MessageFns<TaskItem> = {
-	encode(message: TaskItem, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.id !== "") {
-			writer.uint32(10).string(message.id)
-		}
-		if (message.task !== "") {
-			writer.uint32(18).string(message.task)
-		}
-		if (message.ts !== 0) {
-			writer.uint32(24).int64(message.ts)
-		}
-		if (message.isFavorited !== false) {
-			writer.uint32(32).bool(message.isFavorited)
-		}
-		if (message.size !== 0) {
-			writer.uint32(40).int64(message.size)
-		}
-		if (message.totalCost !== 0) {
-			writer.uint32(49).double(message.totalCost)
-		}
-		if (message.tokensIn !== 0) {
-			writer.uint32(56).int32(message.tokensIn)
-		}
-		if (message.tokensOut !== 0) {
-			writer.uint32(64).int32(message.tokensOut)
-		}
-		if (message.cacheWrites !== 0) {
-			writer.uint32(72).int32(message.cacheWrites)
-		}
-		if (message.cacheReads !== 0) {
-			writer.uint32(80).int32(message.cacheReads)
-		}
-		return writer
-	},
+  encode(message: TaskItem, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.task !== "") {
+      writer.uint32(18).string(message.task);
+    }
+    if (message.ts !== 0) {
+      writer.uint32(24).int64(message.ts);
+    }
+    if (message.isFavorited !== false) {
+      writer.uint32(32).bool(message.isFavorited);
+    }
+    if (message.size !== 0) {
+      writer.uint32(40).int64(message.size);
+    }
+    if (message.totalCost !== 0) {
+      writer.uint32(49).double(message.totalCost);
+    }
+    if (message.tokensIn !== 0) {
+      writer.uint32(56).int32(message.tokensIn);
+    }
+    if (message.tokensOut !== 0) {
+      writer.uint32(64).int32(message.tokensOut);
+    }
+    if (message.cacheWrites !== 0) {
+      writer.uint32(72).int32(message.cacheWrites);
+    }
+    if (message.cacheReads !== 0) {
+      writer.uint32(80).int32(message.cacheReads);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): TaskItem {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseTaskItem()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): TaskItem {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTaskItem();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.id = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.task = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.task = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.ts = longToNumber(reader.int64())
-					continue
-				}
-				case 4: {
-					if (tag !== 32) {
-						break
-					}
+          message.ts = longToNumber(reader.int64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
 
-					message.isFavorited = reader.bool()
-					continue
-				}
-				case 5: {
-					if (tag !== 40) {
-						break
-					}
+          message.isFavorited = reader.bool();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
 
-					message.size = longToNumber(reader.int64())
-					continue
-				}
-				case 6: {
-					if (tag !== 49) {
-						break
-					}
+          message.size = longToNumber(reader.int64());
+          continue;
+        }
+        case 6: {
+          if (tag !== 49) {
+            break;
+          }
 
-					message.totalCost = reader.double()
-					continue
-				}
-				case 7: {
-					if (tag !== 56) {
-						break
-					}
+          message.totalCost = reader.double();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
 
-					message.tokensIn = reader.int32()
-					continue
-				}
-				case 8: {
-					if (tag !== 64) {
-						break
-					}
+          message.tokensIn = reader.int32();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
 
-					message.tokensOut = reader.int32()
-					continue
-				}
-				case 9: {
-					if (tag !== 72) {
-						break
-					}
+          message.tokensOut = reader.int32();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
 
-					message.cacheWrites = reader.int32()
-					continue
-				}
-				case 10: {
-					if (tag !== 80) {
-						break
-					}
+          message.cacheWrites = reader.int32();
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
 
-					message.cacheReads = reader.int32()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.cacheReads = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): TaskItem {
-		return {
-			id: isSet(object.id) ? globalThis.String(object.id) : "",
-			task: isSet(object.task) ? globalThis.String(object.task) : "",
-			ts: isSet(object.ts) ? globalThis.Number(object.ts) : 0,
-			isFavorited: isSet(object.isFavorited) ? globalThis.Boolean(object.isFavorited) : false,
-			size: isSet(object.size) ? globalThis.Number(object.size) : 0,
-			totalCost: isSet(object.totalCost) ? globalThis.Number(object.totalCost) : 0,
-			tokensIn: isSet(object.tokensIn) ? globalThis.Number(object.tokensIn) : 0,
-			tokensOut: isSet(object.tokensOut) ? globalThis.Number(object.tokensOut) : 0,
-			cacheWrites: isSet(object.cacheWrites) ? globalThis.Number(object.cacheWrites) : 0,
-			cacheReads: isSet(object.cacheReads) ? globalThis.Number(object.cacheReads) : 0,
-		}
-	},
+  fromJSON(object: any): TaskItem {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      task: isSet(object.task) ? globalThis.String(object.task) : "",
+      ts: isSet(object.ts) ? globalThis.Number(object.ts) : 0,
+      isFavorited: isSet(object.isFavorited) ? globalThis.Boolean(object.isFavorited) : false,
+      size: isSet(object.size) ? globalThis.Number(object.size) : 0,
+      totalCost: isSet(object.totalCost) ? globalThis.Number(object.totalCost) : 0,
+      tokensIn: isSet(object.tokensIn) ? globalThis.Number(object.tokensIn) : 0,
+      tokensOut: isSet(object.tokensOut) ? globalThis.Number(object.tokensOut) : 0,
+      cacheWrites: isSet(object.cacheWrites) ? globalThis.Number(object.cacheWrites) : 0,
+      cacheReads: isSet(object.cacheReads) ? globalThis.Number(object.cacheReads) : 0,
+    };
+  },
 
-	toJSON(message: TaskItem): unknown {
-		const obj: any = {}
-		if (message.id !== "") {
-			obj.id = message.id
-		}
-		if (message.task !== "") {
-			obj.task = message.task
-		}
-		if (message.ts !== 0) {
-			obj.ts = Math.round(message.ts)
-		}
-		if (message.isFavorited !== false) {
-			obj.isFavorited = message.isFavorited
-		}
-		if (message.size !== 0) {
-			obj.size = Math.round(message.size)
-		}
-		if (message.totalCost !== 0) {
-			obj.totalCost = message.totalCost
-		}
-		if (message.tokensIn !== 0) {
-			obj.tokensIn = Math.round(message.tokensIn)
-		}
-		if (message.tokensOut !== 0) {
-			obj.tokensOut = Math.round(message.tokensOut)
-		}
-		if (message.cacheWrites !== 0) {
-			obj.cacheWrites = Math.round(message.cacheWrites)
-		}
-		if (message.cacheReads !== 0) {
-			obj.cacheReads = Math.round(message.cacheReads)
-		}
-		return obj
-	},
+  toJSON(message: TaskItem): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.task !== "") {
+      obj.task = message.task;
+    }
+    if (message.ts !== 0) {
+      obj.ts = Math.round(message.ts);
+    }
+    if (message.isFavorited !== false) {
+      obj.isFavorited = message.isFavorited;
+    }
+    if (message.size !== 0) {
+      obj.size = Math.round(message.size);
+    }
+    if (message.totalCost !== 0) {
+      obj.totalCost = message.totalCost;
+    }
+    if (message.tokensIn !== 0) {
+      obj.tokensIn = Math.round(message.tokensIn);
+    }
+    if (message.tokensOut !== 0) {
+      obj.tokensOut = Math.round(message.tokensOut);
+    }
+    if (message.cacheWrites !== 0) {
+      obj.cacheWrites = Math.round(message.cacheWrites);
+    }
+    if (message.cacheReads !== 0) {
+      obj.cacheReads = Math.round(message.cacheReads);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<TaskItem>, I>>(base?: I): TaskItem {
-		return TaskItem.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<TaskItem>, I>>(object: I): TaskItem {
-		const message = createBaseTaskItem()
-		message.id = object.id ?? ""
-		message.task = object.task ?? ""
-		message.ts = object.ts ?? 0
-		message.isFavorited = object.isFavorited ?? false
-		message.size = object.size ?? 0
-		message.totalCost = object.totalCost ?? 0
-		message.tokensIn = object.tokensIn ?? 0
-		message.tokensOut = object.tokensOut ?? 0
-		message.cacheWrites = object.cacheWrites ?? 0
-		message.cacheReads = object.cacheReads ?? 0
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<TaskItem>, I>>(base?: I): TaskItem {
+    return TaskItem.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TaskItem>, I>>(object: I): TaskItem {
+    const message = createBaseTaskItem();
+    message.id = object.id ?? "";
+    message.task = object.task ?? "";
+    message.ts = object.ts ?? 0;
+    message.isFavorited = object.isFavorited ?? false;
+    message.size = object.size ?? 0;
+    message.totalCost = object.totalCost ?? 0;
+    message.tokensIn = object.tokensIn ?? 0;
+    message.tokensOut = object.tokensOut ?? 0;
+    message.cacheWrites = object.cacheWrites ?? 0;
+    message.cacheReads = object.cacheReads ?? 0;
+    return message;
+  },
+};
 
 function createBaseAskResponseRequest(): AskResponseRequest {
-	return { metadata: undefined, responseType: "", text: "", images: [] }
+  return { metadata: undefined, responseType: "", text: "", images: [] };
 }
 
 export const AskResponseRequest: MessageFns<AskResponseRequest> = {
-	encode(message: AskResponseRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.responseType !== "") {
-			writer.uint32(18).string(message.responseType)
-		}
-		if (message.text !== "") {
-			writer.uint32(26).string(message.text)
-		}
-		for (const v of message.images) {
-			writer.uint32(34).string(v!)
-		}
-		return writer
-	},
+  encode(message: AskResponseRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.responseType !== "") {
+      writer.uint32(18).string(message.responseType);
+    }
+    if (message.text !== "") {
+      writer.uint32(26).string(message.text);
+    }
+    for (const v of message.images) {
+      writer.uint32(34).string(v!);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): AskResponseRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseAskResponseRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): AskResponseRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAskResponseRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.responseType = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.responseType = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.text = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.text = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.images.push(reader.string())
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.images.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): AskResponseRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			responseType: isSet(object.responseType) ? globalThis.String(object.responseType) : "",
-			text: isSet(object.text) ? globalThis.String(object.text) : "",
-			images: globalThis.Array.isArray(object?.images) ? object.images.map((e: any) => globalThis.String(e)) : [],
-		}
-	},
+  fromJSON(object: any): AskResponseRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      responseType: isSet(object.responseType) ? globalThis.String(object.responseType) : "",
+      text: isSet(object.text) ? globalThis.String(object.text) : "",
+      images: globalThis.Array.isArray(object?.images) ? object.images.map((e: any) => globalThis.String(e)) : [],
+    };
+  },
 
-	toJSON(message: AskResponseRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.responseType !== "") {
-			obj.responseType = message.responseType
-		}
-		if (message.text !== "") {
-			obj.text = message.text
-		}
-		if (message.images?.length) {
-			obj.images = message.images
-		}
-		return obj
-	},
+  toJSON(message: AskResponseRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.responseType !== "") {
+      obj.responseType = message.responseType;
+    }
+    if (message.text !== "") {
+      obj.text = message.text;
+    }
+    if (message.images?.length) {
+      obj.images = message.images;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<AskResponseRequest>, I>>(base?: I): AskResponseRequest {
-		return AskResponseRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<AskResponseRequest>, I>>(object: I): AskResponseRequest {
-		const message = createBaseAskResponseRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.responseType = object.responseType ?? ""
-		message.text = object.text ?? ""
-		message.images = object.images?.map((e) => e) || []
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<AskResponseRequest>, I>>(base?: I): AskResponseRequest {
+    return AskResponseRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AskResponseRequest>, I>>(object: I): AskResponseRequest {
+    const message = createBaseAskResponseRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.responseType = object.responseType ?? "";
+    message.text = object.text ?? "";
+    message.images = object.images?.map((e) => e) || [];
+    return message;
+  },
+};
 
-export type TaskServiceDefinition = typeof TaskServiceDefinition
+export type TaskServiceDefinition = typeof TaskServiceDefinition;
 export const TaskServiceDefinition = {
-	name: "TaskService",
-	fullName: "cline.TaskService",
-	methods: {
-		/** Cancels the currently running task */
-		cancelTask: {
-			name: "cancelTask",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Clears the current task */
-		clearTask: {
-			name: "clearTask",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Deletes multiple tasks with the given IDs */
-		deleteTasksWithIds: {
-			name: "deleteTasksWithIds",
-			requestType: StringArrayRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Creates a new task with the given text and optional images */
-		newTask: {
-			name: "newTask",
-			requestType: NewTaskRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Shows a task with the specified ID */
-		showTaskWithId: {
-			name: "showTaskWithId",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: TaskResponse,
-			responseStream: false,
-			options: {},
-		},
-		/** Exports a task with the given ID to markdown */
-		exportTaskWithId: {
-			name: "exportTaskWithId",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Toggles the favorite status of a task */
-		toggleTaskFavorite: {
-			name: "toggleTaskFavorite",
-			requestType: TaskFavoriteRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Deletes all non-favorited tasks */
-		deleteNonFavoritedTasks: {
-			name: "deleteNonFavoritedTasks",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: DeleteNonFavoritedTasksResults,
-			responseStream: false,
-			options: {},
-		},
-		/** Gets filtered task history */
-		getTaskHistory: {
-			name: "getTaskHistory",
-			requestType: GetTaskHistoryRequest,
-			requestStream: false,
-			responseType: TaskHistoryArray,
-			responseStream: false,
-			options: {},
-		},
-		/** Sends a response to a previous ask operation */
-		askResponse: {
-			name: "askResponse",
-			requestType: AskResponseRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Records task feedback (thumbs up/down) */
-		taskFeedback: {
-			name: "taskFeedback",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Shows task completion changes diff in a view */
-		taskCompletionViewChanges: {
-			name: "taskCompletionViewChanges",
-			requestType: Int64Request,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-	},
-} as const
+  name: "TaskService",
+  fullName: "cline.TaskService",
+  methods: {
+    /** Cancels the currently running task */
+    cancelTask: {
+      name: "cancelTask",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Clears the current task */
+    clearTask: {
+      name: "clearTask",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Deletes multiple tasks with the given IDs */
+    deleteTasksWithIds: {
+      name: "deleteTasksWithIds",
+      requestType: StringArrayRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Creates a new task with the given text and optional images */
+    newTask: {
+      name: "newTask",
+      requestType: NewTaskRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Shows a task with the specified ID */
+    showTaskWithId: {
+      name: "showTaskWithId",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: TaskResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** Exports a task with the given ID to markdown */
+    exportTaskWithId: {
+      name: "exportTaskWithId",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Toggles the favorite status of a task */
+    toggleTaskFavorite: {
+      name: "toggleTaskFavorite",
+      requestType: TaskFavoriteRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Deletes all non-favorited tasks */
+    deleteNonFavoritedTasks: {
+      name: "deleteNonFavoritedTasks",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: DeleteNonFavoritedTasksResults,
+      responseStream: false,
+      options: {},
+    },
+    /** Gets filtered task history */
+    getTaskHistory: {
+      name: "getTaskHistory",
+      requestType: GetTaskHistoryRequest,
+      requestStream: false,
+      responseType: TaskHistoryArray,
+      responseStream: false,
+      options: {},
+    },
+    /** Sends a response to a previous ask operation */
+    askResponse: {
+      name: "askResponse",
+      requestType: AskResponseRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Records task feedback (thumbs up/down) */
+    taskFeedback: {
+      name: "taskFeedback",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Shows task completion changes diff in a view */
+    taskCompletionViewChanges: {
+      name: "taskCompletionViewChanges",
+      requestType: Int64Request,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-	? T
-	: T extends globalThis.Array<infer U>
-		? globalThis.Array<DeepPartial<U>>
-		: T extends ReadonlyArray<infer U>
-			? ReadonlyArray<DeepPartial<U>>
-			: T extends {}
-				? { [K in keyof T]?: DeepPartial<T[K]> }
-				: Partial<T>
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
 
-type KeysOfUnion<T> = T extends T ? keyof T : never
-export type Exact<P, I extends P> = P extends Builtin
-	? P
-	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+export type Exact<P, I extends P> = P extends Builtin ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function longToNumber(int64: { toString(): string }): number {
-	const num = globalThis.Number(int64.toString())
-	if (num > globalThis.Number.MAX_SAFE_INTEGER) {
-		throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER")
-	}
-	if (num < globalThis.Number.MIN_SAFE_INTEGER) {
-		throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER")
-	}
-	return num
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
+  }
+  return num;
 }
 
 function isSet(value: any): boolean {
-	return value !== null && value !== undefined
+  return value !== null && value !== undefined;
 }
 
 export interface MessageFns<T> {
-	encode(message: T, writer?: BinaryWriter): BinaryWriter
-	decode(input: BinaryReader | Uint8Array, length?: number): T
-	fromJSON(object: any): T
-	toJSON(message: T): unknown
-	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T
-	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T
+  encode(message: T, writer?: BinaryWriter): BinaryWriter;
+  decode(input: BinaryReader | Uint8Array, length?: number): T;
+  fromJSON(object: any): T;
+  toJSON(message: T): unknown;
+  create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
+  fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
 }

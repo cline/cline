@@ -37,5 +37,5 @@ export {
 	WebServiceClient,
 	ModelsServiceClient,
 	SlashServiceClient,
-	UiServiceClient,
+	UiServiceClient
 }

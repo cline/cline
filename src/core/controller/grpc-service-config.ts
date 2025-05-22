@@ -19,62 +19,56 @@ import { handleUiServiceRequest, handleUiServiceStreamingRequest } from "./ui/in
  * Configuration for a service handler
  */
 export interface ServiceHandlerConfig {
-	requestHandler: (controller: Controller, method: string, message: any) => Promise<any>
-	streamingHandler: (
-		controller: Controller,
-		method: string,
-		message: any,
-		responseStream: StreamingResponseHandler,
-		requestId?: string,
-	) => Promise<void>
+  requestHandler: (controller: Controller, method: string, message: any) => Promise<any>;
+  streamingHandler: (controller: Controller, method: string, message: any, responseStream: StreamingResponseHandler, requestId?: string) => Promise<void>;
 }
 
 /**
  * Map of service names to their handler configurations
  */
 export const serviceHandlers: Record<string, ServiceHandlerConfig> = {
-	"cline.AccountService": {
-		requestHandler: handleAccountServiceRequest,
-		streamingHandler: handleAccountServiceStreamingRequest,
-	},
-	"cline.BrowserService": {
-		requestHandler: handleBrowserServiceRequest,
-		streamingHandler: handleBrowserServiceStreamingRequest,
-	},
-	"cline.CheckpointsService": {
-		requestHandler: handleCheckpointsServiceRequest,
-		streamingHandler: handleCheckpointsServiceStreamingRequest,
-	},
-	"cline.FileService": {
-		requestHandler: handleFileServiceRequest,
-		streamingHandler: handleFileServiceStreamingRequest,
-	},
-	"cline.McpService": {
-		requestHandler: handleMcpServiceRequest,
-		streamingHandler: handleMcpServiceStreamingRequest,
-	},
-	"cline.StateService": {
-		requestHandler: handleStateServiceRequest,
-		streamingHandler: handleStateServiceStreamingRequest,
-	},
-	"cline.TaskService": {
-		requestHandler: handleTaskServiceRequest,
-		streamingHandler: handleTaskServiceStreamingRequest,
-	},
-	"cline.WebService": {
-		requestHandler: handleWebServiceRequest,
-		streamingHandler: handleWebServiceStreamingRequest,
-	},
-	"cline.ModelsService": {
-		requestHandler: handleModelsServiceRequest,
-		streamingHandler: handleModelsServiceStreamingRequest,
-	},
-	"cline.SlashService": {
-		requestHandler: handleSlashServiceRequest,
-		streamingHandler: handleSlashServiceStreamingRequest,
-	},
-	"cline.UiService": {
-		requestHandler: handleUiServiceRequest,
-		streamingHandler: handleUiServiceStreamingRequest,
-	},
-}
+  "cline.AccountService": {
+    requestHandler: handleAccountServiceRequest,
+    streamingHandler: handleAccountServiceStreamingRequest
+  },
+  "cline.BrowserService": {
+    requestHandler: handleBrowserServiceRequest,
+    streamingHandler: handleBrowserServiceStreamingRequest
+  },
+  "cline.CheckpointsService": {
+    requestHandler: handleCheckpointsServiceRequest,
+    streamingHandler: handleCheckpointsServiceStreamingRequest
+  },
+  "cline.FileService": {
+    requestHandler: handleFileServiceRequest,
+    streamingHandler: handleFileServiceStreamingRequest
+  },
+  "cline.McpService": {
+    requestHandler: handleMcpServiceRequest,
+    streamingHandler: handleMcpServiceStreamingRequest
+  },
+  "cline.StateService": {
+    requestHandler: handleStateServiceRequest,
+    streamingHandler: handleStateServiceStreamingRequest
+  },
+  "cline.TaskService": {
+    requestHandler: handleTaskServiceRequest,
+    streamingHandler: handleTaskServiceStreamingRequest
+  },
+  "cline.WebService": {
+    requestHandler: handleWebServiceRequest,
+    streamingHandler: handleWebServiceStreamingRequest
+  },
+  "cline.ModelsService": {
+    requestHandler: handleModelsServiceRequest,
+    streamingHandler: handleModelsServiceStreamingRequest
+  },
+  "cline.SlashService": {
+    requestHandler: handleSlashServiceRequest,
+    streamingHandler: handleSlashServiceStreamingRequest
+  },
+  "cline.UiService": {
+    requestHandler: handleUiServiceRequest,
+    streamingHandler: handleUiServiceStreamingRequest
+  }
+};

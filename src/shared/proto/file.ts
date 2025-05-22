@@ -5,1809 +5,1827 @@
 // source: file.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata, StringArray, StringRequest } from "./common"
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { Empty, EmptyRequest, Metadata, StringArray, StringRequest } from "./common";
 
-export const protobufPackage = "cline"
+export const protobufPackage = "cline";
 
 /** Response for refreshRules operation */
 export interface RefreshedRules {
-	globalClineRulesToggles?: ClineRulesToggles | undefined
-	localClineRulesToggles?: ClineRulesToggles | undefined
-	localCursorRulesToggles?: ClineRulesToggles | undefined
-	localWindsurfRulesToggles?: ClineRulesToggles | undefined
-	workflowToggles?: ClineRulesToggles | undefined
+  globalClineRulesToggles?: ClineRulesToggles | undefined;
+  localClineRulesToggles?: ClineRulesToggles | undefined;
+  localCursorRulesToggles?: ClineRulesToggles | undefined;
+  localWindsurfRulesToggles?: ClineRulesToggles | undefined;
+  workflowToggles?: ClineRulesToggles | undefined;
 }
 
 /** Request to toggle a Windsurf rule */
 export interface ToggleWindsurfRuleRequest {
-	metadata?: Metadata | undefined
-	/** Path to the rule file */
-	rulePath: string
-	/** Whether to enable or disable the rule */
-	enabled: boolean
+  metadata?:
+    | Metadata
+    | undefined;
+  /** Path to the rule file */
+  rulePath: string;
+  /** Whether to enable or disable the rule */
+  enabled: boolean;
 }
 
 /** Request to convert a list of URIs to relative paths */
 export interface RelativePathsRequest {
-	metadata?: Metadata | undefined
-	uris: string[]
+  metadata?: Metadata | undefined;
+  uris: string[];
 }
 
 /** Response containing the converted relative paths */
 export interface RelativePaths {
-	paths: string[]
+  paths: string[];
 }
 
 /** Request for file search operations */
 export interface FileSearchRequest {
-	metadata?: Metadata | undefined
-	/** Search query string */
-	query: string
-	/** Optional request ID for tracking requests */
-	mentionsRequestId?: string | undefined
-	/** Optional limit for results (default: 20) */
-	limit?: number | undefined
+  metadata?:
+    | Metadata
+    | undefined;
+  /** Search query string */
+  query: string;
+  /** Optional request ID for tracking requests */
+  mentionsRequestId?:
+    | string
+    | undefined;
+  /** Optional limit for results (default: 20) */
+  limit?: number | undefined;
 }
 
 /** Result for file search operations */
 export interface FileSearchResults {
-	/** Array of file/folder results */
-	results: FileInfo[]
-	/** Echo of the request ID for tracking */
-	mentionsRequestId?: string | undefined
+  /** Array of file/folder results */
+  results: FileInfo[];
+  /** Echo of the request ID for tracking */
+  mentionsRequestId?: string | undefined;
 }
 
 /** File information structure for search results */
 export interface FileInfo {
-	/** Relative path from workspace root */
-	path: string
-	/** "file" or "folder" */
-	type: string
-	/** Display name (usually basename) */
-	label?: string | undefined
+  /** Relative path from workspace root */
+  path: string;
+  /** "file" or "folder" */
+  type: string;
+  /** Display name (usually basename) */
+  label?: string | undefined;
 }
 
 /** Response for searchCommits */
 export interface GitCommits {
-	commits: GitCommit[]
+  commits: GitCommit[];
 }
 
 /** Represents a Git commit */
 export interface GitCommit {
-	hash: string
-	shortHash: string
-	subject: string
-	author: string
-	date: string
+  hash: string;
+  shortHash: string;
+  subject: string;
+  author: string;
+  date: string;
 }
 
 /** Unified request for all rule file operations */
 export interface RuleFileRequest {
-	metadata?: Metadata | undefined
-	/** Common field for all operations */
-	isGlobal: boolean
-	/** Path field for deleteRuleFile (optional) */
-	rulePath?: string | undefined
-	/** Filename field for createRuleFile (optional) */
-	filename?: string | undefined
-	/** Type of the file to create (optional) */
-	type?: string | undefined
+  metadata?:
+    | Metadata
+    | undefined;
+  /** Common field for all operations */
+  isGlobal: boolean;
+  /** Path field for deleteRuleFile (optional) */
+  rulePath?:
+    | string
+    | undefined;
+  /** Filename field for createRuleFile (optional) */
+  filename?:
+    | string
+    | undefined;
+  /** Type of the file to create (optional) */
+  type?: string | undefined;
 }
 
 /** Result for rule file operations with meaningful data only */
 export interface RuleFile {
-	/** Path to the rule file */
-	filePath: string
-	/** Filename for display purposes */
-	displayName: string
-	/** For createRuleFile, indicates if file already existed */
-	alreadyExists: boolean
+  /** Path to the rule file */
+  filePath: string;
+  /** Filename for display purposes */
+  displayName: string;
+  /** For createRuleFile, indicates if file already existed */
+  alreadyExists: boolean;
 }
 
 /** Request to toggle a Cline rule */
 export interface ToggleClineRuleRequest {
-	metadata?: Metadata | undefined
-	/** Whether this is a global rule or workspace rule */
-	isGlobal: boolean
-	/** Path to the rule file */
-	rulePath: string
-	/** Whether to enable or disable the rule */
-	enabled: boolean
+  metadata?:
+    | Metadata
+    | undefined;
+  /** Whether this is a global rule or workspace rule */
+  isGlobal: boolean;
+  /** Path to the rule file */
+  rulePath: string;
+  /** Whether to enable or disable the rule */
+  enabled: boolean;
 }
 
 /** Maps from filepath to enabled/disabled status, matching app's ClineRulesToggles type */
 export interface ClineRulesToggles {
-	toggles: { [key: string]: boolean }
+  toggles: { [key: string]: boolean };
 }
 
 export interface ClineRulesToggles_TogglesEntry {
-	key: string
-	value: boolean
+  key: string;
+  value: boolean;
 }
 
 /** Response for toggleClineRule operation */
 export interface ToggleClineRules {
-	globalClineRulesToggles?: ClineRulesToggles | undefined
-	localClineRulesToggles?: ClineRulesToggles | undefined
+  globalClineRulesToggles?: ClineRulesToggles | undefined;
+  localClineRulesToggles?: ClineRulesToggles | undefined;
 }
 
 /** Request to toggle a Cursor rule */
 export interface ToggleCursorRuleRequest {
-	metadata?: Metadata | undefined
-	/** Path to the rule file */
-	rulePath: string
-	/** Whether to enable or disable the rule */
-	enabled: boolean
+  metadata?:
+    | Metadata
+    | undefined;
+  /** Path to the rule file */
+  rulePath: string;
+  /** Whether to enable or disable the rule */
+  enabled: boolean;
 }
 
 function createBaseRefreshedRules(): RefreshedRules {
-	return {
-		globalClineRulesToggles: undefined,
-		localClineRulesToggles: undefined,
-		localCursorRulesToggles: undefined,
-		localWindsurfRulesToggles: undefined,
-		workflowToggles: undefined,
-	}
+  return {
+    globalClineRulesToggles: undefined,
+    localClineRulesToggles: undefined,
+    localCursorRulesToggles: undefined,
+    localWindsurfRulesToggles: undefined,
+    workflowToggles: undefined,
+  };
 }
 
 export const RefreshedRules: MessageFns<RefreshedRules> = {
-	encode(message: RefreshedRules, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.globalClineRulesToggles !== undefined) {
-			ClineRulesToggles.encode(message.globalClineRulesToggles, writer.uint32(10).fork()).join()
-		}
-		if (message.localClineRulesToggles !== undefined) {
-			ClineRulesToggles.encode(message.localClineRulesToggles, writer.uint32(18).fork()).join()
-		}
-		if (message.localCursorRulesToggles !== undefined) {
-			ClineRulesToggles.encode(message.localCursorRulesToggles, writer.uint32(26).fork()).join()
-		}
-		if (message.localWindsurfRulesToggles !== undefined) {
-			ClineRulesToggles.encode(message.localWindsurfRulesToggles, writer.uint32(34).fork()).join()
-		}
-		if (message.workflowToggles !== undefined) {
-			ClineRulesToggles.encode(message.workflowToggles, writer.uint32(42).fork()).join()
-		}
-		return writer
-	},
+  encode(message: RefreshedRules, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.globalClineRulesToggles !== undefined) {
+      ClineRulesToggles.encode(message.globalClineRulesToggles, writer.uint32(10).fork()).join();
+    }
+    if (message.localClineRulesToggles !== undefined) {
+      ClineRulesToggles.encode(message.localClineRulesToggles, writer.uint32(18).fork()).join();
+    }
+    if (message.localCursorRulesToggles !== undefined) {
+      ClineRulesToggles.encode(message.localCursorRulesToggles, writer.uint32(26).fork()).join();
+    }
+    if (message.localWindsurfRulesToggles !== undefined) {
+      ClineRulesToggles.encode(message.localWindsurfRulesToggles, writer.uint32(34).fork()).join();
+    }
+    if (message.workflowToggles !== undefined) {
+      ClineRulesToggles.encode(message.workflowToggles, writer.uint32(42).fork()).join();
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): RefreshedRules {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseRefreshedRules()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): RefreshedRules {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRefreshedRules();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.globalClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.globalClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.localClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.localClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.localCursorRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.localCursorRulesToggles = ClineRulesToggles.decode(reader, reader.uint32());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.localWindsurfRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
-					continue
-				}
-				case 5: {
-					if (tag !== 42) {
-						break
-					}
+          message.localWindsurfRulesToggles = ClineRulesToggles.decode(reader, reader.uint32());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
 
-					message.workflowToggles = ClineRulesToggles.decode(reader, reader.uint32())
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.workflowToggles = ClineRulesToggles.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): RefreshedRules {
-		return {
-			globalClineRulesToggles: isSet(object.globalClineRulesToggles)
-				? ClineRulesToggles.fromJSON(object.globalClineRulesToggles)
-				: undefined,
-			localClineRulesToggles: isSet(object.localClineRulesToggles)
-				? ClineRulesToggles.fromJSON(object.localClineRulesToggles)
-				: undefined,
-			localCursorRulesToggles: isSet(object.localCursorRulesToggles)
-				? ClineRulesToggles.fromJSON(object.localCursorRulesToggles)
-				: undefined,
-			localWindsurfRulesToggles: isSet(object.localWindsurfRulesToggles)
-				? ClineRulesToggles.fromJSON(object.localWindsurfRulesToggles)
-				: undefined,
-			workflowToggles: isSet(object.workflowToggles) ? ClineRulesToggles.fromJSON(object.workflowToggles) : undefined,
-		}
-	},
+  fromJSON(object: any): RefreshedRules {
+    return {
+      globalClineRulesToggles: isSet(object.globalClineRulesToggles)
+        ? ClineRulesToggles.fromJSON(object.globalClineRulesToggles)
+        : undefined,
+      localClineRulesToggles: isSet(object.localClineRulesToggles)
+        ? ClineRulesToggles.fromJSON(object.localClineRulesToggles)
+        : undefined,
+      localCursorRulesToggles: isSet(object.localCursorRulesToggles)
+        ? ClineRulesToggles.fromJSON(object.localCursorRulesToggles)
+        : undefined,
+      localWindsurfRulesToggles: isSet(object.localWindsurfRulesToggles)
+        ? ClineRulesToggles.fromJSON(object.localWindsurfRulesToggles)
+        : undefined,
+      workflowToggles: isSet(object.workflowToggles) ? ClineRulesToggles.fromJSON(object.workflowToggles) : undefined,
+    };
+  },
 
-	toJSON(message: RefreshedRules): unknown {
-		const obj: any = {}
-		if (message.globalClineRulesToggles !== undefined) {
-			obj.globalClineRulesToggles = ClineRulesToggles.toJSON(message.globalClineRulesToggles)
-		}
-		if (message.localClineRulesToggles !== undefined) {
-			obj.localClineRulesToggles = ClineRulesToggles.toJSON(message.localClineRulesToggles)
-		}
-		if (message.localCursorRulesToggles !== undefined) {
-			obj.localCursorRulesToggles = ClineRulesToggles.toJSON(message.localCursorRulesToggles)
-		}
-		if (message.localWindsurfRulesToggles !== undefined) {
-			obj.localWindsurfRulesToggles = ClineRulesToggles.toJSON(message.localWindsurfRulesToggles)
-		}
-		if (message.workflowToggles !== undefined) {
-			obj.workflowToggles = ClineRulesToggles.toJSON(message.workflowToggles)
-		}
-		return obj
-	},
+  toJSON(message: RefreshedRules): unknown {
+    const obj: any = {};
+    if (message.globalClineRulesToggles !== undefined) {
+      obj.globalClineRulesToggles = ClineRulesToggles.toJSON(message.globalClineRulesToggles);
+    }
+    if (message.localClineRulesToggles !== undefined) {
+      obj.localClineRulesToggles = ClineRulesToggles.toJSON(message.localClineRulesToggles);
+    }
+    if (message.localCursorRulesToggles !== undefined) {
+      obj.localCursorRulesToggles = ClineRulesToggles.toJSON(message.localCursorRulesToggles);
+    }
+    if (message.localWindsurfRulesToggles !== undefined) {
+      obj.localWindsurfRulesToggles = ClineRulesToggles.toJSON(message.localWindsurfRulesToggles);
+    }
+    if (message.workflowToggles !== undefined) {
+      obj.workflowToggles = ClineRulesToggles.toJSON(message.workflowToggles);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<RefreshedRules>, I>>(base?: I): RefreshedRules {
-		return RefreshedRules.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<RefreshedRules>, I>>(object: I): RefreshedRules {
-		const message = createBaseRefreshedRules()
-		message.globalClineRulesToggles =
-			object.globalClineRulesToggles !== undefined && object.globalClineRulesToggles !== null
-				? ClineRulesToggles.fromPartial(object.globalClineRulesToggles)
-				: undefined
-		message.localClineRulesToggles =
-			object.localClineRulesToggles !== undefined && object.localClineRulesToggles !== null
-				? ClineRulesToggles.fromPartial(object.localClineRulesToggles)
-				: undefined
-		message.localCursorRulesToggles =
-			object.localCursorRulesToggles !== undefined && object.localCursorRulesToggles !== null
-				? ClineRulesToggles.fromPartial(object.localCursorRulesToggles)
-				: undefined
-		message.localWindsurfRulesToggles =
-			object.localWindsurfRulesToggles !== undefined && object.localWindsurfRulesToggles !== null
-				? ClineRulesToggles.fromPartial(object.localWindsurfRulesToggles)
-				: undefined
-		message.workflowToggles =
-			object.workflowToggles !== undefined && object.workflowToggles !== null
-				? ClineRulesToggles.fromPartial(object.workflowToggles)
-				: undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<RefreshedRules>, I>>(base?: I): RefreshedRules {
+    return RefreshedRules.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RefreshedRules>, I>>(object: I): RefreshedRules {
+    const message = createBaseRefreshedRules();
+    message.globalClineRulesToggles =
+      (object.globalClineRulesToggles !== undefined && object.globalClineRulesToggles !== null)
+        ? ClineRulesToggles.fromPartial(object.globalClineRulesToggles)
+        : undefined;
+    message.localClineRulesToggles =
+      (object.localClineRulesToggles !== undefined && object.localClineRulesToggles !== null)
+        ? ClineRulesToggles.fromPartial(object.localClineRulesToggles)
+        : undefined;
+    message.localCursorRulesToggles =
+      (object.localCursorRulesToggles !== undefined && object.localCursorRulesToggles !== null)
+        ? ClineRulesToggles.fromPartial(object.localCursorRulesToggles)
+        : undefined;
+    message.localWindsurfRulesToggles =
+      (object.localWindsurfRulesToggles !== undefined && object.localWindsurfRulesToggles !== null)
+        ? ClineRulesToggles.fromPartial(object.localWindsurfRulesToggles)
+        : undefined;
+    message.workflowToggles = (object.workflowToggles !== undefined && object.workflowToggles !== null)
+      ? ClineRulesToggles.fromPartial(object.workflowToggles)
+      : undefined;
+    return message;
+  },
+};
 
 function createBaseToggleWindsurfRuleRequest(): ToggleWindsurfRuleRequest {
-	return { metadata: undefined, rulePath: "", enabled: false }
+  return { metadata: undefined, rulePath: "", enabled: false };
 }
 
 export const ToggleWindsurfRuleRequest: MessageFns<ToggleWindsurfRuleRequest> = {
-	encode(message: ToggleWindsurfRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.rulePath !== "") {
-			writer.uint32(18).string(message.rulePath)
-		}
-		if (message.enabled !== false) {
-			writer.uint32(24).bool(message.enabled)
-		}
-		return writer
-	},
+  encode(message: ToggleWindsurfRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.rulePath !== "") {
+      writer.uint32(18).string(message.rulePath);
+    }
+    if (message.enabled !== false) {
+      writer.uint32(24).bool(message.enabled);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ToggleWindsurfRuleRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseToggleWindsurfRuleRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): ToggleWindsurfRuleRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseToggleWindsurfRuleRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.rulePath = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.rulePath = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.enabled = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.enabled = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): ToggleWindsurfRuleRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
-			enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
-		}
-	},
+  fromJSON(object: any): ToggleWindsurfRuleRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
+      enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+    };
+  },
 
-	toJSON(message: ToggleWindsurfRuleRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.rulePath !== "") {
-			obj.rulePath = message.rulePath
-		}
-		if (message.enabled !== false) {
-			obj.enabled = message.enabled
-		}
-		return obj
-	},
+  toJSON(message: ToggleWindsurfRuleRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.rulePath !== "") {
+      obj.rulePath = message.rulePath;
+    }
+    if (message.enabled !== false) {
+      obj.enabled = message.enabled;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<ToggleWindsurfRuleRequest>, I>>(base?: I): ToggleWindsurfRuleRequest {
-		return ToggleWindsurfRuleRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ToggleWindsurfRuleRequest>, I>>(object: I): ToggleWindsurfRuleRequest {
-		const message = createBaseToggleWindsurfRuleRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.rulePath = object.rulePath ?? ""
-		message.enabled = object.enabled ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<ToggleWindsurfRuleRequest>, I>>(base?: I): ToggleWindsurfRuleRequest {
+    return ToggleWindsurfRuleRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ToggleWindsurfRuleRequest>, I>>(object: I): ToggleWindsurfRuleRequest {
+    const message = createBaseToggleWindsurfRuleRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.rulePath = object.rulePath ?? "";
+    message.enabled = object.enabled ?? false;
+    return message;
+  },
+};
 
 function createBaseRelativePathsRequest(): RelativePathsRequest {
-	return { metadata: undefined, uris: [] }
+  return { metadata: undefined, uris: [] };
 }
 
 export const RelativePathsRequest: MessageFns<RelativePathsRequest> = {
-	encode(message: RelativePathsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		for (const v of message.uris) {
-			writer.uint32(18).string(v!)
-		}
-		return writer
-	},
+  encode(message: RelativePathsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.uris) {
+      writer.uint32(18).string(v!);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): RelativePathsRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseRelativePathsRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): RelativePathsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRelativePathsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.uris.push(reader.string())
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.uris.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): RelativePathsRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			uris: globalThis.Array.isArray(object?.uris) ? object.uris.map((e: any) => globalThis.String(e)) : [],
-		}
-	},
+  fromJSON(object: any): RelativePathsRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      uris: globalThis.Array.isArray(object?.uris) ? object.uris.map((e: any) => globalThis.String(e)) : [],
+    };
+  },
 
-	toJSON(message: RelativePathsRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.uris?.length) {
-			obj.uris = message.uris
-		}
-		return obj
-	},
+  toJSON(message: RelativePathsRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.uris?.length) {
+      obj.uris = message.uris;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<RelativePathsRequest>, I>>(base?: I): RelativePathsRequest {
-		return RelativePathsRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<RelativePathsRequest>, I>>(object: I): RelativePathsRequest {
-		const message = createBaseRelativePathsRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.uris = object.uris?.map((e) => e) || []
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<RelativePathsRequest>, I>>(base?: I): RelativePathsRequest {
+    return RelativePathsRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RelativePathsRequest>, I>>(object: I): RelativePathsRequest {
+    const message = createBaseRelativePathsRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.uris = object.uris?.map((e) => e) || [];
+    return message;
+  },
+};
 
 function createBaseRelativePaths(): RelativePaths {
-	return { paths: [] }
+  return { paths: [] };
 }
 
 export const RelativePaths: MessageFns<RelativePaths> = {
-	encode(message: RelativePaths, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		for (const v of message.paths) {
-			writer.uint32(10).string(v!)
-		}
-		return writer
-	},
+  encode(message: RelativePaths, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.paths) {
+      writer.uint32(10).string(v!);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): RelativePaths {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseRelativePaths()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): RelativePaths {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRelativePaths();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.paths.push(reader.string())
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.paths.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): RelativePaths {
-		return { paths: globalThis.Array.isArray(object?.paths) ? object.paths.map((e: any) => globalThis.String(e)) : [] }
-	},
+  fromJSON(object: any): RelativePaths {
+    return { paths: globalThis.Array.isArray(object?.paths) ? object.paths.map((e: any) => globalThis.String(e)) : [] };
+  },
 
-	toJSON(message: RelativePaths): unknown {
-		const obj: any = {}
-		if (message.paths?.length) {
-			obj.paths = message.paths
-		}
-		return obj
-	},
+  toJSON(message: RelativePaths): unknown {
+    const obj: any = {};
+    if (message.paths?.length) {
+      obj.paths = message.paths;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<RelativePaths>, I>>(base?: I): RelativePaths {
-		return RelativePaths.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<RelativePaths>, I>>(object: I): RelativePaths {
-		const message = createBaseRelativePaths()
-		message.paths = object.paths?.map((e) => e) || []
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<RelativePaths>, I>>(base?: I): RelativePaths {
+    return RelativePaths.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RelativePaths>, I>>(object: I): RelativePaths {
+    const message = createBaseRelativePaths();
+    message.paths = object.paths?.map((e) => e) || [];
+    return message;
+  },
+};
 
 function createBaseFileSearchRequest(): FileSearchRequest {
-	return { metadata: undefined, query: "", mentionsRequestId: undefined, limit: undefined }
+  return { metadata: undefined, query: "", mentionsRequestId: undefined, limit: undefined };
 }
 
 export const FileSearchRequest: MessageFns<FileSearchRequest> = {
-	encode(message: FileSearchRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.query !== "") {
-			writer.uint32(18).string(message.query)
-		}
-		if (message.mentionsRequestId !== undefined) {
-			writer.uint32(26).string(message.mentionsRequestId)
-		}
-		if (message.limit !== undefined) {
-			writer.uint32(32).int32(message.limit)
-		}
-		return writer
-	},
+  encode(message: FileSearchRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.query !== "") {
+      writer.uint32(18).string(message.query);
+    }
+    if (message.mentionsRequestId !== undefined) {
+      writer.uint32(26).string(message.mentionsRequestId);
+    }
+    if (message.limit !== undefined) {
+      writer.uint32(32).int32(message.limit);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): FileSearchRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseFileSearchRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): FileSearchRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFileSearchRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.query = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.query = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.mentionsRequestId = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 32) {
-						break
-					}
+          message.mentionsRequestId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
 
-					message.limit = reader.int32()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.limit = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): FileSearchRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			query: isSet(object.query) ? globalThis.String(object.query) : "",
-			mentionsRequestId: isSet(object.mentionsRequestId) ? globalThis.String(object.mentionsRequestId) : undefined,
-			limit: isSet(object.limit) ? globalThis.Number(object.limit) : undefined,
-		}
-	},
+  fromJSON(object: any): FileSearchRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      query: isSet(object.query) ? globalThis.String(object.query) : "",
+      mentionsRequestId: isSet(object.mentionsRequestId) ? globalThis.String(object.mentionsRequestId) : undefined,
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : undefined,
+    };
+  },
 
-	toJSON(message: FileSearchRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.query !== "") {
-			obj.query = message.query
-		}
-		if (message.mentionsRequestId !== undefined) {
-			obj.mentionsRequestId = message.mentionsRequestId
-		}
-		if (message.limit !== undefined) {
-			obj.limit = Math.round(message.limit)
-		}
-		return obj
-	},
+  toJSON(message: FileSearchRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.query !== "") {
+      obj.query = message.query;
+    }
+    if (message.mentionsRequestId !== undefined) {
+      obj.mentionsRequestId = message.mentionsRequestId;
+    }
+    if (message.limit !== undefined) {
+      obj.limit = Math.round(message.limit);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<FileSearchRequest>, I>>(base?: I): FileSearchRequest {
-		return FileSearchRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<FileSearchRequest>, I>>(object: I): FileSearchRequest {
-		const message = createBaseFileSearchRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.query = object.query ?? ""
-		message.mentionsRequestId = object.mentionsRequestId ?? undefined
-		message.limit = object.limit ?? undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<FileSearchRequest>, I>>(base?: I): FileSearchRequest {
+    return FileSearchRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<FileSearchRequest>, I>>(object: I): FileSearchRequest {
+    const message = createBaseFileSearchRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.query = object.query ?? "";
+    message.mentionsRequestId = object.mentionsRequestId ?? undefined;
+    message.limit = object.limit ?? undefined;
+    return message;
+  },
+};
 
 function createBaseFileSearchResults(): FileSearchResults {
-	return { results: [], mentionsRequestId: undefined }
+  return { results: [], mentionsRequestId: undefined };
 }
 
 export const FileSearchResults: MessageFns<FileSearchResults> = {
-	encode(message: FileSearchResults, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		for (const v of message.results) {
-			FileInfo.encode(v!, writer.uint32(10).fork()).join()
-		}
-		if (message.mentionsRequestId !== undefined) {
-			writer.uint32(18).string(message.mentionsRequestId)
-		}
-		return writer
-	},
+  encode(message: FileSearchResults, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.results) {
+      FileInfo.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.mentionsRequestId !== undefined) {
+      writer.uint32(18).string(message.mentionsRequestId);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): FileSearchResults {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseFileSearchResults()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): FileSearchResults {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFileSearchResults();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.results.push(FileInfo.decode(reader, reader.uint32()))
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.results.push(FileInfo.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.mentionsRequestId = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.mentionsRequestId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): FileSearchResults {
-		return {
-			results: globalThis.Array.isArray(object?.results) ? object.results.map((e: any) => FileInfo.fromJSON(e)) : [],
-			mentionsRequestId: isSet(object.mentionsRequestId) ? globalThis.String(object.mentionsRequestId) : undefined,
-		}
-	},
+  fromJSON(object: any): FileSearchResults {
+    return {
+      results: globalThis.Array.isArray(object?.results) ? object.results.map((e: any) => FileInfo.fromJSON(e)) : [],
+      mentionsRequestId: isSet(object.mentionsRequestId) ? globalThis.String(object.mentionsRequestId) : undefined,
+    };
+  },
 
-	toJSON(message: FileSearchResults): unknown {
-		const obj: any = {}
-		if (message.results?.length) {
-			obj.results = message.results.map((e) => FileInfo.toJSON(e))
-		}
-		if (message.mentionsRequestId !== undefined) {
-			obj.mentionsRequestId = message.mentionsRequestId
-		}
-		return obj
-	},
+  toJSON(message: FileSearchResults): unknown {
+    const obj: any = {};
+    if (message.results?.length) {
+      obj.results = message.results.map((e) => FileInfo.toJSON(e));
+    }
+    if (message.mentionsRequestId !== undefined) {
+      obj.mentionsRequestId = message.mentionsRequestId;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<FileSearchResults>, I>>(base?: I): FileSearchResults {
-		return FileSearchResults.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<FileSearchResults>, I>>(object: I): FileSearchResults {
-		const message = createBaseFileSearchResults()
-		message.results = object.results?.map((e) => FileInfo.fromPartial(e)) || []
-		message.mentionsRequestId = object.mentionsRequestId ?? undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<FileSearchResults>, I>>(base?: I): FileSearchResults {
+    return FileSearchResults.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<FileSearchResults>, I>>(object: I): FileSearchResults {
+    const message = createBaseFileSearchResults();
+    message.results = object.results?.map((e) => FileInfo.fromPartial(e)) || [];
+    message.mentionsRequestId = object.mentionsRequestId ?? undefined;
+    return message;
+  },
+};
 
 function createBaseFileInfo(): FileInfo {
-	return { path: "", type: "", label: undefined }
+  return { path: "", type: "", label: undefined };
 }
 
 export const FileInfo: MessageFns<FileInfo> = {
-	encode(message: FileInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.path !== "") {
-			writer.uint32(10).string(message.path)
-		}
-		if (message.type !== "") {
-			writer.uint32(18).string(message.type)
-		}
-		if (message.label !== undefined) {
-			writer.uint32(26).string(message.label)
-		}
-		return writer
-	},
+  encode(message: FileInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.path !== "") {
+      writer.uint32(10).string(message.path);
+    }
+    if (message.type !== "") {
+      writer.uint32(18).string(message.type);
+    }
+    if (message.label !== undefined) {
+      writer.uint32(26).string(message.label);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): FileInfo {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseFileInfo()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): FileInfo {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFileInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.path = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.path = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.type = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.type = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.label = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.label = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): FileInfo {
-		return {
-			path: isSet(object.path) ? globalThis.String(object.path) : "",
-			type: isSet(object.type) ? globalThis.String(object.type) : "",
-			label: isSet(object.label) ? globalThis.String(object.label) : undefined,
-		}
-	},
+  fromJSON(object: any): FileInfo {
+    return {
+      path: isSet(object.path) ? globalThis.String(object.path) : "",
+      type: isSet(object.type) ? globalThis.String(object.type) : "",
+      label: isSet(object.label) ? globalThis.String(object.label) : undefined,
+    };
+  },
 
-	toJSON(message: FileInfo): unknown {
-		const obj: any = {}
-		if (message.path !== "") {
-			obj.path = message.path
-		}
-		if (message.type !== "") {
-			obj.type = message.type
-		}
-		if (message.label !== undefined) {
-			obj.label = message.label
-		}
-		return obj
-	},
+  toJSON(message: FileInfo): unknown {
+    const obj: any = {};
+    if (message.path !== "") {
+      obj.path = message.path;
+    }
+    if (message.type !== "") {
+      obj.type = message.type;
+    }
+    if (message.label !== undefined) {
+      obj.label = message.label;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<FileInfo>, I>>(base?: I): FileInfo {
-		return FileInfo.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<FileInfo>, I>>(object: I): FileInfo {
-		const message = createBaseFileInfo()
-		message.path = object.path ?? ""
-		message.type = object.type ?? ""
-		message.label = object.label ?? undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<FileInfo>, I>>(base?: I): FileInfo {
+    return FileInfo.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<FileInfo>, I>>(object: I): FileInfo {
+    const message = createBaseFileInfo();
+    message.path = object.path ?? "";
+    message.type = object.type ?? "";
+    message.label = object.label ?? undefined;
+    return message;
+  },
+};
 
 function createBaseGitCommits(): GitCommits {
-	return { commits: [] }
+  return { commits: [] };
 }
 
 export const GitCommits: MessageFns<GitCommits> = {
-	encode(message: GitCommits, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		for (const v of message.commits) {
-			GitCommit.encode(v!, writer.uint32(10).fork()).join()
-		}
-		return writer
-	},
+  encode(message: GitCommits, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.commits) {
+      GitCommit.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): GitCommits {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseGitCommits()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): GitCommits {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGitCommits();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.commits.push(GitCommit.decode(reader, reader.uint32()))
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.commits.push(GitCommit.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): GitCommits {
-		return {
-			commits: globalThis.Array.isArray(object?.commits) ? object.commits.map((e: any) => GitCommit.fromJSON(e)) : [],
-		}
-	},
+  fromJSON(object: any): GitCommits {
+    return {
+      commits: globalThis.Array.isArray(object?.commits) ? object.commits.map((e: any) => GitCommit.fromJSON(e)) : [],
+    };
+  },
 
-	toJSON(message: GitCommits): unknown {
-		const obj: any = {}
-		if (message.commits?.length) {
-			obj.commits = message.commits.map((e) => GitCommit.toJSON(e))
-		}
-		return obj
-	},
+  toJSON(message: GitCommits): unknown {
+    const obj: any = {};
+    if (message.commits?.length) {
+      obj.commits = message.commits.map((e) => GitCommit.toJSON(e));
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<GitCommits>, I>>(base?: I): GitCommits {
-		return GitCommits.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<GitCommits>, I>>(object: I): GitCommits {
-		const message = createBaseGitCommits()
-		message.commits = object.commits?.map((e) => GitCommit.fromPartial(e)) || []
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<GitCommits>, I>>(base?: I): GitCommits {
+    return GitCommits.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GitCommits>, I>>(object: I): GitCommits {
+    const message = createBaseGitCommits();
+    message.commits = object.commits?.map((e) => GitCommit.fromPartial(e)) || [];
+    return message;
+  },
+};
 
 function createBaseGitCommit(): GitCommit {
-	return { hash: "", shortHash: "", subject: "", author: "", date: "" }
+  return { hash: "", shortHash: "", subject: "", author: "", date: "" };
 }
 
 export const GitCommit: MessageFns<GitCommit> = {
-	encode(message: GitCommit, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.hash !== "") {
-			writer.uint32(10).string(message.hash)
-		}
-		if (message.shortHash !== "") {
-			writer.uint32(18).string(message.shortHash)
-		}
-		if (message.subject !== "") {
-			writer.uint32(26).string(message.subject)
-		}
-		if (message.author !== "") {
-			writer.uint32(34).string(message.author)
-		}
-		if (message.date !== "") {
-			writer.uint32(42).string(message.date)
-		}
-		return writer
-	},
+  encode(message: GitCommit, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.hash !== "") {
+      writer.uint32(10).string(message.hash);
+    }
+    if (message.shortHash !== "") {
+      writer.uint32(18).string(message.shortHash);
+    }
+    if (message.subject !== "") {
+      writer.uint32(26).string(message.subject);
+    }
+    if (message.author !== "") {
+      writer.uint32(34).string(message.author);
+    }
+    if (message.date !== "") {
+      writer.uint32(42).string(message.date);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): GitCommit {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseGitCommit()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): GitCommit {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGitCommit();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.hash = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.hash = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.shortHash = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.shortHash = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.subject = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.subject = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.author = reader.string()
-					continue
-				}
-				case 5: {
-					if (tag !== 42) {
-						break
-					}
+          message.author = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
 
-					message.date = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.date = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): GitCommit {
-		return {
-			hash: isSet(object.hash) ? globalThis.String(object.hash) : "",
-			shortHash: isSet(object.shortHash) ? globalThis.String(object.shortHash) : "",
-			subject: isSet(object.subject) ? globalThis.String(object.subject) : "",
-			author: isSet(object.author) ? globalThis.String(object.author) : "",
-			date: isSet(object.date) ? globalThis.String(object.date) : "",
-		}
-	},
+  fromJSON(object: any): GitCommit {
+    return {
+      hash: isSet(object.hash) ? globalThis.String(object.hash) : "",
+      shortHash: isSet(object.shortHash) ? globalThis.String(object.shortHash) : "",
+      subject: isSet(object.subject) ? globalThis.String(object.subject) : "",
+      author: isSet(object.author) ? globalThis.String(object.author) : "",
+      date: isSet(object.date) ? globalThis.String(object.date) : "",
+    };
+  },
 
-	toJSON(message: GitCommit): unknown {
-		const obj: any = {}
-		if (message.hash !== "") {
-			obj.hash = message.hash
-		}
-		if (message.shortHash !== "") {
-			obj.shortHash = message.shortHash
-		}
-		if (message.subject !== "") {
-			obj.subject = message.subject
-		}
-		if (message.author !== "") {
-			obj.author = message.author
-		}
-		if (message.date !== "") {
-			obj.date = message.date
-		}
-		return obj
-	},
+  toJSON(message: GitCommit): unknown {
+    const obj: any = {};
+    if (message.hash !== "") {
+      obj.hash = message.hash;
+    }
+    if (message.shortHash !== "") {
+      obj.shortHash = message.shortHash;
+    }
+    if (message.subject !== "") {
+      obj.subject = message.subject;
+    }
+    if (message.author !== "") {
+      obj.author = message.author;
+    }
+    if (message.date !== "") {
+      obj.date = message.date;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<GitCommit>, I>>(base?: I): GitCommit {
-		return GitCommit.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<GitCommit>, I>>(object: I): GitCommit {
-		const message = createBaseGitCommit()
-		message.hash = object.hash ?? ""
-		message.shortHash = object.shortHash ?? ""
-		message.subject = object.subject ?? ""
-		message.author = object.author ?? ""
-		message.date = object.date ?? ""
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<GitCommit>, I>>(base?: I): GitCommit {
+    return GitCommit.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GitCommit>, I>>(object: I): GitCommit {
+    const message = createBaseGitCommit();
+    message.hash = object.hash ?? "";
+    message.shortHash = object.shortHash ?? "";
+    message.subject = object.subject ?? "";
+    message.author = object.author ?? "";
+    message.date = object.date ?? "";
+    return message;
+  },
+};
 
 function createBaseRuleFileRequest(): RuleFileRequest {
-	return { metadata: undefined, isGlobal: false, rulePath: undefined, filename: undefined, type: undefined }
+  return { metadata: undefined, isGlobal: false, rulePath: undefined, filename: undefined, type: undefined };
 }
 
 export const RuleFileRequest: MessageFns<RuleFileRequest> = {
-	encode(message: RuleFileRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.isGlobal !== false) {
-			writer.uint32(16).bool(message.isGlobal)
-		}
-		if (message.rulePath !== undefined) {
-			writer.uint32(26).string(message.rulePath)
-		}
-		if (message.filename !== undefined) {
-			writer.uint32(34).string(message.filename)
-		}
-		if (message.type !== undefined) {
-			writer.uint32(42).string(message.type)
-		}
-		return writer
-	},
+  encode(message: RuleFileRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.isGlobal !== false) {
+      writer.uint32(16).bool(message.isGlobal);
+    }
+    if (message.rulePath !== undefined) {
+      writer.uint32(26).string(message.rulePath);
+    }
+    if (message.filename !== undefined) {
+      writer.uint32(34).string(message.filename);
+    }
+    if (message.type !== undefined) {
+      writer.uint32(42).string(message.type);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): RuleFileRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseRuleFileRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): RuleFileRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRuleFileRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 16) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
 
-					message.isGlobal = reader.bool()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.isGlobal = reader.bool();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.rulePath = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.rulePath = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.filename = reader.string()
-					continue
-				}
-				case 5: {
-					if (tag !== 42) {
-						break
-					}
+          message.filename = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
 
-					message.type = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.type = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): RuleFileRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
-			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : undefined,
-			filename: isSet(object.filename) ? globalThis.String(object.filename) : undefined,
-			type: isSet(object.type) ? globalThis.String(object.type) : undefined,
-		}
-	},
+  fromJSON(object: any): RuleFileRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
+      rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : undefined,
+      filename: isSet(object.filename) ? globalThis.String(object.filename) : undefined,
+      type: isSet(object.type) ? globalThis.String(object.type) : undefined,
+    };
+  },
 
-	toJSON(message: RuleFileRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.isGlobal !== false) {
-			obj.isGlobal = message.isGlobal
-		}
-		if (message.rulePath !== undefined) {
-			obj.rulePath = message.rulePath
-		}
-		if (message.filename !== undefined) {
-			obj.filename = message.filename
-		}
-		if (message.type !== undefined) {
-			obj.type = message.type
-		}
-		return obj
-	},
+  toJSON(message: RuleFileRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.isGlobal !== false) {
+      obj.isGlobal = message.isGlobal;
+    }
+    if (message.rulePath !== undefined) {
+      obj.rulePath = message.rulePath;
+    }
+    if (message.filename !== undefined) {
+      obj.filename = message.filename;
+    }
+    if (message.type !== undefined) {
+      obj.type = message.type;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<RuleFileRequest>, I>>(base?: I): RuleFileRequest {
-		return RuleFileRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<RuleFileRequest>, I>>(object: I): RuleFileRequest {
-		const message = createBaseRuleFileRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.isGlobal = object.isGlobal ?? false
-		message.rulePath = object.rulePath ?? undefined
-		message.filename = object.filename ?? undefined
-		message.type = object.type ?? undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<RuleFileRequest>, I>>(base?: I): RuleFileRequest {
+    return RuleFileRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RuleFileRequest>, I>>(object: I): RuleFileRequest {
+    const message = createBaseRuleFileRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.isGlobal = object.isGlobal ?? false;
+    message.rulePath = object.rulePath ?? undefined;
+    message.filename = object.filename ?? undefined;
+    message.type = object.type ?? undefined;
+    return message;
+  },
+};
 
 function createBaseRuleFile(): RuleFile {
-	return { filePath: "", displayName: "", alreadyExists: false }
+  return { filePath: "", displayName: "", alreadyExists: false };
 }
 
 export const RuleFile: MessageFns<RuleFile> = {
-	encode(message: RuleFile, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.filePath !== "") {
-			writer.uint32(10).string(message.filePath)
-		}
-		if (message.displayName !== "") {
-			writer.uint32(18).string(message.displayName)
-		}
-		if (message.alreadyExists !== false) {
-			writer.uint32(24).bool(message.alreadyExists)
-		}
-		return writer
-	},
+  encode(message: RuleFile, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.filePath !== "") {
+      writer.uint32(10).string(message.filePath);
+    }
+    if (message.displayName !== "") {
+      writer.uint32(18).string(message.displayName);
+    }
+    if (message.alreadyExists !== false) {
+      writer.uint32(24).bool(message.alreadyExists);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): RuleFile {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseRuleFile()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): RuleFile {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRuleFile();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.filePath = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.filePath = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.displayName = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.displayName = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.alreadyExists = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.alreadyExists = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): RuleFile {
-		return {
-			filePath: isSet(object.filePath) ? globalThis.String(object.filePath) : "",
-			displayName: isSet(object.displayName) ? globalThis.String(object.displayName) : "",
-			alreadyExists: isSet(object.alreadyExists) ? globalThis.Boolean(object.alreadyExists) : false,
-		}
-	},
+  fromJSON(object: any): RuleFile {
+    return {
+      filePath: isSet(object.filePath) ? globalThis.String(object.filePath) : "",
+      displayName: isSet(object.displayName) ? globalThis.String(object.displayName) : "",
+      alreadyExists: isSet(object.alreadyExists) ? globalThis.Boolean(object.alreadyExists) : false,
+    };
+  },
 
-	toJSON(message: RuleFile): unknown {
-		const obj: any = {}
-		if (message.filePath !== "") {
-			obj.filePath = message.filePath
-		}
-		if (message.displayName !== "") {
-			obj.displayName = message.displayName
-		}
-		if (message.alreadyExists !== false) {
-			obj.alreadyExists = message.alreadyExists
-		}
-		return obj
-	},
+  toJSON(message: RuleFile): unknown {
+    const obj: any = {};
+    if (message.filePath !== "") {
+      obj.filePath = message.filePath;
+    }
+    if (message.displayName !== "") {
+      obj.displayName = message.displayName;
+    }
+    if (message.alreadyExists !== false) {
+      obj.alreadyExists = message.alreadyExists;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<RuleFile>, I>>(base?: I): RuleFile {
-		return RuleFile.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<RuleFile>, I>>(object: I): RuleFile {
-		const message = createBaseRuleFile()
-		message.filePath = object.filePath ?? ""
-		message.displayName = object.displayName ?? ""
-		message.alreadyExists = object.alreadyExists ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<RuleFile>, I>>(base?: I): RuleFile {
+    return RuleFile.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RuleFile>, I>>(object: I): RuleFile {
+    const message = createBaseRuleFile();
+    message.filePath = object.filePath ?? "";
+    message.displayName = object.displayName ?? "";
+    message.alreadyExists = object.alreadyExists ?? false;
+    return message;
+  },
+};
 
 function createBaseToggleClineRuleRequest(): ToggleClineRuleRequest {
-	return { metadata: undefined, isGlobal: false, rulePath: "", enabled: false }
+  return { metadata: undefined, isGlobal: false, rulePath: "", enabled: false };
 }
 
 export const ToggleClineRuleRequest: MessageFns<ToggleClineRuleRequest> = {
-	encode(message: ToggleClineRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.isGlobal !== false) {
-			writer.uint32(16).bool(message.isGlobal)
-		}
-		if (message.rulePath !== "") {
-			writer.uint32(26).string(message.rulePath)
-		}
-		if (message.enabled !== false) {
-			writer.uint32(32).bool(message.enabled)
-		}
-		return writer
-	},
+  encode(message: ToggleClineRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.isGlobal !== false) {
+      writer.uint32(16).bool(message.isGlobal);
+    }
+    if (message.rulePath !== "") {
+      writer.uint32(26).string(message.rulePath);
+    }
+    if (message.enabled !== false) {
+      writer.uint32(32).bool(message.enabled);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ToggleClineRuleRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseToggleClineRuleRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): ToggleClineRuleRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseToggleClineRuleRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 16) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
 
-					message.isGlobal = reader.bool()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.isGlobal = reader.bool();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.rulePath = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 32) {
-						break
-					}
+          message.rulePath = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
 
-					message.enabled = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.enabled = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): ToggleClineRuleRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
-			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
-			enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
-		}
-	},
+  fromJSON(object: any): ToggleClineRuleRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      isGlobal: isSet(object.isGlobal) ? globalThis.Boolean(object.isGlobal) : false,
+      rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
+      enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+    };
+  },
 
-	toJSON(message: ToggleClineRuleRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.isGlobal !== false) {
-			obj.isGlobal = message.isGlobal
-		}
-		if (message.rulePath !== "") {
-			obj.rulePath = message.rulePath
-		}
-		if (message.enabled !== false) {
-			obj.enabled = message.enabled
-		}
-		return obj
-	},
+  toJSON(message: ToggleClineRuleRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.isGlobal !== false) {
+      obj.isGlobal = message.isGlobal;
+    }
+    if (message.rulePath !== "") {
+      obj.rulePath = message.rulePath;
+    }
+    if (message.enabled !== false) {
+      obj.enabled = message.enabled;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<ToggleClineRuleRequest>, I>>(base?: I): ToggleClineRuleRequest {
-		return ToggleClineRuleRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ToggleClineRuleRequest>, I>>(object: I): ToggleClineRuleRequest {
-		const message = createBaseToggleClineRuleRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.isGlobal = object.isGlobal ?? false
-		message.rulePath = object.rulePath ?? ""
-		message.enabled = object.enabled ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<ToggleClineRuleRequest>, I>>(base?: I): ToggleClineRuleRequest {
+    return ToggleClineRuleRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ToggleClineRuleRequest>, I>>(object: I): ToggleClineRuleRequest {
+    const message = createBaseToggleClineRuleRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.isGlobal = object.isGlobal ?? false;
+    message.rulePath = object.rulePath ?? "";
+    message.enabled = object.enabled ?? false;
+    return message;
+  },
+};
 
 function createBaseClineRulesToggles(): ClineRulesToggles {
-	return { toggles: {} }
+  return { toggles: {} };
 }
 
 export const ClineRulesToggles: MessageFns<ClineRulesToggles> = {
-	encode(message: ClineRulesToggles, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		Object.entries(message.toggles).forEach(([key, value]) => {
-			ClineRulesToggles_TogglesEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join()
-		})
-		return writer
-	},
+  encode(message: ClineRulesToggles, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    Object.entries(message.toggles).forEach(([key, value]) => {
+      ClineRulesToggles_TogglesEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
+    });
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ClineRulesToggles {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseClineRulesToggles()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): ClineRulesToggles {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseClineRulesToggles();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					const entry1 = ClineRulesToggles_TogglesEntry.decode(reader, reader.uint32())
-					if (entry1.value !== undefined) {
-						message.toggles[entry1.key] = entry1.value
-					}
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          const entry1 = ClineRulesToggles_TogglesEntry.decode(reader, reader.uint32());
+          if (entry1.value !== undefined) {
+            message.toggles[entry1.key] = entry1.value;
+          }
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): ClineRulesToggles {
-		return {
-			toggles: isObject(object.toggles)
-				? Object.entries(object.toggles).reduce<{ [key: string]: boolean }>((acc, [key, value]) => {
-						acc[key] = Boolean(value)
-						return acc
-					}, {})
-				: {},
-		}
-	},
+  fromJSON(object: any): ClineRulesToggles {
+    return {
+      toggles: isObject(object.toggles)
+        ? Object.entries(object.toggles).reduce<{ [key: string]: boolean }>((acc, [key, value]) => {
+          acc[key] = Boolean(value);
+          return acc;
+        }, {})
+        : {},
+    };
+  },
 
-	toJSON(message: ClineRulesToggles): unknown {
-		const obj: any = {}
-		if (message.toggles) {
-			const entries = Object.entries(message.toggles)
-			if (entries.length > 0) {
-				obj.toggles = {}
-				entries.forEach(([k, v]) => {
-					obj.toggles[k] = v
-				})
-			}
-		}
-		return obj
-	},
+  toJSON(message: ClineRulesToggles): unknown {
+    const obj: any = {};
+    if (message.toggles) {
+      const entries = Object.entries(message.toggles);
+      if (entries.length > 0) {
+        obj.toggles = {};
+        entries.forEach(([k, v]) => {
+          obj.toggles[k] = v;
+        });
+      }
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<ClineRulesToggles>, I>>(base?: I): ClineRulesToggles {
-		return ClineRulesToggles.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ClineRulesToggles>, I>>(object: I): ClineRulesToggles {
-		const message = createBaseClineRulesToggles()
-		message.toggles = Object.entries(object.toggles ?? {}).reduce<{ [key: string]: boolean }>((acc, [key, value]) => {
-			if (value !== undefined) {
-				acc[key] = globalThis.Boolean(value)
-			}
-			return acc
-		}, {})
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<ClineRulesToggles>, I>>(base?: I): ClineRulesToggles {
+    return ClineRulesToggles.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ClineRulesToggles>, I>>(object: I): ClineRulesToggles {
+    const message = createBaseClineRulesToggles();
+    message.toggles = Object.entries(object.toggles ?? {}).reduce<{ [key: string]: boolean }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = globalThis.Boolean(value);
+      }
+      return acc;
+    }, {});
+    return message;
+  },
+};
 
 function createBaseClineRulesToggles_TogglesEntry(): ClineRulesToggles_TogglesEntry {
-	return { key: "", value: false }
+  return { key: "", value: false };
 }
 
 export const ClineRulesToggles_TogglesEntry: MessageFns<ClineRulesToggles_TogglesEntry> = {
-	encode(message: ClineRulesToggles_TogglesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.key !== "") {
-			writer.uint32(10).string(message.key)
-		}
-		if (message.value !== false) {
-			writer.uint32(16).bool(message.value)
-		}
-		return writer
-	},
+  encode(message: ClineRulesToggles_TogglesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== false) {
+      writer.uint32(16).bool(message.value);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ClineRulesToggles_TogglesEntry {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseClineRulesToggles_TogglesEntry()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): ClineRulesToggles_TogglesEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseClineRulesToggles_TogglesEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.key = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 16) {
-						break
-					}
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
 
-					message.value = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.value = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): ClineRulesToggles_TogglesEntry {
-		return {
-			key: isSet(object.key) ? globalThis.String(object.key) : "",
-			value: isSet(object.value) ? globalThis.Boolean(object.value) : false,
-		}
-	},
+  fromJSON(object: any): ClineRulesToggles_TogglesEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? globalThis.Boolean(object.value) : false,
+    };
+  },
 
-	toJSON(message: ClineRulesToggles_TogglesEntry): unknown {
-		const obj: any = {}
-		if (message.key !== "") {
-			obj.key = message.key
-		}
-		if (message.value !== false) {
-			obj.value = message.value
-		}
-		return obj
-	},
+  toJSON(message: ClineRulesToggles_TogglesEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== false) {
+      obj.value = message.value;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<ClineRulesToggles_TogglesEntry>, I>>(base?: I): ClineRulesToggles_TogglesEntry {
-		return ClineRulesToggles_TogglesEntry.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ClineRulesToggles_TogglesEntry>, I>>(object: I): ClineRulesToggles_TogglesEntry {
-		const message = createBaseClineRulesToggles_TogglesEntry()
-		message.key = object.key ?? ""
-		message.value = object.value ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<ClineRulesToggles_TogglesEntry>, I>>(base?: I): ClineRulesToggles_TogglesEntry {
+    return ClineRulesToggles_TogglesEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ClineRulesToggles_TogglesEntry>, I>>(
+    object: I,
+  ): ClineRulesToggles_TogglesEntry {
+    const message = createBaseClineRulesToggles_TogglesEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? false;
+    return message;
+  },
+};
 
 function createBaseToggleClineRules(): ToggleClineRules {
-	return { globalClineRulesToggles: undefined, localClineRulesToggles: undefined }
+  return { globalClineRulesToggles: undefined, localClineRulesToggles: undefined };
 }
 
 export const ToggleClineRules: MessageFns<ToggleClineRules> = {
-	encode(message: ToggleClineRules, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.globalClineRulesToggles !== undefined) {
-			ClineRulesToggles.encode(message.globalClineRulesToggles, writer.uint32(10).fork()).join()
-		}
-		if (message.localClineRulesToggles !== undefined) {
-			ClineRulesToggles.encode(message.localClineRulesToggles, writer.uint32(18).fork()).join()
-		}
-		return writer
-	},
+  encode(message: ToggleClineRules, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.globalClineRulesToggles !== undefined) {
+      ClineRulesToggles.encode(message.globalClineRulesToggles, writer.uint32(10).fork()).join();
+    }
+    if (message.localClineRulesToggles !== undefined) {
+      ClineRulesToggles.encode(message.localClineRulesToggles, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ToggleClineRules {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseToggleClineRules()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): ToggleClineRules {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseToggleClineRules();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.globalClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.globalClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.localClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32())
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.localClineRulesToggles = ClineRulesToggles.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): ToggleClineRules {
-		return {
-			globalClineRulesToggles: isSet(object.globalClineRulesToggles)
-				? ClineRulesToggles.fromJSON(object.globalClineRulesToggles)
-				: undefined,
-			localClineRulesToggles: isSet(object.localClineRulesToggles)
-				? ClineRulesToggles.fromJSON(object.localClineRulesToggles)
-				: undefined,
-		}
-	},
+  fromJSON(object: any): ToggleClineRules {
+    return {
+      globalClineRulesToggles: isSet(object.globalClineRulesToggles)
+        ? ClineRulesToggles.fromJSON(object.globalClineRulesToggles)
+        : undefined,
+      localClineRulesToggles: isSet(object.localClineRulesToggles)
+        ? ClineRulesToggles.fromJSON(object.localClineRulesToggles)
+        : undefined,
+    };
+  },
 
-	toJSON(message: ToggleClineRules): unknown {
-		const obj: any = {}
-		if (message.globalClineRulesToggles !== undefined) {
-			obj.globalClineRulesToggles = ClineRulesToggles.toJSON(message.globalClineRulesToggles)
-		}
-		if (message.localClineRulesToggles !== undefined) {
-			obj.localClineRulesToggles = ClineRulesToggles.toJSON(message.localClineRulesToggles)
-		}
-		return obj
-	},
+  toJSON(message: ToggleClineRules): unknown {
+    const obj: any = {};
+    if (message.globalClineRulesToggles !== undefined) {
+      obj.globalClineRulesToggles = ClineRulesToggles.toJSON(message.globalClineRulesToggles);
+    }
+    if (message.localClineRulesToggles !== undefined) {
+      obj.localClineRulesToggles = ClineRulesToggles.toJSON(message.localClineRulesToggles);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<ToggleClineRules>, I>>(base?: I): ToggleClineRules {
-		return ToggleClineRules.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ToggleClineRules>, I>>(object: I): ToggleClineRules {
-		const message = createBaseToggleClineRules()
-		message.globalClineRulesToggles =
-			object.globalClineRulesToggles !== undefined && object.globalClineRulesToggles !== null
-				? ClineRulesToggles.fromPartial(object.globalClineRulesToggles)
-				: undefined
-		message.localClineRulesToggles =
-			object.localClineRulesToggles !== undefined && object.localClineRulesToggles !== null
-				? ClineRulesToggles.fromPartial(object.localClineRulesToggles)
-				: undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<ToggleClineRules>, I>>(base?: I): ToggleClineRules {
+    return ToggleClineRules.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ToggleClineRules>, I>>(object: I): ToggleClineRules {
+    const message = createBaseToggleClineRules();
+    message.globalClineRulesToggles =
+      (object.globalClineRulesToggles !== undefined && object.globalClineRulesToggles !== null)
+        ? ClineRulesToggles.fromPartial(object.globalClineRulesToggles)
+        : undefined;
+    message.localClineRulesToggles =
+      (object.localClineRulesToggles !== undefined && object.localClineRulesToggles !== null)
+        ? ClineRulesToggles.fromPartial(object.localClineRulesToggles)
+        : undefined;
+    return message;
+  },
+};
 
 function createBaseToggleCursorRuleRequest(): ToggleCursorRuleRequest {
-	return { metadata: undefined, rulePath: "", enabled: false }
+  return { metadata: undefined, rulePath: "", enabled: false };
 }
 
 export const ToggleCursorRuleRequest: MessageFns<ToggleCursorRuleRequest> = {
-	encode(message: ToggleCursorRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.rulePath !== "") {
-			writer.uint32(18).string(message.rulePath)
-		}
-		if (message.enabled !== false) {
-			writer.uint32(24).bool(message.enabled)
-		}
-		return writer
-	},
+  encode(message: ToggleCursorRuleRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.rulePath !== "") {
+      writer.uint32(18).string(message.rulePath);
+    }
+    if (message.enabled !== false) {
+      writer.uint32(24).bool(message.enabled);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ToggleCursorRuleRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseToggleCursorRuleRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): ToggleCursorRuleRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseToggleCursorRuleRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.rulePath = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.rulePath = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.enabled = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.enabled = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): ToggleCursorRuleRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
-			enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
-		}
-	},
+  fromJSON(object: any): ToggleCursorRuleRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      rulePath: isSet(object.rulePath) ? globalThis.String(object.rulePath) : "",
+      enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+    };
+  },
 
-	toJSON(message: ToggleCursorRuleRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.rulePath !== "") {
-			obj.rulePath = message.rulePath
-		}
-		if (message.enabled !== false) {
-			obj.enabled = message.enabled
-		}
-		return obj
-	},
+  toJSON(message: ToggleCursorRuleRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.rulePath !== "") {
+      obj.rulePath = message.rulePath;
+    }
+    if (message.enabled !== false) {
+      obj.enabled = message.enabled;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<ToggleCursorRuleRequest>, I>>(base?: I): ToggleCursorRuleRequest {
-		return ToggleCursorRuleRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ToggleCursorRuleRequest>, I>>(object: I): ToggleCursorRuleRequest {
-		const message = createBaseToggleCursorRuleRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.rulePath = object.rulePath ?? ""
-		message.enabled = object.enabled ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<ToggleCursorRuleRequest>, I>>(base?: I): ToggleCursorRuleRequest {
+    return ToggleCursorRuleRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ToggleCursorRuleRequest>, I>>(object: I): ToggleCursorRuleRequest {
+    const message = createBaseToggleCursorRuleRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.rulePath = object.rulePath ?? "";
+    message.enabled = object.enabled ?? false;
+    return message;
+  },
+};
 
 /** Service for file-related operations */
-export type FileServiceDefinition = typeof FileServiceDefinition
+export type FileServiceDefinition = typeof FileServiceDefinition;
 export const FileServiceDefinition = {
-	name: "FileService",
-	fullName: "cline.FileService",
-	methods: {
-		/** Copies text to clipboard */
-		copyToClipboard: {
-			name: "copyToClipboard",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Opens a file in the editor */
-		openFile: {
-			name: "openFile",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Opens an image in the system viewer */
-		openImage: {
-			name: "openImage",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Opens a mention (file, path, git commit, problem, terminal, or URL) */
-		openMention: {
-			name: "openMention",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		/** Deletes a rule file from either global or workspace rules directory */
-		deleteRuleFile: {
-			name: "deleteRuleFile",
-			requestType: RuleFileRequest,
-			requestStream: false,
-			responseType: RuleFile,
-			responseStream: false,
-			options: {},
-		},
-		/** Creates a rule file from either global or workspace rules directory */
-		createRuleFile: {
-			name: "createRuleFile",
-			requestType: RuleFileRequest,
-			requestStream: false,
-			responseType: RuleFile,
-			responseStream: false,
-			options: {},
-		},
-		/** Search git commits in the workspace */
-		searchCommits: {
-			name: "searchCommits",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: GitCommits,
-			responseStream: false,
-			options: {},
-		},
-		/** Select images from the file system and return as data URLs */
-		selectImages: {
-			name: "selectImages",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: StringArray,
-			responseStream: false,
-			options: {},
-		},
-		/** Convert URIs to workspace-relative paths */
-		getRelativePaths: {
-			name: "getRelativePaths",
-			requestType: RelativePathsRequest,
-			requestStream: false,
-			responseType: RelativePaths,
-			responseStream: false,
-			options: {},
-		},
-		/** Search for files in the workspace with fuzzy matching */
-		searchFiles: {
-			name: "searchFiles",
-			requestType: FileSearchRequest,
-			requestStream: false,
-			responseType: FileSearchResults,
-			responseStream: false,
-			options: {},
-		},
-		/** Toggle a Cline rule (enable or disable) */
-		toggleClineRule: {
-			name: "toggleClineRule",
-			requestType: ToggleClineRuleRequest,
-			requestStream: false,
-			responseType: ToggleClineRules,
-			responseStream: false,
-			options: {},
-		},
-		/** Toggle a Cursor rule (enable or disable) */
-		toggleCursorRule: {
-			name: "toggleCursorRule",
-			requestType: ToggleCursorRuleRequest,
-			requestStream: false,
-			responseType: ClineRulesToggles,
-			responseStream: false,
-			options: {},
-		},
-		/** Toggle a Windsurf rule (enable or disable) */
-		toggleWindsurfRule: {
-			name: "toggleWindsurfRule",
-			requestType: ToggleWindsurfRuleRequest,
-			requestStream: false,
-			responseType: ClineRulesToggles,
-			responseStream: false,
-			options: {},
-		},
-		/** Refreshes all rule toggles (Cline, External, and Workflows) */
-		refreshRules: {
-			name: "refreshRules",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: RefreshedRules,
-			responseStream: false,
-			options: {},
-		},
-	},
-} as const
+  name: "FileService",
+  fullName: "cline.FileService",
+  methods: {
+    /** Copies text to clipboard */
+    copyToClipboard: {
+      name: "copyToClipboard",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Opens a file in the editor */
+    openFile: {
+      name: "openFile",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Opens an image in the system viewer */
+    openImage: {
+      name: "openImage",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Opens a mention (file, path, git commit, problem, terminal, or URL) */
+    openMention: {
+      name: "openMention",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Deletes a rule file from either global or workspace rules directory */
+    deleteRuleFile: {
+      name: "deleteRuleFile",
+      requestType: RuleFileRequest,
+      requestStream: false,
+      responseType: RuleFile,
+      responseStream: false,
+      options: {},
+    },
+    /** Creates a rule file from either global or workspace rules directory */
+    createRuleFile: {
+      name: "createRuleFile",
+      requestType: RuleFileRequest,
+      requestStream: false,
+      responseType: RuleFile,
+      responseStream: false,
+      options: {},
+    },
+    /** Search git commits in the workspace */
+    searchCommits: {
+      name: "searchCommits",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: GitCommits,
+      responseStream: false,
+      options: {},
+    },
+    /** Select images from the file system and return as data URLs */
+    selectImages: {
+      name: "selectImages",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: StringArray,
+      responseStream: false,
+      options: {},
+    },
+    /** Convert URIs to workspace-relative paths */
+    getRelativePaths: {
+      name: "getRelativePaths",
+      requestType: RelativePathsRequest,
+      requestStream: false,
+      responseType: RelativePaths,
+      responseStream: false,
+      options: {},
+    },
+    /** Search for files in the workspace with fuzzy matching */
+    searchFiles: {
+      name: "searchFiles",
+      requestType: FileSearchRequest,
+      requestStream: false,
+      responseType: FileSearchResults,
+      responseStream: false,
+      options: {},
+    },
+    /** Toggle a Cline rule (enable or disable) */
+    toggleClineRule: {
+      name: "toggleClineRule",
+      requestType: ToggleClineRuleRequest,
+      requestStream: false,
+      responseType: ToggleClineRules,
+      responseStream: false,
+      options: {},
+    },
+    /** Toggle a Cursor rule (enable or disable) */
+    toggleCursorRule: {
+      name: "toggleCursorRule",
+      requestType: ToggleCursorRuleRequest,
+      requestStream: false,
+      responseType: ClineRulesToggles,
+      responseStream: false,
+      options: {},
+    },
+    /** Toggle a Windsurf rule (enable or disable) */
+    toggleWindsurfRule: {
+      name: "toggleWindsurfRule",
+      requestType: ToggleWindsurfRuleRequest,
+      requestStream: false,
+      responseType: ClineRulesToggles,
+      responseStream: false,
+      options: {},
+    },
+    /** Refreshes all rule toggles (Cline, External, and Workflows) */
+    refreshRules: {
+      name: "refreshRules",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: RefreshedRules,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-	? T
-	: T extends globalThis.Array<infer U>
-		? globalThis.Array<DeepPartial<U>>
-		: T extends ReadonlyArray<infer U>
-			? ReadonlyArray<DeepPartial<U>>
-			: T extends {}
-				? { [K in keyof T]?: DeepPartial<T[K]> }
-				: Partial<T>
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
 
-type KeysOfUnion<T> = T extends T ? keyof T : never
-export type Exact<P, I extends P> = P extends Builtin
-	? P
-	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+export type Exact<P, I extends P> = P extends Builtin ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function isObject(value: any): boolean {
-	return typeof value === "object" && value !== null
+  return typeof value === "object" && value !== null;
 }
 
 function isSet(value: any): boolean {
-	return value !== null && value !== undefined
+  return value !== null && value !== undefined;
 }
 
 export interface MessageFns<T> {
-	encode(message: T, writer?: BinaryWriter): BinaryWriter
-	decode(input: BinaryReader | Uint8Array, length?: number): T
-	fromJSON(object: any): T
-	toJSON(message: T): unknown
-	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T
-	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T
+  encode(message: T, writer?: BinaryWriter): BinaryWriter;
+  decode(input: BinaryReader | Uint8Array, length?: number): T;
+  fromJSON(object: any): T;
+  toJSON(message: T): unknown;
+  create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
+  fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
 }

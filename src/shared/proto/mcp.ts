@@ -5,1628 +5,1631 @@
 // source: mcp.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire"
-import { Empty, EmptyRequest, Metadata, StringRequest } from "./common"
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { Empty, EmptyRequest, Metadata, StringRequest } from "./common";
 
-export const protobufPackage = "cline"
+export const protobufPackage = "cline";
 
 export enum McpServerStatus {
-	/**
-	 * MCP_SERVER_STATUS_DISCONNECTED - Protobuf enums (in proto3) must have a zero value defined, which serves as the default if the field isn't explicitly set.
-	 * To align with the required nature of the TypeScript type and avoid an unnecessary UNSPECIFIED state, we map one of the existing statuses to this zero value.
-	 */
-	MCP_SERVER_STATUS_DISCONNECTED = 0,
-	MCP_SERVER_STATUS_CONNECTED = 1,
-	MCP_SERVER_STATUS_CONNECTING = 2,
-	UNRECOGNIZED = -1,
+  /**
+   * MCP_SERVER_STATUS_DISCONNECTED - Protobuf enums (in proto3) must have a zero value defined, which serves as the default if the field isn't explicitly set.
+   * To align with the required nature of the TypeScript type and avoid an unnecessary UNSPECIFIED state, we map one of the existing statuses to this zero value.
+   */
+  MCP_SERVER_STATUS_DISCONNECTED = 0,
+  MCP_SERVER_STATUS_CONNECTED = 1,
+  MCP_SERVER_STATUS_CONNECTING = 2,
+  UNRECOGNIZED = -1,
 }
 
 export function mcpServerStatusFromJSON(object: any): McpServerStatus {
-	switch (object) {
-		case 0:
-		case "MCP_SERVER_STATUS_DISCONNECTED":
-			return McpServerStatus.MCP_SERVER_STATUS_DISCONNECTED
-		case 1:
-		case "MCP_SERVER_STATUS_CONNECTED":
-			return McpServerStatus.MCP_SERVER_STATUS_CONNECTED
-		case 2:
-		case "MCP_SERVER_STATUS_CONNECTING":
-			return McpServerStatus.MCP_SERVER_STATUS_CONNECTING
-		case -1:
-		case "UNRECOGNIZED":
-		default:
-			return McpServerStatus.UNRECOGNIZED
-	}
+  switch (object) {
+    case 0:
+    case "MCP_SERVER_STATUS_DISCONNECTED":
+      return McpServerStatus.MCP_SERVER_STATUS_DISCONNECTED;
+    case 1:
+    case "MCP_SERVER_STATUS_CONNECTED":
+      return McpServerStatus.MCP_SERVER_STATUS_CONNECTED;
+    case 2:
+    case "MCP_SERVER_STATUS_CONNECTING":
+      return McpServerStatus.MCP_SERVER_STATUS_CONNECTING;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return McpServerStatus.UNRECOGNIZED;
+  }
 }
 
 export function mcpServerStatusToJSON(object: McpServerStatus): string {
-	switch (object) {
-		case McpServerStatus.MCP_SERVER_STATUS_DISCONNECTED:
-			return "MCP_SERVER_STATUS_DISCONNECTED"
-		case McpServerStatus.MCP_SERVER_STATUS_CONNECTED:
-			return "MCP_SERVER_STATUS_CONNECTED"
-		case McpServerStatus.MCP_SERVER_STATUS_CONNECTING:
-			return "MCP_SERVER_STATUS_CONNECTING"
-		case McpServerStatus.UNRECOGNIZED:
-		default:
-			return "UNRECOGNIZED"
-	}
+  switch (object) {
+    case McpServerStatus.MCP_SERVER_STATUS_DISCONNECTED:
+      return "MCP_SERVER_STATUS_DISCONNECTED";
+    case McpServerStatus.MCP_SERVER_STATUS_CONNECTED:
+      return "MCP_SERVER_STATUS_CONNECTED";
+    case McpServerStatus.MCP_SERVER_STATUS_CONNECTING:
+      return "MCP_SERVER_STATUS_CONNECTING";
+    case McpServerStatus.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
 }
 
 export interface ToggleMcpServerRequest {
-	metadata?: Metadata | undefined
-	serverName: string
-	disabled: boolean
+  metadata?: Metadata | undefined;
+  serverName: string;
+  disabled: boolean;
 }
 
 export interface UpdateMcpTimeoutRequest {
-	metadata?: Metadata | undefined
-	serverName: string
-	timeout: number
+  metadata?: Metadata | undefined;
+  serverName: string;
+  timeout: number;
 }
 
 export interface AddRemoteMcpServerRequest {
-	metadata?: Metadata | undefined
-	serverName: string
-	serverUrl: string
+  metadata?: Metadata | undefined;
+  serverName: string;
+  serverUrl: string;
 }
 
 export interface ToggleToolAutoApproveRequest {
-	metadata?: Metadata | undefined
-	serverName: string
-	toolNames: string[]
-	autoApprove: boolean
+  metadata?: Metadata | undefined;
+  serverName: string;
+  toolNames: string[];
+  autoApprove: boolean;
 }
 
 export interface McpTool {
-	name: string
-	description?: string | undefined
-	inputSchema?: string | undefined
-	autoApprove?: boolean | undefined
+  name: string;
+  description?: string | undefined;
+  inputSchema?: string | undefined;
+  autoApprove?: boolean | undefined;
 }
 
 export interface McpResource {
-	uri: string
-	name: string
-	mimeType?: string | undefined
-	description?: string | undefined
+  uri: string;
+  name: string;
+  mimeType?: string | undefined;
+  description?: string | undefined;
 }
 
 export interface McpResourceTemplate {
-	uriTemplate: string
-	name: string
-	mimeType?: string | undefined
-	description?: string | undefined
+  uriTemplate: string;
+  name: string;
+  mimeType?: string | undefined;
+  description?: string | undefined;
 }
 
 export interface McpServer {
-	name: string
-	config: string
-	status: McpServerStatus
-	error?: string | undefined
-	tools: McpTool[]
-	resources: McpResource[]
-	resourceTemplates: McpResourceTemplate[]
-	disabled?: boolean | undefined
-	timeout?: number | undefined
+  name: string;
+  config: string;
+  status: McpServerStatus;
+  error?: string | undefined;
+  tools: McpTool[];
+  resources: McpResource[];
+  resourceTemplates: McpResourceTemplate[];
+  disabled?: boolean | undefined;
+  timeout?: number | undefined;
 }
 
 export interface McpServers {
-	mcpServers: McpServer[]
+  mcpServers: McpServer[];
 }
 
 export interface McpMarketplaceItem {
-	mcpId: string
-	githubUrl: string
-	name: string
-	author: string
-	description: string
-	codiconIcon: string
-	logoUrl: string
-	category: string
-	tags: string[]
-	requiresApiKey: boolean
-	readmeContent?: string | undefined
-	llmsInstallationContent?: string | undefined
-	isRecommended: boolean
-	githubStars: number
-	downloadCount: number
-	createdAt: string
-	updatedAt: string
-	lastGithubSync: string
+  mcpId: string;
+  githubUrl: string;
+  name: string;
+  author: string;
+  description: string;
+  codiconIcon: string;
+  logoUrl: string;
+  category: string;
+  tags: string[];
+  requiresApiKey: boolean;
+  readmeContent?: string | undefined;
+  llmsInstallationContent?: string | undefined;
+  isRecommended: boolean;
+  githubStars: number;
+  downloadCount: number;
+  createdAt: string;
+  updatedAt: string;
+  lastGithubSync: string;
 }
 
 export interface McpMarketplaceCatalog {
-	items: McpMarketplaceItem[]
+  items: McpMarketplaceItem[];
 }
 
 function createBaseToggleMcpServerRequest(): ToggleMcpServerRequest {
-	return { metadata: undefined, serverName: "", disabled: false }
+  return { metadata: undefined, serverName: "", disabled: false };
 }
 
 export const ToggleMcpServerRequest: MessageFns<ToggleMcpServerRequest> = {
-	encode(message: ToggleMcpServerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.serverName !== "") {
-			writer.uint32(18).string(message.serverName)
-		}
-		if (message.disabled !== false) {
-			writer.uint32(24).bool(message.disabled)
-		}
-		return writer
-	},
+  encode(message: ToggleMcpServerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.serverName !== "") {
+      writer.uint32(18).string(message.serverName);
+    }
+    if (message.disabled !== false) {
+      writer.uint32(24).bool(message.disabled);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ToggleMcpServerRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseToggleMcpServerRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): ToggleMcpServerRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseToggleMcpServerRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.serverName = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.serverName = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.disabled = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.disabled = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): ToggleMcpServerRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
-			disabled: isSet(object.disabled) ? globalThis.Boolean(object.disabled) : false,
-		}
-	},
+  fromJSON(object: any): ToggleMcpServerRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+      disabled: isSet(object.disabled) ? globalThis.Boolean(object.disabled) : false,
+    };
+  },
 
-	toJSON(message: ToggleMcpServerRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.serverName !== "") {
-			obj.serverName = message.serverName
-		}
-		if (message.disabled !== false) {
-			obj.disabled = message.disabled
-		}
-		return obj
-	},
+  toJSON(message: ToggleMcpServerRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.serverName !== "") {
+      obj.serverName = message.serverName;
+    }
+    if (message.disabled !== false) {
+      obj.disabled = message.disabled;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<ToggleMcpServerRequest>, I>>(base?: I): ToggleMcpServerRequest {
-		return ToggleMcpServerRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ToggleMcpServerRequest>, I>>(object: I): ToggleMcpServerRequest {
-		const message = createBaseToggleMcpServerRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.serverName = object.serverName ?? ""
-		message.disabled = object.disabled ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<ToggleMcpServerRequest>, I>>(base?: I): ToggleMcpServerRequest {
+    return ToggleMcpServerRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ToggleMcpServerRequest>, I>>(object: I): ToggleMcpServerRequest {
+    const message = createBaseToggleMcpServerRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.serverName = object.serverName ?? "";
+    message.disabled = object.disabled ?? false;
+    return message;
+  },
+};
 
 function createBaseUpdateMcpTimeoutRequest(): UpdateMcpTimeoutRequest {
-	return { metadata: undefined, serverName: "", timeout: 0 }
+  return { metadata: undefined, serverName: "", timeout: 0 };
 }
 
 export const UpdateMcpTimeoutRequest: MessageFns<UpdateMcpTimeoutRequest> = {
-	encode(message: UpdateMcpTimeoutRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.serverName !== "") {
-			writer.uint32(18).string(message.serverName)
-		}
-		if (message.timeout !== 0) {
-			writer.uint32(24).int32(message.timeout)
-		}
-		return writer
-	},
+  encode(message: UpdateMcpTimeoutRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.serverName !== "") {
+      writer.uint32(18).string(message.serverName);
+    }
+    if (message.timeout !== 0) {
+      writer.uint32(24).int32(message.timeout);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): UpdateMcpTimeoutRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseUpdateMcpTimeoutRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): UpdateMcpTimeoutRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpdateMcpTimeoutRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.serverName = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.serverName = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.timeout = reader.int32()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.timeout = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): UpdateMcpTimeoutRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
-			timeout: isSet(object.timeout) ? globalThis.Number(object.timeout) : 0,
-		}
-	},
+  fromJSON(object: any): UpdateMcpTimeoutRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+      timeout: isSet(object.timeout) ? globalThis.Number(object.timeout) : 0,
+    };
+  },
 
-	toJSON(message: UpdateMcpTimeoutRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.serverName !== "") {
-			obj.serverName = message.serverName
-		}
-		if (message.timeout !== 0) {
-			obj.timeout = Math.round(message.timeout)
-		}
-		return obj
-	},
+  toJSON(message: UpdateMcpTimeoutRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.serverName !== "") {
+      obj.serverName = message.serverName;
+    }
+    if (message.timeout !== 0) {
+      obj.timeout = Math.round(message.timeout);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<UpdateMcpTimeoutRequest>, I>>(base?: I): UpdateMcpTimeoutRequest {
-		return UpdateMcpTimeoutRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<UpdateMcpTimeoutRequest>, I>>(object: I): UpdateMcpTimeoutRequest {
-		const message = createBaseUpdateMcpTimeoutRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.serverName = object.serverName ?? ""
-		message.timeout = object.timeout ?? 0
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<UpdateMcpTimeoutRequest>, I>>(base?: I): UpdateMcpTimeoutRequest {
+    return UpdateMcpTimeoutRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<UpdateMcpTimeoutRequest>, I>>(object: I): UpdateMcpTimeoutRequest {
+    const message = createBaseUpdateMcpTimeoutRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.serverName = object.serverName ?? "";
+    message.timeout = object.timeout ?? 0;
+    return message;
+  },
+};
 
 function createBaseAddRemoteMcpServerRequest(): AddRemoteMcpServerRequest {
-	return { metadata: undefined, serverName: "", serverUrl: "" }
+  return { metadata: undefined, serverName: "", serverUrl: "" };
 }
 
 export const AddRemoteMcpServerRequest: MessageFns<AddRemoteMcpServerRequest> = {
-	encode(message: AddRemoteMcpServerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.serverName !== "") {
-			writer.uint32(18).string(message.serverName)
-		}
-		if (message.serverUrl !== "") {
-			writer.uint32(26).string(message.serverUrl)
-		}
-		return writer
-	},
+  encode(message: AddRemoteMcpServerRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.serverName !== "") {
+      writer.uint32(18).string(message.serverName);
+    }
+    if (message.serverUrl !== "") {
+      writer.uint32(26).string(message.serverUrl);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): AddRemoteMcpServerRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseAddRemoteMcpServerRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): AddRemoteMcpServerRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAddRemoteMcpServerRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.serverName = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.serverName = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.serverUrl = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.serverUrl = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): AddRemoteMcpServerRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
-			serverUrl: isSet(object.serverUrl) ? globalThis.String(object.serverUrl) : "",
-		}
-	},
+  fromJSON(object: any): AddRemoteMcpServerRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+      serverUrl: isSet(object.serverUrl) ? globalThis.String(object.serverUrl) : "",
+    };
+  },
 
-	toJSON(message: AddRemoteMcpServerRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.serverName !== "") {
-			obj.serverName = message.serverName
-		}
-		if (message.serverUrl !== "") {
-			obj.serverUrl = message.serverUrl
-		}
-		return obj
-	},
+  toJSON(message: AddRemoteMcpServerRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.serverName !== "") {
+      obj.serverName = message.serverName;
+    }
+    if (message.serverUrl !== "") {
+      obj.serverUrl = message.serverUrl;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<AddRemoteMcpServerRequest>, I>>(base?: I): AddRemoteMcpServerRequest {
-		return AddRemoteMcpServerRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<AddRemoteMcpServerRequest>, I>>(object: I): AddRemoteMcpServerRequest {
-		const message = createBaseAddRemoteMcpServerRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.serverName = object.serverName ?? ""
-		message.serverUrl = object.serverUrl ?? ""
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<AddRemoteMcpServerRequest>, I>>(base?: I): AddRemoteMcpServerRequest {
+    return AddRemoteMcpServerRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<AddRemoteMcpServerRequest>, I>>(object: I): AddRemoteMcpServerRequest {
+    const message = createBaseAddRemoteMcpServerRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.serverName = object.serverName ?? "";
+    message.serverUrl = object.serverUrl ?? "";
+    return message;
+  },
+};
 
 function createBaseToggleToolAutoApproveRequest(): ToggleToolAutoApproveRequest {
-	return { metadata: undefined, serverName: "", toolNames: [], autoApprove: false }
+  return { metadata: undefined, serverName: "", toolNames: [], autoApprove: false };
 }
 
 export const ToggleToolAutoApproveRequest: MessageFns<ToggleToolAutoApproveRequest> = {
-	encode(message: ToggleToolAutoApproveRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.metadata !== undefined) {
-			Metadata.encode(message.metadata, writer.uint32(10).fork()).join()
-		}
-		if (message.serverName !== "") {
-			writer.uint32(18).string(message.serverName)
-		}
-		for (const v of message.toolNames) {
-			writer.uint32(26).string(v!)
-		}
-		if (message.autoApprove !== false) {
-			writer.uint32(32).bool(message.autoApprove)
-		}
-		return writer
-	},
+  encode(message: ToggleToolAutoApproveRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).join();
+    }
+    if (message.serverName !== "") {
+      writer.uint32(18).string(message.serverName);
+    }
+    for (const v of message.toolNames) {
+      writer.uint32(26).string(v!);
+    }
+    if (message.autoApprove !== false) {
+      writer.uint32(32).bool(message.autoApprove);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): ToggleToolAutoApproveRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseToggleToolAutoApproveRequest()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): ToggleToolAutoApproveRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseToggleToolAutoApproveRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.metadata = Metadata.decode(reader, reader.uint32())
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.metadata = Metadata.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.serverName = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.serverName = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.toolNames.push(reader.string())
-					continue
-				}
-				case 4: {
-					if (tag !== 32) {
-						break
-					}
+          message.toolNames.push(reader.string());
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
 
-					message.autoApprove = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.autoApprove = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): ToggleToolAutoApproveRequest {
-		return {
-			metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
-			serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
-			toolNames: globalThis.Array.isArray(object?.toolNames) ? object.toolNames.map((e: any) => globalThis.String(e)) : [],
-			autoApprove: isSet(object.autoApprove) ? globalThis.Boolean(object.autoApprove) : false,
-		}
-	},
+  fromJSON(object: any): ToggleToolAutoApproveRequest {
+    return {
+      metadata: isSet(object.metadata) ? Metadata.fromJSON(object.metadata) : undefined,
+      serverName: isSet(object.serverName) ? globalThis.String(object.serverName) : "",
+      toolNames: globalThis.Array.isArray(object?.toolNames)
+        ? object.toolNames.map((e: any) => globalThis.String(e))
+        : [],
+      autoApprove: isSet(object.autoApprove) ? globalThis.Boolean(object.autoApprove) : false,
+    };
+  },
 
-	toJSON(message: ToggleToolAutoApproveRequest): unknown {
-		const obj: any = {}
-		if (message.metadata !== undefined) {
-			obj.metadata = Metadata.toJSON(message.metadata)
-		}
-		if (message.serverName !== "") {
-			obj.serverName = message.serverName
-		}
-		if (message.toolNames?.length) {
-			obj.toolNames = message.toolNames
-		}
-		if (message.autoApprove !== false) {
-			obj.autoApprove = message.autoApprove
-		}
-		return obj
-	},
+  toJSON(message: ToggleToolAutoApproveRequest): unknown {
+    const obj: any = {};
+    if (message.metadata !== undefined) {
+      obj.metadata = Metadata.toJSON(message.metadata);
+    }
+    if (message.serverName !== "") {
+      obj.serverName = message.serverName;
+    }
+    if (message.toolNames?.length) {
+      obj.toolNames = message.toolNames;
+    }
+    if (message.autoApprove !== false) {
+      obj.autoApprove = message.autoApprove;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<ToggleToolAutoApproveRequest>, I>>(base?: I): ToggleToolAutoApproveRequest {
-		return ToggleToolAutoApproveRequest.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<ToggleToolAutoApproveRequest>, I>>(object: I): ToggleToolAutoApproveRequest {
-		const message = createBaseToggleToolAutoApproveRequest()
-		message.metadata =
-			object.metadata !== undefined && object.metadata !== null ? Metadata.fromPartial(object.metadata) : undefined
-		message.serverName = object.serverName ?? ""
-		message.toolNames = object.toolNames?.map((e) => e) || []
-		message.autoApprove = object.autoApprove ?? false
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<ToggleToolAutoApproveRequest>, I>>(base?: I): ToggleToolAutoApproveRequest {
+    return ToggleToolAutoApproveRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ToggleToolAutoApproveRequest>, I>>(object: I): ToggleToolAutoApproveRequest {
+    const message = createBaseToggleToolAutoApproveRequest();
+    message.metadata = (object.metadata !== undefined && object.metadata !== null)
+      ? Metadata.fromPartial(object.metadata)
+      : undefined;
+    message.serverName = object.serverName ?? "";
+    message.toolNames = object.toolNames?.map((e) => e) || [];
+    message.autoApprove = object.autoApprove ?? false;
+    return message;
+  },
+};
 
 function createBaseMcpTool(): McpTool {
-	return { name: "", description: undefined, inputSchema: undefined, autoApprove: undefined }
+  return { name: "", description: undefined, inputSchema: undefined, autoApprove: undefined };
 }
 
 export const McpTool: MessageFns<McpTool> = {
-	encode(message: McpTool, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.name !== "") {
-			writer.uint32(10).string(message.name)
-		}
-		if (message.description !== undefined) {
-			writer.uint32(18).string(message.description)
-		}
-		if (message.inputSchema !== undefined) {
-			writer.uint32(26).string(message.inputSchema)
-		}
-		if (message.autoApprove !== undefined) {
-			writer.uint32(32).bool(message.autoApprove)
-		}
-		return writer
-	},
+  encode(message: McpTool, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.description !== undefined) {
+      writer.uint32(18).string(message.description);
+    }
+    if (message.inputSchema !== undefined) {
+      writer.uint32(26).string(message.inputSchema);
+    }
+    if (message.autoApprove !== undefined) {
+      writer.uint32(32).bool(message.autoApprove);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): McpTool {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseMcpTool()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): McpTool {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMcpTool();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.name = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.name = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.description = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.description = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.inputSchema = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 32) {
-						break
-					}
+          message.inputSchema = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
 
-					message.autoApprove = reader.bool()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.autoApprove = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): McpTool {
-		return {
-			name: isSet(object.name) ? globalThis.String(object.name) : "",
-			description: isSet(object.description) ? globalThis.String(object.description) : undefined,
-			inputSchema: isSet(object.inputSchema) ? globalThis.String(object.inputSchema) : undefined,
-			autoApprove: isSet(object.autoApprove) ? globalThis.Boolean(object.autoApprove) : undefined,
-		}
-	},
+  fromJSON(object: any): McpTool {
+    return {
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : undefined,
+      inputSchema: isSet(object.inputSchema) ? globalThis.String(object.inputSchema) : undefined,
+      autoApprove: isSet(object.autoApprove) ? globalThis.Boolean(object.autoApprove) : undefined,
+    };
+  },
 
-	toJSON(message: McpTool): unknown {
-		const obj: any = {}
-		if (message.name !== "") {
-			obj.name = message.name
-		}
-		if (message.description !== undefined) {
-			obj.description = message.description
-		}
-		if (message.inputSchema !== undefined) {
-			obj.inputSchema = message.inputSchema
-		}
-		if (message.autoApprove !== undefined) {
-			obj.autoApprove = message.autoApprove
-		}
-		return obj
-	},
+  toJSON(message: McpTool): unknown {
+    const obj: any = {};
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.description !== undefined) {
+      obj.description = message.description;
+    }
+    if (message.inputSchema !== undefined) {
+      obj.inputSchema = message.inputSchema;
+    }
+    if (message.autoApprove !== undefined) {
+      obj.autoApprove = message.autoApprove;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<McpTool>, I>>(base?: I): McpTool {
-		return McpTool.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<McpTool>, I>>(object: I): McpTool {
-		const message = createBaseMcpTool()
-		message.name = object.name ?? ""
-		message.description = object.description ?? undefined
-		message.inputSchema = object.inputSchema ?? undefined
-		message.autoApprove = object.autoApprove ?? undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<McpTool>, I>>(base?: I): McpTool {
+    return McpTool.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<McpTool>, I>>(object: I): McpTool {
+    const message = createBaseMcpTool();
+    message.name = object.name ?? "";
+    message.description = object.description ?? undefined;
+    message.inputSchema = object.inputSchema ?? undefined;
+    message.autoApprove = object.autoApprove ?? undefined;
+    return message;
+  },
+};
 
 function createBaseMcpResource(): McpResource {
-	return { uri: "", name: "", mimeType: undefined, description: undefined }
+  return { uri: "", name: "", mimeType: undefined, description: undefined };
 }
 
 export const McpResource: MessageFns<McpResource> = {
-	encode(message: McpResource, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.uri !== "") {
-			writer.uint32(10).string(message.uri)
-		}
-		if (message.name !== "") {
-			writer.uint32(18).string(message.name)
-		}
-		if (message.mimeType !== undefined) {
-			writer.uint32(26).string(message.mimeType)
-		}
-		if (message.description !== undefined) {
-			writer.uint32(34).string(message.description)
-		}
-		return writer
-	},
+  encode(message: McpResource, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.uri !== "") {
+      writer.uint32(10).string(message.uri);
+    }
+    if (message.name !== "") {
+      writer.uint32(18).string(message.name);
+    }
+    if (message.mimeType !== undefined) {
+      writer.uint32(26).string(message.mimeType);
+    }
+    if (message.description !== undefined) {
+      writer.uint32(34).string(message.description);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): McpResource {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseMcpResource()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): McpResource {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMcpResource();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.uri = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.uri = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.name = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.name = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.mimeType = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.mimeType = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.description = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.description = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): McpResource {
-		return {
-			uri: isSet(object.uri) ? globalThis.String(object.uri) : "",
-			name: isSet(object.name) ? globalThis.String(object.name) : "",
-			mimeType: isSet(object.mimeType) ? globalThis.String(object.mimeType) : undefined,
-			description: isSet(object.description) ? globalThis.String(object.description) : undefined,
-		}
-	},
+  fromJSON(object: any): McpResource {
+    return {
+      uri: isSet(object.uri) ? globalThis.String(object.uri) : "",
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      mimeType: isSet(object.mimeType) ? globalThis.String(object.mimeType) : undefined,
+      description: isSet(object.description) ? globalThis.String(object.description) : undefined,
+    };
+  },
 
-	toJSON(message: McpResource): unknown {
-		const obj: any = {}
-		if (message.uri !== "") {
-			obj.uri = message.uri
-		}
-		if (message.name !== "") {
-			obj.name = message.name
-		}
-		if (message.mimeType !== undefined) {
-			obj.mimeType = message.mimeType
-		}
-		if (message.description !== undefined) {
-			obj.description = message.description
-		}
-		return obj
-	},
+  toJSON(message: McpResource): unknown {
+    const obj: any = {};
+    if (message.uri !== "") {
+      obj.uri = message.uri;
+    }
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.mimeType !== undefined) {
+      obj.mimeType = message.mimeType;
+    }
+    if (message.description !== undefined) {
+      obj.description = message.description;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<McpResource>, I>>(base?: I): McpResource {
-		return McpResource.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<McpResource>, I>>(object: I): McpResource {
-		const message = createBaseMcpResource()
-		message.uri = object.uri ?? ""
-		message.name = object.name ?? ""
-		message.mimeType = object.mimeType ?? undefined
-		message.description = object.description ?? undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<McpResource>, I>>(base?: I): McpResource {
+    return McpResource.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<McpResource>, I>>(object: I): McpResource {
+    const message = createBaseMcpResource();
+    message.uri = object.uri ?? "";
+    message.name = object.name ?? "";
+    message.mimeType = object.mimeType ?? undefined;
+    message.description = object.description ?? undefined;
+    return message;
+  },
+};
 
 function createBaseMcpResourceTemplate(): McpResourceTemplate {
-	return { uriTemplate: "", name: "", mimeType: undefined, description: undefined }
+  return { uriTemplate: "", name: "", mimeType: undefined, description: undefined };
 }
 
 export const McpResourceTemplate: MessageFns<McpResourceTemplate> = {
-	encode(message: McpResourceTemplate, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.uriTemplate !== "") {
-			writer.uint32(10).string(message.uriTemplate)
-		}
-		if (message.name !== "") {
-			writer.uint32(18).string(message.name)
-		}
-		if (message.mimeType !== undefined) {
-			writer.uint32(26).string(message.mimeType)
-		}
-		if (message.description !== undefined) {
-			writer.uint32(34).string(message.description)
-		}
-		return writer
-	},
+  encode(message: McpResourceTemplate, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.uriTemplate !== "") {
+      writer.uint32(10).string(message.uriTemplate);
+    }
+    if (message.name !== "") {
+      writer.uint32(18).string(message.name);
+    }
+    if (message.mimeType !== undefined) {
+      writer.uint32(26).string(message.mimeType);
+    }
+    if (message.description !== undefined) {
+      writer.uint32(34).string(message.description);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): McpResourceTemplate {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseMcpResourceTemplate()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): McpResourceTemplate {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMcpResourceTemplate();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.uriTemplate = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.uriTemplate = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.name = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.name = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.mimeType = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.mimeType = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.description = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.description = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): McpResourceTemplate {
-		return {
-			uriTemplate: isSet(object.uriTemplate) ? globalThis.String(object.uriTemplate) : "",
-			name: isSet(object.name) ? globalThis.String(object.name) : "",
-			mimeType: isSet(object.mimeType) ? globalThis.String(object.mimeType) : undefined,
-			description: isSet(object.description) ? globalThis.String(object.description) : undefined,
-		}
-	},
+  fromJSON(object: any): McpResourceTemplate {
+    return {
+      uriTemplate: isSet(object.uriTemplate) ? globalThis.String(object.uriTemplate) : "",
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      mimeType: isSet(object.mimeType) ? globalThis.String(object.mimeType) : undefined,
+      description: isSet(object.description) ? globalThis.String(object.description) : undefined,
+    };
+  },
 
-	toJSON(message: McpResourceTemplate): unknown {
-		const obj: any = {}
-		if (message.uriTemplate !== "") {
-			obj.uriTemplate = message.uriTemplate
-		}
-		if (message.name !== "") {
-			obj.name = message.name
-		}
-		if (message.mimeType !== undefined) {
-			obj.mimeType = message.mimeType
-		}
-		if (message.description !== undefined) {
-			obj.description = message.description
-		}
-		return obj
-	},
+  toJSON(message: McpResourceTemplate): unknown {
+    const obj: any = {};
+    if (message.uriTemplate !== "") {
+      obj.uriTemplate = message.uriTemplate;
+    }
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.mimeType !== undefined) {
+      obj.mimeType = message.mimeType;
+    }
+    if (message.description !== undefined) {
+      obj.description = message.description;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<McpResourceTemplate>, I>>(base?: I): McpResourceTemplate {
-		return McpResourceTemplate.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<McpResourceTemplate>, I>>(object: I): McpResourceTemplate {
-		const message = createBaseMcpResourceTemplate()
-		message.uriTemplate = object.uriTemplate ?? ""
-		message.name = object.name ?? ""
-		message.mimeType = object.mimeType ?? undefined
-		message.description = object.description ?? undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<McpResourceTemplate>, I>>(base?: I): McpResourceTemplate {
+    return McpResourceTemplate.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<McpResourceTemplate>, I>>(object: I): McpResourceTemplate {
+    const message = createBaseMcpResourceTemplate();
+    message.uriTemplate = object.uriTemplate ?? "";
+    message.name = object.name ?? "";
+    message.mimeType = object.mimeType ?? undefined;
+    message.description = object.description ?? undefined;
+    return message;
+  },
+};
 
 function createBaseMcpServer(): McpServer {
-	return {
-		name: "",
-		config: "",
-		status: 0,
-		error: undefined,
-		tools: [],
-		resources: [],
-		resourceTemplates: [],
-		disabled: undefined,
-		timeout: undefined,
-	}
+  return {
+    name: "",
+    config: "",
+    status: 0,
+    error: undefined,
+    tools: [],
+    resources: [],
+    resourceTemplates: [],
+    disabled: undefined,
+    timeout: undefined,
+  };
 }
 
 export const McpServer: MessageFns<McpServer> = {
-	encode(message: McpServer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.name !== "") {
-			writer.uint32(10).string(message.name)
-		}
-		if (message.config !== "") {
-			writer.uint32(18).string(message.config)
-		}
-		if (message.status !== 0) {
-			writer.uint32(24).int32(message.status)
-		}
-		if (message.error !== undefined) {
-			writer.uint32(34).string(message.error)
-		}
-		for (const v of message.tools) {
-			McpTool.encode(v!, writer.uint32(42).fork()).join()
-		}
-		for (const v of message.resources) {
-			McpResource.encode(v!, writer.uint32(50).fork()).join()
-		}
-		for (const v of message.resourceTemplates) {
-			McpResourceTemplate.encode(v!, writer.uint32(58).fork()).join()
-		}
-		if (message.disabled !== undefined) {
-			writer.uint32(64).bool(message.disabled)
-		}
-		if (message.timeout !== undefined) {
-			writer.uint32(72).int32(message.timeout)
-		}
-		return writer
-	},
+  encode(message: McpServer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.config !== "") {
+      writer.uint32(18).string(message.config);
+    }
+    if (message.status !== 0) {
+      writer.uint32(24).int32(message.status);
+    }
+    if (message.error !== undefined) {
+      writer.uint32(34).string(message.error);
+    }
+    for (const v of message.tools) {
+      McpTool.encode(v!, writer.uint32(42).fork()).join();
+    }
+    for (const v of message.resources) {
+      McpResource.encode(v!, writer.uint32(50).fork()).join();
+    }
+    for (const v of message.resourceTemplates) {
+      McpResourceTemplate.encode(v!, writer.uint32(58).fork()).join();
+    }
+    if (message.disabled !== undefined) {
+      writer.uint32(64).bool(message.disabled);
+    }
+    if (message.timeout !== undefined) {
+      writer.uint32(72).int32(message.timeout);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): McpServer {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseMcpServer()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): McpServer {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMcpServer();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.name = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.name = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.config = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 24) {
-						break
-					}
+          message.config = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
 
-					message.status = reader.int32() as any
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.status = reader.int32() as any;
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.error = reader.string()
-					continue
-				}
-				case 5: {
-					if (tag !== 42) {
-						break
-					}
+          message.error = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
 
-					message.tools.push(McpTool.decode(reader, reader.uint32()))
-					continue
-				}
-				case 6: {
-					if (tag !== 50) {
-						break
-					}
+          message.tools.push(McpTool.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
 
-					message.resources.push(McpResource.decode(reader, reader.uint32()))
-					continue
-				}
-				case 7: {
-					if (tag !== 58) {
-						break
-					}
+          message.resources.push(McpResource.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
 
-					message.resourceTemplates.push(McpResourceTemplate.decode(reader, reader.uint32()))
-					continue
-				}
-				case 8: {
-					if (tag !== 64) {
-						break
-					}
+          message.resourceTemplates.push(McpResourceTemplate.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
 
-					message.disabled = reader.bool()
-					continue
-				}
-				case 9: {
-					if (tag !== 72) {
-						break
-					}
+          message.disabled = reader.bool();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
 
-					message.timeout = reader.int32()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.timeout = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): McpServer {
-		return {
-			name: isSet(object.name) ? globalThis.String(object.name) : "",
-			config: isSet(object.config) ? globalThis.String(object.config) : "",
-			status: isSet(object.status) ? mcpServerStatusFromJSON(object.status) : 0,
-			error: isSet(object.error) ? globalThis.String(object.error) : undefined,
-			tools: globalThis.Array.isArray(object?.tools) ? object.tools.map((e: any) => McpTool.fromJSON(e)) : [],
-			resources: globalThis.Array.isArray(object?.resources)
-				? object.resources.map((e: any) => McpResource.fromJSON(e))
-				: [],
-			resourceTemplates: globalThis.Array.isArray(object?.resourceTemplates)
-				? object.resourceTemplates.map((e: any) => McpResourceTemplate.fromJSON(e))
-				: [],
-			disabled: isSet(object.disabled) ? globalThis.Boolean(object.disabled) : undefined,
-			timeout: isSet(object.timeout) ? globalThis.Number(object.timeout) : undefined,
-		}
-	},
+  fromJSON(object: any): McpServer {
+    return {
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      config: isSet(object.config) ? globalThis.String(object.config) : "",
+      status: isSet(object.status) ? mcpServerStatusFromJSON(object.status) : 0,
+      error: isSet(object.error) ? globalThis.String(object.error) : undefined,
+      tools: globalThis.Array.isArray(object?.tools) ? object.tools.map((e: any) => McpTool.fromJSON(e)) : [],
+      resources: globalThis.Array.isArray(object?.resources)
+        ? object.resources.map((e: any) => McpResource.fromJSON(e))
+        : [],
+      resourceTemplates: globalThis.Array.isArray(object?.resourceTemplates)
+        ? object.resourceTemplates.map((e: any) => McpResourceTemplate.fromJSON(e))
+        : [],
+      disabled: isSet(object.disabled) ? globalThis.Boolean(object.disabled) : undefined,
+      timeout: isSet(object.timeout) ? globalThis.Number(object.timeout) : undefined,
+    };
+  },
 
-	toJSON(message: McpServer): unknown {
-		const obj: any = {}
-		if (message.name !== "") {
-			obj.name = message.name
-		}
-		if (message.config !== "") {
-			obj.config = message.config
-		}
-		if (message.status !== 0) {
-			obj.status = mcpServerStatusToJSON(message.status)
-		}
-		if (message.error !== undefined) {
-			obj.error = message.error
-		}
-		if (message.tools?.length) {
-			obj.tools = message.tools.map((e) => McpTool.toJSON(e))
-		}
-		if (message.resources?.length) {
-			obj.resources = message.resources.map((e) => McpResource.toJSON(e))
-		}
-		if (message.resourceTemplates?.length) {
-			obj.resourceTemplates = message.resourceTemplates.map((e) => McpResourceTemplate.toJSON(e))
-		}
-		if (message.disabled !== undefined) {
-			obj.disabled = message.disabled
-		}
-		if (message.timeout !== undefined) {
-			obj.timeout = Math.round(message.timeout)
-		}
-		return obj
-	},
+  toJSON(message: McpServer): unknown {
+    const obj: any = {};
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.config !== "") {
+      obj.config = message.config;
+    }
+    if (message.status !== 0) {
+      obj.status = mcpServerStatusToJSON(message.status);
+    }
+    if (message.error !== undefined) {
+      obj.error = message.error;
+    }
+    if (message.tools?.length) {
+      obj.tools = message.tools.map((e) => McpTool.toJSON(e));
+    }
+    if (message.resources?.length) {
+      obj.resources = message.resources.map((e) => McpResource.toJSON(e));
+    }
+    if (message.resourceTemplates?.length) {
+      obj.resourceTemplates = message.resourceTemplates.map((e) => McpResourceTemplate.toJSON(e));
+    }
+    if (message.disabled !== undefined) {
+      obj.disabled = message.disabled;
+    }
+    if (message.timeout !== undefined) {
+      obj.timeout = Math.round(message.timeout);
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<McpServer>, I>>(base?: I): McpServer {
-		return McpServer.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<McpServer>, I>>(object: I): McpServer {
-		const message = createBaseMcpServer()
-		message.name = object.name ?? ""
-		message.config = object.config ?? ""
-		message.status = object.status ?? 0
-		message.error = object.error ?? undefined
-		message.tools = object.tools?.map((e) => McpTool.fromPartial(e)) || []
-		message.resources = object.resources?.map((e) => McpResource.fromPartial(e)) || []
-		message.resourceTemplates = object.resourceTemplates?.map((e) => McpResourceTemplate.fromPartial(e)) || []
-		message.disabled = object.disabled ?? undefined
-		message.timeout = object.timeout ?? undefined
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<McpServer>, I>>(base?: I): McpServer {
+    return McpServer.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<McpServer>, I>>(object: I): McpServer {
+    const message = createBaseMcpServer();
+    message.name = object.name ?? "";
+    message.config = object.config ?? "";
+    message.status = object.status ?? 0;
+    message.error = object.error ?? undefined;
+    message.tools = object.tools?.map((e) => McpTool.fromPartial(e)) || [];
+    message.resources = object.resources?.map((e) => McpResource.fromPartial(e)) || [];
+    message.resourceTemplates = object.resourceTemplates?.map((e) => McpResourceTemplate.fromPartial(e)) || [];
+    message.disabled = object.disabled ?? undefined;
+    message.timeout = object.timeout ?? undefined;
+    return message;
+  },
+};
 
 function createBaseMcpServers(): McpServers {
-	return { mcpServers: [] }
+  return { mcpServers: [] };
 }
 
 export const McpServers: MessageFns<McpServers> = {
-	encode(message: McpServers, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		for (const v of message.mcpServers) {
-			McpServer.encode(v!, writer.uint32(10).fork()).join()
-		}
-		return writer
-	},
+  encode(message: McpServers, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.mcpServers) {
+      McpServer.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): McpServers {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseMcpServers()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): McpServers {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMcpServers();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.mcpServers.push(McpServer.decode(reader, reader.uint32()))
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.mcpServers.push(McpServer.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): McpServers {
-		return {
-			mcpServers: globalThis.Array.isArray(object?.mcpServers)
-				? object.mcpServers.map((e: any) => McpServer.fromJSON(e))
-				: [],
-		}
-	},
+  fromJSON(object: any): McpServers {
+    return {
+      mcpServers: globalThis.Array.isArray(object?.mcpServers)
+        ? object.mcpServers.map((e: any) => McpServer.fromJSON(e))
+        : [],
+    };
+  },
 
-	toJSON(message: McpServers): unknown {
-		const obj: any = {}
-		if (message.mcpServers?.length) {
-			obj.mcpServers = message.mcpServers.map((e) => McpServer.toJSON(e))
-		}
-		return obj
-	},
+  toJSON(message: McpServers): unknown {
+    const obj: any = {};
+    if (message.mcpServers?.length) {
+      obj.mcpServers = message.mcpServers.map((e) => McpServer.toJSON(e));
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<McpServers>, I>>(base?: I): McpServers {
-		return McpServers.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<McpServers>, I>>(object: I): McpServers {
-		const message = createBaseMcpServers()
-		message.mcpServers = object.mcpServers?.map((e) => McpServer.fromPartial(e)) || []
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<McpServers>, I>>(base?: I): McpServers {
+    return McpServers.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<McpServers>, I>>(object: I): McpServers {
+    const message = createBaseMcpServers();
+    message.mcpServers = object.mcpServers?.map((e) => McpServer.fromPartial(e)) || [];
+    return message;
+  },
+};
 
 function createBaseMcpMarketplaceItem(): McpMarketplaceItem {
-	return {
-		mcpId: "",
-		githubUrl: "",
-		name: "",
-		author: "",
-		description: "",
-		codiconIcon: "",
-		logoUrl: "",
-		category: "",
-		tags: [],
-		requiresApiKey: false,
-		readmeContent: undefined,
-		llmsInstallationContent: undefined,
-		isRecommended: false,
-		githubStars: 0,
-		downloadCount: 0,
-		createdAt: "",
-		updatedAt: "",
-		lastGithubSync: "",
-	}
+  return {
+    mcpId: "",
+    githubUrl: "",
+    name: "",
+    author: "",
+    description: "",
+    codiconIcon: "",
+    logoUrl: "",
+    category: "",
+    tags: [],
+    requiresApiKey: false,
+    readmeContent: undefined,
+    llmsInstallationContent: undefined,
+    isRecommended: false,
+    githubStars: 0,
+    downloadCount: 0,
+    createdAt: "",
+    updatedAt: "",
+    lastGithubSync: "",
+  };
 }
 
 export const McpMarketplaceItem: MessageFns<McpMarketplaceItem> = {
-	encode(message: McpMarketplaceItem, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.mcpId !== "") {
-			writer.uint32(10).string(message.mcpId)
-		}
-		if (message.githubUrl !== "") {
-			writer.uint32(18).string(message.githubUrl)
-		}
-		if (message.name !== "") {
-			writer.uint32(26).string(message.name)
-		}
-		if (message.author !== "") {
-			writer.uint32(34).string(message.author)
-		}
-		if (message.description !== "") {
-			writer.uint32(42).string(message.description)
-		}
-		if (message.codiconIcon !== "") {
-			writer.uint32(50).string(message.codiconIcon)
-		}
-		if (message.logoUrl !== "") {
-			writer.uint32(58).string(message.logoUrl)
-		}
-		if (message.category !== "") {
-			writer.uint32(66).string(message.category)
-		}
-		for (const v of message.tags) {
-			writer.uint32(74).string(v!)
-		}
-		if (message.requiresApiKey !== false) {
-			writer.uint32(80).bool(message.requiresApiKey)
-		}
-		if (message.readmeContent !== undefined) {
-			writer.uint32(90).string(message.readmeContent)
-		}
-		if (message.llmsInstallationContent !== undefined) {
-			writer.uint32(98).string(message.llmsInstallationContent)
-		}
-		if (message.isRecommended !== false) {
-			writer.uint32(104).bool(message.isRecommended)
-		}
-		if (message.githubStars !== 0) {
-			writer.uint32(112).int32(message.githubStars)
-		}
-		if (message.downloadCount !== 0) {
-			writer.uint32(120).int32(message.downloadCount)
-		}
-		if (message.createdAt !== "") {
-			writer.uint32(130).string(message.createdAt)
-		}
-		if (message.updatedAt !== "") {
-			writer.uint32(138).string(message.updatedAt)
-		}
-		if (message.lastGithubSync !== "") {
-			writer.uint32(146).string(message.lastGithubSync)
-		}
-		return writer
-	},
+  encode(message: McpMarketplaceItem, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.mcpId !== "") {
+      writer.uint32(10).string(message.mcpId);
+    }
+    if (message.githubUrl !== "") {
+      writer.uint32(18).string(message.githubUrl);
+    }
+    if (message.name !== "") {
+      writer.uint32(26).string(message.name);
+    }
+    if (message.author !== "") {
+      writer.uint32(34).string(message.author);
+    }
+    if (message.description !== "") {
+      writer.uint32(42).string(message.description);
+    }
+    if (message.codiconIcon !== "") {
+      writer.uint32(50).string(message.codiconIcon);
+    }
+    if (message.logoUrl !== "") {
+      writer.uint32(58).string(message.logoUrl);
+    }
+    if (message.category !== "") {
+      writer.uint32(66).string(message.category);
+    }
+    for (const v of message.tags) {
+      writer.uint32(74).string(v!);
+    }
+    if (message.requiresApiKey !== false) {
+      writer.uint32(80).bool(message.requiresApiKey);
+    }
+    if (message.readmeContent !== undefined) {
+      writer.uint32(90).string(message.readmeContent);
+    }
+    if (message.llmsInstallationContent !== undefined) {
+      writer.uint32(98).string(message.llmsInstallationContent);
+    }
+    if (message.isRecommended !== false) {
+      writer.uint32(104).bool(message.isRecommended);
+    }
+    if (message.githubStars !== 0) {
+      writer.uint32(112).int32(message.githubStars);
+    }
+    if (message.downloadCount !== 0) {
+      writer.uint32(120).int32(message.downloadCount);
+    }
+    if (message.createdAt !== "") {
+      writer.uint32(130).string(message.createdAt);
+    }
+    if (message.updatedAt !== "") {
+      writer.uint32(138).string(message.updatedAt);
+    }
+    if (message.lastGithubSync !== "") {
+      writer.uint32(146).string(message.lastGithubSync);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): McpMarketplaceItem {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseMcpMarketplaceItem()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): McpMarketplaceItem {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMcpMarketplaceItem();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.mcpId = reader.string()
-					continue
-				}
-				case 2: {
-					if (tag !== 18) {
-						break
-					}
+          message.mcpId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.githubUrl = reader.string()
-					continue
-				}
-				case 3: {
-					if (tag !== 26) {
-						break
-					}
+          message.githubUrl = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.name = reader.string()
-					continue
-				}
-				case 4: {
-					if (tag !== 34) {
-						break
-					}
+          message.name = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.author = reader.string()
-					continue
-				}
-				case 5: {
-					if (tag !== 42) {
-						break
-					}
+          message.author = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
 
-					message.description = reader.string()
-					continue
-				}
-				case 6: {
-					if (tag !== 50) {
-						break
-					}
+          message.description = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
 
-					message.codiconIcon = reader.string()
-					continue
-				}
-				case 7: {
-					if (tag !== 58) {
-						break
-					}
+          message.codiconIcon = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
 
-					message.logoUrl = reader.string()
-					continue
-				}
-				case 8: {
-					if (tag !== 66) {
-						break
-					}
+          message.logoUrl = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
 
-					message.category = reader.string()
-					continue
-				}
-				case 9: {
-					if (tag !== 74) {
-						break
-					}
+          message.category = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
 
-					message.tags.push(reader.string())
-					continue
-				}
-				case 10: {
-					if (tag !== 80) {
-						break
-					}
+          message.tags.push(reader.string());
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
 
-					message.requiresApiKey = reader.bool()
-					continue
-				}
-				case 11: {
-					if (tag !== 90) {
-						break
-					}
+          message.requiresApiKey = reader.bool();
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
 
-					message.readmeContent = reader.string()
-					continue
-				}
-				case 12: {
-					if (tag !== 98) {
-						break
-					}
+          message.readmeContent = reader.string();
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
 
-					message.llmsInstallationContent = reader.string()
-					continue
-				}
-				case 13: {
-					if (tag !== 104) {
-						break
-					}
+          message.llmsInstallationContent = reader.string();
+          continue;
+        }
+        case 13: {
+          if (tag !== 104) {
+            break;
+          }
 
-					message.isRecommended = reader.bool()
-					continue
-				}
-				case 14: {
-					if (tag !== 112) {
-						break
-					}
+          message.isRecommended = reader.bool();
+          continue;
+        }
+        case 14: {
+          if (tag !== 112) {
+            break;
+          }
 
-					message.githubStars = reader.int32()
-					continue
-				}
-				case 15: {
-					if (tag !== 120) {
-						break
-					}
+          message.githubStars = reader.int32();
+          continue;
+        }
+        case 15: {
+          if (tag !== 120) {
+            break;
+          }
 
-					message.downloadCount = reader.int32()
-					continue
-				}
-				case 16: {
-					if (tag !== 130) {
-						break
-					}
+          message.downloadCount = reader.int32();
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
 
-					message.createdAt = reader.string()
-					continue
-				}
-				case 17: {
-					if (tag !== 138) {
-						break
-					}
+          message.createdAt = reader.string();
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
 
-					message.updatedAt = reader.string()
-					continue
-				}
-				case 18: {
-					if (tag !== 146) {
-						break
-					}
+          message.updatedAt = reader.string();
+          continue;
+        }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
 
-					message.lastGithubSync = reader.string()
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.lastGithubSync = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): McpMarketplaceItem {
-		return {
-			mcpId: isSet(object.mcpId) ? globalThis.String(object.mcpId) : "",
-			githubUrl: isSet(object.githubUrl) ? globalThis.String(object.githubUrl) : "",
-			name: isSet(object.name) ? globalThis.String(object.name) : "",
-			author: isSet(object.author) ? globalThis.String(object.author) : "",
-			description: isSet(object.description) ? globalThis.String(object.description) : "",
-			codiconIcon: isSet(object.codiconIcon) ? globalThis.String(object.codiconIcon) : "",
-			logoUrl: isSet(object.logoUrl) ? globalThis.String(object.logoUrl) : "",
-			category: isSet(object.category) ? globalThis.String(object.category) : "",
-			tags: globalThis.Array.isArray(object?.tags) ? object.tags.map((e: any) => globalThis.String(e)) : [],
-			requiresApiKey: isSet(object.requiresApiKey) ? globalThis.Boolean(object.requiresApiKey) : false,
-			readmeContent: isSet(object.readmeContent) ? globalThis.String(object.readmeContent) : undefined,
-			llmsInstallationContent: isSet(object.llmsInstallationContent)
-				? globalThis.String(object.llmsInstallationContent)
-				: undefined,
-			isRecommended: isSet(object.isRecommended) ? globalThis.Boolean(object.isRecommended) : false,
-			githubStars: isSet(object.githubStars) ? globalThis.Number(object.githubStars) : 0,
-			downloadCount: isSet(object.downloadCount) ? globalThis.Number(object.downloadCount) : 0,
-			createdAt: isSet(object.createdAt) ? globalThis.String(object.createdAt) : "",
-			updatedAt: isSet(object.updatedAt) ? globalThis.String(object.updatedAt) : "",
-			lastGithubSync: isSet(object.lastGithubSync) ? globalThis.String(object.lastGithubSync) : "",
-		}
-	},
+  fromJSON(object: any): McpMarketplaceItem {
+    return {
+      mcpId: isSet(object.mcpId) ? globalThis.String(object.mcpId) : "",
+      githubUrl: isSet(object.githubUrl) ? globalThis.String(object.githubUrl) : "",
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      author: isSet(object.author) ? globalThis.String(object.author) : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      codiconIcon: isSet(object.codiconIcon) ? globalThis.String(object.codiconIcon) : "",
+      logoUrl: isSet(object.logoUrl) ? globalThis.String(object.logoUrl) : "",
+      category: isSet(object.category) ? globalThis.String(object.category) : "",
+      tags: globalThis.Array.isArray(object?.tags) ? object.tags.map((e: any) => globalThis.String(e)) : [],
+      requiresApiKey: isSet(object.requiresApiKey) ? globalThis.Boolean(object.requiresApiKey) : false,
+      readmeContent: isSet(object.readmeContent) ? globalThis.String(object.readmeContent) : undefined,
+      llmsInstallationContent: isSet(object.llmsInstallationContent)
+        ? globalThis.String(object.llmsInstallationContent)
+        : undefined,
+      isRecommended: isSet(object.isRecommended) ? globalThis.Boolean(object.isRecommended) : false,
+      githubStars: isSet(object.githubStars) ? globalThis.Number(object.githubStars) : 0,
+      downloadCount: isSet(object.downloadCount) ? globalThis.Number(object.downloadCount) : 0,
+      createdAt: isSet(object.createdAt) ? globalThis.String(object.createdAt) : "",
+      updatedAt: isSet(object.updatedAt) ? globalThis.String(object.updatedAt) : "",
+      lastGithubSync: isSet(object.lastGithubSync) ? globalThis.String(object.lastGithubSync) : "",
+    };
+  },
 
-	toJSON(message: McpMarketplaceItem): unknown {
-		const obj: any = {}
-		if (message.mcpId !== "") {
-			obj.mcpId = message.mcpId
-		}
-		if (message.githubUrl !== "") {
-			obj.githubUrl = message.githubUrl
-		}
-		if (message.name !== "") {
-			obj.name = message.name
-		}
-		if (message.author !== "") {
-			obj.author = message.author
-		}
-		if (message.description !== "") {
-			obj.description = message.description
-		}
-		if (message.codiconIcon !== "") {
-			obj.codiconIcon = message.codiconIcon
-		}
-		if (message.logoUrl !== "") {
-			obj.logoUrl = message.logoUrl
-		}
-		if (message.category !== "") {
-			obj.category = message.category
-		}
-		if (message.tags?.length) {
-			obj.tags = message.tags
-		}
-		if (message.requiresApiKey !== false) {
-			obj.requiresApiKey = message.requiresApiKey
-		}
-		if (message.readmeContent !== undefined) {
-			obj.readmeContent = message.readmeContent
-		}
-		if (message.llmsInstallationContent !== undefined) {
-			obj.llmsInstallationContent = message.llmsInstallationContent
-		}
-		if (message.isRecommended !== false) {
-			obj.isRecommended = message.isRecommended
-		}
-		if (message.githubStars !== 0) {
-			obj.githubStars = Math.round(message.githubStars)
-		}
-		if (message.downloadCount !== 0) {
-			obj.downloadCount = Math.round(message.downloadCount)
-		}
-		if (message.createdAt !== "") {
-			obj.createdAt = message.createdAt
-		}
-		if (message.updatedAt !== "") {
-			obj.updatedAt = message.updatedAt
-		}
-		if (message.lastGithubSync !== "") {
-			obj.lastGithubSync = message.lastGithubSync
-		}
-		return obj
-	},
+  toJSON(message: McpMarketplaceItem): unknown {
+    const obj: any = {};
+    if (message.mcpId !== "") {
+      obj.mcpId = message.mcpId;
+    }
+    if (message.githubUrl !== "") {
+      obj.githubUrl = message.githubUrl;
+    }
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.author !== "") {
+      obj.author = message.author;
+    }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.codiconIcon !== "") {
+      obj.codiconIcon = message.codiconIcon;
+    }
+    if (message.logoUrl !== "") {
+      obj.logoUrl = message.logoUrl;
+    }
+    if (message.category !== "") {
+      obj.category = message.category;
+    }
+    if (message.tags?.length) {
+      obj.tags = message.tags;
+    }
+    if (message.requiresApiKey !== false) {
+      obj.requiresApiKey = message.requiresApiKey;
+    }
+    if (message.readmeContent !== undefined) {
+      obj.readmeContent = message.readmeContent;
+    }
+    if (message.llmsInstallationContent !== undefined) {
+      obj.llmsInstallationContent = message.llmsInstallationContent;
+    }
+    if (message.isRecommended !== false) {
+      obj.isRecommended = message.isRecommended;
+    }
+    if (message.githubStars !== 0) {
+      obj.githubStars = Math.round(message.githubStars);
+    }
+    if (message.downloadCount !== 0) {
+      obj.downloadCount = Math.round(message.downloadCount);
+    }
+    if (message.createdAt !== "") {
+      obj.createdAt = message.createdAt;
+    }
+    if (message.updatedAt !== "") {
+      obj.updatedAt = message.updatedAt;
+    }
+    if (message.lastGithubSync !== "") {
+      obj.lastGithubSync = message.lastGithubSync;
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<McpMarketplaceItem>, I>>(base?: I): McpMarketplaceItem {
-		return McpMarketplaceItem.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<McpMarketplaceItem>, I>>(object: I): McpMarketplaceItem {
-		const message = createBaseMcpMarketplaceItem()
-		message.mcpId = object.mcpId ?? ""
-		message.githubUrl = object.githubUrl ?? ""
-		message.name = object.name ?? ""
-		message.author = object.author ?? ""
-		message.description = object.description ?? ""
-		message.codiconIcon = object.codiconIcon ?? ""
-		message.logoUrl = object.logoUrl ?? ""
-		message.category = object.category ?? ""
-		message.tags = object.tags?.map((e) => e) || []
-		message.requiresApiKey = object.requiresApiKey ?? false
-		message.readmeContent = object.readmeContent ?? undefined
-		message.llmsInstallationContent = object.llmsInstallationContent ?? undefined
-		message.isRecommended = object.isRecommended ?? false
-		message.githubStars = object.githubStars ?? 0
-		message.downloadCount = object.downloadCount ?? 0
-		message.createdAt = object.createdAt ?? ""
-		message.updatedAt = object.updatedAt ?? ""
-		message.lastGithubSync = object.lastGithubSync ?? ""
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<McpMarketplaceItem>, I>>(base?: I): McpMarketplaceItem {
+    return McpMarketplaceItem.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<McpMarketplaceItem>, I>>(object: I): McpMarketplaceItem {
+    const message = createBaseMcpMarketplaceItem();
+    message.mcpId = object.mcpId ?? "";
+    message.githubUrl = object.githubUrl ?? "";
+    message.name = object.name ?? "";
+    message.author = object.author ?? "";
+    message.description = object.description ?? "";
+    message.codiconIcon = object.codiconIcon ?? "";
+    message.logoUrl = object.logoUrl ?? "";
+    message.category = object.category ?? "";
+    message.tags = object.tags?.map((e) => e) || [];
+    message.requiresApiKey = object.requiresApiKey ?? false;
+    message.readmeContent = object.readmeContent ?? undefined;
+    message.llmsInstallationContent = object.llmsInstallationContent ?? undefined;
+    message.isRecommended = object.isRecommended ?? false;
+    message.githubStars = object.githubStars ?? 0;
+    message.downloadCount = object.downloadCount ?? 0;
+    message.createdAt = object.createdAt ?? "";
+    message.updatedAt = object.updatedAt ?? "";
+    message.lastGithubSync = object.lastGithubSync ?? "";
+    return message;
+  },
+};
 
 function createBaseMcpMarketplaceCatalog(): McpMarketplaceCatalog {
-	return { items: [] }
+  return { items: [] };
 }
 
 export const McpMarketplaceCatalog: MessageFns<McpMarketplaceCatalog> = {
-	encode(message: McpMarketplaceCatalog, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		for (const v of message.items) {
-			McpMarketplaceItem.encode(v!, writer.uint32(10).fork()).join()
-		}
-		return writer
-	},
+  encode(message: McpMarketplaceCatalog, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.items) {
+      McpMarketplaceItem.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): McpMarketplaceCatalog {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input)
-		let end = length === undefined ? reader.len : reader.pos + length
-		const message = createBaseMcpMarketplaceCatalog()
-		while (reader.pos < end) {
-			const tag = reader.uint32()
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): McpMarketplaceCatalog {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMcpMarketplaceCatalog();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.items.push(McpMarketplaceItem.decode(reader, reader.uint32()))
-					continue
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break
-			}
-			reader.skip(tag & 7)
-		}
-		return message
-	},
+          message.items.push(McpMarketplaceItem.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	fromJSON(object: any): McpMarketplaceCatalog {
-		return {
-			items: globalThis.Array.isArray(object?.items) ? object.items.map((e: any) => McpMarketplaceItem.fromJSON(e)) : [],
-		}
-	},
+  fromJSON(object: any): McpMarketplaceCatalog {
+    return {
+      items: globalThis.Array.isArray(object?.items)
+        ? object.items.map((e: any) => McpMarketplaceItem.fromJSON(e))
+        : [],
+    };
+  },
 
-	toJSON(message: McpMarketplaceCatalog): unknown {
-		const obj: any = {}
-		if (message.items?.length) {
-			obj.items = message.items.map((e) => McpMarketplaceItem.toJSON(e))
-		}
-		return obj
-	},
+  toJSON(message: McpMarketplaceCatalog): unknown {
+    const obj: any = {};
+    if (message.items?.length) {
+      obj.items = message.items.map((e) => McpMarketplaceItem.toJSON(e));
+    }
+    return obj;
+  },
 
-	create<I extends Exact<DeepPartial<McpMarketplaceCatalog>, I>>(base?: I): McpMarketplaceCatalog {
-		return McpMarketplaceCatalog.fromPartial(base ?? ({} as any))
-	},
-	fromPartial<I extends Exact<DeepPartial<McpMarketplaceCatalog>, I>>(object: I): McpMarketplaceCatalog {
-		const message = createBaseMcpMarketplaceCatalog()
-		message.items = object.items?.map((e) => McpMarketplaceItem.fromPartial(e)) || []
-		return message
-	},
-}
+  create<I extends Exact<DeepPartial<McpMarketplaceCatalog>, I>>(base?: I): McpMarketplaceCatalog {
+    return McpMarketplaceCatalog.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<McpMarketplaceCatalog>, I>>(object: I): McpMarketplaceCatalog {
+    const message = createBaseMcpMarketplaceCatalog();
+    message.items = object.items?.map((e) => McpMarketplaceItem.fromPartial(e)) || [];
+    return message;
+  },
+};
 
-export type McpServiceDefinition = typeof McpServiceDefinition
+export type McpServiceDefinition = typeof McpServiceDefinition;
 export const McpServiceDefinition = {
-	name: "McpService",
-	fullName: "cline.McpService",
-	methods: {
-		toggleMcpServer: {
-			name: "toggleMcpServer",
-			requestType: ToggleMcpServerRequest,
-			requestStream: false,
-			responseType: McpServers,
-			responseStream: false,
-			options: {},
-		},
-		updateMcpTimeout: {
-			name: "updateMcpTimeout",
-			requestType: UpdateMcpTimeoutRequest,
-			requestStream: false,
-			responseType: McpServers,
-			responseStream: false,
-			options: {},
-		},
-		addRemoteMcpServer: {
-			name: "addRemoteMcpServer",
-			requestType: AddRemoteMcpServerRequest,
-			requestStream: false,
-			responseType: McpServers,
-			responseStream: false,
-			options: {},
-		},
-		downloadMcp: {
-			name: "downloadMcp",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: Empty,
-			responseStream: false,
-			options: {},
-		},
-		restartMcpServer: {
-			name: "restartMcpServer",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: McpServers,
-			responseStream: false,
-			options: {},
-		},
-		deleteMcpServer: {
-			name: "deleteMcpServer",
-			requestType: StringRequest,
-			requestStream: false,
-			responseType: McpServers,
-			responseStream: false,
-			options: {},
-		},
-		toggleToolAutoApprove: {
-			name: "toggleToolAutoApprove",
-			requestType: ToggleToolAutoApproveRequest,
-			requestStream: false,
-			responseType: McpServers,
-			responseStream: false,
-			options: {},
-		},
-		refreshMcpMarketplace: {
-			name: "refreshMcpMarketplace",
-			requestType: EmptyRequest,
-			requestStream: false,
-			responseType: McpMarketplaceCatalog,
-			responseStream: false,
-			options: {},
-		},
-	},
-} as const
+  name: "McpService",
+  fullName: "cline.McpService",
+  methods: {
+    toggleMcpServer: {
+      name: "toggleMcpServer",
+      requestType: ToggleMcpServerRequest,
+      requestStream: false,
+      responseType: McpServers,
+      responseStream: false,
+      options: {},
+    },
+    updateMcpTimeout: {
+      name: "updateMcpTimeout",
+      requestType: UpdateMcpTimeoutRequest,
+      requestStream: false,
+      responseType: McpServers,
+      responseStream: false,
+      options: {},
+    },
+    addRemoteMcpServer: {
+      name: "addRemoteMcpServer",
+      requestType: AddRemoteMcpServerRequest,
+      requestStream: false,
+      responseType: McpServers,
+      responseStream: false,
+      options: {},
+    },
+    downloadMcp: {
+      name: "downloadMcp",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    restartMcpServer: {
+      name: "restartMcpServer",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: McpServers,
+      responseStream: false,
+      options: {},
+    },
+    deleteMcpServer: {
+      name: "deleteMcpServer",
+      requestType: StringRequest,
+      requestStream: false,
+      responseType: McpServers,
+      responseStream: false,
+      options: {},
+    },
+    toggleToolAutoApprove: {
+      name: "toggleToolAutoApprove",
+      requestType: ToggleToolAutoApproveRequest,
+      requestStream: false,
+      responseType: McpServers,
+      responseStream: false,
+      options: {},
+    },
+    refreshMcpMarketplace: {
+      name: "refreshMcpMarketplace",
+      requestType: EmptyRequest,
+      requestStream: false,
+      responseType: McpMarketplaceCatalog,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
 
-type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-	? T
-	: T extends globalThis.Array<infer U>
-		? globalThis.Array<DeepPartial<U>>
-		: T extends ReadonlyArray<infer U>
-			? ReadonlyArray<DeepPartial<U>>
-			: T extends {}
-				? { [K in keyof T]?: DeepPartial<T[K]> }
-				: Partial<T>
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
 
-type KeysOfUnion<T> = T extends T ? keyof T : never
-export type Exact<P, I extends P> = P extends Builtin
-	? P
-	: P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never }
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+export type Exact<P, I extends P> = P extends Builtin ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function isSet(value: any): boolean {
-	return value !== null && value !== undefined
+  return value !== null && value !== undefined;
 }
 
 export interface MessageFns<T> {
-	encode(message: T, writer?: BinaryWriter): BinaryWriter
-	decode(input: BinaryReader | Uint8Array, length?: number): T
-	fromJSON(object: any): T
-	toJSON(message: T): unknown
-	create<I extends Exact<DeepPartial<T>, I>>(base?: I): T
-	fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T
+  encode(message: T, writer?: BinaryWriter): BinaryWriter;
+  decode(input: BinaryReader | Uint8Array, length?: number): T;
+  fromJSON(object: any): T;
+  toJSON(message: T): unknown;
+  create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
+  fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
 }
