@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   346c1f7: Increase max tokens anthropic opus
+-   32f200e: Add prompt caching for Claude 4 models on Cline and Openrouter providers
+
+### Patch Changes
+
+-   07a2daa: Put protos back in .gitignore
+
 ## [3.17.0]
 
 -   Add support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and Vertex providers
