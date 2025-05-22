@@ -4,11 +4,11 @@
 
 -   Add support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and Vertex providers
 -   Add integration with Nebius AI Studio as a new provider (Thanks @Aktsvigun!)
--   New settings page design, now split into tabs for easier navigation (Thanks Yellow Bat @dlab-anton, and Roo Team!)
 -   Add custom highlight and hotkey suggestion when the assistant prompts to switch to Act mode
+-   Update settings page design, now split into tabs for easier navigation (Thanks Yellow Bat @dlab-anton, and Roo Team!)
 -   Fix MCP Server configuration bug
 -   Fix model listing for Requesty provider
--   Moved all advanced settings to settings page
+-   Move all advanced settings to settings page
 
 ## [3.16.3]
 
