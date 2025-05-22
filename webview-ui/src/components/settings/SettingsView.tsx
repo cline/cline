@@ -48,7 +48,7 @@ const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]
 const settingsTabList =
 	"w-48 data-[compact=true]:w-12 flex-shrink-0 flex flex-col overflow-y-auto overflow-x-hidden border-r border-[var(--vscode-sideBar-background)]"
 const settingsTabTrigger =
-	"whitespace-nowrap overflow-hidden min-w-0 h-12 px-4 py-3 box-border flex items-center border-l-2 border-transparent text-[var(--vscode-foreground)] opacity-70 hover:bg-[var(--vscode-list-hoverBackground)] data-[compact=true]:w-12 data-[compact=true]:p-4"
+	"whitespace-nowrap overflow-hidden min-w-0 h-12 px-4 py-3 box-border flex items-center border-l-2 border-transparent text-[var(--vscode-foreground)] opacity-70 bg-transparent hover:bg-[var(--vscode-list-hoverBackground)] data-[compact=true]:w-12 data-[compact=true]:p-4 cursor-pointer"
 const settingsTabTriggerActive =
 	"opacity-100 border-l-2 border-l-[var(--vscode-focusBorder)] border-t-0 border-r-0 border-b-0 bg-[var(--vscode-list-activeSelectionBackground)]"
 
@@ -68,6 +68,53 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "API Configuration",
 		headerText: "API Configuration",
 		icon: Webhook,
+	},
+	{
+		id: "general",
+		name: "General",
+		tooltipText: "General Settings",
+		headerText: "General Settings",
+		icon: Settings,
+	},
+	{
+		id: "features",
+		name: "Features",
+		tooltipText: "Feature Settings",
+		headerText: "Feature Settings",
+		icon: CheckCheck,
+	},
+	{
+		id: "browser",
+		name: "Browser",
+		tooltipText: "Browser Settings",
+		headerText: "Browser Settings",
+		icon: SquareMousePointer,
+	},
+	{
+		id: "terminal",
+		name: "Terminal",
+		tooltipText: "Terminal Settings",
+		headerText: "Terminal Settings",
+		icon: SquareTerminal,
+	},
+	// Only show in dev mode
+	...(IS_DEV
+		? [
+				{
+					id: "debug",
+					name: "Debug",
+					tooltipText: "Debug Tools",
+					headerText: "Debug",
+					icon: FlaskConical,
+				},
+			]
+		: []),
+	{
+		id: "about",
+		name: "About",
+		tooltipText: "About Cline",
+		headerText: "About",
+		icon: Info,
 	},
 ]
 
@@ -174,30 +221,35 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 						setPendingTabChange(null)
 					}
 					break
-				// We'll implement tab navigation later
-				// case "openSettingsTab":
-				// 	if (message.text) {
-				// 		setActiveTab(message.text)
-				// 	}
-				// 	break
+				// Handle tab navigation through targetSection prop instead
 				case "grpc_response":
 					if (message.grpc_response?.message?.action === "scrollToSettings") {
-						setTimeout(() => {
-							const elementId = message.grpc_response?.message?.value
-							if (elementId) {
-								const element = document.getElementById(elementId)
-								if (element) {
-									element.scrollIntoView({ behavior: "smooth" })
+						const tabId = message.grpc_response?.message?.value
+						if (tabId) {
+							console.log("Opening settings tab from GRPC response:", tabId)
+							// Check if the value corresponds to a valid tab ID
+							const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
 
-									element.style.transition = "background-color 0.5s ease"
-									element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+							if (isValidTabId) {
+								// Set the active tab directly
+								setActiveTab(tabId)
+							} else {
+								// Fall back to the old behavior of scrolling to an element
+								setTimeout(() => {
+									const element = document.getElementById(tabId)
+									if (element) {
+										element.scrollIntoView({ behavior: "smooth" })
 
-									setTimeout(() => {
-										element.style.backgroundColor = "transparent"
-									}, 1200)
-								}
+										element.style.transition = "background-color 0.5s ease"
+										element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+
+										setTimeout(() => {
+											element.style.backgroundColor = "transparent"
+										}, 1200)
+									}
+								}, 300)
 							}
-						}, 300)
+						}
 					}
 					break
 			}
@@ -215,7 +267,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 	}
 
-	const handleTabChange = (tab: "plan" | "act") => {
+	const handlePlanActModeChange = (tab: "plan" | "act") => {
 		if (tab === chatSettings.mode) {
 			return
 		}
@@ -232,6 +284,20 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			setActiveTab(targetSection)
 		}
 	}, [targetSection])
+
+	// Enhanced tab change handler with debugging
+	const handleTabChange = useCallback(
+		(tabId: string) => {
+			console.log("Tab change requested:", tabId, "Current:", activeTab)
+			setActiveTab(tabId)
+		},
+		[activeTab],
+	)
+
+	// Debug tab changes
+	useEffect(() => {
+		console.log("Active tab changed to:", activeTab)
+	}, [activeTab])
 
 	// Track whether we're in compact mode
 	const [isCompactMode, setIsCompactMode] = useState(false)
@@ -271,14 +337,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				{/* Tab sidebar */}
 				<TabList
 					value={activeTab}
-					onValueChange={(value) => setActiveTab(value)}
+					onValueChange={handleTabChange}
 					className={cn(settingsTabList)}
 					data-compact={isCompactMode}>
 					{SETTINGS_TABS.map((tab) =>
 						isCompactMode ? (
 							<HeroTooltip key={tab.id} content={tab.tooltipText} placement="right">
-								<TabTrigger
-									value={tab.id}
+								<div
 									className={cn(
 										activeTab === tab.id
 											? `${settingsTabTrigger} ${settingsTabTriggerActive}`
@@ -286,12 +351,17 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 										"focus:ring-0",
 									)}
 									data-compact={isCompactMode}
-									data-testid={`tab-${tab.id}`}>
+									data-testid={`tab-${tab.id}`}
+									data-value={tab.id}
+									onClick={() => {
+										console.log("Compact tab clicked:", tab.id)
+										handleTabChange(tab.id)
+									}}>
 									<div className={cn("flex items-center gap-2", isCompactMode && "justify-center")}>
 										<tab.icon className="w-4 h-4" />
 										<span className="tab-label">{tab.name}</span>
 									</div>
-								</TabTrigger>
+								</div>
 							</HeroTooltip>
 						) : (
 							<TabTrigger
@@ -314,169 +384,180 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					)}
 				</TabList>
 
-				{/* Content area */}
-				<TabContent className="flex-1 overflow-auto">
-					{activeTab === SETTINGS_TABS[0].id && (
-						<div>
+				{/* Helper function to render section header */}
+				{(() => {
+					const renderSectionHeader = (tabId: string) => {
+						const tab = SETTINGS_TABS.find((t) => t.id === tabId)
+						if (!tab) return null
+
+						return (
 							<SectionHeader>
 								<div className="flex items-center gap-2">
 									{(() => {
-										const Icon = SETTINGS_TABS[0].icon
+										const Icon = tab.icon
 										return <Icon className="w-4" />
 									})()}
-									<div>{SETTINGS_TABS[0].headerText}</div>
+									<div>{tab.headerText}</div>
 								</div>
 							</SectionHeader>
+						)
+					}
 
-							<Section>
-								{/* Tabs container */}
-								{planActSeparateModelsSetting ? (
-									<div className="border border-solid border-[var(--vscode-panel-border)] rounded-md p-[10px] mb-5 bg-[var(--vscode-panel-background)]">
-										<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
-											<TabButton
-												isActive={chatSettings.mode === "plan"}
-												onClick={() => handleTabChange("plan")}>
-												Plan Mode
-											</TabButton>
-											<TabButton
-												isActive={chatSettings.mode === "act"}
-												onClick={() => handleTabChange("act")}>
-												Act Mode
-											</TabButton>
-										</div>
+					return (
+						<TabContent className="flex-1 overflow-auto">
+							{/* API Configuration Tab */}
+							{activeTab === "api-config" && (
+								<div>
+									{renderSectionHeader("api-config")}
+									<Section>
+										{/* Tabs container */}
+										{planActSeparateModelsSetting ? (
+											<div className="border border-solid border-[var(--vscode-panel-border)] rounded-md p-[10px] mb-5 bg-[var(--vscode-panel-background)]">
+												<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
+													<TabButton
+														isActive={chatSettings.mode === "plan"}
+														onClick={() => handlePlanActModeChange("plan")}>
+														Plan Mode
+													</TabButton>
+													<TabButton
+														isActive={chatSettings.mode === "act"}
+														onClick={() => handlePlanActModeChange("act")}>
+														Act Mode
+													</TabButton>
+												</div>
 
-										{/* Content container */}
-										<div className="-mb-3">
+												{/* Content container */}
+												<div className="-mb-3">
+													<ApiOptions
+														key={chatSettings.mode}
+														showModelOptions={true}
+														apiErrorMessage={apiErrorMessage}
+														modelIdErrorMessage={modelIdErrorMessage}
+													/>
+												</div>
+											</div>
+										) : (
 											<ApiOptions
-												key={chatSettings.mode}
+												key={"single"}
 												showModelOptions={true}
 												apiErrorMessage={apiErrorMessage}
 												modelIdErrorMessage={modelIdErrorMessage}
 											/>
+										)}
+									</Section>
+								</div>
+							)}
+
+							{/* General Settings Tab */}
+							{activeTab === "general" && (
+								<div>
+									{renderSectionHeader("general")}
+									<Section>
+										<div className="mb-[5px]">
+											<VSCodeTextArea
+												value={customInstructions ?? ""}
+												className="w-full"
+												resize="vertical"
+												rows={4}
+												placeholder={
+													'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
+												}
+												onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
+												<span className="font-medium">Custom Instructions</span>
+											</VSCodeTextArea>
+											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+												These instructions are added to the end of the system prompt sent with every
+												request.
+											</p>
 										</div>
-									</div>
-								) : (
-									<ApiOptions
-										key={"single"}
-										showModelOptions={true}
-										apiErrorMessage={apiErrorMessage}
-										modelIdErrorMessage={modelIdErrorMessage}
-									/>
-								)}
-							</Section>
 
-							<SectionHeader>
-								<div className="flex items-center gap-2">
-									<Settings className="w-4" />
-									<div>General Settings</div>
-								</div>
-							</SectionHeader>
+										{chatSettings && (
+											<PreferredLanguageSetting
+												chatSettings={chatSettings}
+												setChatSettings={setChatSettings}
+											/>
+										)}
 
-							<Section>
-								<div className="mb-[5px]">
-									<VSCodeTextArea
-										value={customInstructions ?? ""}
-										className="w-full"
-										resize="vertical"
-										rows={4}
-										placeholder={
-											'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'
-										}
-										onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-										<span className="font-medium">Custom Instructions</span>
-									</VSCodeTextArea>
-									<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-										These instructions are added to the end of the system prompt sent with every request.
-									</p>
-								</div>
-
-								{chatSettings && (
-									<PreferredLanguageSetting chatSettings={chatSettings} setChatSettings={setChatSettings} />
-								)}
-
-								<div className="mb-[5px]">
-									<VSCodeCheckbox
-										className="mb-[5px]"
-										checked={planActSeparateModelsSetting}
-										onChange={(e: any) => {
-											const checked = e.target.checked === true
-											setPlanActSeparateModelsSetting(checked)
-										}}>
-										Use different models for Plan and Act modes
-									</VSCodeCheckbox>
-									<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-										Switching between Plan and Act mode will persist the API and model used in the previous
-										mode. This may be helpful e.g. when using a strong reasoning model to architect a plan for
-										a cheaper coding model to act on.
-									</p>
-								</div>
-
-								<div className="mb-[5px]">
-									<VSCodeCheckbox
-										className="mb-[5px]"
-										checked={telemetrySetting === "enabled"}
-										onChange={(e: any) => {
-											const checked = e.target.checked === true
-											setTelemetrySetting(checked ? "enabled" : "disabled")
-										}}>
-										Allow anonymous error and usage reporting
-									</VSCodeCheckbox>
-									<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-										Help improve Cline by sending anonymous usage data and error reports. No code, prompts, or
-										personal information are ever sent. See our{" "}
-										<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" className="text-inherit">
-											telemetry overview
-										</VSCodeLink>{" "}
-										and{" "}
-										<VSCodeLink href="https://cline.bot/privacy" className="text-inherit">
-											privacy policy
-										</VSCodeLink>{" "}
-										for more details.
-									</p>
-								</div>
-							</Section>
-
-							{/* Feature Settings Section */}
-							<SectionHeader>
-								<div className="flex items-center gap-2">
-									<CheckCheck className="w-4" />
-									<div>Feature Settings</div>
-								</div>
-							</SectionHeader>
-							<Section>
-								<FeatureSettingsSection />
-							</Section>
-
-							{/* Browser Settings Section */}
-							<SectionHeader>
-								<div className="flex items-center gap-2">
-									<SquareMousePointer className="w-4" />
-									<div>Browser Settings</div>
-								</div>
-							</SectionHeader>
-							<Section>
-								<BrowserSettingsSection />
-							</Section>
-
-							{/* Terminal Settings Section */}
-							<SectionHeader>
-								<div className="flex items-center gap-2">
-									<SquareTerminal className="w-4" />
-									<div>Terminal Settings</div>
-								</div>
-							</SectionHeader>
-							<Section>
-								<TerminalSettingsSection />
-							</Section>
-
-							{IS_DEV && (
-								<>
-									<SectionHeader>
-										<div className="flex items-center gap-2">
-											<FlaskConical className="w-4" />
-											<div>Debug</div>
+										<div className="mb-[5px]">
+											<VSCodeCheckbox
+												className="mb-[5px]"
+												checked={planActSeparateModelsSetting}
+												onChange={(e: any) => {
+													const checked = e.target.checked === true
+													setPlanActSeparateModelsSetting(checked)
+												}}>
+												Use different models for Plan and Act modes
+											</VSCodeCheckbox>
+											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+												Switching between Plan and Act mode will persist the API and model used in the
+												previous mode. This may be helpful e.g. when using a strong reasoning model to
+												architect a plan for a cheaper coding model to act on.
+											</p>
 										</div>
-									</SectionHeader>
+
+										<div className="mb-[5px]">
+											<VSCodeCheckbox
+												className="mb-[5px]"
+												checked={telemetrySetting === "enabled"}
+												onChange={(e: any) => {
+													const checked = e.target.checked === true
+													setTelemetrySetting(checked ? "enabled" : "disabled")
+												}}>
+												Allow anonymous error and usage reporting
+											</VSCodeCheckbox>
+											<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+												Help improve Cline by sending anonymous usage data and error reports. No code,
+												prompts, or personal information are ever sent. See our{" "}
+												<VSCodeLink
+													href="https://docs.cline.bot/more-info/telemetry"
+													className="text-inherit">
+													telemetry overview
+												</VSCodeLink>{" "}
+												and{" "}
+												<VSCodeLink href="https://cline.bot/privacy" className="text-inherit">
+													privacy policy
+												</VSCodeLink>{" "}
+												for more details.
+											</p>
+										</div>
+									</Section>
+								</div>
+							)}
+
+							{/* Feature Settings Tab */}
+							{activeTab === "features" && (
+								<div>
+									{renderSectionHeader("features")}
+									<Section>
+										<FeatureSettingsSection />
+									</Section>
+								</div>
+							)}
+
+							{/* Browser Settings Tab */}
+							{activeTab === "browser" && (
+								<div>
+									{renderSectionHeader("browser")}
+									<Section>
+										<BrowserSettingsSection />
+									</Section>
+								</div>
+							)}
+
+							{/* Terminal Settings Tab */}
+							{activeTab === "terminal" && (
+								<div>
+									{renderSectionHeader("terminal")}
+									<Section>
+										<TerminalSettingsSection />
+									</Section>
+								</div>
+							)}
+
+							{/* Debug Tab (only in dev mode) */}
+							{IS_DEV && activeTab === "debug" && (
+								<div>
+									{renderSectionHeader("debug")}
 									<Section>
 										<VSCodeButton
 											onClick={handleResetState}
@@ -488,29 +569,29 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 											This will reset all global state and secret storage in the extension.
 										</p>
 									</Section>
-								</>
+								</div>
 							)}
 
-							<SectionHeader>
-								<div className="flex items-center gap-2">
-									<Info className="w-4" />
-									<div>About</div>
+							{/* About Tab */}
+							{activeTab === "about" && (
+								<div>
+									{renderSectionHeader("about")}
+									<Section>
+										<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
+											<p className="break-words m-0 p-0">
+												If you have any questions or feedback, feel free to open an issue at{" "}
+												<VSCodeLink href="https://github.com/cline/cline" className="inline">
+													https://github.com/cline/cline
+												</VSCodeLink>
+											</p>
+											<p className="italic mt-[10px] mb-0 p-0">v{version}</p>
+										</div>
+									</Section>
 								</div>
-							</SectionHeader>
-							<Section>
-								<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
-									<p className="break-words m-0 p-0">
-										If you have any questions or feedback, feel free to open an issue at{" "}
-										<VSCodeLink href="https://github.com/cline/cline" className="inline">
-											https://github.com/cline/cline
-										</VSCodeLink>
-									</p>
-									<p className="italic mt-[10px] mb-0 p-0">v{version}</p>
-								</div>
-							</Section>
-						</div>
-					)}
-				</TabContent>
+							)}
+						</TabContent>
+					)
+				})()}
 			</div>
 		</Tab>
 	)

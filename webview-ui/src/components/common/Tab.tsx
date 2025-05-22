@@ -44,13 +44,22 @@ export const TabList = forwardRef<
 		onValueChange: (value: string) => void
 	}
 >(({ children, className, value, onValueChange, ...props }, ref) => {
+	const handleTabSelect = useCallback(
+		(tabValue: string) => {
+			console.log("Tab selected:", tabValue)
+			onValueChange(tabValue)
+		},
+		[onValueChange],
+	)
+
 	return (
 		<div ref={ref} role="tablist" className={cn("flex", className)} {...props}>
 			{React.Children.map(children, (child) => {
 				if (React.isValidElement(child)) {
+					// Make sure we're passing the correct props to the TabTrigger
 					return React.cloneElement(child as React.ReactElement<any>, {
 						isSelected: child.props.value === value,
-						onSelect: () => onValueChange(child.props.value),
+						onSelect: () => handleTabSelect(child.props.value),
 					})
 				}
 				return child
@@ -66,7 +75,8 @@ export const TabTrigger = forwardRef<
 		isSelected?: boolean
 		onSelect?: () => void
 	}
->(({ children, className, value: _value, isSelected, onSelect, ...props }, ref) => {
+>(({ children, className, value, isSelected, onSelect, ...props }, ref) => {
+	// Ensure we're using the value prop correctly
 	return (
 		<button
 			ref={ref}
@@ -75,6 +85,7 @@ export const TabTrigger = forwardRef<
 			tabIndex={isSelected ? 0 : -1}
 			className={cn("focus:outline-none", className)}
 			onClick={onSelect}
+			data-value={value} // Add data-value attribute for debugging
 			{...props}>
 			{children}
 		</button>
