@@ -56,7 +56,6 @@ const BaseConfigSchema = z.object({
 
 // Define schemas with optional transportType for backward compatibility
 const SseConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("sse").optional(),
 	url: z.string().url(),
 }).transform((config) => ({
 	...config,
@@ -64,7 +63,6 @@ const SseConfigSchema = BaseConfigSchema.extend({
 }))
 
 const StdioConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("stdio").optional(),
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
@@ -74,7 +72,6 @@ const StdioConfigSchema = BaseConfigSchema.extend({
 }))
 
 const StreamableHTTPConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("http").optional(),
 	url: z.string().url(),
 }).transform((config) => ({
 	...config,
