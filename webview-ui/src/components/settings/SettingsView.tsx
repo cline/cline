@@ -22,6 +22,7 @@ import {
 	LucideIcon,
 } from "lucide-react"
 import HeroTooltip from "@/components/common/HeroTooltip"
+import { UnsavedChangesDialog } from "@/components/common/AlertDialog"
 import SectionHeader from "./SectionHeader"
 import Section from "./Section"
 import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
@@ -125,6 +126,12 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
+	// Track if there are unsaved changes
+	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+	// State for the unsaved changes dialog
+	const [isUnsavedChangesDialogOpen, setIsUnsavedChangesDialogOpen] = useState(false)
+	// Store the action to perform after confirmation
+	const pendingAction = useRef<() => void>()
 	const {
 		apiConfiguration,
 		version,
@@ -138,8 +145,22 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
 		enableCheckpointsSetting,
+		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		setMcpMarketplaceEnabled,
+		setApiConfiguration,
 	} = useExtensionState()
+
+	// Store the original state to detect changes
+	const originalState = useRef({
+		apiConfiguration,
+		customInstructions,
+		telemetrySetting,
+		planActSeparateModelsSetting,
+		enableCheckpointsSetting,
+		mcpMarketplaceEnabled,
+		chatSettings,
+	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
@@ -191,6 +212,89 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setApiErrorMessage(undefined)
 		setModelIdErrorMessage(undefined)
 	}, [apiConfiguration])
+
+	// Check for unsaved changes by comparing current state with original state
+	useEffect(() => {
+		const hasChanges =
+			JSON.stringify(apiConfiguration) !== JSON.stringify(originalState.current.apiConfiguration) ||
+			customInstructions !== originalState.current.customInstructions ||
+			telemetrySetting !== originalState.current.telemetrySetting ||
+			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
+			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
+			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
+			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings)
+
+		setHasUnsavedChanges(hasChanges)
+	}, [
+		apiConfiguration,
+		customInstructions,
+		telemetrySetting,
+		planActSeparateModelsSetting,
+		enableCheckpointsSetting,
+		mcpMarketplaceEnabled,
+		chatSettings,
+	])
+
+	// Handle cancel button click
+	const handleCancel = useCallback(() => {
+		if (hasUnsavedChanges) {
+			// Show confirmation dialog
+			setIsUnsavedChangesDialogOpen(true)
+			pendingAction.current = () => {
+				// Reset all tracked state to original values
+				setCustomInstructions(originalState.current.customInstructions)
+				setTelemetrySetting(originalState.current.telemetrySetting)
+				setPlanActSeparateModelsSetting(originalState.current.planActSeparateModelsSetting)
+				setChatSettings(originalState.current.chatSettings)
+				if (typeof setApiConfiguration === "function") {
+					setApiConfiguration(originalState.current.apiConfiguration ?? {})
+				}
+				if (typeof setEnableCheckpointsSetting === "function") {
+					setEnableCheckpointsSetting(
+						typeof originalState.current.enableCheckpointsSetting === "boolean"
+							? originalState.current.enableCheckpointsSetting
+							: false,
+					)
+				}
+				if (typeof setMcpMarketplaceEnabled === "function") {
+					setMcpMarketplaceEnabled(
+						typeof originalState.current.mcpMarketplaceEnabled === "boolean"
+							? originalState.current.mcpMarketplaceEnabled
+							: false,
+					)
+				}
+				// Close settings view
+				onDone()
+			}
+		} else {
+			// No changes, just close
+			onDone()
+		}
+	}, [
+		hasUnsavedChanges,
+		onDone,
+		setCustomInstructions,
+		setTelemetrySetting,
+		setPlanActSeparateModelsSetting,
+		setChatSettings,
+		setApiConfiguration,
+		setEnableCheckpointsSetting,
+		setMcpMarketplaceEnabled,
+	])
+
+	// Handle confirmation dialog actions
+	const handleConfirmDiscard = useCallback(() => {
+		setIsUnsavedChangesDialogOpen(false)
+		if (pendingAction.current) {
+			pendingAction.current()
+			pendingAction.current = undefined
+		}
+	}, [])
+
+	const handleCancelDiscard = useCallback(() => {
+		setIsUnsavedChangesDialogOpen(false)
+		pendingAction.current = undefined
+	}, [])
 
 	// validate as soon as the component is mounted
 	/*
@@ -328,7 +432,12 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
 				</div>
 				<div className="flex gap-2">
-					<VSCodeButton onClick={() => handleSubmit(false)}>Save</VSCodeButton>
+					<VSCodeButton appearance="secondary" onClick={handleCancel}>
+						Cancel
+					</VSCodeButton>
+					<VSCodeButton onClick={() => handleSubmit(false)} disabled={!hasUnsavedChanges}>
+						Save
+					</VSCodeButton>
 				</div>
 			</TabHeader>
 
@@ -593,6 +702,14 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 					)
 				})()}
 			</div>
+
+			{/* Unsaved Changes Dialog */}
+			<UnsavedChangesDialog
+				open={isUnsavedChangesDialogOpen}
+				onOpenChange={setIsUnsavedChangesDialogOpen}
+				onConfirm={handleConfirmDiscard}
+				onCancel={handleCancelDiscard}
+			/>
 		</Tab>
 	)
 }
