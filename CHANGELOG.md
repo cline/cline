@@ -1,9 +1,11 @@
 # Changelog
 
-## 3.18.0
+## [3.17.2]
 
--   f3ae134: add global workflows
--   624fb8c: Fix issue with process.env for bedrock
+-   Add support for Claude 4 models (Sonnet 4 and Opus 4) in AWS Bedrock and Vertex AI providers
+-   Add support for global workflows, allowing workflows to be shared across workspaces with local workflows taking precedence
+-   Fix settings page z-index UI issues that caused display problems
+-   Fix AWS Bedrock environment variable handling to properly restore process.env after API calls (Thanks @DaveFres!)
 
 ## [3.17.1]
 
