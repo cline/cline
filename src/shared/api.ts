@@ -262,6 +262,28 @@ export const bedrockModels = {
 		// cacheWritesPrice: 0.14, // not written
 		cacheReadsPrice: 0.00875,
 	},
+	"anthropic.claude-sonnet-4-20250514-v1:0": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"anthropic.claude-opus-4-20250514-v1:0": {
+		maxTokens: 32_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
 	"anthropic.claude-3-7-sonnet-20250219-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
