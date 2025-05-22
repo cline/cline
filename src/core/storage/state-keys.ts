@@ -29,6 +29,7 @@ export type GlobalStateKey =
 	| "awsUseCrossRegionInference"
 	| "awsBedrockUsePromptCache"
 	| "awsBedrockEndpoint"
+	| "awsBedrockAppInfProfile"
 	| "awsProfile"
 	| "awsUseProfile"
 	| "awsBedrockCustomSelected"

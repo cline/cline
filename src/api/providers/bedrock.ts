@@ -62,8 +62,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		// If this is set as an env variable already (ie. from ~/.zshrc) it will override credentials configured by Cline
 		const previousEnv = process.env
 		delete process.env["AWS_PROFILE"]
-		const stream = await client.messages.create({
-			model: modelId,
+
+		// Use Application Inference Profile ARN if available, otherwise use the derived modelId
+		const finalModelId = this.options.awsBedrockAppInfProfile || modelId
+
+    const stream = await client.messages.create({
+			model: finalModelId,
 			max_tokens: model.info.maxTokens || 8192,
 			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			temperature: reasoningOn ? undefined : 0,
@@ -328,9 +332,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Format prompt for DeepSeek R1 according to documentation
 		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
 
+		// Use Application Inference Profile ARN if available, otherwise use the derived modelId
+		const finalModelId = this.options.awsBedrockAppInfProfile || modelId
+
 		// Prepare the request based on DeepSeek R1's expected format
 		const command = new InvokeModelWithResponseStreamCommand({
-			modelId: modelId,
+			modelId: finalModelId,
 			contentType: "application/json",
 			accept: "application/json",
 			body: JSON.stringify({
@@ -520,9 +527,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Format messages for Nova model
 		const formattedMessages = this.formatNovaMessages(messages)
 
+		// Use Application Inference Profile ARN if available, otherwise use the derived modelId
+		const finalModelId = this.options.awsBedrockAppInfProfile || modelId
+
 		// Prepare request for Nova model
 		const command = new ConverseStreamCommand({
-			modelId: modelId,
+			modelId: finalModelId,
 			messages: formattedMessages,
 			system: systemPrompt ? [{ text: systemPrompt }] : undefined,
 			inferenceConfig: {
