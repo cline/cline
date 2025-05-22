@@ -42,12 +42,12 @@ export interface OpenRouterModelPickerProps {
 const featuredModels = [
 	{
 		id: "anthropic/claude-sonnet-4",
-		description: "Leading model for agentic coding",
+		description: "Best model for agentic coding",
 		label: "Best",
 	},
 	{
 		id: "anthropic/claude-opus-4",
-		description: "Best for general purpose tasks",
+		description: "Most powerful coding model",
 		label: "Most Powerful $$$",
 	},
 	{
