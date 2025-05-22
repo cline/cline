@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## [3.18.1] - 2025-05-22
+
+- Add support for Claude Sonnet 4 and Claude Opus 4 models with thinking variants in Anthropic, Bedrock, and Vertex (thanks @shariqriazz!)
+- Fix README gif display in all localized versions
+- Fix referer URL
+- Switch codebase to a monorepo and create an automated "nightly" build
+
 ## [3.18.0] - 2025-05-21
 
 - Add support for Gemini 2.5 Flash preview models (thanks @shariqriazz and @daniel-lxs!)
