@@ -38,12 +38,14 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Count commits
-        id: count
-        run: echo "total=$(git rev-list --all --count)" >> $GITHUB_OUTPUT
+      - name: Forge numeric Nightly version
+        id: version
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: echo "number=$(( 5500 + ${RUN_NUMBER} ))" >> $GITHUB_OUTPUT
       - name: Patch package.json version
         env:
-          COMMIT_COUNT: ${{ steps.count.outputs.total }}
+          VERSION_NUMBER: ${{ steps.version.outputs.number }}
         run: |
           node <<'EOF'
             const fs = require('fs');
@@ -51,7 +53,7 @@ jobs:
             const pkgPath = path.join(__dirname, 'apps', 'vscode-nightly', 'package.nightly.json');
             const pkg = JSON.parse(fs.readFileSync(pkgPath,'utf8'));
             const [maj, min] = pkg.version.split('.');
-            pkg.version = `${maj}.${min}.${process.env.COMMIT_COUNT}`;
+            pkg.version = `${maj}.${min}.${process.env.VERSION_NUMBER}`;
             fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
             console.log(`🔖 Nightly version set to ${pkg.version}`);
           EOF
