@@ -26,6 +26,12 @@ export class AnthropicHandler implements ApiHandler {
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = (modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0 ? true : false
 
+		// maxTokens
+		let maxTokens = model.info.maxTokens || 8192
+		if (reasoningOn && model.info.thinkingConfig?.maxBudget) {
+			maxTokens = model.info.thinkingConfig.maxBudget
+		}
+
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
 			case "claude-sonnet-4-20250514":
@@ -48,7 +54,7 @@ export class AnthropicHandler implements ApiHandler {
 					{
 						model: modelId,
 						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-						max_tokens: model.info.maxTokens || 8192,
+						max_tokens: maxTokens,
 						// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
 						// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
 						temperature: reasoningOn ? undefined : 0,
@@ -120,7 +126,7 @@ export class AnthropicHandler implements ApiHandler {
 			default: {
 				stream = await this.client.messages.create({
 					model: modelId,
-					max_tokens: model.info.maxTokens || 8192,
+					max_tokens: maxTokens,
 					temperature: 0,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
