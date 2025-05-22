@@ -46,6 +46,58 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"walkthroughs": [
+			{
+				"id": "ClineWalkthrough",
+				"title": "5 ways Cline Code helps you code",
+				"description": "You now have a personal AI coding assistant.",
+				"steps": [
+					{
+						"id": "welcome",
+						"title": "Write code for you",
+						"description": "Describe what you want to build. Cline will write it from scratch, generate the files, and run them for you.",
+						"media": {
+							"markdown": "walkthrough/step1.md"
+						}
+					},
+					{
+						"id": "getting-started",
+						"title": "Understand your codebase",
+						"description": "Need clarity on how something works? Ask Cline about any part of your files and get a clear explanation.",
+						"media": {
+							"markdown": "walkthrough/step2.md"
+						},
+						"content": {
+							"path": "walkthrough/step2.md"
+						}
+					},
+					{
+						"id": "modes",
+						"title": "Get things working again",
+						"description": "Stuck on an error? Cline running.",
+						"media": {
+							"markdown": "walkthrough/step3.md"
+						}
+					},
+					{
+						"id": "code-actions",
+						"title": "Plan your logic",
+						"description": "Not sure where to start? Map out your logic and structure before writing a single line of code.",
+						"media": {
+							"markdown": "walkthrough/step4.md"
+						}
+					},
+					{
+						"id": "advanced-features",
+						"title": "And more",
+						"description": "Improve your prompt, add context, or create your own custom modes.",
+						"media": {
+							"markdown": "walkthrough/step5.md"
+						}
+					}
+				]
+			}
+		],
 		"viewsContainers": {
 			"activitybar": [
 				{
