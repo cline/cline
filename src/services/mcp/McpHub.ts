@@ -55,23 +55,30 @@ const BaseConfigSchema = z.object({
 })
 
 const SseConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("sse"),
 	url: z.string().url(),
-})
+}).transform((config) => ({
+	...config,
+	transportType: "sse" as const,
+}))
 
 const StdioConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("stdio"),
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
-})
+}).transform((config) => ({
+	...config,
+	transportType: "stdio" as const,
+}))
 
 const StreamableHTTPConfigSchema = BaseConfigSchema.extend({
 	transportType: z.literal("http"),
 	url: z.string().url(),
-})
+}).transform((config) => ({
+	...config,
+	transportType: "http" as const,
+}))
 
-const ServerConfigSchema = z.discriminatedUnion("transportType", [StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
+const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
 
 const McpSettingsSchema = z.object({
 	mcpServers: z.record(ServerConfigSchema),
