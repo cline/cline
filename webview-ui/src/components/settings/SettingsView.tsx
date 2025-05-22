@@ -6,7 +6,7 @@ import {
 	VSCodeOption,
 	VSCodeTextArea,
 } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useState } from "react" // Removed useMemo
 import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
 import { OpenAIReasoningEffort } from "@shared/ChatSettings"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -17,7 +17,8 @@ import ApiOptions from "./ApiOptions"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { StateServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common" // For the EmptyRequest message
+import { StateServiceClient } from "../../services/grpc-client" // Import pre-configured client
 import FeatureSettingsSection from "./FeatureSettingsSection"
 import BrowserSettingsSection from "./BrowserSettingsSection"
 import TerminalSettingsSection from "./TerminalSettingsSection"
@@ -48,7 +49,15 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
 
+	// const stateServiceClient = useMemo(() => createGrpcClient(StateService), []) // Removed manual client creation
+
 	const handleSubmit = (withoutDone: boolean = false) => {
+		if (!withoutDone) {
+			// Only show confirmation for the main Save button
+			if (!window.confirm("Are you sure you want to save these settings?")) {
+				return // User cancelled
+			}
+		}
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
@@ -155,9 +164,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	const handleResetState = async () => {
 		try {
-			await StateServiceClient.resetState({})
+			// Use the imported StateServiceClient directly
+			await StateServiceClient.resetState(new EmptyRequest())
+			// Optionally, show a success message or trigger a UI update
+			console.log("State reset request sent successfully.")
 		} catch (error) {
-			console.error("Failed to reset state:", error)
+			console.error("Failed to send resetState request:", error)
+			// Optionally, show an error message to the user
 		}
 	}
 
