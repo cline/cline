@@ -1,6 +1,6 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { McpTool } from "@shared/mcp"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { McpServiceClient } from "@/services/grpc-client"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 
@@ -10,9 +10,9 @@ type McpToolRowProps = {
 }
 
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
-	const autoApprovalSettings = useExtensionStore((state) => state.autoApprovalSettings)
+	const autoApprovalSettings = useExtensionState((state) => state.autoApprovalSettings)
 
-	const setMcpServers = useExtensionStore((state) => state.setStoreMcpServers) // Renamed in store
+	const setMcpServers = useExtensionState((state) => state.setStoreMcpServers) // Renamed in store
 
 	// Accept the event object
 	const handleAutoApproveChange = (event: any) => {

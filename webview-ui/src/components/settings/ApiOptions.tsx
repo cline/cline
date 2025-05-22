@@ -54,7 +54,7 @@ import {
 	liteLlmModelInfoSaneDefaults,
 } from "@shared/api"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { vscode } from "@/utils/vscode"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
@@ -142,7 +142,7 @@ const ApiOptions = ({
 	saveImmediately = false, // Default to false
 }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
-	const extensionState = useExtensionStore() // Changed hook
+	const extensionState = useExtensionState() // Changed hook
 	const { apiConfiguration, setApiConfiguration, uriScheme } = extensionState
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])

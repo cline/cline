@@ -4,7 +4,7 @@ import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-to
 import { LINKS } from "@/constants"
 import { McpServiceClient } from "@/services/grpc-client"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
@@ -12,7 +12,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [error, setError] = useState("")
 	const [showConnectingMessage, setShowConnectingMessage] = useState(false)
-	const setMcpServers = useExtensionStore((state) => state.setStoreMcpServers) // Changed hook and action name
+	const setMcpServers = useExtensionState((state) => state.setStoreMcpServers) // Changed hook and action name
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault()

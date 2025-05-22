@@ -1,6 +1,6 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState, memo } from "react"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { validateApiConfiguration } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import ApiOptions from "@/components/settings/ApiOptions"
@@ -9,7 +9,7 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 
 const WelcomeView = memo(() => {
-	const apiConfiguration = useExtensionStore((state) => state.apiConfiguration)
+	const apiConfiguration = useExtensionState((state) => state.apiConfiguration)
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [showApiOptions, setShowApiOptions] = useState(false)
 

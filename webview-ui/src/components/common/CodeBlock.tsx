@@ -3,7 +3,7 @@ import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 
 export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
 
@@ -111,7 +111,7 @@ const StyledPre = styled.pre<{ theme: any }>`
 `
 
 const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
-	const theme = useExtensionStore((state) => state.theme)
+	const theme = useExtensionState((state) => state.theme)
 	const [reactContent, setMarkdownSource] = useRemark({
 		remarkPlugins: [
 			() => {

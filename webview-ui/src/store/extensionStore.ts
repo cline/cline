@@ -128,7 +128,7 @@ export interface ExtensionStoreState extends ExtensionState {
 	initializeStore: () => void
 }
 
-export const useExtensionStore = create<ExtensionStoreState>((set, get) => ({
+export const useExtensionState = create<ExtensionStoreState>((set, get) => ({
 	// Initial State from ExtensionState defaults
 	version: "", // Initialized from __INITIAL_DATA__
 	vscMachineId: "", // Initialized from __INITIAL_DATA__

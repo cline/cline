@@ -1,12 +1,12 @@
 import React, { useState } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { StateServiceClient } from "@/services/grpc-client"
 import { Int64, Int64Request } from "@shared/proto/common"
 
 export const TerminalSettingsSection: React.FC = () => {
-	const shellIntegrationTimeout = useExtensionStore((state) => state.shellIntegrationTimeout)
-	const setShellIntegrationTimeout = useExtensionStore((state) => state.setShellIntegrationTimeout) // This will become an action from the store
+	const shellIntegrationTimeout = useExtensionState((state) => state.shellIntegrationTimeout)
+	const setShellIntegrationTimeout = useExtensionState((state) => state.setShellIntegrationTimeout) // This will become an action from the store
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())
 	const [inputError, setInputError] = useState<string | null>(null)
 

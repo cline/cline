@@ -2,7 +2,7 @@ import React, { useState, useRef, forwardRef, useCallback } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { highlightText } from "./TaskHeader"
 import DynamicTextArea from "react-textarea-autosize"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 
@@ -17,7 +17,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
-	const checkpointTrackerErrorMessage = useExtensionStore((state) => state.checkpointTrackerErrorMessage)
+	const checkpointTrackerErrorMessage = useExtensionState((state) => state.checkpointTrackerErrorMessage)
 
 	// Create refs for the buttons to check in the blur handler
 	const restoreAllButtonRef = useRef<HTMLButtonElement>(null)

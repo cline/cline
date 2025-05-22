@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { vscode } from "@/utils/vscode"
 import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect, useCallback } from "react"
@@ -47,8 +47,8 @@ const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadio
 }
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const taskHistory = useExtensionStore((state) => state.taskHistory)
-	const totalTasksSize = useExtensionStore((state) => state.totalTasksSize)
+	const taskHistory = useExtensionState((state) => state.taskHistory)
+	const totalTasksSize = useExtensionState((state) => state.totalTasksSize)
 	// filePaths is not used in this component, so we can remove it.
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")

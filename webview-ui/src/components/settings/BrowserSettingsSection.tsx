@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
-import { useExtensionStore } from "../../store/extensionStore" // Changed import
+import { useExtensionState } from "../../store/extensionStore" // Changed import
 import styled from "styled-components"
 import { BrowserServiceClient } from "../../services/grpc-client"
 
@@ -50,7 +50,7 @@ const CollapsibleContent = styled.div<{ isOpen: boolean }>`
 `
 
 export const BrowserSettingsSection: React.FC = () => {
-	const browserSettings = useExtensionStore((state) => state.browserSettings)
+	const browserSettings = useExtensionState((state) => state.browserSettings)
 	const [localChromePath, setLocalChromePath] = useState(browserSettings.chromeExecutablePath || "")
 	const [isCheckingConnection, setIsCheckingConnection] = useState(false)
 	const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null)

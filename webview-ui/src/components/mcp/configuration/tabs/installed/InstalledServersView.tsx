@@ -1,9 +1,9 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "@/utils/vscode"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import ServersToggleList from "./ServersToggleList"
 const InstalledServersView = () => {
-	const servers = useExtensionStore((state) => state.mcpServers) // Changed hook
+	const servers = useExtensionState((state) => state.mcpServers) // Changed hook
 
 	return (
 		<div style={{ padding: "16px 20px" }}>

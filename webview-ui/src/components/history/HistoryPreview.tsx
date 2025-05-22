@@ -1,5 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { vscode } from "@/utils/vscode"
 import { memo, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
@@ -10,7 +10,7 @@ type HistoryPreviewProps = {
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const taskHistory = useExtensionStore((state) => state.taskHistory)
+	const taskHistory = useExtensionState((state) => state.taskHistory)
 	const [isExpanded, setIsExpanded] = useState(true)
 
 	const handleHistorySelect = (id: string) => {

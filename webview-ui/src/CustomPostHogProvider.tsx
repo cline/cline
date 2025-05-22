@@ -4,7 +4,7 @@ import posthog from "posthog-js"
 // import equal from "fast-deep-equal" // We'll use shallow from zustand
 // import { shallow } from "zustand/shallow" // Import shallow - not needed if selecting individually
 import { posthogConfig } from "@shared/services/config/posthog-config"
-import { useExtensionStore } from "./store/extensionStore" // Changed import
+import { useExtensionState } from "./store/extensionStore" // Changed import
 import { logger } from "./utils/logger"
 
 posthog.init(posthogConfig.apiKey, {
@@ -20,9 +20,9 @@ function CustomPostHogProviderComponent({ children }: { children: ReactNode }) {
 	renderCountRef.current += 1
 	logger.debug(`[PostHogProvider] Component Render #${renderCountRef.current}`)
 
-	const telemetrySetting = useExtensionStore((state) => state.telemetrySetting)
-	const vscMachineId = useExtensionStore((state) => state.vscMachineId)
-	const version = useExtensionStore((state) => state.version)
+	const telemetrySetting = useExtensionState((state) => state.telemetrySetting)
+	const vscMachineId = useExtensionState((state) => state.vscMachineId)
+	const version = useExtensionState((state) => state.version)
 
 	const prevTelemetryRef = useRef(telemetrySetting)
 	const telemetryChanged = telemetrySetting !== prevTelemetryRef.current

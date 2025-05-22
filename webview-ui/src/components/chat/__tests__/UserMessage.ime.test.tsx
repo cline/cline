@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from "vitest"
 
 vi.mock("@/store/extensionStore", () => ({
 	__esModule: true,
-	useExtensionStore: (selector: (state: any) => any) => {
+	useExtensionState: (selector: (state: any) => any) => {
 		// This mock needs to simulate how the UserMessage component might use the store.
 		// For this specific test, it seems UserMessage doesn't rely on any specific state
 		// from the store, as the original mock returned a simple object.

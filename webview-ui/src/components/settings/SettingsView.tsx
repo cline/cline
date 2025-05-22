@@ -5,7 +5,7 @@ import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added impor
 import { ChatSettings, OpenAIReasoningEffort } from "@shared/ChatSettings"
 import { ApiConfiguration } from "@shared/api" // Corrected import for ApiConfiguration
 import { TelemetrySetting } from "@shared/TelemetrySetting" // Added import
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import ApiOptions from "./ApiOptions"
@@ -34,19 +34,19 @@ type InitialSettings = {
 } | null
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
-	const apiConfiguration = useExtensionStore((state) => state.apiConfiguration)
-	const version = useExtensionStore((state) => state.version)
-	const customInstructions = useExtensionStore((state) => state.customInstructions)
-	const setCustomInstructions = useExtensionStore((state) => state.setCustomInstructions)
-	const openRouterModels = useExtensionStore((state) => state.openRouterModels)
-	const telemetrySetting = useExtensionStore((state) => state.telemetrySetting)
-	const setTelemetrySetting = useExtensionStore((state) => state.setTelemetrySetting)
-	const chatSettings = useExtensionStore((state) => state.chatSettings)
-	const setChatSettings = useExtensionStore((state) => state.setChatSettings)
-	const planActSeparateModelsSetting = useExtensionStore((state) => state.planActSeparateModelsSetting)
-	const setPlanActSeparateModelsSetting = useExtensionStore((state) => state.setPlanActSeparateModelsSetting)
-	const enableCheckpointsSetting = useExtensionStore((state) => state.enableCheckpointsSetting)
-	const mcpMarketplaceEnabled = useExtensionStore((state) => state.mcpMarketplaceEnabled)
+	const apiConfiguration = useExtensionState((state) => state.apiConfiguration)
+	const version = useExtensionState((state) => state.version)
+	const customInstructions = useExtensionState((state) => state.customInstructions)
+	const setCustomInstructions = useExtensionState((state) => state.setCustomInstructions)
+	const openRouterModels = useExtensionState((state) => state.openRouterModels)
+	const telemetrySetting = useExtensionState((state) => state.telemetrySetting)
+	const setTelemetrySetting = useExtensionState((state) => state.setTelemetrySetting)
+	const chatSettings = useExtensionState((state) => state.chatSettings)
+	const setChatSettings = useExtensionState((state) => state.setChatSettings)
+	const planActSeparateModelsSetting = useExtensionState((state) => state.planActSeparateModelsSetting)
+	const setPlanActSeparateModelsSetting = useExtensionState((state) => state.setPlanActSeparateModelsSetting)
+	const enableCheckpointsSetting = useExtensionState((state) => state.enableCheckpointsSetting)
+	const mcpMarketplaceEnabled = useExtensionState((state) => state.mcpMarketplaceEnabled)
 
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)

@@ -3,7 +3,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { formatLargeNumber } from "@/utils/format"
 import { formatSize } from "@/utils/format"
 import { vscode } from "@/utils/vscode"
@@ -37,10 +37,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	onClose,
 }) => {
-	const apiConfiguration = useExtensionStore((state) => state.apiConfiguration)
-	const currentTaskItem = useExtensionStore((state) => state.currentTaskItem)
-	const checkpointTrackerErrorMessage = useExtensionStore((state) => state.checkpointTrackerErrorMessage)
-	const clineMessages = useExtensionStore((state) => state.clineMessages)
+	const apiConfiguration = useExtensionState((state) => state.apiConfiguration)
+	const currentTaskItem = useExtensionState((state) => state.currentTaskItem)
+	const checkpointTrackerErrorMessage = useExtensionState((state) => state.checkpointTrackerErrorMessage)
+	const clineMessages = useExtensionState((state) => state.clineMessages)
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)

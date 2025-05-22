@@ -1,7 +1,7 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import styled from "styled-components"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { BrowserServiceClient, UiServiceClient } from "../../services/grpc-client"
@@ -13,7 +13,7 @@ interface ConnectionInfo {
 }
 
 export const BrowserSettingsMenu = () => {
-	const browserSettings = useExtensionStore((state) => state.browserSettings)
+	const browserSettings = useExtensionState((state) => state.browserSettings)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [showInfoPopover, setShowInfoPopover] = useState(false)
 	const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo>({

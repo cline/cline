@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 import ApiOptions from "../ApiOptions"
 // Removed import for ExtensionStateProviderWrapper
-import { useExtensionStore, ExtensionStoreState } from "@/store/extensionStore" // Import store and its type
+import { useExtensionState, ExtensionStoreState } from "@/store/extensionStore" // Import store and its type
 import { ApiConfiguration } from "@shared/api"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
@@ -88,7 +88,7 @@ vi.mock("@/store/extensionStore", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
 		...(actual || {}),
-		useExtensionStore: vi.fn((selector) => {
+		useExtensionState: vi.fn((selector) => {
 			const mockState = getDefaultMockState()
 			return typeof selector === "function" ? selector(mockState) : mockState
 		}),
@@ -96,7 +96,7 @@ vi.mock("@/store/extensionStore", async (importOriginal) => {
 })
 
 const mockExtensionStoreState = (apiConfig: Partial<ApiConfiguration>) => {
-	vi.mocked(useExtensionStore).mockImplementation((selector) => {
+	vi.mocked(useExtensionState).mockImplementation((selector) => {
 		const mockState: ExtensionStoreState = {
 			...(getDefaultMockState() as ExtensionStoreState), // Cast to ensure all defaults are there
 			apiConfiguration: {

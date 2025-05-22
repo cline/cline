@@ -7,7 +7,7 @@ import remarkMath from "remark-math"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import type { Node } from "unist"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
 
@@ -280,7 +280,7 @@ const PreWithCopyButton = ({
 }
 
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
-	const theme = useExtensionStore((state) => state.theme)
+	const theme = useExtensionState((state) => state.theme)
 
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [

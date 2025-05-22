@@ -1,11 +1,11 @@
 import { useCallback } from "react"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { vscode } from "@/utils/vscode"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ActionMetadata } from "@/components/chat/auto-approve-menu/types"
 
 export function useAutoApproveActions() {
-	const autoApprovalSettings = useExtensionStore((state) => state.autoApprovalSettings) // Changed hook
+	const autoApprovalSettings = useExtensionState((state) => state.autoApprovalSettings) // Changed hook
 
 	// Check if action is enabled
 	const isChecked = useCallback(

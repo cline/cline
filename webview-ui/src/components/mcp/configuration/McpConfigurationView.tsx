@@ -1,7 +1,7 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import styled from "styled-components"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { vscode } from "@/utils/vscode"
 import { McpServiceClient } from "@/services/grpc-client"
 import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
@@ -15,7 +15,7 @@ type McpViewProps = {
 }
 
 const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
-	const mcpMarketplaceEnabled = useExtensionStore((state) => state.mcpMarketplaceEnabled)
+	const mcpMarketplaceEnabled = useExtensionState((state) => state.mcpMarketplaceEnabled)
 	const [activeTab, setActiveTab] = useState<McpViewTab>(initialTab || (mcpMarketplaceEnabled ? "marketplace" : "installed"))
 
 	const handleTabChange = (tab: McpViewTab) => {
@@ -30,7 +30,7 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 	}, [mcpMarketplaceEnabled, activeTab])
 
 	// Get setter for MCP marketplace catalog from context
-	const setMcpMarketplaceCatalog = useExtensionStore((state) => state.setStoreMcpMarketplaceCatalog) // Renamed in store
+	const setMcpMarketplaceCatalog = useExtensionState((state) => state.setStoreMcpMarketplaceCatalog) // Renamed in store
 
 	useEffect(() => {
 		if (mcpMarketplaceEnabled) {

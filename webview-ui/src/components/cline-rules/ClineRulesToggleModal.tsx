@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react"
 import { useClickAway, useWindowSize } from "react-use"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { vscode } from "@/utils/vscode"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -11,16 +11,16 @@ import styled from "styled-components"
 import { ClineRulesToggles, ToggleWindsurfRuleRequest } from "@shared/proto/file"
 
 const ClineRulesToggleModal: React.FC = () => {
-	const globalClineRulesToggles = useExtensionStore((state) => state.globalClineRulesToggles) || {}
-	const localClineRulesToggles = useExtensionStore((state) => state.localClineRulesToggles) || {}
-	const localCursorRulesToggles = useExtensionStore((state) => state.localCursorRulesToggles) || {}
-	const localWindsurfRulesToggles = useExtensionStore((state) => state.localWindsurfRulesToggles) || {}
-	const workflowToggles = useExtensionStore((state) => state.workflowToggles) || {}
+	const globalClineRulesToggles = useExtensionState((state) => state.globalClineRulesToggles) || {}
+	const localClineRulesToggles = useExtensionState((state) => state.localClineRulesToggles) || {}
+	const localCursorRulesToggles = useExtensionState((state) => state.localCursorRulesToggles) || {}
+	const localWindsurfRulesToggles = useExtensionState((state) => state.localWindsurfRulesToggles) || {}
+	const workflowToggles = useExtensionState((state) => state.workflowToggles) || {}
 
-	const setGlobalClineRulesToggles = useExtensionStore((state) => state.setGlobalClineRulesToggles)
-	const setLocalClineRulesToggles = useExtensionStore((state) => state.setLocalClineRulesToggles)
-	const setLocalCursorRulesToggles = useExtensionStore((state) => state.setLocalCursorRulesToggles)
-	const setLocalWindsurfRulesToggles = useExtensionStore((state) => state.setLocalWindsurfRulesToggles)
+	const setGlobalClineRulesToggles = useExtensionState((state) => state.setGlobalClineRulesToggles)
+	const setLocalClineRulesToggles = useExtensionState((state) => state.setLocalClineRulesToggles)
+	const setLocalCursorRulesToggles = useExtensionState((state) => state.setLocalCursorRulesToggles)
+	const setLocalWindsurfRulesToggles = useExtensionState((state) => state.setLocalWindsurfRulesToggles)
 	// Note: There's no setWorkflowToggles in the store, assuming this is handled via postMessage as in toggleWorkflow
 
 	const [isVisible, setIsVisible] = useState(false)

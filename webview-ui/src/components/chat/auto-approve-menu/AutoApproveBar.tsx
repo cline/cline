@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo } from "react"
-import { useExtensionStore } from "@/store/extensionStore" // Changed import
+import { useExtensionState } from "@/store/extensionStore" // Changed import
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
@@ -12,7 +12,7 @@ interface AutoApproveBarProps {
 }
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
-	const autoApprovalSettings = useExtensionStore((state) => state.autoApprovalSettings)
+	const autoApprovalSettings = useExtensionState((state) => state.autoApprovalSettings)
 	const { isChecked, isFavorited, updateAction } = useAutoApproveActions()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
