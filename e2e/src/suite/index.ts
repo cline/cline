@@ -8,7 +8,7 @@ import { type RooCodeAPI, Package } from "@roo-code/types"
 import { waitFor } from "./utils"
 
 declare global {
-	var api: RooCodeAPI
+	let api: RooCodeAPI
 }
 
 export async function run() {
@@ -29,7 +29,7 @@ export async function run() {
 	await vscode.commands.executeCommand(`${Package.name}.SidebarProvider.focus`)
 	await waitFor(() => api.isReady())
 
-	// Expose the API to the tests.
+	// @ts-expect-error - Expose the API to the tests.
 	globalThis.api = api
 
 	// Add all the tests to the runner.

@@ -1,0 +1,6 @@
+dist
+build
+out
+.next
+.venv
+pnpm-lock.yaml

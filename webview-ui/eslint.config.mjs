@@ -7,12 +7,31 @@ export default [
 		rules: {
 			"@typescript-eslint/no-unused-vars": "off",
 			"@typescript-eslint/no-explicit-any": "off",
+			"react/prop-types": "off",
+			"react/display-name": "off",
 		},
 	},
 	{
-		files: ["src/utils/context-mentions.ts", "src/utils/highlighter.ts"],
+		files: ["src/components/chat/ChatRow.tsx", "src/components/settings/ModelInfoView.tsx"],
 		rules: {
-			"prefer-const": "off",
+			"react/jsx-key": "off",
+		},
+	},
+	{
+		files: [
+			"src/components/chat/ChatRow.tsx",
+			"src/components/chat/ChatView.tsx",
+			"src/components/chat/BrowserSessionRow.tsx",
+			"src/components/history/useTaskSearch.ts",
+		],
+		rules: {
+			"no-case-declarations": "off",
+		},
+	},
+	{
+		files: ["src/__mocks__/**/*.js"],
+		rules: {
+			"no-undef": "off",
 		},
 	},
 ]

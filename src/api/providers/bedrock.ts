@@ -161,7 +161,10 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			if (this.arnInfo.awsUseCrossRegionInference) this.options.awsUseCrossRegionInference = true
 		}
 
-		this.options.modelTemperature ?? BEDROCK_DEFAULT_TEMPERATURE
+		if (!this.options.modelTemperature) {
+			this.options.modelTemperature = BEDROCK_DEFAULT_TEMPERATURE
+		}
+
 		this.costModelConfig = this.getModel()
 
 		const clientConfig: BedrockRuntimeClientConfig = {
@@ -316,6 +319,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 							error: error instanceof Error ? error : String(error),
 						})
 					} finally {
+						// eslint-disable-next-line no-unsafe-finally
 						continue
 					}
 				}

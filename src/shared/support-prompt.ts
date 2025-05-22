@@ -12,6 +12,7 @@ export const createPrompt = (template: string, params: PromptParams): string => 
 	return template.replace(/\${(.*?)}/g, (_, key) => {
 		if (key === "diagnosticText") {
 			return generateDiagnosticText(params["diagnostics"] as any[])
+			// eslint-disable-next-line no-prototype-builtins
 		} else if (params.hasOwnProperty(key)) {
 			// Ensure the value is treated as a string for replacement
 			const value = params[key]

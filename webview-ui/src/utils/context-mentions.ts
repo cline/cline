@@ -255,7 +255,7 @@ export function getContextMenuOptions(
 	// Convert search results to queryItems format
 	const searchResultItems = dynamicSearchResults.map((result) => {
 		// Ensure paths start with / for consistency
-		let formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
 
 		// For display purposes, we don't escape spaces in the label or description
 		const displayPath = formattedPath

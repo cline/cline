@@ -143,8 +143,8 @@ export function generatePackageJson({
 	overrideJson,
 	substitution,
 }: {
-	packageJson: Record<string, any>
-	overrideJson: Record<string, any>
+	packageJson: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+	overrideJson: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 	substitution: [string, string]
 }) {
 	const { viewsContainers, views, commands, menus, submenus, configuration } = contributesSchema.parse(contributes)
@@ -167,6 +167,7 @@ export function generatePackageJson({
 	}
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformArrayRecord<T>(obj: Record<string, any[]>, from: string, to: string, props: string[]): T {
 	return Object.entries(obj).reduce(
 		(acc, [key, ary]) => ({
@@ -187,6 +188,7 @@ function transformArrayRecord<T>(obj: Record<string, any[]>, from: string, to: s
 	)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformArray<T>(arr: any[], from: string, to: string, idProp: string): T[] {
 	return arr.map(({ [idProp]: id, ...rest }) => ({
 		[idProp]: id.replace(from, to),
@@ -194,6 +196,7 @@ function transformArray<T>(arr: any[], from: string, to: string, idProp: string)
 	}))
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformRecord<T>(obj: Record<string, any>, from: string, to: string): T {
 	return Object.entries(obj).reduce(
 		(acc, [key, value]) => ({

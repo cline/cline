@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-function-type */
+
 // node --expose-gc --import tsx src/core/assistant-message/__tests__/parseAssistantMessageBenchmark.ts
 
 import { performance } from "perf_hooks"

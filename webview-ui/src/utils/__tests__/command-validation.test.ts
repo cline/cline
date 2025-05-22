@@ -1,5 +1,4 @@
 /* eslint-disable no-useless-escape */
-/* eslint-disable no-template-curly-in-string */
 
 // npx jest src/utils/__tests__/command-validation.test.ts
 

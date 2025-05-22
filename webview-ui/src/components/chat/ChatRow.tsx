@@ -46,6 +46,7 @@ interface ChatRowProps {
 	onSuggestionClick?: (answer: string, event?: React.MouseEvent) => void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 const ChatRow = memo(

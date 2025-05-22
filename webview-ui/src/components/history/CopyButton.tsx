@@ -19,7 +19,10 @@ export const CopyButton = ({ itemTask }: CopyButtonProps) => {
 			const tempDiv = document.createElement("div")
 			tempDiv.innerHTML = itemTask
 			const text = tempDiv.textContent || tempDiv.innerText || ""
-			!isCopied && copy(text)
+
+			if (!isCopied) {
+				copy(text)
+			}
 		},
 		[isCopied, copy, itemTask],
 	)

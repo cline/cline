@@ -140,6 +140,7 @@ describe("CodeBlock", () => {
 
 	it("handles WASM loading errors", async () => {
 		const mockError = new Error("WASM load failed")
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		const highlighterUtil = require("../../../utils/highlighter")
 		highlighterUtil.getHighlighter.mockRejectedValueOnce(mockError)
 
@@ -163,6 +164,7 @@ describe("CodeBlock", () => {
 
 	it("verifies highlighter utility is used correctly", async () => {
 		const code = "const x = 1;"
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		const highlighterUtil = require("../../../utils/highlighter")
 
 		await act(async () => {

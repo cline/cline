@@ -1,12 +1,13 @@
 import * as assert from "assert"
 
-import type { ClineMessage } from "@roo-code/types"
+import type { RooCodeAPI, ClineMessage } from "@roo-code/types"
 
 import { waitUntilCompleted } from "./utils"
 
 suite("Roo Code Modes", () => {
 	test("Should handle switching modes correctly", async () => {
-		const api = globalThis.api
+		// @ts-expect-error - Expose the API to the tests.
+		const api = globalThis.api as RooCodeAPI
 
 		/**
 		 * Switch modes.
@@ -15,7 +16,7 @@ suite("Roo Code Modes", () => {
 		const switchModesPrompt =
 			"For each mode (Architect, Ask, Debug) respond with the mode name and what it specializes in after switching to that mode."
 
-		let messages: ClineMessage[] = []
+		const messages: ClineMessage[] = []
 
 		const modeSwitches: string[] = []
 

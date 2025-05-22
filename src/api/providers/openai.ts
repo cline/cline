@@ -19,6 +19,7 @@ import { DEFAULT_HEADERS, DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
 
 export const AZURE_AI_INFERENCE_PATH = "/models/chat/completions"
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface OpenAiHandlerOptions extends ApiHandlerOptions {}
 
 export class OpenAiHandler extends BaseProvider implements SingleCompletionHandler {

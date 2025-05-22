@@ -303,22 +303,23 @@ export class DiffViewProvider {
 
 	private async closeAllDiffViews(): Promise<void> {
 		const closeOps = vscode.window.tabGroups.all
-		.flatMap(group => group.tabs)
-		.filter(
-		tab =>
-			tab.input instanceof vscode.TabInputTextDiff &&
-			tab.input.original.scheme === DIFF_VIEW_URI_SCHEME &&
-			!tab.isDirty
-		)
-		.map(tab =>
-		vscode.window.tabGroups.close(tab).then(
-			() => undefined,
-			err => {
-			console.error(`Failed to close diff tab ${tab.label}`, err);
-			}
-		));
-		
-		await Promise.all(closeOps);
+			.flatMap((group) => group.tabs)
+			.filter(
+				(tab) =>
+					tab.input instanceof vscode.TabInputTextDiff &&
+					tab.input.original.scheme === DIFF_VIEW_URI_SCHEME &&
+					!tab.isDirty,
+			)
+			.map((tab) =>
+				vscode.window.tabGroups.close(tab).then(
+					() => undefined,
+					(err) => {
+						console.error(`Failed to close diff tab ${tab.label}`, err)
+					},
+				),
+			)
+
+		await Promise.all(closeOps)
 	}
 
 	private async openDiffEditor(): Promise<vscode.TextEditor> {
@@ -425,7 +426,7 @@ export class DiffViewProvider {
 		return result
 	}
 
-	async reset() : Promise<void> {
+	async reset(): Promise<void> {
 		await this.closeAllDiffViews()
 		this.editType = undefined
 		this.isEditing = false

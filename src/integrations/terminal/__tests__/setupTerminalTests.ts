@@ -24,6 +24,7 @@ const hasPwsh = isPowerShellCoreAvailable()
 
 // Define interface for global test environment
 declare global {
+	// eslint-disable-next-line @typescript-eslint/no-namespace
 	namespace NodeJS {
 		interface Global {
 			__TEST_ENV__: {

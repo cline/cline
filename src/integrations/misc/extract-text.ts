@@ -11,7 +11,9 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 	} catch (error) {
 		throw new Error(`File not found: ${filePath}`)
 	}
+
 	const fileExtension = path.extname(filePath).toLowerCase()
+
 	switch (fileExtension) {
 		case ".pdf":
 			return extractTextFromPDF(filePath)
@@ -19,13 +21,15 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			return extractTextFromDOCX(filePath)
 		case ".ipynb":
 			return extractTextFromIPYNB(filePath)
-		default:
+		default: {
 			const isBinary = await isBinaryFile(filePath).catch(() => false)
+
 			if (!isBinary) {
 				return addLineNumbers(await fs.readFile(filePath, "utf8"))
 			} else {
 				throw new Error(`Cannot read text for file type: ${fileExtension}`)
 			}
+		}
 	}
 }
 

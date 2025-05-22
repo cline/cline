@@ -77,7 +77,9 @@ const mockInputRef = React.createRef<HTMLInputElement>()
 const mockFocus = jest.fn()
 
 jest.mock("../ChatTextArea", () => {
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	const mockReact = require("react")
+
 	return {
 		__esModule: true,
 		default: mockReact.forwardRef(function MockChatTextArea(

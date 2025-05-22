@@ -144,7 +144,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		}
 
 		// Pop the top Cline instance from the stack.
-		var cline = this.clineStack.pop()
+		let cline = this.clineStack.pop()
 
 		if (cline) {
 			console.log(`[subtasks] removing task ${cline.taskId}.${cline.instanceId} from stack`)

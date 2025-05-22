@@ -2,7 +2,7 @@
 	"name": "@roo-code/vscode-e2e",
 	"private": true,
 	"scripts": {
-		"lint": "eslint **/*.ts --max-warnings=0",
+		"lint": "eslint src --ext=ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"format": "prettier --write src",
 		"test:ci": "pnpm --filter roo-cline build:development && pnpm test:run",

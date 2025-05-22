@@ -128,7 +128,7 @@ const LANGUAGE_LOAD_DELAY = 0
 const initialLanguages: BundledLanguage[] = ["shell", "log"]
 
 // Singleton state
-let state: {
+const state: {
 	instance: Highlighter | null
 	instanceInitPromise: Promise<Highlighter> | null
 	loadedLanguages: Set<ExtendedLanguage>

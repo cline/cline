@@ -1,3 +1,5 @@
+/* eslint-disable no-irregular-whitespace */
+
 import { distance } from "fastest-levenshtein"
 
 import { addLineNumbers, everyLineHasLineNumbers, stripLineNumbers } from "../../../integrations/misc/extract-text"

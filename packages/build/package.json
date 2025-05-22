@@ -6,7 +6,7 @@
 	"main": "./dist/index.js",
 	"types": "./src/index.ts",
 	"scripts": {
-		"lint": "eslint src/**/*.ts --max-warnings=0",
+		"lint": "eslint src --ext=ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"test": "vitest --globals --run",
 		"build": "tsc",

@@ -318,7 +318,7 @@
 		}
 	},
 	"scripts": {
-		"lint": "eslint **/*.ts --max-warnings=0",
+		"lint": "eslint . --ext=ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"pretest": "pnpm bundle",
 		"test": "jest -w=40% && vitest run",
@@ -429,7 +429,6 @@
 		"nock": "^14.0.4",
 		"npm-run-all2": "^8.0.1",
 		"ovsx": "0.10.2",
-		"prettier": "^3.4.2",
 		"rimraf": "^6.0.1",
 		"ts-jest": "^29.2.5",
 		"tsup": "^8.4.0",

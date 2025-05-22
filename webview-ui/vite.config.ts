@@ -12,7 +12,7 @@ function getGitSha() {
 	try {
 		gitSha = execSync("git rev-parse HEAD").toString().trim()
 	} catch (_error) {
-		// NO-OP
+		// Do nothing.
 	}
 
 	return gitSha

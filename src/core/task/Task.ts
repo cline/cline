@@ -1212,7 +1212,7 @@ export class Task extends EventEmitter<ClineEvents> {
 							cacheReadTokens += chunk.cacheReadTokens ?? 0
 							totalCost = chunk.totalCost
 							break
-						case "text":
+						case "text": {
 							assistantMessage += chunk.text
 
 							// Parse raw assistant message into content blocks.
@@ -1228,6 +1228,7 @@ export class Task extends EventEmitter<ClineEvents> {
 							// Present content to user.
 							presentAssistantMessage(this)
 							break
+						}
 					}
 
 					if (this.abort) {

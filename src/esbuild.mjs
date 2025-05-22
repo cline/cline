@@ -1,6 +1,8 @@
 import * as esbuild from "esbuild"
 import * as path from "path"
 import { fileURLToPath } from "url"
+import process from "node:process"
+import * as console from "node:console"
 
 import { copyPaths, copyWasms, copyLocales, setupLocaleWatcher } from "@roo-code/build"
 

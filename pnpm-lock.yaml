@@ -426,9 +426,6 @@ importers:
       ovsx:
         specifier: 0.10.2
         version: 0.10.2
-      prettier:
-        specifier: ^3.4.2
-        version: 3.5.3
       rimraf:
         specifier: ^6.0.1
         version: 6.0.1

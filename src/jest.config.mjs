@@ -1,5 +1,7 @@
+import process from "node:process"
+
 /** @type {import('ts-jest').JestConfigWithTsJest} */
-module.exports = {
+export default {
 	preset: "ts-jest",
 	testEnvironment: "node",
 	moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],

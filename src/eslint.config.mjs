@@ -5,26 +5,31 @@ export default [
 	...config,
 	{
 		rules: {
+			// TODO: These should be fixed and the rules re-enabled.
+			"no-regex-spaces": "off",
+			"no-useless-escape": "off",
+			"no-empty": "off",
+			"prefer-const": "off",
+
 			"@typescript-eslint/no-unused-vars": "off",
 			"@typescript-eslint/no-explicit-any": "off",
-		},
-	},
-	{
-		files: ["i18n/setup.ts", "utils/tts.ts"],
-		rules: {
 			"@typescript-eslint/no-require-imports": "off",
+			"@typescript-eslint/ban-ts-comment": "off",
 		},
 	},
 	{
-		files: ["shared/support-prompt.ts"],
+		files: ["core/assistant-message/presentAssistantMessage.ts", "core/webview/webviewMessageHandler.ts"],
 		rules: {
-			"no-prototype-builtins": "off",
+			"no-case-declarations": "off",
 		},
 	},
 	{
-		files: ["shared/combineApiRequests.ts", "utils/tts.ts"],
+		files: ["__mocks__/**/*.js"],
 		rules: {
-			"no-empty": "off",
+			"no-undef": "off",
 		},
+	},
+	{
+		ignores: ["webview-ui", "out"],
 	},
 ]

@@ -1,11 +1,13 @@
 import { execSync } from "child_process"
 
 export function getGitSha() {
-	let gitSha = undefined
+	let gitSha: string | undefined = undefined
 
 	try {
 		gitSha = execSync("git rev-parse HEAD").toString().trim()
-	} catch (e) {}
+	} catch (_e) {
+		// Do nothing.
+	}
 
 	return gitSha
 }

@@ -128,7 +128,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 
 		for await (const chunk of stream) {
 			switch (chunk.type) {
-				case "message_start":
+				case "message_start": {
 					// Tells us cache reads/writes/input/output.
 					const usage = chunk.message.usage
 
@@ -141,6 +141,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 					}
 
 					break
+				}
 				case "message_delta":
 					// Tells us stop_reason, stop_sequence, and output tokens
 					// along the way and at the end of the message.
