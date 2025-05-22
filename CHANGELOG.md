@@ -2,15 +2,10 @@
 
 ## 3.17.0
 
-### Minor Changes
-
 -   6835870: Sonnet 4 UI copy updates
 -   b97e57f: integration with nebius ai studio
 -   58f80d4: remove proto file
 -   0c30612: Migrate didShowAnnouncement message to protobus
-
-### Patch Changes
-
 -   0200286: when the assistant says to act mode we render a custom highlight with hotkey suggestion
 -   c511b91: New settings page split into tabs
 -   331da0f: no longer requires `transportType` property to be set in MCP Server configuration.
