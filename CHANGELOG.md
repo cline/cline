@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   f3ae134: add global workflows
+
+### Patch Changes
+
+-   624fb8c: Fix issue with process.env for bedrock
+
 ## [3.17.1]
 
 -   Add prompt caching for Claude 4 models on Cline and OpenRouter providers
