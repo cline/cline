@@ -17,7 +17,6 @@ export interface WebviewMessage {
 		| "openInBrowser"
 		| "showChatView"
 		| "openMcpSettings"
-		| "togglePlanActMode"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "showAccountViewClicked"

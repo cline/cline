@@ -39,6 +39,7 @@ import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { ChatSettings } from "@shared/ChatSettings"
 import ServersToggleModal from "./ServersToggleModal"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
+import { PlanActMode } from "@shared/proto/state"
 
 const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
@@ -965,9 +966,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
 			}
 			setTimeout(() => {
-				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
-				vscode.postMessage({
-					type: "togglePlanActMode",
+				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+				StateServiceClient.togglePlanActMode({
 					chatSettings: {
 						mode: newMode,
 						preferredLanguage: chatSettings.preferredLanguage,

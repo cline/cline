@@ -41,6 +41,7 @@ import TerminalSettingsSection from "./TerminalSettingsSection"
 import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
 import { cn } from "@/utils/cn"
+import { PlanActMode } from "@shared/proto/state"
 const { IS_DEV } = process.env
 
 // Styles for the tab system
@@ -210,10 +211,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			switch (message.type) {
 				case "didUpdateSettings":
 					if (pendingTabChange) {
-						vscode.postMessage({
-							type: "togglePlanActMode",
+						StateServiceClient.togglePlanActMode({
 							chatSettings: {
-								mode: pendingTabChange,
+								mode: pendingTabChange === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
 								preferredLanguage: chatSettings.preferredLanguage,
 								openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 							},
