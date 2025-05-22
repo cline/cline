@@ -71,7 +71,7 @@ export const BrowserSettingsMenu = () => {
 		// After a short delay, send a message to scroll to browser settings
 		setTimeout(async () => {
 			try {
-				await UiServiceClient.scrollToSettings({ value: "browser-settings-section" })
+				await UiServiceClient.scrollToSettings({ value: "browser" })
 			} catch (error) {
 				console.error("Error scrolling to browser settings:", error)
 			}

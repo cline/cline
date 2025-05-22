@@ -49,10 +49,7 @@ export const TerminalSettingsSection: React.FC = () => {
 	}
 
 	return (
-		<div
-			id="terminal-settings-section"
-			style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
-			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Terminal Settings</h3>
+		<div id="terminal-settings-section" style={{ marginBottom: 20 }}>
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
 					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
