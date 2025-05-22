@@ -278,7 +278,7 @@
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.js --production",
 		"protos": "node proto/build-proto.js && node scripts/generate-server-setup.mjs",
 		"postprotos": "prettier src/shared/proto src/core/controller webview-ui/src/services src/standalone/server-setup.ts --write --log-level silent",
 		"compile-tests": "node ./scripts/build-tests.js",
