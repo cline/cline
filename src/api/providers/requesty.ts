@@ -7,6 +7,16 @@ import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import { ApiStream } from "@api/transform/stream"
 
+// Requesty usage includes an extra field for Anthropic use cases.
+// Safely cast the prompt token details section to the appropriate structure.
+interface RequestyUsage extends OpenAI.CompletionUsage {
+	prompt_tokens_details?: {
+		caching_tokens?: number
+		cached_tokens?: number
+	}
+	total_cost?: number
+}
+
 export class RequestyHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
@@ -55,6 +65,8 @@ export class RequestyHandler implements ApiHandler {
 			...thinkingArgs,
 		})
 
+		let lastUsage: any = undefined
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
@@ -71,32 +83,26 @@ export class RequestyHandler implements ApiHandler {
 				}
 			}
 
-			// Requesty usage includes an extra field for Anthropic use cases.
-			// Safely cast the prompt token details section to the appropriate structure.
-			interface RequestyUsage extends OpenAI.CompletionUsage {
-				prompt_tokens_details?: {
-					caching_tokens?: number
-					cached_tokens?: number
-				}
-				total_cost?: number
-			}
-
 			if (chunk.usage) {
-				const usage = chunk.usage as RequestyUsage
-				const inputTokens = usage.prompt_tokens || 0
-				const outputTokens = usage.completion_tokens || 0
-				const cacheWriteTokens = usage.prompt_tokens_details?.caching_tokens || undefined
-				const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens || undefined
-				const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+				lastUsage = chunk.usage
+			}
+		}
 
-				yield {
-					type: "usage",
-					inputTokens: inputTokens,
-					outputTokens: outputTokens,
-					cacheWriteTokens: cacheWriteTokens,
-					cacheReadTokens: cacheReadTokens,
-					totalCost: totalCost,
-				}
+		if (lastUsage) {
+			const usage = lastUsage as RequestyUsage
+			const inputTokens = usage.prompt_tokens || 0
+			const outputTokens = usage.completion_tokens || 0
+			const cacheWriteTokens = usage.prompt_tokens_details?.caching_tokens || undefined
+			const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens || undefined
+			const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+
+			yield {
+				type: "usage",
+				inputTokens: inputTokens,
+				outputTokens: outputTokens,
+				cacheWriteTokens: cacheWriteTokens,
+				cacheReadTokens: cacheReadTokens,
+				totalCost: totalCost,
 			}
 		}
 	}
