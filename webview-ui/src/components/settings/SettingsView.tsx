@@ -144,7 +144,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
 		enableCheckpointsSetting,
+		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		setMcpMarketplaceEnabled,
+		setApiConfiguration,
 	} = useExtensionState()
 
 	// Store the original state to detect changes
@@ -237,10 +240,28 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			// Show confirmation dialog
 			setIsUnsavedChangesDialogOpen(true)
 			pendingAction.current = () => {
-				// Reset to original state
+				// Reset all tracked state to original values
 				setCustomInstructions(originalState.current.customInstructions)
 				setTelemetrySetting(originalState.current.telemetrySetting)
 				setPlanActSeparateModelsSetting(originalState.current.planActSeparateModelsSetting)
+				setChatSettings(originalState.current.chatSettings)
+				if (typeof setApiConfiguration === "function") {
+					setApiConfiguration(originalState.current.apiConfiguration ?? {})
+				}
+				if (typeof setEnableCheckpointsSetting === "function") {
+					setEnableCheckpointsSetting(
+						typeof originalState.current.enableCheckpointsSetting === "boolean"
+							? originalState.current.enableCheckpointsSetting
+							: false,
+					)
+				}
+				if (typeof setMcpMarketplaceEnabled === "function") {
+					setMcpMarketplaceEnabled(
+						typeof originalState.current.mcpMarketplaceEnabled === "boolean"
+							? originalState.current.mcpMarketplaceEnabled
+							: false,
+					)
+				}
 				// Close settings view
 				onDone()
 			}
@@ -248,7 +269,17 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			// No changes, just close
 			onDone()
 		}
-	}, [hasUnsavedChanges, onDone, setCustomInstructions, setTelemetrySetting, setPlanActSeparateModelsSetting])
+	}, [
+		hasUnsavedChanges,
+		onDone,
+		setCustomInstructions,
+		setTelemetrySetting,
+		setPlanActSeparateModelsSetting,
+		setChatSettings,
+		setApiConfiguration,
+		setEnableCheckpointsSetting,
+		setMcpMarketplaceEnabled,
+	])
 
 	// Handle confirmation dialog actions
 	const handleConfirmDiscard = useCallback(() => {
