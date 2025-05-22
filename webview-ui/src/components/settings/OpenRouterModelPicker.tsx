@@ -46,11 +46,6 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "anthropic/claude-opus-4",
-		description: "Most expensive/powerful coding model",
-		label: "Expensive/Powerful",
-	},
-	{
 		id: "google/gemini-2.5-pro-preview",
 		description: "Large 1M context window, great value",
 		label: "Trending",
