@@ -36,6 +36,7 @@ export interface WebviewMessage {
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleWorkflow"
+		| "togglePlanActMode"
 
 	text?: string
 	disabled?: boolean
