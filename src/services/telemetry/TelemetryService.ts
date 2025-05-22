@@ -120,8 +120,18 @@ class TelemetryService {
 		this.captureEvent(PostHogClient.EVENTS.TASK.CHECKPOINT_RESTORED, { taskId })
 	}
 
-	public captureContextCondensed(taskId: string, isAutomaticTrigger: boolean): void {
-		this.captureEvent(PostHogClient.EVENTS.TASK.CONTEXT_CONDENSED, { taskId, isAutomaticTrigger })
+	public captureContextCondensed(
+		taskId: string,
+		isAutomaticTrigger: boolean,
+		usedCustomPrompt?: boolean,
+		usedCustomApiHandler?: boolean,
+	): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.CONTEXT_CONDENSED, {
+			taskId,
+			isAutomaticTrigger,
+			...(usedCustomPrompt !== undefined && { usedCustomPrompt }),
+			...(usedCustomApiHandler !== undefined && { usedCustomApiHandler }),
+		})
 	}
 
 	public captureSlidingWindowTruncation(taskId: string): void {

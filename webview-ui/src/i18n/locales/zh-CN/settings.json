@@ -407,6 +407,18 @@
 			"label": "触发智能上下文压缩的阈值",
 			"description": "当上下文窗口达到此阈值时，Roo 将自动压缩它。"
 		},
+		"condensingApiConfiguration": {
+			"label": "上下文压缩的API配置",
+			"description": "选择用于上下文压缩操作的API配置。留空则使用当前活动的配置。",
+			"useCurrentConfig": "使用当前配置"
+		},
+		"customCondensingPrompt": {
+			"label": "自定义上下文压缩提示词",
+			"description": "自定义用于上下文压缩的系统提示词。留空则使用默认提示词。",
+			"placeholder": "在此输入您的自定义压缩提示词...\n\n您可以使用与默认提示词相同的结构：\n- 之前的对话\n- 当前工作\n- 关键技术概念\n- 相关文件和代码\n- 问题解决\n- 待处理任务和下一步",
+			"reset": "重置为默认值",
+			"hint": "留空 = 使用默认提示词"
+		},
 		"AUTO_CONDENSE_CONTEXT": {
 			"name": "自动触发智能上下文压缩",
 			"description": "智能上下文压缩使用 LLM 调用来总结过去的对话，在任务上下文窗口达到预设阈值时进行，而不是在上下文填满时丢弃旧消息。"

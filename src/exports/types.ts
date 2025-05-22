@@ -56,6 +56,8 @@ type GlobalSettings = {
 				workspace?: string | undefined
 		  }[]
 		| undefined
+	condensingApiConfigId?: string | undefined
+	customCondensingPrompt?: string | undefined
 	autoApprovalEnabled?: boolean | undefined
 	alwaysAllowReadOnly?: boolean | undefined
 	alwaysAllowReadOnlyOutsideWorkspace?: boolean | undefined
@@ -805,6 +807,8 @@ type IpcMessage =
 											workspace?: string | undefined
 									  }[]
 									| undefined
+								condensingApiConfigId?: string | undefined
+								customCondensingPrompt?: string | undefined
 								autoApprovalEnabled?: boolean | undefined
 								alwaysAllowReadOnly?: boolean | undefined
 								alwaysAllowReadOnlyOutsideWorkspace?: boolean | undefined
@@ -1282,6 +1286,8 @@ type TaskCommand =
 								workspace?: string | undefined
 						  }[]
 						| undefined
+					condensingApiConfigId?: string | undefined
+					customCondensingPrompt?: string | undefined
 					autoApprovalEnabled?: boolean | undefined
 					alwaysAllowReadOnly?: boolean | undefined
 					alwaysAllowReadOnlyOutsideWorkspace?: boolean | undefined

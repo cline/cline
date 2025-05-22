@@ -161,6 +161,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		remoteBrowserEnabled,
 		maxReadFileLine,
 		terminalCompressProgressBar,
+		condensingApiConfigId,
+		customCondensingPrompt,
 	} = cachedState
 
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
@@ -284,6 +286,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "updateExperimental", values: experiments })
 			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
 			vscode.postMessage({ type: "alwaysAllowSubtasks", bool: alwaysAllowSubtasks })
+			vscode.postMessage({ type: "condensingApiConfigId", text: condensingApiConfigId || "" })
+			vscode.postMessage({ type: "updateCondensingPrompt", text: customCondensingPrompt || "" })
 			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
 			vscode.postMessage({ type: "telemetrySetting", text: telemetrySetting })
 			setChangeDetected(false)
@@ -635,6 +639,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							experiments={experiments}
 							autoCondenseContextPercent={autoCondenseContextPercent}
 							setCachedStateField={setCachedStateField}
+							condensingApiConfigId={condensingApiConfigId}
+							setCondensingApiConfigId={(value) => setCachedStateField("condensingApiConfigId", value)}
+							customCondensingPrompt={customCondensingPrompt}
+							setCustomCondensingPrompt={(value) => setCachedStateField("customCondensingPrompt", value)}
+							listApiConfigMeta={listApiConfigMeta ?? []}
 						/>
 					)}
 

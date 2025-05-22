@@ -63,14 +63,33 @@ export type SummarizeResponse = {
  * @param {boolean} isAutomaticTrigger - Whether the summarization is triggered automatically
  * @returns {SummarizeResponse} - The result of the summarization operation (see above)
  */
+/**
+ * Summarizes the conversation messages using an LLM call
+ *
+ * @param {ApiMessage[]} messages - The conversation messages
+ * @param {ApiHandler} apiHandler - The API handler to use for token counting (fallback if condensingApiHandler not provided)
+ * @param {string} systemPrompt - The system prompt for API requests (fallback if customCondensingPrompt not provided)
+ * @param {string} taskId - The task ID for the conversation, used for telemetry
+ * @param {boolean} isAutomaticTrigger - Whether the summarization is triggered automatically
+ * @param {string} customCondensingPrompt - Optional custom prompt to use for condensing
+ * @param {ApiHandler} condensingApiHandler - Optional specific API handler to use for condensing
+ * @returns {SummarizeResponse} - The result of the summarization operation (see above)
+ */
 export async function summarizeConversation(
 	messages: ApiMessage[],
 	apiHandler: ApiHandler,
 	systemPrompt: string,
 	taskId: string,
 	isAutomaticTrigger?: boolean,
+	customCondensingPrompt?: string,
+	condensingApiHandler?: ApiHandler,
 ): Promise<SummarizeResponse> {
-	telemetryService.captureContextCondensed(taskId, isAutomaticTrigger ?? false)
+	telemetryService.captureContextCondensed(
+		taskId,
+		isAutomaticTrigger ?? false,
+		!!customCondensingPrompt?.trim(),
+		!!condensingApiHandler,
+	)
 	const response: SummarizeResponse = { messages, cost: 0, summary: "" }
 	const messagesToSummarize = getMessagesSinceLastSummary(messages.slice(0, -N_MESSAGES_TO_KEEP))
 	if (messagesToSummarize.length <= 1) {
@@ -90,7 +109,34 @@ export async function summarizeConversation(
 		({ role, content }) => ({ role, content }),
 	)
 	// Note: this doesn't need to be a stream, consider using something like apiHandler.completePrompt
-	const stream = apiHandler.createMessage(SUMMARY_PROMPT, requestMessages)
+	// Use custom prompt if provided and non-empty, otherwise use the default SUMMARY_PROMPT
+	const promptToUse = customCondensingPrompt?.trim() ? customCondensingPrompt.trim() : SUMMARY_PROMPT
+
+	// Use condensing API handler if provided, otherwise use main API handler
+	let handlerToUse = condensingApiHandler || apiHandler
+
+	// Check if the chosen handler supports the required functionality
+	if (!handlerToUse || typeof handlerToUse.createMessage !== "function") {
+		console.warn(
+			"Chosen API handler for condensing does not support message creation or is invalid, falling back to main apiHandler.",
+		)
+		handlerToUse = apiHandler // Fallback to the main, presumably valid, apiHandler
+		// Ensure the main apiHandler itself is valid before this point or add another check.
+		if (!handlerToUse || typeof handlerToUse.createMessage !== "function") {
+			// This case should ideally not happen if main apiHandler is always valid.
+			// Consider throwing an error or returning a specific error response.
+			console.error("Main API handler is also invalid for condensing. Cannot proceed.")
+			// Return an appropriate error structure for SummarizeResponse
+			return {
+				messages,
+				summary: "",
+				cost: 0,
+				newContextTokens: 0,
+			}
+		}
+	}
+
+	const stream = handlerToUse.createMessage(promptToUse, requestMessages)
 	let summary = ""
 	let cost = 0
 	let outputTokens = 0

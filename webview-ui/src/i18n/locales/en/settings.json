@@ -407,6 +407,18 @@
 			"label": "Threshold to trigger intelligent context condensing",
 			"description": "When the context window reaches this threshold, Roo will automatically condense it."
 		},
+		"condensingApiConfiguration": {
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
+		},
+		"customCondensingPrompt": {
+			"label": "Custom Context Condensing Prompt",
+			"description": "Customize the system prompt used for context condensing. Leave empty to use the default prompt.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
+		},
 		"AUTO_CONDENSE_CONTEXT": {
 			"name": "Automatically trigger intelligent context condensing",
 			"description": "Intelligent context condensing uses an LLM call to summarize the past conversation when the task's context window reaches a preset threshold, rather than dropping old messages when the context fills."

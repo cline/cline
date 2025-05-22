@@ -531,6 +531,8 @@ describe("truncateConversationIfNeeded", () => {
 			"System prompt",
 			taskId,
 			true,
+			undefined, // customCondensingPrompt
+			undefined, // condensingApiHandler
 		)
 
 		// Verify the result contains the summary information
@@ -675,6 +677,8 @@ describe("truncateConversationIfNeeded", () => {
 			"System prompt",
 			taskId,
 			true,
+			undefined, // customCondensingPrompt
+			undefined, // condensingApiHandler
 		)
 
 		// Verify the result contains the summary information

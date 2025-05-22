@@ -403,6 +403,18 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"condensingApiConfiguration": {
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
+		},
+		"customCondensingPrompt": {
+			"label": "कस्टम संदर्भ संघनन प्रॉम्प्ट",
+			"description": "संदर्भ संघनन के लिए कस्टम सिस्टम प्रॉम्प्ट। डिफ़ॉल्ट प्रॉम्प्ट का उपयोग करने के लिए खाली छोड़ें।",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
+		},
 		"autoCondenseContextPercent": {
 			"label": "बुद्धिमान संदर्भ संघनन को ट्रिगर करने की सीमा",
 			"description": "जब संदर्भ विंडो इस सीमा तक पहुंचती है, तो Roo इसे स्वचालित रूप से संघनित कर देगा।"

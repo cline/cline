@@ -403,6 +403,18 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"condensingApiConfiguration": {
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
+		},
+		"customCondensingPrompt": {
+			"label": "Пользовательская подсказка для сжатия контекста",
+			"description": "Пользовательская системная подсказка для сжатия контекста. Оставьте пустым, чтобы использовать подсказку по умолчанию.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
+		},
 		"autoCondenseContextPercent": {
 			"label": "Порог для запуска интеллектуального сжатия контекста",
 			"description": "Когда контекстное окно достигает этого порога, Roo автоматически его сожмёт."

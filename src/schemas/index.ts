@@ -735,6 +735,9 @@ export const globalSettingsSchema = z.object({
 	customInstructions: z.string().optional(),
 	taskHistory: z.array(historyItemSchema).optional(),
 
+	condensingApiConfigId: z.string().optional(),
+	customCondensingPrompt: z.string().optional(),
+
 	autoApprovalEnabled: z.boolean().optional(),
 	alwaysAllowReadOnly: z.boolean().optional(),
 	alwaysAllowReadOnlyOutsideWorkspace: z.boolean().optional(),
@@ -815,6 +818,9 @@ const globalSettingsRecord: GlobalSettingsRecord = {
 	lastShownAnnouncementId: undefined,
 	customInstructions: undefined,
 	taskHistory: undefined,
+
+	condensingApiConfigId: undefined,
+	customCondensingPrompt: undefined,
 
 	autoApprovalEnabled: undefined,
 	alwaysAllowReadOnly: undefined,

@@ -403,6 +403,18 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
+		"condensingApiConfiguration": {
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
+		},
+		"customCondensingPrompt": {
+			"label": "사용자 지정 컨텍스트 압축 프롬프트",
+			"description": "컨텍스트 압축을 위한 사용자 지정 시스템 프롬프트입니다. 기본 프롬프트를 사용하려면 비워 두세요.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
+		},
 		"autoCondenseContextPercent": {
 			"label": "지능적 컨텍스트 압축을 트리거하는 임계값",
 			"description": "컨텍스트 창이 이 임계값에 도달하면 Roo가 자동으로 압축합니다."
