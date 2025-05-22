@@ -2129,7 +2129,9 @@ const ApiOptions = ({
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
-							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
+							(selectedProvider === "vertex" &&
+								(selectedModelId === "claude-3-7-sonnet@20250219" ||
+									selectedModelId === "claude-4-sonnet@20250522"))) && (
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
