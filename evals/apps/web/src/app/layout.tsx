@@ -22,7 +22,7 @@ export default function RootLayout({
 	return (
 		<html lang="en">
 			<body className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased pb-12`}>
-				<ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+				<ThemeProvider attribute="class" forcedTheme="dark" disableTransitionOnChange>
 					<ReactQueryProvider>
 						<Header />
 						{children}
