@@ -1,11 +1,22 @@
 import path, { resolve } from "path"
 import fs from "fs"
+import { execSync } from "child_process"
 
 import { defineConfig, type PluginOption, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 
-import { getGitSha } from "@roo-code/build"
+function getGitSha() {
+	let gitSha: string | undefined = undefined
+
+	try {
+		gitSha = execSync("git rev-parse HEAD").toString().trim()
+	} catch (_error) {
+		// NO-OP
+	}
+
+	return gitSha
+}
 
 const wasmPlugin = (): Plugin => ({
 	name: "wasm",

@@ -625,9 +625,6 @@ importers:
       '@jest/globals':
         specifier: ^29.7.0
         version: 29.7.0
-      '@roo-code/build':
-        specifier: workspace:^
-        version: link:../packages/build
       '@roo-code/config-eslint':
         specifier: workspace:^
         version: link:../packages/config-eslint
