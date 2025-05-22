@@ -1,10 +1,9 @@
 # Changelog
 
-## 3.18.0
+## [3.17.1]
 
--   346c1f7: Increase max tokens anthropic opus
--   32f200e: Add prompt caching for Claude 4 models on Cline and Openrouter providers
--   07a2daa: Put protos back in .gitignore
+-   Add prompt caching for Claude 4 models on Cline and OpenRouter providers
+-   Increase max tokens for Claude Opus 4 from 4096 to 8192
 
 ## [3.17.0]
 
