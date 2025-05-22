@@ -429,7 +429,6 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 					// This ensures we only style the exact "Act Mode" mentions with keyboard shortcut
 					// Using case-insensitive flag to catch all capitalization variations
 					if (/^act mode\s*\(⌘⇧A\)$/i.test(childrenText)) {
-						console.log("Found Act Mode text:", childrenText)
 						return <ActModeHighlight />
 					}
 
