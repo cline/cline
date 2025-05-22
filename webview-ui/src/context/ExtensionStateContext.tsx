@@ -45,6 +45,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
+	setShouldShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
@@ -492,7 +493,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				mcpMarketplaceEnabled: value,
 			})),
-		setShowAnnouncement: (value) =>
+		setShowAnnouncement,
+		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
 				shouldShowAnnouncement: value,

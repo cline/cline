@@ -3,10 +3,12 @@
 
 // Import all method implementations
 import { registerMethod } from "./index"
+import { onDidShowAnnouncement } from "./onDidShowAnnouncement"
 import { scrollToSettings } from "./scrollToSettings"
 
 // Register all ui service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
+	registerMethod("onDidShowAnnouncement", onDidShowAnnouncement)
 	registerMethod("scrollToSettings", scrollToSettings)
 }
