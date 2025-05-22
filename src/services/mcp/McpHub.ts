@@ -54,24 +54,34 @@ const BaseConfigSchema = z.object({
 	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
 })
 
+// Define schemas with optional transportType for backward compatibility
 const SseConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("sse"),
+	transportType: z.literal("sse").optional(),
 	url: z.string().url(),
-})
+}).transform((config) => ({
+	...config,
+	transportType: "sse" as const,
+}))
 
 const StdioConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("stdio"),
+	transportType: z.literal("stdio").optional(),
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
-})
+}).transform((config) => ({
+	...config,
+	transportType: "stdio" as const,
+}))
 
 const StreamableHTTPConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("http"),
+	transportType: z.literal("http").optional(),
 	url: z.string().url(),
-})
+}).transform((config) => ({
+	...config,
+	transportType: "http" as const,
+}))
 
-const ServerConfigSchema = z.discriminatedUnion("transportType", [StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
+const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
 
 const McpSettingsSchema = z.object({
 	mcpServers: z.record(ServerConfigSchema),
