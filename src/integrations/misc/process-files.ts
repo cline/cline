@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import * as path from "path"
 import sizeOf from "image-size"
 
-export async function selectImages(): Promise<{ images: string[]; files: string[] }> {
+export async function selectFiles(): Promise<{ images: string[]; files: string[] }> {
 	const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] // supported by anthropic and openrouter
 	const OTHER_FILE_EXTENSIONS = ["pdf", "txt", "md", "docx", "ipynb"]
 
@@ -59,6 +59,7 @@ export async function selectImages(): Promise<{ images: string[]; files: string[
 			try {
 				const stats = await fs.stat(filePath)
 				if (stats.size > 50 * 1000 * 1024) {
+					// 50mb check
 					console.warn(`File too large, skipping: ${filePath}`)
 					vscode.window.showErrorMessage(`File too large: ${path.basename(filePath)} was skipped (size exceeds 50MB).`)
 					return null
