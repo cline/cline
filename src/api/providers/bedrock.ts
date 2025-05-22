@@ -47,7 +47,11 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = baseModelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn =
+			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
+			budget_tokens !== 0
+				? true
+				: false
 
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
