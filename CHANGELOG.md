@@ -1,19 +1,14 @@
 # Changelog
 
-## 3.17.0
+## [3.17.0]
 
--   6835870: Sonnet 4 UI copy updates
--   b97e57f: integration with nebius ai studio
--   58f80d4: remove proto file
--   0c30612: Migrate didShowAnnouncement message to protobus
--   0200286: when the assistant says to act mode we render a custom highlight with hotkey suggestion
--   c511b91: New settings page split into tabs
--   331da0f: no longer requires `transportType` property to be set in MCP Server configuration.
--   782ed7f: autoApprovalSettings protobus migration
--   c3b556d: Remove advanced settings banner
--   a48c37e: Fix model listing for Requesty
--   efb6ae1: Change the extension title name wording
--   97139f7: added cancel button with alert dialogue popup to settings view
+-   Add support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and Vertex providers
+-   Add integration with Nebius AI Studio as a new provider (Thanks @Aktsvigun!)
+-   New settings page design, now split into tabs for easier navigation (Thanks Yellow Bat @dlab-anton, and Roo Team!)
+-   Add custom highlight and hotkey suggestion when the assistant prompts to switch to Act mode
+-   Fix MCP Server configuration bug
+-   Fix model listing for Requesty provider
+-   Moved all advanced settings to settings page
 
 ## [3.16.3]
 
