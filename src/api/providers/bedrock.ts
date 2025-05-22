@@ -58,11 +58,11 @@ export class AwsBedrockHandler implements ApiHandler {
 		// initialization, and allowing for session renewal if necessary as well
 		const client = await this.getAnthropicClient()
 
-		// AWS SDK prioritizes AWS_PROFILE over AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair
-		// If this is set as an env variable already (ie. from ~/.zshrc) it will override credentials configured by Cline
 		// Use withTempEnv to ensure environment variables are properly restored
 		const stream = await AwsBedrockHandler.withTempEnv(
 			() => {
+				// AWS SDK prioritizes AWS_PROFILE over AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair
+				// If this is set as an env variable already (ie. from ~/.zshrc) it will override credentials configured by Cline
 				// Temporarily remove AWS_PROFILE to ensure our credentials are used
 				delete process.env["AWS_PROFILE"]
 			},
