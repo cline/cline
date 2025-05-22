@@ -1,22 +1,8 @@
 {
-	"$schema": "https://json.schemastore.org/tsconfig",
+	"extends": "@roo-code/config-typescript/base.json",
 	"compilerOptions": {
-		"declaration": true,
-		"declarationMap": true,
-		"esModuleInterop": true,
-		"incremental": false,
-		"isolatedModules": true,
-		"lib": ["es2022", "DOM", "DOM.Iterable"],
-		"module": "NodeNext",
-		"moduleDetection": "force",
-		"moduleResolution": "NodeNext",
-		"noUncheckedIndexedAccess": true,
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
-		"strict": true,
-		"target": "ES2022",
-		"types": ["vitest/globals"],
-		"outDir": "dist"
+		"types": ["vitest/globals"]
 	},
-	"include": ["src"]
+	"include": ["src"],
+	"exclude": ["node_modules"]
 }

@@ -1,0 +1,7 @@
+{
+	"name": "@roo-code/config-typescript",
+	"private": true,
+	"publishConfig": {
+		"access": "public"
+	}
+}

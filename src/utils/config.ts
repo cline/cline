@@ -14,9 +14,9 @@ export async function injectEnv(config: string | Record<PropertyKey, any>, notFo
 	_config = _config.replace(/\$\{env:([\w]+)\}/g, (_, name) => {
 		// Check if null or undefined
 		// intentionally using == to match null | undefined
-		// eslint-disable-next-line eqeqeq
-		if (process.env[name] == null)
+		if (process.env[name] == null) {
 			console.warn(`[injectEnv] env variable ${name} referenced but not found in process.env`)
+		}
 
 		return process.env[name] ?? notFoundValue
 	})

@@ -28,3 +28,4 @@ else
 fi
 
 "$npx_cmd" lint-staged
+"$pnpm_cmd" lint

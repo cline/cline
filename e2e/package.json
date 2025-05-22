@@ -2,7 +2,7 @@
 	"name": "@roo-code/vscode-e2e",
 	"private": true,
 	"scripts": {
-		"lint": "eslint src/**/*.ts --max-warnings=0",
+		"lint": "eslint **/*.ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"format": "prettier --write src",
 		"test:ci": "pnpm --filter roo-cline build:development && pnpm test:run",
@@ -10,6 +10,8 @@
 		"clean": "rimraf out .turbo"
 	},
 	"devDependencies": {
+		"@roo-code/config-eslint": "workspace:^",
+		"@roo-code/config-typescript": "workspace:^",
 		"@roo-code/types": "^1.12.0",
 		"@types/mocha": "^10.0.10",
 		"@types/node": "^22.14.1",

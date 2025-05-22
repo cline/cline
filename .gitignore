@@ -30,10 +30,6 @@ docs/_site/
 .env.*
 !.env.*.sample
 
-
-# Local lint config
-.eslintrc.local.json
-
 # Logging
 logs
 

@@ -23,7 +23,7 @@
 		"@dotenvx/dotenvx": "^1.34.0",
 		"@vscode/vsce": "3.3.2",
 		"esbuild": "^0.25.0",
-		"eslint": "^8.57.0",
+		"eslint": "^9.27.0",
 		"husky": "^9.1.7",
 		"knip": "^5.44.4",
 		"lint-staged": "^15.2.11",
@@ -38,18 +38,6 @@
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx,json,css,md}": [
 			"prettier --write"
-		],
-		"src/**/*.{ts,tsx}": [
-			"npx eslint -c src/.eslintrc.json --max-warnings=0 --fix"
-		],
-		"webview-ui/**/*.{ts,tsx}": [
-			"npx eslint -c webview-ui/.eslintrc.json --max-warnings=0 --fix"
-		],
-		"e2e/**/*.{ts,tsx}": [
-			"npx eslint -c src/.eslintrc.json --max-warnings=0 --fix"
-		],
-		"{apps,packages}/**/*.{ts,tsx}": [
-			"npx eslint --max-warnings=0 --fix"
 		]
 	}
 }
