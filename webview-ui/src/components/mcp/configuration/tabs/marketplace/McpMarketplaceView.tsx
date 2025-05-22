@@ -9,12 +9,12 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import { McpMarketplaceItem } from "@shared/mcp"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { vscode } from "@/utils/vscode"
 import McpMarketplaceCard from "./McpMarketplaceCard"
 import McpSubmitCard from "./McpSubmitCard"
 const McpMarketplaceView = () => {
-	const { mcpServers } = useExtensionState()
+	const mcpServers = useExtensionStore((state) => state.mcpServers)
 	const [items, setItems] = useState<McpMarketplaceItem[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)

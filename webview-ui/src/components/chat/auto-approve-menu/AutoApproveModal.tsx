@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react"
 import { useClickAway, useWindowSize } from "react-use"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { VSCodeTextField, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -26,7 +26,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	ACTION_METADATA,
 	NOTIFICATIONS_SETTING,
 }) => {
-	const { autoApprovalSettings } = useExtensionState()
+	const autoApprovalSettings = useExtensionStore((state) => state.autoApprovalSettings)
 	const { isChecked, isFavorited, toggleFavorite, updateAction, updateMaxRequests } = useAutoApproveActions()
 
 	const modalRef = useRef<HTMLDivElement>(null)

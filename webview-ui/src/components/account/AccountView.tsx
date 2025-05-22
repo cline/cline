@@ -7,7 +7,7 @@ import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 
@@ -33,7 +33,8 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 
 export const ClineAccountView = () => {
 	const { user: firebaseUser, handleSignOut } = useFirebaseAuth()
-	const { userInfo, apiConfiguration } = useExtensionState()
+	const userInfo = useExtensionStore((state) => state.userInfo)
+	const apiConfiguration = useExtensionStore((state) => state.apiConfiguration)
 
 	let user = apiConfiguration?.clineApiKey ? firebaseUser || userInfo : undefined
 

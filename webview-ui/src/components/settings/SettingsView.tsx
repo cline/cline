@@ -1,18 +1,13 @@
-import {
-	VSCodeButton,
-	VSCodeCheckbox,
-	VSCodeDropdown,
-	VSCodeLink,
-	VSCodeOption,
-	VSCodeTextArea,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState } from "react"
+import { isEqual } from "lodash-es" // Added for deep comparison
 import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
-import { OpenAIReasoningEffort } from "@shared/ChatSettings"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ChatSettings, OpenAIReasoningEffort } from "@shared/ChatSettings"
+import { ApiConfiguration } from "@shared/api" // Corrected import for ApiConfiguration
+import { TelemetrySetting } from "@shared/TelemetrySetting" // Added import
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
-import SettingsButton from "@/components/common/SettingsButton"
 import ApiOptions from "./ApiOptions"
 import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
@@ -28,25 +23,74 @@ type SettingsViewProps = {
 	onDone: () => void
 }
 
+type InitialSettings = {
+	apiConfiguration: ApiConfiguration | undefined
+	customInstructions: string | null | undefined
+	telemetrySetting: TelemetrySetting
+	chatSettings: ChatSettings
+	planActSeparateModelsSetting: boolean
+	enableCheckpointsSetting: boolean | undefined
+	mcpMarketplaceEnabled: boolean | undefined
+} | null
+
 const SettingsView = ({ onDone }: SettingsViewProps) => {
-	const {
-		apiConfiguration,
-		version,
-		customInstructions,
-		setCustomInstructions,
-		openRouterModels,
-		telemetrySetting,
-		setTelemetrySetting,
-		chatSettings,
-		setChatSettings,
-		planActSeparateModelsSetting,
-		setPlanActSeparateModelsSetting,
-		enableCheckpointsSetting,
-		mcpMarketplaceEnabled,
-	} = useExtensionState()
+	const apiConfiguration = useExtensionStore((state) => state.apiConfiguration)
+	const version = useExtensionStore((state) => state.version)
+	const customInstructions = useExtensionStore((state) => state.customInstructions)
+	const setCustomInstructions = useExtensionStore((state) => state.setCustomInstructions)
+	const openRouterModels = useExtensionStore((state) => state.openRouterModels)
+	const telemetrySetting = useExtensionStore((state) => state.telemetrySetting)
+	const setTelemetrySetting = useExtensionStore((state) => state.setTelemetrySetting)
+	const chatSettings = useExtensionStore((state) => state.chatSettings)
+	const setChatSettings = useExtensionStore((state) => state.setChatSettings)
+	const planActSeparateModelsSetting = useExtensionStore((state) => state.planActSeparateModelsSetting)
+	const setPlanActSeparateModelsSetting = useExtensionStore((state) => state.setPlanActSeparateModelsSetting)
+	const enableCheckpointsSetting = useExtensionStore((state) => state.enableCheckpointsSetting)
+	const mcpMarketplaceEnabled = useExtensionStore((state) => state.mcpMarketplaceEnabled)
+
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
+	const [initialSettings, setInitialSettings] = useState<InitialSettings>(null)
+	const [hasChanges, setHasChanges] = useState(false)
+
+	// Capture initial settings on mount
+	useEffect(() => {
+		setInitialSettings({
+			apiConfiguration,
+			customInstructions,
+			telemetrySetting,
+			chatSettings,
+			planActSeparateModelsSetting,
+			enableCheckpointsSetting,
+			mcpMarketplaceEnabled,
+		})
+	}, []) // Deliberately empty to run only once on mount
+
+	// Detect changes compared to initial settings
+	useEffect(() => {
+		if (initialSettings) {
+			const currentSettingsMatchInitial =
+				isEqual(apiConfiguration, initialSettings.apiConfiguration) &&
+				customInstructions === initialSettings.customInstructions &&
+				telemetrySetting === initialSettings.telemetrySetting &&
+				isEqual(chatSettings, initialSettings.chatSettings) &&
+				planActSeparateModelsSetting === initialSettings.planActSeparateModelsSetting &&
+				enableCheckpointsSetting === initialSettings.enableCheckpointsSetting &&
+				mcpMarketplaceEnabled === initialSettings.mcpMarketplaceEnabled
+
+			setHasChanges(!currentSettingsMatchInitial)
+		}
+	}, [
+		apiConfiguration,
+		customInstructions,
+		telemetrySetting,
+		chatSettings,
+		planActSeparateModelsSetting,
+		enableCheckpointsSetting,
+		mcpMarketplaceEnabled,
+		initialSettings,
+	])
 
 	const handleSubmit = (withoutDone: boolean = false) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
@@ -76,15 +120,52 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			apiConfigurationToSubmit = undefined
 		}
 
-		vscode.postMessage({
-			type: "updateSettings",
-			planActSeparateModelsSetting,
-			customInstructionsSetting: customInstructions,
-			telemetrySetting,
-			enableCheckpointsSetting,
-			mcpMarketplaceEnabled,
-			apiConfiguration: apiConfigurationToSubmit,
-		})
+		if (hasChanges) {
+			const payload: {
+				type: "updateSettings"
+				planActSeparateModelsSetting?: boolean
+				customInstructionsSetting?: string | undefined
+				telemetrySetting?: TelemetrySetting | undefined
+				enableCheckpointsSetting?: boolean | undefined
+				mcpMarketplaceEnabled?: boolean | undefined
+				apiConfiguration?: ApiConfiguration | undefined
+			} = { type: "updateSettings" }
+
+			if (initialSettings) {
+				if (planActSeparateModelsSetting !== initialSettings.planActSeparateModelsSetting) {
+					payload.planActSeparateModelsSetting = planActSeparateModelsSetting
+				}
+				if (customInstructions !== initialSettings.customInstructions) {
+					payload.customInstructionsSetting = customInstructions === null ? undefined : customInstructions
+				}
+				if (telemetrySetting !== initialSettings.telemetrySetting) {
+					payload.telemetrySetting = telemetrySetting
+				}
+				if (enableCheckpointsSetting !== initialSettings.enableCheckpointsSetting) {
+					payload.enableCheckpointsSetting = enableCheckpointsSetting
+				}
+				if (mcpMarketplaceEnabled !== initialSettings.mcpMarketplaceEnabled) {
+					payload.mcpMarketplaceEnabled = mcpMarketplaceEnabled
+				}
+				if (!isEqual(apiConfiguration, initialSettings.apiConfiguration)) {
+					payload.apiConfiguration = apiConfigurationToSubmit
+				}
+			} else {
+				// Fallback if initialSettings is null (should ideally not happen here)
+				// Send all current values as a precaution, though this path indicates an issue.
+				payload.planActSeparateModelsSetting = planActSeparateModelsSetting
+				payload.customInstructionsSetting = customInstructions
+				payload.telemetrySetting = telemetrySetting
+				payload.enableCheckpointsSetting = enableCheckpointsSetting
+				payload.mcpMarketplaceEnabled = mcpMarketplaceEnabled
+				payload.apiConfiguration = apiConfigurationToSubmit
+			}
+
+			// Only send if there's actually something to update besides the type
+			if (Object.keys(payload).length > 1) {
+				vscode.postMessage(payload)
+			}
+		}
 
 		if (!withoutDone) {
 			onDone()
@@ -171,7 +252,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		<div className="fixed top-0 left-0 right-0 bottom-0 pt-[10px] pr-0 pb-0 pl-5 flex flex-col overflow-hidden">
 			<div className="flex justify-between items-center mb-[13px] pr-[17px]">
 				<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
-				<VSCodeButton onClick={() => handleSubmit(false)}>Save</VSCodeButton>
+				<VSCodeButton onClick={() => handleSubmit(false)}>{hasChanges ? "Save" : "Done"}</VSCodeButton>
 			</div>
 			<div className="grow overflow-y-scroll pr-2 flex flex-col">
 				{/* Tabs container */}

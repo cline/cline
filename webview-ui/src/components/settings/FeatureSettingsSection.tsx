@@ -1,17 +1,15 @@
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { memo } from "react"
 import { OpenAIReasoningEffort } from "@shared/ChatSettings"
 
 const FeatureSettingsSection = () => {
-	const {
-		enableCheckpointsSetting,
-		setEnableCheckpointsSetting,
-		mcpMarketplaceEnabled,
-		setMcpMarketplaceEnabled,
-		chatSettings,
-		setChatSettings,
-	} = useExtensionState()
+	const enableCheckpointsSetting = useExtensionStore((state) => state.enableCheckpointsSetting)
+	const setEnableCheckpointsSetting = useExtensionStore((state) => state.setEnableCheckpointsSetting)
+	const mcpMarketplaceEnabled = useExtensionStore((state) => state.mcpMarketplaceEnabled)
+	const setMcpMarketplaceEnabled = useExtensionStore((state) => state.setMcpMarketplaceEnabled)
+	const chatSettings = useExtensionStore((state) => state.chatSettings)
+	const setChatSettings = useExtensionStore((state) => state.setChatSettings)
 
 	return (
 		<div style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>

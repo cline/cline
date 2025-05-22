@@ -68,6 +68,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			localResourceRoots: [this.context.extensionUri],
 		}
 
+		// Original logic:
 		webviewView.webview.html =
 			this.context.extensionMode === vscode.ExtensionMode.Development
 				? await this.getHMRHtmlContent(webviewView.webview)
@@ -235,6 +236,15 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				*/
 		const nonce = getNonce()
 
+		// Data you want to pass to the React app
+		const initialData = {
+			vscMachineId: vscode.env.machineId,
+			extensionVersion: this.context.extension.packageJSON.version,
+		}
+
+		// Serialize the data to a JSON string to safely embed it
+		const serializedInitialData = JSON.stringify(initialData)
+
 		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
 		return /*html*/ `
 			<!DOCTYPE html>
@@ -248,6 +258,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				<link href="${katexCssUri}" rel="stylesheet" />
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';">
 				<title>Cline</title>
+				<script nonce="${nonce}">
+					window.__INITIAL_DATA__ = ${serializedInitialData};
+				</script>
 			</head>
 			<body>
 				<noscript>You need to enable JavaScript to run this app.</noscript>
@@ -327,6 +340,14 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
 
+		// Data you want to pass to the React app
+		const initialData = {
+			vscMachineId: vscode.env.machineId,
+			extensionVersion: this.context.extension.packageJSON.version,
+		}
+		// Serialize the data to a JSON string to safely embed it
+		const serializedInitialData = JSON.stringify(initialData)
+
 		const reactRefresh = /*html*/ `
 			<script nonce="${nonce}" type="module">
 				import RefreshRuntime from "http://${localServerUrl}/@react-refresh"
@@ -358,6 +379,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 					<link href="${codiconsUri}" rel="stylesheet" />
 					<link href="${katexCssUri}" rel="stylesheet" />
 					<title>Cline</title>
+					<script nonce="${nonce}">
+						window.__INITIAL_DATA__ = ${serializedInitialData};
+					</script>
 				</head>
 				<body>
 					<div id="root"></div>

@@ -5,7 +5,7 @@ import { useSize } from "react-use"
 import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { FileServiceClient } from "@/services/grpc-client"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
 import { CheckpointControls } from "@/components/common/CheckpointControls"
@@ -111,7 +111,7 @@ const headerStyle: CSSProperties = {
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props
-	const { browserSettings } = useExtensionState()
+	const browserSettings = useExtensionStore((state) => state.browserSettings)
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)

@@ -1281,7 +1281,8 @@ export class Controller {
 		const workflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
 
 		return {
-			version: this.context.extension?.packageJSON?.version ?? "",
+			version: this.context.extension.packageJSON.version,
+			vscMachineId: vscode.env.machineId,
 			apiConfiguration,
 			customInstructions,
 			uriScheme: vscode.env.uriScheme,
@@ -1302,7 +1303,6 @@ export class Controller {
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
-			vscMachineId: vscode.env.machineId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},

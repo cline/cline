@@ -15,7 +15,7 @@ import { getMcpServerDisplayName } from "@/utils/mcp"
 import DangerButton from "@/components/common/DangerButton"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { McpServiceClient } from "@/services/grpc-client"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { McpServers, UpdateMcpTimeoutRequest } from "@shared/proto/mcp"
@@ -43,7 +43,9 @@ const ServerRow = ({
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
 }) => {
-	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers } = useExtensionState()
+	const mcpMarketplaceCatalog = useExtensionStore((state) => state.mcpMarketplaceCatalog)
+	const autoApprovalSettings = useExtensionStore((state) => state.autoApprovalSettings)
+	const setMcpServers = useExtensionStore((state) => state.setStoreMcpServers) // Renamed in store
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)

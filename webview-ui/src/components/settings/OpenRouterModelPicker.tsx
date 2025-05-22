@@ -5,7 +5,7 @@ import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { openRouterDefaultModelId } from "@shared/api"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { vscode } from "@/utils/vscode"
 import { highlight } from "../history/HistoryView"
@@ -59,7 +59,9 @@ const featuredModels = [
 ]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
+	const apiConfiguration = useExtensionStore((state) => state.apiConfiguration)
+	const setApiConfiguration = useExtensionStore((state) => state.setApiConfiguration)
+	const openRouterModels = useExtensionStore((state) => state.openRouterModels)
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)

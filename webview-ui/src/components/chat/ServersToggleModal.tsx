@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react"
 import { useClickAway, useWindowSize } from "react-use"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
 import { vscode } from "@/utils/vscode"
@@ -8,7 +8,8 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import Tooltip from "@/components/common/Tooltip"
 
 const ServersToggleModal: React.FC = () => {
-	const { mcpServers, navigateToMcp } = useExtensionState()
+	const mcpServers = useExtensionStore((state) => state.mcpServers)
+	const navigateToMcp = useExtensionStore((state) => state.navigateToMcp)
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)

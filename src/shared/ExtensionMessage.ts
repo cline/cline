@@ -112,6 +112,8 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 export const DEFAULT_PLATFORM = "unknown"
 
 export interface ExtensionState {
+	version: string
+	vscMachineId: string
 	isNewUser: boolean
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
@@ -136,8 +138,6 @@ export interface ExtensionState {
 		email: string | null
 		photoURL: string | null
 	}
-	version: string
-	vscMachineId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles

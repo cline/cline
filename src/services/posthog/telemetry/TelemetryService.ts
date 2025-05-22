@@ -139,8 +139,9 @@ class TelemetryService {
 		}
 
 		// Update PostHog client state based on telemetry preference
-		if (this.telemetryEnabled) {
+		if (this.telemetryEnabled && this.client) {
 			this.client.optIn()
+			this.client.identify({ distinctId: this.distinctId })
 		} else {
 			this.client.capture({ distinctId: this.distinctId, event: "Opt out", properties: this.addProperties({}) })
 			this.client.optOut()

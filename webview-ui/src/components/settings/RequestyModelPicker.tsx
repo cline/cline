@@ -5,7 +5,7 @@ import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { requestyDefaultModelId } from "../../../../src/shared/api"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { useExtensionStore } from "../../store/extensionStore" // Changed import
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
@@ -17,7 +17,9 @@ export interface RequestyModelPickerProps {
 }
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, requestyModels } = useExtensionState()
+	const apiConfiguration = useExtensionStore((state) => state.apiConfiguration)
+	const setApiConfiguration = useExtensionStore((state) => state.setApiConfiguration)
+	const requestyModels = useExtensionStore((state) => state.requestyModels)
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.requestyModelId || requestyDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)

@@ -5,7 +5,7 @@ import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionStore } from "@/store/extensionStore" // Changed import
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
@@ -259,7 +259,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform, workflowToggles } = useExtensionState()
+		const filePaths = useExtensionStore((state) => state.filePaths)
+		const chatSettings = useExtensionStore((state) => state.chatSettings)
+		const apiConfiguration = useExtensionStore((state) => state.apiConfiguration)
+		const openRouterModels = useExtensionStore((state) => state.openRouterModels)
+		const platform = useExtensionStore((state) => state.platform)
+		const workflowToggles = useExtensionStore((state) => state.workflowToggles)
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])

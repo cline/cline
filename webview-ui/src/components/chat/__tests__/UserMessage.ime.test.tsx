@@ -9,12 +9,24 @@ import React from "react"
 import { render, fireEvent } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 
-vi.mock("@/context/ExtensionStateContext", () => ({
+vi.mock("@/store/extensionStore", () => ({
 	__esModule: true,
-	useExtensionState: () => ({
-		state: {},
-		dispatch: vi.fn(),
-	}),
+	useExtensionStore: (selector: (state: any) => any) => {
+		// This mock needs to simulate how the UserMessage component might use the store.
+		// For this specific test, it seems UserMessage doesn't rely on any specific state
+		// from the store, as the original mock returned a simple object.
+		// If UserMessage *does* select specific state, this mock needs to provide it.
+		// For now, let's assume it doesn't need specific state for this IME test.
+		const mockState = {
+			// Provide any state UserMessage might actually select, e.g.:
+			// apiConfiguration: { selectedProvider: "anthropic", anthropicModelId: "claude-3-opus-20240229" },
+			// chatSettings: { mode: "act" },
+		}
+		if (typeof selector === "function") {
+			return selector(mockState)
+		}
+		return mockState // Fallback if no selector is used (though components should use selectors)
+	},
 }))
 
 import UserMessage from "../UserMessage"
