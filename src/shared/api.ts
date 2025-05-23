@@ -1,3 +1,4 @@
+import { RetryOptions } from "../api/retry"
 import type { LanguageModelChatSelector } from "../api/providers/types"
 
 export type ApiProvider =
@@ -90,6 +91,7 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	requestTimeoutMs?: number
+	retryOptions?: RetryOptions
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 }
 

@@ -19,6 +19,7 @@ export function convertAutoApprovalSettingsToProto(settings: AutoApprovalSetting
 		},
 		maxRequests: settings.maxRequests || 20,
 		enableNotifications: settings.enableNotifications || false,
+		enableAutoRetry: settings.enableAutoRetry || false,
 		favorites: settings.favorites || [],
 	}
 }
@@ -40,6 +41,7 @@ export function convertProtoToAutoApprovalSettings(protoSettings: AutoApprovalSe
 		},
 		maxRequests: protoSettings.maxRequests || 20,
 		enableNotifications: protoSettings.enableNotifications || false,
+		enableAutoRetry: protoSettings.enableAutoRetry || false,
 		favorites: protoSettings.favorites || [],
 	}
 }
