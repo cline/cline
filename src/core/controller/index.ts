@@ -384,11 +384,6 @@ export class Controller {
 				this.refreshTotalTasksSize()
 				break
 			}
-
-			case "fetchLatestMcpServersFromHub": {
-				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
 			case "openExtensionSettings": {
 				const settingsFilter = message.text || ""
 				await vscode.commands.executeCommand(

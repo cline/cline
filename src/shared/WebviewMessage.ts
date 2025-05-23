@@ -23,7 +23,6 @@ export interface WebviewMessage {
 		| "authCallback"
 		| "fetchMcpMarketplace"
 		| "searchCommits"
-		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
 		| "invoke"
 		| "updateSettings"

@@ -1598,6 +1598,14 @@ export const McpServiceDefinition = {
 			responseStream: false,
 			options: {},
 		},
+		getLatestMcpServers: {
+			name: "getLatestMcpServers",
+			requestType: Empty,
+			requestStream: false,
+			responseType: McpServers,
+			responseStream: false,
+			options: {},
+		},
 	},
 } as const
 
