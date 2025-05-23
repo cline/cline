@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.17.4]
+
+-   Fix thinking budget slider for Claude 4
+
 ## [3.17.3]
 
 -   Fix diff edit errors with Claude 4 models
