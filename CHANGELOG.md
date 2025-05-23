@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.17.5
+## [3.17.5]
 
--   f2ffe26: fix: add instruction to use valid SEARCH/REPLACE markers when diff edit fails
+-   Fix issue with Claude 4 models where after several conversation turns, it would start making invalid diff edits
 
 ## [3.17.4]
 
