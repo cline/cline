@@ -2133,19 +2133,25 @@ const ApiOptions = ({
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
 
-						{(selectedProvider === "anthropic" &&
+						{selectedProvider === "anthropic" &&
 							(selectedModelId === "claude-3-7-sonnet-20250219" ||
 								selectedModelId === "claude-sonnet-4-20250514" ||
-								selectedModelId === "claude-opus-4-20250514")) ||
-							(selectedProvider === "vertex" &&
-								(selectedModelId === "claude-3-7-sonnet@20250219" ||
-									selectedModelId === "claude-sonnet-4@20250514" ||
-									selectedModelId === "claude-opus-4@20250514") && (
-									<ThinkingBudgetSlider
-										apiConfiguration={apiConfiguration}
-										setApiConfiguration={setApiConfiguration}
-									/>
-								))}
+								selectedModelId === "claude-opus-4-20250514") && (
+								<ThinkingBudgetSlider
+									apiConfiguration={apiConfiguration}
+									setApiConfiguration={setApiConfiguration}
+								/>
+							)}
+
+						{selectedProvider === "vertex" &&
+							(selectedModelId === "claude-3-7-sonnet@20250219" ||
+								selectedModelId === "claude-sonnet-4@20250514" ||
+								selectedModelId === "claude-opus-4@20250514") && (
+								<ThinkingBudgetSlider
+									apiConfiguration={apiConfiguration}
+									setApiConfiguration={setApiConfiguration}
+								/>
+							)}
 
 						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
 							<>
@@ -2198,7 +2204,6 @@ const ApiOptions = ({
 								)}
 							</>
 						)}
-
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
