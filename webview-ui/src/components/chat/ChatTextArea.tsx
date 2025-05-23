@@ -1665,7 +1665,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									style={{ padding: "0px 0px", height: "20px" }}>
 									<ButtonContainer>
 										<span
-											className="codicon codicon-device-camera flex items-center"
+											className="codicon codicon-add flex items-center"
 											style={{ fontSize: "14px", marginBottom: -3 }}
 										/>
 									</ButtonContainer>

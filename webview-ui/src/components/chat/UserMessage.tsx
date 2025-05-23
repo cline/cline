@@ -8,12 +8,13 @@ import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 
 interface UserMessageProps {
 	text?: string
+	files?: string[]
 	images?: string[]
 	messageTs?: number // Timestamp for the message, needed for checkpoint restore
 	sendMessageFromChatRow?: (text: string, images: string[]) => void
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, sendMessageFromChatRow }) => {
+const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, sendMessageFromChatRow }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -145,7 +146,9 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, messageTs, send
 					{highlightText(editedText || text)}
 				</span>
 			)}
-			{images && images.length > 0 && <Thumbnails images={images} style={{ marginTop: "8px" }} />}
+			{images && files && (images.length > 0 || files.length > 0) && (
+				<Thumbnails images={images} files={files} style={{ marginTop: "8px" }} />
+			)}
 		</div>
 	)
 }
