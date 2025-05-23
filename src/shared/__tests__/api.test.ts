@@ -7,8 +7,11 @@ import {
 	shouldUseReasoningBudget,
 	shouldUseReasoningEffort,
 } from "../api"
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "../../api/providers/constants"
 
 describe("getMaxTokensForModel", () => {
+	const modelId = "test"
+
 	/**
 	 * Testing the specific fix in commit cc79178f:
 	 * For thinking models, use apiConfig.modelMaxTokens if available,
@@ -27,7 +30,7 @@ describe("getMaxTokensForModel", () => {
 			modelMaxTokens: 4000,
 		}
 
-		expect(getModelMaxOutputTokens({ model, settings })).toBe(4000)
+		expect(getModelMaxOutputTokens({ modelId, model, settings })).toBe(4000)
 	})
 
 	it("should return 16_384 for thinking models when modelMaxTokens not provided", () => {
@@ -40,7 +43,7 @@ describe("getMaxTokensForModel", () => {
 
 		const settings = {}
 
-		expect(getModelMaxOutputTokens({ model, settings })).toBe(16_384)
+		expect(getModelMaxOutputTokens({ modelId, model, settings })).toBe(16_384)
 	})
 
 	it("should return 16_384 for thinking models when apiConfig is undefined", () => {
@@ -51,7 +54,7 @@ describe("getMaxTokensForModel", () => {
 			maxTokens: 8000,
 		}
 
-		expect(getModelMaxOutputTokens({ model, settings: undefined })).toBe(16_384)
+		expect(getModelMaxOutputTokens({ modelId, model, settings: undefined })).toBe(16_384)
 	})
 
 	it("should return modelInfo.maxTokens for non-thinking models", () => {
@@ -65,7 +68,7 @@ describe("getMaxTokensForModel", () => {
 			modelMaxTokens: 4000,
 		}
 
-		expect(getModelMaxOutputTokens({ model, settings })).toBe(8000)
+		expect(getModelMaxOutputTokens({ modelId, model, settings })).toBe(8000)
 	})
 
 	it("should return undefined for non-thinking models with undefined maxTokens", () => {
@@ -78,7 +81,7 @@ describe("getMaxTokensForModel", () => {
 			modelMaxTokens: 4000,
 		}
 
-		expect(getModelMaxOutputTokens({ model, settings })).toBeUndefined()
+		expect(getModelMaxOutputTokens({ modelId, model, settings })).toBeUndefined()
 	})
 
 	test("should return maxTokens from modelInfo when thinking is false", () => {
@@ -92,7 +95,7 @@ describe("getMaxTokensForModel", () => {
 			modelMaxTokens: 4096,
 		}
 
-		const result = getModelMaxOutputTokens({ model, settings })
+		const result = getModelMaxOutputTokens({ modelId, model, settings })
 		expect(result).toBe(2048)
 	})
 
@@ -108,7 +111,7 @@ describe("getMaxTokensForModel", () => {
 			modelMaxTokens: 4096,
 		}
 
-		const result = getModelMaxOutputTokens({ model, settings })
+		const result = getModelMaxOutputTokens({ modelId, model, settings })
 		expect(result).toBe(4096)
 	})
 
@@ -122,7 +125,7 @@ describe("getMaxTokensForModel", () => {
 
 		const settings: ProviderSettings = {}
 
-		const result = getModelMaxOutputTokens({ model, settings: undefined })
+		const result = getModelMaxOutputTokens({ modelId, model, settings: undefined })
 		expect(result).toBe(16_384)
 	})
 
@@ -133,7 +136,7 @@ describe("getMaxTokensForModel", () => {
 			maxTokens: 2048,
 		}
 
-		expect(getModelMaxOutputTokens({ model: modelInfoOnly, settings: undefined })).toBe(2048)
+		expect(getModelMaxOutputTokens({ modelId, model: modelInfoOnly, settings: undefined })).toBe(2048)
 	})
 
 	test("should handle missing properties gracefully", () => {
@@ -147,7 +150,7 @@ describe("getMaxTokensForModel", () => {
 			modelMaxTokens: 4096,
 		}
 
-		expect(getModelMaxOutputTokens({ model: modelInfoWithoutMaxTokens, settings })).toBe(4096)
+		expect(getModelMaxOutputTokens({ modelId, model: modelInfoWithoutMaxTokens, settings })).toBe(4096)
 
 		const modelInfoWithoutThinking: ModelInfo = {
 			contextWindow: 200_000,
@@ -155,7 +158,43 @@ describe("getMaxTokensForModel", () => {
 			maxTokens: 2048,
 		}
 
-		expect(getModelMaxOutputTokens({ model: modelInfoWithoutThinking, settings: undefined })).toBe(2048)
+		expect(getModelMaxOutputTokens({ modelId, model: modelInfoWithoutThinking, settings: undefined })).toBe(2048)
+	})
+
+	test("should return ANTHROPIC_DEFAULT_MAX_TOKENS for Anthropic models that support reasoning budget but aren't using it", () => {
+		// Test case for models that support reasoning budget but enableReasoningEffort is false
+		const anthropicModelId = "claude-sonnet-4-20250514"
+		const model: ModelInfo = {
+			contextWindow: 200_000,
+			supportsPromptCache: true,
+			supportsReasoningBudget: true,
+			maxTokens: 64_000, // This should be ignored
+		}
+
+		const settings: ProviderSettings = {
+			enableReasoningEffort: false, // Not using reasoning
+		}
+
+		const result = getModelMaxOutputTokens({ modelId: anthropicModelId, model, settings })
+		expect(result).toBe(ANTHROPIC_DEFAULT_MAX_TOKENS) // Should be 8192, not 64_000
+	})
+
+	test("should return model.maxTokens for non-Anthropic models that support reasoning budget but aren't using it", () => {
+		// Test case for non-Anthropic models - should still use model.maxTokens
+		const geminiModelId = "gemini-2.5-flash-preview-04-17"
+		const model: ModelInfo = {
+			contextWindow: 1_048_576,
+			supportsPromptCache: false,
+			supportsReasoningBudget: true,
+			maxTokens: 65_535,
+		}
+
+		const settings: ProviderSettings = {
+			enableReasoningEffort: false, // Not using reasoning
+		}
+
+		const result = getModelMaxOutputTokens({ modelId: geminiModelId, model, settings })
+		expect(result).toBe(65_535) // Should use model.maxTokens, not ANTHROPIC_DEFAULT_MAX_TOKENS
 	})
 })
 

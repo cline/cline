@@ -1,3 +1,4 @@
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "../api/providers/constants"
 import { ModelInfo, ProviderName, ProviderSettings } from "../schemas"
 
 export type { ModelInfo, ProviderName, ProviderSettings }
@@ -1936,14 +1937,25 @@ export const DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS = 16_384
 export const DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS = 8_192
 
 export const getModelMaxOutputTokens = ({
+	modelId,
 	model,
 	settings,
 }: {
+	modelId: string
 	model: ModelInfo
 	settings?: ProviderSettings
 }): number | undefined => {
 	if (shouldUseReasoningBudget({ model, settings })) {
 		return settings?.modelMaxTokens || DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS
+	}
+
+	const isAnthropicModel = modelId.includes("claude")
+
+	// For "Hybrid" reasoning models, we should discard the model's actual
+	// `maxTokens` value if we're not using reasoning. We do this for Anthropic
+	// models only for now. Should we do this for Gemini too?
+	if (model.supportsReasoningBudget && isAnthropicModel) {
+		return ANTHROPIC_DEFAULT_MAX_TOKENS
 	}
 
 	return model.maxTokens ?? undefined

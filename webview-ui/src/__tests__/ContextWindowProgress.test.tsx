@@ -38,6 +38,7 @@ jest.mock("@src/components/chat/TaskHeader", () => {
 // Mock useSelectedModel hook
 jest.mock("@src/components/ui/hooks/useSelectedModel", () => ({
 	useSelectedModel: jest.fn(() => ({
+		id: "test",
 		info: { contextWindow: 4000 },
 	})),
 }))
