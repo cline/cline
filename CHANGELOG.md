@@ -2,8 +2,6 @@
 
 ## 3.17.4
 
-### Patch Changes
-
 -   9b248ad: Update package version
 
 ## [3.17.2]
