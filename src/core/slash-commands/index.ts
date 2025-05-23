@@ -8,7 +8,8 @@ import fs from "fs/promises"
  */
 export async function parseSlashCommands(
 	text: string,
-	workflowToggles: ClineRulesToggles,
+	localWorkflowToggles: ClineRulesToggles,
+	globalWorkflowToggles: ClineRulesToggles,
 ): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
 	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug"]
 
@@ -58,17 +59,28 @@ export async function parseSlashCommands(
 				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" ? true : false }
 			}
 
-			// in practice we want to minimize this work, so we only do it if theres a possible match
-			const enabledWorkflows = Object.entries(workflowToggles)
+			const globalWorkflows = Object.entries(globalWorkflowToggles)
 				.filter(([_, enabled]) => enabled)
 				.map(([filePath, _]) => {
 					const fileName = filePath.replace(/^.*[/\\]/, "")
-
 					return {
 						fullPath: filePath,
 						fileName: fileName,
 					}
 				})
+
+			const localWorkflows = Object.entries(localWorkflowToggles)
+				.filter(([_, enabled]) => enabled)
+				.map(([filePath, _]) => {
+					const fileName = filePath.replace(/^.*[/\\]/, "")
+					return {
+						fullPath: filePath,
+						fileName: fileName,
+					}
+				})
+
+			// local workflows have precedence over global workflows
+			const enabledWorkflows = [...localWorkflows, ...globalWorkflows]
 
 			// Then check if the command matches any enabled workflow filename
 			const matchingWorkflow = enabledWorkflows.find((workflow) => workflow.fileName === commandName)

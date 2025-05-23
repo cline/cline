@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { updateAutoApproveSettings } from "@/components/chat/auto-approve-menu/AutoApproveSettingsAPI"
 import { ActionMetadata } from "@/components/chat/auto-approve-menu/types"
 
 export function useAutoApproveActions() {
@@ -35,7 +35,7 @@ export function useAutoApproveActions() {
 
 	// Toggle favorite status
 	const toggleFavorite = useCallback(
-		(actionId: string) => {
+		async (actionId: string) => {
 			const currentFavorites = autoApprovalSettings.favorites || []
 			let newFavorites: string[]
 
@@ -45,13 +45,10 @@ export function useAutoApproveActions() {
 				newFavorites = [...currentFavorites, actionId]
 			}
 
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					favorites: newFavorites,
-				},
+			await updateAutoApproveSettings({
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+				favorites: newFavorites,
 			})
 		},
 		[autoApprovalSettings],
@@ -59,22 +56,22 @@ export function useAutoApproveActions() {
 
 	// Update action state
 	const updateAction = useCallback(
-		(action: ActionMetadata, value: boolean) => {
+		async (action: ActionMetadata, value: boolean) => {
 			const actionId = action.id
 			const subActionId = action.subAction?.id
 
 			if (actionId === "enableAutoApprove") {
-				updateAutoApproveEnabled(value)
+				await updateAutoApproveEnabled(value)
 				return
 			}
 
 			if (actionId === "enableAll" || subActionId === "enableAll") {
-				toggleAll(action, value)
+				await toggleAll(action, value)
 				return
 			}
 
 			if (actionId === "enableNotifications" || subActionId === "enableNotifications") {
-				updateNotifications(action, value)
+				await updateNotifications(action, value)
 				return
 			}
 
@@ -95,14 +92,11 @@ export function useAutoApproveActions() {
 			// Check if this will result in any enabled actions
 			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
 
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					actions: newActions,
-					enabled: willHaveEnabledActions,
-				},
+			await updateAutoApproveSettings({
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+				actions: newActions,
+				enabled: willHaveEnabledActions,
 			})
 		},
 		[autoApprovalSettings],
@@ -110,14 +104,11 @@ export function useAutoApproveActions() {
 
 	// Update max requests
 	const updateMaxRequests = useCallback(
-		(maxRequests: number) => {
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					maxRequests,
-				},
+		async (maxRequests: number) => {
+			await updateAutoApproveSettings({
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+				maxRequests,
 			})
 		},
 		[autoApprovalSettings],
@@ -125,14 +116,11 @@ export function useAutoApproveActions() {
 
 	// Update auto-approve enabled state
 	const updateAutoApproveEnabled = useCallback(
-		(checked: boolean) => {
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					enabled: checked,
-				},
+		async (checked: boolean) => {
+			await updateAutoApproveSettings({
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+				enabled: checked,
 			})
 		},
 		[autoApprovalSettings],
@@ -140,21 +128,18 @@ export function useAutoApproveActions() {
 
 	// Toggle all actions
 	const toggleAll = useCallback(
-		(action: ActionMetadata, checked: boolean) => {
+		async (action: ActionMetadata, checked: boolean) => {
 			let actions = { ...autoApprovalSettings.actions }
 
 			for (const action of Object.keys(actions)) {
 				actions[action as keyof AutoApprovalSettings["actions"]] = checked
 			}
 
-			vscode.postMessage({
-				type: "autoApprovalSettings",
-				autoApprovalSettings: {
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					actions,
-					enabled: checked,
-				},
+			await updateAutoApproveSettings({
+				...autoApprovalSettings,
+				version: (autoApprovalSettings.version ?? 1) + 1,
+				actions,
+				enabled: checked,
 			})
 		},
 		[autoApprovalSettings],
@@ -162,15 +147,12 @@ export function useAutoApproveActions() {
 
 	// Update notifications setting
 	const updateNotifications = useCallback(
-		(action: ActionMetadata, checked: boolean) => {
+		async (action: ActionMetadata, checked: boolean) => {
 			if (action.id === "enableNotifications") {
-				vscode.postMessage({
-					type: "autoApprovalSettings",
-					autoApprovalSettings: {
-						...autoApprovalSettings,
-						version: (autoApprovalSettings.version ?? 1) + 1,
-						enableNotifications: checked,
-					},
+				await updateAutoApproveSettings({
+					...autoApprovalSettings,
+					version: (autoApprovalSettings.version ?? 1) + 1,
+					enableNotifications: checked,
 				})
 			}
 		},

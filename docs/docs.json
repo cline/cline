@@ -72,14 +72,53 @@
 				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
 			},
 			{
+				"group": "Features",
+				"pages": [
+					"features/auto-approve",
+					"features/checkpoints",
+					"features/cline-rules",
+					"features/drag-and-drop",
+					"features/plan-and-act",
+					"features/slash-commands/workflows",
+					"features/editing-messages",
+					{
+						"group": "@ Mentions",
+						"pages": [
+							"features/at-mentions/overview",
+							"features/at-mentions/file-mentions",
+							"features/at-mentions/terminal-mentions",
+							"features/at-mentions/problem-mentions",
+							"features/at-mentions/git-mentions",
+							"features/at-mentions/url-mentions"
+						]
+					},
+					{
+						"group": "Slash Commands",
+						"pages": [
+							"features/slash-commands/new-task",
+							"features/slash-commands/new-rule",
+							"features/slash-commands/smol",
+							"features/slash-commands/report-bug"
+						]
+					},
+					{
+						"group": "Commands & Shortcuts",
+						"pages": [
+							"features/commands-and-shortcuts/overview",
+							"features/commands-and-shortcuts/code-commands",
+							"features/commands-and-shortcuts/terminal-integration",
+							"features/commands-and-shortcuts/git-integration",
+							"features/commands-and-shortcuts/keyboard-shortcuts"
+						]
+					}
+				]
+			},
+			{
 				"group": "Exploring Cline's Tools",
 				"pages": [
 					"exploring-clines-tools/cline-tools-guide",
-					"exploring-clines-tools/plan-and-act-modes-a-guide-to-effective-ai-development",
-					"exploring-clines-tools/checkpoints",
 					"exploring-clines-tools/new-task-tool",
-					"exploring-clines-tools/remote-browser-support",
-					"exploring-clines-tools/slash-commands"
+					"exploring-clines-tools/remote-browser-support"
 				]
 			},
 			{

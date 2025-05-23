@@ -170,13 +170,13 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 						<VSCodeTextField
 							className="flex-1 w-full pr-[35px] ml-4"
 							value={autoApprovalSettings.maxRequests.toString()}
-							onInput={(e) => {
+							onInput={async (e) => {
 								const input = e.target as HTMLInputElement
 								// Remove any non-numeric characters
 								input.value = input.value.replace(/[^0-9]/g, "")
 								const value = parseInt(input.value)
 								if (!isNaN(value) && value > 0) {
-									updateMaxRequests(value)
+									await updateMaxRequests(value)
 								}
 							}}
 							onKeyDown={(e) => {

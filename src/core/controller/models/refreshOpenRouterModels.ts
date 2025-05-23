@@ -43,6 +43,8 @@ export async function refreshOpenRouterModels(
 				}
 
 				switch (rawModel.id) {
+					case "anthropic/claude-sonnet-4":
+					case "anthropic/claude-opus-4":
 					case "anthropic/claude-3-7-sonnet":
 					case "anthropic/claude-3-7-sonnet:beta":
 					case "anthropic/claude-3.7-sonnet":

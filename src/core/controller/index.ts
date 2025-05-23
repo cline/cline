@@ -33,8 +33,12 @@ import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
 import { extractCommitMessage } from "@integrations/git/commit-message-generator"
 import { getTotalTasksSize } from "@utils/storage"
-import { openMention } from "../mentions"
-import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
+import {
+	ensureMcpServersDirectoryExists,
+	ensureSettingsDirectoryExists,
+	GlobalFileNames,
+	ensureWorkflowsDirectoryExists,
+} from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -67,7 +71,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "may-16-2025_16:11:00" // update to some unique identifier when we add a new announcement
+	latestAnnouncementId = "may-22-2025_16:11:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -293,25 +297,6 @@ export class Controller {
 				}
 				await this.postStateToWebview()
 				break
-			case "autoApprovalSettings":
-				if (message.autoApprovalSettings) {
-					const currentSettings = (await getAllExtensionState(this.context)).autoApprovalSettings
-					const incomingVersion = message.autoApprovalSettings.version ?? 1
-					const currentVersion = currentSettings?.version ?? 1
-					if (incomingVersion > currentVersion) {
-						await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
-						if (this.task) {
-							this.task.autoApprovalSettings = message.autoApprovalSettings
-						}
-						await this.postStateToWebview()
-					}
-				}
-				break
-			case "togglePlanActMode":
-				if (message.chatSettings) {
-					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
-				}
-				break
 			case "optionsResponse":
 				await this.postMessageToWebview({
 					type: "invoke",
@@ -319,36 +304,14 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			case "relaunchChromeDebugMode":
-				const { browserSettings } = await getAllExtensionState(this.context)
-				const browserSession = new BrowserSession(this.context, browserSettings)
-				await browserSession.relaunchChromeDebugMode(this)
-				break
-			case "didShowAnnouncement":
-				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
-				await this.postStateToWebview()
-				break
 			case "refreshMakehubModels":
 				await this.refreshMakehubModels()
-				break
-			case "refreshClineRules":
-				await refreshClineRulesToggles(this.context, cwd)
-				await refreshExternalRulesToggles(this.context, cwd)
-				await refreshWorkflowToggles(this.context, cwd)
-				await this.postStateToWebview()
 				break
 			case "openInBrowser":
 				if (message.url) {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
 				break
-			case "openMention":
-				openMention(message.text)
-				break
-			case "accountLogoutClicked": {
-				await this.handleSignOut()
-				break
-			}
 			case "showAccountViewClicked": {
 				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
 				break
@@ -366,10 +329,6 @@ export class Controller {
 			}
 			case "fetchMcpMarketplace": {
 				await this.fetchMcpMarketplace(message.bool)
-				break
-			}
-			case "silentlyRefreshMcpMarketplace": {
-				await this.silentlyRefreshMcpMarketplace()
 				break
 			}
 			// case "openMcpMarketplaceServerDetails": {
@@ -407,78 +366,21 @@ export class Controller {
 
 			// 	break
 			// }
-			case "toggleToolAutoApprove": {
-				try {
-					await this.mcpHub?.toggleToolAutoApprove(message.serverName!, message.toolNames!, message.autoApprove!)
-				} catch (error) {
-					if (message.toolNames?.length === 1) {
-						console.error(
-							`Failed to toggle auto-approve for server ${message.serverName} with tool ${message.toolNames[0]}:`,
-							error,
-						)
-					} else {
-						console.error(`Failed to toggle auto-approve tools for server ${message.serverName}:`, error)
-					}
-				}
-				break
-			}
-			case "toggleClineRule": {
-				const { isGlobal, rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
-					if (isGlobal) {
-						const toggles =
-							((await getGlobalState(this.context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
-						toggles[rulePath] = enabled
-						await updateGlobalState(this.context, "globalClineRulesToggles", toggles)
-					} else {
-						const toggles =
-							((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
-						toggles[rulePath] = enabled
-						await updateWorkspaceState(this.context, "localClineRulesToggles", toggles)
-					}
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleClineRule: Missing or invalid parameters", {
-						rulePath,
-						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
-						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
-					})
-				}
-				break
-			}
-			case "toggleWindsurfRule": {
-				const { rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean") {
-					const toggles =
-						((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
-					toggles[rulePath] = enabled
-					await updateWorkspaceState(this.context, "localWindsurfRulesToggles", toggles)
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleWindsurfRule: Missing or invalid parameters")
-				}
-				break
-			}
-			case "toggleCursorRule": {
-				const { rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean") {
-					const toggles =
-						((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
-					toggles[rulePath] = enabled
-					await updateWorkspaceState(this.context, "localCursorRulesToggles", toggles)
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleCursorRule: Missing or invalid parameters")
-				}
-				break
-			}
 			case "toggleWorkflow": {
-				const { workflowPath, enabled } = message
-				if (workflowPath && typeof enabled === "boolean") {
-					const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
-					toggles[workflowPath] = enabled
-					await updateWorkspaceState(this.context, "workflowToggles", toggles)
-					await this.postStateToWebview()
+				const { workflowPath, enabled, isGlobal } = message
+				if (workflowPath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
+					if (isGlobal) {
+						const globalWorkflowToggles =
+							((await getGlobalState(this.context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
+						globalWorkflowToggles[workflowPath] = enabled
+						await updateGlobalState(this.context, "globalWorkflowToggles", globalWorkflowToggles)
+						await this.postStateToWebview()
+					} else {
+						const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+						toggles[workflowPath] = enabled
+						await updateWorkspaceState(this.context, "workflowToggles", toggles)
+						await this.postStateToWebview()
+					}
 				}
 				break
 			}
@@ -486,12 +388,7 @@ export class Controller {
 				this.refreshTotalTasksSize()
 				break
 			}
-			case "deleteMcpServer": {
-				if (message.serverName) {
-					this.mcpHub?.deleteServer(message.serverName)
-				}
-				break
-			}
+
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
 				break
@@ -514,20 +411,6 @@ export class Controller {
 				break
 			}
 			// telemetry
-			case "openSettings": {
-				await this.postMessageToWebview({
-					type: "action",
-					action: "settingsButtonClicked",
-				})
-				break
-			}
-			case "scrollToSettings": {
-				await this.postMessageToWebview({
-					type: "scrollToSettings",
-					text: message.text,
-				})
-				break
-			}
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
 					await this.updateTelemetrySetting(message.telemetrySetting)
@@ -611,29 +494,6 @@ export class Controller {
 				break
 			}
 
-			case "copyToClipboard": {
-				try {
-					await vscode.env.clipboard.writeText(message.text || "")
-				} catch (error) {
-					console.error("Error copying to clipboard:", error)
-				}
-				break
-			}
-			case "updateTerminalConnectionTimeout": {
-				if (message.shellIntegrationTimeout !== undefined) {
-					const timeout = message.shellIntegrationTimeout
-
-					if (typeof timeout === "number" && !isNaN(timeout) && timeout > 0) {
-						await updateGlobalState(this.context, "shellIntegrationTimeout", timeout)
-						await this.postStateToWebview()
-					} else {
-						console.warn(
-							`Invalid shell integration timeout value received: ${timeout}. ` + `Expected a positive number.`,
-						)
-					}
-				}
-				break
-			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -949,6 +809,40 @@ export class Controller {
 		}
 	}
 
+	private async fetchMcpMarketplaceFromApiRPC(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
+		try {
+			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
+				headers: {
+					"Content-Type": "application/json",
+				},
+			})
+
+			if (!response.data) {
+				throw new Error("Invalid response from MCP marketplace API")
+			}
+
+			const catalog: McpMarketplaceCatalog = {
+				items: (response.data || []).map((item: any) => ({
+					...item,
+					githubStars: item.githubStars ?? 0,
+					downloadCount: item.downloadCount ?? 0,
+					tags: item.tags ?? [],
+				})),
+			}
+
+			// Store in global state
+			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
+			return catalog
+		} catch (error) {
+			console.error("Failed to fetch MCP marketplace:", error)
+			if (!silent) {
+				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
+				throw new Error(errorMessage)
+			}
+			return undefined
+		}
+	}
+
 	async silentlyRefreshMcpMarketplace() {
 		try {
 			const catalog = await this.fetchMcpMarketplaceFromApi(true)
@@ -960,6 +854,20 @@ export class Controller {
 			}
 		} catch (error) {
 			console.error("Failed to silently refresh MCP marketplace:", error)
+		}
+	}
+
+	/**
+	 * RPC variant that silently refreshes the MCP marketplace catalog and returns the result
+	 * Unlike silentlyRefreshMcpMarketplace, this doesn't post a message to the webview
+	 * @returns MCP marketplace catalog or undefined if refresh failed
+	 */
+	async silentlyRefreshMcpMarketplaceRPC() {
+		try {
+			return await this.fetchMcpMarketplaceFromApiRPC(true)
+		} catch (error) {
+			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
+			return undefined
 		}
 	}
 
@@ -1440,6 +1348,7 @@ export class Controller {
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
 			globalClineRulesToggles,
+			globalWorkflowToggles,
 			shellIntegrationTimeout,
 			isNewUser,
 		} = await getAllExtensionState(this.context)
@@ -1453,7 +1362,7 @@ export class Controller {
 		const localCursorRulesToggles =
 			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
 
-		const workflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+		const localWorkflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1482,7 +1391,8 @@ export class Controller {
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
-			workflowToggles: workflowToggles || {},
+			localWorkflowToggles: localWorkflowToggles || {},
+			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			isNewUser,
 		}

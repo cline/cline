@@ -5,7 +5,7 @@
 // source: account.proto
 
 /* eslint-disable */
-import { EmptyRequest, String } from "./common"
+import { Empty, EmptyRequest, String } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -25,6 +25,18 @@ export const AccountServiceDefinition = {
 			requestType: EmptyRequest,
 			requestStream: false,
 			responseType: String,
+			responseStream: false,
+			options: {},
+		},
+		/**
+		 * Handles the user clicking the logout button in the UI.
+		 * Clears API keys and user state.
+		 */
+		accountLogoutClicked: {
+			name: "accountLogoutClicked",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: Empty,
 			responseStream: false,
 			options: {},
 		},

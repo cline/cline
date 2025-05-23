@@ -11,7 +11,7 @@ import Thumbnails from "@/components/common/Thumbnails"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import { validateSlashCommand } from "@/utils/slash-commands"
 import TaskTimeline from "./TaskTimeline"
-import { TaskServiceClient } from "@/services/grpc-client"
+import { TaskServiceClient, FileServiceClient } from "@/services/grpc-client"
 import HeroTooltip from "@/components/common/HeroTooltip"
 
 interface TaskHeaderProps {
@@ -597,7 +597,7 @@ export const highlightMentions = (text: string, withShadow = true) => {
 					key={index}
 					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
 					style={{ cursor: "pointer" }}
-					onClick={() => vscode.postMessage({ type: "openMention", text: part })}>
+					onClick={() => FileServiceClient.openMention({ value: part })}>
 					@{part}
 				</span>
 			)

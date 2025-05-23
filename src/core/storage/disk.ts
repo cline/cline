@@ -77,6 +77,17 @@ export async function ensureRulesDirectoryExists(): Promise<string> {
 	return clineRulesDir
 }
 
+export async function ensureWorkflowsDirectoryExists(): Promise<string> {
+	const userDocumentsPath = await getDocumentsPath()
+	const clineWorkflowsDir = path.join(userDocumentsPath, "Cline", "Workflows")
+	try {
+		await fs.mkdir(clineWorkflowsDir, { recursive: true })
+	} catch (error) {
+		return path.join(os.homedir(), "Documents", "Cline", "Workflows") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+	}
+	return clineWorkflowsDir
+}
+
 export async function ensureMcpServersDirectoryExists(): Promise<string> {
 	const userDocumentsPath = await getDocumentsPath()
 	const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")

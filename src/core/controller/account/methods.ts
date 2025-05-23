@@ -4,9 +4,11 @@
 // Import all method implementations
 import { registerMethod } from "./index"
 import { accountLoginClicked } from "./accountLoginClicked"
+import { accountLogoutClicked } from "./accountLogoutClicked"
 
 // Register all account service methods
 export function registerAllMethods(): void {
 	// Register each method with the registry
 	registerMethod("accountLoginClicked", accountLoginClicked)
+	registerMethod("accountLogoutClicked", accountLogoutClicked)
 }

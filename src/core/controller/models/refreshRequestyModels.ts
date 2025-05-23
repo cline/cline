@@ -44,6 +44,11 @@ export async function refreshRequestyModels(
 				models[model.id] = modelInfo
 			}
 			console.log("Requesty models fetched", models)
+
+			controller.postMessageToWebview({
+				type: "requestyModels",
+				requestyModels: models,
+			})
 		} else {
 			console.error("Invalid response from Requesty API")
 		}

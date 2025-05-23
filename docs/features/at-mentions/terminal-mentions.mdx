@@ -1,0 +1,60 @@
+---
+title: "Terminal Mentions"
+sidebarTitle: "Terminal Mentions"
+---
+
+The terminal mention lets you bring your terminal output directly into your conversation with Cline. Just type `@terminal` and Cline can see the recent output from your terminal.
+
+When you type `@` in chat, select "Terminal" from the menu or just type `@terminal` directly. Cline will immediately see the recent output from your active terminal, including error messages, build logs, or command results.
+
+I use the terminal mention all the time when I'm dealing with build errors, test failures, or debugging output. Instead of trying to copy and paste terminal output (which often loses formatting), I just ask:
+
+```
+I'm getting this error when running my tests: @terminal
+
+What's causing this and how can I fix it?
+```
+
+This gives Cline the complete terminal output with all its formatting intact. Cline can then analyze the error messages, stack traces, and surrounding context to provide more accurate help.
+
+The terminal mention is especially powerful when combined with file mentions. When I'm debugging a failed API call, I'll reference both:
+
+```
+I'm getting this error when calling my API: @terminal
+
+Here's my API client code: @/src/api/client.js
+And the endpoint implementation: @/src/server/routes/users.js
+
+What am I doing wrong?
+```
+
+This approach gives Cline everything it needs - the exact error output, the client code, and the server implementation - all without me having to copy anything manually.
+
+Next time you're running into issues with command output or build errors, try using `@terminal` instead of copying the output. You'll get more accurate help because Cline can see the complete terminal context with proper formatting.
+
+## How It Works Under the Hood
+
+When you use the terminal mention in your message, here's what happens behind the scenes:
+
+1. When you send your message, Cline detects the `@terminal` pattern in your text
+2. The extension calls `getLatestTerminalOutput()` which accesses VSCode's terminal API
+3. It captures the recent output buffer from your active terminal
+4. The terminal output is appended to your message in a structured format:
+
+    ```
+    <terminal_output>
+    $ npm run test
+    > project@1.0.0 test
+    > jest
+
+    FAIL src/components/__tests__/Button.test.js
+    ● Button component › renders correctly
+
+    [Complete terminal output with formatting preserved]
+    </terminal_output>
+    ```
+
+5. This enhanced message with the embedded terminal output is sent to the AI
+6. The AI can now "see" the complete terminal output with all formatting preserved
+
+This process happens automatically whenever you use the terminal mention, giving the AI access to your command results, error messages, and other terminal output without you having to copy it manually.

@@ -1,0 +1,118 @@
+---
+title: "@ Mentions Overview"
+sidebarTitle: "Overview"
+---
+
+@ mentions are one of Cline's most powerful features, letting you seamlessly bring external context into your conversations. Instead of copying and pasting code, error messages, or documentation, you can simply reference them with an @ symbol.
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/at-mentions.png" alt="@ Mentions Overview" />
+</Frame>
+
+When you type `@` in the chat input, Cline shows a menu of available mention types. These mentions let you reference files, folders, problems, terminal output, git changes, and even web content directly in your conversations.
+
+## Available @ Mentions
+
+Cline supports several types of @ mentions, each designed to bring different kinds of context into your conversations:
+
+<Columns cols={2}>
+  <Card title="File Mentions" icon="file" href="/features/at-mentions/file-mentions">
+    Reference any file in your workspace with `@/path/to/file`. Cline sees the complete file content, including imports, related
+    functions, and surrounding context.
+  </Card>
+
+{" "}
+
+<Card title="Folder Mentions" icon="folder" href="/features/at-mentions/folder-mentions">
+	Reference entire directories with `@/path/to/folder/`. Cline sees the folder structure and all file contents, perfect for
+	understanding complex interactions between multiple files.
+</Card>
+
+{" "}
+
+<Card title="Problem Mentions" icon="triangle-exclamation" href="/features/at-mentions/problem-mentions">
+	Use `@problems` to show Cline all the errors and warnings in your workspace. Cline sees the complete list with file locations
+	and error messages.
+</Card>
+
+{" "}
+
+<Card title="Terminal Mentions" icon="terminal" href="/features/at-mentions/terminal-mentions">
+	Use `@terminal` to share your recent terminal output. Cline sees the complete output with formatting preserved, perfect for
+	debugging build errors or test failures.
+</Card>
+
+{" "}
+
+<Card title="Git Mentions" icon="code-branch" href="/features/at-mentions/git-mentions">
+	Reference uncommitted changes with `@git-changes` or specific commits with `@[commit-hash]`. Cline sees the complete diff,
+	commit message, and other relevant information.
+</Card>
+
+  <Card title="URL Mentions" icon="globe" href="/features/at-mentions/url-mentions">
+    Reference web content with `@https://example.com`. Cline fetches and sees the complete webpage content, perfect for
+    referencing documentation or GitHub issues.
+  </Card>
+</Columns>
+
+## Why @ Mentions Matter
+
+@ mentions transform how you interact with Cline by:
+
+1. **Eliminating copy-paste**: No more copying and pasting code, error messages, or terminal output. Just reference them directly.
+
+2. **Preserving context**: Cline sees the complete context, including imports, related functions, and surrounding code that might be relevant.
+
+3. **Maintaining formatting**: Terminal output, error messages, and web content keep their formatting, making them easier to understand.
+
+4. **Enabling complex workflows**: Combine multiple @ mentions to give Cline a complete picture of your problem:
+
+    ```
+    I'm getting these errors: @problems
+
+    Here's my component: @/src/components/Form.jsx
+    And the API endpoint: @/src/api/users.js
+
+    The error happens when I submit: @terminal
+
+    I think this commit might have caused it: @a1b2c3d
+    ```
+
+## Getting Started
+
+To use @ mentions:
+
+1. Type `@` in the chat input
+2. Select the type of mention from the menu or continue typing
+3. For files and folders, navigate through your workspace structure
+4. Send your message as usual
+
+Cline will automatically process the mentions and include the referenced content in the context sent to the AI.
+
+Try using @ mentions in your next conversation with Cline - you'll be amazed at how much more efficient and effective your interactions become when you can seamlessly bring in external context.
+
+## How It Works Under the Hood
+
+When you use @ mentions in your messages, there's a sophisticated process happening behind the scenes:
+
+1. **Detection**: When you send a message, Cline scans the text for @ mention patterns using regular expressions
+2. **Processing**: For each detected mention, Cline:
+    - Determines the mention type (file, folder, problems, terminal, git, URL)
+    - Fetches the relevant content (file contents, terminal output, etc.)
+    - Formats the content appropriately
+3. **Enhancement**: The original message is enhanced with structured data:
+
+    ```
+    Your original message with @/path/to/file
+
+    <file_content path="/path/to/file">
+    [Complete file content]
+    </file_content>
+    ```
+
+4. **Context Inclusion**: This enhanced message with all the embedded content is sent to the AI model
+5. **Seamless Response**: The AI can now "see" all the referenced content as if you had manually copied and pasted it
+
+This entire process happens automatically and seamlessly whenever you use @ mentions, giving the AI complete context without you having to manually copy anything.
+
+Each type of @ mention has its own specific implementation details, which you can find in their respective documentation pages.

@@ -30,6 +30,7 @@ import { arePathsEqual } from "@utils/path"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
@@ -38,10 +39,10 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 5000
 export type McpConnection = {
 	server: McpServer
 	client: Client
-	transport: StdioClientTransport | SSEClientTransport
+	transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 }
 
-export type McpTransportType = "stdio" | "sse"
+export type McpTransportType = "stdio" | "sse" | "http"
 
 export type McpServerConfig = z.infer<typeof ServerConfigSchema>
 
@@ -69,7 +70,15 @@ const StdioConfigSchema = BaseConfigSchema.extend({
 	transportType: "stdio" as const,
 }))
 
-const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema])
+const StreamableHTTPConfigSchema = BaseConfigSchema.extend({
+	transportType: z.literal("http"),
+	url: z.string().url(),
+}).transform((config) => ({
+	...config,
+	transportType: "http" as const,
+}))
+
+const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
 
 const McpSettingsSchema = z.object({
 	mcpServers: z.record(ServerConfigSchema),
@@ -183,7 +192,7 @@ export class McpHub {
 
 	private async connectToServerRPC(
 		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema>,
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -200,10 +209,12 @@ export class McpHub {
 				},
 			)
 
-			let transport: StdioClientTransport | SSEClientTransport
+			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			if (config.transportType === "sse") {
 				transport = new SSEClientTransport(new URL(config.url), {})
+			} else if (config.transportType === "http") {
+				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {
 				transport = new StdioClientTransport({
 					command: config.command,
@@ -297,7 +308,7 @@ export class McpHub {
 
 	private async connectToServer(
 		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema>,
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -314,10 +325,12 @@ export class McpHub {
 				},
 			)
 
-			let transport: StdioClientTransport | SSEClientTransport
+			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			if (config.transportType === "sse") {
 				transport = new SSEClientTransport(new URL(config.url), {})
+			} else if (config.transportType === "http") {
+				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {
 				transport = new StdioClientTransport({
 					command: config.command,
@@ -778,7 +791,7 @@ export class McpHub {
 			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 		}
 
-		return await connection.client.request(
+		const result = await connection.client.request(
 			{
 				method: "tools/call",
 				params: {
@@ -791,6 +804,63 @@ export class McpHub {
 				timeout,
 			},
 		)
+
+		return {
+			...result,
+			content: result.content ?? [],
+		}
+	}
+
+	/**
+	 * RPC variant of toggleToolAutoApprove that returns the updated servers instead of notifying the webview
+	 * @param serverName The name of the MCP server
+	 * @param toolNames Array of tool names to toggle auto-approve for
+	 * @param shouldAllow Whether to enable or disable auto-approve
+	 * @returns Array of updated MCP servers
+	 */
+	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
+		try {
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Initialize autoApprove if it doesn't exist
+			if (!config.mcpServers[serverName].autoApprove) {
+				config.mcpServers[serverName].autoApprove = []
+			}
+
+			const autoApprove = config.mcpServers[serverName].autoApprove
+			for (const toolName of toolNames) {
+				const toolIndex = autoApprove.indexOf(toolName)
+
+				if (shouldAllow && toolIndex === -1) {
+					// Add tool to autoApprove list
+					autoApprove.push(toolName)
+				} else if (!shouldAllow && toolIndex !== -1) {
+					// Remove tool from autoApprove list
+					autoApprove.splice(toolIndex, 1)
+				}
+			}
+
+			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+
+			// Update the tools list to reflect the change
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection && connection.server.tools) {
+				// Update the autoApprove property of each tool in the in-memory server object
+				connection.server.tools = connection.server.tools.map((tool) => ({
+					...tool,
+					autoApprove: autoApprove.includes(tool.name),
+				}))
+			}
+
+			// Return sorted servers without notifying webview
+			const serverOrder = Object.keys(config.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
+		} catch (error) {
+			console.error("Failed to update autoApprove settings:", error)
+			throw error // Re-throw to ensure the error is properly handled
+		}
 	}
 
 	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
@@ -883,7 +953,12 @@ export class McpHub {
 		}
 	}
 
-	public async deleteServer(serverName: string) {
+	/**
+	 * RPC variant of deleteServer that returns the updated server list directly
+	 * @param serverName The name of the server to delete
+	 * @returns Array of remaining MCP servers
+	 */
+	public async deleteServerRPC(serverName: string): Promise<McpServer[]> {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
@@ -891,21 +966,23 @@ export class McpHub {
 			if (!config.mcpServers || typeof config.mcpServers !== "object") {
 				config.mcpServers = {}
 			}
+
 			if (config.mcpServers[serverName]) {
 				delete config.mcpServers[serverName]
 				const updatedConfig = {
 					mcpServers: config.mcpServers,
 				}
 				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
-				await this.updateServerConnections(config.mcpServers)
-				vscode.window.showInformationMessage(`Deleted ${serverName} MCP server`)
+				await this.updateServerConnectionsRPC(config.mcpServers)
+
+				// Get the servers in their correct order from settings
+				const serverOrder = Object.keys(config.mcpServers || {})
+				return this.getSortedMcpServers(serverOrder)
 			} else {
-				vscode.window.showWarningMessage(`${serverName} not found in MCP configuration`)
+				throw new Error(`${serverName} not found in MCP configuration`)
 			}
 		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			console.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
 		}
 	}

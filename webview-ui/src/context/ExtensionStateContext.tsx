@@ -34,25 +34,52 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
 	totalTasksSize: number | null
+
 	// View state
 	showMcp: boolean
 	mcpTab?: McpViewTab
+	showSettings: boolean
+	showHistory: boolean
+	showAccount: boolean
+	showAnnouncement: boolean
 
 	// Setters
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
+	setShouldShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
 	setShellIntegrationTimeout: (value: number) => void
 	setChatSettings: (value: ChatSettings) => void
 	setMcpServers: (value: McpServer[]) => void
+	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 
-	// Navigation
+	// Navigation state setters
 	setShowMcp: (value: boolean) => void
 	setMcpTab: (tab?: McpViewTab) => void
+
+	// Navigation functions
+	navigateToMcp: (tab?: McpViewTab) => void
+	navigateToSettings: () => void
+	navigateToHistory: () => void
+	navigateToAccount: () => void
+	navigateToChat: () => void
+
+	// Hide functions
+	hideSettings: () => void
+	hideHistory: () => void
+	hideAccount: () => void
+	hideAnnouncement: () => void
+	closeMcpView: () => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -63,6 +90,64 @@ export const ExtensionStateContextProvider: React.FC<{
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
+	const [showSettings, setShowSettings] = useState(false)
+	const [showHistory, setShowHistory] = useState(false)
+	const [showAccount, setShowAccount] = useState(false)
+	const [showAnnouncement, setShowAnnouncement] = useState(false)
+
+	// Helper for MCP view
+	const closeMcpView = useCallback(() => {
+		setShowMcp(false)
+		setMcpTab(undefined)
+	}, [setShowMcp, setMcpTab])
+
+	// Hide functions
+	const hideSettings = useCallback(() => setShowSettings(false), [setShowSettings])
+	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
+	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
+	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
+
+	// Navigation functions
+	const navigateToMcp = useCallback(
+		(tab?: McpViewTab) => {
+			setShowSettings(false)
+			setShowHistory(false)
+			setShowAccount(false)
+			if (tab) {
+				setMcpTab(tab)
+			}
+			setShowMcp(true)
+		},
+		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount],
+	)
+
+	const navigateToSettings = useCallback(() => {
+		setShowHistory(false)
+		closeMcpView()
+		setShowAccount(false)
+		setShowSettings(true)
+	}, [setShowSettings, setShowHistory, closeMcpView, setShowAccount])
+
+	const navigateToHistory = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowAccount(false)
+		setShowHistory(true)
+	}, [setShowSettings, closeMcpView, setShowAccount, setShowHistory])
+
+	const navigateToAccount = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(true)
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount])
+
+	const navigateToChat = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -81,7 +166,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
-		workflowToggles: {},
+		localWorkflowToggles: {},
+		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 		isNewUser: false,
 	})
@@ -106,6 +192,26 @@ export const ExtensionStateContextProvider: React.FC<{
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
+			case "action": {
+				switch (message.action!) {
+					case "mcpButtonClicked":
+						navigateToMcp(message.tab)
+						break
+					case "settingsButtonClicked":
+						navigateToSettings()
+						break
+					case "historyButtonClicked":
+						navigateToHistory()
+						break
+					case "accountButtonClicked":
+						navigateToAccount()
+						break
+					case "chatButtonClicked":
+						navigateToChat()
+						break
+				}
+				break
+			}
 			case "state": {
 				setState((prevState) => {
 					const incoming = message.state!
@@ -191,6 +297,7 @@ export const ExtensionStateContextProvider: React.FC<{
 									config.asksageApiKey,
 									config.xaiApiKey,
 									config.sambanovaApiKey,
+									config.nebiusApiKey,
 								].some((key) => key !== undefined)
 							: false
 
@@ -392,12 +499,30 @@ export const ExtensionStateContextProvider: React.FC<{
 		totalTasksSize,
 		showMcp,
 		mcpTab,
+		showSettings,
+		showHistory,
+		showAccount,
+		showAnnouncement,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
-		workflowToggles: state.workflowToggles || {},
+		localWorkflowToggles: state.localWorkflowToggles || {},
+		globalWorkflowToggles: state.globalWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
+
+		// Navigation functions
+		navigateToMcp,
+		navigateToSettings,
+		navigateToHistory,
+		navigateToAccount,
+		navigateToChat,
+
+		// Hide functions
+		hideSettings,
+		hideHistory,
+		hideAccount,
+		hideAnnouncement,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -428,7 +553,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				mcpMarketplaceEnabled: value,
 			})),
-		setShowAnnouncement: (value) =>
+		setShowAnnouncement,
+		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
 				shouldShowAnnouncement: value,
@@ -439,7 +565,9 @@ export const ExtensionStateContextProvider: React.FC<{
 				shellIntegrationTimeout: value,
 			})),
 		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
+		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
+		closeMcpView,
 		setChatSettings: (value) => {
 			setState((prevState) => ({
 				...prevState,
@@ -456,6 +584,36 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
 			})
 		},
+		setGlobalClineRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				globalClineRulesToggles: toggles,
+			})),
+		setLocalClineRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localClineRulesToggles: toggles,
+			})),
+		setLocalCursorRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localCursorRulesToggles: toggles,
+			})),
+		setLocalWindsurfRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localWindsurfRulesToggles: toggles,
+			})),
+		setLocalWorkflowToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localWorkflowToggles: toggles,
+			})),
+		setGlobalWorkflowToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				globalWorkflowToggles: toggles,
+			})),
 		setMcpTab,
 	}
 

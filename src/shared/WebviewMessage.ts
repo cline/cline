@@ -1,5 +1,4 @@
 import { ApiConfiguration } from "./api"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
@@ -14,61 +13,36 @@ export interface WebviewMessage {
 		| "newTask"
 		| "condense"
 		| "reportBug"
-		| "didShowAnnouncement"
 		| "openInBrowser"
-		| "openMention"
 		| "showChatView"
-		| "refreshOpenRouterModels"
-		| "refreshRequestyModels"
 		| "refreshMakehubModels"
-		| "refreshOpenAiModels"
-		| "refreshClineRules"
 		| "openMcpSettings"
-		| "deleteMcpServer"
-		| "autoApprovalSettings"
-		| "browserRelaunchResult"
-		| "togglePlanActMode"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
-		| "accountLogoutClicked"
 		| "showAccountViewClicked"
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"
-		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "openSettings"
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
-		| "relaunchChromeDebugMode"
-		| "scrollToSettings"
 		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
-		| "toggleClineRule"
-		| "toggleCursorRule"
-		| "toggleWindsurfRule"
 		| "toggleWorkflow"
-		| "deleteClineRule"
-		| "copyToClipboard"
-		| "updateTerminalConnectionTimeout"
-		| "setActiveQuote"
 
-	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean
 	number?: number
-	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent

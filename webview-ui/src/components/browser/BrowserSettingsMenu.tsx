@@ -4,7 +4,7 @@ import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { BrowserServiceClient } from "../../services/grpc-client"
+import { BrowserServiceClient, UiServiceClient } from "../../services/grpc-client"
 
 interface ConnectionInfo {
 	isConnected: boolean
@@ -13,7 +13,7 @@ interface ConnectionInfo {
 }
 
 export const BrowserSettingsMenu = () => {
-	const { browserSettings } = useExtensionState()
+	const { browserSettings, navigateToSettings } = useExtensionState()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [showInfoPopover, setShowInfoPopover] = useState(false)
 	const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo>({
@@ -65,17 +65,16 @@ export const BrowserSettingsMenu = () => {
 	}, [showInfoPopover])
 
 	const openBrowserSettings = () => {
-		// First open the settings panel
-		vscode.postMessage({
-			type: "openSettings",
-		})
+		// First open the settings panel using direct navigation
+		navigateToSettings()
 
 		// After a short delay, send a message to scroll to browser settings
-		setTimeout(() => {
-			vscode.postMessage({
-				type: "scrollToSettings",
-				text: "browser-settings-section",
-			})
+		setTimeout(async () => {
+			try {
+				await UiServiceClient.scrollToSettings({ value: "browser" })
+			} catch (error) {
+				console.error("Error scrolling to browser settings:", error)
+			}
 		}, 300) // Give the settings panel time to open
 	}
 

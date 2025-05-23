@@ -20,3 +20,11 @@ coverage
 !.github/scripts/coverage/
 
 *evals.env
+
+# Generated proto files
+src/shared/proto/*.ts
+src/core/controller/*/methods.ts
+src/core/controller/*/index.ts
+src/core/controller/grpc-service-config.ts
+webview-ui/src/services/grpc-client.ts
+src/standalone/server-setup.ts

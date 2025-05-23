@@ -9,7 +9,7 @@ interface PreferredLanguageSettingProps {
 
 const PreferredLanguageSetting: React.FC<PreferredLanguageSettingProps> = ({ chatSettings, setChatSettings }) => {
 	return (
-		<div style={{ marginTop: 10, marginBottom: 10 }}>
+		<div style={{}}>
 			<label htmlFor="preferred-language-dropdown" className="block mb-1 text-sm font-medium">
 				Preferred Language
 			</label>

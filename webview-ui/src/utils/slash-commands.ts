@@ -27,19 +27,50 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
 	},
 ]
 
-export function getWorkflowCommands(workflowToggles: Record<string, boolean>): SlashCommand[] {
-	return Object.entries(workflowToggles)
+export function getWorkflowCommands(
+	localWorkflowToggles: Record<string, boolean>,
+	globalWorkflowToggles: Record<string, boolean>,
+): SlashCommand[] {
+	const { workflows: localWorkflows, nameSet: localWorkflowNames } = Object.entries(localWorkflowToggles)
 		.filter(([_, enabled]) => enabled)
-		.map(([filePath, _]) => {
-			// potentially remove the file extension if there is one, but this would then require
-			// that we prevent users from having the same fname with different extensions
+		.reduce(
+			(acc, [filePath, _]) => {
+				const fileName = filePath.replace(/^.*[/\\]/, "")
+
+				// Add to array of workflows
+				acc.workflows.push({
+					name: fileName,
+					section: "custom",
+				} as SlashCommand)
+
+				// Add to set of names
+				acc.nameSet.add(fileName)
+
+				return acc
+			},
+			{ workflows: [] as SlashCommand[], nameSet: new Set<string>() },
+		)
+
+	const globalWorkflows = Object.entries(globalWorkflowToggles)
+		.filter(([_, enabled]) => enabled)
+		.flatMap(([filePath, _]) => {
 			const fileName = filePath.replace(/^.*[/\\]/, "")
 
-			return {
-				name: fileName,
-				section: "custom",
+			// skip if a local workflow with the same name exists
+			if (localWorkflowNames.has(fileName)) {
+				return []
 			}
+
+			return [
+				{
+					name: fileName,
+					section: "custom",
+				},
+			] as SlashCommand[]
 		})
+
+	const workflows = [...localWorkflows, ...globalWorkflows]
+	return workflows
 }
 
 // Regex for detecting slash commands in text
@@ -102,8 +133,12 @@ export function shouldShowSlashCommandsMenu(text: string, cursorPosition: number
 /**
  * Gets filtered slash commands that match the current input
  */
-export function getMatchingSlashCommands(query: string, workflowToggles: Record<string, boolean> = {}): SlashCommand[] {
-	const workflowCommands = getWorkflowCommands(workflowToggles)
+export function getMatchingSlashCommands(
+	query: string,
+	localWorkflowToggles: Record<string, boolean> = {},
+	globalWorkflowToggles: Record<string, boolean> = {},
+): SlashCommand[] {
+	const workflowCommands = getWorkflowCommands(localWorkflowToggles, globalWorkflowToggles)
 	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
 
 	if (!query) {
@@ -134,12 +169,16 @@ export function insertSlashCommand(text: string, commandName: string): { newValu
  * Determines the validation state of a slash command
  * Returns partial if we have a partial match against valid commands, or full for full match
  */
-export function validateSlashCommand(command: string, workflowToggles: Record<string, boolean> = {}): "full" | "partial" | null {
+export function validateSlashCommand(
+	command: string,
+	localWorkflowToggles: Record<string, boolean> = {},
+	globalWorkflowToggles: Record<string, boolean> = {},
+): "full" | "partial" | null {
 	if (!command) {
 		return null
 	}
 
-	const workflowCommands = getWorkflowCommands(workflowToggles)
+	const workflowCommands = getWorkflowCommands(localWorkflowToggles, globalWorkflowToggles)
 	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands]
 
 	// case sensitive matching

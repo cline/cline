@@ -1,7 +1,8 @@
 import React, { useState } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
+import { StateServiceClient } from "@/services/grpc-client"
+import { Int64, Int64Request } from "@shared/proto/common"
 
 export const TerminalSettingsSection: React.FC = () => {
 	const { shellIntegrationTimeout, setShellIntegrationTimeout } = useExtensionState()
@@ -26,11 +27,17 @@ export const TerminalSettingsSection: React.FC = () => {
 		// Update local state
 		setShellIntegrationTimeout(timeout)
 
-		// Send to extension
-		vscode.postMessage({
-			type: "updateTerminalConnectionTimeout",
-			shellIntegrationTimeout: timeout,
-		})
+		// Send to extension using gRPC
+		StateServiceClient.updateTerminalConnectionTimeout({
+			value: timeout,
+		} as Int64Request)
+			.then((response: Int64) => {
+				setShellIntegrationTimeout(response.value)
+				setInputValue((response.value / 1000).toString())
+			})
+			.catch((error) => {
+				console.error("Failed to update terminal connection timeout:", error)
+			})
 	}
 
 	const handleInputBlur = () => {
@@ -42,10 +49,7 @@ export const TerminalSettingsSection: React.FC = () => {
 	}
 
 	return (
-		<div
-			id="terminal-settings-section"
-			style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
-			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Terminal Settings</h3>
+		<div id="terminal-settings-section" style={{ marginBottom: 20 }}>
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
 					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>

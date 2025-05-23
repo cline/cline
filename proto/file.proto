@@ -8,11 +8,17 @@ import "common.proto";
 
 // Service for file-related operations
 service FileService {
+  // Copies text to clipboard
+  rpc copyToClipboard(StringRequest) returns (Empty);
+
   // Opens a file in the editor
   rpc openFile(StringRequest) returns (Empty);
  
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
+  
+  // Opens a mention (file, path, git commit, problem, terminal, or URL)
+  rpc openMention(StringRequest) returns (Empty);
 
   // Deletes a rule file from either global or workspace rules directory
   rpc deleteRuleFile(RuleFileRequest) returns (RuleFile);
@@ -31,6 +37,35 @@ service FileService {
 
   // Search for files in the workspace with fuzzy matching
   rpc searchFiles(FileSearchRequest) returns (FileSearchResults);
+  
+  // Toggle a Cline rule (enable or disable)
+  rpc toggleClineRule(ToggleClineRuleRequest) returns (ToggleClineRules);
+
+  // Toggle a Cursor rule (enable or disable)
+  rpc toggleCursorRule(ToggleCursorRuleRequest) returns (ClineRulesToggles);
+  
+  // Toggle a Windsurf rule (enable or disable)
+  rpc toggleWindsurfRule(ToggleWindsurfRuleRequest) returns (ClineRulesToggles);
+  
+  // Refreshes all rule toggles (Cline, External, and Workflows)
+  rpc refreshRules(EmptyRequest) returns (RefreshedRules);
+}
+
+// Response for refreshRules operation
+message RefreshedRules {
+  ClineRulesToggles global_cline_rules_toggles = 1;
+  ClineRulesToggles local_cline_rules_toggles = 2;
+  ClineRulesToggles local_cursor_rules_toggles = 3;
+  ClineRulesToggles local_windsurf_rules_toggles = 4;
+  ClineRulesToggles local_workflow_toggles = 5;
+  ClineRulesToggles global_workflow_toggles = 6;
+}
+
+// Request to toggle a Windsurf rule
+message ToggleWindsurfRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2;   // Path to the rule file
+  bool enabled = 3;       // Whether to enable or disable the rule
 }
 
 // Request to convert a list of URIs to relative paths
@@ -93,4 +128,30 @@ message RuleFile {
   string file_path = 1;     // Path to the rule file
   string display_name = 2;  // Filename for display purposes
   bool already_exists = 3;  // For createRuleFile, indicates if file already existed
+}
+
+// Request to toggle a Cline rule
+message ToggleClineRuleRequest {
+  Metadata metadata = 1;
+  bool is_global = 2;     // Whether this is a global rule or workspace rule
+  string rule_path = 3;   // Path to the rule file
+  bool enabled = 4;       // Whether to enable or disable the rule
+}
+
+// Maps from filepath to enabled/disabled status, matching app's ClineRulesToggles type
+message ClineRulesToggles {
+  map<string, bool> toggles = 1;
+}
+
+// Response for toggleClineRule operation
+message ToggleClineRules {
+  ClineRulesToggles global_cline_rules_toggles = 1;
+  ClineRulesToggles local_cline_rules_toggles = 2;
+}
+
+// Request to toggle a Cursor rule
+message ToggleCursorRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2;   // Path to the rule file
+  bool enabled = 3;       // Whether to enable or disable the rule
 }

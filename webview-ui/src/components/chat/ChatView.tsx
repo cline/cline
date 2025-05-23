@@ -199,8 +199,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 
 					if (textToCopy !== null) {
-						vscode.postMessage({ type: "copyToClipboard", text: textToCopy })
-						e.preventDefault()
+						try {
+							FileServiceClient.copyToClipboard({ value: textToCopy }).catch((err) => {
+								console.error("Error copying to clipboard:", err)
+							})
+							e.preventDefault()
+						} catch (error) {
+							console.error("Error copying to clipboard:", error)
+						}
 					}
 				}
 			}

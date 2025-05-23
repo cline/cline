@@ -1,6 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useState } from "react"
 import styled from "styled-components"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 
@@ -45,9 +46,11 @@ const ButtonContainer = styled.div`
 `
 
 const TelemetryBanner = () => {
+	const { navigateToSettings } = useExtensionState()
+
 	const handleOpenSettings = () => {
 		handleClose()
-		vscode.postMessage({ type: "openSettings" })
+		navigateToSettings()
 	}
 
 	const handleClose = () => {
