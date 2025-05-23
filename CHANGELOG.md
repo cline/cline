@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.17.5]
+
+-   Fix issue with Claude 4 models where after several conversation turns, it would start making invalid diff edits
+
+## [3.17.4]
+
+-   Fix thinking budget slider for Claude 4
+
+## [3.17.3]
+
+-   Fix diff edit errors with Claude 4 models
+
+## [3.17.2]
+
+-   Add support for Claude 4 models (Sonnet 4 and Opus 4) in AWS Bedrock and Vertex AI providers
+-   Add support for global workflows, allowing workflows to be shared across workspaces with local workflows taking precedence
+-   Fix settings page z-index UI issues that caused display problems
+-   Fix AWS Bedrock environment variable handling to properly restore process.env after API calls (Thanks @DaveFres!)
+
+## [3.17.1]
+
+-   Add prompt caching for Claude 4 models on Cline and OpenRouter providers
+-   Increase max tokens for Claude Opus 4 from 4096 to 8192
+
+## [3.17.0]
+
+-   Add support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and Vertex providers
+-   Add integration with Nebius AI Studio as a new provider (Thanks @Aktsvigun!)
+-   Add custom highlight and hotkey suggestion when the assistant prompts to switch to Act mode
+-   Update settings page design, now split into tabs for easier navigation (Thanks Yellow Bat @dlab-anton, and Roo Team!)
+-   Fix MCP Server configuration bug
+-   Fix model listing for Requesty provider
+-   Move all advanced settings to settings page
+
 ## [3.16.3]
 
 -   Add devstral-small-2505 to the Mistral model list, a new specialized coding model from Mistral AI (Thanks @BarreiroT!)

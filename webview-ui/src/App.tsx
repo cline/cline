@@ -5,9 +5,10 @@ import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import AccountView from "./components/account/AccountView"
 import { useExtensionState } from "./context/ExtensionStateContext"
-import { vscode } from "./utils/vscode"
+import { UiServiceClient } from "./services/grpc-client"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { Providers } from "./Providers"
+import { Boolean, EmptyRequest } from "@shared/proto/common"
 
 const AppContent = () => {
 	const {
@@ -21,6 +22,7 @@ const AppContent = () => {
 		showAccount,
 		showAnnouncement,
 		setShowAnnouncement,
+		setShouldShowAnnouncement,
 		closeMcpView,
 		navigateToHistory,
 		hideSettings,
@@ -32,7 +34,15 @@ const AppContent = () => {
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
 			setShowAnnouncement(true)
-			vscode.postMessage({ type: "didShowAnnouncement" })
+
+			// Use the gRPC client instead of direct WebviewMessage
+			UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
+				.then((response: Boolean) => {
+					setShouldShowAnnouncement(response.value)
+				})
+				.catch((error) => {
+					console.error("Failed to acknowledge announcement:", error)
+				})
 		}
 	}, [shouldShowAnnouncement])
 

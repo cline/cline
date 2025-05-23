@@ -9,8 +9,10 @@ const RuleRow: React.FC<{
 	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
 }> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType }) => {
+	// Check if the path type is Windows
+	const win32Path = /^[a-zA-Z]:\\/.test(rulePath)
 	// Get the filename from the path for display
-	const displayName = rulePath.split("/").pop() || rulePath
+	const displayName = rulePath.split(win32Path ? "\\" : "/").pop() || rulePath
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {

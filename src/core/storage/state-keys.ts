@@ -19,6 +19,7 @@ export type SecretKey =
 	| "authNonce"
 	| "asksageApiKey"
 	| "xaiApiKey"
+	| "nebiusApiKey"
 	| "sambanovaApiKey"
 
 export type GlobalStateKey =
@@ -54,6 +55,7 @@ export type GlobalStateKey =
 	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
 	| "globalClineRulesToggles"
+	| "globalWorkflowToggles"
 	| "browserSettings"
 	| "chatSettings"
 	| "vsCodeLmModelSelector"

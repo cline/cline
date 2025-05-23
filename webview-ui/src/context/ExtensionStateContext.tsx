@@ -45,6 +45,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
+	setShouldShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 	setEnableCheckpointsSetting: (value: boolean) => void
 	setMcpMarketplaceEnabled: (value: boolean) => void
@@ -55,7 +56,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
-	setWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 
 	// Navigation state setters
@@ -161,7 +163,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
-		workflowToggles: {},
+		localWorkflowToggles: {},
+		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 		isNewUser: false,
 	})
@@ -246,6 +249,7 @@ export const ExtensionStateContextProvider: React.FC<{
 									config.asksageApiKey,
 									config.xaiApiKey,
 									config.sambanovaApiKey,
+									config.nebiusApiKey,
 								].some((key) => key !== undefined)
 							: false
 
@@ -446,7 +450,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
-		workflowToggles: state.workflowToggles || {},
+		localWorkflowToggles: state.localWorkflowToggles || {},
+		globalWorkflowToggles: state.globalWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
 
 		// Navigation functions
@@ -491,7 +496,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				mcpMarketplaceEnabled: value,
 			})),
-		setShowAnnouncement: (value) =>
+		setShowAnnouncement,
+		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
 				shouldShowAnnouncement: value,
@@ -541,10 +547,15 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				localWindsurfRulesToggles: toggles,
 			})),
-		setWorkflowToggles: (toggles) =>
+		setLocalWorkflowToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
-				workflowToggles: toggles,
+				localWorkflowToggles: toggles,
+			})),
+		setGlobalWorkflowToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				globalWorkflowToggles: toggles,
 			})),
 		setMcpTab,
 	}
