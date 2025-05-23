@@ -555,10 +555,13 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 	}
 }
 
+// Static blacklist of VS Code Language Model IDs that should be excluded from the model list e.g. because they will never work
+const VSCODE_LM_STATIC_BLACKLIST: string[] = ["claude-3.7-sonnet", "claude-3.7-sonnet-thought"]
+
 export async function getVsCodeLmModels() {
 	try {
-		const models = await vscode.lm.selectChatModels({})
-		return models || []
+		const models = (await vscode.lm.selectChatModels({})) || []
+		return models.filter((model) => !VSCODE_LM_STATIC_BLACKLIST.includes(model.id))
 	} catch (error) {
 		console.error(
 			`Error fetching VS Code LM models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
