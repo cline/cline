@@ -94,12 +94,14 @@ export const ModelPicker = ({
 	}, [])
 
 	useEffect(() => {
-		if (!selectedModelId && !isInitialized.current) {
-			const initialValue = modelIds.includes(selectedModelId) ? selectedModelId : defaultModelId
-			setApiConfigurationField(modelIdKey, initialValue)
+		if (!isInitialized.current) {
+			// If no model is selected or the selected model is not in the available models list,
+			// initialize with the default model
+			if (!selectedModelId || !modelIds.includes(selectedModelId)) {
+				setApiConfigurationField(modelIdKey, defaultModelId)
+			}
+			isInitialized.current = true
 		}
-
-		isInitialized.current = true
 	}, [modelIds, setApiConfigurationField, modelIdKey, selectedModelId, defaultModelId])
 
 	return (

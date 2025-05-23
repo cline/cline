@@ -288,13 +288,19 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 		case "requestRouterModels":
 			const { apiConfiguration } = await provider.getState()
 
-			const [openRouterModels, requestyModels, glamaModels, unboundModels, litellmModels] = await Promise.all([
+			// Use Promise.allSettled instead of Promise.all to handle API failures gracefully
+			const results = await Promise.allSettled([
 				getModels("openrouter", apiConfiguration.openRouterApiKey),
 				getModels("requesty", apiConfiguration.requestyApiKey),
 				getModels("glama", apiConfiguration.glamaApiKey),
 				getModels("unbound", apiConfiguration.unboundApiKey),
 				getModels("litellm", apiConfiguration.litellmApiKey, apiConfiguration.litellmBaseUrl),
 			])
+
+			// Extract results, using empty objects for any failed requests
+			const [openRouterModels, requestyModels, glamaModels, unboundModels, litellmModels] = results.map(
+				(result) => (result.status === "fulfilled" ? result.value : {}),
+			)
 
 			provider.postMessageToWebview({
 				type: "routerModels",
