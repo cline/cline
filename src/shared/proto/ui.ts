@@ -5,7 +5,7 @@
 // source: ui.proto
 
 /* eslint-disable */
-import { Empty, StringRequest } from "./common"
+import { Boolean, Empty, EmptyRequest, StringRequest } from "./common"
 
 export const protobufPackage = "cline"
 
@@ -21,6 +21,15 @@ export const UiServiceDefinition = {
 			requestType: StringRequest,
 			requestStream: false,
 			responseType: Empty,
+			responseStream: false,
+			options: {},
+		},
+		/** Marks the current announcement as shown and returns whether an announcement should still be shown */
+		onDidShowAnnouncement: {
+			name: "onDidShowAnnouncement",
+			requestType: EmptyRequest,
+			requestStream: false,
+			responseType: Boolean,
 			responseStream: false,
 			options: {},
 		},

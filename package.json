@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.16.3",
+	"version": "3.17.5",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -50,8 +50,21 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
-					"icon": "assets/icons/icon.svg"
+					"title": "Cline (⌘+')",
+					"icon": "assets/icons/icon.svg",
+					"when": "isMac"
+				},
+				{
+					"id": "claude-dev-ActivityBar",
+					"title": "Cline (Ctrl+')",
+					"icon": "assets/icons/icon.svg",
+					"when": "isWindows"
+				},
+				{
+					"id": "claude-dev-ActivityBar",
+					"title": "Cline (Ctrl+')",
+					"icon": "assets/icons/icon.svg",
+					"when": "isLinux || !isMac && !isWindows"
 				}
 			]
 		},
@@ -265,7 +278,7 @@
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.js --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.js --production",
 		"protos": "node proto/build-proto.js && node scripts/generate-server-setup.mjs",
 		"postprotos": "prettier src/shared/proto src/core/controller webview-ui/src/services src/standalone/server-setup.ts --write --log-level silent",
 		"compile-tests": "node ./scripts/build-tests.js",
