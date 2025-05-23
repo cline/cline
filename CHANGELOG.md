@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## [3.18.2] - 2025-05-23
+
+- Fix vscode-material-icons in the filer picker
+- Fix global settings export
+- Respect user-configured terminal integration timeout (thanks @KJ7LNW)
+- Contex condensing enhancements (thanks @SannidhyaSah)
+
 ## [3.18.1] - 2025-05-22
 
 - Add support for Claude Sonnet 4 and Claude Opus 4 models with thinking variants in Anthropic, Bedrock, and Vertex (thanks @shariqriazz!)
