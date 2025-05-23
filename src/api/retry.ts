@@ -1,7 +1,10 @@
-interface RetryOptions {
+import { ApiHandlerOptions } from "../shared/api"
+
+export interface RetryOptions {
 	maxRetries?: number
 	baseDelay?: number
 	maxDelay?: number
+	/** This should only be get/set from the UI preferences. Avoid its usage at the decorator level as it will likely be overwritten 100% of the time. */
 	retryAllErrors?: boolean
 }
 
@@ -12,13 +15,23 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 	retryAllErrors: false,
 }
 
-export function withRetry(options: RetryOptions = {}) {
-	const { maxRetries, baseDelay, maxDelay, retryAllErrors } = { ...DEFAULT_OPTIONS, ...options }
-
+export function withRetry(decoratorOptions: RetryOptions = {}) {
 	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
 		const originalMethod = descriptor.value
 
 		descriptor.value = async function* (...args: any[]) {
+			const instance = this as { options?: ApiHandlerOptions }
+			const instanceOptions = instance.options?.retryOptions || {}
+
+			// Merge options with priority: instance options > decorator options > default options
+			const options = {
+				...DEFAULT_OPTIONS,
+				...decoratorOptions,
+				...instanceOptions,
+			}
+
+			const { maxRetries, baseDelay, maxDelay, retryAllErrors } = options
+
 			for (let attempt = 0; attempt < maxRetries; attempt++) {
 				try {
 					yield* originalMethod.apply(this, args)

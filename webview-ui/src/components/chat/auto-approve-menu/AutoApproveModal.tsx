@@ -8,6 +8,7 @@ import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import { ActionMetadata } from "./types"
+import { TextFieldType } from "@vscode/webview-ui-toolkit"
 
 const breakpoint = 500
 
@@ -17,6 +18,7 @@ interface AutoApproveModalProps {
 	buttonRef: React.RefObject<HTMLDivElement>
 	ACTION_METADATA: ActionMetadata[]
 	NOTIFICATIONS_SETTING: ActionMetadata
+	AUTORETRY_SETTING: ActionMetadata
 }
 
 const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
@@ -25,6 +27,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	buttonRef,
 	ACTION_METADATA,
 	NOTIFICATIONS_SETTING,
+	AUTORETRY_SETTING,
 }) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const { isChecked, isFavorited, toggleFavorite, updateAction, updateMaxRequests } = useAutoApproveActions()
@@ -155,6 +158,15 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 				<AutoApproveMenuItem
 					key={NOTIFICATIONS_SETTING.id}
 					action={NOTIFICATIONS_SETTING}
+					isChecked={isChecked}
+					isFavorited={isFavorited}
+					onToggle={updateAction}
+					onToggleFavorite={toggleFavorite}
+				/>
+
+				<AutoApproveMenuItem
+					key={AUTORETRY_SETTING.id}
+					action={AUTORETRY_SETTING}
 					isChecked={isChecked}
 					isFavorited={isFavorited}
 					onToggle={updateAction}

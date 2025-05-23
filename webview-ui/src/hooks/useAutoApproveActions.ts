@@ -15,6 +15,8 @@ export function useAutoApproveActions() {
 					return Object.values(autoApprovalSettings.actions).every(Boolean)
 				case "enableNotifications":
 					return autoApprovalSettings.enableNotifications
+				case "enableAutoRetry":
+					return autoApprovalSettings.enableAutoRetry
 				case "enableAutoApprove":
 					return autoApprovalSettings.enabled
 				default:
@@ -72,6 +74,11 @@ export function useAutoApproveActions() {
 
 			if (actionId === "enableNotifications" || subActionId === "enableNotifications") {
 				await updateNotifications(action, value)
+				return
+			}
+
+			if (actionId === "enableAutoRetry" || subActionId === "enableAutoRetry") {
+				await updateAutoRetry(action, value)
 				return
 			}
 
@@ -159,6 +166,19 @@ export function useAutoApproveActions() {
 		[autoApprovalSettings],
 	)
 
+	const updateAutoRetry = useCallback(
+		async (action: ActionMetadata, checked: boolean) => {
+			if (action.id === "enableAutoRetry") {
+				await updateAutoApproveSettings({
+					...autoApprovalSettings,
+					version: (autoApprovalSettings.version ?? 1) + 1,
+					enableAutoRetry: checked,
+				})
+			}
+		},
+		[autoApprovalSettings],
+	)
+
 	return {
 		isChecked,
 		isFavorited,
@@ -168,5 +188,6 @@ export function useAutoApproveActions() {
 		updateAutoApproveEnabled,
 		toggleAll,
 		updateNotifications,
+		updateAutoRetry,
 	}
 }

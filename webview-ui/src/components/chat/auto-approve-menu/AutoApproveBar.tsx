@@ -5,7 +5,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import AutoApproveModal from "./AutoApproveModal"
-import { ACTION_METADATA, NOTIFICATIONS_SETTING } from "./constants"
+import { ACTION_METADATA, AUTORETRY_SETTING, NOTIFICATIONS_SETTING } from "./constants"
 
 interface AutoApproveBarProps {
 	style?: React.CSSProperties
@@ -22,7 +22,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 
 	// Render a favorited item with a checkbox
 	const renderFavoritedItem = (favId: string) => {
-		const actions = [...ACTION_METADATA.flatMap((a) => [a, a.subAction]), NOTIFICATIONS_SETTING]
+		const actions = [...ACTION_METADATA.flatMap((a) => [a, a.subAction]), NOTIFICATIONS_SETTING, AUTORETRY_SETTING]
 		const action = actions.find((a) => a?.id === favId)
 		if (!action) return null
 
@@ -40,6 +40,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 
 	const getQuickAccessItems = () => {
 		const notificationsEnabled = autoApprovalSettings.enableNotifications
+		const autoRetryEnabled = autoApprovalSettings.enableAutoRetry
 		const enabledActionsNames = Object.keys(autoApprovalSettings.actions).filter(
 			(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
 		)
@@ -51,6 +52,10 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 
 		if (notificationsEnabled) {
 			minusFavorites.push(NOTIFICATIONS_SETTING)
+		}
+
+		if (autoRetryEnabled) {
+			minusFavorites.push(AUTORETRY_SETTING)
 		}
 
 		return [
@@ -107,6 +112,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				buttonRef={buttonRef}
 				ACTION_METADATA={ACTION_METADATA}
 				NOTIFICATIONS_SETTING={NOTIFICATIONS_SETTING}
+				AUTORETRY_SETTING={AUTORETRY_SETTING}
 			/>
 		</div>
 	)

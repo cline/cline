@@ -84,3 +84,11 @@ export const NOTIFICATIONS_SETTING: ActionMetadata = {
 	description: "Receive system notifications when Cline requires approval to proceed or when a task is completed.",
 	icon: "codicon-bell",
 }
+
+export const AUTORETRY_SETTING: ActionMetadata = {
+	id: "enableAutoRetry",
+	label: "Retry failed requests",
+	shortName: "Retry",
+	description: "Allows Cline to automatically retry failed API requests.",
+	icon: "codicon-debug-restart",
+}

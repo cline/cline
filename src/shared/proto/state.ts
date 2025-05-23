@@ -73,6 +73,7 @@ export interface AutoApprovalSettingsRequest {
 	maxRequests: number
 	enableNotifications: boolean
 	favorites: string[]
+	enableAutoRetry: boolean
 }
 
 export interface AutoApprovalSettingsRequest_Actions {
@@ -422,6 +423,7 @@ function createBaseAutoApprovalSettingsRequest(): AutoApprovalSettingsRequest {
 		maxRequests: 0,
 		enableNotifications: false,
 		favorites: [],
+		enableAutoRetry: false,
 	}
 }
 
@@ -447,6 +449,9 @@ export const AutoApprovalSettingsRequest: MessageFns<AutoApprovalSettingsRequest
 		}
 		for (const v of message.favorites) {
 			writer.uint32(58).string(v!)
+		}
+		if (message.enableAutoRetry !== false) {
+			writer.uint32(64).bool(message.enableAutoRetry)
 		}
 		return writer
 	},
@@ -514,6 +519,14 @@ export const AutoApprovalSettingsRequest: MessageFns<AutoApprovalSettingsRequest
 					message.favorites.push(reader.string())
 					continue
 				}
+				case 8: {
+					if (tag !== 64) {
+						break
+					}
+
+					message.enableAutoRetry = reader.bool()
+					continue
+				}
 			}
 			if ((tag & 7) === 4 || tag === 0) {
 				break
@@ -532,6 +545,7 @@ export const AutoApprovalSettingsRequest: MessageFns<AutoApprovalSettingsRequest
 			maxRequests: isSet(object.maxRequests) ? globalThis.Number(object.maxRequests) : 0,
 			enableNotifications: isSet(object.enableNotifications) ? globalThis.Boolean(object.enableNotifications) : false,
 			favorites: globalThis.Array.isArray(object?.favorites) ? object.favorites.map((e: any) => globalThis.String(e)) : [],
+			enableAutoRetry: isSet(object.enableAutoRetry) ? globalThis.Boolean(object.enableAutoRetry) : false,
 		}
 	},
 
@@ -558,6 +572,9 @@ export const AutoApprovalSettingsRequest: MessageFns<AutoApprovalSettingsRequest
 		if (message.favorites?.length) {
 			obj.favorites = message.favorites
 		}
+		if (message.enableAutoRetry !== false) {
+			obj.enableAutoRetry = message.enableAutoRetry
+		}
 		return obj
 	},
 
@@ -577,6 +594,7 @@ export const AutoApprovalSettingsRequest: MessageFns<AutoApprovalSettingsRequest
 		message.maxRequests = object.maxRequests ?? 0
 		message.enableNotifications = object.enableNotifications ?? false
 		message.favorites = object.favorites?.map((e) => e) || []
+		message.enableAutoRetry = object.enableAutoRetry ?? false
 		return message
 	},
 }

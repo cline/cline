@@ -60,4 +60,5 @@ message AutoApprovalSettingsRequest {
   int32 max_requests = 5;
   bool enable_notifications = 6;
   repeated string favorites = 7;
+  bool enable_auto_retry = 8;
 }

@@ -232,6 +232,9 @@ export class Task {
 		let effectiveApiConfiguration: ApiConfiguration = {
 			...apiConfiguration,
 			taskId: this.taskId,
+			retryOptions: {
+				retryAllErrors: this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableAutoRetry,
+			},
 			onRetryAttempt: (attempt: number, maxRetries: number, delay: number, error: any) => {
 				const lastApiReqStartedIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 				if (lastApiReqStartedIndex !== -1) {
