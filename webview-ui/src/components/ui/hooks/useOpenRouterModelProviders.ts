@@ -65,10 +65,13 @@ async function getOpenRouterProvidersForModel(modelId: string) {
 				inputPrice,
 				outputPrice,
 				description,
-				thinking: modelId === "anthropic/claude-3.7-sonnet:thinking",
 				label: providerName,
 			}
 
+			// TODO: This is wrong. We need to fetch the model info from
+			// OpenRouter instead of hardcoding it here. The endpoints payload
+			// doesn't include this unfortunately, so we need to get it from the
+			// main models endpoint.
 			switch (true) {
 				case modelId.startsWith("anthropic/claude-3.7-sonnet"):
 					modelInfo.supportsComputerUse = true

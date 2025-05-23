@@ -1,3 +1,5 @@
+// npx jest src/api/providers/__tests__/openai-native.test.ts
+
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { OpenAiNativeHandler } from "../openai-native"
@@ -5,6 +7,7 @@ import { ApiHandlerOptions } from "../../../shared/api"
 
 // Mock OpenAI client
 const mockCreate = jest.fn()
+
 jest.mock("openai", () => {
 	return {
 		__esModule: true,

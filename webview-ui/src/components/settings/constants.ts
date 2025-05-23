@@ -13,7 +13,7 @@ import {
 	chutesModels,
 } from "@roo/shared/api"
 
-export { REASONING_MODELS, PROMPT_CACHING_MODELS } from "@roo/shared/api"
+export { PROMPT_CACHING_MODELS } from "@roo/shared/api"
 
 export { AWS_REGIONS } from "@roo/shared/aws_regions"
 

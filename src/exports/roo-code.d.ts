@@ -228,11 +228,12 @@ type ProviderSettings = {
 		  )
 		| undefined
 	includeMaxTokens?: boolean | undefined
-	reasoningEffort?: ("low" | "medium" | "high") | undefined
 	diffEnabled?: boolean | undefined
 	fuzzyMatchThreshold?: number | undefined
 	modelTemperature?: (number | null) | undefined
 	rateLimitSeconds?: number | undefined
+	enableReasoningEffort?: boolean | undefined
+	reasoningEffort?: ("low" | "medium" | "high") | undefined
 	modelMaxTokens?: number | undefined
 	modelMaxThinkingTokens?: number | undefined
 	apiModelId?: string | undefined
@@ -272,13 +273,16 @@ type ProviderSettings = {
 				supportsImages?: boolean | undefined
 				supportsComputerUse?: boolean | undefined
 				supportsPromptCache: boolean
+				supportsReasoningBudget?: boolean | undefined
+				requiredReasoningBudget?: boolean | undefined
+				supportsReasoningEffort?: boolean | undefined
+				supportedParameters?: ("max_tokens" | "temperature" | "reasoning" | "include_reasoning")[] | undefined
 				inputPrice?: number | undefined
 				outputPrice?: number | undefined
 				cacheWritesPrice?: number | undefined
 				cacheReadsPrice?: number | undefined
 				description?: string | undefined
 				reasoningEffort?: ("low" | "medium" | "high") | undefined
-				thinking?: boolean | undefined
 				minTokensPerCachePoint?: number | undefined
 				maxCachePoints?: number | undefined
 				cachableFields?: string[] | undefined
@@ -296,7 +300,6 @@ type ProviderSettings = {
 	openAiUseAzure?: boolean | undefined
 	azureApiVersion?: string | undefined
 	openAiStreamingEnabled?: boolean | undefined
-	enableReasoningEffort?: boolean | undefined
 	openAiHostHeader?: string | undefined
 	openAiHeaders?:
 		| {
@@ -631,11 +634,12 @@ type IpcMessage =
 									  )
 									| undefined
 								includeMaxTokens?: boolean | undefined
-								reasoningEffort?: ("low" | "medium" | "high") | undefined
 								diffEnabled?: boolean | undefined
 								fuzzyMatchThreshold?: number | undefined
 								modelTemperature?: (number | null) | undefined
 								rateLimitSeconds?: number | undefined
+								enableReasoningEffort?: boolean | undefined
+								reasoningEffort?: ("low" | "medium" | "high") | undefined
 								modelMaxTokens?: number | undefined
 								modelMaxThinkingTokens?: number | undefined
 								apiModelId?: string | undefined
@@ -675,13 +679,18 @@ type IpcMessage =
 											supportsImages?: boolean | undefined
 											supportsComputerUse?: boolean | undefined
 											supportsPromptCache: boolean
+											supportsReasoningBudget?: boolean | undefined
+											requiredReasoningBudget?: boolean | undefined
+											supportsReasoningEffort?: boolean | undefined
+											supportedParameters?:
+												| ("max_tokens" | "temperature" | "reasoning" | "include_reasoning")[]
+												| undefined
 											inputPrice?: number | undefined
 											outputPrice?: number | undefined
 											cacheWritesPrice?: number | undefined
 											cacheReadsPrice?: number | undefined
 											description?: string | undefined
 											reasoningEffort?: ("low" | "medium" | "high") | undefined
-											thinking?: boolean | undefined
 											minTokensPerCachePoint?: number | undefined
 											maxCachePoints?: number | undefined
 											cachableFields?: string[] | undefined
@@ -699,7 +708,6 @@ type IpcMessage =
 								openAiUseAzure?: boolean | undefined
 								azureApiVersion?: string | undefined
 								openAiStreamingEnabled?: boolean | undefined
-								enableReasoningEffort?: boolean | undefined
 								openAiHostHeader?: string | undefined
 								openAiHeaders?:
 									| {
@@ -1108,11 +1116,12 @@ type TaskCommand =
 						  )
 						| undefined
 					includeMaxTokens?: boolean | undefined
-					reasoningEffort?: ("low" | "medium" | "high") | undefined
 					diffEnabled?: boolean | undefined
 					fuzzyMatchThreshold?: number | undefined
 					modelTemperature?: (number | null) | undefined
 					rateLimitSeconds?: number | undefined
+					enableReasoningEffort?: boolean | undefined
+					reasoningEffort?: ("low" | "medium" | "high") | undefined
 					modelMaxTokens?: number | undefined
 					modelMaxThinkingTokens?: number | undefined
 					apiModelId?: string | undefined
@@ -1152,13 +1161,18 @@ type TaskCommand =
 								supportsImages?: boolean | undefined
 								supportsComputerUse?: boolean | undefined
 								supportsPromptCache: boolean
+								supportsReasoningBudget?: boolean | undefined
+								requiredReasoningBudget?: boolean | undefined
+								supportsReasoningEffort?: boolean | undefined
+								supportedParameters?:
+									| ("max_tokens" | "temperature" | "reasoning" | "include_reasoning")[]
+									| undefined
 								inputPrice?: number | undefined
 								outputPrice?: number | undefined
 								cacheWritesPrice?: number | undefined
 								cacheReadsPrice?: number | undefined
 								description?: string | undefined
 								reasoningEffort?: ("low" | "medium" | "high") | undefined
-								thinking?: boolean | undefined
 								minTokensPerCachePoint?: number | undefined
 								maxCachePoints?: number | undefined
 								cachableFields?: string[] | undefined
@@ -1176,7 +1190,6 @@ type TaskCommand =
 					openAiUseAzure?: boolean | undefined
 					azureApiVersion?: string | undefined
 					openAiStreamingEnabled?: boolean | undefined
-					enableReasoningEffort?: boolean | undefined
 					openAiHostHeader?: string | undefined
 					openAiHeaders?:
 						| {

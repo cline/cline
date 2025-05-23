@@ -5,8 +5,8 @@ import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
 import { CloudUpload, CloudDownload } from "lucide-react"
 
 import { ClineMessage } from "@roo/shared/ExtensionMessage"
+import { getModelMaxOutputTokens } from "@roo/shared/api"
 
-import { getMaxTokensForModel } from "@src/utils/model-utils"
 import { formatLargeNumber } from "@src/utils/format"
 import { cn } from "@src/lib/utils"
 import { Button } from "@src/components/ui"
@@ -100,7 +100,9 @@ const TaskHeader = ({
 						<ContextWindowProgress
 							contextWindow={contextWindow}
 							contextTokens={contextTokens || 0}
-							maxTokens={getMaxTokensForModel(model, apiConfiguration)}
+							maxTokens={
+								model ? getModelMaxOutputTokens({ model, settings: apiConfiguration }) : undefined
+							}
 						/>
 						{!!totalCost && <VSCodeBadge>${totalCost.toFixed(2)}</VSCodeBadge>}
 					</div>
@@ -136,7 +138,11 @@ const TaskHeader = ({
 									<ContextWindowProgress
 										contextWindow={contextWindow}
 										contextTokens={contextTokens || 0}
-										maxTokens={getMaxTokensForModel(model, apiConfiguration)}
+										maxTokens={
+											model
+												? getModelMaxOutputTokens({ model, settings: apiConfiguration })
+												: undefined
+										}
 									/>
 								</div>
 							)}

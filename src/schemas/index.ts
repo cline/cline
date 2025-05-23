@@ -172,6 +172,19 @@ export const reasoningEffortsSchema = z.enum(reasoningEfforts)
 export type ReasoningEffort = z.infer<typeof reasoningEffortsSchema>
 
 /**
+ * ModelParameter
+ */
+
+export const modelParameters = ["max_tokens", "temperature", "reasoning", "include_reasoning"] as const
+
+export const modelParametersSchema = z.enum(modelParameters)
+
+export type ModelParameter = z.infer<typeof modelParametersSchema>
+
+export const isModelParameter = (value: string): value is ModelParameter =>
+	modelParameters.includes(value as ModelParameter)
+
+/**
  * ModelInfo
  */
 
@@ -182,13 +195,16 @@ export const modelInfoSchema = z.object({
 	supportsImages: z.boolean().optional(),
 	supportsComputerUse: z.boolean().optional(),
 	supportsPromptCache: z.boolean(),
+	supportsReasoningBudget: z.boolean().optional(),
+	requiredReasoningBudget: z.boolean().optional(),
+	supportsReasoningEffort: z.boolean().optional(),
+	supportedParameters: z.array(modelParametersSchema).optional(),
 	inputPrice: z.number().optional(),
 	outputPrice: z.number().optional(),
 	cacheWritesPrice: z.number().optional(),
 	cacheReadsPrice: z.number().optional(),
 	description: z.string().optional(),
 	reasoningEffort: reasoningEffortsSchema.optional(),
-	thinking: z.boolean().optional(),
 	minTokensPerCachePoint: z.number().optional(),
 	maxCachePoints: z.number().optional(),
 	cachableFields: z.array(z.string()).optional(),
@@ -422,12 +438,14 @@ export type ProviderSettingsEntry = z.infer<typeof providerSettingsEntrySchema>
 
 const baseProviderSettingsSchema = z.object({
 	includeMaxTokens: z.boolean().optional(),
-	reasoningEffort: reasoningEffortsSchema.optional(),
 	diffEnabled: z.boolean().optional(),
 	fuzzyMatchThreshold: z.number().optional(),
 	modelTemperature: z.number().nullish(),
 	rateLimitSeconds: z.number().optional(),
-	// Claude 3.7 Sonnet Thinking
+
+	// Model reasoning.
+	enableReasoningEffort: z.boolean().optional(),
+	reasoningEffort: reasoningEffortsSchema.optional(),
 	modelMaxTokens: z.number().optional(),
 	modelMaxThinkingTokens: z.number().optional(),
 })
@@ -485,7 +503,6 @@ const openAiSchema = baseProviderSettingsSchema.extend({
 	openAiUseAzure: z.boolean().optional(),
 	azureApiVersion: z.string().optional(),
 	openAiStreamingEnabled: z.boolean().optional(),
-	enableReasoningEffort: z.boolean().optional(),
 	openAiHostHeader: z.string().optional(), // Keep temporarily for backward compatibility during migration.
 	openAiHeaders: z.record(z.string(), z.string()).optional(),
 })
@@ -666,7 +683,6 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	openAiUseAzure: undefined,
 	azureApiVersion: undefined,
 	openAiStreamingEnabled: undefined,
-	enableReasoningEffort: undefined,
 	openAiHostHeader: undefined, // Keep temporarily for backward compatibility during migration
 	openAiHeaders: undefined,
 	// Ollama
@@ -696,12 +712,13 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	// Requesty
 	requestyApiKey: undefined,
 	requestyModelId: undefined,
-	// Claude 3.7 Sonnet Thinking
+	// Reasoning
+	enableReasoningEffort: undefined,
+	reasoningEffort: undefined,
 	modelMaxTokens: undefined,
 	modelMaxThinkingTokens: undefined,
 	// Generic
 	includeMaxTokens: undefined,
-	reasoningEffort: undefined,
 	diffEnabled: undefined,
 	fuzzyMatchThreshold: undefined,
 	modelTemperature: undefined,

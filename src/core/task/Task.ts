@@ -1548,8 +1548,8 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.lastApiRequestTime = Date.now()
 
 		const systemPrompt = await this.getSystemPrompt()
-
 		const { contextTokens } = this.getTokenUsage()
+
 		if (contextTokens) {
 			// Default max tokens value for thinking models when no specific
 			// value is set.
@@ -1557,7 +1557,7 @@ export class Task extends EventEmitter<ClineEvents> {
 
 			const modelInfo = this.api.getModel().info
 
-			const maxTokens = modelInfo.thinking
+			const maxTokens = modelInfo.supportsReasoningBudget
 				? this.apiConfiguration.modelMaxTokens || DEFAULT_THINKING_MODEL_MAX_TOKENS
 				: modelInfo.maxTokens
 

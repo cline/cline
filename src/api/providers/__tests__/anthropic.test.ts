@@ -242,7 +242,7 @@ describe("AnthropicHandler", () => {
 
 			const result = handler.getModel()
 			expect(result.maxTokens).toBe(32_768)
-			expect(result.thinking).toEqual({ type: "enabled", budget_tokens: 16_384 })
+			expect(result.reasoningBudget).toEqual(16_384)
 			expect(result.temperature).toBe(1.0)
 		})
 
@@ -256,7 +256,7 @@ describe("AnthropicHandler", () => {
 
 			const result = handler.getModel()
 			expect(result.maxTokens).toBe(8192)
-			expect(result.thinking).toBeUndefined()
+			expect(result.reasoningBudget).toBeUndefined()
 			expect(result.temperature).toBe(0)
 		})
 	})

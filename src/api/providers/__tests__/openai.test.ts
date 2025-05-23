@@ -157,11 +157,17 @@ describe("OpenAiHandler", () => {
 			expect(textChunks).toHaveLength(1)
 			expect(textChunks[0].text).toBe("Test response")
 		})
+
 		it("should include reasoning_effort when reasoning effort is enabled", async () => {
 			const reasoningOptions: ApiHandlerOptions = {
 				...mockOptions,
 				enableReasoningEffort: true,
-				openAiCustomModelInfo: { contextWindow: 128_000, supportsPromptCache: false, reasoningEffort: "high" },
+				openAiCustomModelInfo: {
+					contextWindow: 128_000,
+					supportsPromptCache: false,
+					supportsReasoningEffort: true,
+					reasoningEffort: "high",
+				},
 			}
 			const reasoningHandler = new OpenAiHandler(reasoningOptions)
 			const stream = reasoningHandler.createMessage(systemPrompt, messages)

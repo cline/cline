@@ -701,7 +701,7 @@ describe("VertexHandler", () => {
 
 			const result = handler.getModel()
 			expect(result.maxTokens).toBe(32_768)
-			expect(result.thinking).toEqual({ type: "enabled", budget_tokens: 16_384 })
+			expect(result.reasoningBudget).toEqual(16_384)
 			expect(result.temperature).toBe(1.0)
 		})
 
@@ -715,7 +715,7 @@ describe("VertexHandler", () => {
 
 			const result = handler.getModel()
 			expect(result.maxTokens).toBe(8192)
-			expect(result.thinking).toBeUndefined()
+			expect(result.reasoningBudget).toBeUndefined()
 			expect(result.temperature).toBe(0)
 		})
 	})
@@ -732,13 +732,9 @@ describe("VertexHandler", () => {
 
 			const modelInfo = thinkingHandler.getModel()
 
-			// Verify thinking configuration
 			expect(modelInfo.id).toBe("claude-3-7-sonnet@20250219")
-			expect(modelInfo.thinking).toBeDefined()
-			const thinkingConfig = modelInfo.thinking as { type: "enabled"; budget_tokens: number }
-			expect(thinkingConfig.type).toBe("enabled")
-			expect(thinkingConfig.budget_tokens).toBe(4096)
-			expect(modelInfo.temperature).toBe(1.0) // Thinking requires temperature 1.0
+			expect(modelInfo.reasoningBudget).toBe(4096)
+			expect(modelInfo.temperature).toBe(1.0) // Thinking requires temperature 1.0.
 		})
 
 		it("should calculate thinking budget correctly", () => {
@@ -751,7 +747,7 @@ describe("VertexHandler", () => {
 				modelMaxThinkingTokens: 5000,
 			})
 
-			expect((handlerWithBudget.getModel().thinking as any).budget_tokens).toBe(5000)
+			expect(handlerWithBudget.getModel().reasoningBudget).toBe(5000)
 
 			// Test with default thinking budget (80% of max tokens)
 			const handlerWithDefaultBudget = new AnthropicVertexHandler({
@@ -761,7 +757,7 @@ describe("VertexHandler", () => {
 				modelMaxTokens: 10000,
 			})
 
-			expect((handlerWithDefaultBudget.getModel().thinking as any).budget_tokens).toBe(8000) // 80% of 10000
+			expect(handlerWithDefaultBudget.getModel().reasoningBudget).toBe(8000) // 80% of 10000
 
 			// Test with minimum thinking budget (should be at least 1024)
 			const handlerWithSmallMaxTokens = new AnthropicVertexHandler({
@@ -771,7 +767,7 @@ describe("VertexHandler", () => {
 				modelMaxTokens: 1000, // This would result in 800 tokens for thinking, but minimum is 1024
 			})
 
-			expect((handlerWithSmallMaxTokens.getModel().thinking as any).budget_tokens).toBe(1024)
+			expect(handlerWithSmallMaxTokens.getModel().reasoningBudget).toBe(1024)
 		})
 
 		it("should pass thinking configuration to API", async () => {

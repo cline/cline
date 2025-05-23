@@ -1,10 +1,13 @@
-import { OpenAiHandler, OpenAiHandlerOptions } from "./openai"
-import { deepSeekModels, deepSeekDefaultModelId, ModelInfo } from "../../shared/api"
-import { ApiStreamUsageChunk } from "../transform/stream" // Import for type
-import { getModelParams } from "../index"
+import { deepSeekModels, deepSeekDefaultModelId } from "../../shared/api"
+import type { ApiHandlerOptions } from "../../shared/api"
+
+import type { ApiStreamUsageChunk } from "../transform/stream"
+import { getModelParams } from "../transform/model-params"
+
+import { OpenAiHandler } from "./openai"
 
 export class DeepSeekHandler extends OpenAiHandler {
-	constructor(options: OpenAiHandlerOptions) {
+	constructor(options: ApiHandlerOptions) {
 		super({
 			...options,
 			openAiApiKey: options.deepSeekApiKey ?? "not-provided",
@@ -15,15 +18,11 @@ export class DeepSeekHandler extends OpenAiHandler {
 		})
 	}
 
-	override getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId ?? deepSeekDefaultModelId
-		const info = deepSeekModels[modelId as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId]
-
-		return {
-			id: modelId,
-			info,
-			...getModelParams({ options: this.options, model: info }),
-		}
+	override getModel() {
+		const id = this.options.apiModelId ?? deepSeekDefaultModelId
+		const info = deepSeekModels[id as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId]
+		const params = getModelParams({ format: "openai", modelId: id, model: info, settings: this.options })
+		return { id, info, ...params }
 	}
 
 	// Override to handle DeepSeek's usage metrics, including caching.

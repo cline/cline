@@ -4,7 +4,7 @@ import { Checkbox } from "vscrui"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { convertHeadersToObject } from "../utils/headers"
 
-import { ModelInfo, ReasoningEffort as ReasoningEffortType } from "@roo/schemas"
+import { ModelInfo, ReasoningEffort } from "@roo/schemas"
 import { ProviderSettings, azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@roo/shared/api"
 import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
 
@@ -14,7 +14,7 @@ import { Button } from "@src/components/ui"
 import { inputEventTransform, noTransform } from "../transforms"
 import { ModelPicker } from "../ModelPicker"
 import { R1FormatSetting } from "../R1FormatSetting"
-import { ReasoningEffort } from "../ReasoningEffort"
+import { ThinkingBudget } from "../ThinkingBudget"
 
 type OpenAICompatibleProps = {
 	apiConfiguration: ProviderSettings
@@ -232,7 +232,7 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 					{t("settings:providers.setReasoningLevel")}
 				</Checkbox>
 				{!!apiConfiguration.enableReasoningEffort && (
-					<ReasoningEffort
+					<ThinkingBudget
 						apiConfiguration={{
 							...apiConfiguration,
 							reasoningEffort: apiConfiguration.openAiCustomModelInfo?.reasoningEffort,
@@ -244,9 +244,13 @@ export const OpenAICompatible = ({ apiConfiguration, setApiConfigurationField }:
 
 								setApiConfigurationField("openAiCustomModelInfo", {
 									...openAiCustomModelInfo,
-									reasoningEffort: value as ReasoningEffortType,
+									reasoningEffort: value as ReasoningEffort,
 								})
 							}
+						}}
+						modelInfo={{
+							...(apiConfiguration.openAiCustomModelInfo || openAiModelInfoSaneDefaults),
+							supportsReasoningEffort: true,
 						}}
 					/>
 				)}

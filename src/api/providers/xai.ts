@@ -1,13 +1,15 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import { ApiHandlerOptions, XAIModelId, xaiDefaultModelId, xaiModels, REASONING_MODELS } from "../../shared/api"
+import { ApiHandlerOptions, XAIModelId, xaiDefaultModelId, xaiModels } from "../../shared/api"
+
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { getModelParams } from "../transform/model-params"
 
-import { SingleCompletionHandler } from "../index"
 import { DEFAULT_HEADERS } from "./constants"
 import { BaseProvider } from "./base-provider"
+import { type SingleCompletionHandler } from "../index"
 
 const XAI_DEFAULT_TEMPERATURE = 0
 
@@ -26,24 +28,18 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 	}
 
 	override getModel() {
-		// Determine which model ID to use (specified or default)
 		const id =
 			this.options.apiModelId && this.options.apiModelId in xaiModels
 				? (this.options.apiModelId as XAIModelId)
 				: xaiDefaultModelId
 
-		// Check if reasoning effort applies to this model
-		const supportsReasoning = REASONING_MODELS.has(id)
-
-		return {
-			id,
-			info: xaiModels[id],
-			reasoningEffort: supportsReasoning ? this.options.reasoningEffort : undefined,
-		}
+		const info = xaiModels[id]
+		const params = getModelParams({ format: "openai", modelId: id, model: info, settings: this.options })
+		return { id, info, ...params }
 	}
 
 	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const { id: modelId, info: modelInfo, reasoningEffort } = this.getModel()
+		const { id: modelId, info: modelInfo, reasoning } = this.getModel()
 
 		// Use the OpenAI-compatible API.
 		const stream = await this.client.chat.completions.create({
@@ -53,7 +49,7 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
-			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+			...(reasoning && reasoning),
 		})
 
 		for await (const chunk of stream) {
@@ -91,13 +87,13 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 	}
 
 	async completePrompt(prompt: string): Promise<string> {
-		const { id: modelId, reasoningEffort } = this.getModel()
+		const { id: modelId, reasoning } = this.getModel()
 
 		try {
 			const response = await this.client.chat.completions.create({
 				model: modelId,
 				messages: [{ role: "user", content: prompt }],
-				...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+				...(reasoning && reasoning),
 			})
 
 			return response.choices[0]?.message.content || ""

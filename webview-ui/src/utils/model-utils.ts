@@ -1,37 +1,4 @@
 /**
- * Utility functions for working with language models and tokens
- */
-
-/**
- * Default maximum tokens for thinking-capable models when no specific value is provided
- */
-export const DEFAULT_THINKING_MODEL_MAX_TOKENS = 16_384
-
-/**
- * Model information interface with properties used in token calculations
- */
-export interface ModelInfo {
-	/**
-	 * Maximum number of tokens the model can process
-	 */
-	maxTokens?: number | null
-
-	/**
-	 * Whether the model supports thinking/reasoning capabilities
-	 */
-	thinking?: boolean
-}
-
-/**
- * API configuration interface with token-related settings
- */
-export interface ApiConfig {
-	/**
-	 * Maximum tokens to use for model responses
-	 */
-	modelMaxTokens?: number
-}
-/**
  * Result of token distribution calculation
  */
 export interface TokenDistributionResult {
@@ -59,25 +26,6 @@ export interface TokenDistributionResult {
 	 * Number of tokens still available in the context window
 	 */
 	availableSize: number
-}
-
-/**
- * Determines the maximum tokens based on model configuration
- * If the model supports thinking, prioritize the API configuration's modelMaxTokens,
- * falling back to the model's own maxTokens. Otherwise, just use the model's maxTokens.
- *
- * @param modelInfo The model information object with properties like maxTokens and thinking
- * @param apiConfig The API configuration object with properties like modelMaxTokens
- * @returns The maximum tokens value or undefined if no valid value is available
- */
-export const getMaxTokensForModel = (
-	modelInfo: ModelInfo | undefined,
-	apiConfig: ApiConfig | undefined,
-): number | undefined => {
-	if (modelInfo?.thinking) {
-		return apiConfig?.modelMaxTokens || DEFAULT_THINKING_MODEL_MAX_TOKENS
-	}
-	return modelInfo?.maxTokens ?? undefined
 }
 
 /**

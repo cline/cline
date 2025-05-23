@@ -114,6 +114,7 @@
 		"glamaApiKey": "Glama API 키",
 		"getGlamaApiKey": "Glama API 키 받기",
 		"useCustomBaseUrl": "사용자 정의 기본 URL 사용",
+		"useReasoning": "추론 활성화",
 		"useHostHeader": "사용자 정의 Host 헤더 사용",
 		"useLegacyFormat": "레거시 OpenAI API 형식 사용",
 		"customHeaders": "사용자 정의 헤더",

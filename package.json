@@ -14,6 +14,7 @@
 		"clean": "turbo clean --log-order grouped --output-logs new-only && rimraf dist out bin .vite-port .turbo",
 		"build": "pnpm --filter roo-cline vsix",
 		"build:nightly": "pnpm --filter @roo-code/vscode-nightly vsix",
+		"generate-types": "pnpm --filter roo-cline generate-types",
 		"changeset:version": "cp CHANGELOG.md src/CHANGELOG.md && changeset version && cp -vf src/CHANGELOG.md .",
 		"knip": "pnpm --filter @roo-code/build build && knip --include files",
 		"update-contributors": "node scripts/update-contributors.js"
