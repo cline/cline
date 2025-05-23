@@ -61,7 +61,7 @@ Detail the steps to test your changes. This helps reviewers verify your work.
 - [ ] **Branch Hygiene**: My branch is up-to-date (rebased) with the `main` branch.
 - [ ] **Documentation Impact**: I have considered if my changes require documentation updates (see "Documentation Updates" section below).
 - [ ] **Changeset**: A changeset has been created using `npm run changeset` if this PR includes user-facing changes or dependency updates.
-- [ ] **Contribution Guidelines**: I have read and agree to the [Contributor Guidelines](../CONTRIBUTING.md).
+- [ ] **Contribution Guidelines**: I have read and agree to the [Contributor Guidelines](/CONTRIBUTING.md).
 
 ### Screenshots / Videos
 

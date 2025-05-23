@@ -71,16 +71,18 @@ body:
   - type: textarea
     id: what-happened
     attributes:
-      label: 💥 Outcome Summary (Optional)
+      label: 💥 Outcome Summary
       description: |
-        Recap what went wrong in one or two lines. Use this if the bug is weird, unexpected, or needs extra context.
+        Recap what went wrong in one or two lines.
 
         Example: "Expected code to run, but got an empty response and no error."
       placeholder: Expected ___, but got ___.
+    validations:
+      required: true
 
   - type: textarea
     id: logs
     attributes:
-      label: 📄 Relevant Logs or Errors
+      label: 📄 Relevant Logs or Errors (Optional)
       description: Paste API logs, terminal output, or errors here. Use triple backticks (```) for code formatting.
       render: shell
