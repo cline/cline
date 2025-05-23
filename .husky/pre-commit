@@ -9,10 +9,14 @@ fi
 if [ "$OS" = "Windows_NT" ]; then
   pnpm_cmd="pnpm.cmd"
 else
-  pnpm_cmd="pnpm"
+  if command -v pnpm >/dev/null 2>&1; then
+    pnpm_cmd="pnpm"
+  else
+    pnpm_cmd="npx pnpm"
+  fi
 fi
 
-"$pnpm_cmd" --filter roo-cline generate-types
+$pnpm_cmd --filter roo-cline generate-types
 
 if [ -n "$(git diff --name-only src/exports/roo-code.d.ts)" ]; then
   echo "Error: There are unstaged changes to roo-code.d.ts after running 'pnpm --filter roo-cline generate-types'."
@@ -27,5 +31,5 @@ else
   npx_cmd="npx"
 fi
 
-"$npx_cmd" lint-staged
-"$pnpm_cmd" lint
+$npx_cmd lint-staged
+$pnpm_cmd lint
