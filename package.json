@@ -5,10 +5,10 @@
 		"node": "20.18.1"
 	},
 	"scripts": {
-		"preinstall": "node scripts/bootstrap.js",
+		"preinstall": "node scripts/bootstrap.mjs",
 		"prepare": "husky",
-		"install": "node scripts/bootstrap.js",
-		"install:all": "node scripts/bootstrap.js",
+		"install": "node scripts/bootstrap.mjs",
+		"install:all": "node scripts/bootstrap.mjs",
 		"lint": "turbo lint --log-order grouped --output-logs new-only",
 		"check-types": "turbo check-types --log-order grouped --output-logs new-only",
 		"test": "turbo test --log-order grouped --output-logs new-only",
