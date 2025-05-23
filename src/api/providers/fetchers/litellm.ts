@@ -7,6 +7,7 @@ import { COMPUTER_USE_MODELS, ModelRecord } from "../../../shared/api"
  * @param apiKey The API key for the LiteLLM server
  * @param baseUrl The base URL of the LiteLLM server
  * @returns A promise that resolves to a record of model IDs to model info
+ * @throws Will throw an error if the request fails or the response is not as expected.
  */
 export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise<ModelRecord> {
 	try {
@@ -17,8 +18,8 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 		if (apiKey) {
 			headers["Authorization"] = `Bearer ${apiKey}`
 		}
-
-		const response = await axios.get(`${baseUrl}/v1/model/info`, { headers })
+		// Added timeout to prevent indefinite hanging
+		const response = await axios.get(`${baseUrl}/v1/model/info`, { headers, timeout: 5000 })
 		const models: ModelRecord = {}
 
 		const computerModels = Array.from(COMPUTER_USE_MODELS)
@@ -48,11 +49,25 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 					description: `${modelName} via LiteLLM proxy`,
 				}
 			}
+		} else {
+			// If response.data.data is not in the expected format, consider it an error.
+			console.error("Error fetching LiteLLM models: Unexpected response format", response.data)
+			throw new Error("Failed to fetch LiteLLM models: Unexpected response format.")
 		}
 
 		return models
-	} catch (error) {
-		console.error("Error fetching LiteLLM models:", error)
-		return {}
+	} catch (error: any) {
+		console.error("Error fetching LiteLLM models:", error.message ? error.message : error)
+		if (axios.isAxiosError(error) && error.response) {
+			throw new Error(
+				`Failed to fetch LiteLLM models: ${error.response.status} ${error.response.statusText}. Check base URL and API key.`,
+			)
+		} else if (axios.isAxiosError(error) && error.request) {
+			throw new Error(
+				"Failed to fetch LiteLLM models: No response from server. Check LiteLLM server status and base URL.",
+			)
+		} else {
+			throw new Error(`Failed to fetch LiteLLM models: ${error.message || "An unknown error occurred."}`)
+		}
 	}
 }

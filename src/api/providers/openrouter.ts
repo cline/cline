@@ -162,7 +162,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 	public async fetchModel() {
 		const [models, endpoints] = await Promise.all([
-			getModels("openrouter"),
+			getModels({ provider: "openrouter" }),
 			getModelEndpoints({
 				router: "openrouter",
 				modelId: this.options.openRouterModelId,

@@ -124,7 +124,10 @@
 		"requestyApiKey": "Requesty API-sleutel",
 		"refreshModels": {
 			"label": "Modellen verversen",
-			"hint": "Open de instellingen opnieuw om de nieuwste modellen te zien."
+			"hint": "Open de instellingen opnieuw om de nieuwste modellen te zien.",
+			"loading": "Modellenlijst wordt vernieuwd...",
+			"success": "Modellenlijst succesvol vernieuwd!",
+			"error": "Kan modellenlijst niet vernieuwen. Probeer het opnieuw."
 		},
 		"getRequestyApiKey": "Requesty API-sleutel ophalen",
 		"openRouterTransformsText": "Comprimeer prompts en berichtreeksen tot de contextgrootte (<a>OpenRouter Transforms</a>)",

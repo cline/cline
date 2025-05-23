@@ -124,7 +124,10 @@
 		"requestyApiKey": "Clave API de Requesty",
 		"refreshModels": {
 			"label": "Actualizar modelos",
-			"hint": "Por favor, vuelve a abrir la configuración para ver los modelos más recientes."
+			"hint": "Por favor, vuelve a abrir la configuración para ver los modelos más recientes.",
+			"loading": "Actualizando lista de modelos...",
+			"success": "¡Lista de modelos actualizada correctamente!",
+			"error": "Error al actualizar la lista de modelos. Por favor, inténtalo de nuevo."
 		},
 		"getRequestyApiKey": "Obtener clave API de Requesty",
 		"openRouterTransformsText": "Comprimir prompts y cadenas de mensajes al tamaño del contexto (<a>Transformaciones de OpenRouter</a>)",

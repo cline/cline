@@ -390,11 +390,7 @@ const ApiOptions = ({
 			)}
 
 			{selectedProvider === "litellm" && (
-				<LiteLLM
-					apiConfiguration={apiConfiguration}
-					setApiConfigurationField={setApiConfigurationField}
-					routerModels={routerModels}
-				/>
+				<LiteLLM apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
 			)}
 
 			{selectedProvider === "human-relay" && (

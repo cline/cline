@@ -124,7 +124,10 @@
 		"requestyApiKey": "Requesty API Anahtarı",
 		"refreshModels": {
 			"label": "Modelleri Yenile",
-			"hint": "En son modelleri görmek için lütfen ayarları yeniden açın."
+			"hint": "En son modelleri görmek için lütfen ayarları yeniden açın.",
+			"loading": "Model listesi yenileniyor...",
+			"success": "Model listesi başarıyla yenilendi!",
+			"error": "Model listesi yenilenemedi. Lütfen tekrar deneyin."
 		},
 		"getRequestyApiKey": "Requesty API Anahtarı Al",
 		"openRouterTransformsText": "İstem ve mesaj zincirlerini bağlam boyutuna sıkıştır (<a>OpenRouter Dönüşümleri</a>)",

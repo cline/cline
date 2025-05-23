@@ -124,7 +124,10 @@
 		"requestyApiKey": "Requesty API-Schlüssel",
 		"refreshModels": {
 			"label": "Modelle aktualisieren",
-			"hint": "Bitte öffne die Einstellungen erneut, um die neuesten Modelle zu sehen."
+			"hint": "Bitte öffne die Einstellungen erneut, um die neuesten Modelle zu sehen.",
+			"loading": "Modellliste wird aktualisiert...",
+			"success": "Modellliste erfolgreich aktualisiert!",
+			"error": "Fehler beim Aktualisieren der Modellliste. Bitte versuche es erneut."
 		},
 		"getRequestyApiKey": "Requesty API-Schlüssel erhalten",
 		"openRouterTransformsText": "Prompts und Nachrichtenketten auf Kontextgröße komprimieren (<a>OpenRouter Transformationen</a>)",

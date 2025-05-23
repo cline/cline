@@ -124,7 +124,10 @@
 		"requestyApiKey": "Requesty API 密钥",
 		"refreshModels": {
 			"label": "刷新模型",
-			"hint": "请重新打开设置以查看最新模型。"
+			"hint": "请重新打开设置以查看最新模型。",
+			"loading": "正在刷新模型列表...",
+			"success": "模型列表刷新成功！",
+			"error": "刷新模型列表失败。请重试。"
 		},
 		"getRequestyApiKey": "获取 Requesty API 密钥",
 		"openRouterTransformsText": "自动压缩提示词和消息链到上下文长度限制内 (<a>OpenRouter转换</a>)",

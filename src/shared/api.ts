@@ -1245,7 +1245,7 @@ export const unboundDefaultModelInfo: ModelInfo = {
 
 // LiteLLM
 // https://docs.litellm.ai/
-export const litellmDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
+export const litellmDefaultModelId = "claude-3-7-sonnet-20250219"
 export const litellmDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -1960,3 +1960,15 @@ export const getModelMaxOutputTokens = ({
 
 	return model.maxTokens ?? undefined
 }
+
+/**
+ * Options for fetching models from different providers.
+ * This is a discriminated union type where the provider property determines
+ * which other properties are required.
+ */
+export type GetModelsOptions =
+	| { provider: "openrouter" }
+	| { provider: "glama" }
+	| { provider: "requesty"; apiKey?: string }
+	| { provider: "unbound"; apiKey?: string }
+	| { provider: "litellm"; apiKey: string; baseUrl: string }

@@ -70,6 +70,7 @@ export interface ExtensionMessage {
 		| "commandExecutionStatus"
 		| "vsCodeSetting"
 		| "condenseTaskContextResponse"
+		| "singleRouterModelFetchResponse"
 	text?: string
 	action?:
 		| "chatButtonClicked"

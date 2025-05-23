@@ -124,7 +124,10 @@
 		"requestyApiKey": "Requesty API 金鑰",
 		"refreshModels": {
 			"label": "重新整理模型",
-			"hint": "請重新開啟設定以查看最新模型。"
+			"hint": "請重新開啟設定以查看最新模型。",
+			"loading": "正在重新整理模型列表...",
+			"success": "模型列表重新整理成功！",
+			"error": "重新整理模型列表失敗。請再試一次。"
 		},
 		"getRequestyApiKey": "取得 Requesty API 金鑰",
 		"openRouterTransformsText": "將提示和訊息鏈壓縮到上下文大小 (<a>OpenRouter 轉換</a>)",

@@ -10,6 +10,7 @@ import { Mode, CustomModePrompts, defaultModeSlug, defaultPrompts, ModeConfig } 
 import { CustomSupportPrompts } from "@roo/shared/support-prompt"
 import { experimentDefault, ExperimentId } from "@roo/shared/experiments"
 import { TelemetrySetting } from "@roo/shared/TelemetrySetting"
+import { RouterModels } from "@roo/shared/api"
 
 import { vscode } from "@src/utils/vscode"
 import { convertTextMateToHljs } from "@src/utils/textMateToHljs"
@@ -102,6 +103,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setHistoryPreviewCollapsed: (value: boolean) => void
 	autoCondenseContextPercent: number
 	setAutoCondenseContextPercent: (value: number) => void
+	routerModels?: RouterModels
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -192,11 +194,22 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [openedTabs, setOpenedTabs] = useState<Array<{ label: string; isActive: boolean; path?: string }>>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [currentCheckpoint, setCurrentCheckpoint] = useState<string>()
+	const [extensionRouterModels, setExtensionRouterModels] = useState<RouterModels | undefined>(undefined)
 
 	const setListApiConfigMeta = useCallback(
 		(value: ProviderSettingsEntry[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
 		[],
 	)
+
+	const setApiConfiguration = useCallback((value: ProviderSettings) => {
+		setState((prevState) => ({
+			...prevState,
+			apiConfiguration: {
+				...prevState.apiConfiguration,
+				...value,
+			},
+		}))
+	}, [])
 
 	const handleMessage = useCallback(
 		(event: MessageEvent) => {
@@ -249,6 +262,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					setListApiConfigMeta(message.listApiConfig ?? [])
 					break
 				}
+				case "routerModels": {
+					setExtensionRouterModels(message.routerModels)
+					break
+				}
 			}
 		},
 		[setListApiConfigMeta],
@@ -274,16 +291,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		fuzzyMatchThreshold: state.fuzzyMatchThreshold,
 		writeDelayMs: state.writeDelayMs,
 		screenshotQuality: state.screenshotQuality,
+		routerModels: extensionRouterModels,
 		setExperimentEnabled: (id, enabled) =>
 			setState((prevState) => ({ ...prevState, experiments: { ...prevState.experiments, [id]: enabled } })),
-		setApiConfiguration: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				apiConfiguration: {
-					...prevState.apiConfiguration,
-					...value,
-				},
-			})),
+		setApiConfiguration,
 		setCustomInstructions: (value) => setState((prevState) => ({ ...prevState, customInstructions: value })),
 		setAlwaysAllowReadOnly: (value) => setState((prevState) => ({ ...prevState, alwaysAllowReadOnly: value })),
 		setAlwaysAllowReadOnlyOutsideWorkspace: (value) =>
@@ -358,7 +369,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				return { ...prevState, pinnedApiConfigs: newPinned }
 			}),
 		setHistoryPreviewCollapsed: (value) =>
-			setState((prevState) => ({ ...prevState, historyPreviewCollapsed: value })), // Implement the setter
+			setState((prevState) => ({ ...prevState, historyPreviewCollapsed: value })),
 		setAutoCondenseContextPercent: (value) =>
 			setState((prevState) => ({ ...prevState, autoCondenseContextPercent: value })),
 		setCondensingApiConfigId: (value) => setState((prevState) => ({ ...prevState, condensingApiConfigId: value })),

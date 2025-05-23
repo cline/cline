@@ -146,6 +146,29 @@ jest.mock("../DiffSettingsControl", () => ({
 	),
 }))
 
+// Mock LiteLLM provider for tests
+jest.mock("../providers/LiteLLM", () => ({
+	LiteLLM: ({ apiConfiguration, setApiConfigurationField }: any) => (
+		<div data-testid="litellm-provider">
+			<input
+				data-testid="litellm-base-url"
+				type="text"
+				value={apiConfiguration.litellmBaseUrl || ""}
+				onChange={(e) => setApiConfigurationField("litellmBaseUrl", e.target.value)}
+				placeholder="Base URL"
+			/>
+			<input
+				data-testid="litellm-api-key"
+				type="password"
+				value={apiConfiguration.litellmApiKey || ""}
+				onChange={(e) => setApiConfigurationField("litellmApiKey", e.target.value)}
+				placeholder="API Key"
+			/>
+			<button data-testid="litellm-refresh-models">Refresh Models</button>
+		</div>
+	),
+}))
+
 jest.mock("@src/components/ui/hooks/useSelectedModel", () => ({
 	useSelectedModel: jest.fn((apiConfiguration: ProviderSettings) => {
 		if (apiConfiguration.apiModelId?.includes("thinking")) {
@@ -386,6 +409,63 @@ describe("ApiOptions", () => {
 					contextWindow: openAiModelInfoSaneDefaults.contextWindow,
 				}),
 			)
+		})
+	})
+
+	describe("LiteLLM provider tests", () => {
+		it("renders LiteLLM component when provider is selected", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "litellm",
+					litellmBaseUrl: "http://localhost:4000",
+					litellmApiKey: "test-key",
+				},
+			})
+
+			expect(screen.getByTestId("litellm-provider")).toBeInTheDocument()
+			expect(screen.getByTestId("litellm-base-url")).toHaveValue("http://localhost:4000")
+			expect(screen.getByTestId("litellm-api-key")).toHaveValue("test-key")
+		})
+
+		it("calls setApiConfigurationField when LiteLLM inputs change", () => {
+			const mockSetApiConfigurationField = jest.fn()
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "litellm",
+				},
+				setApiConfigurationField: mockSetApiConfigurationField,
+			})
+
+			const baseUrlInput = screen.getByTestId("litellm-base-url")
+			const apiKeyInput = screen.getByTestId("litellm-api-key")
+
+			fireEvent.change(baseUrlInput, { target: { value: "http://new-url:8000" } })
+			fireEvent.change(apiKeyInput, { target: { value: "new-api-key" } })
+
+			expect(mockSetApiConfigurationField).toHaveBeenCalledWith("litellmBaseUrl", "http://new-url:8000")
+			expect(mockSetApiConfigurationField).toHaveBeenCalledWith("litellmApiKey", "new-api-key")
+		})
+
+		it("shows refresh models button for LiteLLM", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "litellm",
+					litellmBaseUrl: "http://localhost:4000",
+					litellmApiKey: "test-key",
+				},
+			})
+
+			expect(screen.getByTestId("litellm-refresh-models")).toBeInTheDocument()
+		})
+
+		it("does not render LiteLLM component when other provider is selected", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "anthropic",
+				},
+			})
+
+			expect(screen.queryByTestId("litellm-provider")).not.toBeInTheDocument()
 		})
 	})
 })

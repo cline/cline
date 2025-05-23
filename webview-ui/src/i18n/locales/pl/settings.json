@@ -124,7 +124,10 @@
 		"requestyApiKey": "Klucz API Requesty",
 		"refreshModels": {
 			"label": "Odśwież modele",
-			"hint": "Proszę ponownie otworzyć ustawienia, aby zobaczyć najnowsze modele."
+			"hint": "Proszę ponownie otworzyć ustawienia, aby zobaczyć najnowsze modele.",
+			"loading": "Odświeżanie listy modeli...",
+			"success": "Lista modeli została pomyślnie odświeżona!",
+			"error": "Nie udało się odświeżyć listy modeli. Spróbuj ponownie."
 		},
 		"getRequestyApiKey": "Uzyskaj klucz API Requesty",
 		"openRouterTransformsText": "Kompresuj podpowiedzi i łańcuchy wiadomości do rozmiaru kontekstu (<a>Transformacje OpenRouter</a>)",

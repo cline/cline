@@ -124,7 +124,10 @@
 		"requestyApiKey": "Chiave API Requesty",
 		"refreshModels": {
 			"label": "Aggiorna modelli",
-			"hint": "Riapri le impostazioni per vedere i modelli più recenti."
+			"hint": "Riapri le impostazioni per vedere i modelli più recenti.",
+			"loading": "Aggiornamento dell'elenco dei modelli...",
+			"success": "Elenco dei modelli aggiornato con successo!",
+			"error": "Impossibile aggiornare l'elenco dei modelli. Riprova."
 		},
 		"getRequestyApiKey": "Ottieni chiave API Requesty",
 		"openRouterTransformsText": "Comprimi prompt e catene di messaggi alla dimensione del contesto (<a>Trasformazioni OpenRouter</a>)",
