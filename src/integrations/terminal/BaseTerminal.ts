@@ -170,7 +170,7 @@ export abstract class BaseTerminal implements RooTerminal {
 	}
 
 	public static getShellIntegrationTimeout(): number {
-		return Math.min(BaseTerminal.shellIntegrationTimeout, BaseTerminal.defaultShellIntegrationTimeout)
+		return BaseTerminal.shellIntegrationTimeout
 	}
 
 	public static setShellIntegrationDisabled(disabled: boolean): void {
