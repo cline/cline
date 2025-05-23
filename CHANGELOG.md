@@ -2,8 +2,6 @@
 
 ## 3.17.4
 
-### Patch Changes
-
 -   7f3eb92: Fix thinking budget slider rendering
 
 ## [3.17.3]
