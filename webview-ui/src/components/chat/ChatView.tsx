@@ -1195,6 +1195,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				placeholderText={placeholderText}
 				selectedImages={selectedImages}
 				setSelectedImages={setSelectedImages}
+				setSelectedFiles={setSelectedFiles}
 				selectedFiles={selectedFiles}
 				onSend={() => handleSendMessage(inputValue, selectedImages)}
 				onSelectFilesAndImages={selectFilesAndImages}

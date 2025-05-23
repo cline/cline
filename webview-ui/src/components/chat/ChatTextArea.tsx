@@ -68,6 +68,7 @@ interface ChatTextAreaProps {
 	selectedFiles: string[]
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
+	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
 	onSend: () => void
 	onSelectFilesAndImages: () => void
 	shouldDisableFilesAndImages: boolean
@@ -254,6 +255,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			selectedFiles,
 			selectedImages,
 			setSelectedImages,
+			setSelectedFiles,
 			onSend,
 			onSelectFilesAndImages,
 			shouldDisableFilesAndImages,
@@ -1557,7 +1559,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{selectedImages.length > 0 && (
 						<Thumbnails
 							images={selectedImages}
+							files={selectedFiles}
 							setImages={setSelectedImages}
+							setFiles={setSelectedFiles}
 							onHeightChange={handleThumbnailsHeightChange}
 							style={{
 								position: "absolute",
