@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.17.4
+## [3.17.4]
 
--   7f3eb92: Fix thinking budget slider rendering
+-   Fix thinking budget slider for Claude 4
 
 ## [3.17.3]
 
