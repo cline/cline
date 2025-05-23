@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.17.5]
+
+-   Fix issue with Claude 4 models where after several conversation turns, it would start making invalid diff edits
+
 ## [3.17.4]
 
 -   Fix thinking budget slider for Claude 4
