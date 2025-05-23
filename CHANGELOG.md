@@ -2,8 +2,6 @@
 
 ## 3.17.3
 
-### Patch Changes
-
 -   67f4caf: Revert package version to 3.17.2 in package.json
 -   9b248ad: Update package version
 
