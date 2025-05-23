@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.17.3]
+
+-   Fix diff edit errors with Claude 4 models
+
 ## [3.17.2]
 
 -   Add support for Claude 4 models (Sonnet 4 and Opus 4) in AWS Bedrock and Vertex AI providers
