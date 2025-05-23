@@ -3,7 +3,11 @@ import fs from "fs/promises"
 import * as path from "path"
 import sizeOf from "image-size"
 
-export async function selectFiles(): Promise<{ images: string[]; files: string[] }> {
+/**
+ * Supports processing of images and other file types
+ * For models which don't support images, will not allow them to be selected
+ */
+export async function selectFiles(imagesAllowed: boolean): Promise<{ images: string[]; files: string[] }> {
 	const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] // supported by anthropic and openrouter
 	const OTHER_FILE_EXTENSIONS = ["pdf", "txt", "md", "docx", "ipynb"]
 
@@ -11,7 +15,7 @@ export async function selectFiles(): Promise<{ images: string[]; files: string[]
 		canSelectMany: true,
 		openLabel: "Select",
 		filters: {
-			Files: [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS],
+			Files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
 		},
 	}
 
