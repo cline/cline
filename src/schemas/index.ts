@@ -752,7 +752,7 @@ export const globalSettingsSchema = z.object({
 	alwaysAllowSubtasks: z.boolean().optional(),
 	alwaysAllowExecute: z.boolean().optional(),
 	allowedCommands: z.array(z.string()).optional(),
-	allowedMaxRequests: z.number().optional(),
+	allowedMaxRequests: z.number().nullish(),
 	autoCondenseContextPercent: z.number().optional(),
 
 	browserToolEnabled: z.boolean().optional(),

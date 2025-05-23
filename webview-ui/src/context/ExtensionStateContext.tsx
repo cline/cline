@@ -140,7 +140,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		taskHistory: [],
 		shouldShowAnnouncement: false,
 		allowedCommands: [],
-		allowedMaxRequests: Infinity,
 		soundEnabled: false,
 		soundVolume: 0.5,
 		ttsEnabled: false,
