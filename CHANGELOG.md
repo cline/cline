@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.17.5
+
+### Patch Changes
+
+-   f2ffe26: fix: add instruction to use valid SEARCH/REPLACE markers when diff edit fails
+
 ## [3.17.4]
 
 -   Fix thinking budget slider for Claude 4
