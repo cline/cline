@@ -382,14 +382,6 @@ export class Controller {
 				this.mcpHub?.sendLatestMcpServers()
 				break
 			}
-			case "openExtensionSettings": {
-				const settingsFilter = message.text || ""
-				await vscode.commands.executeCommand(
-					"workbench.action.openSettings",
-					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
-				)
-				break
-			}
 			case "invoke": {
 				if (message.text) {
 					await this.postMessageToWebview({
