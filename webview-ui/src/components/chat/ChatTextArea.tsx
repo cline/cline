@@ -1651,11 +1651,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</VSCodeButton>
 							</Tooltip>
 
-							<Tooltip tipText="Add Files">
+							<Tooltip tipText="Add Files & Images">
 								<VSCodeButton
 									data-testid="files-button"
 									appearance="icon"
-									aria-label="Add Files"
+									aria-label="Add Files & Images"
 									disabled={shouldDisableFilesAndImages}
 									onClick={() => {
 										if (!shouldDisableFilesAndImages) {
