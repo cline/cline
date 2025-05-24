@@ -102,7 +102,6 @@ export class GeminiHandler implements ApiHandler {
 				includeThoughts: true,
 			}
 		}
-		// Only include thoughts if the option is enabled
 		if (this.options.geminiEnableThoughts) {
 			requestConfig.thinkingConfig = {
 				includeThoughts: true,
@@ -118,7 +117,6 @@ export class GeminiHandler implements ApiHandler {
 		let outputTokens = 0
 		let cacheReadTokens = 0
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
-		console.debug("GeminiHandler: createMessage")
 		try {
 			const result = await this.client.models.generateContentStream({
 				model: modelId,
