@@ -201,19 +201,23 @@ describe("QdrantVectorStore", () => {
 			expect(mockQdrantClientInstance.createPayloadIndex).toHaveBeenCalledTimes(5)
 			;(console.warn as jest.Mock).mockRestore() // Restore console.warn
 		})
-		it("should re-throw error from getCollection if it is not a 404 error", async () => {
+		it("should log warning for non-404 errors but still create collection", async () => {
 			const genericError = new Error("Generic Qdrant Error")
 			mockQdrantClientInstance.getCollection.mockRejectedValue(genericError)
-			jest.spyOn(console, "error").mockImplementation(() => {}) // Suppress console.error
+			jest.spyOn(console, "warn").mockImplementation(() => {}) // Suppress console.warn
 
-			await expect(vectorStore.initialize()).rejects.toThrow(genericError)
+			const result = await vectorStore.initialize()
 
+			expect(result).toBe(true) // Collection was created
 			expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(1)
-			expect(mockQdrantClientInstance.createCollection).not.toHaveBeenCalled()
+			expect(mockQdrantClientInstance.createCollection).toHaveBeenCalledTimes(1)
 			expect(mockQdrantClientInstance.deleteCollection).not.toHaveBeenCalled()
-			expect(mockQdrantClientInstance.createPayloadIndex).not.toHaveBeenCalled()
-			expect(console.error).toHaveBeenCalledTimes(2) // Once in the try/catch for getCollection, once in the outer try/catch
-			;(console.error as jest.Mock).mockRestore()
+			expect(mockQdrantClientInstance.createPayloadIndex).toHaveBeenCalledTimes(5)
+			expect(console.warn).toHaveBeenCalledWith(
+				expect.stringContaining(`Warning during getCollectionInfo for "${expectedCollectionName}"`),
+				genericError.message,
+			)
+			;(console.warn as jest.Mock).mockRestore()
 		})
 		it("should re-throw error from createCollection when no collection initially exists", async () => {
 			mockQdrantClientInstance.getCollection.mockRejectedValue({
@@ -260,7 +264,7 @@ describe("QdrantVectorStore", () => {
 			for (let i = 0; i <= 4; i++) {
 				expect(console.warn).toHaveBeenCalledWith(
 					expect.stringContaining(`Could not create payload index for pathSegments.${i}`),
-					indexError,
+					indexError.message,
 				)
 			}
 
@@ -322,17 +326,20 @@ describe("QdrantVectorStore", () => {
 		expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledWith(expectedCollectionName)
 	})
 
-	it("should return false and log error for non-404 errors", async () => {
+	it("should return false and log warning for non-404 errors", async () => {
 		const genericError = new Error("Network error")
 		mockQdrantClientInstance.getCollection.mockRejectedValue(genericError)
-		jest.spyOn(console, "error").mockImplementation(() => {})
+		jest.spyOn(console, "warn").mockImplementation(() => {})
 
 		const result = await vectorStore.collectionExists()
 
 		expect(result).toBe(false)
 		expect(mockQdrantClientInstance.getCollection).toHaveBeenCalledTimes(1)
-		expect(console.error).toHaveBeenCalledWith("Error checking collection existence:", genericError)
-		;(console.error as jest.Mock).mockRestore()
+		expect(console.warn).toHaveBeenCalledWith(
+			expect.stringContaining(`Warning during getCollectionInfo for "${expectedCollectionName}"`),
+			genericError.message,
+		)
+		;(console.warn as jest.Mock).mockRestore()
 	})
 	describe("collectionExists", () => {
 		// Test scenarios for collectionExists will go here
