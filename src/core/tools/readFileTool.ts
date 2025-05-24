@@ -49,7 +49,7 @@ export async function readFileTool(
 				return
 			}
 
-			const { maxReadFileLine = 500 } = (await cline.providerRef.deref()?.getState()) ?? {}
+			const { maxReadFileLine = -1 } = (await cline.providerRef.deref()?.getState()) ?? {}
 			const isFullRead = maxReadFileLine === -1
 
 			// Check if we're doing a line range read
