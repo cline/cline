@@ -262,8 +262,8 @@
 		}
 	},
 	"codebaseSearch": {
-		"wantsToSearch": "Roo kod tabanında '{{query}}' aramak istiyor:",
-		"wantsToSearchWithPath": "Roo '{{path}}' içinde kod tabanında '{{query}}' aramak istiyor:",
-		"didSearch": "'{{query}}' için {{count}} sonuç bulundu:"
+		"wantsToSearch": "Roo kod tabanında <code>{{query}}</code> aramak istiyor:",
+		"wantsToSearchWithPath": "Roo <code>{{path}}</code> içinde kod tabanında <code>{{query}}</code> aramak istiyor:",
+		"didSearch": "<code>{{query}}</code> için {{count}} sonuç bulundu:"
 	}
 }

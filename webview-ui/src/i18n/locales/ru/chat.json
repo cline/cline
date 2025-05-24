@@ -262,8 +262,8 @@
 		}
 	},
 	"codebaseSearch": {
-		"wantsToSearch": "Roo хочет выполнить поиск в кодовой базе по '{{query}}':",
-		"wantsToSearchWithPath": "Roo хочет выполнить поиск в кодовой базе по '{{query}}' в '{{path}}':",
-		"didSearch": "Найдено {{count}} результат(ов) для '{{query}}':"
+		"wantsToSearch": "Roo хочет выполнить поиск в кодовой базе по <code>{{query}}</code>:",
+		"wantsToSearchWithPath": "Roo хочет выполнить поиск в кодовой базе по <code>{{query}}</code> в <code>{{path}}</code>:",
+		"didSearch": "Найдено {{count}} результат(ов) для <code>{{query}}</code>:"
 	}
 }

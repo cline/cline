@@ -29,11 +29,6 @@ export async function codebaseSearchTool(
 	let query: string | undefined = block.params.query
 	let directoryPrefix: string | undefined = block.params.path
 
-	if (!query) {
-		cline.consecutiveMistakeCount++
-		pushToolResult(await cline.sayAndCreateMissingParamError(toolName, "query"))
-		return
-	}
 	query = removeClosingTag("query", query)
 
 	if (directoryPrefix) {
@@ -41,16 +36,25 @@ export async function codebaseSearchTool(
 		directoryPrefix = path.normalize(directoryPrefix)
 	}
 
-	// Extract optional sendResultsToUI parameter
-
-	const approvalPayload = {
+	const sharedMessageProps = {
 		tool: "codebaseSearch",
 		query: query,
 		path: directoryPrefix,
 		isOutsideWorkspace: false,
 	}
 
-	const didApprove = await askApproval("tool", JSON.stringify(approvalPayload))
+	if (block.partial) {
+		await cline.ask("tool", JSON.stringify(sharedMessageProps), block.partial).catch(() => {})
+		return
+	}
+
+	if (!query) {
+		cline.consecutiveMistakeCount++
+		pushToolResult(await cline.sayAndCreateMissingParamError(toolName, "query"))
+		return
+	}
+
+	const didApprove = await askApproval("tool", JSON.stringify(sharedMessageProps))
 	if (!didApprove) {
 		pushToolResult(formatResponse.toolDenied())
 		return

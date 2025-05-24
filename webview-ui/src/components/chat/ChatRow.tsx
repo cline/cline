@@ -357,12 +357,19 @@ export const ChatRowContent = ({
 					<div style={headerStyle}>
 						{toolIcon("search")}
 						<span style={{ fontWeight: "bold" }}>
-							{tool.path
-								? t("chat:codebaseSearch.wantsToSearchWithPath", {
-										query: tool.query,
-										path: tool.path,
-									})
-								: t("chat:codebaseSearch.wantsToSearch", { query: tool.query })}
+							{tool.path ? (
+								<Trans
+									i18nKey="chat:codebaseSearch.wantsToSearchWithPath"
+									components={{ code: <code></code> }}
+									values={{ query: tool.query, path: tool.path }}
+								/>
+							) : (
+								<Trans
+									i18nKey="chat:codebaseSearch.wantsToSearch"
+									components={{ code: <code></code> }}
+									values={{ query: tool.query }}
+								/>
+							)}
 						</span>
 					</div>
 				)

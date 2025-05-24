@@ -262,8 +262,8 @@
 		}
 	},
 	"codebaseSearch": {
-		"wantsToSearch": "Roo कोडबेस में '{{query}}' खोजना चाहता है:",
-		"wantsToSearchWithPath": "Roo '{{path}}' में कोडबेस में '{{query}}' खोजना चाहता है:",
-		"didSearch": "'{{query}}' के लिए {{count}} परिणाम मिले:"
+		"wantsToSearch": "Roo कोडबेस में <code>{{query}}</code> खोजना चाहता है:",
+		"wantsToSearchWithPath": "Roo <code>{{path}}</code> में कोडबेस में <code>{{query}}</code> खोजना चाहता है:",
+		"didSearch": "<code>{{query}}</code> के लिए {{count}} परिणाम मिले:"
 	}
 }

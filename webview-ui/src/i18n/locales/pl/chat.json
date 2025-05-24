@@ -262,8 +262,8 @@
 		}
 	},
 	"codebaseSearch": {
-		"wantsToSearch": "Roo chce przeszukać bazę kodu w poszukiwaniu '{{query}}':",
-		"wantsToSearchWithPath": "Roo chce przeszukać bazę kodu w poszukiwaniu '{{query}}' w '{{path}}':",
-		"didSearch": "Znaleziono {{count}} wynik(ów) dla '{{query}}':"
+		"wantsToSearch": "Roo chce przeszukać bazę kodu w poszukiwaniu <code>{{query}}</code>:",
+		"wantsToSearchWithPath": "Roo chce przeszukać bazę kodu w poszukiwaniu <code>{{query}}</code> w <code>{{path}}</code>:",
+		"didSearch": "Znaleziono {{count}} wynik(ów) dla <code>{{query}}</code>:"
 	}
 }
