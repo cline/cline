@@ -103,8 +103,6 @@ export interface ExtensionMessage {
 	}
 }
 
-export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
-
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
 
 export const DEFAULT_PLATFORM = "unknown"
