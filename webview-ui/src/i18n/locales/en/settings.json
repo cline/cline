@@ -34,7 +34,7 @@
 	},
 	"codeIndex": {
 		"title": "Codebase Indexing",
-		"enableLabel": "Enable Codebase Indexing",
+		"enableLabel": "Enable codebase indexing",
 		"enableDescription": "Enabling this feature will index your codebase. This might consume system resources and take some time depending on the size of your project.",
 		"providerLabel": "Embeddings Provider",
 		"selectProviderPlaceholder": "Select provider",
@@ -429,7 +429,6 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️",
 		"autoCondenseContextPercent": {
 			"label": "Threshold to trigger intelligent context condensing",
 			"description": "When the context window reaches this threshold, Roo will automatically condense it."

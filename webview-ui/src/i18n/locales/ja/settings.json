@@ -429,7 +429,6 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️",
 		"autoCondenseContextPercent": {
 			"label": "インテリジェントなコンテキスト圧縮をトリガーするしきい値",
 			"description": "コンテキストウィンドウがこのしきい値に達すると、Rooは自動的に圧縮します。"

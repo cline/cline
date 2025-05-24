@@ -429,7 +429,6 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️",
 		"autoCondenseContextPercent": {
 			"label": "触发智能上下文压缩的阈值",
 			"description": "当上下文窗口达到此阈值时，Roo 将自动压缩它。"

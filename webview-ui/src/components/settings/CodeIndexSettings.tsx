@@ -140,23 +140,27 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 
 	return (
 		<>
-			<VSCodeCheckbox
-				checked={codebaseIndexConfig?.codebaseIndexEnabled}
-				onChange={(e: any) =>
-					setCachedStateField("codebaseIndexConfig", {
-						...codebaseIndexConfig,
-						codebaseIndexEnabled: e.target.checked,
-					})
-				}>
-				⚠️ {t("settings:codeIndex.enableLabel")}
-			</VSCodeCheckbox>
-			<div className="text-vscode-descriptionForeground text-sm mt-1 pl-6">
-				{t("settings:codeIndex.enableDescription")}
+			<div>
+				<div className="flex items-center gap-2">
+					<VSCodeCheckbox
+						checked={codebaseIndexConfig?.codebaseIndexEnabled}
+						onChange={(e: any) =>
+							setCachedStateField("codebaseIndexConfig", {
+								...codebaseIndexConfig,
+								codebaseIndexEnabled: e.target.checked,
+							})
+						}>
+						<span className="font-medium">{t("settings:codeIndex.enableLabel")}</span>
+					</VSCodeCheckbox>
+				</div>
+				<p className="text-vscode-descriptionForeground text-sm mt-0">
+					{t("settings:codeIndex.enableDescription")}
+				</p>
 			</div>
 
 			{codebaseIndexConfig?.codebaseIndexEnabled && (
-				<div className="mt-4 space-y-4">
-					<div className="text-sm text-vscode-descriptionForeground mt-4">
+				<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+					<div className="text-sm text-vscode-descriptionForeground">
 						<span
 							className={`
 								inline-block w-3 h-3 rounded-full mr-2
@@ -177,7 +181,7 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 					</div>
 
 					{indexingStatus.systemStatus === "Indexing" && (
-						<div className="mt-4 space-y-1">
+						<div className="space-y-1">
 							<ProgressPrimitive.Root
 								className="relative h-2 w-full overflow-hidden rounded-full bg-secondary"
 								value={progressPercentage}>
@@ -191,76 +195,86 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 						</div>
 					)}
 
-					<div style={{ fontWeight: "normal", marginBottom: "4px" }}>
-						{t("settings:codeIndex.providerLabel")}
+					<div className="flex items-center gap-4 font-bold">
+						<div>{t("settings:codeIndex.providerLabel")}</div>
 					</div>
-					<div className="flex items-center gap-2">
-						<Select
-							value={codebaseIndexConfig?.codebaseIndexEmbedderProvider || "openai"}
-							onValueChange={(value) => {
-								const newProvider = value as EmbedderProvider
-								const models = codebaseIndexModels?.[newProvider]
-								const modelIds = models ? Object.keys(models) : []
-								const defaultModelId = modelIds.length > 0 ? modelIds[0] : "" // Use empty string if no models
+					<div>
+						<div className="flex items-center gap-2">
+							<Select
+								value={codebaseIndexConfig?.codebaseIndexEmbedderProvider || "openai"}
+								onValueChange={(value) => {
+									const newProvider = value as EmbedderProvider
+									const models = codebaseIndexModels?.[newProvider]
+									const modelIds = models ? Object.keys(models) : []
+									const defaultModelId = modelIds.length > 0 ? modelIds[0] : "" // Use empty string if no models
 
-								if (codebaseIndexConfig) {
-									setCachedStateField("codebaseIndexConfig", {
-										...codebaseIndexConfig,
-										codebaseIndexEmbedderProvider: newProvider,
-										codebaseIndexEmbedderModelId: defaultModelId,
-									})
-								}
-							}}>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder={t("settings:codeIndex.selectProviderPlaceholder")} />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="openai">{t("settings:codeIndex.openaiProvider")}</SelectItem>
-								<SelectItem value="ollama">{t("settings:codeIndex.ollamaProvider")}</SelectItem>
-							</SelectContent>
-						</Select>
+									if (codebaseIndexConfig) {
+										setCachedStateField("codebaseIndexConfig", {
+											...codebaseIndexConfig,
+											codebaseIndexEmbedderProvider: newProvider,
+											codebaseIndexEmbedderModelId: defaultModelId,
+										})
+									}
+								}}>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder={t("settings:codeIndex.selectProviderPlaceholder")} />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="openai">{t("settings:codeIndex.openaiProvider")}</SelectItem>
+									<SelectItem value="ollama">{t("settings:codeIndex.ollamaProvider")}</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 					</div>
 
 					{codebaseIndexConfig?.codebaseIndexEmbedderProvider === "openai" && (
-						<div className="space-y-2">
-							<VSCodeTextField
-								type="password"
-								value={apiConfiguration.codeIndexOpenAiKey || ""}
-								onInput={(e: any) => setApiConfigurationField("codeIndexOpenAiKey", e.target.value)}
-								style={{ width: "100%" }}>
-								{t("settings:codeIndex.openaiKeyLabel")}
-							</VSCodeTextField>
+						<div className="flex flex-col gap-3">
+							<div className="flex items-center gap-4 font-bold">
+								<div>{t("settings:codeIndex.openaiKeyLabel")}</div>
+							</div>
+							<div>
+								<VSCodeTextField
+									type="password"
+									value={apiConfiguration.codeIndexOpenAiKey || ""}
+									onInput={(e: any) => setApiConfigurationField("codeIndexOpenAiKey", e.target.value)}
+									style={{ width: "100%" }}></VSCodeTextField>
+							</div>
 						</div>
 					)}
 
-					<div style={{ fontWeight: "normal", marginBottom: "4px" }}>
-						{t("settings:codeIndex.modelLabel")}
+					<div className="flex items-center gap-4 font-bold">
+						<div>{t("settings:codeIndex.modelLabel")}</div>
 					</div>
-					<div className="flex items-center gap-2">
-						<Select
-							value={codebaseIndexConfig?.codebaseIndexEmbedderModelId || ""}
-							onValueChange={(value) =>
-								setCachedStateField("codebaseIndexConfig", {
-									...codebaseIndexConfig,
-									codebaseIndexEmbedderModelId: value,
-								})
-							}>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder={t("settings:codeIndex.selectModelPlaceholder")} />
-							</SelectTrigger>
-							<SelectContent>
-								{availableModelIds.map((modelId) => (
-									<SelectItem key={modelId} value={modelId}>
-										{modelId}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+					<div>
+						<div className="flex items-center gap-2">
+							<Select
+								value={codebaseIndexConfig?.codebaseIndexEmbedderModelId || ""}
+								onValueChange={(value) =>
+									setCachedStateField("codebaseIndexConfig", {
+										...codebaseIndexConfig,
+										codebaseIndexEmbedderModelId: value,
+									})
+								}>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder={t("settings:codeIndex.selectModelPlaceholder")} />
+								</SelectTrigger>
+								<SelectContent>
+									{availableModelIds.map((modelId) => (
+										<SelectItem key={modelId} value={modelId}>
+											{modelId}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
 					</div>
 
 					{codebaseIndexConfig?.codebaseIndexEmbedderProvider === "ollama" && (
-						<>
-							<div className="space-y-2">
+						<div className="flex flex-col gap-3">
+							<div className="flex items-center gap-4 font-bold">
+								<div>{t("settings:codeIndex.ollamaUrlLabel")}</div>
+							</div>
+							<div>
 								<VSCodeTextField
 									value={codebaseIndexConfig.codebaseIndexEmbedderBaseUrl || ""}
 									onInput={(e: any) =>
@@ -269,38 +283,42 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 											codebaseIndexEmbedderBaseUrl: e.target.value,
 										})
 									}
-									style={{ width: "100%" }}>
-									{t("settings:codeIndex.ollamaUrlLabel")}
-								</VSCodeTextField>
+									style={{ width: "100%" }}></VSCodeTextField>
 							</div>
-						</>
+						</div>
 					)}
 
-					<div className="space-y-2">
-						<VSCodeTextField
-							value={codebaseIndexConfig.codebaseIndexQdrantUrl}
-							onInput={(e: any) =>
-								setCachedStateField("codebaseIndexConfig", {
-									...codebaseIndexConfig,
-									codebaseIndexQdrantUrl: e.target.value,
-								})
-							}
-							style={{ width: "100%" }}>
-							{t("settings:codeIndex.qdrantUrlLabel")}
-						</VSCodeTextField>
+					<div className="flex flex-col gap-3">
+						<div className="flex items-center gap-4 font-bold">
+							<div>{t("settings:codeIndex.qdrantUrlLabel")}</div>
+						</div>
+						<div>
+							<VSCodeTextField
+								value={codebaseIndexConfig.codebaseIndexQdrantUrl}
+								onInput={(e: any) =>
+									setCachedStateField("codebaseIndexConfig", {
+										...codebaseIndexConfig,
+										codebaseIndexQdrantUrl: e.target.value,
+									})
+								}
+								style={{ width: "100%" }}></VSCodeTextField>
+						</div>
 					</div>
 
-					<div className="space-y-2">
-						<VSCodeTextField
-							type="password"
-							value={apiConfiguration.codeIndexQdrantApiKey}
-							onInput={(e: any) => setApiConfigurationField("codeIndexQdrantApiKey", e.target.value)}
-							style={{ width: "100%" }}>
-							{t("settings:codeIndex.qdrantKeyLabel")}
-						</VSCodeTextField>
+					<div className="flex flex-col gap-3">
+						<div className="flex items-center gap-4 font-bold">
+							<div>{t("settings:codeIndex.qdrantKeyLabel")}</div>
+						</div>
+						<div>
+							<VSCodeTextField
+								type="password"
+								value={apiConfiguration.codeIndexQdrantApiKey}
+								onInput={(e: any) => setApiConfigurationField("codeIndexQdrantApiKey", e.target.value)}
+								style={{ width: "100%" }}></VSCodeTextField>
+						</div>
 					</div>
 
-					<div className="flex gap-2 mt-4">
+					<div className="flex gap-2">
 						{(indexingStatus.systemStatus === "Error" || indexingStatus.systemStatus === "Standby") && (
 							<VSCodeButton
 								onClick={() => vscode.postMessage({ type: "startIndexing" })}

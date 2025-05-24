@@ -429,7 +429,6 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️",
 		"autoCondenseContextPercent": {
 			"label": "Umbral para activar la condensación inteligente de contexto",
 			"description": "Cuando la ventana de contexto alcanza este umbral, Roo la condensará automáticamente."

@@ -429,7 +429,6 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️",
 		"condensingApiConfiguration": {
 			"label": "API Configuration for Context Condensing",
 			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
