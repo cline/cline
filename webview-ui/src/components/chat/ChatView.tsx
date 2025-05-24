@@ -89,13 +89,11 @@ async function convertHtmlToMarkdown(html: string) {
 }
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
-const QUICK_WINS_HISTORY_THRESHOLD = 3000
+const QUICK_WINS_HISTORY_THRESHOLD = 300
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
-
-	const shouldShowQuickWins = !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
-
+	const shouldShowQuickWins = false // !taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
 	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
@@ -1061,15 +1059,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 
 					<HomeHeader />
-					{(!taskHistory || taskHistory.length >= QUICK_WINS_HISTORY_THRESHOLD) && taskHistory.length > 0 && (
-						<HistoryPreview showHistoryView={showHistoryView} />
-					)}
+					{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 				</div>
 			)}
 
 			{!task && (
 				<>
-					<SuggestedTasks />
+					<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
 					<AutoApproveBar />
 				</>
 			)}
