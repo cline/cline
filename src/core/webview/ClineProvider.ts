@@ -1351,10 +1351,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			historyPreviewCollapsed: historyPreviewCollapsed ?? false,
 			condensingApiConfigId,
 			customCondensingPrompt,
-			codebaseIndexModels: codebaseIndexModels ?? {
-				openai: {},
-				ollama: {},
-			},
+			codebaseIndexModels: codebaseIndexModels ?? EMBEDDING_MODEL_PROFILES,
 			codebaseIndexConfig: codebaseIndexConfig ?? {
 				codebaseIndexEnabled: false,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
@@ -1456,10 +1453,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			// Explicitly add condensing settings
 			condensingApiConfigId: stateValues.condensingApiConfigId,
 			customCondensingPrompt: stateValues.customCondensingPrompt,
-			codebaseIndexModels: stateValues.codebaseIndexModels ?? {
-				openai: {},
-				ollama: {},
-			},
+			codebaseIndexModels: stateValues.codebaseIndexModels ?? EMBEDDING_MODEL_PROFILES,
 			codebaseIndexConfig: stateValues.codebaseIndexConfig ?? {
 				codebaseIndexEnabled: false,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
