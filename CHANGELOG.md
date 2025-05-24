@@ -56,6 +56,7 @@
 -   Improve UI for Gemini model retry attempts with clearer status updates
 -   Fix quick actions functionality in auto-approve settings
 -   Update UI styling for auto-approve menu items to conserve space
+-   Add MakeHub API provider with model selection and performance ratio slider
 
 ## [3.16.0]
 

@@ -11,6 +11,8 @@ import {
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
+	makehubDefaultModelId,
+	makehubDefaultModelInfo,
 } from "../../../src/shared/api"
 import { findLastIndex } from "@shared/array"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
@@ -27,6 +29,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
+	makehubModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
@@ -181,6 +184,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
+	const [makehubModels, setMakehubModels] = useState<Record<string, ModelInfo>>({
+		[makehubDefaultModelId]: makehubDefaultModelInfo,
+	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -207,6 +213,48 @@ export const ExtensionStateContextProvider: React.FC<{
 				break
 			}
 			case "state": {
+				setState((prevState) => {
+					const incoming = message.state!
+					// Versioning logic for autoApprovalSettings
+					const incomingVersion = incoming.autoApprovalSettings?.version ?? 1
+					const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+					const shouldUpdateAutoApproval = incomingVersion > currentVersion
+					return {
+						...incoming,
+						autoApprovalSettings: shouldUpdateAutoApproval
+							? incoming.autoApprovalSettings
+							: prevState.autoApprovalSettings,
+					}
+				})
+				const config = message.state?.apiConfiguration
+				const hasKey = config
+					? [
+							config.apiKey,
+							config.openRouterApiKey,
+							config.awsRegion,
+							config.vertexProjectId,
+							config.openAiApiKey,
+							config.ollamaModelId,
+							config.lmStudioModelId,
+							config.liteLlmApiKey,
+							config.geminiApiKey,
+							config.openAiNativeApiKey,
+							config.deepSeekApiKey,
+							config.requestyApiKey,
+							config.togetherApiKey,
+							config.qwenApiKey,
+							config.doubaoApiKey,
+							config.mistralApiKey,
+							config.vsCodeLmModelSelector,
+							config.clineApiKey,
+							config.asksageApiKey,
+							config.xaiApiKey,
+							config.sambanovaApiKey,
+							config.makehubApiKey,
+						].some((key) => key !== undefined)
+					: false
+				setShowWelcome(!hasKey)
+				setDidHydrateState(true)
 				// Handler for direct state messages
 				if (message.state) {
 					const stateData = message.state as ExtensionState
@@ -302,6 +350,14 @@ export const ExtensionStateContextProvider: React.FC<{
 				const updatedModels = message.requestyModels ?? {}
 				setRequestyModels({
 					[requestyDefaultModelId]: requestyDefaultModelInfo,
+					...updatedModels,
+				})
+				break
+			}
+			case "makehubModels": {
+				const updatedModels = message.makehubModels ?? {}
+				setMakehubModels({
+					[makehubDefaultModelId]: makehubDefaultModelInfo,
 					...updatedModels,
 				})
 				break
@@ -436,6 +492,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModels,
 		openAiModels,
 		requestyModels,
+		makehubModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		filePaths,

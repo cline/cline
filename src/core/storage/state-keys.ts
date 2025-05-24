@@ -21,6 +21,7 @@ export type SecretKey =
 	| "xaiApiKey"
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
+	| "makehubApiKey"
 
 export type GlobalStateKey =
 	| "apiProvider"
@@ -90,6 +91,9 @@ export type GlobalStateKey =
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
+	| "makehubModelId"
+	| "makehubModelInfo"
+	| "makehubPerfRatio"
 	| "isNewUser"
 
 export type LocalStateKey = "localClineRulesToggles"
