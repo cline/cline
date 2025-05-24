@@ -139,7 +139,7 @@ describe("Chat Integration Tests", () => {
 			})
 		})
 
-		// Trigger tool approval using the new gRPC pattern directly
+		// Trigger tool approval
 		await panel.webview.postMessage({
 			type: "primaryButtonClick",
 		})

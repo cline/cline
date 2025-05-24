@@ -625,13 +625,11 @@ export class Controller {
 			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
-				if (this.task) {
-					await this.task.handleWebviewAskResponse(
-						"messageResponse",
-						chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
-						chatContent?.images || [],
-					)
-				}
+				await this.task.handleWebviewAskResponse(
+					"messageResponse",
+					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
+					chatContent?.images || [],
+				)
 			} else {
 				this.cancelTask()
 			}
@@ -1266,7 +1264,7 @@ export class Controller {
 			localWorkflowToggles: localWorkflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
-			 isNewUser,
+			isNewUser,
 		}
 	}
 

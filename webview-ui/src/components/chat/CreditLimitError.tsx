@@ -41,8 +41,8 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 			<VSCodeButton
 				onClick={async () => {
 					try {
-						await TaskServiceClient.invoke({
-							action: "primaryButtonClick",
+						await TaskServiceClient.askResponse({
+							responseType: "yesButtonClicked",
 							text: "",
 							images: [],
 						})
