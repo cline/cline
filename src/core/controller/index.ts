@@ -12,7 +12,6 @@ import { EmptyRequest } from "@shared/proto/common"
 import { buildApiHandler } from "@api/index"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
-import { fetchOpenGraphData } from "@integrations/misc/link-preview"
 import { handleFileServiceRequest } from "./file"
 import { getTheme } from "@integrations/theme/getTheme"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
@@ -25,7 +24,7 @@ import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
+import { McpMarketplaceCatalog } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { WebviewMessage } from "@shared/WebviewMessage"
 import { fileExistsAtPath } from "@utils/fs"
@@ -43,7 +42,6 @@ import {
 	getGlobalState,
 	getSecret,
 	getWorkspaceState,
-	resetExtensionState,
 	storeSecret,
 	updateApiConfiguration,
 	updateGlobalState,
@@ -276,17 +274,6 @@ export class Controller {
 				})
 				break
 			}
-			case "newTask":
-				// Code that should run in response to the hello message command
-				//vscode.window.showInformationMessage(message.text!)
-
-				// Send a message to our webview.
-				// You can send any JSON serializable data.
-				// Could also do this in extension .ts
-				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images)
-				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
 					await updateApiConfiguration(this.context, message.apiConfiguration)

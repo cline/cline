@@ -285,7 +285,7 @@ const ApiOptions = ({
 				ModelsServiceClient.refreshOpenAiModels({
 					baseUrl,
 					apiKey,
-				}).catch((error) => {
+				}).catch((error: unknown) => {
 					console.error("Failed to refresh OpenAI models:", error)
 				})
 			}, 500)
