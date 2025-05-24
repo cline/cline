@@ -369,6 +369,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								setInputValue("")
 								setSendingDisabled(true)
 								setSelectedImages([])
+								setSelectedFiles([])
 								setClineAsk(undefined)
 								setEnableButtons(false)
 							}
@@ -487,6 +488,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				setActiveQuote(null) // Clear quote when sending message
 				setSendingDisabled(true)
 				setSelectedImages([])
+				setSelectedFiles([])
 				setClineAsk(undefined)
 				setEnableButtons(false)
 				// setPrimaryButtonText(undefined)
@@ -534,6 +536,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					setInputValue("")
 					setActiveQuote(null) // Clear quote when using primary button
 					setSelectedImages([])
+					setSelectedFiles([])
 					break
 				case "completion_result":
 				case "resume_completed_task":
@@ -601,6 +604,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					setInputValue("")
 					setActiveQuote(null) // Clear quote when using secondary button
 					setSelectedImages([])
+					setSelectedFiles([])
 					break
 			}
 			setSendingDisabled(true)
