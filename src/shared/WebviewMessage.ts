@@ -17,7 +17,6 @@ export interface WebviewMessage {
 		| "showChatView"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
-		| "showAccountViewClicked"
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"

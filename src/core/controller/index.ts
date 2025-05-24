@@ -308,10 +308,6 @@ export class Controller {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
 				break
-			case "showAccountViewClicked": {
-				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
-				break
-			}
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
 				break
