@@ -222,6 +222,7 @@ export class McpHub {
 					env: {
 						...config.env,
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+						...(process.env.HOME ? { HOME: process.env.HOME } : {}),
 						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
 					},
 					stderr: "pipe", // necessary for stderr to be available
@@ -338,6 +339,7 @@ export class McpHub {
 					env: {
 						...config.env,
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+						...(process.env.HOME ? { HOME: process.env.HOME } : {}),
 						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
 					},
 					stderr: "pipe", // necessary for stderr to be available
