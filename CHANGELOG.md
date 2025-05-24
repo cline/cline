@@ -1,5 +1,19 @@
 # Roo Code Changelog
 
+## [3.18.3] - 2025-05-24
+
+- Add reasoning support for Claude 4 and Gemini 2.5 Flash on OpenRouter, plus a fix for o1-pro
+- Add experimental codebase indexing + semantic search feature (thanks @daniel-lxs!)
+- For providers that used to default to Sonnet 3.7, change to Sonnet 4
+- Enable prompt caching for Gemini 2.5 Flash Preview (thanks @shariqriazz!)
+- Preserve model settings when selecting a specific OpenRouter provider
+- Add ability to refresh LiteLLM models list
+- Improve tool descriptions to guide proper file editing tool selection
+- Fix MCP Server error loading config when running with npx and bunx (thanks @devxpain!)
+- Improve pnpm bootstrapping and add compile script (thanks @KJ7LNW!)
+- Simplify object assignment & use startsWith (thanks @noritaka1166!)
+- Remove deprecated claude-3.7-sonnet models from vscodelm (thanks @shariqriazz!)
+
 ## [3.18.2] - 2025-05-23
 
 - Fix vscode-material-icons in the filer picker
