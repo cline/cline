@@ -451,6 +451,7 @@ export class McpHub {
 					env: {
 						...(config.env ? await injectEnv(config.env) : {}),
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+						...(process.env.HOME ? { HOME: process.env.HOME } : {}),
 					},
 					stderr: "pipe",
 				})
