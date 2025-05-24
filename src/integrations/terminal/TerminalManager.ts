@@ -234,45 +234,8 @@ export class TerminalManager {
 			return matchingTerminal
 		}
 
-		// If no matching terminal exists, try to find any non-busy terminal
-		const availableTerminal = terminals.find((t) => !t.busy)
-		if (availableTerminal) {
-			// Set up promise and tracking for CWD change
-			const cwdPromise = new Promise<void>((resolve, reject) => {
-				availableTerminal.pendingCwdChange = cwd
-				availableTerminal.cwdResolved = { resolve, reject }
-			})
-
-			// Navigate back to the desired directory
-			await this.runCommand(availableTerminal, `cd "${cwd}"`)
-
-			// Either resolve immediately if CWD already updated or wait for event/timeout
-			if (this.isCwdMatchingExpected(availableTerminal)) {
-				if (availableTerminal.cwdResolved) {
-					availableTerminal.cwdResolved.resolve()
-				}
-				availableTerminal.pendingCwdChange = undefined
-				availableTerminal.cwdResolved = undefined
-			} else {
-				try {
-					// Wait with a timeout for state change event to resolve
-					await Promise.race([
-						cwdPromise,
-						new Promise<void>((_, reject) =>
-							setTimeout(() => reject(new Error(`CWD timeout: Failed to update to ${cwd}`)), 1000),
-						),
-					])
-				} catch (err) {
-					// Clear pending state on timeout
-					availableTerminal.pendingCwdChange = undefined
-					availableTerminal.cwdResolved = undefined
-				}
-			}
-			this.terminalIds.add(availableTerminal.id)
-			return availableTerminal
-		}
-
-		// If all terminals are busy, create a new one
+		// If no matching terminal exists, create a new one instead of trying to reuse
+		// and change directory of an existing terminal which can break shell integration
 		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
 		this.terminalIds.add(newTerminalInfo.id)
 		return newTerminalInfo
