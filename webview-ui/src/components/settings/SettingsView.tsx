@@ -197,7 +197,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			type: "updateSettings",
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
-			telemetrySetting,
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
 			apiConfiguration: apiConfigurationToSubmit,
