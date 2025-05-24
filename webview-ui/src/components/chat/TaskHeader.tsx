@@ -489,7 +489,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 														// First open the settings panel using direct navigation
 														navigateToSettings()
 
-														// After a short delay, send a message to scroll to browser settings
+														// After a short delay, send a message to scroll to settings
 														setTimeout(async () => {
 															try {
 																await UiServiceClient.scrollToSettings({ value: "features" })
