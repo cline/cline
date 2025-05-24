@@ -1836,7 +1836,7 @@ export const chutesModels = {
  */
 
 // These models support prompt caching.
-export const PROMPT_CACHING_MODELS = new Set([
+export const OPEN_ROUTER_PROMPT_CACHING_MODELS = new Set([
 	"anthropic/claude-3-haiku",
 	"anthropic/claude-3-haiku:beta",
 	"anthropic/claude-3-opus",
@@ -1867,7 +1867,7 @@ export const PROMPT_CACHING_MODELS = new Set([
 ])
 
 // https://www.anthropic.com/news/3-5-models-and-computer-use
-export const COMPUTER_USE_MODELS = new Set([
+export const OPEN_ROUTER_COMPUTER_USE_MODELS = new Set([
 	"anthropic/claude-3.5-sonnet",
 	"anthropic/claude-3.5-sonnet:beta",
 	"anthropic/claude-3.7-sonnet",
@@ -1875,6 +1875,20 @@ export const COMPUTER_USE_MODELS = new Set([
 	"anthropic/claude-3.7-sonnet:thinking",
 	"anthropic/claude-sonnet-4",
 	"anthropic/claude-opus-4",
+])
+
+export const OPEN_ROUTER_REASONING_BUDGET_MODELS = new Set([
+	"anthropic/claude-3.7-sonnet:beta",
+	"anthropic/claude-3.7-sonnet:thinking",
+	"anthropic/claude-opus-4",
+	"anthropic/claude-sonnet-4",
+	"google/gemini-2.5-flash-preview-05-20",
+	"google/gemini-2.5-flash-preview-05-20:thinking",
+])
+
+export const OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS = new Set([
+	"anthropic/claude-3.7-sonnet:thinking",
+	"google/gemini-2.5-flash-preview-05-20:thinking",
 ])
 
 const routerNames = ["openrouter", "requesty", "glama", "unbound", "litellm"] as const

@@ -2,8 +2,14 @@ import axios from "axios"
 import { z } from "zod"
 
 import { isModelParameter } from "../../../schemas"
-import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "../constants"
-import { ApiHandlerOptions, ModelInfo, COMPUTER_USE_MODELS, anthropicModels } from "../../../shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	OPEN_ROUTER_COMPUTER_USE_MODELS,
+	OPEN_ROUTER_REASONING_BUDGET_MODELS,
+	OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS,
+	anthropicModels,
+} from "../../../shared/api"
 import { parseApiPrice } from "../../../utils/cost"
 
 /**
@@ -106,7 +112,7 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions): Promise<
 				id,
 				model,
 				modality: architecture?.modality,
-				maxTokens: id.startsWith("anthropic/") ? top_provider?.max_completion_tokens : 0,
+				maxTokens: top_provider?.max_completion_tokens,
 				supportedParameters: supported_parameters,
 			})
 		}
@@ -146,7 +152,7 @@ export async function getOpenRouterModelEndpoints(
 				id,
 				model: endpoint,
 				modality: architecture?.modality,
-				maxTokens: id.startsWith("anthropic/") ? endpoint.max_completion_tokens : 0,
+				maxTokens: endpoint.max_completion_tokens,
 			})
 		}
 	} catch (error) {
@@ -183,8 +189,10 @@ export const parseOpenRouterModel = ({
 
 	const supportsPromptCache = typeof cacheWritesPrice !== "undefined" && typeof cacheReadsPrice !== "undefined"
 
+	const useMaxTokens = OPEN_ROUTER_REASONING_BUDGET_MODELS.has(id) || id.startsWith("anthropic/")
+
 	const modelInfo: ModelInfo = {
-		maxTokens: maxTokens || 0,
+		maxTokens: useMaxTokens ? maxTokens || 0 : 0,
 		contextWindow: model.context_length,
 		supportsImages: modality?.includes("image") ?? false,
 		supportsPromptCache,
@@ -193,18 +201,22 @@ export const parseOpenRouterModel = ({
 		cacheWritesPrice,
 		cacheReadsPrice,
 		description: model.description,
-		supportsReasoningBudget:
-			id.startsWith("anthropic/claude-3.7") ||
-			id.startsWith("anthropic/claude-sonnet-4") ||
-			id.startsWith("anthropic/claude-opus-4"),
 		supportsReasoningEffort: supportedParameters ? supportedParameters.includes("reasoning") : undefined,
 		supportedParameters: supportedParameters ? supportedParameters.filter(isModelParameter) : undefined,
 	}
 
 	// The OpenRouter model definition doesn't give us any hints about
 	// computer use, so we need to set that manually.
-	if (COMPUTER_USE_MODELS.has(id)) {
+	if (OPEN_ROUTER_COMPUTER_USE_MODELS.has(id)) {
 		modelInfo.supportsComputerUse = true
+	}
+
+	if (OPEN_ROUTER_REASONING_BUDGET_MODELS.has(id)) {
+		modelInfo.supportsReasoningBudget = true
+	}
+
+	if (OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS.has(id)) {
+		modelInfo.requiredReasoningBudget = true
 	}
 
 	// For backwards compatibility with the old model definitions we will
@@ -219,7 +231,6 @@ export const parseOpenRouterModel = ({
 
 	if (id === "anthropic/claude-3.7-sonnet:thinking") {
 		modelInfo.maxTokens = anthropicModels["claude-3-7-sonnet-20250219:thinking"].maxTokens
-		modelInfo.requiredReasoningBudget = true
 	}
 
 	return modelInfo

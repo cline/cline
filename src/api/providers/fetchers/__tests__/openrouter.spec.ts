@@ -4,7 +4,12 @@ import * as path from "path"
 
 import { back as nockBack } from "nock"
 
-import { PROMPT_CACHING_MODELS } from "../../../../shared/api"
+import {
+	OPEN_ROUTER_PROMPT_CACHING_MODELS,
+	OPEN_ROUTER_COMPUTER_USE_MODELS,
+	OPEN_ROUTER_REASONING_BUDGET_MODELS,
+	OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS,
+} from "../../../../shared/api"
 
 import { getOpenRouterModelEndpoints, getOpenRouterModels } from "../openrouter"
 
@@ -23,22 +28,14 @@ describe("OpenRouter API", () => {
 					.filter(([_, model]) => model.supportsPromptCache)
 					.map(([id, _]) => id)
 					.sort(),
-			).toEqual(Array.from(PROMPT_CACHING_MODELS).sort())
+			).toEqual(Array.from(OPEN_ROUTER_PROMPT_CACHING_MODELS).sort())
 
 			expect(
 				Object.entries(models)
 					.filter(([_, model]) => model.supportsComputerUse)
 					.map(([id, _]) => id)
 					.sort(),
-			).toEqual([
-				"anthropic/claude-3.5-sonnet",
-				"anthropic/claude-3.5-sonnet:beta",
-				"anthropic/claude-3.7-sonnet",
-				"anthropic/claude-3.7-sonnet:beta",
-				"anthropic/claude-3.7-sonnet:thinking",
-				"anthropic/claude-opus-4",
-				"anthropic/claude-sonnet-4",
-			])
+			).toEqual(Array.from(OPEN_ROUTER_COMPUTER_USE_MODELS).sort())
 
 			expect(
 				Object.entries(models)
@@ -108,19 +105,14 @@ describe("OpenRouter API", () => {
 					.filter(([_, model]) => model.supportsReasoningBudget)
 					.map(([id, _]) => id)
 					.sort(),
-			).toEqual([
-				"anthropic/claude-3.7-sonnet:beta",
-				"anthropic/claude-3.7-sonnet:thinking",
-				"anthropic/claude-opus-4",
-				"anthropic/claude-sonnet-4",
-			])
+			).toEqual(Array.from(OPEN_ROUTER_REASONING_BUDGET_MODELS).sort())
 
 			expect(
 				Object.entries(models)
 					.filter(([_, model]) => model.requiredReasoningBudget)
 					.map(([id, _]) => id)
 					.sort(),
-			).toEqual(["anthropic/claude-3.7-sonnet:thinking"])
+			).toEqual(Array.from(OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS).sort())
 
 			expect(models["anthropic/claude-3.7-sonnet"]).toEqual({
 				maxTokens: 8192,
@@ -154,6 +146,8 @@ describe("OpenRouter API", () => {
 				supportsReasoningEffort: true,
 				supportedParameters: ["max_tokens", "temperature", "reasoning", "include_reasoning"],
 			})
+
+			expect(models["google/gemini-2.5-flash-preview-05-20"].maxTokens).toEqual(65535)
 
 			const anthropicModels = Object.entries(models)
 				.filter(([id, _]) => id.startsWith("anthropic/claude-3"))
@@ -200,7 +194,6 @@ describe("OpenRouter API", () => {
 					cacheWritesPrice: 1.625,
 					cacheReadsPrice: 0.31,
 					description: undefined,
-					supportsReasoningBudget: false,
 					supportsReasoningEffort: undefined,
 					supportedParameters: undefined,
 				},
@@ -214,7 +207,6 @@ describe("OpenRouter API", () => {
 					cacheWritesPrice: 1.625,
 					cacheReadsPrice: 0.31,
 					description: undefined,
-					supportsReasoningBudget: false,
 					supportsReasoningEffort: undefined,
 					supportedParameters: undefined,
 				},

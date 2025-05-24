@@ -13,8 +13,6 @@ import {
 	chutesModels,
 } from "@roo/shared/api"
 
-export { PROMPT_CACHING_MODELS } from "@roo/shared/api"
-
 export { AWS_REGIONS } from "@roo/shared/aws_regions"
 
 export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, ModelInfo>>> = {

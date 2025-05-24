@@ -1,6 +1,6 @@
 import axios from "axios"
 import { getLiteLLMModels } from "../litellm"
-import { COMPUTER_USE_MODELS } from "../../../../shared/api"
+import { OPEN_ROUTER_COMPUTER_USE_MODELS } from "../../../../shared/api"
 
 // Mock axios
 jest.mock("axios")
@@ -105,7 +105,7 @@ describe("getLiteLLMModels", () => {
 	})
 
 	it("handles computer use models correctly", async () => {
-		const computerUseModel = Array.from(COMPUTER_USE_MODELS)[0]
+		const computerUseModel = Array.from(OPEN_ROUTER_COMPUTER_USE_MODELS)[0]
 		const mockResponse = {
 			data: {
 				data: [

@@ -1,5 +1,5 @@
 import axios from "axios"
-import { COMPUTER_USE_MODELS, ModelRecord } from "../../../shared/api"
+import { OPEN_ROUTER_COMPUTER_USE_MODELS, ModelRecord } from "../../../shared/api"
 
 /**
  * Fetches available models from a LiteLLM server
@@ -22,7 +22,7 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 		const response = await axios.get(`${baseUrl}/v1/model/info`, { headers, timeout: 5000 })
 		const models: ModelRecord = {}
 
-		const computerModels = Array.from(COMPUTER_USE_MODELS)
+		const computerModels = Array.from(OPEN_ROUTER_COMPUTER_USE_MODELS)
 
 		// Process the model info from the response
 		if (response.data && response.data.data && Array.isArray(response.data.data)) {
