@@ -82,7 +82,12 @@ function getSelectedModel({
 			const specificProvider = apiConfiguration.openRouterSpecificProvider
 
 			if (specificProvider && openRouterModelProviders[specificProvider]) {
-				info = openRouterModelProviders[specificProvider]
+				// Overwrite the info with the specific provider info. Some
+				// fields are missing the model info for `openRouterModelProviders`
+				// so we need to merge the two.
+				info = info
+					? { ...info, ...openRouterModelProviders[specificProvider] }
+					: openRouterModelProviders[specificProvider]
 			}
 
 			return info

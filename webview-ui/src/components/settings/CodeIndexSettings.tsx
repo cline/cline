@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { vscode } from "@/utils/vscode"
-import { ExtensionStateContextType } from "@/context/ExtensionStateContext"
 import { CodebaseIndexConfig, CodebaseIndexModels, ProviderSettings } from "../../../../src/schemas"
 import { EmbedderProvider } from "../../../../src/shared/embeddingModels"
 import { z } from "zod"

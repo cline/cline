@@ -44,7 +44,7 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({ language, value, className,
 				})
 
 				setHighlightedCode(html)
-			} catch (e) {
+			} catch (_e) {
 				setHighlightedCode(value)
 			}
 		}
