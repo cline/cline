@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react"
 import * as ProgressPrimitive from "@radix-ui/react-progress"
+import { Trans } from "react-i18next"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 
-import { VSCodeCheckbox, VSCodeTextField, VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeTextField, VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
 	AlertDialog,
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { vscode } from "@/utils/vscode"
+import { buildDocLink } from "@/utils/docLinks"
 import { CodebaseIndexConfig, CodebaseIndexModels, ProviderSettings } from "../../../../src/schemas"
 import { EmbedderProvider } from "../../../../src/shared/embeddingModels"
 import { z } from "zod"
@@ -154,7 +156,11 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 					</VSCodeCheckbox>
 				</div>
 				<p className="text-vscode-descriptionForeground text-sm mt-0">
-					{t("settings:codeIndex.enableDescription")}
+					<Trans i18nKey="settings:codeIndex.enableDescription">
+						<VSCodeLink
+							href={buildDocLink("features/experimental/codebase-indexing", "settings")}
+							style={{ display: "inline" }}></VSCodeLink>
+					</Trans>
 				</p>
 			</div>
 

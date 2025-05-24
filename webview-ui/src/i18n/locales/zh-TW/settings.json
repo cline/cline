@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "程式碼庫索引",
 		"enableLabel": "啟用程式碼庫索引",
-		"enableDescription": "啟用此功能將為您的程式碼庫建立索引。這可能會消耗系統資源，並且根據專案大小可能需要一些時間。",
+		"enableDescription": "<0>程式碼庫索引</0>是一個實驗性功能，使用 AI 嵌入為您的專案建立語義搜尋索引。這使 Roo Code 能夠透過基於含義而非僅僅關鍵詞來尋找相關程式碼，從而更好地理解和導覽大型程式碼庫。",
 		"providerLabel": "嵌入提供者",
 		"selectProviderPlaceholder": "選擇提供者",
 		"openaiProvider": "OpenAI",

@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "Indexação de Código",
 		"enableLabel": "Ativar Indexação de Código",
-		"enableDescription": "Ativar este recurso indexará sua base de código. Isso pode consumir recursos do sistema e levar algum tempo dependendo do tamanho do seu projeto.",
+		"enableDescription": "<0>Indexação de Código</0> é um recurso experimental que cria um índice de busca semântica do seu projeto usando embeddings de IA. Isso permite ao Roo Code entender melhor e navegar grandes bases de código encontrando código relevante baseado em significado ao invés de apenas palavras-chave.",
 		"providerLabel": "Provedor de Embeddings",
 		"selectProviderPlaceholder": "Selecionar provedor",
 		"openaiProvider": "OpenAI",

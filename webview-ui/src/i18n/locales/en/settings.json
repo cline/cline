@@ -34,8 +34,8 @@
 	},
 	"codeIndex": {
 		"title": "Codebase Indexing",
-		"enableLabel": "Enable codebase indexing",
-		"enableDescription": "Enabling this feature will index your codebase. This might consume system resources and take some time depending on the size of your project.",
+		"enableLabel": "Enable Codebase Indexing",
+		"enableDescription": "<0>Codebase Indexing</0> is an experimental feature that creates a semantic search index of your project using AI embeddings. This enables Roo Code to better understand and navigate large codebases by finding relevant code based on meaning rather than just keywords.",
 		"providerLabel": "Embeddings Provider",
 		"selectProviderPlaceholder": "Select provider",
 		"openaiProvider": "OpenAI",

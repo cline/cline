@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "Lập chỉ mục mã nguồn",
 		"enableLabel": "Bật lập chỉ mục mã nguồn",
-		"enableDescription": "Bật tính năng này sẽ lập chỉ mục cho mã nguồn của bạn. Điều này có thể tiêu tốn tài nguyên hệ thống và mất một khoảng thời gian tùy thuộc vào kích thước dự án của bạn.",
+		"enableDescription": "<0>Lập chỉ mục mã nguồn</0> là một tính năng thử nghiệm tạo ra chỉ mục tìm kiếm ngữ nghĩa cho dự án của bạn bằng cách sử dụng AI embeddings. Điều này cho phép Roo Code hiểu rõ hơn và điều hướng các codebase lớn bằng cách tìm mã liên quan dựa trên ý nghĩa thay vì chỉ từ khóa.",
 		"providerLabel": "Nhà cung cấp nhúng",
 		"selectProviderPlaceholder": "Chọn nhà cung cấp",
 		"openaiProvider": "OpenAI",

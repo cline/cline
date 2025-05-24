@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "Indexació de codi",
 		"enableLabel": "Habilitar indexació de codi",
-		"enableDescription": "Habilitar aquesta característica indexarà la vostra base de codi. Això pot consumir recursos del sistema i trigar un temps depenent de la mida del vostre projecte.",
+		"enableDescription": "<0>Indexació de codi</0> és una característica experimental que crea un índex de cerca semàntica del vostre projecte utilitzant embeddings d'IA. Això permet a Roo Code entendre millor i navegar per grans bases de codi trobant codi rellevant basat en significat en lloc de només paraules clau.",
 		"providerLabel": "Proveïdor d'embeddings",
 		"selectProviderPlaceholder": "Seleccionar proveïdor",
 		"openaiProvider": "OpenAI",

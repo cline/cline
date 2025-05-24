@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "Indeksowanie kodu",
 		"enableLabel": "Włącz indeksowanie kodu",
-		"enableDescription": "Włączenie tej funkcji spowoduje zaindeksowanie Twojego kodu. Może to zużywać zasoby systemowe i zająć trochę czasu w zależności od rozmiaru projektu.",
+		"enableDescription": "<0>Indeksowanie kodu</0> to eksperymentalna funkcja, która tworzy semantyczny indeks wyszukiwania Twojego projektu przy użyciu osadzeń AI. Umożliwia to Roo Code lepsze zrozumienie i nawigację po dużych bazach kodu poprzez znajdowanie odpowiedniego kodu na podstawie znaczenia, a nie tylko słów kluczowych.",
 		"providerLabel": "Dostawca osadzania",
 		"selectProviderPlaceholder": "Wybierz dostawcę",
 		"openaiProvider": "OpenAI",

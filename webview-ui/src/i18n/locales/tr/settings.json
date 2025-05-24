@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "Kod Tabanı İndeksleme",
 		"enableLabel": "Kod Tabanı İndekslemeyi Etkinleştir",
-		"enableDescription": "Bu özelliği etkinleştirmek kod tabanınızı indeksleyecektir. Bu, projenizin boyutuna bağlı olarak sistem kaynaklarını tüketebilir ve biraz zaman alabilir.",
+		"enableDescription": "<0>Kod Tabanı İndeksleme</0>, AI gömme teknolojisini kullanarak projenizin semantik arama indeksini oluşturan deneysel bir özelliktir. Bu, Roo Code'un sadece anahtar kelimeler yerine anlam temelinde ilgili kodu bularak büyük kod tabanlarını daha iyi anlamasını ve gezinmesini sağlar.",
 		"providerLabel": "Gömme Sağlayıcısı",
 		"selectProviderPlaceholder": "Sağlayıcı seç",
 		"openaiProvider": "OpenAI",

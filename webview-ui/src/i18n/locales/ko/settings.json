@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "코드베이스 인덱싱",
 		"enableLabel": "코드베이스 인덱싱 활성화",
-		"enableDescription": "이 기능을 활성화하면 코드베이스가 인덱싱됩니다. 프로젝트 크기에 따라 시스템 리소스를 소비하고 시간이 걸릴 수 있습니다.",
+		"enableDescription": "<0>코드베이스 인덱싱</0>은 AI 임베딩을 사용하여 프로젝트의 의미론적 검색 인덱스를 생성하는 실험적 기능입니다. 이를 통해 Roo Code는 단순한 키워드가 아닌 의미를 기반으로 관련 코드를 찾아 대규모 코드베이스를 더 잘 이해하고 탐색할 수 있습니다.",
 		"providerLabel": "임베딩 제공자",
 		"selectProviderPlaceholder": "제공자 선택",
 		"openaiProvider": "OpenAI",

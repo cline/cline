@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "代码库索引",
 		"enableLabel": "启用代码库索引",
-		"enableDescription": "启用此功能将为您的代码库建立索引。这可能会消耗系统资源，并且根据项目大小可能需要一些时间。",
+		"enableDescription": "<0>代码库索引</0>是一个实验性功能，使用 AI 嵌入为您的项目创建语义搜索索引。这使 Roo Code 能够通过基于含义而非仅仅关键词来查找相关代码，从而更好地理解和导航大型代码库。",
 		"providerLabel": "嵌入提供商",
 		"selectProviderPlaceholder": "选择提供商",
 		"openaiProvider": "OpenAI",

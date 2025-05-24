@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "Codebase-Indexierung",
 		"enableLabel": "Codebase-Indexierung aktivieren",
-		"enableDescription": "Die Aktivierung dieser Funktion wird Ihre Codebase indexieren. Dies kann Systemressourcen verbrauchen und je nach Größe Ihres Projekts einige Zeit in Anspruch nehmen.",
+		"enableDescription": "<0>Codebase-Indexierung</0> ist eine experimentelle Funktion, die einen semantischen Suchindex deines Projekts mit KI-Embeddings erstellt. Dies ermöglicht es Roo Code, große Codebasen besser zu verstehen und zu navigieren, indem relevanter Code basierend auf Bedeutung statt nur Schlüsselwörtern gefunden wird.",
 		"providerLabel": "Embeddings-Anbieter",
 		"selectProviderPlaceholder": "Anbieter auswählen",
 		"openaiProvider": "OpenAI",

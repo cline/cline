@@ -35,7 +35,7 @@
 	"codeIndex": {
 		"title": "Indicizzazione del codice",
 		"enableLabel": "Abilita indicizzazione del codice",
-		"enableDescription": "L'attivazione di questa funzionalità indicizzerà il tuo codice. Questo potrebbe consumare risorse di sistema e richiedere tempo a seconda delle dimensioni del tuo progetto.",
+		"enableDescription": "<0>L'indicizzazione del codice</0> è una funzionalità sperimentale che crea un indice di ricerca semantica del tuo progetto utilizzando embedding AI. Questo permette a Roo Code di comprendere meglio e navigare grandi basi di codice trovando codice rilevante basato sul significato piuttosto che solo su parole chiave.",
 		"providerLabel": "Fornitore di embedding",
 		"selectProviderPlaceholder": "Seleziona fornitore",
 		"openaiProvider": "OpenAI",
