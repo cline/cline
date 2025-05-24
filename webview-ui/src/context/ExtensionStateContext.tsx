@@ -207,6 +207,48 @@ export const ExtensionStateContextProvider: React.FC<{
 				break
 			}
 			case "state": {
+				setState((prevState) => {
+					const incoming = message.state!
+					// Versioning logic for autoApprovalSettings
+					const incomingVersion = incoming.autoApprovalSettings?.version ?? 1
+					const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+					const shouldUpdateAutoApproval = incomingVersion > currentVersion
+					return {
+						...incoming,
+						autoApprovalSettings: shouldUpdateAutoApproval
+							? incoming.autoApprovalSettings
+							: prevState.autoApprovalSettings,
+					}
+				})
+				const config = message.state?.apiConfiguration
+				const hasKey = config
+					? [
+							config.apiKey,
+							config.openRouterApiKey,
+							config.awsRegion,
+							config.vertexProjectId,
+							config.openAiApiKey,
+							config.ollamaModelId,
+							config.lmStudioModelId,
+							config.liteLlmApiKey,
+							config.geminiApiKey,
+							config.openAiNativeApiKey,
+							config.deepSeekApiKey,
+							config.requestyApiKey,
+							config.togetherApiKey,
+							config.netmindApiKey,
+							config.qwenApiKey,
+							config.doubaoApiKey,
+							config.mistralApiKey,
+							config.vsCodeLmModelSelector,
+							config.clineApiKey,
+							config.asksageApiKey,
+							config.xaiApiKey,
+							config.sambanovaApiKey,
+						].some((key) => key !== undefined)
+					: false
+				setShowWelcome(!hasKey)
+				setDidHydrateState(true)
 				// Handler for direct state messages
 				if (message.state) {
 					const stateData = message.state as ExtensionState
