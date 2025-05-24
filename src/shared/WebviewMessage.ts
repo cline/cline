@@ -25,7 +25,6 @@ export interface WebviewMessage {
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
-		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "searchFiles"
