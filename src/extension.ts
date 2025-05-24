@@ -227,6 +227,36 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
+
+		if (path === "/task") {
+			await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+
+			let sidebarController = WebviewProvider.getSidebarInstance()?.controller
+
+			// The sidebar might not have been opened in a fresh VS Code window yet.
+			// Give it a moment to resolve instead of failing immediately.
+			if (!sidebarController) {
+				try {
+					await pWaitFor(
+						() => {
+							sidebarController = WebviewProvider.getSidebarInstance()?.controller
+							return !!sidebarController
+						},
+						{ timeout: 3000, interval: 50 },
+					)
+				} catch {
+					// Timed out ‑ handled below
+				}
+			}
+
+			if (sidebarController) {
+				await sidebarController.handleDeepLink(uri)
+			} else {
+				vscode.window.showErrorMessage("Cline sidebar not available to handle the task link.")
+			}
+			return
+		}
+
 		const visibleWebview = WebviewProvider.getVisibleInstance()
 		if (!visibleWebview) {
 			return

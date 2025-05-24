@@ -40,6 +40,7 @@
 		"llama"
 	],
 	"activationEvents": [
+		"onUri",
 		"onLanguage",
 		"onStartupFinished",
 		"workspaceContains:evals.env"
