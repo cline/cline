@@ -12,7 +12,7 @@ jest.mock("delay", () => jest.fn(() => Promise.resolve()))
 jest.mock("../fetchers/modelCache", () => ({
 	getModels: jest.fn().mockImplementation(() => {
 		return Promise.resolve({
-			"anthropic/claude-3.7-sonnet": {
+			"anthropic/claude-sonnet-4": {
 				maxTokens: 8192,
 				contextWindow: 200000,
 				supportsImages: true,
@@ -44,7 +44,7 @@ jest.mock("../fetchers/modelCache", () => ({
 describe("OpenRouterHandler", () => {
 	const mockOptions: ApiHandlerOptions = {
 		openRouterApiKey: "test-key",
-		openRouterModelId: "anthropic/claude-3.7-sonnet",
+		openRouterModelId: "anthropic/claude-sonnet-4",
 	}
 
 	beforeEach(() => jest.clearAllMocks())
@@ -84,7 +84,7 @@ describe("OpenRouterHandler", () => {
 		it("returns default model info when options are not provided", async () => {
 			const handler = new OpenRouterHandler({})
 			const result = await handler.fetchModel()
-			expect(result.id).toBe("anthropic/claude-3.7-sonnet")
+			expect(result.id).toBe("anthropic/claude-sonnet-4")
 			expect(result.info.supportsPromptCache).toBe(true)
 		})
 
@@ -172,7 +172,7 @@ describe("OpenRouterHandler", () => {
 							role: "user",
 						},
 					],
-					model: "anthropic/claude-3.7-sonnet",
+					model: "anthropic/claude-sonnet-4",
 					stream: true,
 					stream_options: { include_usage: true },
 					temperature: 0,

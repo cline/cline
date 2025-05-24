@@ -247,12 +247,17 @@ describe("useSelectedModel", () => {
 			mockUseRouterModels.mockReturnValue({
 				data: {
 					openrouter: {
-						"anthropic/claude-3.7-sonnet": {
+						"anthropic/claude-sonnet-4": {
 							// Default model
-							maxTokens: 4096,
-							contextWindow: 8192,
-							supportsImages: false,
-							supportsPromptCache: false,
+							maxTokens: 8192,
+							contextWindow: 200_000,
+							supportsImages: true,
+							supportsComputerUse: true,
+							supportsPromptCache: true,
+							inputPrice: 3.0,
+							outputPrice: 15.0,
+							cacheWritesPrice: 3.75,
+							cacheReadsPrice: 0.3,
 						},
 					},
 					requesty: {},
@@ -279,12 +284,17 @@ describe("useSelectedModel", () => {
 			const wrapper = createWrapper()
 			const { result } = renderHook(() => useSelectedModel(apiConfiguration), { wrapper })
 
-			expect(result.current.id).toBe("anthropic/claude-3.7-sonnet")
+			expect(result.current.id).toBe("anthropic/claude-sonnet-4")
 			expect(result.current.info).toEqual({
-				maxTokens: 4096,
-				contextWindow: 8192,
-				supportsImages: false,
-				supportsPromptCache: false,
+				maxTokens: 8192,
+				contextWindow: 200_000,
+				supportsImages: true,
+				supportsComputerUse: true,
+				supportsPromptCache: true,
+				inputPrice: 3.0,
+				outputPrice: 15.0,
+				cacheWritesPrice: 3.75,
+				cacheReadsPrice: 0.3,
 			})
 		})
 	})
@@ -366,7 +376,7 @@ describe("useSelectedModel", () => {
 			const { result } = renderHook(() => useSelectedModel(), { wrapper })
 
 			expect(result.current.provider).toBe("anthropic")
-			expect(result.current.id).toBe("claude-3-7-sonnet-20250219")
+			expect(result.current.id).toBe("claude-sonnet-4-20250514")
 			expect(result.current.info).toBeUndefined()
 		})
 	})

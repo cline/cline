@@ -8,7 +8,7 @@ export type ApiHandlerOptions = Omit<ProviderSettings, "apiProvider">
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
 export type AnthropicModelId = keyof typeof anthropicModels
-export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
+export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-20250514"
 export const anthropicModels = {
 	"claude-sonnet-4-20250514": {
 		maxTokens: 64_000, // Overridden to 8k if `enableReasoningEffort` is false.
@@ -125,7 +125,7 @@ export interface MessageContent {
 }
 
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
 export const bedrockDefaultPromptRouterModelId: BedrockModelId = "anthropic.claude-3-sonnet-20240229-v1:0"
 
 // March, 12 2025 - updated prices to match US-West-2 list price shown at https://aws.amazon.com/bedrock/pricing/
@@ -488,7 +488,7 @@ export const glamaDefaultModelInfo: ModelInfo = {
 
 // Requesty
 // https://requesty.ai/router-2
-export const requestyDefaultModelId = "coding/claude-3-7-sonnet"
+export const requestyDefaultModelId = "coding/claude-4-sonnet"
 export const requestyDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -500,12 +500,12 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"The best coding model, optimized by Requesty, and automatically routed to the fastest provider. Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and extended, step-by-step processing for complex tasks. The model demonstrates notable improvements in coding, particularly in front-end development and full-stack updates, and excels in agentic workflows, where it can autonomously navigate multi-step processes. Claude 3.7 Sonnet maintains performance parity with its predecessor in standard mode while offering an extended reasoning mode for enhanced accuracy in math, coding, and instruction-following tasks. Read more at the [blog post here](https://www.anthropic.com/news/claude-3-7-sonnet)",
+		"The best coding model, optimized by Requesty, and automatically routed to the fastest provider. Claude 4 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities.",
 }
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-3.7-sonnet"
+export const openRouterDefaultModelId = "anthropic/claude-sonnet-4"
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -523,7 +523,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-3-7-sonnet@20250219"
+export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4@20250514"
 export const vertexModels = {
 	"gemini-2.5-flash-preview-05-20:thinking": {
 		maxTokens: 65_535,

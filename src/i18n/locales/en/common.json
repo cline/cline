@@ -52,7 +52,8 @@
 		"custom_storage_path_unusable": "Custom storage path \"{{path}}\" is unusable, will use default path",
 		"cannot_access_path": "Cannot access path {{path}}: {{error}}",
 		"failed_update_project_mcp": "Failed to update project MCP servers",
-		"settings_import_failed": "Settings import failed: {{error}}."
+		"settings_import_failed": "Settings import failed: {{error}}.",
+		"mistake_limit_guidance": "This may indicate a failure in the model's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. \"Try breaking down the task into smaller steps\")."
 	},
 	"warnings": {
 		"no_terminal_content": "No terminal content selected",

@@ -52,7 +52,8 @@
 		"failed_remove_directory": "刪除工作目錄失敗：{{error}}",
 		"custom_storage_path_unusable": "自訂儲存路徑 \"{{path}}\" 無法使用，將使用預設路徑",
 		"cannot_access_path": "無法存取路徑 {{path}}：{{error}}",
-		"settings_import_failed": "設定匯入失敗：{{error}}。"
+		"settings_import_failed": "設定匯入失敗：{{error}}。",
+		"mistake_limit_guidance": "這可能表明模型思維過程失敗或無法正確使用工具，可透過使用者指導來緩解（例如「嘗試將工作分解為更小的步驟」）。"
 	},
 	"warnings": {
 		"no_terminal_content": "沒有選擇終端機內容",

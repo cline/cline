@@ -52,7 +52,8 @@
 		"failed_remove_directory": "Error al eliminar el directorio de tareas: {{error}}",
 		"custom_storage_path_unusable": "La ruta de almacenamiento personalizada \"{{path}}\" no es utilizable, se usará la ruta predeterminada",
 		"cannot_access_path": "No se puede acceder a la ruta {{path}}: {{error}}",
-		"settings_import_failed": "Error al importar la configuración: {{error}}."
+		"settings_import_failed": "Error al importar la configuración: {{error}}.",
+		"mistake_limit_guidance": "Esto puede indicar un fallo en el proceso de pensamiento del modelo o la incapacidad de usar una herramienta correctamente, lo cual puede mitigarse con orientación del usuario (ej. \"Intenta dividir la tarea en pasos más pequeños\")."
 	},
 	"warnings": {
 		"no_terminal_content": "No hay contenido de terminal seleccionado",

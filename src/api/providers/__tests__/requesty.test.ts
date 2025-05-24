@@ -11,7 +11,7 @@ jest.mock("delay", () => jest.fn(() => Promise.resolve()))
 jest.mock("../fetchers/modelCache", () => ({
 	getModels: jest.fn().mockImplementation(() => {
 		return Promise.resolve({
-			"coding/claude-3-7-sonnet": {
+			"coding/claude-4-sonnet": {
 				maxTokens: 8192,
 				contextWindow: 200000,
 				supportsImages: true,
@@ -21,7 +21,7 @@ jest.mock("../fetchers/modelCache", () => ({
 				outputPrice: 15,
 				cacheWritesPrice: 3.75,
 				cacheReadsPrice: 0.3,
-				description: "Claude 3.7 Sonnet",
+				description: "Claude 4 Sonnet",
 			},
 		})
 	}),
@@ -30,7 +30,7 @@ jest.mock("../fetchers/modelCache", () => ({
 describe("RequestyHandler", () => {
 	const mockOptions: ApiHandlerOptions = {
 		requestyApiKey: "test-key",
-		requestyModelId: "coding/claude-3-7-sonnet",
+		requestyModelId: "coding/claude-4-sonnet",
 	}
 
 	beforeEach(() => jest.clearAllMocks())
@@ -66,7 +66,7 @@ describe("RequestyHandler", () => {
 					outputPrice: 15,
 					cacheWritesPrice: 3.75,
 					cacheReadsPrice: 0.3,
-					description: "Claude 3.7 Sonnet",
+					description: "Claude 4 Sonnet",
 				},
 			})
 		})
@@ -87,7 +87,7 @@ describe("RequestyHandler", () => {
 					outputPrice: 15,
 					cacheWritesPrice: 3.75,
 					cacheReadsPrice: 0.3,
-					description: "Claude 3.7 Sonnet",
+					description: "Claude 4 Sonnet",
 				},
 			})
 		})
@@ -161,7 +161,7 @@ describe("RequestyHandler", () => {
 							content: "test message",
 						},
 					],
-					model: "coding/claude-3-7-sonnet",
+					model: "coding/claude-4-sonnet",
 					stream: true,
 					stream_options: { include_usage: true },
 					temperature: undefined,

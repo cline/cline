@@ -56,7 +56,8 @@
 		"failed_remove_directory": "Ha fallat l'eliminació del directori de tasques: {{error}}",
 		"custom_storage_path_unusable": "La ruta d'emmagatzematge personalitzada \"{{path}}\" no és utilitzable, s'utilitzarà la ruta predeterminada",
 		"cannot_access_path": "No es pot accedir a la ruta {{path}}: {{error}}",
-		"settings_import_failed": "Ha fallat la importació de la configuració: {{error}}."
+		"settings_import_failed": "Ha fallat la importació de la configuració: {{error}}.",
+		"mistake_limit_guidance": "Això pot indicar un error en el procés de pensament del model o la incapacitat d'utilitzar una eina correctament, que es pot mitigar amb orientació de l'usuari (p. ex. \"Prova de dividir la tasca en passos més petits\")."
 	},
 	"warnings": {
 		"no_terminal_content": "No s'ha seleccionat contingut de terminal",
