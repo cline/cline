@@ -1,8 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
-import { UiServiceClient } from "@/services/grpc-client"
+import { UiServiceClient, McpServiceClient } from "@/services/grpc-client"
 
 import ServersToggleList from "./ServersToggleList"
 const InstalledServersView = () => {
@@ -40,7 +39,9 @@ const InstalledServersView = () => {
 					appearance="secondary"
 					style={{ width: "100%", marginBottom: "5px" }}
 					onClick={() => {
-						vscode.postMessage({ type: "openMcpSettings" })
+						McpServiceClient.openMcpSettings({}).catch((error) => {
+							console.error("Error opening MCP settings:", error)
+						})
 					}}>
 					<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
 					Configure MCP Servers
