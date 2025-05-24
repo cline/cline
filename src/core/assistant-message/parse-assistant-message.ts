@@ -263,6 +263,27 @@ export function parseAssistantMessageV1(assistantMessage: string): AssistantMess
  *          Blocks that were not fully closed by the end of the input string will have their `partial` flag set to `true`.
  */
 export function parseAssistantMessageV2(assistantMessage: string): AssistantMessageContent[] {
+	// Check if this message contains Claude 4 XML tool calls
+	// Enhanced pattern matching to catch partial XML tags as well
+	const xmlPatterns = [
+		assistantMessage.includes("<function_calls>"),
+		assistantMessage.includes('<invoke name="Write">'),
+		assistantMessage.includes("<invoke name='Write'>"),
+		assistantMessage.includes('<invoke name="Edit">'),
+		assistantMessage.includes("<invoke name='Edit'>"),
+		/<function_calls\s*>/i.test(assistantMessage),
+		/<invoke\s+name=["'](Write|Edit)["']/i.test(assistantMessage),
+		// Additional patterns to catch partial XML fragments
+		/^<function_calls/.test(assistantMessage),
+		/^<invoke\s+name=/.test(assistantMessage),
+		/<function_calls[^>]*$/.test(assistantMessage),
+		/<invoke\s+name=[^>]*$/.test(assistantMessage),
+	]
+
+	if (xmlPatterns.some((pattern) => pattern)) {
+		return parseAssistantMessageWithClaude4XML(assistantMessage)
+	}
+
 	const contentBlocks: AssistantMessageContent[] = []
 	let currentTextContentStart = 0 // Index where the current text block started
 	let currentTextContent: TextContent | undefined = undefined
@@ -274,9 +295,13 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	// Precompute tags for faster lookups
 	const toolUseOpenTags = new Map<string, ToolUseName>()
 	const toolParamOpenTags = new Map<string, ToolParamName>()
+
+	// Standard tool tags
 	for (const name of toolUseNames) {
 		toolUseOpenTags.set(`<${name}>`, name)
 	}
+
+	// Parameter tags
 	for (const name of toolParamNames) {
 		toolParamOpenTags.set(`<${name}>`, name)
 	}
@@ -472,4 +497,313 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	}
 
 	return contentBlocks
+}
+
+/**
+ * Parses Claude 4 XML-formatted assistant messages containing function calls
+ * with support for incremental/streaming updates
+ * @param assistantMessage The raw string output from the assistant containing XML tool calls
+ * @returns An array of `AssistantMessageContent` objects
+ */
+function parseAssistantMessageWithClaude4XML(assistantMessage: string): AssistantMessageContent[] {
+	const contentBlocks: AssistantMessageContent[] = []
+	let currentPos = 0
+
+	// Process the message incrementally
+	while (currentPos < assistantMessage.length) {
+		// Check if we're at the start of a function_calls block
+		const functionCallsStart = assistantMessage.indexOf("<function_calls>", currentPos)
+
+		if (functionCallsStart === -1) {
+			// No more function_calls blocks, process remaining text
+			let remainingText = assistantMessage.slice(currentPos).trim()
+			remainingText = cleanPartialXmlTags(remainingText)
+
+			// Check if we have a partial function_calls opening tag at the end
+			if (
+				remainingText &&
+				!assistantMessage.includes("</function_calls>") &&
+				(remainingText.endsWith("<function_calls>") || remainingText.endsWith("<function_calls"))
+			) {
+				// We have a partial opening tag, don't add as text yet
+				break
+			}
+
+			if (remainingText) {
+				contentBlocks.push({
+					type: "text",
+					content: remainingText,
+					partial: false,
+				})
+			}
+			break
+		}
+
+		// Add any text before the function_calls block
+		if (functionCallsStart > currentPos) {
+			let textBefore = assistantMessage.slice(currentPos, functionCallsStart).trim()
+			textBefore = cleanPartialXmlTags(textBefore)
+
+			if (textBefore) {
+				contentBlocks.push({
+					type: "text",
+					content: textBefore,
+					partial: false,
+				})
+			}
+		}
+
+		// Find the end of the function_calls block
+		const functionCallsEnd = assistantMessage.indexOf("</function_calls>", functionCallsStart)
+
+		if (functionCallsEnd === -1) {
+			// Incomplete function_calls block - parse what we have as partial
+			const partialContent = assistantMessage.slice(functionCallsStart + "<function_calls>".length)
+			parsePartialInvokeBlocks(partialContent, contentBlocks, true)
+			break
+		}
+
+		// We have a complete function_calls block
+		const functionCallsContent = assistantMessage.slice(functionCallsStart + "<function_calls>".length, functionCallsEnd)
+
+		// Parse all invoke blocks within this function_calls block
+		parsePartialInvokeBlocks(functionCallsContent, contentBlocks, false)
+
+		currentPos = functionCallsEnd + "</function_calls>".length
+	}
+
+	return contentBlocks
+}
+
+/**
+ * Helper function to parse invoke blocks with support for partial blocks
+ */
+function parsePartialInvokeBlocks(
+	content: string,
+	contentBlocks: AssistantMessageContent[],
+	isPartialFunctionCalls: boolean,
+): void {
+	let currentPos = 0
+
+	while (currentPos < content.length) {
+		// Find the start of an invoke block
+		const invokeMatch = content.slice(currentPos).match(/<invoke\s+name=["'](Edit|Write|write_to_file|replace_in_file)["']>/)
+
+		if (!invokeMatch || invokeMatch.index === undefined) {
+			break
+		}
+
+		const invokeStart = currentPos + invokeMatch.index
+		const toolName = invokeMatch[1]
+		const invokeTagEnd = invokeStart + invokeMatch[0].length
+
+		// Find the end of the invoke block
+		const invokeEnd = content.indexOf("</invoke>", invokeTagEnd)
+
+		if (invokeEnd === -1) {
+			// Incomplete invoke block - parse as partial
+			const partialInvokeContent = content.slice(invokeTagEnd)
+			const partialBlock = parsePartialToolBlock(toolName, partialInvokeContent, true)
+			if (partialBlock) {
+				contentBlocks.push(partialBlock)
+			}
+			break
+		}
+
+		// Complete invoke block
+		const invokeContent = content.slice(invokeTagEnd, invokeEnd)
+		// Even if we have </invoke>, we need to check if we're still in a partial function_calls block
+		const completeBlock = parsePartialToolBlock(toolName, invokeContent, isPartialFunctionCalls)
+		if (completeBlock) {
+			contentBlocks.push(completeBlock)
+		}
+
+		currentPos = invokeEnd + "</invoke>".length
+	}
+}
+
+/**
+ * Parse a tool block (potentially partial) into a ToolUse object
+ */
+function parsePartialToolBlock(toolName: string, invokeContent: string, isPartial: boolean): ToolUse | null {
+	if (toolName === "Write") {
+		// Parse parameters for Write tool
+		const filePathMatch = extractParameter(invokeContent, "file_path", false)
+		const contentMatch = extractParameter(invokeContent, "content", true)
+
+		// Check if we have at least a file path to create a partial block
+		if (filePathMatch !== null) {
+			return {
+				type: "tool_use",
+				name: "write_to_file",
+				params: {
+					path: filePathMatch.trim(),
+					content: contentMatch || "",
+				},
+				partial: isPartial || !contentMatch || !isParameterComplete(invokeContent, "content"),
+			}
+		}
+	} else if (toolName === "Edit") {
+		// Parse parameters for Edit tool
+		const filePathMatch = extractParameter(invokeContent, "file_path", false)
+		const oldStrMatch = extractParameter(invokeContent, "old_str", true)
+		const newStrMatch = extractParameter(invokeContent, "new_str", true)
+
+		// Check if we have at least a file path to create a partial block
+		if (filePathMatch !== null) {
+			const oldStr = oldStrMatch || ""
+			const newStr = newStrMatch || ""
+			const diff = oldStr || newStr ? `<<<<<<< SEARCH\n${oldStr}\n=======\n${newStr}\n>>>>>>> REPLACE\n` : ""
+
+			// For Edit tool, we need BOTH old_str and new_str to be complete
+			const hasCompleteOldStr = oldStrMatch !== null && isParameterComplete(invokeContent, "old_str")
+			const hasCompleteNewStr = newStrMatch !== null && isParameterComplete(invokeContent, "new_str")
+
+			return {
+				type: "tool_use",
+				name: "replace_in_file",
+				params: {
+					path: filePathMatch.trim(),
+					diff: diff,
+				},
+				partial: isPartial || !hasCompleteOldStr || !hasCompleteNewStr,
+			}
+		}
+	}
+
+	return null
+}
+
+/**
+ * Extract a parameter value from invoke content, handling partial parameters
+ */
+export function extractParameter(content: string, paramName: string, allowPartial: boolean): string | null {
+	const paramStartTag = `<parameter\\s+name=["']${paramName}["']>`
+	const paramEndTag = `</parameter>`
+
+	const startMatch = content.match(new RegExp(paramStartTag))
+	if (!startMatch || startMatch.index === undefined) {
+		return null
+	}
+
+	const startPos = startMatch.index + startMatch[0].length
+
+	// Handle nested parameter tags by counting depth
+	let depth = 1
+	let currentPos = startPos
+
+	while (currentPos < content.length && depth > 0) {
+		// Look for any parameter tag (opening or closing)
+		const remainingContent = content.slice(currentPos)
+
+		// Find next opening tag
+		const openTagMatch = remainingContent.match(/<parameter\s+name=["'][^"']+["']>/)
+		const openTagIndex = openTagMatch ? openTagMatch.index! : -1
+
+		// Find next closing tag
+		const closeTagIndex = remainingContent.indexOf("</parameter>")
+
+		if (closeTagIndex === -1) {
+			// No closing tag found
+			if (allowPartial) {
+				return content.slice(startPos)
+			}
+			return null
+		}
+
+		// Determine which comes first
+		if (openTagIndex !== -1 && openTagIndex < closeTagIndex) {
+			// Found an opening tag first - increase depth
+			depth++
+			currentPos += openTagIndex + openTagMatch![0].length
+		} else {
+			// Found a closing tag first - decrease depth
+			depth--
+			if (depth === 0) {
+				// This is our matching closing tag
+				const paramValue = content.slice(startPos, currentPos + closeTagIndex)
+
+				// Check if the content looks truncated (ends with "..." or is cut off mid-line)
+				if (paramValue.endsWith("...") || (paramValue.match(/\n[^\n]+$/) && !paramValue.endsWith("\n"))) {
+					// Content appears truncated, treat as partial
+					if (allowPartial) {
+						return paramValue
+					}
+					return null
+				}
+
+				return paramValue
+			}
+			currentPos += closeTagIndex + 12 // Length of '</parameter>'
+		}
+	}
+
+	// If we exit the loop without finding a match
+	if (allowPartial) {
+		return content.slice(startPos)
+	}
+	return null
+}
+
+/**
+ * Check if a parameter is complete (has a closing tag and doesn't appear truncated)
+ */
+function isParameterComplete(content: string, paramName: string): boolean {
+	const paramStartTag = `<parameter\\s+name=["']${paramName}["']>`
+	const startMatch = content.match(new RegExp(paramStartTag))
+
+	if (!startMatch || startMatch.index === undefined) {
+		return false
+	}
+
+	const startPos = startMatch.index + startMatch[0].length
+	const closeTagIndex = content.indexOf("</parameter>", startPos)
+
+	if (closeTagIndex === -1) {
+		return false
+	}
+
+	// Extract the parameter value to check if it's complete
+	const paramValue = extractParameter(content, paramName, false)
+	if (!paramValue) {
+		return false
+	}
+
+	// For multi-line parameters like old_str/new_str in Edit tool,
+	// check if we have the expected structure (no truncation mid-content)
+	// If the invoke block itself has a closing </invoke> tag, we can be more confident it's complete
+	const hasInvokeClose = content.includes("</invoke>")
+
+	// Only mark as complete if we have the closing invoke tag
+	// This prevents premature execution during streaming
+	return hasInvokeClose
+}
+
+/**
+ * Cleans partial XML tags from text content to prevent them from being displayed in the chat UI
+ * @param text The text to clean
+ * @returns The cleaned text
+ */
+function cleanPartialXmlTags(text: string): string {
+	if (!text) {
+		return text
+	}
+
+	// Remove function_calls opening tags
+	text = text.replace(/<function_calls>\s*$/g, "")
+	text = text.replace(/<function_calls>\s*(?![\s\S]*<\/function_calls>)/g, "")
+
+	// Remove invoke opening tags
+	text = text.replace(/<invoke\s+name=["'](Edit|Write|write_to_file|replace_in_file)["']>\s*$/g, "")
+	text = text.replace(/<invoke\s+name=["'](Edit|Write|write_to_file|replace_in_file)["']>\s*(?![\s\S]*<\/invoke>)/g, "")
+
+	// Remove parameter opening tags
+	text = text.replace(/<parameter\s+name=["'][^"']+["']>\s*$/g, "")
+
+	// Remove partial closing tags
+	text = text.replace(/^\s*<\/function_calls>/g, "")
+	text = text.replace(/^\s*<\/invoke>/g, "")
+	text = text.replace(/^\s*<\/parameter>/g, "")
+
+	return text.trim()
 }

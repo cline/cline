@@ -1555,7 +1555,7 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, this.api.getModel().id)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		await this.migratePreferredLanguageToolSetting()
@@ -1751,6 +1751,7 @@ export class Task {
 					break
 				}
 				let content = block.content
+
 				if (content) {
 					// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
 					// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
@@ -1781,8 +1782,13 @@ export class Task {
 							const isLikelyTagName = /^[a-zA-Z_]+$/.test(tagContent)
 							// Preemptively remove < or </ to keep from these artifacts showing up in chat (also handles closing thinking tags)
 							const isOpeningOrClosing = possibleTag === "<" || possibleTag === "</"
+							// Check for Claude 4 XML patterns
+							const isClaudeXmlPattern =
+								possibleTag.startsWith("<function_calls") ||
+								possibleTag.startsWith("<invoke") ||
+								possibleTag.startsWith("<parameter")
 							// If the tag is incomplete and at the end, remove it from the content
-							if (isOpeningOrClosing || isLikelyTagName) {
+							if (isOpeningOrClosing || isLikelyTagName || isClaudeXmlPattern) {
 								content = content.slice(0, lastOpenBracketIndex).trim()
 							}
 						}
@@ -1885,8 +1891,11 @@ export class Task {
 					} else {
 						this.userMessageContent.push(...content)
 					}
-					// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
-					this.didAlreadyUseTool = true
+					// Only set didAlreadyUseTool to true if the block is complete (not partial)
+					// For Claude 4 XML parsing, partial blocks should not prevent subsequent parameters
+					if (!block.partial) {
+						this.didAlreadyUseTool = true
+					}
 				}
 
 				// The user can approve, reject, or provide feedback (rejection). However the user may also send a message along with an approval, in which case we add a separate user message with this feedback.
@@ -2051,7 +2060,13 @@ export class Task {
 									pushToolResult(
 										formatResponse.toolError(
 											`${(error as Error)?.message}\n\n` +
-												formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
+												formatResponse.diffError(
+													relPath,
+													this.diffViewProvider.originalContent,
+													this.api.getModel().id.includes("claude-4") ||
+														this.api.getModel().id.includes("claude-opus-4") ||
+														this.api.getModel().id.includes("claude-sonnet-4"),
+												),
 										),
 									)
 									await this.diffViewProvider.revertChanges()
