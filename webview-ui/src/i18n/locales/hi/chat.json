@@ -260,5 +260,10 @@
 			"description": "Roo {{count}} API अनुरोध(धों) की स्वत:-स्वीकृत सीमा तक पहुंच गया है। क्या आप गणना को रीसेट करके कार्य जारी रखना चाहते हैं?",
 			"button": "रीसेट करें और जारी रखें"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo कोडबेस में '{{query}}' खोजना चाहता है:",
+		"wantsToSearchWithPath": "Roo '{{path}}' में कोडबेस में '{{query}}' खोजना चाहता है:",
+		"didSearch": "'{{query}}' के लिए {{count}} परिणाम मिले:"
 	}
 }

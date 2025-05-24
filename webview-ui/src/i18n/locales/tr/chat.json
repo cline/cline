@@ -260,5 +260,10 @@
 			"description": "Roo, {{count}} API isteği/istekleri için otomatik onaylanan limite ulaştı. Sayacı sıfırlamak ve göreve devam etmek istiyor musunuz?",
 			"button": "Sıfırla ve Devam Et"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo kod tabanında '{{query}}' aramak istiyor:",
+		"wantsToSearchWithPath": "Roo '{{path}}' içinde kod tabanında '{{query}}' aramak istiyor:",
+		"didSearch": "'{{query}}' için {{count}} sonuç bulundu:"
 	}
 }

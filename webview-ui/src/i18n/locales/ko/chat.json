@@ -260,5 +260,10 @@
 			"description": "Roo가 {{count}}개의 API 요청(들)에 대한 자동 승인 한도에 도달했습니다. 카운트를 재설정하고 작업을 계속하시겠습니까?",
 			"button": "재설정 후 계속"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo가 코드베이스에서 '{{query}}'을(를) 검색하고 싶어합니다:",
+		"wantsToSearchWithPath": "Roo가 '{{path}}'에서 '{{query}}'을(를) 검색하고 싶어합니다:",
+		"didSearch": "'{{query}}'에 대한 검색 결과 {{count}}개 찾음:"
 	}
 }

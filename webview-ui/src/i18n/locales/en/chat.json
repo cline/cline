@@ -161,6 +161,11 @@
 		"wantsToSearch": "Roo wants to search this directory for <code>{{regex}}</code>:",
 		"didSearch": "Roo searched this directory for <code>{{regex}}</code>:"
 	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo wants to search the codebase for '{{query}}':",
+		"wantsToSearchWithPath": "Roo wants to search the codebase for '{{query}}' in '{{path}}':",
+		"didSearch": "Found {{count}} result(s) for '{{query}}':"
+	},
 	"commandOutput": "Command Output",
 	"response": "Response",
 	"arguments": "Arguments",

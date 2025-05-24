@@ -6,5 +6,8 @@
 		"definitionsOnly": " (정의만)",
 		"maxLines": " (최대 {{max}}행)"
 	},
-	"toolRepetitionLimitReached": "Roo가 같은 동작({{toolName}})을 반복적으로 시도하면서 루프에 갇힌 것 같습니다. 이는 현재 전략에 문제가 있을 수 있음을 나타냅니다. 작업을 다시 표현하거나, 더 구체적인 지침을 제공하거나, 다른 접근 방식으로 안내해 보세요."
+	"toolRepetitionLimitReached": "Roo가 같은 동작({{toolName}})을 반복적으로 시도하면서 루프에 갇힌 것 같습니다. 이는 현재 전략에 문제가 있을 수 있음을 나타냅니다. 작업을 다시 표현하거나, 더 구체적인 지침을 제공하거나, 다른 접근 방식으로 안내해 보세요.",
+	"codebaseSearch": {
+		"approval": "코드베이스에서 '{{query}}' 검색 중..."
+	}
 }

@@ -32,6 +32,29 @@
 		"language": "Dil",
 		"about": "Roo Code Hakkında"
 	},
+	"codeIndex": {
+		"title": "Kod Tabanı İndeksleme",
+		"enableLabel": "Kod Tabanı İndekslemeyi Etkinleştir",
+		"enableDescription": "Bu özelliği etkinleştirmek kod tabanınızı indeksleyecektir. Bu, projenizin boyutuna bağlı olarak sistem kaynaklarını tüketebilir ve biraz zaman alabilir.",
+		"providerLabel": "Gömme Sağlayıcısı",
+		"selectProviderPlaceholder": "Sağlayıcı seç",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "OpenAI Anahtarı:",
+		"modelLabel": "Model",
+		"selectModelPlaceholder": "Model seç",
+		"ollamaUrlLabel": "Ollama URL:",
+		"qdrantUrlLabel": "Qdrant URL",
+		"qdrantKeyLabel": "Qdrant Anahtarı:",
+		"startIndexingButton": "İndekslemeyi Başlat",
+		"clearIndexDataButton": "İndeks Verilerini Temizle",
+		"clearDataDialog": {
+			"title": "Emin misiniz?",
+			"description": "Bu işlem geri alınamaz. Bu, kod tabanı indeks verilerinizi kalıcı olarak silecektir.",
+			"cancelButton": "İptal",
+			"confirmButton": "Verileri Temizle"
+		}
+	},
 	"autoApprove": {
 		"description": "Roo'nun onay gerektirmeden otomatik olarak işlemler gerçekleştirmesine izin verin. Bu ayarları yalnızca yapay zekaya tamamen güveniyorsanız ve ilgili güvenlik risklerini anlıyorsanız etkinleştirin.",
 		"readOnly": {

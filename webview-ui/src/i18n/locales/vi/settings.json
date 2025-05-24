@@ -32,6 +32,29 @@
 		"language": "Ngôn ngữ",
 		"about": "Giới thiệu"
 	},
+	"codeIndex": {
+		"title": "Lập chỉ mục mã nguồn",
+		"enableLabel": "Bật lập chỉ mục mã nguồn",
+		"enableDescription": "Bật tính năng này sẽ lập chỉ mục cho mã nguồn của bạn. Điều này có thể tiêu tốn tài nguyên hệ thống và mất một khoảng thời gian tùy thuộc vào kích thước dự án của bạn.",
+		"providerLabel": "Nhà cung cấp nhúng",
+		"selectProviderPlaceholder": "Chọn nhà cung cấp",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "Khóa OpenAI:",
+		"modelLabel": "Mô hình",
+		"selectModelPlaceholder": "Chọn mô hình",
+		"ollamaUrlLabel": "URL Ollama:",
+		"qdrantUrlLabel": "URL Qdrant",
+		"qdrantKeyLabel": "Khóa Qdrant:",
+		"startIndexingButton": "Bắt đầu lập chỉ mục",
+		"clearIndexDataButton": "Xóa dữ liệu chỉ mục",
+		"clearDataDialog": {
+			"title": "Bạn có chắc không?",
+			"description": "Hành động này không thể hoàn tác. Điều này sẽ xóa vĩnh viễn dữ liệu chỉ mục mã nguồn của bạn.",
+			"cancelButton": "Hủy",
+			"confirmButton": "Xóa dữ liệu"
+		}
+	},
 	"autoApprove": {
 		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",
 		"readOnly": {

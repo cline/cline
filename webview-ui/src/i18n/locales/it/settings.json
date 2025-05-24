@@ -32,6 +32,29 @@
 		"language": "Lingua",
 		"about": "Informazioni su Roo Code"
 	},
+	"codeIndex": {
+		"title": "Indicizzazione del codice",
+		"enableLabel": "Abilita indicizzazione del codice",
+		"enableDescription": "L'attivazione di questa funzionalità indicizzerà il tuo codice. Questo potrebbe consumare risorse di sistema e richiedere tempo a seconda delle dimensioni del tuo progetto.",
+		"providerLabel": "Fornitore di embedding",
+		"selectProviderPlaceholder": "Seleziona fornitore",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "Chiave OpenAI:",
+		"modelLabel": "Modello",
+		"selectModelPlaceholder": "Seleziona modello",
+		"ollamaUrlLabel": "URL Ollama:",
+		"qdrantUrlLabel": "URL Qdrant",
+		"qdrantKeyLabel": "Chiave Qdrant:",
+		"startIndexingButton": "Avvia indicizzazione",
+		"clearIndexDataButton": "Cancella dati indice",
+		"clearDataDialog": {
+			"title": "Sei sicuro?",
+			"description": "Questa azione non può essere annullata. Eliminerà permanentemente i dati di indice del tuo codice.",
+			"cancelButton": "Annulla",
+			"confirmButton": "Cancella dati"
+		}
+	},
 	"autoApprove": {
 		"description": "Permetti a Roo di eseguire automaticamente operazioni senza richiedere approvazione. Abilita queste impostazioni solo se ti fidi completamente dell'IA e comprendi i rischi di sicurezza associati.",
 		"readOnly": {

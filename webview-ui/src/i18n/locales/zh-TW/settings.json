@@ -32,6 +32,29 @@
 		"language": "語言",
 		"about": "關於 Roo Code"
 	},
+	"codeIndex": {
+		"title": "程式碼庫索引",
+		"enableLabel": "啟用程式碼庫索引",
+		"enableDescription": "啟用此功能將為您的程式碼庫建立索引。這可能會消耗系統資源，並且根據專案大小可能需要一些時間。",
+		"providerLabel": "嵌入提供者",
+		"selectProviderPlaceholder": "選擇提供者",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "OpenAI 金鑰：",
+		"modelLabel": "模型",
+		"selectModelPlaceholder": "選擇模型",
+		"ollamaUrlLabel": "Ollama URL：",
+		"qdrantUrlLabel": "Qdrant URL",
+		"qdrantKeyLabel": "Qdrant 金鑰：",
+		"startIndexingButton": "開始索引",
+		"clearIndexDataButton": "清除索引資料",
+		"clearDataDialog": {
+			"title": "確定要繼續嗎？",
+			"description": "此操作無法復原。這將永久刪除您的程式碼庫索引資料。",
+			"cancelButton": "取消",
+			"confirmButton": "清除資料"
+		}
+	},
 	"autoApprove": {
 		"description": "允許 Roo 無需核准即執行操作。僅在您完全信任 AI 並了解相關安全風險時啟用這些設定。",
 		"readOnly": {

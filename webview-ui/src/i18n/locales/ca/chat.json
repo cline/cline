@@ -260,5 +260,10 @@
 			"description": "Roo ha arribat al límit aprovat automàticament de {{count}} sol·licitud(s) d'API. Vols reiniciar el comptador i continuar amb la tasca?",
 			"button": "Reiniciar i continuar"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo vol cercar a la base de codi '{{query}}':",
+		"wantsToSearchWithPath": "Roo vol cercar a la base de codi '{{query}}' a '{{path}}':",
+		"didSearch": "S'han trobat {{count}} resultat(s) per a '{{query}}':"
 	}
 }

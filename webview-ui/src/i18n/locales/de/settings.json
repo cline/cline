@@ -32,6 +32,29 @@
 		"language": "Sprache",
 		"about": "Über Roo Code"
 	},
+	"codeIndex": {
+		"title": "Codebase-Indexierung",
+		"enableLabel": "Codebase-Indexierung aktivieren",
+		"enableDescription": "Die Aktivierung dieser Funktion wird Ihre Codebase indexieren. Dies kann Systemressourcen verbrauchen und je nach Größe Ihres Projekts einige Zeit in Anspruch nehmen.",
+		"providerLabel": "Embeddings-Anbieter",
+		"selectProviderPlaceholder": "Anbieter auswählen",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "OpenAI-Schlüssel:",
+		"modelLabel": "Modell",
+		"selectModelPlaceholder": "Modell auswählen",
+		"ollamaUrlLabel": "Ollama-URL:",
+		"qdrantUrlLabel": "Qdrant-URL",
+		"qdrantKeyLabel": "Qdrant-Schlüssel:",
+		"startIndexingButton": "Indexierung starten",
+		"clearIndexDataButton": "Indexdaten löschen",
+		"clearDataDialog": {
+			"title": "Sind Sie sicher?",
+			"description": "Diese Aktion kann nicht rückgängig gemacht werden. Dies wird Ihre Codebase-Indexdaten dauerhaft löschen.",
+			"cancelButton": "Abbrechen",
+			"confirmButton": "Daten löschen"
+		}
+	},
 	"autoApprove": {
 		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktiviere diese Einstellungen nur, wenn du der KI vollständig vertraust und die damit verbundenen Sicherheitsrisiken verstehst.",
 		"readOnly": {

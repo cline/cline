@@ -32,6 +32,29 @@
 		"language": "Langue",
 		"about": "À propos de Roo Code"
 	},
+	"codeIndex": {
+		"title": "Indexation de la base de code",
+		"enableLabel": "Activer l'indexation de la base de code",
+		"enableDescription": "L'activation de cette fonctionnalité indexera votre base de code. Cela peut consommer des ressources système et prendre du temps selon la taille de votre projet.",
+		"providerLabel": "Fournisseur d'embeddings",
+		"selectProviderPlaceholder": "Sélectionner un fournisseur",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "Clé OpenAI :",
+		"modelLabel": "Modèle",
+		"selectModelPlaceholder": "Sélectionner un modèle",
+		"ollamaUrlLabel": "URL Ollama :",
+		"qdrantUrlLabel": "URL Qdrant",
+		"qdrantKeyLabel": "Clé Qdrant :",
+		"startIndexingButton": "Démarrer l'indexation",
+		"clearIndexDataButton": "Effacer les données d'index",
+		"clearDataDialog": {
+			"title": "Êtes-vous sûr ?",
+			"description": "Cette action ne peut pas être annulée. Cela supprimera définitivement les données d'index de votre base de code.",
+			"cancelButton": "Annuler",
+			"confirmButton": "Effacer les données"
+		}
+	},
 	"autoApprove": {
 		"description": "Permettre à Roo d'effectuer automatiquement des opérations sans requérir d'approbation. Activez ces paramètres uniquement si vous faites entièrement confiance à l'IA et que vous comprenez les risques de sécurité associés.",
 		"readOnly": {

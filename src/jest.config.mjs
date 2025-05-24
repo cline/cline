@@ -32,6 +32,7 @@ export default {
 		"@modelcontextprotocol/sdk/(.*)": "<rootDir>/__mocks__/@modelcontextprotocol/sdk/$1",
 		"^delay$": "<rootDir>/__mocks__/delay.js",
 		"^p-wait-for$": "<rootDir>/__mocks__/p-wait-for.js",
+		"^p-limit$": "<rootDir>/__mocks__/p-limit.js",
 		"^serialize-error$": "<rootDir>/__mocks__/serialize-error.js",
 		"^strip-ansi$": "<rootDir>/__mocks__/strip-ansi.js",
 		"^default-shell$": "<rootDir>/__mocks__/default-shell.js",

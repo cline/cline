@@ -32,6 +32,29 @@
 		"language": "Idioma",
 		"about": "Sobre Roo Code"
 	},
+	"codeIndex": {
+		"title": "Indexació de codi",
+		"enableLabel": "Habilitar indexació de codi",
+		"enableDescription": "Habilitar aquesta característica indexarà la vostra base de codi. Això pot consumir recursos del sistema i trigar un temps depenent de la mida del vostre projecte.",
+		"providerLabel": "Proveïdor d'embeddings",
+		"selectProviderPlaceholder": "Seleccionar proveïdor",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "Clau OpenAI:",
+		"modelLabel": "Model",
+		"selectModelPlaceholder": "Seleccionar model",
+		"ollamaUrlLabel": "URL d'Ollama:",
+		"qdrantUrlLabel": "URL de Qdrant",
+		"qdrantKeyLabel": "Clau de Qdrant:",
+		"startIndexingButton": "Iniciar indexació",
+		"clearIndexDataButton": "Esborrar dades d'índex",
+		"clearDataDialog": {
+			"title": "Esteu segur?",
+			"description": "Aquesta acció no es pot desfer. Eliminarà permanentment les dades d'índex de la vostra base de codi.",
+			"cancelButton": "Cancel·lar",
+			"confirmButton": "Esborrar dades"
+		}
+	},
 	"autoApprove": {
 		"description": "Permet que Roo realitzi operacions automàticament sense requerir aprovació. Activeu aquesta configuració només si confieu plenament en la IA i enteneu els riscos de seguretat associats.",
 		"readOnly": {

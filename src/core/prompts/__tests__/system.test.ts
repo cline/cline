@@ -85,6 +85,28 @@ jest.mock("vscode", () => ({
 	env: {
 		language: "en",
 	},
+	workspace: {
+		workspaceFolders: [
+			{
+				uri: {
+					fsPath: "/test/path",
+				},
+			},
+		],
+		getWorkspaceFolder: jest.fn().mockReturnValue({
+			uri: {
+				fsPath: "/test/path",
+			},
+		}),
+	},
+	window: {
+		activeTextEditor: undefined,
+	},
+	EventEmitter: jest.fn().mockImplementation(() => ({
+		event: jest.fn(),
+		fire: jest.fn(),
+		dispose: jest.fn(),
+	})),
 }))
 
 jest.mock("../../../utils/shell", () => ({
@@ -343,6 +365,29 @@ describe("SYSTEM_PROMPT", () => {
 		// Mock vscode.env.language
 		const vscode = jest.requireMock("vscode")
 		vscode.env = { language: "es" }
+		// Ensure workspace mock is maintained
+		vscode.workspace = {
+			workspaceFolders: [
+				{
+					uri: {
+						fsPath: "/test/path",
+					},
+				},
+			],
+			getWorkspaceFolder: jest.fn().mockReturnValue({
+				uri: {
+					fsPath: "/test/path",
+				},
+			}),
+		}
+		vscode.window = {
+			activeTextEditor: undefined,
+		}
+		vscode.EventEmitter = jest.fn().mockImplementation(() => ({
+			event: jest.fn(),
+			fire: jest.fn(),
+			dispose: jest.fn(),
+		}))
 
 		const prompt = await SYSTEM_PROMPT(
 			mockContext,
@@ -365,6 +410,28 @@ describe("SYSTEM_PROMPT", () => {
 
 		// Reset mock
 		vscode.env = { language: "en" }
+		vscode.workspace = {
+			workspaceFolders: [
+				{
+					uri: {
+						fsPath: "/test/path",
+					},
+				},
+			],
+			getWorkspaceFolder: jest.fn().mockReturnValue({
+				uri: {
+					fsPath: "/test/path",
+				},
+			}),
+		}
+		vscode.window = {
+			activeTextEditor: undefined,
+		}
+		vscode.EventEmitter = jest.fn().mockImplementation(() => ({
+			event: jest.fn(),
+			fire: jest.fn(),
+			dispose: jest.fn(),
+		}))
 	})
 
 	it("should include custom mode role definition at top and instructions at bottom", async () => {

@@ -260,5 +260,10 @@
 			"description": "Roo 已达到 {{count}} 次 API 请求的自动批准限制。您想重置计数并继续任务吗？",
 			"button": "重置并继续"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo 需要搜索代码库: '{{query}}'",
+		"wantsToSearchWithPath": "Roo 需要在 '{{path}}' 中搜索: '{{query}}'",
+		"didSearch": "找到 {{count}} 个结果: '{{query}}'"
 	}
 }

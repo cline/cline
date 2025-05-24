@@ -185,6 +185,14 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		terminalCompressProgressBar: true, // Default to compress progress bar output
 		historyPreviewCollapsed: false, // Initialize the new state (default to expanded)
 		autoCondenseContextPercent: 100,
+		codebaseIndexConfig: {
+			codebaseIndexEnabled: false,
+			codebaseIndexQdrantUrl: "",
+			codebaseIndexEmbedderProvider: "openai",
+			codebaseIndexEmbedderBaseUrl: "",
+			codebaseIndexEmbedderModelId: "",
+		},
+		codebaseIndexModels: { ollama: {}, openai: {} },
 	})
 
 	const [didHydrateState, setDidHydrateState] = useState(false)

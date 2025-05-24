@@ -260,5 +260,10 @@
 			"description": "Roo ha alcanzado el límite auto-aprobado de {{count}} solicitud(es) API. ¿Deseas reiniciar el contador y continuar con la tarea?",
 			"button": "Reiniciar y Continuar"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo quiere buscar en la base de código '{{query}}':",
+		"wantsToSearchWithPath": "Roo quiere buscar en la base de código '{{query}}' en '{{path}}':",
+		"didSearch": "Se encontraron {{count}} resultado(s) para '{{query}}':"
 	}
 }

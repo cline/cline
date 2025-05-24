@@ -260,5 +260,10 @@
 			"description": "Roo đã đạt đến giới hạn tự động phê duyệt là {{count}} yêu cầu API. Bạn có muốn đặt lại bộ đếm và tiếp tục nhiệm vụ không?",
 			"button": "Đặt lại và Tiếp tục"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo muốn tìm kiếm trong cơ sở mã cho '{{query}}':",
+		"wantsToSearchWithPath": "Roo muốn tìm kiếm trong cơ sở mã cho '{{query}}' trong '{{path}}':",
+		"didSearch": "Đã tìm thấy {{count}} kết quả cho '{{query}}':"
 	}
 }

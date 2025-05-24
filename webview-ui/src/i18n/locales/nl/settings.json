@@ -32,6 +32,29 @@
 		"language": "Taal",
 		"about": "Over Roo Code"
 	},
+	"codeIndex": {
+		"title": "Codebase indexering",
+		"enableLabel": "Codebase indexering inschakelen",
+		"enableDescription": "Het inschakelen van deze functie zal je codebase indexeren. Dit kan systeembronnen verbruiken en enige tijd duren, afhankelijk van de grootte van je project.",
+		"providerLabel": "Embeddings provider",
+		"selectProviderPlaceholder": "Selecteer provider",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "OpenAI-sleutel:",
+		"modelLabel": "Model",
+		"selectModelPlaceholder": "Selecteer model",
+		"ollamaUrlLabel": "Ollama URL:",
+		"qdrantUrlLabel": "Qdrant URL",
+		"qdrantKeyLabel": "Qdrant-sleutel:",
+		"startIndexingButton": "Indexering starten",
+		"clearIndexDataButton": "Indexgegevens wissen",
+		"clearDataDialog": {
+			"title": "Weet je het zeker?",
+			"description": "Deze actie kan niet ongedaan worden gemaakt. Dit zal je codebase-indexgegevens permanent verwijderen.",
+			"cancelButton": "Annuleren",
+			"confirmButton": "Gegevens wissen"
+		}
+	},
 	"autoApprove": {
 		"description": "Sta Roo toe om automatisch handelingen uit te voeren zonder goedkeuring. Schakel deze instellingen alleen in als je de AI volledig vertrouwt en de bijbehorende beveiligingsrisico's begrijpt.",
 		"readOnly": {

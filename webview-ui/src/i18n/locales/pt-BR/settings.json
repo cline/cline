@@ -32,6 +32,29 @@
 		"language": "Idioma",
 		"about": "Sobre"
 	},
+	"codeIndex": {
+		"title": "Indexação de Código",
+		"enableLabel": "Ativar Indexação de Código",
+		"enableDescription": "Ativar este recurso indexará sua base de código. Isso pode consumir recursos do sistema e levar algum tempo dependendo do tamanho do seu projeto.",
+		"providerLabel": "Provedor de Embeddings",
+		"selectProviderPlaceholder": "Selecionar provedor",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "Chave OpenAI:",
+		"modelLabel": "Modelo",
+		"selectModelPlaceholder": "Selecionar modelo",
+		"ollamaUrlLabel": "URL Ollama:",
+		"qdrantUrlLabel": "URL Qdrant",
+		"qdrantKeyLabel": "Chave Qdrant:",
+		"startIndexingButton": "Iniciar Indexação",
+		"clearIndexDataButton": "Limpar Dados de Índice",
+		"clearDataDialog": {
+			"title": "Tem certeza?",
+			"description": "Esta ação não pode ser desfeita. Isso excluirá permanentemente os dados de índice da sua base de código.",
+			"cancelButton": "Cancelar",
+			"confirmButton": "Limpar Dados"
+		}
+	},
 	"autoApprove": {
 		"description": "Permitir que o Roo realize operações automaticamente sem exigir aprovação. Ative essas configurações apenas se confiar totalmente na IA e compreender os riscos de segurança associados.",
 		"readOnly": {

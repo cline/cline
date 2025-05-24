@@ -6,5 +6,8 @@
 		"definitionsOnly": " (tylko definicje)",
 		"maxLines": " (maks. {{max}} linii)"
 	},
-	"toolRepetitionLimitReached": "Wygląda na to, że Roo utknął w pętli, wielokrotnie próbując wykonać tę samą akcję ({{toolName}}). Może to wskazywać na problem z jego obecną strategią. Rozważ przeformułowanie zadania, podanie bardziej szczegółowych instrukcji lub nakierowanie go na inne podejście."
+	"toolRepetitionLimitReached": "Wygląda na to, że Roo utknął w pętli, wielokrotnie próbując wykonać tę samą akcję ({{toolName}}). Może to wskazywać na problem z jego obecną strategią. Rozważ przeformułowanie zadania, podanie bardziej szczegółowych instrukcji lub nakierowanie go na inne podejście.",
+	"codebaseSearch": {
+		"approval": "Wyszukiwanie '{{query}}' w bazie kodu..."
+	}
 }

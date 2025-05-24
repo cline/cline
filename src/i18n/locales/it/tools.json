@@ -6,5 +6,8 @@
 		"definitionsOnly": " (solo definizioni)",
 		"maxLines": " (max {{max}} righe)"
 	},
-	"toolRepetitionLimitReached": "Roo sembra essere bloccato in un ciclo, tentando ripetutamente la stessa azione ({{toolName}}). Questo potrebbe indicare un problema con la sua strategia attuale. Considera di riformulare l'attività, fornire istruzioni più specifiche o guidarlo verso un approccio diverso."
+	"toolRepetitionLimitReached": "Roo sembra essere bloccato in un ciclo, tentando ripetutamente la stessa azione ({{toolName}}). Questo potrebbe indicare un problema con la sua strategia attuale. Considera di riformulare l'attività, fornire istruzioni più specifiche o guidarlo verso un approccio diverso.",
+	"codebaseSearch": {
+		"approval": "Ricerca di '{{query}}' nella base di codice..."
+	}
 }

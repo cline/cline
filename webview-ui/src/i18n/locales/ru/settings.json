@@ -32,6 +32,29 @@
 		"language": "Язык",
 		"about": "О Roo Code"
 	},
+	"codeIndex": {
+		"title": "Индексация кодовой базы",
+		"enableLabel": "Включить индексацию кодовой базы",
+		"enableDescription": "Включение этой функции проиндексирует вашу кодовую базу. Это может потреблять системные ресурсы и занять некоторое время в зависимости от размера вашего проекта.",
+		"providerLabel": "Провайдер эмбеддингов",
+		"selectProviderPlaceholder": "Выберите провайдера",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "Ключ OpenAI:",
+		"modelLabel": "Модель",
+		"selectModelPlaceholder": "Выберите модель",
+		"ollamaUrlLabel": "URL Ollama:",
+		"qdrantUrlLabel": "URL Qdrant",
+		"qdrantKeyLabel": "Ключ Qdrant:",
+		"startIndexingButton": "Начать индексацию",
+		"clearIndexDataButton": "Очистить данные индекса",
+		"clearDataDialog": {
+			"title": "Вы уверены?",
+			"description": "Это действие нельзя отменить. Оно навсегда удалит данные индекса вашей кодовой базы.",
+			"cancelButton": "Отмена",
+			"confirmButton": "Очистить данные"
+		}
+	},
 	"autoApprove": {
 		"description": "Разрешить Roo автоматически выполнять операции без необходимости одобрения. Включайте эти параметры только если полностью доверяете ИИ и понимаете связанные с этим риски безопасности.",
 		"readOnly": {

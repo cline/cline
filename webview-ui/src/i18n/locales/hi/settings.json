@@ -32,6 +32,29 @@
 		"language": "भाषा",
 		"about": "परिचय"
 	},
+	"codeIndex": {
+		"title": "कोडबेस इंडेक्सिंग",
+		"enableLabel": "कोडबेस इंडेक्सिंग सक्षम करें",
+		"enableDescription": "इस सुविधा को सक्षम करने से आपका कोडबेस इंडेक्स किया जाएगा। यह आपके प्रोजेक्ट के आकार के आधार पर सिस्टम संसाधनों का उपयोग कर सकता है और कुछ समय ले सकता है।",
+		"providerLabel": "एम्बेडिंग प्रदाता",
+		"selectProviderPlaceholder": "प्रदाता चुनें",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "OpenAI कुंजी:",
+		"modelLabel": "मॉडल",
+		"selectModelPlaceholder": "मॉडल चुनें",
+		"ollamaUrlLabel": "Ollama URL:",
+		"qdrantUrlLabel": "Qdrant URL",
+		"qdrantKeyLabel": "Qdrant कुंजी:",
+		"startIndexingButton": "इंडेक्सिंग शुरू करें",
+		"clearIndexDataButton": "इंडेक्स डेटा साफ़ करें",
+		"clearDataDialog": {
+			"title": "क्या आप सुनिश्चित हैं?",
+			"description": "यह क्रिया पूर्ववत नहीं की जा सकती। यह आपके कोडबेस इंडेक्स डेटा को स्थायी रूप से हटा देगी।",
+			"cancelButton": "रद्द करें",
+			"confirmButton": "डेटा साफ़ करें"
+		}
+	},
 	"autoApprove": {
 		"description": "Roo को अनुमोदन की आवश्यकता के बिना स्वचालित रूप से ऑपरेशन करने की अनुमति दें। इन सेटिंग्स को केवल तभी सक्षम करें जब आप AI पर पूरी तरह से भरोसा करते हों और संबंधित सुरक्षा जोखिमों को समझते हों।",
 		"readOnly": {

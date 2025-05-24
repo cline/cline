@@ -260,5 +260,10 @@
 			"description": "Roo ha raggiunto il limite auto-approvato di {{count}} richiesta/e API. Vuoi reimpostare il contatore e procedere con l'attività?",
 			"button": "Reimposta e Continua"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo vuole cercare nella base di codice '{{query}}':",
+		"wantsToSearchWithPath": "Roo vuole cercare nella base di codice '{{query}}' in '{{path}}':",
+		"didSearch": "Trovato {{count}} risultato/i per '{{query}}':"
 	}
 }

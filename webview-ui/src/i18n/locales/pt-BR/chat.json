@@ -260,5 +260,10 @@
 			"description": "Roo atingiu o limite auto-aprovado de {{count}} solicitação(ões) de API. Deseja redefinir a contagem e prosseguir com a tarefa?",
 			"button": "Redefinir e Continuar"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo quer pesquisar na base de código por '{{query}}':",
+		"wantsToSearchWithPath": "Roo quer pesquisar na base de código por '{{query}}' em '{{path}}':",
+		"didSearch": "Encontrado {{count}} resultado(s) para '{{query}}':"
 	}
 }

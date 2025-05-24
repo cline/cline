@@ -6,5 +6,8 @@
 		"definitionsOnly": " (apenas definições)",
 		"maxLines": " (máx. {{max}} linhas)"
 	},
-	"toolRepetitionLimitReached": "Roo parece estar preso em um loop, tentando a mesma ação ({{toolName}}) repetidamente. Isso pode indicar um problema com sua estratégia atual. Considere reformular a tarefa, fornecer instruções mais específicas ou guiá-lo para uma abordagem diferente."
+	"toolRepetitionLimitReached": "Roo parece estar preso em um loop, tentando a mesma ação ({{toolName}}) repetidamente. Isso pode indicar um problema com sua estratégia atual. Considere reformular a tarefa, fornecer instruções mais específicas ou guiá-lo para uma abordagem diferente.",
+	"codebaseSearch": {
+		"approval": "Pesquisando '{{query}}' na base de código..."
+	}
 }

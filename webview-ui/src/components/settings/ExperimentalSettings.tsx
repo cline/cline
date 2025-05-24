@@ -13,6 +13,9 @@ import { Section } from "./Section"
 import { ExperimentalFeature } from "./ExperimentalFeature"
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from "@/components/ui/"
 import { VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { CodebaseIndexConfig, CodebaseIndexModels, ProviderSettings } from "../../../../src/schemas"
+import { CodeIndexSettings } from "./CodeIndexSettings"
+import { ExtensionStateContextType } from "../../context/ExtensionStateContext"
 
 const SUMMARY_PROMPT = `\
 Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
@@ -58,12 +61,18 @@ type ExperimentalSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	experiments: Record<ExperimentId, boolean>
 	setExperimentEnabled: SetExperimentEnabled
 	autoCondenseContextPercent: number
-	setCachedStateField: SetCachedStateField<"autoCondenseContextPercent">
+	setCachedStateField: SetCachedStateField<"autoCondenseContextPercent" | "codebaseIndexConfig">
 	condensingApiConfigId?: string
 	setCondensingApiConfigId: (value: string) => void
 	customCondensingPrompt?: string
 	setCustomCondensingPrompt: (value: string) => void
 	listApiConfigMeta: any[]
+	// CodeIndexSettings props
+	codebaseIndexModels: CodebaseIndexModels | undefined
+	codebaseIndexConfig: CodebaseIndexConfig | undefined
+	apiConfiguration: ProviderSettings
+	setApiConfigurationField: <K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => void
+	areSettingsCommitted: boolean
 }
 
 export const ExperimentalSettings = ({
@@ -76,6 +85,11 @@ export const ExperimentalSettings = ({
 	customCondensingPrompt,
 	setCustomCondensingPrompt,
 	listApiConfigMeta,
+	codebaseIndexModels,
+	codebaseIndexConfig,
+	apiConfiguration,
+	setApiConfigurationField,
+	areSettingsCommitted,
 	className,
 	...props
 }: ExperimentalSettingsProps) => {
@@ -210,6 +224,15 @@ export const ExperimentalSettings = ({
 						</div>
 					</div>
 				)}
+
+				<CodeIndexSettings
+					codebaseIndexModels={codebaseIndexModels}
+					codebaseIndexConfig={codebaseIndexConfig}
+					apiConfiguration={apiConfiguration}
+					setCachedStateField={setCachedStateField as SetCachedStateField<keyof ExtensionStateContextType>}
+					setApiConfigurationField={setApiConfigurationField}
+					areSettingsCommitted={areSettingsCommitted}
+				/>
 			</Section>
 		</div>
 	)

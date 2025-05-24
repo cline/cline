@@ -260,5 +260,10 @@
 			"description": "Roo hat das automatisch genehmigte Limit von {{count}} API-Anfrage(n) erreicht. Möchtest du den Zähler zurücksetzen und mit der Aufgabe fortfahren?",
 			"button": "Zurücksetzen und fortfahren"
 		}
+	},
+	"codebaseSearch": {
+		"wantsToSearch": "Roo möchte den Codebase nach '{{query}}' durchsuchen:",
+		"wantsToSearchWithPath": "Roo möchte den Codebase nach '{{query}}' in '{{path}}' durchsuchen:",
+		"didSearch": "{{count}} Ergebnis(se) für '{{query}}' gefunden:"
 	}
 }

@@ -27,6 +27,7 @@ import {
 	markdownFormattingSection,
 } from "./sections"
 import { formatLanguage } from "../../shared/language"
+import { CodeIndexManager } from "../../services/code-index/manager"
 
 async function generatePrompt(
 	context: vscode.ExtensionContext,
@@ -63,6 +64,8 @@ async function generatePrompt(
 			: Promise.resolve(""),
 	])
 
+	const codeIndexManager = CodeIndexManager.getInstance(context)
+
 	const basePrompt = `${roleDefinition}
 
 ${markdownFormattingSection()}
@@ -73,6 +76,7 @@ ${getToolDescriptionsForMode(
 	mode,
 	cwd,
 	supportsComputerUse,
+	codeIndexManager,
 	effectiveDiffStrategy,
 	browserViewportSize,
 	mcpHub,
@@ -84,7 +88,7 @@ ${getToolUseGuidelinesSection()}
 
 ${mcpServersSection}
 
-${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, effectiveDiffStrategy)}
+${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, effectiveDiffStrategy, codeIndexManager)}
 
 ${modesSection}
 

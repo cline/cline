@@ -32,6 +32,29 @@
 		"language": "言語",
 		"about": "Roo Codeについて"
 	},
+	"codeIndex": {
+		"title": "コードベースのインデックス作成",
+		"enableLabel": "コードベースのインデックス作成を有効化",
+		"enableDescription": "この機能を有効にするとコードベースのインデックスが作成されます。これはシステムリソースを消費し、プロジェクトのサイズによっては時間がかかる場合があります。",
+		"providerLabel": "埋め込みプロバイダー",
+		"selectProviderPlaceholder": "プロバイダーを選択",
+		"openaiProvider": "OpenAI",
+		"ollamaProvider": "Ollama",
+		"openaiKeyLabel": "OpenAIキー：",
+		"modelLabel": "モデル",
+		"selectModelPlaceholder": "モデルを選択",
+		"ollamaUrlLabel": "Ollama URL：",
+		"qdrantUrlLabel": "Qdrant URL",
+		"qdrantKeyLabel": "Qdrantキー：",
+		"startIndexingButton": "インデックス作成を開始",
+		"clearIndexDataButton": "インデックスデータをクリア",
+		"clearDataDialog": {
+			"title": "本当によろしいですか？",
+			"description": "この操作は元に戻せません。コードベースのインデックスデータが完全に削除されます。",
+			"cancelButton": "キャンセル",
+			"confirmButton": "データをクリア"
+		}
+	},
 	"autoApprove": {
 		"description": "Rooが承認なしで自動的に操作を実行できるようにします。AIを完全に信頼し、関連するセキュリティリスクを理解している場合にのみ、これらの設定を有効にしてください。",
 		"readOnly": {
