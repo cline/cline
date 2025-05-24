@@ -9,6 +9,7 @@ import "common.proto";
 service WebService {
   rpc checkIsImageUrl(StringRequest) returns (IsImageUrl);
   rpc fetchOpenGraphData(StringRequest) returns (OpenGraphData);
+  rpc openInBrowser(StringRequest) returns (Empty);
 }
 
 message IsImageUrl {
