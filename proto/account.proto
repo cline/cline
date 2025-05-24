@@ -16,4 +16,39 @@ service AccountService {
     // Handles the user clicking the logout button in the UI.
     // Clears API keys and user state.
     rpc accountLogoutClicked(EmptyRequest) returns (Empty);
+    
+    // Fetches all user credits data (balance, usage transactions, payment transactions)
+    rpc fetchUserCreditsData(EmptyRequest) returns (UserCreditsData);
+}
+
+// Response containing all user credits data
+message UserCreditsData {
+    UserCreditsBalance balance = 1;
+    repeated UsageTransaction usageTransactions = 2;
+    repeated PaymentTransaction paymentTransactions = 3;
+}
+
+// User's current credit balance
+message UserCreditsBalance {
+    double currentBalance = 1;
+}
+
+// Usage transaction record
+message UsageTransaction {
+    string spentAt = 1;
+    string creatorId = 2;
+    double credits = 3;
+    string modelProvider = 4;
+    string model = 5;
+    int32 promptTokens = 6;
+    int32 completionTokens = 7;
+    int32 totalTokens = 8;
+}
+
+// Payment transaction record
+message PaymentTransaction {
+    string paidAt = 1;
+    string creatorId = 2;
+    int32 amountCents = 3;
+    double credits = 4;
 }

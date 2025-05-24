@@ -34,9 +34,6 @@ export interface ExtensionMessage {
 		| "commitSearchResults"
 		| "openGraphData"
 		| "didUpdateSettings"
-		| "userCreditsBalance"
-		| "userCreditsUsage"
-		| "userCreditsPayments"
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
@@ -79,9 +76,6 @@ export interface ExtensionMessage {
 	}
 	url?: string
 	isImage?: boolean
-	userCreditsBalance?: BalanceResponse
-	userCreditsUsage?: UsageTransaction[]
-	userCreditsPayments?: PaymentTransaction[]
 	totalTasksSize?: number | null
 	success?: boolean
 	endpoint?: string

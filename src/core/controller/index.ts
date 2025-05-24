@@ -308,10 +308,6 @@ export class Controller {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
 				break
-			case "fetchUserCreditsData": {
-				await this.fetchUserCreditsData()
-				break
-			}
 			case "fetchMcpMarketplace": {
 				await this.fetchMcpMarketplace(message.bool)
 				break
@@ -682,20 +678,6 @@ export class Controller {
 		await updateGlobalState(this.context, "customInstructions", instructions || undefined)
 		if (this.task) {
 			this.task.customInstructions = instructions || undefined
-		}
-	}
-
-	// Account
-
-	async fetchUserCreditsData() {
-		try {
-			await Promise.all([
-				this.accountService?.fetchBalance(),
-				this.accountService?.fetchUsageTransactions(),
-				this.accountService?.fetchPaymentTransactions(),
-			])
-		} catch (error) {
-			console.error("Failed to fetch user credits data:", error)
 		}
 	}
 
