@@ -29,6 +29,7 @@ If you're planning to work on a bigger feature, please create a [feature request
 2. **Local Development**
     - Run `npm run install:all` to install dependencies
     - Run `npm run test` to run tests locally
+    - Run → Start Debugging or `>Debug: Select and Start Debugging` and wait for a new VS Code instance to open
     - Before submitting PR, run `npm run format:fix` to format your code
 
 3. **Linux-specific Setup**

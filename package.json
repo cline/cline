@@ -5,7 +5,8 @@
 	"version": "3.17.5",
 	"icon": "assets/icons/icon.png",
 	"engines": {
-		"vscode": "^1.84.0"
+		"vscode": "^1.84.0",
+		"node": ">=22.0.0"
 	},
 	"author": {
 		"name": "Cline Bot Inc."
