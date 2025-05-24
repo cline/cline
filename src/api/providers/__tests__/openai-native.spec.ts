@@ -1,17 +1,18 @@
-// npx jest src/api/providers/__tests__/openai-native.test.ts
+// npx vitest run api/providers/__tests__/openai-native.spec.ts
 
+import { vitest } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { OpenAiNativeHandler } from "../openai-native"
 import { ApiHandlerOptions } from "../../../shared/api"
 
 // Mock OpenAI client
-const mockCreate = jest.fn()
+const mockCreate = vitest.fn()
 
-jest.mock("openai", () => {
+vitest.mock("openai", () => {
 	return {
 		__esModule: true,
-		default: jest.fn().mockImplementation(() => ({
+		default: vitest.fn().mockImplementation(() => ({
 			chat: {
 				completions: {
 					create: mockCreate.mockImplementation(async (options) => {
@@ -369,6 +370,75 @@ describe("OpenAiNativeHandler", () => {
 			})
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
+		})
+	})
+
+	describe("temperature parameter handling", () => {
+		it("should include temperature for models that support it", async () => {
+			// Test with gpt-4.1 which supports temperature
+			handler = new OpenAiNativeHandler({
+				apiModelId: "gpt-4.1",
+				openAiNativeApiKey: "test-api-key",
+			})
+
+			await handler.completePrompt("Test prompt")
+			expect(mockCreate).toHaveBeenCalledWith({
+				model: "gpt-4.1",
+				messages: [{ role: "user", content: "Test prompt" }],
+				temperature: 0,
+			})
+		})
+
+		it("should strip temperature for o1 family models", async () => {
+			const o1Models = ["o1", "o1-preview", "o1-mini"]
+
+			for (const modelId of o1Models) {
+				handler = new OpenAiNativeHandler({
+					apiModelId: modelId,
+					openAiNativeApiKey: "test-api-key",
+				})
+
+				mockCreate.mockClear()
+				await handler.completePrompt("Test prompt")
+
+				const callArgs = mockCreate.mock.calls[0][0]
+				// Temperature should be undefined for o1 models
+				expect(callArgs.temperature).toBeUndefined()
+				expect(callArgs.model).toBe(modelId)
+			}
+		})
+
+		it("should strip temperature for o3-mini model", async () => {
+			handler = new OpenAiNativeHandler({
+				apiModelId: "o3-mini",
+				openAiNativeApiKey: "test-api-key",
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			const callArgs = mockCreate.mock.calls[0][0]
+			// Temperature should be undefined for o3-mini models
+			expect(callArgs.temperature).toBeUndefined()
+			expect(callArgs.model).toBe("o3-mini")
+			expect(callArgs.reasoning_effort).toBe("medium")
+		})
+
+		it("should strip temperature in streaming mode for unsupported models", async () => {
+			handler = new OpenAiNativeHandler({
+				apiModelId: "o1",
+				openAiNativeApiKey: "test-api-key",
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			// Consume the stream
+			for await (const _chunk of stream) {
+				// Just consume the stream
+			}
+
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs).not.toHaveProperty("temperature")
+			expect(callArgs.model).toBe("o1")
+			expect(callArgs.stream).toBe(true)
 		})
 	})
 

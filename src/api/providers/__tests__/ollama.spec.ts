@@ -1,14 +1,17 @@
+// npx vitest run api/providers/__tests__/ollama.spec.ts
+
+import { vitest } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { OllamaHandler } from "../ollama"
 import { ApiHandlerOptions } from "../../../shared/api"
 
-// Mock OpenAI client
-const mockCreate = jest.fn()
-jest.mock("openai", () => {
+const mockCreate = vitest.fn()
+
+vitest.mock("openai", () => {
 	return {
 		__esModule: true,
-		default: jest.fn().mockImplementation(() => ({
+		default: vitest.fn().mockImplementation(() => ({
 			chat: {
 				completions: {
 					create: mockCreate.mockImplementation(async (options) => {

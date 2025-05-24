@@ -165,7 +165,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 
 		const info: ModelInfo = openAiNativeModels[id]
 
-		const { temperature, ...params } = getModelParams({
+		const params = getModelParams({
 			format: "openai",
 			modelId: id,
 			model: info,
@@ -175,13 +175,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 
 		// The o3 models are named like "o3-mini-[reasoning-effort]", which are
 		// not valid model ids, so we need to strip the suffix.
-		// Also note that temperature is not supported for o1 and o3-mini.
-		return {
-			id: id.startsWith("o3-mini") ? "o3-mini" : id,
-			info,
-			...params,
-			temperature: id.startsWith("o1") || id.startsWith("o3-mini") ? undefined : temperature,
-		}
+		return { id: id.startsWith("o3-mini") ? "o3-mini" : id, info, ...params }
 	}
 
 	async completePrompt(prompt: string): Promise<string> {

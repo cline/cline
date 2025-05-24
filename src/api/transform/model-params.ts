@@ -25,7 +25,7 @@ type GetModelParamsOptions<T extends "openai" | "anthropic" | "openrouter"> = {
 
 type BaseModelParams = {
 	maxTokens: number | undefined
-	temperature: number
+	temperature: number | undefined
 	reasoningEffort: "low" | "medium" | "high" | undefined
 	reasoningBudget: number | undefined
 }
@@ -114,12 +114,27 @@ export function getModelParams({
 			reasoning: getAnthropicReasoning({ model, reasoningBudget, reasoningEffort, settings }),
 		}
 	} else if (format === "openai") {
+		// Special case for o1 and o3-mini, which don't support temperature.
+		// TODO: Add a `supportsTemperature` field to the model info.
+		if (modelId.startsWith("o1") || modelId.startsWith("o3-mini")) {
+			params.temperature = undefined
+		}
+
 		return {
 			format,
 			...params,
 			reasoning: getOpenAiReasoning({ model, reasoningBudget, reasoningEffort, settings }),
 		}
 	} else {
+		// Special case for o1-pro, which doesn't support temperature.
+		// Note that OpenRouter's `supported_parameters` field includes
+		// `temperature`, which is probably a bug.
+		// TODO: Add a `supportsTemperature` field to the model info and populate
+		// it appropriately in the OpenRouter fetcher.
+		if (modelId === "openai/o1-pro") {
+			params.temperature = undefined
+		}
+
 		return {
 			format,
 			...params,

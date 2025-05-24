@@ -1,13 +1,17 @@
-import { OpenAiHandler } from "../openai"
-import { ApiHandlerOptions } from "../../../shared/api"
+// npx vitest run api/providers/__tests__/openai-usage-tracking.spec.ts
+
+import { vitest } from "vitest"
 import { Anthropic } from "@anthropic-ai/sdk"
 
-// Mock OpenAI client with multiple chunks that contain usage data
-const mockCreate = jest.fn()
-jest.mock("openai", () => {
+import { ApiHandlerOptions } from "../../../shared/api"
+import { OpenAiHandler } from "../openai"
+
+const mockCreate = vitest.fn()
+
+vitest.mock("openai", () => {
 	return {
 		__esModule: true,
-		default: jest.fn().mockImplementation(() => ({
+		default: vitest.fn().mockImplementation(() => ({
 			chat: {
 				completions: {
 					create: mockCreate.mockImplementation(async (options) => {

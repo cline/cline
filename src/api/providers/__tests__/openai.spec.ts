@@ -1,15 +1,18 @@
-// npx jest src/api/providers/__tests__/openai.test.ts
+// npx vitest run api/providers/__tests__/openai.spec.ts
 
+import { vitest, vi } from "vitest"
 import { OpenAiHandler } from "../openai"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 
-// Mock OpenAI client
-const mockCreate = jest.fn()
-jest.mock("openai", () => {
+const mockCreate = vitest.fn()
+
+vitest.mock("openai", () => {
+	const mockConstructor = vitest.fn()
 	return {
 		__esModule: true,
-		default: jest.fn().mockImplementation(() => ({
+		default: mockConstructor.mockImplementation(() => ({
 			chat: {
 				completions: {
 					create: mockCreate.mockImplementation(async (options) => {
@@ -94,10 +97,8 @@ describe("OpenAiHandler", () => {
 		})
 
 		it("should set default headers correctly", () => {
-			// Get the mock constructor from the jest mock system
-			const openAiMock = jest.requireMock("openai").default
-
-			expect(openAiMock).toHaveBeenCalledWith({
+			// Check that the OpenAI constructor was called with correct parameters
+			expect(vi.mocked(OpenAI)).toHaveBeenCalledWith({
 				baseURL: expect.any(String),
 				apiKey: expect.any(String),
 				defaultHeaders: {
