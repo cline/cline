@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   9f1b01b: Migrate openExtensionSettings to protobus
+-   10239f0: Migrate showAccountViewClicked to protobus
+-   cf0af8a: Migrate openMcpSettings to protobus
+
+### Patch Changes
+
+-   7f64107: Adding Telemetry for button clicks
+
 ## [3.17.5]
 
 -   Fix issue with Claude 4 models where after several conversation turns, it would start making invalid diff edits
