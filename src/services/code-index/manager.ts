@@ -244,4 +244,15 @@ export class CodeIndexManager {
 		this.assertInitialized()
 		return this._searchService!.searchIndex(query, directoryPrefix)
 	}
+
+	/**
+	 * Handles external settings changes by reloading configuration.
+	 * This method should be called when API provider settings are updated
+	 * to ensure the CodeIndexConfigManager picks up the new configuration.
+	 */
+	public async handleExternalSettingsChange(): Promise<void> {
+		if (this._configManager) {
+			await this._configManager.loadConfiguration()
+		}
+	}
 }

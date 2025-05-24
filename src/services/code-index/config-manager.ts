@@ -14,7 +14,7 @@ export class CodeIndexConfigManager {
 	private modelId?: string
 	private openAiOptions?: ApiHandlerOptions
 	private ollamaOptions?: ApiHandlerOptions
-	private qdrantUrl?: string
+	private qdrantUrl?: string = "http://localhost:6333"
 	private qdrantApiKey?: string
 	private searchMinScore?: number
 
@@ -103,11 +103,18 @@ export class CodeIndexConfigManager {
 	 * Checks if the service is properly configured based on the embedder type.
 	 */
 	public isConfigured(): boolean {
+
 		if (this.embedderProvider === "openai") {
-			return !!(this.openAiOptions?.openAiNativeApiKey && this.qdrantUrl)
+			const openAiKey = this.openAiOptions?.openAiNativeApiKey
+			const qdrantUrl = this.qdrantUrl
+			const isConfigured = !!(openAiKey && qdrantUrl)
+			return isConfigured
 		} else if (this.embedderProvider === "ollama") {
 			// Ollama model ID has a default, so only base URL is strictly required for config
-			return !!(this.ollamaOptions?.ollamaBaseUrl && this.qdrantUrl)
+			const ollamaBaseUrl = this.ollamaOptions?.ollamaBaseUrl
+			const qdrantUrl = this.qdrantUrl
+			const isConfigured = !!(ollamaBaseUrl && qdrantUrl)
+			return isConfigured
 		}
 		return false // Should not happen if embedderProvider is always set correctly
 	}

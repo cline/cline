@@ -824,6 +824,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 					this.contextProxy.setProviderSettings(providerSettings),
 				])
 
+				// Notify CodeIndexManager about the settings change
+				if (this.codeIndexManager) {
+					await this.codeIndexManager.handleExternalSettingsChange()
+				}
+
 				// Change the provider for the current task.
 				// TODO: We should rename `buildApiHandler` for clarity (e.g. `getProviderClient`).
 				const task = this.getCurrentCline()
