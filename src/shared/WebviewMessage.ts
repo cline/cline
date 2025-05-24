@@ -16,7 +16,6 @@ export interface WebviewMessage {
 		| "openInBrowser"
 		| "showChatView"
 		| "openMcpSettings"
-		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
 		| "showAccountViewClicked"
 		| "authStateChanged"
