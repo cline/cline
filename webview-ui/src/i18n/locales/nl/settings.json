@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Qdrant-sleutel:",
 		"startIndexingButton": "Indexering starten",
 		"clearIndexDataButton": "Indexgegevens wissen",
+		"unsavedSettingsMessage": "Sla je instellingen op voordat je het indexeringsproces start.",
 		"clearDataDialog": {
 			"title": "Weet je het zeker?",
 			"description": "Deze actie kan niet ongedaan worden gemaakt. Dit zal je codebase-indexgegevens permanent verwijderen.",

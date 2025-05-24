@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Chiave Qdrant:",
 		"startIndexingButton": "Avvia indicizzazione",
 		"clearIndexDataButton": "Cancella dati indice",
+		"unsavedSettingsMessage": "Per favore salva le tue impostazioni prima di avviare il processo di indicizzazione.",
 		"clearDataDialog": {
 			"title": "Sei sicuro?",
 			"description": "Questa azione non può essere annullata. Eliminerà permanentemente i dati di indice del tuo codice.",

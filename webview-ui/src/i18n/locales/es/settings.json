@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Clave de Qdrant:",
 		"startIndexingButton": "Iniciar indexación",
 		"clearIndexDataButton": "Borrar datos de índice",
+		"unsavedSettingsMessage": "Por favor guarda tus ajustes antes de iniciar el proceso de indexación.",
 		"clearDataDialog": {
 			"title": "¿Estás seguro?",
 			"description": "Esta acción no se puede deshacer. Esto eliminará permanentemente los datos de índice de tu base de código.",

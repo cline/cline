@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Klucz Qdrant:",
 		"startIndexingButton": "Rozpocznij indeksowanie",
 		"clearIndexDataButton": "Wyczyść dane indeksu",
+		"unsavedSettingsMessage": "Zapisz swoje ustawienia przed rozpoczęciem procesu indeksowania.",
 		"clearDataDialog": {
 			"title": "Czy jesteś pewien?",
 			"description": "Tej akcji nie można cofnąć. Spowoduje to trwałe usunięcie danych indeksu Twojego kodu.",

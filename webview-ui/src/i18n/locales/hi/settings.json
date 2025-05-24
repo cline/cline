@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Qdrant कुंजी:",
 		"startIndexingButton": "इंडेक्सिंग शुरू करें",
 		"clearIndexDataButton": "इंडेक्स डेटा साफ़ करें",
+		"unsavedSettingsMessage": "इंडेक्सिंग प्रक्रिया शुरू करने से पहले कृपया अपनी सेटिंग्स सहेजें।",
 		"clearDataDialog": {
 			"title": "क्या आप सुनिश्चित हैं?",
 			"description": "यह क्रिया पूर्ववत नहीं की जा सकती। यह आपके कोडबेस इंडेक्स डेटा को स्थायी रूप से हटा देगी।",

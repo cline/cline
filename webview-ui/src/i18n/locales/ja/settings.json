@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Qdrantキー：",
 		"startIndexingButton": "インデックス作成を開始",
 		"clearIndexDataButton": "インデックスデータをクリア",
+		"unsavedSettingsMessage": "インデックス作成プロセスを開始する前に設定を保存してください。",
 		"clearDataDialog": {
 			"title": "本当によろしいですか？",
 			"description": "この操作は元に戻せません。コードベースのインデックスデータが完全に削除されます。",

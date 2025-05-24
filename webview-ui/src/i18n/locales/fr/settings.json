@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Clé Qdrant :",
 		"startIndexingButton": "Démarrer l'indexation",
 		"clearIndexDataButton": "Effacer les données d'index",
+		"unsavedSettingsMessage": "Merci d'enregistrer tes paramètres avant de démarrer le processus d'indexation.",
 		"clearDataDialog": {
 			"title": "Êtes-vous sûr ?",
 			"description": "Cette action ne peut pas être annulée. Cela supprimera définitivement les données d'index de votre base de code.",

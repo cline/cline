@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Qdrant 金鑰：",
 		"startIndexingButton": "開始索引",
 		"clearIndexDataButton": "清除索引資料",
+		"unsavedSettingsMessage": "請先儲存設定再開始索引程序。",
 		"clearDataDialog": {
 			"title": "確定要繼續嗎？",
 			"description": "此操作無法復原。這將永久刪除您的程式碼庫索引資料。",

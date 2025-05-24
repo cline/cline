@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Khóa Qdrant:",
 		"startIndexingButton": "Bắt đầu lập chỉ mục",
 		"clearIndexDataButton": "Xóa dữ liệu chỉ mục",
+		"unsavedSettingsMessage": "Vui lòng lưu cài đặt của bạn trước khi bắt đầu quá trình lập chỉ mục.",
 		"clearDataDialog": {
 			"title": "Bạn có chắc không?",
 			"description": "Hành động này không thể hoàn tác. Điều này sẽ xóa vĩnh viễn dữ liệu chỉ mục mã nguồn của bạn.",

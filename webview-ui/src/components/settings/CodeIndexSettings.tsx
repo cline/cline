@@ -324,6 +324,12 @@ export const CodeIndexSettings: React.FC<CodeIndexSettingsProps> = ({
 						</div>
 					</div>
 
+					{(!areSettingsCommitted || !validateIndexingConfig(codebaseIndexConfig, apiConfiguration)) && (
+						<p className="text-sm text-vscode-descriptionForeground mb-2">
+							{t("settings:codeIndex.unsavedSettingsMessage")}
+						</p>
+					)}
+
 					<div className="flex gap-2">
 						{(indexingStatus.systemStatus === "Error" || indexingStatus.systemStatus === "Standby") && (
 							<VSCodeButton

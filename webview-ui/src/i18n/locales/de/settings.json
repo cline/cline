@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Qdrant-Schlüssel:",
 		"startIndexingButton": "Indexierung starten",
 		"clearIndexDataButton": "Indexdaten löschen",
+		"unsavedSettingsMessage": "Bitte speichere deine Einstellungen, bevor du den Indexierungsprozess startest.",
 		"clearDataDialog": {
 			"title": "Sind Sie sicher?",
 			"description": "Diese Aktion kann nicht rückgängig gemacht werden. Dies wird Ihre Codebase-Indexdaten dauerhaft löschen.",

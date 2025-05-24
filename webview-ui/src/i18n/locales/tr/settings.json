@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Qdrant Anahtarı:",
 		"startIndexingButton": "İndekslemeyi Başlat",
 		"clearIndexDataButton": "İndeks Verilerini Temizle",
+		"unsavedSettingsMessage": "İndeksleme işlemini başlatmadan önce lütfen ayarlarını kaydet.",
 		"clearDataDialog": {
 			"title": "Emin misiniz?",
 			"description": "Bu işlem geri alınamaz. Bu, kod tabanı indeks verilerinizi kalıcı olarak silecektir.",

@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Ключ Qdrant:",
 		"startIndexingButton": "Начать индексацию",
 		"clearIndexDataButton": "Очистить данные индекса",
+		"unsavedSettingsMessage": "Пожалуйста, сохрани настройки перед запуском процесса индексации.",
 		"clearDataDialog": {
 			"title": "Вы уверены?",
 			"description": "Это действие нельзя отменить. Оно навсегда удалит данные индекса вашей кодовой базы.",

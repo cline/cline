@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Clau de Qdrant:",
 		"startIndexingButton": "Iniciar indexació",
 		"clearIndexDataButton": "Esborrar dades d'índex",
+		"unsavedSettingsMessage": "Si us plau, deseu la configuració abans d'iniciar el procés d'indexació.",
 		"clearDataDialog": {
 			"title": "Esteu segur?",
 			"description": "Aquesta acció no es pot desfer. Eliminarà permanentment les dades d'índex de la vostra base de codi.",

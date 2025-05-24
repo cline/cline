@@ -48,6 +48,7 @@
 		"qdrantKeyLabel": "Qdrant 키:",
 		"startIndexingButton": "인덱싱 시작",
 		"clearIndexDataButton": "인덱스 데이터 지우기",
+		"unsavedSettingsMessage": "인덱싱 프로세스를 시작하기 전에 설정을 저장해 주세요.",
 		"clearDataDialog": {
 			"title": "확실합니까?",
 			"description": "이 작업은 취소할 수 없습니다. 코드베이스 인덱스 데이터가 영구적으로 삭제됩니다.",
