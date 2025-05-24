@@ -11,7 +11,7 @@ interface UserMessageProps {
 	files?: string[]
 	images?: string[]
 	messageTs?: number // Timestamp for the message, needed for checkpoint restore
-	sendMessageFromChatRow?: (text: string, images: string[]) => void
+	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 }
 
 const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, sendMessageFromChatRow }) => {
@@ -53,7 +53,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 			})
 
 			setTimeout(() => {
-				sendMessageFromChatRow?.(editedText, images || [])
+				sendMessageFromChatRow?.(editedText, images || [], files || [])
 			}, delay)
 		} catch (err) {
 			console.error("Checkpoint restore error:", err)
@@ -146,8 +146,8 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					{highlightText(editedText || text)}
 				</span>
 			)}
-			{images && files && (images.length > 0 || files.length > 0) && (
-				<Thumbnails images={images} files={files} style={{ marginTop: "8px" }} />
+			{((images && images.length > 0) || (files && files.length > 0)) && (
+				<Thumbnails images={images ?? []} files={files ?? []} style={{ marginTop: "8px" }} />
 			)}
 		</div>
 	)

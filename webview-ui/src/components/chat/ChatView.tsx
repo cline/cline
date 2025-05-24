@@ -698,13 +698,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "invoke":
 					switch (message.invoke!) {
 						case "sendMessage":
-							handleSendMessage(message.text ?? "", message.images ?? [], []) // files set to empty array
+							handleSendMessage(message.text ?? "", message.images ?? [], message.files ?? [])
 							break
 						case "primaryButtonClick":
-							handlePrimaryButtonClick(message.text ?? "", message.images ?? [], []) // files set to empty array
+							handlePrimaryButtonClick(message.text ?? "", message.images ?? [], message.files ?? [])
 							break
 						case "secondaryButtonClick":
-							handleSecondaryButtonClick(message.text ?? "", message.images ?? [], []) // files set to empty array
+							handleSecondaryButtonClick(message.text ?? "", message.images ?? [], message.files ?? [])
 							break
 					}
 			}

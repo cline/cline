@@ -995,6 +995,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					chatContent: {
 						message: inputValue.trim() ? inputValue : undefined,
 						images: selectedImages.length > 0 ? selectedImages : undefined,
+						files: selectedFiles.length > 0 ? selectedFiles : undefined,
 					},
 				})
 				// Focus the textarea after mode toggle with slight delay
@@ -1002,7 +1003,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					textAreaRef.current?.focus()
 				}, 100)
 			}, changeModeDelay)
-		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages])
+		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
