@@ -441,9 +441,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages, clineAsk, enableButtons, primaryButtonText])
 
 	const handleSendMessage = useCallback(
-		async (text: string, images: string[]) => {
+		async (text: string, images: string[], files: string[]) => {
 			let messageToSend = text.trim()
-			const hasContent = messageToSend || images.length > 0
+			const hasContent = messageToSend || images.length > 0 || files.length > 0
 
 			// Prepend the active quote if it exists
 			if (activeQuote && hasContent) {
@@ -456,7 +456,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask({ text: messageToSend, images })
+					await TaskServiceClient.newTask({ text: messageToSend, images, files })
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -471,24 +471,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_completed_task":
 						case "mistake_limit_reached":
 						case "new_task": // user can provide feedback or reject the new task suggestion
-							await TaskServiceClient.askResponse({
-								responseType: "messageResponse",
-								text: messageToSend,
-								images,
-							})
-							break
 						case "condense":
-							await TaskServiceClient.askResponse({
-								responseType: "messageResponse",
-								text: messageToSend,
-								images,
-							})
-							break
 						case "report_bug":
 							await TaskServiceClient.askResponse({
 								responseType: "messageResponse",
 								text: messageToSend,
 								images,
+								files,
 							})
 							break
 						// there is no other case that a textfield should be enabled
@@ -517,7 +506,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	This logic depends on the useEffect[messages] above to set clineAsk, after which buttons are shown and we then send an askResponse to the extension.
 	*/
 	const handlePrimaryButtonClick = useCallback(
-		async (text?: string, images?: string[]) => {
+		async (text?: string, images?: string[], files?: string[]) => {
 			const trimmedInput = text?.trim()
 			switch (clineAsk) {
 				case "api_req_failed":
@@ -529,11 +518,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "resume_task":
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
-					if (trimmedInput || (images && images.length > 0)) {
+					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
 						await TaskServiceClient.askResponse({
 							responseType: "yesButtonClicked",
 							text: trimmedInput,
 							images: images,
+							files: files,
 						})
 					} else {
 						await TaskServiceClient.askResponse({
@@ -555,6 +545,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					await TaskServiceClient.newTask({
 						text: lastMessage?.text,
 						images: [],
+						files: [],
 					})
 					break
 				case "condense":
@@ -575,7 +566,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const handleSecondaryButtonClick = useCallback(
-		async (text?: string, images?: string[]) => {
+		async (text?: string, images?: string[], files?: string[]) => {
 			const trimmedInput = text?.trim()
 			if (isStreaming) {
 				await TaskServiceClient.cancelTask({})
@@ -593,11 +584,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "tool":
 				case "browser_action_launch":
 				case "use_mcp_server":
-					if (trimmedInput || (images && images.length > 0)) {
+					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
 						await TaskServiceClient.askResponse({
 							responseType: "noButtonClicked",
 							text: trimmedInput,
 							images: images,
+							files: files,
 						})
 					} else {
 						// responds to the API with a "This operation failed" and lets it try again
@@ -688,12 +680,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 					}
 					break
-				/*case "selectedImages":
-					const newImages = message.images ?? []
-					if (newImages.length > 0) {
-						setSelectedImages((prevImages) => [...prevImages, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE))
-					}
-					break*/
 				case "addToInput":
 					setInputValue((prevValue) => {
 						const newText = message.text ?? ""
@@ -712,13 +698,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "invoke":
 					switch (message.invoke!) {
 						case "sendMessage":
-							handleSendMessage(message.text ?? "", message.images ?? [])
+							handleSendMessage(message.text ?? "", message.images ?? [], []) // files set to empty array
 							break
 						case "primaryButtonClick":
-							handlePrimaryButtonClick(message.text ?? "", message.images ?? [])
+							handlePrimaryButtonClick(message.text ?? "", message.images ?? [], []) // files set to empty array
 							break
 						case "secondaryButtonClick":
-							handleSecondaryButtonClick(message.text ?? "", message.images ?? [])
+							handleSecondaryButtonClick(message.text ?? "", message.images ?? [], []) // files set to empty array
 							break
 					}
 			}
@@ -1153,7 +1139,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										flex: secondaryButtonText ? 1 : 2,
 										marginRight: secondaryButtonText ? "6px" : "0",
 									}}
-									onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
+									onClick={() => handlePrimaryButtonClick(inputValue, selectedImages, selectedFiles)}>
 									{primaryButtonText}
 								</VSCodeButton>
 							)}
@@ -1165,7 +1151,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										flex: isStreaming ? 2 : 1,
 										marginLeft: isStreaming ? 0 : "6px",
 									}}
-									onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
+									onClick={() => handleSecondaryButtonClick(inputValue, selectedImages, selectedFiles)}>
 									{isStreaming ? "Cancel" : secondaryButtonText}
 								</VSCodeButton>
 							)}
@@ -1197,7 +1183,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				setSelectedImages={setSelectedImages}
 				setSelectedFiles={setSelectedFiles}
 				selectedFiles={selectedFiles}
-				onSend={() => handleSendMessage(inputValue, selectedImages)}
+				onSend={() => handleSendMessage(inputValue, selectedImages, selectedFiles)}
 				onSelectFilesAndImages={selectFilesAndImages}
 				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
 				onHeightChange={() => {
