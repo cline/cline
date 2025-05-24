@@ -5,6 +5,7 @@ import { useMount } from "react-use"
 import styled from "styled-components"
 import { makehubDefaultModelId } from "@shared/api"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
 import { vscode } from "@/utils/vscode"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
@@ -153,11 +154,6 @@ const MakehubModelPicker: React.FC<MakehubModelPickerProps> = ({ isPopup }) => {
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
-
-	// Load models when component mounts
-	useMount(() => {
-		vscode.postMessage({ type: "refreshMakehubModels" })
-	})
 
 	// Handle clicks outside the dropdown to close it
 	useEffect(() => {
@@ -338,10 +334,9 @@ const MakehubModelPicker: React.FC<MakehubModelPickerProps> = ({ isPopup }) => {
 													isFavorite={isFavorite}
 													onClick={(e) => {
 														e.stopPropagation()
-														vscode.postMessage({
-															type: "toggleFavoriteModel",
-															modelId: item.id,
-														})
+														StateServiceClient.toggleFavoriteModel({ value: item.id }).catch(
+															(error) => console.error("Failed to toggle favorite model:", error),
+														)
 													}}
 												/>
 											</div>

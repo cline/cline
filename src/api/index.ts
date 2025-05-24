@@ -24,7 +24,7 @@ import { FireworksHandler } from "./providers/fireworks"
 import { AskSageHandler } from "./providers/asksage"
 import { XAIHandler } from "./providers/xai"
 import { SambanovaHandler } from "./providers/sambanova"
-import { MakehubHandler } from "./providers/makehub" // Importer le nouveau handler
+import { MakehubHandler } from "./providers/makehub"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream

@@ -263,6 +263,17 @@ export class Controller {
 					}
 				})
 
+				// Refresh MakeHub models
+				handleModelsServiceRequest(this, "refreshMakehubModels", EmptyRequest.create()).then(async (response) => {
+					if (response && response.models) {
+						// Send MakeHub models to webview
+						await this.postMessageToWebview({
+							type: "makehubModels",
+							makehubModels: response.models,
+						})
+					}
+				})
+
 				// If user already opted in to telemetry, enable telemetry service
 				this.getStateToPostToWebview().then((state) => {
 					const { telemetrySetting } = state
@@ -303,9 +314,6 @@ export class Controller {
 					invoke: "sendMessage",
 					text: message.text,
 				})
-				break
-			case "refreshMakehubModels":
-				await this.refreshMakehubModels()
 				break
 			case "openInBrowser":
 				if (message.url) {
