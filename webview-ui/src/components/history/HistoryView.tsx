@@ -47,7 +47,8 @@ const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadio
 }
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { taskHistory, totalTasksSize, filePaths } = useExtensionState()
+	const extensionStateContext = useExtensionState()
+	const { taskHistory, filePaths } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -131,10 +132,23 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [])
 	useEvent("message", handleMessage)
 
+	const { totalTasksSize, setTotalTasksSize } = extensionStateContext
+
+	const fetchTotalTasksSize = useCallback(async () => {
+		try {
+			const response = await TaskServiceClient.getTotalTasksSize({})
+			if (response && typeof response.value === "number") {
+				setTotalTasksSize?.(response.value || 0)
+			}
+		} catch (error) {
+			console.error("Error getting total tasks size:", error)
+		}
+	}, [setTotalTasksSize])
+
 	// Request total tasks size when component mounts
 	useEffect(() => {
-		vscode.postMessage({ type: "requestTotalTasksSize" })
-	}, [])
+		fetchTotalTasksSize()
+	}, [fetchTotalTasksSize])
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -160,16 +174,26 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 	}, [])
 
-	const handleDeleteHistoryItem = useCallback((id: string) => {
-		TaskServiceClient.deleteTasksWithIds({ value: [id] })
-	}, [])
+	const handleDeleteHistoryItem = useCallback(
+		(id: string) => {
+			TaskServiceClient.deleteTasksWithIds({ value: [id] })
+				.then(() => fetchTotalTasksSize())
+				.catch((error) => console.error("Error deleting task:", error))
+		},
+		[fetchTotalTasksSize],
+	)
 
-	const handleDeleteSelectedHistoryItems = useCallback((ids: string[]) => {
-		if (ids.length > 0) {
-			TaskServiceClient.deleteTasksWithIds({ value: ids })
-			setSelectedItems([])
-		}
-	}, [])
+	const handleDeleteSelectedHistoryItems = useCallback(
+		(ids: string[]) => {
+			if (ids.length > 0) {
+				TaskServiceClient.deleteTasksWithIds({ value: ids })
+					.then(() => fetchTotalTasksSize())
+					.catch((error) => console.error("Error deleting tasks:", error))
+				setSelectedItems([])
+			}
+		},
+		[fetchTotalTasksSize],
+	)
 
 	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
