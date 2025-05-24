@@ -171,8 +171,22 @@ export class GeminiHandler implements ApiHandler {
 
 				// Gemini doesn't include status codes in their errors
 				// https://github.com/googleapis/js-genai/blob/61f7f27b866c74333ca6331883882489bcb708b9/src/_api_client.ts#L569
-				if (error.name === "ClientError" && error.message.includes("got status: 429 Too Many Requests.")) {
-					;(error as any).status = 429
+				const rateLimitPatterns = [
+					/got status: 429/i,
+					/429 Too Many Requests/i,
+					/rate limit exceeded/i,
+					/too many requests/i,
+				]
+
+				const isRateLimit =
+					error.name === "ClientError" && rateLimitPatterns.some((pattern) => pattern.test(error.message))
+
+				if (isRateLimit) {
+					const rateLimitError = Object.assign(new Error(error.message), {
+						...error,
+						status: 429,
+					})
+					throw rateLimitError
 				}
 			} else {
 				apiError = String(error)
