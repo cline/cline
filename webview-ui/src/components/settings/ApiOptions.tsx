@@ -403,6 +403,18 @@ const ApiOptions = ({
 						/>
 					)}
 
+					<VSCodeCheckbox
+						checked={!!apiConfiguration?.geminiEnableThoughts}
+						onChange={(e: any) => {
+							setApiConfiguration({
+								...apiConfiguration,
+								geminiEnableThoughts: (e.target as HTMLInputElement).checked,
+							} as ApiConfiguration)
+						}}
+						style={{ display: "block", marginTop: "5px" }}>
+						Enable thoughts
+					</VSCodeCheckbox>
+
 					<p
 						style={{
 							fontSize: "12px",
@@ -1001,6 +1013,18 @@ const ApiOptions = ({
 							placeholder="Default: https://generativelanguage.googleapis.com"
 						/>
 					)}
+
+					<VSCodeCheckbox
+						checked={!!apiConfiguration?.geminiEnableThoughts}
+						onChange={(e: any) => {
+							setApiConfiguration({
+								...apiConfiguration,
+								geminiEnableThoughts: (e.target as HTMLInputElement).checked,
+							} as ApiConfiguration)
+						}}
+						style={{ display: "block", marginTop: "5px" }}>
+						Enable thoughts
+					</VSCodeCheckbox>
 
 					<p
 						style={{

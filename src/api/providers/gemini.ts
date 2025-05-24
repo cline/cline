@@ -99,9 +99,15 @@ export class GeminiHandler implements ApiHandler {
 		if (info.thinkingConfig?.outputPrice !== undefined && maxBudget > 0) {
 			requestConfig.thinkingConfig = {
 				thinkingBudget: thinkingBudget,
+				includeThoughts: true,
 			}
 		}
-
+		// Only include thoughts if the option is enabled
+		if (this.options.geminiEnableThoughts) {
+			requestConfig.thinkingConfig = {
+				includeThoughts: true,
+			}
+		}
 		// Generate content using the configured parameters
 		const sdkCallStartTime = Date.now()
 		let sdkFirstChunkTime: number | undefined
@@ -112,7 +118,7 @@ export class GeminiHandler implements ApiHandler {
 		let outputTokens = 0
 		let cacheReadTokens = 0
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
-
+		console.debug("GeminiHandler: createMessage")
 		try {
 			const result = await this.client.models.generateContentStream({
 				model: modelId,
@@ -130,13 +136,36 @@ export class GeminiHandler implements ApiHandler {
 					isFirstSdkChunk = false
 				}
 
+				const candidateForThoughts = chunk?.candidates?.[0]
+				const partsForThoughts = candidateForThoughts?.content?.parts
+				let thoughts = "" // Initialize as empty string
+
+				if (partsForThoughts) {
+					// This ensures partsForThoughts is a Part[] array
+					for (const part of partsForThoughts) {
+						if (part.thought && part.text) {
+							// Ensure part.text exists
+							// Handle the thought part
+							thoughts += part.text + "\n" // Append thought and a newline
+						}
+					}
+				}
+
+				if (thoughts.trim() !== "") {
+					console.info("Yielding thoughts as reasoning:", thoughts.trim())
+					yield {
+						type: "reasoning",
+						reasoning: thoughts.trim(),
+					}
+					thoughts = "" // Reset thoughts after yielding
+				}
+
 				if (chunk.text) {
 					yield {
 						type: "text",
 						text: chunk.text,
 					}
 				}
-
 				if (chunk.usageMetadata) {
 					lastUsageMetadata = chunk.usageMetadata
 					promptTokens = lastUsageMetadata.promptTokenCount ?? promptTokens

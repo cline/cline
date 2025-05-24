@@ -88,6 +88,7 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
+	geminiEnableThoughts?: boolean // Add this line
 	sambanovaApiKey?: string
 	requestTimeoutMs?: number
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
