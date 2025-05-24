@@ -42,7 +42,6 @@ describe("CodeIndexConfigManager", () => {
 				searchMinScore: 0.4,
 			})
 			expect(result.requiresRestart).toBe(false)
-			expect(result.requiresClear).toBe(false)
 		})
 
 		it("should load configuration from globalState and secrets", async () => {
@@ -97,29 +96,6 @@ describe("CodeIndexConfigManager", () => {
 
 			const result = await configManager.loadConfiguration()
 			expect(result.requiresRestart).toBe(true)
-		})
-
-		it("should detect clear requirement when model dimensions change", async () => {
-			// Initial state with a model
-			mockContextProxy.getGlobalState.mockReturnValue({
-				codebaseIndexEnabled: true,
-				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
-				codebaseIndexEmbedderModelId: "text-embedding-3-small",
-			})
-
-			await configManager.loadConfiguration()
-
-			// Change to a model with different dimensions
-			mockContextProxy.getGlobalState.mockReturnValue({
-				codebaseIndexEnabled: true,
-				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
-				codebaseIndexEmbedderModelId: "text-embedding-3-large",
-			})
-
-			const result = await configManager.loadConfiguration()
-			expect(result.requiresClear).toBe(true)
 		})
 	})
 

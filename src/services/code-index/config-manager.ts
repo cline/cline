@@ -1,7 +1,6 @@
 import { ApiHandlerOptions } from "../../shared/api"
 import { ContextProxy } from "../../core/config/ContextProxy"
 import { EmbedderProvider } from "./interfaces/manager"
-import { getModelDimension, getDefaultModelId } from "../../shared/embeddingModels"
 import { CodeIndexConfig, PreviousConfigSnapshot } from "./interfaces/config"
 import { SEARCH_MIN_SCORE } from "./constants"
 
@@ -38,7 +37,6 @@ export class CodeIndexConfigManager {
 			searchMinScore?: number
 		}
 		requiresRestart: boolean
-		requiresClear: boolean
 	}> {
 		const previousConfigSnapshot: PreviousConfigSnapshot = {
 			enabled: this.isEnabled,
@@ -84,16 +82,6 @@ export class CodeIndexConfigManager {
 			ollamaBaseUrl: codebaseIndexEmbedderBaseUrl,
 		}
 
-		const previousModelId =
-			previousConfigSnapshot.modelId ?? getDefaultModelId(previousConfigSnapshot.embedderProvider)
-		const currentModelId = this.modelId ?? getDefaultModelId(this.embedderProvider)
-		const previousDimension = previousModelId
-			? getModelDimension(previousConfigSnapshot.embedderProvider, previousModelId)
-			: undefined
-		const currentDimension = currentModelId ? getModelDimension(this.embedderProvider, currentModelId) : undefined
-		const requiresClear =
-			previousDimension !== undefined && currentDimension !== undefined && previousDimension !== currentDimension
-
 		return {
 			configSnapshot: previousConfigSnapshot,
 			currentConfig: {
@@ -108,7 +96,6 @@ export class CodeIndexConfigManager {
 				searchMinScore: this.searchMinScore,
 			},
 			requiresRestart: this._didConfigChangeRequireRestart(previousConfigSnapshot),
-			requiresClear,
 		}
 	}
 

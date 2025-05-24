@@ -100,7 +100,7 @@ export class CodeIndexManager {
 	public async initialize(contextProxy: ContextProxy): Promise<{ requiresRestart: boolean }> {
 		// 1. ConfigManager Initialization and Configuration Loading
 		this._configManager = new CodeIndexConfigManager(contextProxy)
-		const { requiresRestart, requiresClear } = await this._configManager.loadConfiguration()
+		const { requiresRestart } = await this._configManager.loadConfiguration()
 
 		// 2. Check if feature is enabled
 		if (!this.isFeatureEnabled) {
@@ -170,20 +170,11 @@ export class CodeIndexManager {
 			)
 		}
 
-		// 5. Handle Data Clearing
-		if (requiresClear) {
-			if (this._orchestrator) {
-				await this._orchestrator.clearIndexData()
-			}
-			if (this._cacheManager) {
-				await this._cacheManager.clearCacheFile()
-			}
-		}
-
-		// Handle Indexing Start/Restart
+		// 5. Handle Indexing Start/Restart
+		// The enhanced vectorStore.initialize() in startIndexing() now handles dimension changes automatically
+		// by detecting incompatible collections and recreating them, so we rely on that for dimension changes
 		const shouldStartOrRestartIndexing =
 			requiresRestart ||
-			requiresClear ||
 			(needsServiceRecreation && (!this._orchestrator || this._orchestrator.state !== "Indexing"))
 
 		if (shouldStartOrRestartIndexing) {

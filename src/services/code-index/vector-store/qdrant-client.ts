@@ -44,19 +44,47 @@ export class QdrantVectorStore implements IVectorStore {
 	async initialize(): Promise<boolean> {
 		try {
 			let created = false
-			const collections = await this.client.getCollections()
-			const collectionExists = collections.collections.some(
-				(collection) => collection.name === this.collectionName,
-			)
 
-			if (!collectionExists) {
-				await this.client.createCollection(this.collectionName, {
-					vectors: {
-						size: this.vectorSize,
-						distance: this.DISTANCE_METRIC,
-					},
-				})
-				created = true
+			try {
+				// Directly attempt to fetch the specific collection
+				const collectionInfo = await this.client.getCollection(this.collectionName)
+
+				// Collection exists - check if vector size matches
+				const existingVectorSize = collectionInfo.config?.params?.vectors?.size
+
+				if (existingVectorSize === this.vectorSize) {
+					// Collection exists and has correct vector size
+					created = false
+				} else {
+					// Collection exists but has wrong vector size - recreate it
+					console.warn(
+						`[QdrantVectorStore] Collection ${this.collectionName} exists with vector size ${existingVectorSize}, but expected ${this.vectorSize}. Recreating collection.`,
+					)
+					await this.client.deleteCollection(this.collectionName)
+					await this.client.createCollection(this.collectionName, {
+						vectors: {
+							size: this.vectorSize,
+							distance: this.DISTANCE_METRIC,
+						},
+					})
+					created = true
+				}
+			} catch (error: any) {
+				// Check if this is a "Not Found" error (collection doesn't exist)
+				if (error?.response?.status === 404) {
+					// Collection doesn't exist - create it
+					await this.client.createCollection(this.collectionName, {
+						vectors: {
+							size: this.vectorSize,
+							distance: this.DISTANCE_METRIC,
+						},
+					})
+					created = true
+				} else {
+					// Other error - log and re-throw
+					console.error(`[QdrantVectorStore] Error checking collection ${this.collectionName}:`, error)
+					throw error
+				}
 			}
 
 			// Create payload indexes for pathSegments up to depth 5
@@ -129,8 +157,13 @@ export class QdrantVectorStore implements IVectorStore {
 	 * @param payload Payload to check
 	 * @returns Boolean indicating if the payload is valid
 	 */
-	private isPayloadValid(payload: Record<string, unknown>): payload is Payload {
-		return "filePath" in payload && "codeChunk" in payload && "startLine" in payload && "endLine" in payload
+	private isPayloadValid(payload: Record<string, unknown> | null | undefined): payload is Payload {
+		if (!payload) {
+			return false
+		}
+		const validKeys = ["filePath", "codeChunk", "startLine", "endLine"]
+		const hasValidKeys = validKeys.every((key) => key in payload)
+		return hasValidKeys
 	}
 
 	/**
@@ -177,7 +210,7 @@ export class QdrantVectorStore implements IVectorStore {
 			}
 
 			const operationResult = await this.client.query(this.collectionName, searchRequest)
-			const filteredPoints = operationResult.points.filter((p) => this.isPayloadValid(p.payload!))
+			const filteredPoints = operationResult.points.filter((p) => this.isPayloadValid(p.payload))
 
 			return filteredPoints as VectorStoreSearchResult[]
 		} catch (error) {
