@@ -31,6 +31,8 @@ service TaskService {
   rpc taskFeedback(StringRequest) returns (Empty);
   // Shows task completion changes diff in a view
   rpc taskCompletionViewChanges(Int64Request) returns (Empty);
+  // Deletes all task history
+  rpc deleteAllTaskHistory(BooleanRequest) returns (DeleteAllTaskHistoryCount);
 }
 
 // Request message for creating a new task
@@ -102,4 +104,10 @@ message AskResponseRequest {
   string response_type = 2; 
   string text = 3;
   repeated string images = 4;
+}
+
+
+// Results returned when deleting all task history
+message DeleteAllTaskHistoryCount {
+  int32 tasks_deleted = 1;
 }
