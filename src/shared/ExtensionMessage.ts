@@ -38,7 +38,6 @@ export interface ExtensionMessage {
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "totalTasksSize"
-		| "addToInput"
 		| "browserConnectionResult"
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
