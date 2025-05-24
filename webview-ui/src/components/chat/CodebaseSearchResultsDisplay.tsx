@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import CodebaseSearchResult from "./CodebaseSearchResult"
-import { useTranslation } from "react-i18next"
+import { Trans } from "react-i18next"
 
 interface CodebaseSearchResultsDisplayProps {
 	query: string
@@ -14,7 +14,6 @@ interface CodebaseSearchResultsDisplayProps {
 }
 
 const CodebaseSearchResultsDisplay: React.FC<CodebaseSearchResultsDisplayProps> = ({ query, results }) => {
-	const { t } = useTranslation()
 	const [codebaseSearchResultsExpanded, setCodebaseSearchResultsExpanded] = useState(false)
 
 	return (
@@ -23,10 +22,11 @@ const CodebaseSearchResultsDisplay: React.FC<CodebaseSearchResultsDisplayProps> 
 				onClick={() => setCodebaseSearchResultsExpanded(!codebaseSearchResultsExpanded)}
 				className="font-bold cursor-pointer flex items-center justify-between px-2 py-2 rounded border bg-[var(--vscode-editor-background)] border-[var(--vscode-editorGroup-border)]">
 				<span>
-					{t("chat:codebaseSearch.didSearch", {
-						query,
-						count: results.length,
-					})}
+					<Trans
+						i18nKey="chat:codebaseSearch.didSearch"
+						components={{ code: <code></code> }}
+						values={{ query, count: results.length }}
+					/>
 				</span>
 				<span className={`codicon codicon-chevron-${codebaseSearchResultsExpanded ? "up" : "down"}`}></span>
 			</div>
