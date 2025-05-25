@@ -145,11 +145,8 @@ export class DirectoryScanner implements IDirectoryScanner {
 										})
 									}
 
-									// Check if batch threshold is met and not for Ollama
-									if (
-										currentBatchBlocks.length >= BATCH_SEGMENT_THRESHOLD &&
-										this.embedder.embedderInfo.name !== "ollama"
-									) {
+									// Check if batch threshold is met
+									if (currentBatchBlocks.length >= BATCH_SEGMENT_THRESHOLD) {
 										// Copy current batch data and clear accumulators
 										const batchBlocks = [...currentBatchBlocks]
 										const batchTexts = [...currentBatchTexts]
