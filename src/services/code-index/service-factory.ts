@@ -31,12 +31,18 @@ export class CodeIndexServiceFactory {
 			if (!config.openAiOptions?.openAiNativeApiKey) {
 				throw new Error("OpenAI configuration missing for embedder creation")
 			}
-			return new OpenAiEmbedder(config.openAiOptions) // Reverted temporarily
+			return new OpenAiEmbedder({
+				...config.openAiOptions,
+				openAiEmbeddingModelId: config.modelId,
+			})
 		} else if (provider === "ollama") {
 			if (!config.ollamaOptions?.ollamaBaseUrl) {
 				throw new Error("Ollama configuration missing for embedder creation")
 			}
-			return new CodeIndexOllamaEmbedder(config.ollamaOptions) // Reverted temporarily
+			return new CodeIndexOllamaEmbedder({
+				...config.ollamaOptions,
+				ollamaModelId: config.modelId,
+			})
 		}
 
 		throw new Error(`Invalid embedder type configured: ${config.embedderProvider}`)
@@ -50,11 +56,8 @@ export class CodeIndexServiceFactory {
 
 		const provider = config.embedderProvider as EmbedderProvider
 		const defaultModel = getDefaultModelId(provider)
-		// Determine the modelId based on the provider and config, using apiModelId
-		const modelId =
-			provider === "openai"
-				? (config.openAiOptions?.apiModelId ?? defaultModel)
-				: (config.ollamaOptions?.apiModelId ?? defaultModel)
+		// Use the embedding model ID from config, not the chat model IDs
+		const modelId = config.modelId ?? defaultModel
 
 		const vectorSize = getModelDimension(provider, modelId)
 

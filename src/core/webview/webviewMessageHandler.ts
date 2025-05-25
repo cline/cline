@@ -1331,7 +1331,18 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			await updateGlobalState("codebaseIndexConfig", codebaseIndexConfig)
 
 			try {
-				await provider.codeIndexManager?.initialize(provider.contextProxy)
+				if (provider.codeIndexManager) {
+					await provider.codeIndexManager.handleExternalSettingsChange()
+
+					// If now configured and enabled, start indexing automatically
+					if (provider.codeIndexManager.isFeatureEnabled && provider.codeIndexManager.isFeatureConfigured) {
+						if (!provider.codeIndexManager.isInitialized) {
+							await provider.codeIndexManager.initialize(provider.contextProxy)
+						}
+						// Start indexing in background (no await)
+						provider.codeIndexManager.startIndexing()
+					}
+				}
 			} catch (error) {
 				provider.log(
 					`[CodeIndexManager] Error during background CodeIndexManager configuration/indexing: ${error.message || error}`,

@@ -99,7 +99,10 @@ export class CodeIndexManager {
 	 */
 	public async initialize(contextProxy: ContextProxy): Promise<{ requiresRestart: boolean }> {
 		// 1. ConfigManager Initialization and Configuration Loading
-		this._configManager = new CodeIndexConfigManager(contextProxy)
+		if (!this._configManager) {
+			this._configManager = new CodeIndexConfigManager(contextProxy)
+		}
+		// Load configuration once to get current state and restart requirements
 		const { requiresRestart } = await this._configManager.loadConfiguration()
 
 		// 2. Check if feature is enabled
@@ -249,10 +252,20 @@ export class CodeIndexManager {
 	 * Handles external settings changes by reloading configuration.
 	 * This method should be called when API provider settings are updated
 	 * to ensure the CodeIndexConfigManager picks up the new configuration.
+	 * If the configuration changes require a restart, the service will be restarted.
 	 */
 	public async handleExternalSettingsChange(): Promise<void> {
 		if (this._configManager) {
-			await this._configManager.loadConfiguration()
+			const { requiresRestart } = await this._configManager.loadConfiguration()
+
+			const isFeatureEnabled = this.isFeatureEnabled
+			const isFeatureConfigured = this.isFeatureConfigured
+
+			// If configuration changes require a restart and the manager is initialized, restart the service
+			if (requiresRestart && isFeatureEnabled && isFeatureConfigured && this.isInitialized) {
+				this.stopWatcher()
+				await this.startIndexing()
+			}
 		}
 	}
 }
