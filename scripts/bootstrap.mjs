@@ -41,7 +41,7 @@ function ensurePackageJson() {
 
 try {
 	// Check if pnpm is installed globally.
-	const pnpmCheck = spawnSync("command", ["-v", "pnpm"], { shell: true })
+	const pnpmCheck = spawnSync("pnpm", ["-v"], { shell: true })
 
 	let pnpmInstall
 
