@@ -12,6 +12,7 @@
 - Fix MCP Server error loading config when running with npx and bunx (thanks @devxpain!)
 - Improve pnpm bootstrapping and add compile script (thanks @KJ7LNW!)
 - Simplify object assignment & use startsWith (thanks @noritaka1166!)
+- Fix mark-as-read logic in the context tracker (thanks @samhvw8!)
 - Remove deprecated claude-3.7-sonnet models from vscodelm (thanks @shariqriazz!)
 
 ## [3.18.2] - 2025-05-23
