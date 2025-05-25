@@ -189,6 +189,8 @@ const ChatRow = memo(
 
 export default ChatRow
 
+const formatDelay = (seconds: number) => (seconds ? ` ${seconds} seconds delay` : "")
+
 export const ChatRowContent = ({
 	message,
 	isExpanded,
@@ -453,7 +455,7 @@ export const ChatRowContent = ({
 									style={{
 										color: normalColor,
 										fontWeight: "bold",
-									}}>{`API Request (Retrying failed attempt ${retryStatus.attempt}/${retryOperations})...`}</span>
+									}}>{`API Request (Retrying failed attempt ${retryStatus.attempt}/${retryOperations}.${formatDelay(retryStatus.delaySec)})...`}</span>
 							)
 						}
 
