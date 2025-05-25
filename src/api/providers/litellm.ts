@@ -4,7 +4,7 @@ import { Anthropic } from "@anthropic-ai/sdk" // Keep for type usage only
 import { ApiHandlerOptions, litellmDefaultModelId, litellmDefaultModelInfo } from "../../shared/api"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { SingleCompletionHandler } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { RouterProvider } from "./router-provider"
 
 /**
@@ -26,7 +26,11 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 		})
 	}
 
-	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		metadata?: ApiHandlerCreateMessageMetadata,
+	): ApiStream {
 		const { id: modelId, info } = await this.fetchModel()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [

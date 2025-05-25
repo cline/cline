@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 
 import { ModelInfo } from "../../shared/api"
 
-import { ApiHandler } from "../index"
+import type { ApiHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { ApiStream } from "../transform/stream"
 import { countTokens } from "../../utils/countTokens"
 
@@ -10,7 +10,11 @@ import { countTokens } from "../../utils/countTokens"
  * Base class for API providers that implements common functionality.
  */
 export abstract class BaseProvider implements ApiHandler {
-	abstract createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
+	abstract createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		metadata?: ApiHandlerCreateMessageMetadata,
+	): ApiStream
 	abstract getModel(): { id: string; info: ModelInfo }
 
 	/**

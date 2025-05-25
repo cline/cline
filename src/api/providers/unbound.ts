@@ -7,7 +7,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { addCacheBreakpoints } from "../transform/caching/anthropic"
 
-import { SingleCompletionHandler } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { RouterProvider } from "./router-provider"
 
 const DEFAULT_HEADERS = {
@@ -32,7 +32,11 @@ export class UnboundHandler extends RouterProvider implements SingleCompletionHa
 		})
 	}
 
-	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		metadata?: ApiHandlerCreateMessageMetadata,
+	): ApiStream {
 		const { id: modelId, info } = await this.fetchModel()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [

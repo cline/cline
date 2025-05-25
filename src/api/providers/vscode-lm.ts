@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 
-import { SingleCompletionHandler } from "../"
 import { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "../../shared/vsCodeSelectorUtils"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { BaseProvider } from "./base-provider"
+import type { SingleCompletionHandler, ApiHandler, ApiHandlerCreateMessageMetadata } from "../index"
 
 /**
  * Handles interaction with VS Code's Language Model API for chat-based operations.
@@ -148,6 +148,7 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 	 *
 	 * @param systemPrompt - The system prompt to initialize the conversation context
 	 * @param messages - An array of message parameters following the Anthropic message format
+	 * @param metadata - Optional metadata for the message
 	 *
 	 * @yields {ApiStream} An async generator that yields either text chunks or tool calls from the model response
 	 *
@@ -329,7 +330,11 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		return content
 	}
 
-	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		metadata?: ApiHandlerCreateMessageMetadata,
+	): ApiStream {
 		// Ensure clean state before starting a new request
 		this.ensureCleanState()
 		const client: vscode.LanguageModelChat = await this.getClient()

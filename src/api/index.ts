@@ -29,8 +29,17 @@ export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
 }
 
+export interface ApiHandlerCreateMessageMetadata {
+	mode?: string
+	taskId: string
+}
+
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
+	createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		metadata?: ApiHandlerCreateMessageMetadata,
+	): ApiStream
 
 	getModel(): { id: string; info: ModelInfo }
 

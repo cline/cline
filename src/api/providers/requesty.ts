@@ -9,7 +9,7 @@ import {
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import { SingleCompletionHandler } from "../"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../"
 import { BaseProvider } from "./base-provider"
 import { DEFAULT_HEADERS } from "./constants"
 import { getModels } from "./fetchers/modelCache"
@@ -25,7 +25,14 @@ interface RequestyUsage extends OpenAI.CompletionUsage {
 	total_cost?: number
 }
 
-type RequestyChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {}
+type RequestyChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
+	requesty?: {
+		trace_id?: string
+		extra?: {
+			mode?: string
+		}
+	}
+}
 
 export class RequestyHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
@@ -75,7 +82,11 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 		}
 	}
 
-	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		metadata?: ApiHandlerCreateMessageMetadata,
+	): ApiStream {
 		const model = await this.fetchModel()
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -97,6 +108,12 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 			temperature: temperature,
 			stream: true,
 			stream_options: { include_usage: true },
+			requesty: {
+				trace_id: metadata?.taskId,
+				extra: {
+					mode: metadata?.mode,
+				},
+			},
 		}
 
 		const stream = await this.client.chat.completions.create(completionParams)

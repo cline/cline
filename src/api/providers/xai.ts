@@ -9,7 +9,7 @@ import { getModelParams } from "../transform/model-params"
 
 import { DEFAULT_HEADERS } from "./constants"
 import { BaseProvider } from "./base-provider"
-import { type SingleCompletionHandler } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 
 const XAI_DEFAULT_TEMPERATURE = 0
 
@@ -38,7 +38,11 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 		return { id, info, ...params }
 	}
 
-	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		metadata?: ApiHandlerCreateMessageMetadata,
+	): ApiStream {
 		const { id: modelId, info: modelInfo, reasoning } = this.getModel()
 
 		// Use the OpenAI-compatible API.
