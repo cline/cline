@@ -278,7 +278,7 @@ export class DiffViewProvider {
 				updatedDocument.positionAt(updatedDocument.getText().length),
 			)
 
-			edit.replace(updatedDocument.uri, fullRange, this.originalContent ?? "")
+			edit.replace(updatedDocument.uri, fullRange, this.stripAllBOMs(this.originalContent ?? ""))
 
 			// Apply the edit and save, since contents shouldnt have changed
 			// this won't show in local history unless of course the user made
