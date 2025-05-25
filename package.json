@@ -397,7 +397,7 @@
 		"p-timeout": "^6.1.4",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
-		"pkce-challenge": "^4.1.0",
+		"pkce-challenge": "^5.0.0",
 		"posthog-node": "^4.8.1",
 		"protobufjs": "^7.4.0",
 		"puppeteer-chromium-resolver": "^23.0.0",
