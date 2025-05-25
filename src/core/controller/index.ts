@@ -32,7 +32,12 @@ import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
 import { extractCommitMessage } from "@integrations/git/commit-message-generator"
 import { getTotalTasksSize } from "@utils/storage"
-import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
+import {
+	ensureMcpServersDirectoryExists,
+	ensureSettingsDirectoryExists,
+	GlobalFileNames,
+	ensureWorkflowsDirectoryExists,
+} from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -65,7 +70,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "may-16-2025_16:11:00" // update to some unique identifier when we add a new announcement
+	latestAnnouncementId = "may-22-2025_16:11:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -291,25 +296,6 @@ export class Controller {
 				}
 				await this.postStateToWebview()
 				break
-			case "autoApprovalSettings":
-				if (message.autoApprovalSettings) {
-					const currentSettings = (await getAllExtensionState(this.context)).autoApprovalSettings
-					const incomingVersion = message.autoApprovalSettings.version ?? 1
-					const currentVersion = currentSettings?.version ?? 1
-					if (incomingVersion > currentVersion) {
-						await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
-						if (this.task) {
-							this.task.autoApprovalSettings = message.autoApprovalSettings
-						}
-						await this.postStateToWebview()
-					}
-				}
-				break
-			case "togglePlanActMode":
-				if (message.chatSettings) {
-					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
-				}
-				break
 			case "optionsResponse":
 				await this.postMessageToWebview({
 					type: "invoke",
@@ -317,28 +303,13 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			case "didShowAnnouncement":
-				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
-				await this.postStateToWebview()
-				break
 			case "openInBrowser":
 				if (message.url) {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
 				break
-			case "showAccountViewClicked": {
-				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
-				break
-			}
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
-				break
-			}
-			case "openMcpSettings": {
-				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
-				if (mcpSettingsFilePath) {
-					await handleFileServiceRequest(this, "openFile", { value: mcpSettingsFilePath })
-				}
 				break
 			}
 			case "fetchMcpMarketplace": {
@@ -381,12 +352,20 @@ export class Controller {
 			// 	break
 			// }
 			case "toggleWorkflow": {
-				const { workflowPath, enabled } = message
-				if (workflowPath && typeof enabled === "boolean") {
-					const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
-					toggles[workflowPath] = enabled
-					await updateWorkspaceState(this.context, "workflowToggles", toggles)
-					await this.postStateToWebview()
+				const { workflowPath, enabled, isGlobal } = message
+				if (workflowPath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
+					if (isGlobal) {
+						const globalWorkflowToggles =
+							((await getGlobalState(this.context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
+						globalWorkflowToggles[workflowPath] = enabled
+						await updateGlobalState(this.context, "globalWorkflowToggles", globalWorkflowToggles)
+						await this.postStateToWebview()
+					} else {
+						const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+						toggles[workflowPath] = enabled
+						await updateWorkspaceState(this.context, "workflowToggles", toggles)
+						await this.postStateToWebview()
+					}
 				}
 				break
 			}
@@ -397,14 +376,6 @@ export class Controller {
 
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
-			case "openExtensionSettings": {
-				const settingsFilter = message.text || ""
-				await vscode.commands.executeCommand(
-					"workbench.action.openSettings",
-					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
-				)
 				break
 			}
 			case "invoke": {
@@ -1259,6 +1230,7 @@ export class Controller {
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
 			globalClineRulesToggles,
+			globalWorkflowToggles,
 			shellIntegrationTimeout,
 			isNewUser,
 		} = await getAllExtensionState(this.context)
@@ -1272,7 +1244,7 @@ export class Controller {
 		const localCursorRulesToggles =
 			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
 
-		const workflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+		const localWorkflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1301,7 +1273,8 @@ export class Controller {
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
-			workflowToggles: workflowToggles || {},
+			localWorkflowToggles: localWorkflowToggles || {},
+			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			isNewUser,
 		}
