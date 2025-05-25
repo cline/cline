@@ -11,14 +11,14 @@ export class CerebrasHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		
+
 		// Clean and validate the API key
 		const cleanApiKey = this.options.cerebrasApiKey?.trim()
-		
+
 		if (!cleanApiKey) {
 			throw new Error("Cerebras API key is required")
 		}
-		
+
 		this.client = new Cerebras({
 			apiKey: cleanApiKey,
 			timeout: 30000, // 30 second timeout
@@ -31,9 +31,7 @@ export class CerebrasHandler implements ApiHandler {
 		const cerebrasMessages: Array<{
 			role: "system" | "user" | "assistant"
 			content: string
-		}> = [
-			{ role: "system", content: systemPrompt },
-		]
+		}> = [{ role: "system", content: systemPrompt }]
 
 		// Convert Anthropic messages to Cerebras format
 		for (const message of messages) {
@@ -78,25 +76,23 @@ export class CerebrasHandler implements ApiHandler {
 			let reasoning: string | null = null // Track reasoning content for models that support thinking
 			const modelId = this.getModel().id
 			const isReasoningModel = modelId.includes("qwen") || modelId.includes("deepseek-r1-distill")
-			
+
 			for await (const chunk of stream as any) {
 				// Type assertion for the streaming chunk
 				const streamChunk = chunk as any
-				
+
 				if (streamChunk.choices?.[0]?.delta?.content) {
 					const content = streamChunk.choices[0].delta.content
-					
+
 					// Handle reasoning models (Qwen and DeepSeek R1 Distill) that use <think> tags
 					if (isReasoningModel) {
 						// Check if we're entering or continuing reasoning mode
 						if (reasoning || content.includes("<think>")) {
 							reasoning = (reasoning || "") + content
-							
+
 							// Clean the content by removing think tags for display
-							let cleanContent = content
-								.replace(/<think>/g, "")
-								.replace(/<\/think>/g, "")
-							
+							let cleanContent = content.replace(/<think>/g, "").replace(/<\/think>/g, "")
+
 							// Only yield reasoning content if there's actual content after cleaning
 							if (cleanContent.trim()) {
 								yield {
@@ -104,7 +100,7 @@ export class CerebrasHandler implements ApiHandler {
 									reasoning: cleanContent,
 								}
 							}
-							
+
 							// Check if reasoning is complete
 							if (reasoning.includes("</think>")) {
 								reasoning = null
@@ -132,7 +128,7 @@ export class CerebrasHandler implements ApiHandler {
 						inputTokens: streamChunk.usage.prompt_tokens || 0,
 						outputTokens: streamChunk.usage.completion_tokens || 0,
 					})
-					
+
 					yield {
 						type: "usage",
 						inputTokens: streamChunk.usage.prompt_tokens || 0,
@@ -160,20 +156,14 @@ export class CerebrasHandler implements ApiHandler {
 		}
 	}
 
-	private calculateCost({
-		inputTokens,
-		outputTokens,
-	}: {
-		inputTokens: number
-		outputTokens: number
-	}): number {
+	private calculateCost({ inputTokens, outputTokens }: { inputTokens: number; outputTokens: number }): number {
 		const model = this.getModel()
 		const inputPrice = model.info.inputPrice || 0
 		const outputPrice = model.info.outputPrice || 0
-		
+
 		const inputCost = (inputPrice / 1_000_000) * inputTokens
 		const outputCost = (outputPrice / 1_000_000) * outputTokens
-		
+
 		return inputCost + outputCost
 	}
-} 
+}
