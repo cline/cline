@@ -70,7 +70,7 @@
 		"tooltip": "Annuleer de huidige bewerking"
 	},
 	"scrollToBottom": "Scroll naar onderaan de chat",
-	"about": "Genereer, refactor en debug code met AI-assistentie.<br />Bekijk onze <DocsLink>documentatie</DocsLink> voor meer informatie.",
+	"about": "Genereer, refactor en debug code met AI-assistentie. Bekijk onze <DocsLink>documentatie</DocsLink> voor meer informatie.",
 	"onboarding": "Je takenlijst in deze werkruimte is leeg.",
 	"rooTips": {
 		"boomerangTasks": {
