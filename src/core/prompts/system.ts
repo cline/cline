@@ -45,6 +45,7 @@ async function generatePrompt(
 	enableMcpServerCreation?: boolean,
 	language?: string,
 	rooIgnoreInstructions?: string,
+	partialReadsEnabled?: boolean,
 ): Promise<string> {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -82,6 +83,7 @@ ${getToolDescriptionsForMode(
 	mcpHub,
 	customModeConfigs,
 	experiments,
+	partialReadsEnabled,
 )}
 
 ${getToolUseGuidelinesSection()}
@@ -119,6 +121,7 @@ export const SYSTEM_PROMPT = async (
 	enableMcpServerCreation?: boolean,
 	language?: string,
 	rooIgnoreInstructions?: string,
+	partialReadsEnabled?: boolean,
 ): Promise<string> => {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -185,5 +188,6 @@ ${customInstructions}`
 		enableMcpServerCreation,
 		language,
 		rooIgnoreInstructions,
+		partialReadsEnabled,
 	)
 }

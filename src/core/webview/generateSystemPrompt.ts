@@ -20,6 +20,7 @@ export const generateSystemPrompt = async (provider: ClineProvider, message: Web
 		enableMcpServerCreation,
 		browserToolEnabled,
 		language,
+		maxReadFileLine,
 	} = await provider.getState()
 
 	const diffStrategy = new MultiSearchReplaceDiffStrategy(fuzzyMatchThreshold)
@@ -67,6 +68,7 @@ export const generateSystemPrompt = async (provider: ClineProvider, message: Web
 		enableMcpServerCreation,
 		language,
 		rooIgnoreInstructions,
+		maxReadFileLine !== -1,
 	)
 
 	return systemPrompt
