@@ -59,6 +59,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
+	setTotalTasksSize: (value: number | null) => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -316,10 +317,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				}
 				break
 			}
-			case "totalTasksSize": {
-				setTotalTasksSize(message.totalTasksSize ?? null)
-				break
-			}
 		}
 	}, [])
 
@@ -558,6 +555,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				globalWorkflowToggles: toggles,
 			})),
 		setMcpTab,
+		setTotalTasksSize,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
