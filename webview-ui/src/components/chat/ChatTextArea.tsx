@@ -310,6 +310,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+		const [queuedMessages, setQueuedMessages] = useState<{ inputValue: string; selectedImages: string[] }[]>([])
+
+		// Effect to handle queued message submission when sendingDisabled becomes false
+		useEffect(() => {
+			if (!sendingDisabled && queuedMessages.length > 0) {
+				// Get the first queued message
+				const nextMessage = queuedMessages[0]
+
+				// Set the input value and selected images to the queued message
+				setInputValue(nextMessage.inputValue)
+				setSelectedImages(nextMessage.selectedImages)
+
+				// Small delay to ensure state updates properly
+				setTimeout(() => {
+					setIsTextAreaFocused(false)
+					onSend()
+					// Remove the processed message from the queue
+					setQueuedMessages((prev) => prev.slice(1))
+				}, 100) // Increased delay to ensure state updates properly
+			}
+		}, [sendingDisabled, queuedMessages, onSend, setInputValue, setSelectedImages])
+
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
@@ -584,6 +606,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (!sendingDisabled) {
 						setIsTextAreaFocused(false)
 						onSend()
+					} else {
+						// Add to queue and clear input
+						setQueuedMessages([
+							...queuedMessages,
+							{
+								inputValue,
+								selectedImages,
+							},
+						])
+						// Clear the input field and selected images
+						setInputValue("")
+						setSelectedImages([])
 					}
 				}
 
@@ -1368,6 +1402,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		return (
 			<div>
+				{/* Queued messages indicator - dots for each task */}
+				{queuedMessages.length > 0 && (
+					<div
+						style={{
+							position: "absolute",
+							// top: -10,
+							right: 15,
+							zIndex: 10,
+							display: "flex",
+							flexDirection: "row",
+							gap: "4px",
+						}}
+						title={`Queued messages (${queuedMessages.length}):\n${queuedMessages.map((msg, i) => `${i + 1}. ${msg.inputValue.substring(0, 50)}${msg.inputValue.length > 50 ? "..." : ""}`).join("\n")}`}>
+						{queuedMessages.map((_, index) => (
+							<div
+								key={index}
+								style={{
+									width: "6px",
+									height: "6px",
+									borderRadius: "50%",
+									backgroundColor: "white",
+									border: "1px solid var(--vscode-input-border)",
+									cursor: "help",
+									boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
+								}}
+							/>
+						))}
+					</div>
+				)}
+
 				<div
 					style={{
 						padding: "10px 15px",
