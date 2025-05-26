@@ -1,31 +1,62 @@
 ---
 title: "Model Selection Guide"
-description: "Last updated: Feb 5, 2025."
+description: "Last updated: May 26, 2025. Choose the right AI model for your coding needs."
 ---
+
+## Current Top Programming Models
+
+For the most up-to-date rankings, check [OpenRouter's Cline Leaderboard](https://openrouter.ai/apps?url=https%3A%2F%2Fcline.bot%2F) which shows real usage data from developers.
+
+**Current top performers (as of May 2025):**
+
+| Model                    | Input Cost\* | Output Cost\* | Context Window | Best For                             |
+| ------------------------ | ------------ | ------------- | -------------- | ------------------------------------ |
+| Claude Sonnet 4          | $3.00        | $15.00        | 200K           | Best overall code quality & tool use |
+| Gemini 2.5 Pro Preview   | $1.25        | $10.00        | 1.05M          | Large codebases, strong debugging    |
+| GPT-4.1                  | $2.00        | $8.00         | 1.05M          | Software engineering & architecture  |
+| Gemini 2.5 Flash Preview | $0.15        | $0.60         | 1.05M          | Fast iteration, cost-effective       |
+| DeepSeek V3 0324         | $0.30        | $0.88         | 164K           | Best value for daily coding          |
+| DeepSeek R1              | $0.50        | $2.18         | 164K           | Excellent for planning & reasoning   |
+
+\*Costs per million tokens
+
+## Key Factors to Consider
+
+### Performance
+
+-   **Code Quality**: How accurate and maintainable is the generated code?
+-   **Tool Usage**: How reliably does the model use Cline's tools (file editing, terminal, browser)?
+-   **Problem Solving**: Can it handle complex, multi-step coding tasks?
+
+**Tip**: Claude models generally have the best tool usage reliability, while DeepSeek offers great performance for the price.
+
+### Context Windows
+
+Think of this as the AI's "working memory" - how much information it can process at once.
+
+-   **Short tasks & small files**: 128K+ tokens is sufficient
+-   **Long tasks & large files**: 200K+ tokens recommended
+
+**Real impact**: Larger context windows let you work with bigger files and have longer conversations without losing context. The AI can remember more of your task history and file contents.
+
+### Cost
+
+Models range from $0.15 to $15 per million output tokens. For typical daily coding:
+
+-   **Budget option**: $2-5/month (DeepSeek, Gemini Flash)
+-   **Premium option**: $15-40/month (Claude, Gemini Pro GPT-4.1)
+
+**Cost tip**: Start with a budget model and upgrade if you need better quality or reliability.
 
 ## Understanding Context Windows
 
-Think of a context window as your AI assistant's working memory - similar to RAM in a computer. It determines how much information the model can "remember" and process at once during your conversation. This includes:
+Context windows are measured in tokens (roughly 3/4 of a word). When you reach the limit, older conversation history gets removed to make room for new information.
 
--   Your code files and conversations
--   The assistant's responses
--   Any documentation or additional context provided
+Cline shows your context usage with a progress bar:
 
-Context windows are measured in tokens (roughly 3/4 of a word in English). Different models have different context window sizes:
-
--   Claude 3.5 Sonnet: 200K tokens
--   DeepSeek Models: 128K tokens
--   Gemini Flash 2.0: 1M tokens
--   Gemini 1.5 Pro: 2M tokens
-
-When you reach the limit of your context window, older information needs to be removed to make room for new information - just like clearing RAM to run new programs. This is why sometimes AI assistants might seem to "forget" earlier parts of your conversation.
-
-Cline helps you manage this limitation with its Context Window Progress Bar, which shows:
-
--   Input tokens (what you've sent to the model)
--   Output tokens (what the model has generated)
--   A visual representation of how much of your context window you've used
--   The total capacity for your chosen model
+-   Input tokens (your messages and code)
+-   Output tokens (AI responses)
+-   Visual indicator of remaining capacity
 
 <Frame caption="Visual representation of the context window usage in Cline">
 	<img
@@ -34,93 +65,18 @@ Cline helps you manage this limitation with its Context Window Progress Bar, whi
 	/>
 </Frame>
 
-This visibility helps you work more effectively with Cline by letting you know when you might need to start fresh or break tasks into smaller chunks.
+## Quick Recommendations
 
-### Model Comparison
+**Just getting started?** Try **DeepSeek V3** - great performance at a low cost.
 
-## LLM Model Comparison for Cline (Feb 2025)
+**Professional development?** Use **Claude Sonnet 4** - most reliable for production code.
 
-| Model             | Input Cost\* | Output Cost\* | Context Window | Best For                            |
-| ----------------- | ------------ | ------------- | -------------- | ----------------------------------- |
-| Claude 3.5 Sonnet | $3.00        | $15.00        | 200K           | Best code implementation & tool use |
-| DeepSeek R1       | $0.55        | $2.19         | 128K           | Planning & reasoning champion       |
-| DeepSeek V3       | $0.14        | $0.28         | 128K           | Value code implementation           |
-| o3-mini           | $1.10        | $4.40         | 200K           | Flexible use, strong planning       |
-| Gemini Flash 2.0  | $0.00        | $0.00         | 1M             | Strong all-rounder                  |
-| Gemini 1.5 Pro    | $0.00        | $0.00         | 2M             | Large context processing            |
+**Large codebase?** Go with **Gemini 2.5 Pro** - massive context window handles complex projects.
 
-\*Costs per million tokens
+**Tight budget?** **Gemini 2.5 Flash** offers solid performance for free/low cost.
 
-### Top Picks for 2025
+## A Note on Local Models
 
-1. **Claude 3.5 Sonnet**
-    - Best overall code implementation
-    - Most reliable tool usage
-    - Expensive but worth it for critical code
-2. **DeepSeek R1**
-    - Exceptional planning & reasoning
-    - Great value pricing
-3. **o3-mini**
-    - Strong for planning with adjustable reasoning
-    - Three reasoning modes for different needs
-    - Requires OpenAI Tier 3 API access
-    - 200K context window
-4. **DeepSeek V3**
-    - Reliable code implementation
-    - Great for daily coding
-    - Cost-effective for implementation
-5. **Gemini Flash 2.0**
-    - Massive 1M context window
-    - Improved speed and performance
-    - Good all-around capabilities
+We don't recommend local models for Cline. [Local models are significantly less reliable](https://docs.cline.bot/running-models-locally/read-me-first) at using tools and typically retain only 1-26% of the original model's capabilities. Cloud models provide much better reliability and performance.
 
-### Best Models by Mode (Plan or Act)
-
-#### Planning
-
-1. **DeepSeek R1**
-    - Best reasoning capabilities in class
-    - Excellent at breaking down complex tasks
-    - Strong math/algorithm planning
-    - MoE architecture helps with reasoning
-2. **o3-mini (high reasoning)**
-    - Three reasoning levels:
-        - High: Complex planning
-        - Medium: Daily tasks
-        - Low: Quick ideas
-    - 200K context helps with large projects
-3. **Gemini Flash 2.0**
-    - Massive context window for complex planning
-    - Strong reasoning capabilities
-    - Good with multi-step tasks
-
-#### Acting (coding)
-
-1. **Claude 3.5 Sonnet**
-    - Best code quality
-    - Most reliable with Cline tools
-    - Worth the premium for critical code
-2. **DeepSeek V3**
-    - Nearly Sonnet-level code quality
-    - Better API stability than R1
-    - Great for daily coding
-    - Strong tool usage
-3. **Gemini 1.5 Pro**
-    - 2M context window
-    - Good with complex codebases
-    - Reliable API
-    - Strong multi-file understanding
-
-### A Note on Local Models
-
-While running models locally might seem appealing for cost savings, we currently don't recommend any local models for use with Cline. [Local models are significantly less reliable](https://docs.cline.bot/running-models-locally/read-me-first) at using Cline's essential tools and typically retain only 1-26% of the original model's capabilities. The full cloud version of DeepSeek-R1, for example, is 671B parameters - local versions are drastically simplified copies that struggle with complex tasks and tool usage. Even with high-end hardware (RTX 3070+, 32GB+ RAM), you'll experience slower responses, less reliable tool execution, and reduced capabilities. For the best development experience, we recommend sticking with the cloud models listed above.
-
-### Key Takeaways
-
-1. **Plan vs Act Matters**: Choose models based on task type
-2. **Real Performance > Benchmarks**: Focus on actual Cline performance
-3. **Mix & Match**: Use different models for planning and implementation
-4. **Cost vs Quality**: Premium models worth it for critical code
-5. **Keep Backups**: Have alternatives ready for API issues
-
-_\*Note: Based on real usage patterns and community feedback rather than just benchmarks. Your experience may vary. This is not an exhaustive list of all the models available for use within Cline._
+_Note: Rankings and prices change frequently. This guide reflects general patterns rather than specific benchmarks._
