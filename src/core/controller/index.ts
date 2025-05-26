@@ -303,11 +303,6 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			case "openInBrowser":
-				if (message.url) {
-					vscode.env.openExternal(vscode.Uri.parse(message.url))
-				}
-				break
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
 				break
