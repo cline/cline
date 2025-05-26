@@ -40,6 +40,7 @@ export interface WebviewMessage {
 	disabled?: boolean
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
+	files?: string[]
 	bool?: boolean
 	number?: number
 	browserSettings?: BrowserSettings
