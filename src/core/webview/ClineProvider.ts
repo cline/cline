@@ -557,7 +557,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		try {
 			const fs = require("fs")
 			const path = require("path")
-			const portFilePath = path.resolve(__dirname, "../.vite-port")
+			const portFilePath = path.resolve(__dirname, "../../.vite-port")
 
 			if (fs.existsSync(portFilePath)) {
 				localPort = fs.readFileSync(portFilePath, "utf8").trim()
