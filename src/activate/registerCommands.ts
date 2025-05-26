@@ -1,7 +1,9 @@
 import * as vscode from "vscode"
 import delay from "delay"
 
-import { CommandId, Package } from "../schemas"
+import type { CommandId } from "@roo-code/types"
+
+import { Package } from "../shared/package"
 import { getCommand } from "../utils/commands"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { ContextProxy } from "../core/config/ContextProxy"

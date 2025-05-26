@@ -1,5 +1,8 @@
-import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "../cost"
-import { ModelInfo } from "../../shared/api"
+// npx jest src/utils/__tests__/cost.test.ts
+
+import type { ModelInfo } from "@roo-code/types"
+
+import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "../../shared/cost"
 
 describe("Cost Utility", () => {
 	describe("calculateApiCostAnthropic", () => {

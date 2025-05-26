@@ -1,12 +1,13 @@
 import * as vscode from "vscode"
 
-import { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts, ExperimentId } from "../schemas"
-import { TOOL_GROUPS, ToolGroup, ALWAYS_AVAILABLE_TOOLS } from "./tools"
-import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
-import { EXPERIMENT_IDS } from "./experiments"
-export type Mode = string
+import type { GroupOptions, GroupEntry, ModeConfig, CustomModePrompts, ExperimentId, ToolGroup } from "@roo-code/types"
 
-export type { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts }
+import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
+
+import { EXPERIMENT_IDS } from "./experiments"
+import { TOOL_GROUPS, ALWAYS_AVAILABLE_TOOLS } from "./tools"
+
+export type Mode = string
 
 // Helper to extract group name regardless of format
 export function getGroupName(group: GroupEntry): ToolGroup {

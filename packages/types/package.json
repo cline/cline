@@ -1,0 +1,37 @@
+{
+	"name": "@roo-code/types",
+	"description": "Roo Code foundational types and schemas.",
+	"private": true,
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"import": "./src/index.ts",
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"lint": "eslint src --ext=ts --max-warnings=0",
+		"check-types": "tsc --noEmit",
+		"test": "vitest --globals --run",
+		"build": "tsup",
+		"clean": "rimraf dist .turbo"
+	},
+	"dependencies": {
+		"zod": "^3.24.2"
+	},
+	"devDependencies": {
+		"@roo-code/config-eslint": "workspace:^",
+		"@roo-code/config-typescript": "workspace:^",
+		"@types/node": "^22.15.20",
+		"tsup": "^8.3.5",
+		"vitest": "^3.1.3"
+	}
+}

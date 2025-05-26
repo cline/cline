@@ -1,10 +1,10 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
 
-import { formatPrice } from "@/utils/formatPrice"
-import { cn } from "@/lib/utils"
+import type { ModelInfo } from "@roo-code/types"
 
-import { ModelInfo } from "@roo/shared/api"
+import { formatPrice } from "@src/utils/formatPrice"
+import { cn } from "@src/lib/utils"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
 
 import { ModelDescriptionMarkdown } from "./ModelDescriptionMarkdown"
 

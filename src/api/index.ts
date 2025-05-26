@@ -1,29 +1,33 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import { ProviderSettings, ModelInfo } from "../shared/api"
-import { GlamaHandler } from "./providers/glama"
-import { AnthropicHandler } from "./providers/anthropic"
-import { AwsBedrockHandler } from "./providers/bedrock"
-import { OpenRouterHandler } from "./providers/openrouter"
-import { VertexHandler } from "./providers/vertex"
-import { AnthropicVertexHandler } from "./providers/anthropic-vertex"
-import { OpenAiHandler } from "./providers/openai"
-import { OllamaHandler } from "./providers/ollama"
-import { LmStudioHandler } from "./providers/lmstudio"
-import { GeminiHandler } from "./providers/gemini"
-import { OpenAiNativeHandler } from "./providers/openai-native"
-import { DeepSeekHandler } from "./providers/deepseek"
-import { MistralHandler } from "./providers/mistral"
-import { VsCodeLmHandler } from "./providers/vscode-lm"
+import type { ProviderSettings, ModelInfo } from "@roo-code/types"
+
 import { ApiStream } from "./transform/stream"
-import { UnboundHandler } from "./providers/unbound"
-import { RequestyHandler } from "./providers/requesty"
-import { HumanRelayHandler } from "./providers/human-relay"
-import { FakeAIHandler } from "./providers/fake-ai"
-import { XAIHandler } from "./providers/xai"
-import { GroqHandler } from "./providers/groq"
-import { ChutesHandler } from "./providers/chutes"
-import { LiteLLMHandler } from "./providers/litellm"
+
+import {
+	GlamaHandler,
+	AnthropicHandler,
+	AwsBedrockHandler,
+	OpenRouterHandler,
+	VertexHandler,
+	AnthropicVertexHandler,
+	OpenAiHandler,
+	OllamaHandler,
+	LmStudioHandler,
+	GeminiHandler,
+	OpenAiNativeHandler,
+	DeepSeekHandler,
+	MistralHandler,
+	VsCodeLmHandler,
+	UnboundHandler,
+	RequestyHandler,
+	HumanRelayHandler,
+	FakeAIHandler,
+	XAIHandler,
+	GroqHandler,
+	ChutesHandler,
+	LiteLLMHandler,
+} from "./providers"
 
 export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
@@ -67,11 +71,9 @@ export function buildApiHandler(configuration: ProviderSettings): ApiHandler {
 		case "bedrock":
 			return new AwsBedrockHandler(options)
 		case "vertex":
-			if (options.apiModelId?.startsWith("claude")) {
-				return new AnthropicVertexHandler(options)
-			} else {
-				return new VertexHandler(options)
-			}
+			return options.apiModelId?.startsWith("claude")
+				? new AnthropicVertexHandler(options)
+				: new VertexHandler(options)
 		case "openai":
 			return new OpenAiHandler(options)
 		case "ollama":

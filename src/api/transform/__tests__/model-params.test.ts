@@ -1,6 +1,7 @@
 // npx jest src/api/transform/__tests__/model-params.test.ts
 
-import { ModelInfo } from "../../../schemas"
+import type { ModelInfo } from "@roo-code/types"
+
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "../../providers/constants"
 
 import { getModelParams } from "../model-params"

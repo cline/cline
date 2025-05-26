@@ -1,4 +1,6 @@
-import { Package, CommandId, CodeActionId, TerminalActionId } from "../schemas"
+import type { CommandId, CodeActionId, TerminalActionId } from "@roo-code/types"
+
+import { Package } from "../shared/package"
 
 export const getCommand = (id: CommandId) => `${Package.name}.${id}`
 

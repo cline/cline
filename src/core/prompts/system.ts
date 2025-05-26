@@ -1,19 +1,18 @@
-import {
-	Mode,
-	modes,
-	CustomModePrompts,
-	PromptComponent,
-	defaultModeSlug,
-	ModeConfig,
-	getModeBySlug,
-	getGroupName,
-} from "../../shared/modes"
-import { PromptVariables, loadSystemPromptFile } from "./sections/custom-system-prompt"
-import { DiffStrategy } from "../../shared/tools"
-import { McpHub } from "../../services/mcp/McpHub"
-import { getToolDescriptionsForMode } from "./tools"
 import * as vscode from "vscode"
 import * as os from "os"
+
+import type { ModeConfig, PromptComponent, CustomModePrompts } from "@roo-code/types"
+
+import { Mode, modes, defaultModeSlug, getModeBySlug, getGroupName } from "../../shared/modes"
+import { DiffStrategy } from "../../shared/tools"
+import { formatLanguage } from "../../shared/language"
+
+import { McpHub } from "../../services/mcp/McpHub"
+import { CodeIndexManager } from "../../services/code-index/manager"
+
+import { PromptVariables, loadSystemPromptFile } from "./sections/custom-system-prompt"
+
+import { getToolDescriptionsForMode } from "./tools"
 import {
 	getRulesSection,
 	getSystemInfoSection,
@@ -26,8 +25,6 @@ import {
 	addCustomInstructions,
 	markdownFormattingSection,
 } from "./sections"
-import { formatLanguage } from "../../shared/language"
-import { CodeIndexManager } from "../../services/code-index/manager"
 
 async function generatePrompt(
 	context: vscode.ExtensionContext,

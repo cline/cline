@@ -2,8 +2,9 @@ import { useState } from "react"
 import prettyBytes from "pretty-bytes"
 import { useTranslation } from "react-i18next"
 
+import type { HistoryItem } from "@roo-code/types"
+
 import { vscode } from "@/utils/vscode"
-import { HistoryItem } from "@roo/shared/HistoryItem"
 
 import { DeleteTaskDialog } from "../history/DeleteTaskDialog"
 import { IconButton } from "./IconButton"

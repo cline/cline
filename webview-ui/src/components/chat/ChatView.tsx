@@ -7,32 +7,29 @@ import { Trans } from "react-i18next"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import useSound from "use-sound"
 
-import {
-	ClineAsk,
-	ClineMessage,
-	ClineSayBrowserAction,
-	ClineSayTool,
-	ExtensionMessage,
-} from "@roo/shared/ExtensionMessage"
-import { McpServer, McpTool } from "@roo/shared/mcp"
-import { findLast } from "@roo/shared/array"
-import { combineApiRequests } from "@roo/shared/combineApiRequests"
-import { combineCommandSequences } from "@roo/shared/combineCommandSequences"
-import { getApiMetrics } from "@roo/shared/getApiMetrics"
-import { AudioType } from "@roo/shared/WebviewMessage"
-import { getAllModes } from "@roo/shared/modes"
+import type { ClineAsk, ClineMessage } from "@roo-code/types"
 
-import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { ClineSayBrowserAction, ClineSayTool, ExtensionMessage } from "@roo/ExtensionMessage"
+import { McpServer, McpTool } from "@roo/mcp"
+import { findLast } from "@roo/array"
+import { combineApiRequests } from "@roo/combineApiRequests"
+import { combineCommandSequences } from "@roo/combineCommandSequences"
+import { getApiMetrics } from "@roo/getApiMetrics"
+import { AudioType } from "@roo/WebviewMessage"
+import { getAllModes } from "@roo/modes"
+
 import { vscode } from "@src/utils/vscode"
-import { useSelectedModel } from "@/components/ui/hooks/useSelectedModel"
 import { validateCommand } from "@src/utils/command-validation"
+import { buildDocLink } from "@src/utils/docLinks"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
+import RooHero from "@src/components/welcome/RooHero"
+import RooTips from "@src/components/welcome/RooTips"
 
 import TelemetryBanner from "../common/TelemetryBanner"
 import { useTaskSearch } from "../history/useTaskSearch"
 import HistoryPreview from "../history/HistoryPreview"
-import RooHero from "@src/components/welcome/RooHero"
-import RooTips from "@src/components/welcome/RooTips"
 import Announcement from "./Announcement"
 import BrowserSessionRow from "./BrowserSessionRow"
 import ChatRow from "./ChatRow"
@@ -41,7 +38,6 @@ import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import SystemPromptWarning from "./SystemPromptWarning"
 import { CheckpointWarning } from "./CheckpointWarning"
-import { buildDocLink } from "@src/utils/docLinks"
 
 export interface ChatViewProps {
 	isHidden: boolean

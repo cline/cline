@@ -320,19 +320,16 @@
 	"scripts": {
 		"lint": "eslint . --ext=ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
-		"pretest": "pnpm bundle",
+		"pretest": "turbo run bundle --cwd ..",
 		"test": "jest -w=40% && vitest run --globals",
 		"format": "prettier --write .",
-		"bundle": "pnpm clean && pnpm --filter @roo-code/build build && node esbuild.mjs",
-		"build": "pnpm bundle --production && pnpm --filter @roo-code/vscode-webview build",
-		"build:development": "pnpm bundle && pnpm --filter @roo-code/vscode-webview build",
-		"publish:marketplace": "vsce publish --no-dependencies && ovsx publish --no-dependencies",
-		"vscode:prepublish": "pnpm build",
+		"bundle": "node esbuild.mjs",
+		"vscode:prepublish": "pnpm bundle --production",
 		"vsix": "mkdirp ../bin && npx vsce package --no-dependencies --out ../bin",
+		"publish:marketplace": "vsce publish --no-dependencies && ovsx publish --no-dependencies",
 		"watch:esbuild": "pnpm bundle --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"generate-types": "tsx scripts/generate-types.mts",
-		"clean": "rimraf README.md CHANGELOG.md LICENSE dist webview-ui out .turbo"
+		"clean": "rimraf README.md CHANGELOG.md LICENSE dist webview-ui out mock .turbo"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",
@@ -343,6 +340,7 @@
 		"@google/genai": "^0.13.0",
 		"@mistralai/mistralai": "^1.3.6",
 		"@modelcontextprotocol/sdk": "^1.9.0",
+		"@roo-code/types": "workspace:^",
 		"@qdrant/js-client-rest": "^1.14.0",
 		"@types/lodash.debounce": "^4.0.9",
 		"@vscode/codicons": "^0.0.36",

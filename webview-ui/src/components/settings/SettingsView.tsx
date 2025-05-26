@@ -9,7 +9,6 @@ import React, {
 	useRef,
 	useState,
 } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
 import {
 	CheckCheck,
 	SquareMousePointer,
@@ -25,12 +24,13 @@ import {
 	LucideIcon,
 } from "lucide-react"
 
-import { ExperimentId } from "@roo/shared/experiments"
-import { TelemetrySetting } from "@roo/shared/TelemetrySetting"
-import { ProviderSettings } from "@roo/shared/api"
+import type { ProviderSettings, ExperimentId } from "@roo-code/types"
 
-import { vscode } from "@/utils/vscode"
-import { ExtensionStateContextType, useExtensionState } from "@/context/ExtensionStateContext"
+import { TelemetrySetting } from "@roo/TelemetrySetting"
+
+import { vscode } from "@src/utils/vscode"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { ExtensionStateContextType, useExtensionState } from "@src/context/ExtensionStateContext"
 import {
 	AlertDialog,
 	AlertDialogContent,
@@ -45,7 +45,7 @@ import {
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "@/components/ui"
+} from "@src/components/ui"
 
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
 import { SetCachedStateField, SetExperimentEnabled } from "./types"

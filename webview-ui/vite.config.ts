@@ -87,7 +87,7 @@ export default defineConfig(({ mode }) => {
 			alias: {
 				"@": resolve(__dirname, "./src"),
 				"@src": resolve(__dirname, "./src"),
-				"@roo": resolve(__dirname, "../src"),
+				"@roo": resolve(__dirname, "../src/shared"),
 			},
 		},
 		build: {

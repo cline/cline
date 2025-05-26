@@ -1,7 +1,8 @@
 // npx jest src/shared/__tests__/combineApiRequests.test.ts
 
+import type { ClineMessage, ClineSay } from "@roo-code/types"
+
 import { combineApiRequests } from "../combineApiRequests"
-import { ClineMessage, ClineSay } from "../ExtensionMessage"
 
 describe("combineApiRequests", () => {
 	// Helper function to create a basic api_req_started message

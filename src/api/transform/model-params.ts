@@ -1,10 +1,7 @@
+import type { ModelInfo, ProviderSettings } from "@roo-code/types"
+
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "../providers/constants"
-import {
-	shouldUseReasoningBudget,
-	shouldUseReasoningEffort,
-	type ModelInfo,
-	type ProviderSettings,
-} from "../../shared/api"
+import { shouldUseReasoningBudget, shouldUseReasoningEffort } from "../../shared/api"
 
 import {
 	type AnthropicReasoningParams,

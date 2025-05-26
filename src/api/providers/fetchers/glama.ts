@@ -1,7 +1,8 @@
 import axios from "axios"
 
-import { ModelInfo } from "../../../shared/api"
-import { parseApiPrice } from "../../../utils/cost"
+import type { ModelInfo } from "@roo-code/types"
+
+import { parseApiPrice } from "../../../shared/cost"
 
 export async function getGlamaModels(): Promise<Record<string, ModelInfo>> {
 	const models: Record<string, ModelInfo> = {}

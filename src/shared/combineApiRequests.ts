@@ -1,4 +1,4 @@
-import { ClineMessage } from "./ExtensionMessage"
+import type { ClineMessage } from "@roo-code/types"
 
 /**
  * Combines API request start and finish messages in an array of ClineMessages.

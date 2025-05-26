@@ -5,12 +5,13 @@ import fs from "fs/promises"
 import * as vscode from "vscode"
 import { z, ZodError } from "zod"
 
-import { globalSettingsSchema } from "../../schemas"
+import { globalSettingsSchema } from "@roo-code/types"
+
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 import { ProviderSettingsManager, providerProfilesSchema } from "./ProviderSettingsManager"
 import { ContextProxy } from "./ContextProxy"
 import { CustomModesManager } from "./CustomModesManager"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 type ImportOptions = {
 	providerSettingsManager: ProviderSettingsManager

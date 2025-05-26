@@ -1,7 +1,8 @@
 import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 import OpenAI from "openai"
 
-import { ModelInfo, ProviderSettings } from "../../schemas"
+import type { ModelInfo, ProviderSettings } from "@roo-code/types"
+
 import { shouldUseReasoningBudget, shouldUseReasoningEffort } from "../../shared/api"
 
 type ReasoningEffort = "low" | "medium" | "high"

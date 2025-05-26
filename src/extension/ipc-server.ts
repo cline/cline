@@ -4,8 +4,14 @@ import * as crypto from "node:crypto"
 
 import ipc from "node-ipc"
 
-import { IpcOrigin, IpcMessageType, type IpcMessage, ipcMessageSchema } from "../schemas"
-import type { IpcServerEvents, RooCodeIpcServer } from "./interface"
+import {
+	type IpcServerEvents,
+	type RooCodeIpcServer,
+	IpcOrigin,
+	IpcMessageType,
+	type IpcMessage,
+	ipcMessageSchema,
+} from "@roo-code/types"
 
 /**
  * IpcServer

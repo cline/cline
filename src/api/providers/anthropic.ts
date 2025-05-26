@@ -2,13 +2,9 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { CacheControlEphemeral } from "@anthropic-ai/sdk/resources"
 
-import {
-	anthropicDefaultModelId,
-	AnthropicModelId,
-	anthropicModels,
-	ApiHandlerOptions,
-	ModelInfo,
-} from "../../shared/api"
+import type { ModelInfo } from "@roo-code/types"
+
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions } from "../../shared/api"
 
 import { ApiStream } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"

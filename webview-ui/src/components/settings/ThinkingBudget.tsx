@@ -1,13 +1,9 @@
 import { useEffect } from "react"
 import { Checkbox } from "vscrui"
 
-import { reasoningEfforts, ReasoningEffort } from "@roo/schemas"
-import {
-	type ProviderSettings,
-	type ModelInfo,
-	DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS,
-	DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS,
-} from "@roo/shared/api"
+import { type ProviderSettings, type ModelInfo, type ReasoningEffort, reasoningEfforts } from "@roo-code/types"
+
+import { DEFAULT_HYBRID_REASONING_MODEL_MAX_TOKENS, DEFAULT_HYBRID_REASONING_MODEL_THINKING_TOKENS } from "@roo/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Slider, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"

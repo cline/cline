@@ -1,7 +1,6 @@
-import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "../api/providers/constants"
-import { ModelInfo, ProviderName, ProviderSettings } from "../schemas"
+import type { ModelInfo, ProviderSettings } from "@roo-code/types"
 
-export type { ModelInfo, ProviderName, ProviderSettings }
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "../api/providers/constants"
 
 export type ApiHandlerOptions = Omit<ProviderSettings, "apiProvider">
 

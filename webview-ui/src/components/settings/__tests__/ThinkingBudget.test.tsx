@@ -2,7 +2,7 @@
 
 import { render, screen, fireEvent } from "@testing-library/react"
 
-import { ModelInfo } from "@roo/shared/api"
+import type { ModelInfo } from "@roo-code/types"
 
 import { ThinkingBudget } from "../ThinkingBudget"
 

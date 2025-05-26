@@ -3,8 +3,10 @@ import * as path from "path"
 
 import delay from "delay"
 
+import { CommandExecutionStatus } from "@roo-code/types"
+
 import { Task } from "../task/Task"
-import { CommandExecutionStatus } from "../../schemas"
+
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag, ToolResponse } from "../../shared/tools"
 import { formatResponse } from "../prompts/responses"
 import { unescapeHtmlEntities } from "../../utils/text-normalization"

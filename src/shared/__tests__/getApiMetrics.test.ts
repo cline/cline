@@ -1,7 +1,8 @@
 // npx jest src/shared/__tests__/getApiMetrics.test.ts
 
+import type { ClineMessage } from "@roo-code/types"
+
 import { getApiMetrics } from "../getApiMetrics"
-import { ClineMessage } from "../ExtensionMessage"
 
 describe("getApiMetrics", () => {
 	// Helper function to create a basic api_req_started message

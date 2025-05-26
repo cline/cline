@@ -2,7 +2,9 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { GoogleAuth, JWTInput } from "google-auth-library"
 
-import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
+import type { ModelInfo } from "@roo-code/types"
+
+import { ApiHandlerOptions, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { safeJsonParse } from "../../shared/safeJsonParse"
 
 import { ApiStream } from "../transform/stream"

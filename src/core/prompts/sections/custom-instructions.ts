@@ -1,8 +1,10 @@
 import fs from "fs/promises"
 import path from "path"
-
-import { LANGUAGES, isLanguage } from "../../../shared/language"
 import { Dirent } from "fs"
+
+import { isLanguage } from "@roo-code/types"
+
+import { LANGUAGES } from "../../../shared/language"
 
 /**
  * Safely read a file and return its trimmed content

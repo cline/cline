@@ -1,8 +1,8 @@
 // npx jest src/core/config/__tests__/CustomModesSettings.test.ts
 
-import { customModesSettingsSchema } from "../../../schemas"
-import { ModeConfig } from "../../../shared/modes"
 import { ZodError } from "zod"
+
+import { type ModeConfig, customModesSettingsSchema } from "@roo-code/types"
 
 describe("CustomModesSettings", () => {
 	const validMode = {

@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 
-import { Package } from "../schemas"
+import { Package } from "../shared/package"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { t } from "../i18n"
 

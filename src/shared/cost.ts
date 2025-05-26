@@ -1,4 +1,4 @@
-import { ModelInfo } from "../shared/api"
+import type { ModelInfo } from "@roo-code/types"
 
 function calculateApiCostInternal(
 	modelInfo: ModelInfo,

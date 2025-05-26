@@ -1,7 +1,9 @@
-import { ApiHandlerOptions, ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "../../shared/api"
+import type { ModelInfo } from "@roo-code/types"
 
-import { SingleCompletionHandler } from "../index"
+import { ApiHandlerOptions, VertexModelId, vertexDefaultModelId, vertexModels } from "../../shared/api"
+
 import { GeminiHandler } from "./gemini"
+import { SingleCompletionHandler } from "../index"
 
 export class VertexHandler extends GeminiHandler implements SingleCompletionHandler {
 	constructor(options: ApiHandlerOptions) {

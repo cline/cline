@@ -1,11 +1,10 @@
 import cloneDeep from "clone-deep"
 import { serializeError } from "serialize-error"
 
-import type { ToolName } from "../../schemas"
+import type { ToolName, ClineAsk, ToolProgressStatus } from "@roo-code/types"
 
 import { defaultModeSlug, getModeBySlug } from "../../shared/modes"
 import type { ToolParamName, ToolResponse } from "../../shared/tools"
-import type { ClineAsk, ToolProgressStatus } from "../../shared/ExtensionMessage"
 
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 

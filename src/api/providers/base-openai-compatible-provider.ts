@@ -1,7 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import { ApiHandlerOptions, ModelInfo } from "../../shared/api"
+import type { ModelInfo } from "@roo-code/types"
+
+import type { ApiHandlerOptions } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 

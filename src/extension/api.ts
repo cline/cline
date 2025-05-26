@@ -3,11 +3,8 @@ import * as vscode from "vscode"
 import fs from "fs/promises"
 import * as path from "path"
 
-import { Package } from "../schemas"
-import { getWorkspacePath } from "../utils/path"
-import { ClineProvider } from "../core/webview/ClineProvider"
-import { openClineInNewTab } from "../activate/registerCommands"
 import {
+	RooCodeAPI,
 	RooCodeSettings,
 	RooCodeEvents,
 	RooCodeEventName,
@@ -18,11 +15,14 @@ import {
 	IpcMessageType,
 	TaskCommandName,
 	TaskEvent,
-} from "../schemas"
+} from "@roo-code/types"
 
-import { RooCodeAPI } from "./interface"
-import { IpcServer } from "./ipc"
-import { outputChannelLog } from "./log"
+import { Package } from "../shared/package"
+import { getWorkspacePath } from "../utils/path"
+import { ClineProvider } from "../core/webview/ClineProvider"
+import { openClineInNewTab } from "../activate/registerCommands"
+
+import { IpcServer } from "./ipc-server"
 
 export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	private readonly outputChannel: vscode.OutputChannel
@@ -47,7 +47,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 		if (enableLogging) {
 			this.log = (...args: unknown[]) => {
-				outputChannelLog(this.outputChannel, ...args)
+				this.outputChannelLog(...args)
 				console.log(args)
 			}
 
@@ -241,6 +241,39 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 			this.emit(RooCodeEventName.TaskCreated, cline.taskId)
 		})
+	}
+
+	// Logging
+
+	private outputChannelLog(...args: unknown[]) {
+		for (const arg of args) {
+			if (arg === null) {
+				this.outputChannel.appendLine("null")
+			} else if (arg === undefined) {
+				this.outputChannel.appendLine("undefined")
+			} else if (typeof arg === "string") {
+				this.outputChannel.appendLine(arg)
+			} else if (arg instanceof Error) {
+				this.outputChannel.appendLine(`Error: ${arg.message}\n${arg.stack || ""}`)
+			} else {
+				try {
+					this.outputChannel.appendLine(
+						JSON.stringify(
+							arg,
+							(key, value) => {
+								if (typeof value === "bigint") return `BigInt(${value})`
+								if (typeof value === "function") return `Function: ${value.name || "anonymous"}`
+								if (typeof value === "symbol") return value.toString()
+								return value
+							},
+							2,
+						),
+					)
+				} catch (error) {
+					this.outputChannel.appendLine(`[Non-serializable object: ${Object.prototype.toString.call(arg)}]`)
+				}
+			}
+		}
 	}
 
 	private async fileLog(message: string) {

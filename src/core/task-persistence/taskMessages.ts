@@ -1,10 +1,11 @@
 import * as path from "path"
 import * as fs from "fs/promises"
 
+import type { ClineMessage } from "@roo-code/types"
+
 import { fileExistsAtPath } from "../../utils/fs"
 
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import { ClineMessage } from "../../shared/ExtensionMessage"
 import { getTaskDirectoryPath } from "../../utils/storage"
 
 export type ReadTaskMessagesOptions = {

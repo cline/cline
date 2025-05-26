@@ -5,7 +5,8 @@ import * as path from "path"
 
 import * as vscode from "vscode"
 
-import { ProviderName } from "../../../schemas"
+import type { ProviderName } from "@roo-code/types"
+
 import { importSettings, exportSettings } from "../importExport"
 import { ProviderSettingsManager } from "../ProviderSettingsManager"
 import { ContextProxy } from "../ContextProxy"

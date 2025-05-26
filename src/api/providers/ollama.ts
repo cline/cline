@@ -2,14 +2,18 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import axios from "axios"
 
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import type { ModelInfo } from "@roo-code/types"
+
+import { ApiHandlerOptions, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { XmlMatcher } from "../../utils/xml-matcher"
+
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+
 import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
-import { XmlMatcher } from "../../utils/xml-matcher"
 import { BaseProvider } from "./base-provider"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 
 // Alias for the usage object returned in streaming chunks
 type CompletionUsage = OpenAI.Chat.Completions.ChatCompletionChunk["usage"]

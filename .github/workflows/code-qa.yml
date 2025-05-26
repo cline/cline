@@ -13,27 +13,6 @@ env:
   PNPM_VERSION: 10.8.1
 
 jobs:
-  compile:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
-      - name: Check types
-        run: pnpm check-types
-      - name: Lint
-        run: pnpm lint
-
   check-translations:
     runs-on: ubuntu-latest
     steps:
@@ -72,58 +51,48 @@ jobs:
       - name: Run knip checks
         run: pnpm knip
 
-  test-extension:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
-      - name: Run unit tests
-        working-directory: src
-        run: pnpm test
-
-  test-webview:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
-      - name: Run unit tests
-        working-directory: webview-ui
-        run: pnpm test
-
-  unit-test:
-    needs: [test-extension, test-webview]
+  compile:
     runs-on: ubuntu-latest
     steps:
-      - name: NO-OP
-        run: echo "All unit tests passed."
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Lint
+        run: pnpm lint
+      - name: Check types
+        run: pnpm check-types
+
+  platform-unit-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Run unit tests
+        run: pnpm test
 
   check-openrouter-api-key:
     runs-on: ubuntu-latest
@@ -164,3 +133,10 @@ jobs:
       - name: Run integration tests
         working-directory: apps/vscode-e2e
         run: xvfb-run -a pnpm test:ci
+
+  unit-test:
+    needs: [platform-unit-test] # [platform-unit-test, integration-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: NO-OP
+        run: echo "All tests passed."

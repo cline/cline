@@ -2,15 +2,16 @@ import { useState, useCallback, useEffect } from "react"
 import { useEvent } from "react-use"
 import { Checkbox } from "vscrui"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { convertHeadersToObject } from "../utils/headers"
 
-import { ModelInfo, ReasoningEffort } from "@roo/schemas"
-import { ProviderSettings, azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@roo/shared/api"
-import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
+import type { ProviderSettings, ModelInfo, ReasoningEffort } from "@roo-code/types"
+
+import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@roo/api"
+import { ExtensionMessage } from "@roo/ExtensionMessage"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Button } from "@src/components/ui"
 
+import { convertHeadersToObject } from "../utils/headers"
 import { inputEventTransform, noTransform } from "../transforms"
 import { ModelPicker } from "../ModelPicker"
 import { R1FormatSetting } from "../R1FormatSetting"

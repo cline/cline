@@ -4,7 +4,9 @@ import { Checkbox } from "vscrui"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { ExternalLinkIcon } from "@radix-ui/react-icons"
 
-import { ProviderSettings, RouterModels, openRouterDefaultModelId } from "@roo/shared/api"
+import type { ProviderSettings } from "@roo-code/types"
+
+import { RouterModels, openRouterDefaultModelId } from "@roo/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { getOpenRouterAuthUrl } from "@src/oauth/urls"

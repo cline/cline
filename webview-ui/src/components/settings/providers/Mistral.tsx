@@ -1,7 +1,9 @@
 import { useCallback } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { ProviderSettings, RouterModels, mistralDefaultModelId } from "@roo/shared/api"
+import type { ProviderSettings } from "@roo-code/types"
+
+import { RouterModels, mistralDefaultModelId } from "@roo/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"

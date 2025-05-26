@@ -16,14 +16,6 @@ else
   fi
 fi
 
-$pnpm_cmd --filter roo-cline generate-types
-
-if [ -n "$(git diff --name-only src/exports/roo-code.d.ts)" ]; then
-  echo "Error: There are unstaged changes to roo-code.d.ts after running 'pnpm --filter roo-cline generate-types'."
-  echo "Please review and stage the changes before committing."
-  exit 1
-fi
-
 # Detect if running on Windows and use npx.cmd, otherwise use npx.
 if [ "$OS" = "Windows_NT" ]; then
   npx_cmd="npx.cmd"

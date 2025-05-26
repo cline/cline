@@ -2,10 +2,11 @@
 
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
 
+import type { ToolUsage } from "@roo-code/types"
+
 import { Task } from "../../task/Task"
 import { formatResponse } from "../../prompts/responses"
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "../../../shared/tools"
-import { ToolUsage } from "../../../schemas"
 import { unescapeHtmlEntities } from "../../../utils/text-normalization"
 
 // Mock dependencies

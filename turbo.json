@@ -3,8 +3,33 @@
 	"tasks": {
 		"lint": {},
 		"check-types": {},
-		"test": {},
+		"test": {
+			"dependsOn": ["@roo-code/types#build"]
+		},
 		"format": {},
-		"clean": { "cache": false }
+		"clean": {
+			"cache": false
+		},
+		"build": {
+			"outputs": ["dist/**"],
+			"inputs": ["src/**", "package.json", "tsconfig.json", "tsup.config.ts"]
+		},
+		"build:nightly": {},
+		"bundle": {
+			"dependsOn": ["^build"],
+			"cache": false
+		},
+		"bundle:nightly": {
+			"dependsOn": ["^build"],
+			"cache": false
+		},
+		"vsix": {
+			"dependsOn": ["bundle", "@roo-code/vscode-webview#build"],
+			"cache": false
+		},
+		"vsix:nightly": {
+			"dependsOn": ["bundle:nightly", "@roo-code/vscode-webview#build:nightly"],
+			"cache": false
+		}
 	}
 }

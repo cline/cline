@@ -4,13 +4,16 @@ import Anthropic from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import axios from "axios"
 
-import { ClineProvider } from "../ClineProvider"
-import { ProviderSettingsEntry, ClineMessage, ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessage"
-import { setTtsEnabled } from "../../../utils/tts"
+import type { ProviderSettingsEntry, ClineMessage } from "@roo-code/types"
+
+import { ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessage"
 import { defaultModeSlug } from "../../../shared/modes"
 import { experimentDefault } from "../../../shared/experiments"
+import { setTtsEnabled } from "../../../utils/tts"
 import { ContextProxy } from "../../config/ContextProxy"
 import { Task, TaskOptions } from "../../task/Task"
+
+import { ClineProvider } from "../ClineProvider"
 
 // Mock setup must come before imports
 jest.mock("../../prompts/sections/custom-instructions")

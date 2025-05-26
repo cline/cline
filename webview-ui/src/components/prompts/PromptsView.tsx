@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { Button } from "@/components/ui/button"
 import {
 	VSCodeCheckbox,
 	VSCodeRadioGroup,
@@ -7,28 +6,22 @@ import {
 	VSCodeTextArea,
 	VSCodeLink,
 } from "@vscode/webview-ui-toolkit/react"
-
-import { useExtensionState } from "@src/context/ExtensionStateContext"
-import {
-	Mode,
-	PromptComponent,
-	getRoleDefinition,
-	getWhenToUse,
-	getCustomInstructions,
-	getAllModes,
-	ModeConfig,
-	GroupEntry,
-} from "@roo/shared/modes"
-import { modeConfigSchema } from "@roo/schemas"
-import { supportPrompt, SupportPromptType } from "@roo/shared/support-prompt"
-
-import { TOOL_GROUPS, ToolGroup } from "@roo/shared/tools"
-import { vscode } from "@src/utils/vscode"
-import { Tab, TabContent, TabHeader } from "../common/Tab"
-import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Trans } from "react-i18next"
+import { ChevronsUpDown, X } from "lucide-react"
+
+import { ModeConfig, GroupEntry, PromptComponent, ToolGroup, modeConfigSchema } from "@roo-code/types"
+
+import { Mode, getRoleDefinition, getWhenToUse, getCustomInstructions, getAllModes } from "@roo/modes"
+import { supportPrompt, SupportPromptType } from "@roo/support-prompt"
+import { TOOL_GROUPS } from "@roo/tools"
+
+import { vscode } from "@src/utils/vscode"
 import { buildDocLink } from "@src/utils/docLinks"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
+import { Tab, TabContent, TabHeader } from "@src/components/common/Tab"
 import {
+	Button,
 	Select,
 	SelectContent,
 	SelectItem,
@@ -44,8 +37,7 @@ import {
 	CommandItem,
 	CommandGroup,
 	Input,
-} from "../ui"
-import { ChevronsUpDown, X } from "lucide-react"
+} from "@src/components/ui"
 
 // Get all available groups that should show in prompts view
 const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group) => !TOOL_GROUPS[group].alwaysAvailable)

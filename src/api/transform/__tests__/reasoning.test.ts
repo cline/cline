@@ -1,6 +1,7 @@
 // npx jest src/api/transform/__tests__/reasoning.test.ts
 
-import { ModelInfo, ProviderSettings } from "../../../schemas"
+import type { ModelInfo, ProviderSettings } from "@roo-code/types"
+
 import {
 	getOpenRouterReasoning,
 	getAnthropicReasoning,

@@ -14,17 +14,17 @@ try {
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
 
-import { Package } from "./schemas"
+import { Package } from "./shared/package"
+import { formatLanguage } from "./shared/language"
 import { ContextProxy } from "./core/config/ContextProxy"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { TerminalRegistry } from "./integrations/terminal/TerminalRegistry"
 import { McpServerManager } from "./services/mcp/McpServerManager"
 import { telemetryService } from "./services/telemetry/TelemetryService"
-import { API } from "./exports/api"
-import { migrateSettings } from "./utils/migrateSettings"
-import { formatLanguage } from "./shared/language"
 import { CodeIndexManager } from "./services/code-index/manager"
+import { migrateSettings } from "./utils/migrateSettings"
+import { API } from "./extension/api"
 
 import {
 	handleUri,

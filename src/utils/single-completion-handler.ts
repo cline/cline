@@ -1,4 +1,5 @@
-import { ProviderSettings } from "../shared/api"
+import type { ProviderSettings } from "@roo-code/types"
+
 import { buildApiHandler, SingleCompletionHandler } from "../api"
 
 /**

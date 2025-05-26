@@ -1,21 +1,22 @@
 import { HTMLAttributes } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { FlaskConical } from "lucide-react"
 
-import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "@roo/shared/experiments"
+import type { ExperimentId, CodebaseIndexConfig, CodebaseIndexModels, ProviderSettings } from "@roo-code/types"
 
-import { cn } from "@/lib/utils"
-import { vscode } from "@/utils/vscode"
+import { EXPERIMENT_IDS, experimentConfigsMap } from "@roo/experiments"
+
+import { vscode } from "@src/utils/vscode"
+import { ExtensionStateContextType } from "@src/context/ExtensionStateContext"
+import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { cn } from "@src/lib/utils"
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from "@src/components/ui"
 
 import { SetCachedStateField, SetExperimentEnabled } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { ExperimentalFeature } from "./ExperimentalFeature"
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from "@/components/ui/"
-import { VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
-import { CodebaseIndexConfig, CodebaseIndexModels, ProviderSettings } from "../../../../src/schemas"
 import { CodeIndexSettings } from "./CodeIndexSettings"
-import { ExtensionStateContextType } from "../../context/ExtensionStateContext"
 
 const SUMMARY_PROMPT = `\
 Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.

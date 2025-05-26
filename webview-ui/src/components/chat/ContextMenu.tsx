@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { getIconForFilePath, getIconUrlByName, getIconForDirectoryPath } from "vscode-material-icons"
 
-import { ModeConfig } from "@roo/shared/modes"
+import type { ModeConfig } from "@roo-code/types"
 
 import {
 	ContextMenuOptionType,

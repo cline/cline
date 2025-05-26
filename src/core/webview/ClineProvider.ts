@@ -9,25 +9,26 @@ import axios from "axios"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 
-import {
+import type {
 	GlobalState,
 	ProviderName,
 	ProviderSettings,
 	RooCodeSettings,
 	ProviderSettingsEntry,
-	Package,
 	CodeActionId,
 	CodeActionName,
 	TerminalActionId,
 	TerminalActionPromptType,
-} from "../../schemas"
+	HistoryItem,
+} from "@roo-code/types"
+
 import { t } from "../../i18n"
 import { setPanel } from "../../activate/registerCommands"
+import { Package } from "../../shared/package"
 import { requestyDefaultModelId, openRouterDefaultModelId, glamaDefaultModelId } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import { HistoryItem } from "../../shared/HistoryItem"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
 import { Mode, defaultModeSlug } from "../../shared/modes"
 import { experimentDefault } from "../../shared/experiments"

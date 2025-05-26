@@ -1,7 +1,12 @@
 import { ExtensionContext } from "vscode"
 import { z, ZodError } from "zod"
 
-import { providerSettingsSchema, ProviderSettingsEntry, providerSettingsSchemaDiscriminated } from "../../schemas"
+import {
+	type ProviderSettingsEntry,
+	providerSettingsSchema,
+	providerSettingsSchemaDiscriminated,
+} from "@roo-code/types"
+
 import { Mode, modes } from "../../shared/modes"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 

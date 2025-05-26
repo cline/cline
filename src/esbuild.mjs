@@ -1,4 +1,5 @@
 import * as esbuild from "esbuild"
+import * as fs from "fs"
 import * as path from "path"
 import { fileURLToPath } from "url"
 import process from "node:process"
@@ -10,6 +11,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 async function main() {
+	const name = "extension"
 	const production = process.argv.includes("--production")
 	const watch = process.argv.includes("--watch")
 	const minify = production
@@ -32,12 +34,17 @@ async function main() {
 	const buildDir = __dirname
 	const distDir = path.join(buildDir, "dist")
 
+	if (fs.existsSync(distDir)) {
+		console.log(`[${name}] Cleaning dist directory: ${distDir}`)
+		fs.rmSync(distDir, { recursive: true, force: true })
+	}
+
 	/**
 	 * @type {import('esbuild').Plugin[]}
 	 */
 	const plugins = [
 		{
-			name: "copy-files",
+			name: "copyFiles",
 			setup(build) {
 				build.onEnd(() => {
 					copyPaths(
@@ -55,13 +62,13 @@ async function main() {
 			},
 		},
 		{
-			name: "copy-wasms",
+			name: "copyWasms",
 			setup(build) {
 				build.onEnd(() => copyWasms(srcDir, distDir))
 			},
 		},
 		{
-			name: "copy-locales",
+			name: "copyLocales",
 			setup(build) {
 				build.onEnd(() => copyLocales(srcDir, distDir))
 			},
@@ -91,6 +98,9 @@ async function main() {
 		entryPoints: ["extension.ts"],
 		outfile: "dist/extension.js",
 		external: ["vscode"],
+		alias: {
+			"@roo-code/types": path.resolve(__dirname, "../packages/types/dist/index.js"),
+		},
 	}
 
 	/**
@@ -100,6 +110,9 @@ async function main() {
 		...buildOptions,
 		entryPoints: ["workers/countTokens.ts"],
 		outdir: "dist/workers",
+		alias: {
+			"@roo-code/types": path.resolve(__dirname, "../packages/types/dist/index.js"),
+		},
 	}
 
 	const [extensionCtx, workerCtx] = await Promise.all([

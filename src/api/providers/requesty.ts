@@ -1,19 +1,18 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	ModelRecord,
-	requestyDefaultModelId,
-	requestyDefaultModelInfo,
-} from "../../shared/api"
+import OpenAI from "openai"
+
+import type { ModelInfo } from "@roo-code/types"
+
+import { ApiHandlerOptions, ModelRecord, requestyDefaultModelId, requestyDefaultModelInfo } from "../../shared/api"
+import { calculateApiCostOpenAI } from "../../shared/cost"
+
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../"
-import { BaseProvider } from "./base-provider"
+
 import { DEFAULT_HEADERS } from "./constants"
 import { getModels } from "./fetchers/modelCache"
-import OpenAI from "openai"
+import { BaseProvider } from "./base-provider"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../"
 
 // Requesty usage includes an extra field for Anthropic use cases.
 // Safely cast the prompt token details section to the appropriate structure.

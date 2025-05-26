@@ -1,7 +1,8 @@
 import { z } from "zod"
 
-import { ProviderSettings } from "./api"
-import { Mode, PromptComponent, ModeConfig } from "./modes"
+import type { ProviderSettings, PromptComponent, ModeConfig } from "@roo-code/types"
+
+import { Mode } from "./modes"
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 

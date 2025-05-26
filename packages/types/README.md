@@ -1,15 +1,16 @@
 # Roo Code API
 
-The Roo Code extension exposes an API that can be used by other extensions. To use this API in your extension:
+The Roo Code extension exposes an API that can be used by other extensions.
+To use this API in your extension:
 
-1. Copy `src/extension-api/roo-code.d.ts` to your extension's source directory.
-2. Include `roo-code.d.ts` in your extension's compilation.
-3. Get access to the API with the following code:
+1. Install `@roo-code/types` with npm, pnpm, or yarn.
+2. Import the `RooCodeAPI` type.
+3. Load the extension API.
 
 ```typescript
-import { RooCodeAPI, Package } from "path/to/roo-code"
+import { RooCodeAPI } from "@roo-code/types"
 
-const extension = vscode.extensions.getExtension<RooCodeAPI>(`${Package.publisher}.${Package.name}`)
+const extension = vscode.extensions.getExtension<RooCodeAPI>("RooVeterinaryInc.roo-cline")
 
 if (!extension?.isActive) {
 	throw new Error("Extension is not activated")

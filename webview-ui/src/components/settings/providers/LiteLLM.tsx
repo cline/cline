@@ -1,16 +1,18 @@
 import { useCallback, useState, useEffect, useRef } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { ProviderSettings, litellmDefaultModelId, RouterName } from "@roo/shared/api"
-import { Button } from "@src/components/ui"
-import { vscode } from "@src/utils/vscode"
-import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
+import type { ProviderSettings } from "@roo-code/types"
 
+import { litellmDefaultModelId, RouterName } from "@roo/api"
+import { ExtensionMessage } from "@roo/ExtensionMessage"
+
+import { vscode } from "@src/utils/vscode"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
+import { Button } from "@src/components/ui"
 
 import { inputEventTransform } from "../transforms"
 import { ModelPicker } from "../ModelPicker"
-import { useExtensionState } from "@src/context/ExtensionStateContext"
 
 type LiteLLMProps = {
 	apiConfiguration: ProviderSettings

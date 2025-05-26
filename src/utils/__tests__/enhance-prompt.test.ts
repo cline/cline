@@ -1,5 +1,8 @@
+// npx jest src/utils/__tests__/enhance-prompt.test.ts
+
+import type { ProviderSettings } from "@roo-code/types"
+
 import { singleCompletionHandler } from "../single-completion-handler"
-import { ProviderSettings } from "../../shared/api"
 import { buildApiHandler, SingleCompletionHandler } from "../../api"
 import { supportPrompt } from "../../shared/support-prompt"
 

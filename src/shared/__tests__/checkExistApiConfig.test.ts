@@ -1,5 +1,8 @@
+// npx jest src/shared/__tests__/checkExistApiConfig.test.ts
+
+import type { ProviderSettings } from "@roo-code/types"
+
 import { checkExistKey } from "../checkExistApiConfig"
-import { ProviderSettings } from "../api"
 
 describe("checkExistKey", () => {
 	it("should return false for undefined config", () => {

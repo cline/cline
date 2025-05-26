@@ -1,16 +1,20 @@
 import { useCallback, useState } from "react"
+import knuthShuffle from "knuth-shuffle-seeded"
+import { Trans } from "react-i18next"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+
+import type { ProviderSettings } from "@roo-code/types"
+
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { validateApiConfiguration } from "@src/utils/validate"
 import { vscode } from "@src/utils/vscode"
-import ApiOptions from "../settings/ApiOptions"
-import { Tab, TabContent } from "../common/Tab"
-import { Trans } from "react-i18next"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { getRequestyAuthUrl, getOpenRouterAuthUrl } from "@src/oauth/urls"
+
+import ApiOptions from "../settings/ApiOptions"
+import { Tab, TabContent } from "../common/Tab"
+
 import RooHero from "./RooHero"
-import knuthShuffle from "knuth-shuffle-seeded"
-import { ProviderSettings } from "@roo/shared/api"
 
 const WelcomeView = () => {
 	const { apiConfiguration, currentApiConfigName, setApiConfiguration, uriScheme, machineId } = useExtensionState()

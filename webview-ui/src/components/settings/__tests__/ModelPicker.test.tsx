@@ -4,7 +4,7 @@ import { screen, fireEvent, render } from "@testing-library/react"
 import { act } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { ModelInfo } from "@roo/schemas"
+import { ModelInfo } from "@roo-code/types"
 
 import { ModelPicker } from "../ModelPicker"
 

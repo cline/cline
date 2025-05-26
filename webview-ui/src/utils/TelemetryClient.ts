@@ -1,5 +1,5 @@
 import posthog from "posthog-js"
-import { TelemetrySetting } from "@roo/shared/TelemetrySetting"
+import { TelemetrySetting } from "@roo/TelemetrySetting"
 
 class TelemetryClient {
 	private static instance: TelemetryClient

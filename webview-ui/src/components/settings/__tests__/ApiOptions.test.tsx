@@ -3,9 +3,11 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { ModelInfo, ProviderSettings, openAiModelInfoSaneDefaults } from "@roo/shared/api"
+import type { ModelInfo, ProviderSettings } from "@roo-code/types"
 
-import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+import { openAiModelInfoSaneDefaults } from "@roo/api"
+
+import { ExtensionStateContextProvider } from "@src/context/ExtensionStateContext"
 
 import ApiOptions, { ApiOptionsProps } from "../ApiOptions"
 
@@ -144,6 +146,22 @@ jest.mock("../DiffSettingsControl", () => ({
 			</div>
 		</div>
 	),
+}))
+
+// Mock ThinkingBudget component
+jest.mock("../ThinkingBudget", () => ({
+	ThinkingBudget: ({ modelInfo }: any) => {
+		// Only render if model supports reasoning budget (thinking models)
+		if (modelInfo?.supportsReasoningBudget || modelInfo?.requiredReasoningBudget) {
+			return (
+				<div data-testid="reasoning-budget">
+					<div>Max Thinking Tokens</div>
+					<input type="range" min={1024} max={100000} step={1024} />
+				</div>
+			)
+		}
+		return null
+	},
 }))
 
 // Mock LiteLLM provider for tests

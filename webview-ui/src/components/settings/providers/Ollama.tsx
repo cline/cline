@@ -2,8 +2,9 @@ import { useState, useCallback } from "react"
 import { useEvent } from "react-use"
 import { VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 
-import { ProviderSettings } from "@roo/shared/api"
-import { ExtensionMessage } from "@roo/shared/ExtensionMessage"
+import type { ProviderSettings } from "@roo-code/types"
+
+import { ExtensionMessage } from "@roo/ExtensionMessage"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 

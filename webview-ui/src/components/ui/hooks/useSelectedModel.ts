@@ -1,8 +1,7 @@
+import type { ProviderName, ProviderSettings, ModelInfo } from "@roo-code/types"
+
 import {
-	type ProviderName,
-	type ProviderSettings,
-	type RouterModels,
-	type ModelInfo,
+	RouterModels,
 	anthropicDefaultModelId,
 	anthropicModels,
 	bedrockDefaultModelId,
@@ -31,7 +30,7 @@ import {
 	glamaDefaultModelId,
 	unboundDefaultModelId,
 	litellmDefaultModelId,
-} from "@roo/shared/api"
+} from "@roo/api"
 
 import { useRouterModels } from "./useRouterModels"
 import { useOpenRouterModelProviders } from "./useOpenRouterModelProviders"

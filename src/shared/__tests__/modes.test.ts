@@ -1,11 +1,17 @@
+// npx jest src/shared/__tests__/modes.test.ts
+
+import type { ModeConfig } from "@roo-code/types"
+
 // Mock setup must come before imports
 jest.mock("vscode")
+
 const mockAddCustomInstructions = jest.fn().mockResolvedValue("Combined instructions")
+
 jest.mock("../../core/prompts/sections/custom-instructions", () => ({
 	addCustomInstructions: mockAddCustomInstructions,
 }))
 
-import { isToolAllowedForMode, FileRestrictionError, ModeConfig, getFullModeDetails, modes } from "../modes"
+import { isToolAllowedForMode, FileRestrictionError, getFullModeDetails, modes } from "../modes"
 import { addCustomInstructions } from "../../core/prompts/sections/custom-instructions"
 
 describe("isToolAllowedForMode", () => {

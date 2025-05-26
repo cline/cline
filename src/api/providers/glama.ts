@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 
-import { Package } from "../../schemas"
+import { Package } from "../../shared/package"
 import { ApiHandlerOptions, glamaDefaultModelId, glamaDefaultModelInfo } from "../../shared/api"
 
 import { ApiStream } from "../transform/stream"

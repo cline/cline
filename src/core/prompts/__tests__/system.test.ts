@@ -1,9 +1,13 @@
+// npx jest src/core/prompts/__tests__/system.test.ts
+
 import * as vscode from "vscode"
+
+import { ModeConfig } from "@roo-code/types"
 
 import { SYSTEM_PROMPT } from "../system"
 import { McpHub } from "../../../services/mcp/McpHub"
-import { defaultModeSlug, modes, Mode, ModeConfig } from "../../../shared/modes"
-import "../../../utils/path" // Import path utils to get access to toPosix string extension.
+import { defaultModeSlug, modes, Mode } from "../../../shared/modes"
+import "../../../utils/path"
 import { addCustomInstructions } from "../sections/custom-instructions"
 import { MultiSearchReplaceDiffStrategy } from "../../diff/strategies/multi-search-replace"
 

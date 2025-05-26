@@ -1,16 +1,16 @@
 import axios from "axios"
 import { z } from "zod"
 
-import { isModelParameter } from "../../../schemas"
+import { type ModelInfo, isModelParameter } from "@roo-code/types"
+
 import {
 	ApiHandlerOptions,
-	ModelInfo,
 	OPEN_ROUTER_COMPUTER_USE_MODELS,
 	OPEN_ROUTER_REASONING_BUDGET_MODELS,
 	OPEN_ROUTER_REQUIRED_REASONING_BUDGET_MODELS,
 	anthropicModels,
 } from "../../../shared/api"
-import { parseApiPrice } from "../../../utils/cost"
+import { parseApiPrice } from "../../../shared/cost"
 
 /**
  * OpenRouterBaseModel

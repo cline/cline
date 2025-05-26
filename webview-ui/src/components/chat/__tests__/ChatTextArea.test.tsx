@@ -2,7 +2,7 @@ import { render, fireEvent, screen } from "@testing-library/react"
 import ChatTextArea from "../ChatTextArea"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
-import { defaultModeSlug } from "@roo/shared/modes"
+import { defaultModeSlug } from "@roo/modes"
 import * as pathMentions from "@src/utils/path-mentions"
 
 // Mock modules

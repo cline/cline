@@ -3,12 +3,16 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
-import { CustomModesManager } from "../CustomModesManager"
-import { ModeConfig } from "../../../shared/modes"
+
+import * as yaml from "yaml"
+
+import type { ModeConfig } from "@roo-code/types"
+
 import { fileExistsAtPath } from "../../../utils/fs"
 import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
 import { GlobalFileNames } from "../../../shared/globalFileNames"
-import * as yaml from "yaml"
+
+import { CustomModesManager } from "../CustomModesManager"
 
 jest.mock("vscode")
 jest.mock("fs/promises")
