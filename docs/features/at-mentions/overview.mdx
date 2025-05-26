@@ -1,5 +1,5 @@
 ---
-title: "@ MentionsOverview"
+title: "@ Mentions Overview"
 sidebarTitle: "Overview"
 ---
 
@@ -15,35 +15,45 @@ When you type `@` in the chat input, Cline shows a menu of available mention typ
 
 Cline supports several types of @ mentions, each designed to bring different kinds of context into your conversations:
 
-<Card title="File Mentions" icon="file" href="/features/at-mentions/file-mentions">
-	Reference any file in your workspace with `@/path/to/file`. Cline sees the complete file content, including imports, related
-	functions, and surrounding context.
-</Card>
+<Columns cols={2}>
+  <Card title="File Mentions" icon="file" href="/features/at-mentions/file-mentions">
+    Reference any file in your workspace with `@/path/to/file`. Cline sees the complete file content, including imports, related
+    functions, and surrounding context.
+  </Card>
+
+{" "}
 
 <Card title="Folder Mentions" icon="folder" href="/features/at-mentions/folder-mentions">
 	Reference entire directories with `@/path/to/folder/`. Cline sees the folder structure and all file contents, perfect for
 	understanding complex interactions between multiple files.
 </Card>
 
+{" "}
+
 <Card title="Problem Mentions" icon="triangle-exclamation" href="/features/at-mentions/problem-mentions">
 	Use `@problems` to show Cline all the errors and warnings in your workspace. Cline sees the complete list with file locations
 	and error messages.
 </Card>
+
+{" "}
 
 <Card title="Terminal Mentions" icon="terminal" href="/features/at-mentions/terminal-mentions">
 	Use `@terminal` to share your recent terminal output. Cline sees the complete output with formatting preserved, perfect for
 	debugging build errors or test failures.
 </Card>
 
+{" "}
+
 <Card title="Git Mentions" icon="code-branch" href="/features/at-mentions/git-mentions">
 	Reference uncommitted changes with `@git-changes` or specific commits with `@[commit-hash]`. Cline sees the complete diff,
 	commit message, and other relevant information.
 </Card>
 
-<Card title="URL Mentions" icon="globe" href="/features/at-mentions/url-mentions">
-	Reference web content with `@https://example.com`. Cline fetches and sees the complete webpage content, perfect for
-	referencing documentation or GitHub issues.
-</Card>
+  <Card title="URL Mentions" icon="globe" href="/features/at-mentions/url-mentions">
+    Reference web content with `@https://example.com`. Cline fetches and sees the complete webpage content, perfect for
+    referencing documentation or GitHub issues.
+  </Card>
+</Columns>
 
 ## Why @ Mentions Matter
 

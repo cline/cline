@@ -13,6 +13,7 @@ import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { RequestyHandler } from "./providers/requesty"
 import { TogetherHandler } from "./providers/together"
+import { NebiusHandler } from "./providers/nebius"
 import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
 import { DoubaoHandler } from "./providers/doubao"
@@ -75,6 +76,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new ClineHandler(options)
 		case "litellm":
 			return new LiteLlmHandler(options)
+		case "nebius":
+			return new NebiusHandler(options)
 		case "asksage":
 			return new AskSageHandler(options)
 		case "xai":

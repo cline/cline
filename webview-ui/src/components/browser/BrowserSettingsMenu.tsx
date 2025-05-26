@@ -13,7 +13,7 @@ interface ConnectionInfo {
 }
 
 export const BrowserSettingsMenu = () => {
-	const { browserSettings } = useExtensionState()
+	const { browserSettings, navigateToSettings } = useExtensionState()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [showInfoPopover, setShowInfoPopover] = useState(false)
 	const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo>({
@@ -65,15 +65,13 @@ export const BrowserSettingsMenu = () => {
 	}, [showInfoPopover])
 
 	const openBrowserSettings = () => {
-		// First open the settings panel
-		vscode.postMessage({
-			type: "openSettings",
-		})
+		// First open the settings panel using direct navigation
+		navigateToSettings()
 
 		// After a short delay, send a message to scroll to browser settings
 		setTimeout(async () => {
 			try {
-				await UiServiceClient.scrollToSettings({ value: "browser-settings-section" })
+				await UiServiceClient.scrollToSettings({ value: "browser" })
 			} catch (error) {
 				console.error("Error scrolling to browser settings:", error)
 			}
