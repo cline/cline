@@ -92,6 +92,8 @@ class TelemetryService {
 			MODEL_SELECTED: "ui.model_selected",
 			// Tracks when users use the "favorite" button in the model picker
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
+			// Tracks when a button is clicked
+			BUTTON_CLICKED: "ui.button_clicked",
 		},
 	}
 
@@ -681,6 +683,19 @@ class TelemetryService {
 				properties: {
 					model,
 					isFavorited,
+				},
+			},
+			collect,
+		)
+	}
+
+	public captureButtonClick(button: string, taskId?: string, collect: boolean = false) {
+		this.capture(
+			{
+				event: TelemetryService.EVENTS.UI.BUTTON_CLICKED,
+				properties: {
+					button,
+					taskId,
 				},
 			},
 			collect,
