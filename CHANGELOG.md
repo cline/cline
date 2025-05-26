@@ -1,5 +1,14 @@
 # Roo Code Changelog
 
+## [3.18.4] - 2025-05-25
+
+- Fix codebase indexing settings saving and Ollama indexing (thanks @daniel-lxs!)
+- Fix handling BOM when user rejects apply_diff (thanks @avtc!)
+- Fix wrongfully clearing input on auto-approve (thanks @Ruakij!)
+- Fix correct spawnSync parameters for pnpm check in bootstrap.mjs (thanks @ChuKhaLi!)
+- Update xAI models and default model ID (thanks @PeterDaveHello!)
+- Add metadata to create message (thanks @dtrugman!)
+
 ## [3.18.3] - 2025-05-24
 
 - Add reasoning support for Claude 4 and Gemini 2.5 Flash on OpenRouter, plus a fix for o1-pro
