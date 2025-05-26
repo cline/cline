@@ -16,4 +16,23 @@ service AccountService {
     // Handles the user clicking the logout button in the UI.
     // Clears API keys and user state.
     rpc accountLogoutClicked(EmptyRequest) returns (Empty);
+    
+    // Handles authentication state changes from the Firebase context.
+    // Updates the user info in global state and returns the updated value.
+    rpc authStateChanged(AuthStateChangedRequest) returns (AuthStateChanged);
+}
+
+message AuthStateChangedRequest {
+    Metadata metadata = 1;
+    UserInfo user = 2;
+}
+
+message AuthStateChanged {
+    optional UserInfo user = 1;
+}
+
+message UserInfo {
+    optional string displayName = 1;
+    optional string email = 2;
+    optional string photoURL = 3;
 }

@@ -19,6 +19,7 @@ import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { UserInfo } from "@shared/proto/account"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -59,6 +60,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
+	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -558,6 +560,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				globalWorkflowToggles: toggles,
 			})),
 		setMcpTab,
+		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

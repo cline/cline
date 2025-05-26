@@ -16,7 +16,6 @@ export interface WebviewMessage {
 		| "openInBrowser"
 		| "showChatView"
 		| "requestVsCodeLmModels"
-		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"
 		| "searchCommits"

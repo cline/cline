@@ -1,7 +1,9 @@
 import { User, getAuth, signInWithCustomToken, signOut } from "firebase/auth"
 import { initializeApp } from "firebase/app"
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
-import { vscode } from "@/utils/vscode"
+import { AccountServiceClient } from "@/services/grpc-client"
+import { useExtensionState } from "./ExtensionStateContext"
+import { AuthStateChanged } from "@shared/proto/account"
 
 // Firebase configuration from extension
 const firebaseConfig = {
@@ -26,6 +28,7 @@ const FirebaseAuthContext = createContext<FirebaseAuthContextType | undefined>(u
 export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [user, setUser] = useState<User | null>(null)
 	const [isInitialized, setIsInitialized] = useState(false)
+	const { setUserInfo } = useExtensionState()
 
 	// Initialize Firebase
 	const app = initializeApp(firebaseConfig)
@@ -37,24 +40,27 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 			setUser(user)
 			setIsInitialized(true)
 
-			console.log("onAuthStateChanged user", user)
-
 			if (!user) {
 				// when opening the extension in a new webview (ie if you logged in to sidebar webview but then open a popout tab webview) this effect will trigger without the original webview's session, resulting in us clearing out the user info object.
 				// we rely on this object to determine if the user is logged in, so we only want to clear it when the user logs out, rather than whenever a webview without a session is opened.
 				return
 			}
 			// Sync auth state with extension
-			vscode.postMessage({
-				type: "authStateChanged",
+			AccountServiceClient.authStateChanged({
 				user: user
 					? {
-							displayName: user.displayName,
-							email: user.email,
-							photoURL: user.photoURL,
+							displayName: user.displayName ?? undefined,
+							email: user.email ?? undefined,
+							photoURL: user.photoURL ?? undefined,
 						}
-					: null,
+					: undefined,
 			})
+				.then((response: AuthStateChanged) => {
+					setUserInfo(response.user)
+				})
+				.catch((error) => {
+					console.error("Error updating auth state via gRPC:", error)
+				})
 		})
 
 		return () => unsubscribe()
