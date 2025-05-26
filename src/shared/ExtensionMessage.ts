@@ -141,7 +141,8 @@ export interface ExtensionState {
 	vscMachineId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
-	workflowToggles: ClineRulesToggles
+	localWorkflowToggles: ClineRulesToggles
+	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
 }

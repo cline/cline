@@ -264,7 +264,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform, workflowToggles } = useExtensionState()
+		const {
+			filePaths,
+			chatSettings,
+			apiConfiguration,
+			openRouterModels,
+			platform,
+			localWorkflowToggles,
+			globalWorkflowToggles,
+		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -488,7 +496,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setSelectedSlashCommandsIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
 							// Get commands with workflow toggles
-							const allCommands = getMatchingSlashCommands(slashCommandsQuery, workflowToggles)
+							const allCommands = getMatchingSlashCommands(
+								slashCommandsQuery,
+								localWorkflowToggles,
+								globalWorkflowToggles,
+							)
 
 							if (allCommands.length === 0) {
 								return prevIndex
@@ -506,7 +518,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
-						const commands = getMatchingSlashCommands(slashCommandsQuery, workflowToggles)
+						const commands = getMatchingSlashCommands(slashCommandsQuery, localWorkflowToggles, globalWorkflowToggles)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
 						}
@@ -924,7 +936,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// extract and validate the exact command text
 				const commandText = processedText.substring(slashIndex + 1, endIndex)
-				const isValidCommand = validateSlashCommand(commandText, workflowToggles)
+				const isValidCommand = validateSlashCommand(commandText, localWorkflowToggles, globalWorkflowToggles)
 
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
@@ -937,7 +949,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [workflowToggles])
+		}, [localWorkflowToggles, globalWorkflowToggles])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1426,7 +1438,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 								onMouseDown={handleMenuMouseDown}
 								query={slashCommandsQuery}
-								workflowToggles={workflowToggles}
+								localWorkflowToggles={localWorkflowToggles}
+								globalWorkflowToggles={globalWorkflowToggles}
 							/>
 						</div>
 					)}
