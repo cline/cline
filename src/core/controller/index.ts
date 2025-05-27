@@ -23,7 +23,7 @@ import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -52,6 +52,7 @@ import {
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
+import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
@@ -262,13 +263,6 @@ export class Controller {
 						}
 					}
 				})
-
-				// If user already opted in to telemetry, enable telemetry service
-				this.getStateToPostToWebview().then((state) => {
-					const { telemetrySetting } = state
-					const isOptedIn = telemetrySetting !== "disabled"
-					telemetryService.updateTelemetryState(isOptedIn)
-				})
 				break
 			case "showChatView": {
 				this.postMessageToWebview({
@@ -298,30 +292,12 @@ export class Controller {
 				await this.postStateToWebview()
 				break
 			case "optionsResponse":
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: message.text,
-				})
-				break
-			case "openInBrowser":
-				if (message.url) {
-					vscode.env.openExternal(vscode.Uri.parse(message.url))
+				if (this.task) {
+					await this.task.handleWebviewAskResponse("messageResponse", message.text || "", [])
 				}
 				break
-			case "showAccountViewClicked": {
-				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
-				break
-			}
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
-				break
-			}
-			case "openMcpSettings": {
-				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
-				if (mcpSettingsFilePath) {
-					await handleFileServiceRequest(this, "openFile", { value: mcpSettingsFilePath })
-				}
 				break
 			}
 			case "fetchMcpMarketplace": {
@@ -381,30 +357,8 @@ export class Controller {
 				}
 				break
 			}
-			case "requestTotalTasksSize": {
-				this.refreshTotalTasksSize()
-				break
-			}
-
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
-			case "openExtensionSettings": {
-				const settingsFilter = message.text || ""
-				await vscode.commands.executeCommand(
-					"workbench.action.openSettings",
-					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
-				)
-				break
-			}
-			case "invoke": {
-				if (message.text) {
-					await this.postMessageToWebview({
-						type: "invoke",
-						invoke: message.text as Invoke,
-					})
-				}
 				break
 			}
 			// telemetry
@@ -469,11 +423,9 @@ export class Controller {
 				if (answer === "Delete All Except Favorites") {
 					await this.deleteNonFavoriteTaskHistory()
 					await this.postStateToWebview()
-					this.refreshTotalTasksSize()
 				} else if (answer === "Delete Everything") {
 					await this.deleteAllTaskHistory()
 					await this.postStateToWebview()
-					this.refreshTotalTasksSize()
 				}
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
@@ -490,6 +442,13 @@ export class Controller {
 				}
 				break
 			}
+			case "executeQuickWin":
+				if (message.payload) {
+					const { command, title } = message.payload
+					this.outputChannel.appendLine(`Received executeQuickWin: command='${command}', title='${title}'`)
+					await this.initTask(title)
+				}
+				break
 
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
@@ -656,13 +615,12 @@ export class Controller {
 			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
-					images: chatContent?.images,
-					files: chatContent?.files,
-				})
+				await this.task.handleWebviewAskResponse(
+					"messageResponse",
+					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
+					chatContent?.images || [],
+          files: chatContent?.files || [],
+				)
 			} else {
 				this.cancelTask()
 			}
@@ -737,10 +695,7 @@ export class Controller {
 			await storeSecret(this.context, "clineApiKey", apiKey)
 
 			// Send custom token to webview for Firebase auth
-			await this.postMessageToWebview({
-				type: "authCallback",
-				customToken,
-			})
+			await sendAuthCallbackEvent(customToken)
 
 			const clineProvider: ApiProvider = "cline"
 			await updateGlobalState(this.context, "apiProvider", clineProvider)
@@ -812,6 +767,7 @@ export class Controller {
 			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
 				headers: {
 					"Content-Type": "application/json",
+					"User-Agent": "cline-vscode-extension",
 				},
 			})
 
@@ -1158,19 +1114,6 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async refreshTotalTasksSize() {
-		getTotalTasksSize(this.context.globalStorageUri.fsPath)
-			.then((newTotalSize) => {
-				this.postMessageToWebview({
-					type: "totalTasksSize",
-					totalTasksSize: newTotalSize,
-				})
-			})
-			.catch((error) => {
-				console.error("Error calculating total tasks size:", error)
-			})
-	}
-
 	async deleteTaskWithId(id: string) {
 		console.info("deleteTaskWithId: ", id)
 
@@ -1213,7 +1156,7 @@ export class Controller {
 			console.debug(`Error deleting task:`, error)
 		}
 
-		this.refreshTotalTasksSize()
+		await this.postStateToWebview()
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -1230,10 +1173,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		// For testing: Bypass gRPC stream and send state directly
-		console.log("[Controller Test Revert] Posting full state via direct 'state' message.")
-		await this.postMessageToWebview({ type: "state", state: state })
-		// await sendStateUpdate(state) // Original line for the GrPC stream
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -1289,7 +1229,7 @@ export class Controller {
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
-			vscMachineId: vscode.env.machineId,
+			distinctId: telemetryService.distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
