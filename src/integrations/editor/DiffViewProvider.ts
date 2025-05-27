@@ -152,7 +152,7 @@ export class DiffViewProvider {
 			if (this.shouldAutoScroll) {
 				if (diffLines.length <= 5) {
 					// For small changes, just jump directly to the line
-					this.scrollEditorToLine(currentLine)
+					//	this.scrollEditorToLine(currentLine)
 				} else {
 					// For larger changes, create a quick scrolling animation
 					const startLine = this.streamedLines.length
