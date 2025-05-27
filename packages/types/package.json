@@ -1,7 +1,7 @@
 {
 	"name": "@roo-code/types",
 	"description": "Roo Code foundational types and schemas.",
-	"private": true,
+	"version": "0.0.0",
 	"type": "module",
 	"main": "./dist/index.cjs",
 	"exports": {
