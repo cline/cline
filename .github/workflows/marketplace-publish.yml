@@ -45,15 +45,22 @@ jobs:
         run: |
           current_package_version=$(node -p "require('./src/package.json').version")
           pnpm build
-          package=$(unzip -l bin/roo-cline-${current_package_version}.vsix)
-          echo "$package" | grep -q "extension/package.json" || exit 1
-          echo "$package" | grep -q "extension/package.nls.json" || exit 1
-          echo "$package" | grep -q "extension/dist/extension.js" || exit 1
-          echo "$package" | grep -q "extension/webview-ui/audio/celebration.wav" || exit 1
-          echo "$package" | grep -q "extension/webview-ui/build/assets/index.js" || exit 1
-          echo "$package" | grep -q "extension/assets/codicons/codicon.ttf" || exit 1
-          echo "$package" | grep -q "extension/assets/vscode-material-icons/icons/3d.svg" || exit 1
-          echo "$package" | grep -q ".env" || exit 1
+
+          # Save VSIX contents to a temporary file to avoid broken pipe issues.
+          unzip -l bin/roo-cline-${current_package_version}.vsix > /tmp/roo-code-vsix-contents.txt
+
+          # Check for required files.
+          grep -q "extension/package.json" /tmp/roo-code-vsix-contents.txt || exit 1
+          grep -q "extension/package.nls.json" /tmp/roo-code-vsix-contents.txt || exit 1
+          grep -q "extension/dist/extension.js" /tmp/roo-code-vsix-contents.txt || exit 1
+          grep -q "extension/webview-ui/audio/celebration.wav" /tmp/roo-code-vsix-contents.txt || exit 1
+          grep -q "extension/webview-ui/build/assets/index.js" /tmp/roo-code-vsix-contents.txt || exit 1
+          grep -q "extension/assets/codicons/codicon.ttf" /tmp/roo-code-vsix-contents.txt || exit 1
+          grep -q "extension/assets/vscode-material-icons/icons/3d.svg" /tmp/roo-code-vsix-contents.txt || exit 1
+          grep -q ".env" /tmp/roo-code-vsix-contents.txt || exit 1
+          
+          # Clean up temporary file.
+          rm /tmp/roo-code-vsix-contents.txt
       - name: Create and Push Git Tag
         run: |
           current_package_version=$(node -p "require('./src/package.json').version")

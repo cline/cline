@@ -3,5 +3,6 @@
 	"useTabs": true,
 	"printWidth": 120,
 	"semi": false,
-	"bracketSameLine": true
+	"bracketSameLine": true,
+	"ignore": ["node_modules", "dist", "build", "out", ".next", ".venv", "pnpm-lock.yaml"]
 }

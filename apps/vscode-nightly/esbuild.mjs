@@ -67,6 +67,7 @@ async function main() {
 							["../README.md", "README.md"],
 							["../CHANGELOG.md", "CHANGELOG.md"],
 							["../LICENSE", "LICENSE"],
+							["../.env", ".env", { optional: true }],
 							[".vscodeignore", ".vscodeignore"],
 							["assets", "assets"],
 							["integrations", "integrations"],

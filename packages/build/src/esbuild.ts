@@ -29,7 +29,9 @@ function rmDir(dirPath: string, maxRetries: number = 3): void {
 			return
 		} catch (error) {
 			const isLastAttempt = attempt === maxRetries
-			const isEnotemptyError = error instanceof Error && "code" in error && (error.code === 'ENOTEMPTY' || error.code === 'EBUSY')
+
+			const isEnotemptyError =
+				error instanceof Error && "code" in error && (error.code === "ENOTEMPTY" || error.code === "EBUSY")
 
 			if (isLastAttempt || !isEnotemptyError) {
 				throw error // Re-throw if it's the last attempt or not a locking error.
@@ -41,27 +43,42 @@ function rmDir(dirPath: string, maxRetries: number = 3): void {
 
 			// Synchronous sleep for simplicity in build scripts.
 			const start = Date.now()
-			while (Date.now() - start < delay) { /* Busy wait */ }
+
+			while (Date.now() - start < delay) {
+				/* Busy wait */
+			}
 		}
 	}
 }
 
-export function copyPaths(copyPaths: [string, string][], srcDir: string, dstDir: string) {
-	copyPaths.forEach(([srcRelPath, dstRelPath]) => {
-		const stats = fs.lstatSync(path.join(srcDir, srcRelPath))
+type CopyPathOptions = {
+	optional?: boolean
+}
 
-		if (stats.isDirectory()) {
-			if (fs.existsSync(path.join(dstDir, dstRelPath))) {
-				rmDir(path.join(dstDir, dstRelPath))
+export function copyPaths(copyPaths: [string, string, CopyPathOptions?][], srcDir: string, dstDir: string) {
+	copyPaths.forEach(([srcRelPath, dstRelPath, options = {}]) => {
+		try {
+			const stats = fs.lstatSync(path.join(srcDir, srcRelPath))
+
+			if (stats.isDirectory()) {
+				if (fs.existsSync(path.join(dstDir, dstRelPath))) {
+					rmDir(path.join(dstDir, dstRelPath))
+				}
+
+				fs.mkdirSync(path.join(dstDir, dstRelPath), { recursive: true })
+
+				const count = copyDir(path.join(srcDir, srcRelPath), path.join(dstDir, dstRelPath), 0)
+				console.log(`[copyPaths] Copied ${count} files from ${srcRelPath} to ${dstRelPath}`)
+			} else {
+				fs.copyFileSync(path.join(srcDir, srcRelPath), path.join(dstDir, dstRelPath))
+				console.log(`[copyPaths] Copied ${srcRelPath} to ${dstRelPath}`)
 			}
-
-			fs.mkdirSync(path.join(dstDir, dstRelPath), { recursive: true })
-
-			const count = copyDir(path.join(srcDir, srcRelPath), path.join(dstDir, dstRelPath), 0)
-			console.log(`[copyPaths] Copied ${count} files from ${srcRelPath} to ${dstRelPath}`)
-		} else {
-			fs.copyFileSync(path.join(srcDir, srcRelPath), path.join(dstDir, dstRelPath))
-			console.log(`[copyPaths] Copied ${srcRelPath} to ${dstRelPath}`)
+		} catch (error) {
+			if (options.optional) {
+				console.warn(`[copyPaths] Optional file not found: ${srcRelPath}`)
+			} else {
+				throw error
+			}
 		}
 	})
 }
