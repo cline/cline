@@ -21,7 +21,6 @@ export interface ExtensionMessage {
 		| "lmStudioModels"
 		| "theme"
 		| "workspaceUpdated"
-		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
 		| "openAiModels"
@@ -50,7 +49,6 @@ export interface ExtensionMessage {
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
 		| "focusChatInput"
-	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
@@ -101,8 +99,6 @@ export interface ExtensionMessage {
 		sequence_number?: number // For ordering chunks in streaming responses
 	}
 }
-
-export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
 
