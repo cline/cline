@@ -1323,6 +1323,21 @@ export class Task extends EventEmitter<ClineEvents> {
 			} finally {
 				this.isStreaming = false
 			}
+			if (
+				inputTokens > 0 ||
+				outputTokens > 0 ||
+				cacheWriteTokens > 0 ||
+				cacheReadTokens > 0 ||
+				typeof totalCost !== "undefined"
+			) {
+				telemetryService.captureLlmCompletion(this.taskId, {
+					inputTokens,
+					outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					cost: totalCost,
+				})
+			}
 
 			// Need to call here in case the stream was aborted.
 			if (this.abort || this.abandoned) {
