@@ -1764,6 +1764,7 @@ export class Task {
 					this.userMessageContentReady = true
 					this.streamingJsonReplacer = undefined
 					this.lastProcessedJsonLength = 0
+					throw error
 				}
 
 				this.streamingJsonReplacer = new StreamingJsonReplacer(
