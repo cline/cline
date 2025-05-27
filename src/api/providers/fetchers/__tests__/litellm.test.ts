@@ -1,6 +1,5 @@
 import axios from "axios"
 import { getLiteLLMModels } from "../litellm"
-import { OPEN_ROUTER_COMPUTER_USE_MODELS } from "../../../../shared/api"
 
 // Mock axios
 jest.mock("axios")
@@ -26,6 +25,7 @@ describe("getLiteLLMModels", () => {
 							supports_prompt_caching: false,
 							input_cost_per_token: 0.000003,
 							output_cost_per_token: 0.000015,
+							supports_computer_use: true,
 						},
 						litellm_params: {
 							model: "anthropic/claude-3.5-sonnet",
@@ -40,6 +40,7 @@ describe("getLiteLLMModels", () => {
 							supports_prompt_caching: false,
 							input_cost_per_token: 0.00001,
 							output_cost_per_token: 0.00003,
+							supports_computer_use: false,
 						},
 						litellm_params: {
 							model: "openai/gpt-4-turbo",
@@ -105,7 +106,6 @@ describe("getLiteLLMModels", () => {
 	})
 
 	it("handles computer use models correctly", async () => {
-		const computerUseModel = Array.from(OPEN_ROUTER_COMPUTER_USE_MODELS)[0]
 		const mockResponse = {
 			data: {
 				data: [
@@ -115,9 +115,22 @@ describe("getLiteLLMModels", () => {
 							max_tokens: 4096,
 							max_input_tokens: 200000,
 							supports_vision: true,
+							supports_computer_use: true,
 						},
 						litellm_params: {
-							model: `anthropic/${computerUseModel}`,
+							model: `anthropic/test-computer-model`,
+						},
+					},
+					{
+						model_name: "test-non-computer-model",
+						model_info: {
+							max_tokens: 4096,
+							max_input_tokens: 200000,
+							supports_vision: false,
+							supports_computer_use: false,
+						},
+						litellm_params: {
+							model: `anthropic/test-non-computer-model`,
 						},
 					},
 				],
@@ -137,6 +150,17 @@ describe("getLiteLLMModels", () => {
 			inputPrice: undefined,
 			outputPrice: undefined,
 			description: "test-computer-model via LiteLLM proxy",
+		})
+
+		expect(result["test-non-computer-model"]).toEqual({
+			maxTokens: 4096,
+			contextWindow: 200000,
+			supportsImages: false,
+			supportsComputerUse: false,
+			supportsPromptCache: false,
+			inputPrice: undefined,
+			outputPrice: undefined,
+			description: "test-non-computer-model via LiteLLM proxy",
 		})
 	})
 

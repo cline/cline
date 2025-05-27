@@ -1,6 +1,6 @@
 import axios from "axios"
 
-import { OPEN_ROUTER_COMPUTER_USE_MODELS, ModelRecord } from "../../../shared/api"
+import { ModelRecord } from "../../../shared/api"
 
 /**
  * Fetches available models from a LiteLLM server
@@ -23,8 +23,6 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 		const response = await axios.get(`${baseUrl}/v1/model/info`, { headers, timeout: 5000 })
 		const models: ModelRecord = {}
 
-		const computerModels = Array.from(OPEN_ROUTER_COMPUTER_USE_MODELS)
-
 		// Process the model info from the response
 		if (response.data && response.data.data && Array.isArray(response.data.data)) {
 			for (const model of response.data.data) {
@@ -39,9 +37,7 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 					contextWindow: modelInfo.max_input_tokens || 200000,
 					supportsImages: Boolean(modelInfo.supports_vision),
 					// litellm_params.model may have a prefix like openrouter/
-					supportsComputerUse: computerModels.some((computer_model) =>
-						litellmModelName.endsWith(computer_model),
-					),
+					supportsComputerUse: Boolean(modelInfo.supports_computer_use),
 					supportsPromptCache: Boolean(modelInfo.supports_prompt_caching),
 					inputPrice: modelInfo.input_cost_per_token ? modelInfo.input_cost_per_token * 1000000 : undefined,
 					outputPrice: modelInfo.output_cost_per_token
