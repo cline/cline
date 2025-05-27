@@ -5,7 +5,7 @@
 	"tasks": [
 		{
 			"label": "watch",
-			"dependsOn": ["webview", "watch:tsc", "watch:esbuild"],
+			"dependsOn": ["watch:webview", "watch:bundle", "watch:tsc"],
 			"presentation": {
 				"reveal": "never"
 			},
@@ -15,7 +15,7 @@
 			}
 		},
 		{
-			"label": "webview",
+			"label": "watch:webview",
 			"type": "shell",
 			"command": "pnpm --filter @roo-code/vscode-webview dev",
 			"group": "build",
@@ -37,9 +37,9 @@
 			}
 		},
 		{
-			"label": "watch:esbuild",
+			"label": "watch:bundle",
 			"type": "shell",
-			"command": "pnpm --filter roo-cline watch:esbuild",
+			"command": "npx turbo watch:bundle",
 			"group": "build",
 			"problemMatcher": {
 				"owner": "esbuild",
@@ -61,7 +61,7 @@
 		{
 			"label": "watch:tsc",
 			"type": "shell",
-			"command": "pnpm --filter roo-cline watch:tsc",
+			"command": "npx turbo watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,

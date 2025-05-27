@@ -30,6 +30,13 @@
 		"vsix:nightly": {
 			"dependsOn": ["bundle:nightly", "@roo-code/vscode-webview#build:nightly"],
 			"cache": false
+		},
+		"watch:bundle": {
+			"dependsOn": ["@roo-code/build#build", "@roo-code/types#build"],
+			"cache": false
+		},
+		"watch:tsc": {
+			"cache": false
 		}
 	}
 }
