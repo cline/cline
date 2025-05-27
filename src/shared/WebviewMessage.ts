@@ -10,7 +10,6 @@ export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
 		| "webviewDidLaunch"
-		| "newTask"
 		| "condense"
 		| "reportBug"
 		| "showChatView"
@@ -24,7 +23,6 @@ export interface WebviewMessage {
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
 		| "optionsResponse"
-		| "searchFiles"
 		| "grpc_request"
 		| "grpc_request_cancel"
 		| "toggleWorkflow"

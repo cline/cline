@@ -17,27 +17,20 @@ export interface ExtensionMessage {
 		| "action"
 		| "state"
 		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
 		| "theme"
 		| "workspaceUpdated"
 		| "partialMessage"
 		| "openRouterModels"
-		| "openAiModels"
-		| "requestyModels"
 		| "mcpServers"
 		| "relinquishControl"
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
-		| "commitSearchResults"
-		| "openGraphData"
 		| "didUpdateSettings"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "addToInput"
 		| "browserConnectionResult"
-		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
 	action?:
@@ -65,14 +58,6 @@ export interface ExtensionMessage {
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
-	openGraphData?: {
-		title?: string
-		description?: string
-		image?: string
-		url?: string
-		siteName?: string
-		type?: string
-	}
 	url?: string
 	isImage?: boolean
 	userCreditsBalance?: BalanceResponse
