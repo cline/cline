@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { Controller } from "@core/controller"
 import { ClineAPI } from "./cline"
 import { getGlobalState } from "@core/storage/state"
+import { sendChatButtonClickedEvent } from "@core/controller/ui/subscribeToChatButtonClicked"
 
 export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {
@@ -18,10 +19,8 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarContr
 			outputChannel.appendLine("Starting new task")
 			await sidebarController.clearTask()
 			await sidebarController.postStateToWebview()
-			await sidebarController.postMessageToWebview({
-				type: "action",
-				action: "chatButtonClicked",
-			})
+			// Use gRPC streaming event instead of extension message
+			await sendChatButtonClickedEvent()
 			await sidebarController.postMessageToWebview({
 				type: "invoke",
 				invoke: "sendMessage",

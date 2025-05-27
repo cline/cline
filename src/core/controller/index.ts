@@ -53,6 +53,7 @@ import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
+import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
@@ -264,10 +265,7 @@ export class Controller {
 				})
 				break
 			case "showChatView": {
-				this.postMessageToWebview({
-					type: "action",
-					action: "chatButtonClicked",
-				})
+				await sendChatButtonClickedEvent()
 				break
 			}
 			case "newTask":
@@ -1047,10 +1045,7 @@ export class Controller {
 			const { historyItem } = await this.getTaskWithId(id)
 			await this.initTask(undefined, undefined, historyItem) // clears existing task
 		}
-		await this.postMessageToWebview({
-			type: "action",
-			action: "chatButtonClicked",
-		})
+		await sendChatButtonClickedEvent()
 	}
 
 	async exportTaskWithId(id: string) {
