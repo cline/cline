@@ -389,7 +389,7 @@
 		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
 		"eslint-plugin-eslint-rules": "file:eslint-rules",
-		"grpc-tools": "^1.13.0",
+		"grpc-tools": "1.11.3",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.1.0",
 		"mintlify": "^4.0.515",
