@@ -152,7 +152,11 @@
 					"custom-model-configs/litellm-and-cline-using-codestral",
 					"custom-model-configs/vscode-language-model-api",
 					"custom-model-configs/xai-grok",
-					"custom-model-configs/mistral-ai"
+					"custom-model-configs/mistral-ai",
+					"custom-model-configs/deepseek",
+					"custom-model-configs/ollama",
+					"custom-model-configs/openai",
+					"custom-model-configs/openai-compatible"
 				]
 			},
 			{
