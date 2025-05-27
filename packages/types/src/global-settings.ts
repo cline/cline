@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { Keys } from "./type-fu.js"
+import { type Keys, keysOf } from "./type-fu.js"
 import {
 	type ProviderSettings,
 	PROVIDER_SETTINGS_KEYS,
@@ -34,8 +34,6 @@ export const globalSettingsSchema = z.object({
 	autoApprovalEnabled: z.boolean().optional(),
 	alwaysAllowReadOnly: z.boolean().optional(),
 	alwaysAllowReadOnlyOutsideWorkspace: z.boolean().optional(),
-	codebaseIndexModels: codebaseIndexModelsSchema.optional(),
-	codebaseIndexConfig: codebaseIndexConfigSchema.optional(),
 	alwaysAllowWrite: z.boolean().optional(),
 	alwaysAllowWriteOutsideWorkspace: z.boolean().optional(),
 	writeDelayMs: z.number().optional(),
@@ -85,6 +83,9 @@ export const globalSettingsSchema = z.object({
 	fuzzyMatchThreshold: z.number().optional(),
 	experiments: experimentsSchema.optional(),
 
+	codebaseIndexModels: codebaseIndexModelsSchema.optional(),
+	codebaseIndexConfig: codebaseIndexConfigSchema.optional(),
+
 	language: languagesSchema.optional(),
 
 	telemetrySetting: telemetrySettingsSchema.optional(),
@@ -103,91 +104,87 @@ export const globalSettingsSchema = z.object({
 
 export type GlobalSettings = z.infer<typeof globalSettingsSchema>
 
-type GlobalSettingsRecord = Record<Keys<GlobalSettings>, undefined>
+export const GLOBAL_SETTINGS_KEYS = keysOf<GlobalSettings>()([
+	"currentApiConfigName",
+	"listApiConfigMeta",
+	"pinnedApiConfigs",
 
-const globalSettingsRecord: GlobalSettingsRecord = {
-	codebaseIndexModels: undefined,
-	codebaseIndexConfig: undefined,
-	currentApiConfigName: undefined,
-	listApiConfigMeta: undefined,
-	pinnedApiConfigs: undefined,
+	"lastShownAnnouncementId",
+	"customInstructions",
+	"taskHistory",
 
-	lastShownAnnouncementId: undefined,
-	customInstructions: undefined,
-	taskHistory: undefined,
+	"condensingApiConfigId",
+	"customCondensingPrompt",
 
-	condensingApiConfigId: undefined,
-	customCondensingPrompt: undefined,
+	"autoApprovalEnabled",
+	"alwaysAllowReadOnly",
+	"alwaysAllowReadOnlyOutsideWorkspace",
+	"alwaysAllowWrite",
+	"alwaysAllowWriteOutsideWorkspace",
+	"writeDelayMs",
+	"alwaysAllowBrowser",
+	"alwaysApproveResubmit",
+	"requestDelaySeconds",
+	"alwaysAllowMcp",
+	"alwaysAllowModeSwitch",
+	"alwaysAllowSubtasks",
+	"alwaysAllowExecute",
+	"allowedCommands",
+	"allowedMaxRequests",
+	"autoCondenseContextPercent",
 
-	autoApprovalEnabled: undefined,
-	alwaysAllowReadOnly: undefined,
-	alwaysAllowReadOnlyOutsideWorkspace: undefined,
-	alwaysAllowWrite: undefined,
-	alwaysAllowWriteOutsideWorkspace: undefined,
-	writeDelayMs: undefined,
-	alwaysAllowBrowser: undefined,
-	alwaysApproveResubmit: undefined,
-	requestDelaySeconds: undefined,
-	alwaysAllowMcp: undefined,
-	alwaysAllowModeSwitch: undefined,
-	alwaysAllowSubtasks: undefined,
-	alwaysAllowExecute: undefined,
-	allowedCommands: undefined,
-	allowedMaxRequests: undefined,
-	autoCondenseContextPercent: undefined,
+	"browserToolEnabled",
+	"browserViewportSize",
+	"screenshotQuality",
+	"remoteBrowserEnabled",
+	"remoteBrowserHost",
 
-	browserToolEnabled: undefined,
-	browserViewportSize: undefined,
-	screenshotQuality: undefined,
-	remoteBrowserEnabled: undefined,
-	remoteBrowserHost: undefined,
+	"enableCheckpoints",
 
-	enableCheckpoints: undefined,
+	"ttsEnabled",
+	"ttsSpeed",
+	"soundEnabled",
+	"soundVolume",
 
-	ttsEnabled: undefined,
-	ttsSpeed: undefined,
-	soundEnabled: undefined,
-	soundVolume: undefined,
+	"maxOpenTabsContext",
+	"maxWorkspaceFiles",
+	"showRooIgnoredFiles",
+	"maxReadFileLine",
 
-	maxOpenTabsContext: undefined,
-	maxWorkspaceFiles: undefined,
-	showRooIgnoredFiles: undefined,
-	maxReadFileLine: undefined,
+	"terminalOutputLineLimit",
+	"terminalShellIntegrationTimeout",
+	"terminalShellIntegrationDisabled",
+	"terminalCommandDelay",
+	"terminalPowershellCounter",
+	"terminalZshClearEolMark",
+	"terminalZshOhMy",
+	"terminalZshP10k",
+	"terminalZdotdir",
+	"terminalCompressProgressBar",
 
-	terminalOutputLineLimit: undefined,
-	terminalShellIntegrationTimeout: undefined,
-	terminalShellIntegrationDisabled: undefined,
-	terminalCommandDelay: undefined,
-	terminalPowershellCounter: undefined,
-	terminalZshClearEolMark: undefined,
-	terminalZshOhMy: undefined,
-	terminalZshP10k: undefined,
-	terminalZdotdir: undefined,
-	terminalCompressProgressBar: undefined,
+	"rateLimitSeconds",
+	"diffEnabled",
+	"fuzzyMatchThreshold",
+	"experiments",
 
-	rateLimitSeconds: undefined,
-	diffEnabled: undefined,
-	fuzzyMatchThreshold: undefined,
-	experiments: undefined,
+	"codebaseIndexModels",
+	"codebaseIndexConfig",
 
-	language: undefined,
+	"language",
 
-	telemetrySetting: undefined,
+	"telemetrySetting",
+	"mcpEnabled",
+	"enableMcpServerCreation",
 
-	mcpEnabled: undefined,
-	enableMcpServerCreation: undefined,
-
-	mode: undefined,
-	modeApiConfigs: undefined,
-	customModes: undefined,
-	customModePrompts: undefined,
-	customSupportPrompts: undefined,
-	enhancementApiConfigId: undefined,
-	cachedChromeHostUrl: undefined,
-	historyPreviewCollapsed: undefined,
-}
-
-export const GLOBAL_SETTINGS_KEYS = Object.keys(globalSettingsRecord) as Keys<GlobalSettings>[]
+	"mode",
+	"modeApiConfigs",
+	"customModes",
+	"customModePrompts",
+	"customSupportPrompts",
+	"enhancementApiConfigId",
+	"cachedChromeHostUrl",
+	"historyPreviewCollapsed",
+])
 
 /**
  * RooCodeSettings
@@ -224,33 +221,27 @@ export type SecretState = Pick<
 	| "codeIndexQdrantApiKey"
 >
 
-export type CodeIndexSecrets = "codeIndexOpenAiKey" | "codeIndexQdrantApiKey"
-
-type SecretStateRecord = Record<Keys<SecretState>, undefined>
-
-const secretStateRecord: SecretStateRecord = {
-	apiKey: undefined,
-	glamaApiKey: undefined,
-	openRouterApiKey: undefined,
-	awsAccessKey: undefined,
-	awsSecretKey: undefined,
-	awsSessionToken: undefined,
-	openAiApiKey: undefined,
-	geminiApiKey: undefined,
-	openAiNativeApiKey: undefined,
-	deepSeekApiKey: undefined,
-	mistralApiKey: undefined,
-	unboundApiKey: undefined,
-	requestyApiKey: undefined,
-	xaiApiKey: undefined,
-	groqApiKey: undefined,
-	chutesApiKey: undefined,
-	litellmApiKey: undefined,
-	codeIndexOpenAiKey: undefined,
-	codeIndexQdrantApiKey: undefined,
-}
-
-export const SECRET_STATE_KEYS = Object.keys(secretStateRecord) as Keys<SecretState>[]
+export const SECRET_STATE_KEYS = keysOf<SecretState>()([
+	"apiKey",
+	"glamaApiKey",
+	"openRouterApiKey",
+	"awsAccessKey",
+	"awsSecretKey",
+	"awsSessionToken",
+	"openAiApiKey",
+	"geminiApiKey",
+	"openAiNativeApiKey",
+	"deepSeekApiKey",
+	"mistralApiKey",
+	"unboundApiKey",
+	"requestyApiKey",
+	"xaiApiKey",
+	"groqApiKey",
+	"chutesApiKey",
+	"litellmApiKey",
+	"codeIndexOpenAiKey",
+	"codeIndexQdrantApiKey",
+])
 
 export const isSecretStateKey = (key: string): key is Keys<SecretState> =>
 	SECRET_STATE_KEYS.includes(key as Keys<SecretState>)

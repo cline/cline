@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { Keys } from "./type-fu.js"
+import { keysOf } from "./type-fu.js"
 import { reasoningEffortsSchema, modelInfoSchema } from "./model.js"
 import { codebaseIndexProviderSchema } from "./codebase-index.js"
 
@@ -257,104 +257,100 @@ export const providerSettingsSchema = z.object({
 
 export type ProviderSettings = z.infer<typeof providerSettingsSchema>
 
-type ProviderSettingsRecord = Record<Keys<ProviderSettings>, undefined>
-
-const providerSettingsRecord: ProviderSettingsRecord = {
-	apiProvider: undefined,
+export const PROVIDER_SETTINGS_KEYS = keysOf<ProviderSettings>()([
+	"apiProvider",
 	// Anthropic
-	apiModelId: undefined,
-	apiKey: undefined,
-	anthropicBaseUrl: undefined,
-	anthropicUseAuthToken: undefined,
+	"apiModelId",
+	"apiKey",
+	"anthropicBaseUrl",
+	"anthropicUseAuthToken",
 	// Glama
-	glamaModelId: undefined,
-	glamaApiKey: undefined,
+	"glamaModelId",
+	"glamaApiKey",
 	// OpenRouter
-	openRouterApiKey: undefined,
-	openRouterModelId: undefined,
-	openRouterBaseUrl: undefined,
-	openRouterSpecificProvider: undefined,
-	openRouterUseMiddleOutTransform: undefined,
+	"openRouterApiKey",
+	"openRouterModelId",
+	"openRouterBaseUrl",
+	"openRouterSpecificProvider",
+	"openRouterUseMiddleOutTransform",
 	// Amazon Bedrock
-	awsAccessKey: undefined,
-	awsSecretKey: undefined,
-	awsSessionToken: undefined,
-	awsRegion: undefined,
-	awsUseCrossRegionInference: undefined,
-	awsUsePromptCache: undefined,
-	awsProfile: undefined,
-	awsUseProfile: undefined,
-	awsCustomArn: undefined,
+	"awsAccessKey",
+	"awsSecretKey",
+	"awsSessionToken",
+	"awsRegion",
+	"awsUseCrossRegionInference",
+	"awsUsePromptCache",
+	"awsProfile",
+	"awsUseProfile",
+	"awsCustomArn",
 	// Google Vertex
-	vertexKeyFile: undefined,
-	vertexJsonCredentials: undefined,
-	vertexProjectId: undefined,
-	vertexRegion: undefined,
+	"vertexKeyFile",
+	"vertexJsonCredentials",
+	"vertexProjectId",
+	"vertexRegion",
 	// OpenAI
-	openAiBaseUrl: undefined,
-	openAiApiKey: undefined,
-	openAiLegacyFormat: undefined,
-	openAiR1FormatEnabled: undefined,
-	openAiModelId: undefined,
-	openAiCustomModelInfo: undefined,
-	openAiUseAzure: undefined,
-	azureApiVersion: undefined,
-	openAiStreamingEnabled: undefined,
-	openAiHostHeader: undefined, // Keep temporarily for backward compatibility during migration
-	openAiHeaders: undefined,
+	"openAiBaseUrl",
+	"openAiApiKey",
+	"openAiLegacyFormat",
+	"openAiR1FormatEnabled",
+	"openAiModelId",
+	"openAiCustomModelInfo",
+	"openAiUseAzure",
+	"azureApiVersion",
+	"openAiStreamingEnabled",
+	"openAiHostHeader", // Keep temporarily for backward compatibility during migration.
+	"openAiHeaders",
 	// Ollama
-	ollamaModelId: undefined,
-	ollamaBaseUrl: undefined,
+	"ollamaModelId",
+	"ollamaBaseUrl",
 	// VS Code LM
-	vsCodeLmModelSelector: undefined,
-	lmStudioModelId: undefined,
-	lmStudioBaseUrl: undefined,
-	lmStudioDraftModelId: undefined,
-	lmStudioSpeculativeDecodingEnabled: undefined,
+	"vsCodeLmModelSelector",
+	"lmStudioModelId",
+	"lmStudioBaseUrl",
+	"lmStudioDraftModelId",
+	"lmStudioSpeculativeDecodingEnabled",
 	// Gemini
-	geminiApiKey: undefined,
-	googleGeminiBaseUrl: undefined,
+	"geminiApiKey",
+	"googleGeminiBaseUrl",
 	// OpenAI Native
-	openAiNativeApiKey: undefined,
-	openAiNativeBaseUrl: undefined,
+	"openAiNativeApiKey",
+	"openAiNativeBaseUrl",
 	// Mistral
-	mistralApiKey: undefined,
-	mistralCodestralUrl: undefined,
+	"mistralApiKey",
+	"mistralCodestralUrl",
 	// DeepSeek
-	deepSeekBaseUrl: undefined,
-	deepSeekApiKey: undefined,
+	"deepSeekBaseUrl",
+	"deepSeekApiKey",
 	// Unbound
-	unboundApiKey: undefined,
-	unboundModelId: undefined,
+	"unboundApiKey",
+	"unboundModelId",
 	// Requesty
-	requestyApiKey: undefined,
-	requestyModelId: undefined,
+	"requestyApiKey",
+	"requestyModelId",
 	// Code Index
-	codeIndexOpenAiKey: undefined,
-	codeIndexQdrantApiKey: undefined,
+	"codeIndexOpenAiKey",
+	"codeIndexQdrantApiKey",
 	// Reasoning
-	enableReasoningEffort: undefined,
-	reasoningEffort: undefined,
-	modelMaxTokens: undefined,
-	modelMaxThinkingTokens: undefined,
+	"enableReasoningEffort",
+	"reasoningEffort",
+	"modelMaxTokens",
+	"modelMaxThinkingTokens",
 	// Generic
-	includeMaxTokens: undefined,
-	diffEnabled: undefined,
-	fuzzyMatchThreshold: undefined,
-	modelTemperature: undefined,
-	rateLimitSeconds: undefined,
+	"includeMaxTokens",
+	"diffEnabled",
+	"fuzzyMatchThreshold",
+	"modelTemperature",
+	"rateLimitSeconds",
 	// Fake AI
-	fakeAi: undefined,
+	"fakeAi",
 	// X.AI (Grok)
-	xaiApiKey: undefined,
+	"xaiApiKey",
 	// Groq
-	groqApiKey: undefined,
+	"groqApiKey",
 	// Chutes AI
-	chutesApiKey: undefined,
+	"chutesApiKey",
 	// LiteLLM
-	litellmBaseUrl: undefined,
-	litellmApiKey: undefined,
-	litellmModelId: undefined,
-}
-
-export const PROVIDER_SETTINGS_KEYS = Object.keys(providerSettingsRecord) as Keys<ProviderSettings>[]
+	"litellmBaseUrl",
+	"litellmApiKey",
+	"litellmModelId",
+])
