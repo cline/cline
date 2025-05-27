@@ -31,6 +31,10 @@ type RequestyChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 			mode?: string
 		}
 	}
+	thinking?: {
+		type: string
+		budget_tokens?: number
+	}
 }
 
 export class RequestyHandler extends BaseProvider implements SingleCompletionHandler {
@@ -94,8 +98,23 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 		]
 
 		let maxTokens = undefined
-		if (this.options.includeMaxTokens) {
+		if (this.options.modelMaxTokens) {
+			maxTokens = this.options.modelMaxTokens
+		} else if (this.options.includeMaxTokens) {
 			maxTokens = model.info.maxTokens
+		}
+
+		let reasoningEffort = undefined
+		if (this.options.reasoningEffort) {
+			reasoningEffort = this.options.reasoningEffort
+		}
+
+		let thinking = undefined
+		if (this.options.modelMaxThinkingTokens) {
+			thinking = {
+				type: "enabled",
+				budget_tokens: this.options.modelMaxThinkingTokens,
+			}
 		}
 
 		const temperature = this.options.modelTemperature
@@ -107,6 +126,8 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 			temperature: temperature,
 			stream: true,
 			stream_options: { include_usage: true },
+			reasoning_effort: reasoningEffort,
+			thinking: thinking,
 			requesty: {
 				trace_id: metadata?.taskId,
 				extra: {
