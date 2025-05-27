@@ -1,40 +1,24 @@
 import * as assert from "assert"
 
-import type { ClineMessage } from "@roo-code/types"
-
 import { waitUntilCompleted } from "./utils"
 
 suite("Roo Code Modes", () => {
 	test("Should handle switching modes correctly", async () => {
-		const api = globalThis.api
+		const modes: string[] = []
 
-		const switchModesPrompt =
-			"For each mode (Architect, Ask, Debug) respond with the mode name and what it specializes in after switching to that mode."
+		globalThis.api.on("taskModeSwitched", (_taskId, mode) => modes.push(mode))
 
-		const messages: ClineMessage[] = []
-		const modeSwitches: string[] = []
-
-		api.on("taskModeSwitched", (_taskId, mode) => {
-			console.log("taskModeSwitched", mode)
-			modeSwitches.push(mode)
-		})
-
-		api.on("message", ({ message }) => {
-			if (message.type === "say" && message.partial === false) {
-				messages.push(message)
-			}
-		})
-
-		const switchModesTaskId = await api.startNewTask({
+		const switchModesTaskId = await globalThis.api.startNewTask({
 			configuration: { mode: "code", alwaysAllowModeSwitch: true, autoApprovalEnabled: true },
-			text: switchModesPrompt,
+			text: "For each of `architect`, `ask`, and `debug` use the `switch_mode` tool to switch to that mode.",
 		})
 
-		await waitUntilCompleted({ api, taskId: switchModesTaskId })
-		await api.cancelCurrentTask()
+		await waitUntilCompleted({ api: globalThis.api, taskId: switchModesTaskId })
+		await globalThis.api.cancelCurrentTask()
 
-		assert.ok(modeSwitches.includes("architect"))
-		assert.ok(modeSwitches.includes("ask"))
-		assert.ok(modeSwitches.includes("debug"))
+		assert.ok(modes.includes("architect"))
+		assert.ok(modes.includes("ask"))
+		assert.ok(modes.includes("debug"))
+		assert.ok(modes.length === 3)
 	})
 })
