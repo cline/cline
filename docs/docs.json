@@ -145,6 +145,7 @@
 			{
 				"group": "Custom Model Configurations",
 				"pages": [
+					"custom-model-configs/anthropic",
 					"custom-model-configs/aws-bedrock-with-credentials-authentication",
 					"custom-model-configs/aws-bedrock-with-profile-authentication",
 					"custom-model-configs/gcp-vertex-ai",
