@@ -101,7 +101,7 @@ import { parseSlashCommands } from "@core/slash-commands"
 import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { McpHub } from "@services/mcp/McpHub"
 import { isInTestMode } from "../../services/test/TestMode"
-import { featureFlagsService } from "@/services/posthog/feature-flags/FeatureFlagsService"
+import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
 
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -110,6 +110,9 @@ type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlo
 type UserContent = Array<Anthropic.ContentBlockParam>
 
 export class Task {
+	private streamingJsonReplacer?: StreamingJsonReplacer
+	private lastProcessedJsonLength: number = 0
+
 	// dependencies
 	private context: vscode.ExtensionContext
 	private mcpHub: McpHub
@@ -1542,6 +1545,12 @@ export class Task {
 		}
 	}
 
+	private async isClaude4ModelFamily(): Promise<boolean> {
+		const model = this.api.getModel()
+		const modelId = model.id
+		return modelId.includes("claude-sonnet-4") || modelId.includes("claude-opus-4")
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, { timeout: 10_000 }).catch(() => {
@@ -1555,7 +1564,8 @@ export class Task {
 
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings)
+		const isClaude4ModelFamily = await this.isClaude4ModelFamily()
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isClaude4ModelFamily)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		await this.migratePreferredLanguageToolSetting()
@@ -1719,6 +1729,98 @@ export class Task {
 		// (needs to be placed outside of try/catch since it we want caller to handle errors not with api_req_failed as that is reserved for first chunk failures only)
 		// this delegates to another generator or iterable object. In this case, it's saying "yield all remaining values from this iterator". This effectively passes along all subsequent chunks from the original stream.
 		yield* iterator
+	}
+
+	// Handle streaming JSON replacement for Claude 4 model family
+	private async handleStreamingJsonReplacement(
+		block: any,
+		relPath: string,
+		currentFullJson: string,
+	): Promise<{ shouldBreak: boolean; newContent?: string; error?: string }> {
+		// Calculate the delta - what's new since last time
+		const newJsonChunk = currentFullJson.substring(this.lastProcessedJsonLength)
+
+		if (block.partial) {
+			// Initialize on first chunk
+			if (!this.streamingJsonReplacer) {
+				if (!this.diffViewProvider.isEditing) {
+					await this.diffViewProvider.open(relPath)
+				}
+
+				// Set up callbacks
+				const onContentUpdated = (newContent: string, _isFinalItem: boolean, changeLocation?: ChangeLocation) => {
+					// Update diff view incrementally
+					this.diffViewProvider.update(newContent, false, changeLocation)
+				}
+
+				const onError = (error: Error) => {
+					console.error("StreamingJsonReplacer error:", error)
+					// Handle error: push tool result, cleanup
+					this.userMessageContent.push({
+						type: "text",
+						text: formatResponse.toolError(`JSON replacement error: ${error.message}`),
+					})
+					this.didAlreadyUseTool = true
+					this.userMessageContentReady = true
+					this.streamingJsonReplacer = undefined
+					this.lastProcessedJsonLength = 0
+					throw error
+				}
+
+				this.streamingJsonReplacer = new StreamingJsonReplacer(
+					this.diffViewProvider.originalContent || "",
+					onContentUpdated,
+					onError,
+				)
+				this.lastProcessedJsonLength = 0
+			}
+
+			// Feed only the new chunk
+			if (newJsonChunk.length > 0) {
+				try {
+					this.streamingJsonReplacer.write(newJsonChunk)
+					this.lastProcessedJsonLength = currentFullJson.length
+				} catch (e) {
+					// Handle write error
+					return { shouldBreak: true, error: `Write error: ${e}` }
+				}
+
+				const newContentParsed = this.streamingJsonReplacer.getSuccessfullyParsedItems()
+			}
+
+			return { shouldBreak: true } // Wait for more chunks
+		} else {
+			// Final chunk (!block.partial)
+			if (!this.streamingJsonReplacer) {
+				// JSON came all at once, initialize
+				if (!this.diffViewProvider.isEditing) {
+					await this.diffViewProvider.open(relPath)
+				}
+				// Would need to initialize StreamingJsonReplacer here for non-streaming case
+				this.lastProcessedJsonLength = 0
+				return { shouldBreak: true }
+			}
+
+			// Feed final delta
+			if (newJsonChunk.length > 0) {
+				this.streamingJsonReplacer.write(newJsonChunk)
+			}
+
+			const newContent = this.streamingJsonReplacer.getCurrentContent()
+
+			// Get final list of replacements
+			const allReplacements = this.streamingJsonReplacer.getSuccessfullyParsedItems()
+			// console.log(`Total replacements applied: ${allReplacements.length}`)
+
+			// Cleanup
+			this.streamingJsonReplacer = undefined
+			this.lastProcessedJsonLength = 0
+
+			// Update diff view with final content
+			await this.diffViewProvider.update(newContent, true)
+
+			return { shouldBreak: false, newContent }
+		}
 	}
 
 	async presentAssistantMessage() {
@@ -2017,6 +2119,7 @@ export class Task {
 						try {
 							// Construct newContent from diff
 							let newContent: string
+							newContent = "" // default to original content if not editing
 							if (diff) {
 								if (!this.api.getModel().id.includes("claude")) {
 									// deepseek models tend to use unescaped html entities in diffs
@@ -2030,34 +2133,66 @@ export class Task {
 									await this.diffViewProvider.open(relPath)
 								}
 
-								try {
-									newContent = await constructNewFileContent(
-										diff,
-										this.diffViewProvider.originalContent || "",
-										!block.partial,
+								const currentFullJson = block.params.diff
+								// Check if we should use streaming (e.g., for specific models)
+								const isClaude4ModelFamily = await this.isClaude4ModelFamily()
+
+								// Going through claude family of models
+								if (isClaude4ModelFamily && currentFullJson) {
+									const streamingResult = await this.handleStreamingJsonReplacement(
+										block,
+										relPath,
+										currentFullJson,
 									)
-								} catch (error) {
-									await this.say("diff_error", relPath)
 
-									// Extract error type from error message if possible, or use a generic type
-									const errorType =
-										error instanceof Error && error.message.includes("does not match anything")
-											? "search_not_found"
-											: "other_diff_error"
+									if (streamingResult.error) {
+										await this.say("diff_error", relPath)
+										pushToolResult(formatResponse.toolError(streamingResult.error))
+										await this.diffViewProvider.revertChanges()
+										await this.diffViewProvider.reset()
+										await this.saveCheckpoint()
+										break
+									}
 
-									// Add telemetry for diff edit failure
-									telemetryService.captureDiffEditFailure(this.taskId, this.api.getModel().id, errorType)
+									if (streamingResult.shouldBreak) {
+										break // Wait for more chunks or handle initialization
+									}
 
-									pushToolResult(
-										formatResponse.toolError(
-											`${(error as Error)?.message}\n\n` +
-												formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
-										),
-									)
-									await this.diffViewProvider.revertChanges()
-									await this.diffViewProvider.reset()
-									await this.saveCheckpoint()
-									break
+									// If we get here, we have the final content
+									if (streamingResult.newContent) {
+										newContent = streamingResult.newContent
+										// Continue with approval flow...
+									}
+								} else {
+									try {
+										newContent = await constructNewFileContent(
+											diff,
+											this.diffViewProvider.originalContent || "",
+											!block.partial,
+										)
+									} catch (error) {
+										await this.say("diff_error", relPath)
+
+										// Extract error type from error message if possible, or use a generic type
+										const errorType =
+											error instanceof Error && error.message.includes("does not match anything")
+												? "search_not_found"
+												: "other_diff_error"
+
+										// Add telemetry for diff edit failure
+										telemetryService.captureDiffEditFailure(this.taskId, this.api.getModel().id, errorType)
+
+										pushToolResult(
+											formatResponse.toolError(
+												`${(error as Error)?.message}\n\n` +
+													formatResponse.diffError(relPath, this.diffViewProvider.originalContent),
+											),
+										)
+										await this.diffViewProvider.revertChanges()
+										await this.diffViewProvider.reset()
+										await this.saveCheckpoint()
+										break
+									}
 								}
 							} else if (content) {
 								newContent = content
