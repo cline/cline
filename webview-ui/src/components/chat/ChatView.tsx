@@ -130,6 +130,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
+	const userHasManuallyScrolledRef = useRef(false)
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
@@ -501,6 +502,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				// setPrimaryButtonText(undefined)
 				// setSecondaryButtonText(undefined)
 				disableAutoScrollRef.current = false
+				userHasManuallyScrolledRef.current = false // Reset manual scroll tracking
 			}
 		},
 		[messages.length, clineAsk, activeQuote],
@@ -568,6 +570,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setPrimaryButtonText(undefined)
 			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
+			userHasManuallyScrolledRef.current = false // Reset manual scroll tracking
 		},
 		[clineAsk, startNewTask, lastMessage],
 	)
@@ -605,8 +608,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
-					setActiveQuote(null) // Clear quote when using secondary button
-					setSelectedImages([])
+					setActiveQuote(null) // Clear quote when using secondary button				setSelectedImages([])
 					break
 			}
 			setSendingDisabled(true)
@@ -615,6 +617,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setPrimaryButtonText(undefined)
 			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
+			userHasManuallyScrolledRef.current = false // Reset manual scroll tracking
 		},
 		[clineAsk, startNewTask, isStreaming],
 	)
@@ -947,8 +950,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const wheelEvent = event as WheelEvent
 		if (wheelEvent.deltaY && wheelEvent.deltaY < 0) {
 			if (scrollContainerRef.current?.contains(wheelEvent.target as Node)) {
-				// user scrolled up
+				// user scrolled up - mark as manually scrolled
 				disableAutoScrollRef.current = true
+				userHasManuallyScrolledRef.current = true
 			}
 		}
 	}, [])
@@ -1085,7 +1089,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							itemContent={itemContent}
 							atBottomStateChange={(isAtBottom) => {
 								setIsAtBottom(isAtBottom)
-								if (isAtBottom) {
+								if (isAtBottom && !userHasManuallyScrolledRef.current) {
+									// Only re-enable auto-scroll if user hasn't manually scrolled away
+									// This prevents interrupting user navigation during streaming
 									disableAutoScrollRef.current = false
 								}
 								setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
