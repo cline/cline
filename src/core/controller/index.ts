@@ -5,6 +5,7 @@ import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
+import { Logger } from "../../services/logging/Logger"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 import { handleModelsServiceRequest } from "./models"
@@ -71,6 +72,74 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	latestAnnouncementId = "may-22-2025_16:11:00" // update to some unique identifier when we add a new announcement
+
+	async handleDeepLink(uri: vscode.Uri) {
+		Logger.log(`Controller.handleDeepLink called with URI: ${uri.toString()}`)
+		const params = new URLSearchParams(uri.query)
+		const rawMessage = params.get("message") ?? ""
+		const base64Message = params.get("message64") ?? ""
+		let mode = params.get("mode") as "act" | "plan" | null
+		if (!mode) {
+			mode = "plan"
+		}
+
+		let message = ""
+		if (base64Message) {
+			try {
+				message = Buffer.from(base64Message, "base64").toString("utf8")
+			} catch (e) {
+				vscode.window.showErrorMessage("Cline: Invalid base64 message in deep link.")
+				Logger.error("Error decoding base64 message:", e)
+				return
+			}
+		} else {
+			message = rawMessage
+		}
+
+		if (!message) {
+			vscode.window.showWarningMessage("Cline: No message provided in deep link.")
+			return
+		}
+
+		Logger.log(`Parsed deep link params. Mode: ${mode}, Message (first 20 chars): ${message.substring(0, 20)}`)
+
+		const openWorkspaceFolders = vscode.workspace.workspaceFolders ?? []
+
+		if (openWorkspaceFolders.length === 0) {
+			vscode.window.showErrorMessage("Cline: No workspace folder available for the deep link task.")
+			return
+		}
+
+		// Show security confirmation dialog before executing the task
+		const MAX_PROMPT_LENGTH = 500
+		let displayMessage = message
+		if (message.length > MAX_PROMPT_LENGTH) {
+			displayMessage = message.substring(0, MAX_PROMPT_LENGTH) + "...\n\n[Prompt truncated for display]"
+		}
+
+		const answer = await vscode.window.showWarningMessage(
+			"You are about to run this prompt in Cline. Please be sure that you trust the prompt authors, as running unverified prompts is a security risk.",
+			{
+				modal: true,
+				detail: `Mode: ${mode === "plan" ? "Plan" : "Act"}\n\nPrompt:\n${displayMessage}`,
+			},
+			"Run",
+		)
+
+		if (answer !== "Run") {
+			return
+		}
+
+		if (mode === "plan" || mode === "act") {
+			const currentChatSettings = (await getAllExtensionState(this.context)).chatSettings
+			if (currentChatSettings.mode !== mode) {
+				await this.togglePlanActModeWithChatSettings({ ...currentChatSettings, mode })
+			}
+		}
+
+		await this.initTask(message)
+		await this.postMessageToWebview({ type: "action", action: "focusChatInput" })
+	}
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
