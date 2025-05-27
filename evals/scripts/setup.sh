@@ -28,7 +28,7 @@ build_extension() {
   echo "🔨 Building the Roo Code extension..."
   cd ..
   mkdir -p bin
-  pnpm build --out ../bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
+  pnpm build -- --out ../bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
   code --install-extension bin/roo-code-$(git rev-parse --short HEAD).vsix || exit 1
   cd evals
 }
