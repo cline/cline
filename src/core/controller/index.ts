@@ -619,7 +619,7 @@ export class Controller {
 					"messageResponse",
 					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
 					chatContent?.images || [],
-          files: chatContent?.files || [],
+					chatContent?.files || [],
 				)
 			} else {
 				this.cancelTask()
