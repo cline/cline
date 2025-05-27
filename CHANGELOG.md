@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## [3.18.5] - 2025-05-27
+
+- Add thinking controls for Requesty (thanks @dtrugman!)
+- Re-enable telemetry
+- Improve zh-TW Traditional Chinese locale (thanks @chrarnoldus)
+- Improve model metadata for LiteLLM
+
 ## [3.18.4] - 2025-05-25
 
 - Fix codebase indexing settings saving and Ollama indexing (thanks @daniel-lxs!)
