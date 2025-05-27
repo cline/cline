@@ -20,7 +20,8 @@ export const getToolsContent = (
 	const altReplaceExamples: string = getAltReplaceExamples()
 
 	// Switch tool calls for some models
-	const isAlt: boolean = modelId.toLowerCase().includes("claude-opus-4") || modelId.toLowerCase().includes("claude-sonnet-4")
+	//const isAlt: boolean = modelId.toLowerCase().includes("claude-opus-4") || modelId.toLowerCase().includes("claude-sonnet-4")
+	const isAlt = null
 
 	if (isAlt) {
 		editorToolContent = altEditorToolContent
