@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient } from "../services/grpc-client"
+import { StateServiceClient, UiServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
@@ -201,9 +201,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					case "accountButtonClicked":
 						navigateToAccount()
 						break
-					case "chatButtonClicked":
-						navigateToChat()
-						break
 				}
 				break
 			}
@@ -268,20 +265,20 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	useEvent("message", handleMessage)
 
-	// Reference to store the state subscription cancellation function
-	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+	// References to store subscription cancellation functions
+	const stateUnsubscribeRef = useRef<(() => void) | null>(null)
+	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 
-	// Subscribe to state updates using the new gRPC streaming API
+	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
 		// Set up state subscription
-		stateSubscriptionRef.current = StateServiceClient.subscribeToState(
+		stateUnsubscribeRef.current = StateServiceClient.subscribeToState(
 			{},
 			{
 				onResponse: (response) => {
 					if (response.stateJson) {
 						try {
 							const stateData = JSON.parse(response.stateJson) as ExtensionState
-							console.log("[DEBUG] parsed state JSON, updating state")
 							setState((prevState) => {
 								// Versioning logic for autoApprovalSettings
 								const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
@@ -346,14 +343,34 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
+		// Subscribe to chat button clicked events
+		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(
+			{},
+			{
+				onResponse: () => {
+					// When chat button is clicked, navigate to chat
+					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+					navigateToChat()
+				},
+				onError: (error) => {
+					console.error("Error in chat button subscription:", error)
+				},
+				onComplete: () => {},
+			},
+		)
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
-		// Clean up subscription when component unmounts
+		// Clean up subscriptions when component unmounts
 		return () => {
-			if (stateSubscriptionRef.current) {
-				stateSubscriptionRef.current()
-				stateSubscriptionRef.current = null
+			if (stateUnsubscribeRef.current) {
+				stateUnsubscribeRef.current()
+				stateUnsubscribeRef.current = null
+			}
+			if (chatButtonUnsubscribeRef.current) {
+				chatButtonUnsubscribeRef.current()
+				chatButtonUnsubscribeRef.current = null
 			}
 		}
 	}, [])

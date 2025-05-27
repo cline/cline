@@ -42,7 +42,6 @@ export interface ExtensionMessage {
 		| "grpc_response" // New type for gRPC responses
 	text?: string
 	action?:
-		| "chatButtonClicked"
 		| "mcpButtonClicked"
 		| "settingsButtonClicked"
 		| "historyButtonClicked"
