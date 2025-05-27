@@ -18,31 +18,21 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 
 	constructor(options: ApiHandlerOptions) {
 		super()
+
 		if (!options.mistralApiKey) {
 			throw new Error("Mistral API key is required")
 		}
 
-		// Set default model ID if not provided
-		this.options = {
-			...options,
-			apiModelId: options.apiModelId || mistralDefaultModelId,
-		}
+		// Set default model ID if not provided.
+		const apiModelId = options.apiModelId || mistralDefaultModelId
+		this.options = { ...options, apiModelId }
 
-		const baseUrl = this.getBaseUrl()
-		console.debug(`[Roo Code] MistralHandler using baseUrl: ${baseUrl}`)
 		this.client = new Mistral({
-			serverURL: baseUrl,
+			serverURL: apiModelId.startsWith("codestral-")
+				? this.options.mistralCodestralUrl || "https://codestral.mistral.ai"
+				: "https://api.mistral.ai",
 			apiKey: this.options.mistralApiKey,
 		})
-	}
-
-	private getBaseUrl(): string {
-		const modelId = this.options.apiModelId ?? mistralDefaultModelId
-		console.debug(`[Roo Code] MistralHandler using modelId: ${modelId}`)
-		if (modelId?.startsWith("codestral-")) {
-			return this.options.mistralCodestralUrl || "https://codestral.mistral.ai"
-		}
-		return "https://api.mistral.ai"
 	}
 
 	override async *createMessage(
@@ -50,28 +40,28 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		const { id: model } = this.getModel()
+		const { id: model, maxTokens, temperature } = this.getModel()
 
 		const response = await this.client.chat.stream({
-			model: this.options.apiModelId || mistralDefaultModelId,
+			model,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
-			maxTokens: this.options.includeMaxTokens ? this.getModel().info.maxTokens : undefined,
-			temperature: this.options.modelTemperature ?? MISTRAL_DEFAULT_TEMPERATURE,
+			maxTokens,
+			temperature,
 		})
 
 		for await (const chunk of response) {
 			const delta = chunk.data.choices[0]?.delta
+
 			if (delta?.content) {
 				let content: string = ""
+
 				if (typeof delta.content === "string") {
 					content = delta.content
 				} else if (Array.isArray(delta.content)) {
 					content = delta.content.map((c) => (c.type === "text" ? c.text : "")).join("")
 				}
-				yield {
-					type: "text",
-					text: content,
-				}
+
+				yield { type: "text", text: content }
 			}
 
 			if (chunk.data.usage) {
@@ -84,35 +74,39 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 		}
 	}
 
-	override getModel(): { id: MistralModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in mistralModels) {
-			const id = modelId as MistralModelId
-			return { id, info: mistralModels[id] }
-		}
-		return {
-			id: mistralDefaultModelId,
-			info: mistralModels[mistralDefaultModelId],
-		}
+	override getModel() {
+		const id = this.options.apiModelId ?? mistralDefaultModelId
+		const info = mistralModels[id as MistralModelId] ?? mistralModels[mistralDefaultModelId]
+
+		// @TODO: Move this to the `getModelParams` function.
+		const maxTokens = this.options.includeMaxTokens ? info.maxTokens : undefined
+		const temperature = this.options.modelTemperature ?? MISTRAL_DEFAULT_TEMPERATURE
+
+		return { id, info, maxTokens, temperature }
 	}
 
 	async completePrompt(prompt: string): Promise<string> {
 		try {
+			const { id: model, temperature } = this.getModel()
+
 			const response = await this.client.chat.complete({
-				model: this.options.apiModelId || mistralDefaultModelId,
+				model,
 				messages: [{ role: "user", content: prompt }],
-				temperature: this.options.modelTemperature ?? MISTRAL_DEFAULT_TEMPERATURE,
+				temperature,
 			})
 
 			const content = response.choices?.[0]?.message.content
+
 			if (Array.isArray(content)) {
 				return content.map((c) => (c.type === "text" ? c.text : "")).join("")
 			}
+
 			return content || ""
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Mistral completion error: ${error.message}`)
 			}
+
 			throw error
 		}
 	}

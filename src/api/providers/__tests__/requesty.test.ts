@@ -7,7 +7,9 @@ import { RequestyHandler } from "../requesty"
 import { ApiHandlerOptions } from "../../../shared/api"
 
 jest.mock("openai")
+
 jest.mock("delay", () => jest.fn(() => Promise.resolve()))
+
 jest.mock("../fetchers/modelCache", () => ({
 	getModels: jest.fn().mockImplementation(() => {
 		return Promise.resolve({
@@ -150,7 +152,7 @@ describe("RequestyHandler", () => {
 			// Verify OpenAI client was called with correct parameters
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
-					max_tokens: undefined,
+					max_tokens: 8192,
 					messages: [
 						{
 							role: "system",
@@ -164,7 +166,7 @@ describe("RequestyHandler", () => {
 					model: "coding/claude-4-sonnet",
 					stream: true,
 					stream_options: { include_usage: true },
-					temperature: undefined,
+					temperature: 0,
 				}),
 			)
 		})
@@ -198,9 +200,9 @@ describe("RequestyHandler", () => {
 
 			expect(mockCreate).toHaveBeenCalledWith({
 				model: mockOptions.requestyModelId,
-				max_tokens: undefined,
+				max_tokens: 8192,
 				messages: [{ role: "system", content: "test prompt" }],
-				temperature: undefined,
+				temperature: 0,
 			})
 		})
 

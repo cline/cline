@@ -140,12 +140,8 @@ describe("DeepSeekHandler", () => {
 
 		it("should set includeMaxTokens to true", () => {
 			// Create a new handler and verify OpenAI client was called with includeMaxTokens
-			new DeepSeekHandler(mockOptions)
-			expect(OpenAI).toHaveBeenCalledWith(
-				expect.objectContaining({
-					apiKey: mockOptions.deepSeekApiKey,
-				}),
-			)
+			const _handler = new DeepSeekHandler(mockOptions)
+			expect(OpenAI).toHaveBeenCalledWith(expect.objectContaining({ apiKey: mockOptions.deepSeekApiKey }))
 		})
 	})
 

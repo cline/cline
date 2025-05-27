@@ -154,6 +154,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				...(reasoning && reasoning),
 			}
 
+			// @TODO: Move this to the `getModelParams` function.
 			if (this.options.includeMaxTokens) {
 				requestOptions.max_tokens = modelInfo.maxTokens
 			}
