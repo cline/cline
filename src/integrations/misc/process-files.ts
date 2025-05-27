@@ -64,7 +64,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 				const stats = await fs.stat(filePath)
 				if (stats.size > 20 * 1000 * 1024) {
 					console.warn(`File too large, skipping: ${filePath}`)
-					vscode.window.showErrorMessage(`File too large: ${path.basename(filePath)} was skipped (size exceeds 50MB).`)
+					vscode.window.showErrorMessage(`File too large: ${path.basename(filePath)} was skipped (size exceeds 20MB).`)
 					return null
 				}
 			} catch (error) {
