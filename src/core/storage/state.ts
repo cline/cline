@@ -156,6 +156,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		reasoningEffort,
 		sambanovaApiKey,
 		cerebrasApiKey,
+		groqApiKey,
 		nebiusApiKey,
 		planActSeparateModelsSettingRaw,
 		favoritedModelIds,
@@ -165,6 +166,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		enableCheckpointsSettingRaw,
 		mcpMarketplaceEnabledRaw,
 		globalWorkflowToggles,
+		groqModelId,
+		groqModelInfo,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
@@ -246,6 +249,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "reasoningEffort") as Promise<string | undefined>,
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getSecret(context, "cerebrasApiKey") as Promise<string | undefined>,
+		getSecret(context, "groqApiKey") as Promise<string | undefined>,
 		getSecret(context, "nebiusApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "favoritedModelIds") as Promise<string[] | undefined>,
@@ -255,7 +259,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "enableCheckpointsSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "mcpMarketplaceEnabled") as Promise<boolean | undefined>,
 		getGlobalState(context, "globalWorkflowToggles") as Promise<ClineRulesToggles | undefined>,
-		fetch,
+		getGlobalState(context, "groqModelId") as Promise<string | undefined>,
+		getGlobalState(context, "groqModelInfo") as Promise<ModelInfo | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -360,6 +365,9 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			xaiApiKey,
 			sambanovaApiKey,
 			cerebrasApiKey,
+			groqApiKey,
+			groqModelId,
+			groqModelInfo,
 			nebiusApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
@@ -455,6 +463,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		clineApiKey,
 		sambanovaApiKey,
 		cerebrasApiKey,
+		groqApiKey,
+		groqModelId,
+		groqModelInfo,
 		nebiusApiKey,
 		favoritedModelIds,
 	} = apiConfiguration
@@ -517,6 +528,9 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "clineApiKey", clineApiKey)
 	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
 	await storeSecret(context, "cerebrasApiKey", cerebrasApiKey)
+	await storeSecret(context, "groqApiKey", groqApiKey)
+	await updateGlobalState(context, "groqModelId", groqModelId)
+	await updateGlobalState(context, "groqModelInfo", groqModelInfo)
 	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
@@ -548,6 +562,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"xaiApiKey",
 		"sambanovaApiKey",
 		"cerebrasApiKey",
+		"groqApiKey",
 		"nebiusApiKey",
 	]
 	for (const key of secretKeys) {
