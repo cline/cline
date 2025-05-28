@@ -85,6 +85,21 @@ interface GitCommit {
 
 const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
 
+const HelperTextBelowInput = styled.div`
+	position: absolute;
+	bottom: 16px; /* Increased from 8px to create more space below */
+	left: 25px; /* Aligns with DynamicTextArea's content (approx. 15px parent padding + 9px textarea padding) */
+	right: 60px; /* Leaves space for the send button on the right */
+	font-size: 10px;
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 0.7;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	pointer-events: none; /* Prevents it from capturing mouse events meant for the textarea */
+	z-index: 1; /* Ensures it's above the textarea background/highlight but below thumbnails (zIndex 2) */
+`
+
 const SwitchOption = styled.div<{ isActive: boolean }>`
 	padding: 2px 8px;
 	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
@@ -906,10 +921,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [])
 
 		useEffect(() => {
-			if (selectedImages.length === 0) {
+			if (selectedImages.length === 0 && selectedFiles.length === 0) {
 				setThumbnailsHeight(0)
 			}
-		}, [selectedImages])
+		}, [selectedImages, selectedFiles])
 
 		const handleMenuMouseDown = useCallback(() => {
 			setIsMouseDownOnMenu(true)
@@ -1493,12 +1508,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderRight: 0,
 							borderTop: 0,
 							borderColor: "transparent",
-							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
+							borderBottom: `${thumbnailsHeight}px solid transparent`,
 							padding: "9px 28px 3px 9px",
 						}}
 					/>
 					<DynamicTextArea
 						data-testid="chat-input"
+						minRows={3}
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
@@ -1550,7 +1566,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderLeft: 0,
 							borderRight: 0,
 							borderTop: 0,
-							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
+							borderBottom: `${thumbnailsHeight}px solid transparent`,
 							borderColor: "transparent",
 							// borderRight: "54px solid transparent",
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
@@ -1570,6 +1586,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onScroll={() => updateHighlights()}
 					/>
+					{!inputValue && selectedImages.length === 0 && selectedFiles.length == 0 && (
+						<HelperTextBelowInput>Type @ for context, / for slash commands & workflows</HelperTextBelowInput>
+					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
 						<Thumbnails
 							images={selectedImages}
