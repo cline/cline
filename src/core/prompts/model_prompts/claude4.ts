@@ -8,10 +8,7 @@ import { createAntmlToolPrompt, createSimpleXmlToolPrompt, toolDefinitionToSimpl
 import { bashToolDefinition } from "@core/tools/bashTool"
 import { readToolDefinition } from "@core/tools/readTool"
 import { writeToolDefinition } from "@core/tools/writeTool"
-import { read } from "fs"
-
-
-
+import {lsToolDefinition} from "@core/tools/lsTool"
 
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
@@ -131,22 +128,6 @@ Usage:
 <regex>Your regex pattern here</regex>
 <file_pattern>file pattern here (optional)</file_pattern>
 </search_files>
-
-## LS: Lists directory contents
-Description: Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You should generally prefer the Glob and Grep tools, if you know which directories to search.
-Usage:
-<function_calls>
-<invoke name="LS">
-<parameter name="path">/path/to/directory</parameter>
-</invoke>
-</function_calls>
-
-Example:
-<function_calls>
-<invoke name="LS">
-<parameter name="path">src</parameter>
-</invoke>
-</function_calls>
 
 ## list_code_definition_names
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
@@ -643,5 +624,5 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-  return createAntmlToolPrompt([bashToolDefinition, readToolDefinition, writeToolDefinition], true, systemPrompt);
+  return createAntmlToolPrompt([lsToolDefinition], true, systemPrompt);
 }
