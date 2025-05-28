@@ -1,4 +1,4 @@
-### No Black Box: Full Visibility & Control
+# No Black Box: Full Visibility & Control
 
 **Cline operates with complete transparency, showing you every file read and every proposed diff.**
 

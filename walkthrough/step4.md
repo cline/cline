@@ -1,4 +1,4 @@
-### Unlock Specialized Capabilities with MCP
+# Unlock Specialized Capabilities with MCP
 
 **The Model Context Protocol (MCP) connects Cline to a world of powerful tools.**
 

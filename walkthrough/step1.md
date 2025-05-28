@@ -1,4 +1,4 @@
-### Beyond Autocomplete: True Agentic Planning
+# Beyond Autocomplete: True Agentic Planning
 
 **Cline analyzes your request, explores your code, and presents a clear plan.**
 

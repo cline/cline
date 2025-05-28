@@ -1,4 +1,4 @@
-### Deep Codebase Intelligence
+# Deep Codebase Intelligence
 
 **Cline starts with broad context and explores deeply where needed.**
 

@@ -1,4 +1,4 @@
-### Always Use the Best Models
+# Always Use the Best Models
 
 **Connect your keys for Anthropic (Claude), Google (Gemini), OpenAI (GPT), and other leading LLMs.**
 
