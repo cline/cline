@@ -520,15 +520,21 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				chatSettings: value,
 			}))
-			vscode.postMessage({
-				type: "updateSettings",
-				chatSettings: value,
+			StateServiceClient.updateSettings({
+				chatSettings: {
+					mode: value.mode === "plan" ? 0 : 1, // PlanActMode.PLAN : PlanActMode.ACT   --- TODO review this
+					preferredLanguage: value.preferredLanguage,
+					openAiReasoningEffort: value.openAIReasoningEffort,
+				},
 				apiConfiguration: state.apiConfiguration,
 				customInstructionsSetting: state.customInstructions,
-				telemetrySetting: state.telemetrySetting,
+				telemetrySetting: state.telemetrySetting === "enabled" ? 0 : 1, // TelemetrySetting.ENABLED : TelemetrySetting.DISABLED
 				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 				enableCheckpointsSetting: state.enableCheckpointsSetting,
 				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+				favoritedModelIds: [],
+			}).catch((error) => {
+				console.error("Error updating settings:", error)
 			})
 		},
 		setGlobalClineRulesToggles: (toggles) =>

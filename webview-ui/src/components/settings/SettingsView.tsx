@@ -147,39 +147,90 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
-		// setApiErrorMessage(apiValidationResult)
-		// setModelIdErrorMessage(modelIdValidationResult)
-
 		let apiConfigurationToSubmit = apiConfiguration
 		if (!apiValidationResult && !modelIdValidationResult) {
-			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			// vscode.postMessage({
-			// 	type: "customInstructions",
-			// 	text: customInstructions,
-			// })
-			// vscode.postMessage({
-			// 	type: "telemetrySetting",
-			// 	text: telemetrySetting,
-			// })
-			// console.log("handleSubmit", withoutDone)
-			// vscode.postMessage({
-			// 	type: "separateModeSetting",
-			// 	text: separateModeSetting,
-			// })
+			//
 		} else {
 			// if the api configuration is invalid, we don't save it
 			apiConfigurationToSubmit = undefined
 		}
 
-		vscode.postMessage({
-			type: "updateSettings",
+		// Prepare apiConfiguration with proper field mapping for proto
+		// Each provider has a specific field name in the proto definition
+
+		// TODO - review this - need better mapping and conversion. Script?
+		const mappedApiConfig = apiConfigurationToSubmit
+			? {
+					...apiConfigurationToSubmit,
+					// Map domain model fields to proto field names
+					anthropicApiKey: apiConfigurationToSubmit.apiKey,
+					openaiApiKey: apiConfigurationToSubmit.openAiApiKey,
+					openaiBaseUrl: apiConfigurationToSubmit.openAiBaseUrl,
+					openaiModelId: apiConfigurationToSubmit.openAiModelId,
+					openaiModelInfo: apiConfigurationToSubmit.openAiModelInfo
+						? JSON.stringify(apiConfigurationToSubmit.openAiModelInfo)
+						: undefined,
+					openaiHeaders: apiConfigurationToSubmit.openAiHeaders
+						? JSON.stringify(apiConfigurationToSubmit.openAiHeaders)
+						: undefined,
+					openaiNativeApiKey: apiConfigurationToSubmit.openAiNativeApiKey,
+					openrouterApiKey: apiConfigurationToSubmit.openRouterApiKey,
+					openrouterModelId: apiConfigurationToSubmit.openRouterModelId,
+					openrouterModelInfo: apiConfigurationToSubmit.openRouterModelInfo
+						? JSON.stringify(apiConfigurationToSubmit.openRouterModelInfo)
+						: undefined,
+					openrouterProviderSorting: apiConfigurationToSubmit.openRouterProviderSorting,
+					litellmApiKey: apiConfigurationToSubmit.liteLlmApiKey,
+					litellmBaseUrl: apiConfigurationToSubmit.liteLlmBaseUrl,
+					litellmModelId: apiConfigurationToSubmit.liteLlmModelId,
+					litellmModelInfo: apiConfigurationToSubmit.liteLlmModelInfo
+						? JSON.stringify(apiConfigurationToSubmit.liteLlmModelInfo)
+						: undefined,
+					litellmUsePromptCache: apiConfigurationToSubmit.liteLlmUsePromptCache,
+					vscodeLmModelSelector: apiConfigurationToSubmit.vsCodeLmModelSelector
+						? JSON.stringify(apiConfigurationToSubmit.vsCodeLmModelSelector)
+						: undefined,
+					deepseekApiKey: apiConfigurationToSubmit.deepSeekApiKey,
+				}
+			: undefined
+
+		StateServiceClient.updateSettings({
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
-			telemetrySetting,
+			telemetrySetting: telemetrySetting === "enabled" ? 0 : 1, // ENABLED=0, DISABLED=1
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
-			apiConfiguration: apiConfigurationToSubmit,
+			apiConfiguration: mappedApiConfig,
+			chatSettings: chatSettings
+				? {
+						mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
+						preferredLanguage: chatSettings.preferredLanguage,
+						openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+					}
+				: undefined,
 		})
+			.then(() => {
+				// If there's a pendingTabChange, execute it now that settings are saved
+				if (pendingTabChange) {
+					// Call togglePlanActMode directly instead of waiting for didUpdateSettings message
+					StateServiceClient.togglePlanActMode({
+						chatSettings: {
+							mode: pendingTabChange === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
+							preferredLanguage: chatSettings.preferredLanguage,
+							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+						},
+					})
+						.catch((error) => {
+							console.error("Failed to toggle plan/act mode:", error)
+						})
+						.finally(() => {
+							setPendingTabChange(null)
+						})
+				}
+			})
+			.catch((error) => {
+				console.error("Failed to update settings:", error)
+			})
 
 		if (!withoutDone) {
 			onDone()
@@ -314,32 +365,30 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							// Check if the value corresponds to a valid tab ID
 							const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
 
-							if (isValidTabId) {
-								// Set the active tab directly
-								setActiveTab(tabId)
-							} else {
-								// Fall back to the old behavior of scrolling to an element
-								setTimeout(() => {
-									const element = document.getElementById(tabId)
-									if (element) {
-										element.scrollIntoView({ behavior: "smooth" })
+						if (isValidTabId) {
+							// Set the active tab directly
+							setActiveTab(tabId)
+						} else {
+							// Fall back to the old behavior of scrolling to an element
+							setTimeout(() => {
+								const element = document.getElementById(tabId)
+								if (element) {
+									element.scrollIntoView({ behavior: "smooth" })
 
-										element.style.transition = "background-color 0.5s ease"
-										element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+									element.style.transition = "background-color 0.5s ease"
+									element.style.backgroundColor = "var(--vscode-textPreformat-background)"
 
-										setTimeout(() => {
-											element.style.backgroundColor = "transparent"
-										}, 1200)
-									}
-								}, 300)
-							}
+									setTimeout(() => {
+										element.style.backgroundColor = "transparent"
+									}, 1200)
+								}
+							}, 300)
 						}
 					}
-					break
-			}
-		},
-		[pendingTabChange],
-	)
+				}
+				break
+		}
+	}, [])
 
 	useEvent("message", handleMessage)
 

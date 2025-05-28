@@ -19,7 +19,6 @@ export interface WebviewMessage {
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
 		| "searchFiles"
