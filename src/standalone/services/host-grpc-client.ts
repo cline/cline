@@ -6,6 +6,4 @@ import { UriServiceDefinition } from "@shared/proto/host/uri"
 
 const UriServiceClient = createGrpcClient(UriServiceDefinition)
 
-export {
-	UriServiceClient
-}
+export { UriServiceClient }

@@ -9,16 +9,22 @@ import { handleUriServiceRequest, handleUriServiceStreamingRequest } from "../..
  * Configuration for a host service handler
  */
 export interface HostServiceHandlerConfig {
-  requestHandler: (controller: Controller, method: string, message: any) => Promise<any>;
-  streamingHandler: (controller: Controller, method: string, message: any, responseStream: StreamingResponseHandler, requestId?: string) => Promise<void>;
+	requestHandler: (controller: Controller, method: string, message: any) => Promise<any>
+	streamingHandler: (
+		controller: Controller,
+		method: string,
+		message: any,
+		responseStream: StreamingResponseHandler,
+		requestId?: string,
+	) => Promise<void>
 }
 
 /**
  * Map of host service names to their handler configurations
  */
 export const hostServiceHandlers: Record<string, HostServiceHandlerConfig> = {
-  "host.UriService": {
-    requestHandler: handleUriServiceRequest,
-    streamingHandler: handleUriServiceStreamingRequest
-  }
-};
+	"host.UriService": {
+		requestHandler: handleUriServiceRequest,
+		streamingHandler: handleUriServiceStreamingRequest,
+	},
+}

@@ -92,7 +92,7 @@ async function main() {
 	// Process host proto files
 	console.log(chalk.cyan("Processing host proto files from"), path.join(SCRIPT_DIR, "host"))
 	const hostProtoFiles = await globby("*.proto", { cwd: path.join(SCRIPT_DIR, "host"), absolute: true })
-	
+
 	if (hostProtoFiles.length > 0) {
 		// Build the protoc command for host proto files
 		const hostTsProtocCommand = [
@@ -286,12 +286,14 @@ async function generateMethodRegistrations() {
 import { registerMethod } from "./index"\n`
 
 		// For host services, use the adapter pattern
-		if (hostServiceDirs.some(dir => serviceDir.includes(dir.split(path.sep).pop()))) {
+		if (hostServiceDirs.some((dir) => serviceDir.includes(dir.split(path.sep).pop()))) {
 			// Import adapters instead of direct implementations
-			methodsContent += `import { ${implementationFiles.map(file => {
-				const baseName = path.basename(file, ".ts")
-				return `${baseName}Adapter`
-			}).join(", ")} } from "./adapter"\n`
+			methodsContent += `import { ${implementationFiles
+				.map((file) => {
+					const baseName = path.basename(file, ".ts")
+					return `${baseName}Adapter`
+				})
+				.join(", ")} } from "./adapter"\n`
 		} else {
 			// Regular services use direct imports
 			for (const file of implementationFiles) {
@@ -319,9 +321,9 @@ export function registerAllMethods(): void {
 		for (const file of implementationFiles) {
 			const baseName = path.basename(file, ".ts")
 			const isStreaming = streamingMethods.some((m) => m.name === baseName)
-			
+
 			// Only use adapter suffix for host services
-			const isHostService = hostServiceDirs.some(dir => serviceDir.includes(dir.split(path.sep).pop()))
+			const isHostService = hostServiceDirs.some((dir) => serviceDir.includes(dir.split(path.sep).pop()))
 			const adapterSuffix = isHostService ? "Adapter" : ""
 
 			if (isStreaming) {
@@ -513,10 +515,12 @@ async function generateHostMethodRegistrations() {
 import { registerMethod } from "./index"\n`
 
 		// Import adapters for host services
-		methodsContent += `import { ${implementationFiles.map(file => {
-			const baseName = path.basename(file, ".ts")
-			return `${baseName}Adapter`
-		}).join(", ")} } from "./adapter"\n`
+		methodsContent += `import { ${implementationFiles
+			.map((file) => {
+				const baseName = path.basename(file, ".ts")
+				return `${baseName}Adapter`
+			})
+			.join(", ")} } from "./adapter"\n`
 
 		// Add streaming methods information
 		if (streamingMethods.length > 0) {

@@ -10,10 +10,10 @@ import { parse } from "./parse"
  * @returns A function that matches the ServiceMethodHandler interface
  */
 export function createHostAdapter<T, R>(hostFn: (request: T) => Promise<R>): ServiceMethodHandler {
-  return async (controller: Controller, request: T): Promise<R> => {
-    // Simply pass the request to the host function, ignoring the controller
-    return hostFn(request)
-  }
+	return async (controller: Controller, request: T): Promise<R> => {
+		// Simply pass the request to the host function, ignoring the controller
+		return hostFn(request)
+	}
 }
 
 // Create adapted versions of the host functions
