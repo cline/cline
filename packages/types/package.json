@@ -1,16 +1,35 @@
 {
 	"name": "@roo-code/types",
-	"description": "Roo Code foundational types and schemas.",
-	"version": "0.0.0",
-	"type": "module",
+	"version": "1.15.0",
+	"description": "TypeScript type definitions for Roo Code.",
+	"publishConfig": {
+		"access": "public"
+	},
+	"author": "Roo Code Team",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/RooCodeInc/Roo-Code.git"
+	},
+	"bugs": {
+		"url": "https://github.com/RooCodeInc/Roo-Code/issues"
+	},
+	"homepage": "https://github.com/RooCodeInc/Roo-Code/tree/main/packages/types",
+	"keywords": [
+		"roo",
+		"roo-code",
+		"ai"
+	],
 	"main": "./dist/index.cjs",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
-			"types": "./src/index.ts",
-			"import": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.mjs",
 			"require": {
-				"types": "./dist/index.d.cts",
-				"default": "./dist/index.cjs"
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
 			}
 		}
 	},
@@ -22,6 +41,9 @@
 		"check-types": "tsc --noEmit",
 		"test": "vitest --globals --run",
 		"build": "tsup",
+		"prepublishOnly": "pnpm run build",
+		"publish:test": "pnpm publish --dry-run",
+		"publish": "pnpm publish",
 		"clean": "rimraf dist .turbo"
 	},
 	"dependencies": {
