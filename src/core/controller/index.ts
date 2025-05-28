@@ -52,6 +52,7 @@ import {
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
+import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
@@ -922,10 +923,7 @@ export class Controller {
 			input += `\nProblems:\n${problemsString}`
 		}
 
-		await this.postMessageToWebview({
-			type: "addToInput",
-			text: input,
-		})
+		await sendAddToInputEvent(input)
 
 		console.log("addSelectedCodeToChat", code, filePath, languageId)
 	}
@@ -943,10 +941,7 @@ export class Controller {
 		//     terminalName
 		// })
 
-		await this.postMessageToWebview({
-			type: "addToInput",
-			text: `Terminal output:\n\`\`\`\n${output}\n\`\`\``,
-		})
+		await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${output}\n\`\`\``)
 
 		console.log("addSelectedTerminalOutputToChat", output, terminalName)
 	}

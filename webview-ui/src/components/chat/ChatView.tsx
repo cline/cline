@@ -18,7 +18,7 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
-import { TaskServiceClient, SlashServiceClient, FileServiceClient } from "@/services/grpc-client"
+import { TaskServiceClient, SlashServiceClient, FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import Announcement from "@/components/chat/Announcement"
@@ -686,21 +686,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 					}
 					break
-				case "addToInput":
-					setInputValue((prevValue) => {
-						const newText = message.text ?? ""
-						const newTextWithNewline = newText + "\n"
-						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
-					})
-					// Add scroll to bottom after state update
-					// Auto focus the input and start the cursor on a new linefor easy typing
-					setTimeout(() => {
-						if (textAreaRef.current) {
-							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
-							textAreaRef.current.focus()
-						}
-					}, 0)
-					break
 			}
 			// textAreaRef.current is not explicitly required here since react guarantees that ref will be stable across re-renders, and we're not using its value but its reference.
 		},
@@ -708,6 +693,40 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	useEvent("message", handleMessage)
+
+	// Set up addToInput subscription
+	useEffect(() => {
+		const cleanup = UiServiceClient.subscribeToAddToInput(
+			{},
+			{
+				onResponse: (event) => {
+					if (event.value) {
+						setInputValue((prevValue) => {
+							const newText = event.value
+							const newTextWithNewline = newText + "\n"
+							return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
+						})
+						// Add scroll to bottom after state update
+						// Auto focus the input and start the cursor on a new line for easy typing
+						setTimeout(() => {
+							if (textAreaRef.current) {
+								textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
+								textAreaRef.current.focus()
+							}
+						}, 0)
+					}
+				},
+				onError: (error) => {
+					console.error("Error in addToInput subscription:", error)
+				},
+				onComplete: () => {
+					console.log("addToInput subscription completed")
+				},
+			},
+		)
+
+		return cleanup
+	}, [])
 
 	useMount(() => {
 		// NOTE: the vscode window needs to be focused for this to work
