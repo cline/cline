@@ -22,7 +22,7 @@ $pnpm_cmd run check-types
 NEW_CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')
 echo "Changeset files: $NEW_CHANGESETS"
 
-if [ "$NEW_CHANGESETS" == "0" ]; then
+if [ "$NEW_CHANGESETS" = "0" ]; then
   echo "-------------------------------------------------------------------------------------"
   echo "Changes detected. Please run 'pnpm changeset' to create a changeset if applicable."
   echo "-------------------------------------------------------------------------------------"
