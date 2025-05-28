@@ -1096,7 +1096,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									userHasManuallyScrolledRef.current = false
 									disableAutoScrollRef.current = false
 								}
-								2
 								// Show scroll-to-bottom button if user is *not* at the bottom and auto-scroll is disabled
 								setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
 							}}
