@@ -608,7 +608,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
-					setActiveQuote(null) // Clear quote when using secondary button				setSelectedImages([])
+					setActiveQuote(null) // Clear quote when using secondary button				
+					setSelectedImages([])
 					break
 			}
 			setSendingDisabled(true)
@@ -1089,13 +1090,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							itemContent={itemContent}
 							atBottomStateChange={(isAtBottom) => {
 								setIsAtBottom(isAtBottom)
-								if (isAtBottom && !userHasManuallyScrolledRef.current) {
-									// Only re-enable auto-scroll if user hasn't manually scrolled away
-									// This prevents interrupting user navigation during streaming
+
+								if (isAtBottom) {
+									// User is back at the bottom — allow auto-scroll to resume
+									userHasManuallyScrolledRef.current = false
 									disableAutoScrollRef.current = false
 								}
+2
+								// Show scroll-to-bottom button if user is *not* at the bottom and auto-scroll is disabled
 								setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
 							}}
+
 							atBottomThreshold={10} // anything lower causes issues with followOutput
 							initialTopMostItemIndex={groupedMessages.length - 1}
 						/>
