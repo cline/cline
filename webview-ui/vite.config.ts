@@ -40,6 +40,7 @@ export default defineConfig({
 	build: {
 		outDir: "build",
 		reportCompressedSize: false,
+		sourcemap: true,
 		rollupOptions: {
 			output: {
 				inlineDynamicImports: true,

@@ -7,6 +7,8 @@ const FeatureSettingsSection = () => {
 	const {
 		enableCheckpointsSetting,
 		setEnableCheckpointsSetting,
+		enableDebuggerSetting,
+		setEnableDebuggerSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
 		chatSettings,
@@ -27,6 +29,19 @@ const FeatureSettingsSection = () => {
 				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 					Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not
 					work well with large workspaces.
+				</p>
+			</div>
+			<div>
+				<VSCodeCheckbox
+					checked={enableDebuggerSetting}
+					onChange={(e: any) => {
+						const checked = e.target.checked === true
+						setEnableDebuggerSetting(checked)
+					}}>
+					Enable Debugger
+				</VSCodeCheckbox>
+				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+					Enables extension to use the VS Code debugger
 				</p>
 			</div>
 			<div style={{ marginTop: 10 }}>

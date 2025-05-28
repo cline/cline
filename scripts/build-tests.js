@@ -1,7 +1,37 @@
 const { execSync } = require("child_process")
 const esbuild = require("esbuild")
+const fs = require("fs")
+const path = require("path")
 
 const watch = process.argv.includes("--watch")
+
+/**
+ * Copy fixtures directory to the output directory
+ */
+function copyFixtures() {
+	const srcDir = path.join(__dirname, "..", "src", "test", "fixtures")
+	const destDir = path.join(__dirname, "..", "out", "test", "fixtures")
+
+	// Create output directory if it doesn't exist
+	if (!fs.existsSync(destDir)) {
+		fs.mkdirSync(destDir, { recursive: true })
+	}
+
+	// Copy each file in the fixtures directory
+	const files = fs.readdirSync(srcDir)
+	for (const file of files) {
+		const srcPath = path.join(srcDir, file)
+		const destPath = path.join(destDir, file)
+
+		// Skip directories
+		if (fs.statSync(srcPath).isDirectory()) continue
+
+		// Copy the file
+		fs.copyFileSync(srcPath, destPath)
+	}
+
+	console.log("Fixtures copied successfully")
+}
 
 /**
  * @type {import('esbuild').Plugin}
@@ -54,6 +84,9 @@ async function main() {
 }
 
 execSync("tsc -p ./tsconfig.test.json --outDir out", { encoding: "utf-8" })
+
+// Copy fixtures to output directory
+copyFixtures()
 
 main().catch((e) => {
 	console.error(e)

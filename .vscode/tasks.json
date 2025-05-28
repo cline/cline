@@ -201,6 +201,37 @@
 			"type": "shell",
 			"dependsOn": ["watch"],
 			"command": "rm -rf .vscode-dev"
+		},
+		{
+			"label": "pretest-compile",
+			"dependsOn": ["npm: compile-tests", "npm: compile"],
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			},
+			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "compile-tests",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: compile-tests",
+			"dependsOn": ["npm: protos"],
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "compile",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: compile",
+			"dependsOn": ["npm: protos"],
+			"presentation": {
+				"reveal": "always"
+			}
 		}
 	],
 	"inputs": [

@@ -78,6 +78,13 @@ import { getContextWindowInfo } from "@core/context/context-management/context-w
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
+	listBreakpoints,
+	resumeDebugSession,
+	setBreakpoint,
+	startDebuggingAndWaitForStop,
+	stopDebugSession,
+} from "@/integrations/debug"
+import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "@core/context/context-management/context-error-handling"
@@ -186,6 +193,7 @@ export class Task {
 	private didCompleteReadingStream = false
 	private didAutomaticallyRetryFailedApiRequest = false
 	private enableCheckpoints: boolean
+	private enableDebugger: boolean
 
 	constructor(
 		context: vscode.ExtensionContext,
@@ -203,6 +211,7 @@ export class Task {
 		shellIntegrationTimeout: number,
 		terminalReuseEnabled: boolean,
 		enableCheckpointsSetting: boolean,
+		enableDebuggerSetting: boolean,
 		customInstructions?: string,
 		task?: string,
 		images?: string[],
@@ -231,6 +240,7 @@ export class Task {
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 		this.enableCheckpoints = enableCheckpointsSetting
+		this.enableDebugger = enableDebuggerSetting
 
 		// Initialize taskId first
 		if (historyItem) {
@@ -1556,6 +1566,12 @@ export class Task {
 				case "access_mcp_resource":
 				case "use_mcp_tool":
 					return this.autoApprovalSettings.actions.useMcp
+				case "set_breakpoint":
+				case "list_breakpoints":
+				case "resume_debug_session":
+				case "stop_debug_session":
+				case "start_debugging_and_wait_for_stop":
+					return this.autoApprovalSettings.actions.useDebugger
 			}
 		}
 		return false
@@ -1639,7 +1655,14 @@ export class Task {
 		const supportsBrowserUse = modelSupportsBrowserUse && !disableBrowserTool // only enable browser use if the model supports it and the user hasn't disabled it
 
 		const isClaude4ModelFamily = await this.isClaude4ModelFamily()
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsBrowserUse, this.mcpHub, this.browserSettings, isClaude4ModelFamily)
+		let systemPrompt = await SYSTEM_PROMPT(
+			cwd,
+			supportsBrowserUse,
+			this.mcpHub,
+			this.browserSettings,
+			isClaude4ModelFamily,
+			this.enableDebugger,
+		)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		await this.migratePreferredLanguageToolSetting()
@@ -2054,9 +2077,18 @@ export class Task {
 						case "report_bug":
 							return `[${block.name}]`
 						case "new_rule":
+						case "set_breakpoint":
 							return `[${block.name} for '${block.params.path}']`
 						case "web_fetch":
 							return `[${block.name} for '${block.params.url}']`
+						case "resume_debug_session":
+							return `[${block.name} for '${block.params.path}']`
+						case "stop_debug_session":
+							return `[${block.name} for '${block.params.path}']`
+						case "start_debugging_and_wait_for_stop":
+							return `[${block.name} for '${JSON.stringify(block.params)}']`
+						default:
+							return `[${block.name} for '${JSON.stringify(block.params)}']`
 					}
 				}
 
@@ -2216,6 +2248,348 @@ export class Task {
 				}
 
 				switch (block.name) {
+					case "set_breakpoint": {
+						const file_path: string | undefined = block.params.file_path
+						const line: string | undefined = block.params.line
+
+						try {
+							if (block.partial) {
+								// Handle partial tool use
+								break
+							} else {
+								if (!file_path) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("set_breakpoint", "file_path"))
+									await this.saveCheckpoint()
+									break
+								}
+								if (!line) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("set_breakpoint", "line"))
+									await this.saveCheckpoint()
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+
+								// Auto-approve or ask for approval
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say(
+										"tool",
+										JSON.stringify({
+											tool: "setBreakpoint",
+											path: file_path,
+											line,
+										}),
+										undefined,
+										undefined,
+										false,
+									)
+									this.consecutiveAutoApprovedRequestsCount++
+								} else {
+									const didApprove = await askApproval(
+										"tool",
+										JSON.stringify({
+											tool: "setBreakpoint",
+											path: file_path,
+											line,
+										}),
+									)
+									if (!didApprove) {
+										await this.saveCheckpoint()
+										break
+									}
+								}
+
+								// Execute the tool
+								const result = await setBreakpoint({
+									filePath: file_path,
+									line: parseInt(line, 10),
+								})
+								pushToolResult(result.content.map((value) => value.text).join(`\n`))
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("setting breakpoint", error)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+					case "list_breakpoints": {
+						const file_path: string | undefined = block.params.file_path
+
+						try {
+							if (block.partial) {
+								// Handle partial tool use
+								break
+							} else {
+								this.consecutiveMistakeCount = 0
+
+								// Auto-approve or ask for approval
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say(
+										"tool",
+										JSON.stringify({
+											tool: "listBreakpoints",
+											path: file_path,
+										}),
+										undefined,
+										undefined,
+										false,
+									)
+									this.consecutiveAutoApprovedRequestsCount++
+								} else {
+									const didApprove = await askApproval(
+										"tool",
+										JSON.stringify({
+											tool: "listBreakpoints",
+											path: file_path,
+										}),
+									)
+									if (!didApprove) {
+										await this.saveCheckpoint()
+										break
+									}
+								}
+
+								// Execute the tool
+								const result = listBreakpoints({ filePath: file_path })
+								pushToolResult(JSON.stringify(result.content))
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("listing breakpoints", error)
+							await this.saveCheckpoint()
+							break
+						}
+						break
+					}
+					case "start_debugging_and_wait_for_stop": {
+						const nameOrConfiguration: string | undefined = block.params.nameOrConfiguration
+
+						try {
+							if (block.partial) {
+								// Handle partial tool use
+								break
+							} else {
+								if (!nameOrConfiguration) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError(
+											"start_debugging_and_wait_for_stop",
+											"nameOrConfiguration",
+										),
+									)
+									await this.saveCheckpoint()
+									break
+								}
+
+								let parsedNameOrConfiguration: string | any
+								// Check if it's a JSON string (configuration object) or just a name string
+								if (nameOrConfiguration.trim().startsWith("{")) {
+									try {
+										parsedNameOrConfiguration = JSON.parse(nameOrConfiguration)
+									} catch (error) {
+										this.consecutiveMistakeCount++
+										await this.say(
+											"error",
+											`Cline tried to start a debug session with an invalid JSON configuration. Retrying...`,
+										)
+										pushToolResult(
+											formatResponse.toolError(
+												`Invalid debug configuration: ${error instanceof Error ? error.message : String(error)}`,
+											),
+										)
+										await this.saveCheckpoint()
+										break
+									}
+								} else {
+									// It's a configuration name string
+									parsedNameOrConfiguration = nameOrConfiguration
+									let parsedConfiguration: any
+									try {
+										parsedConfiguration = JSON.parse(parsedNameOrConfiguration)
+									} catch (error) {
+										this.consecutiveMistakeCount++
+										await this.say(
+											"error",
+											`Cline tried to start a debug session with an invalid JSON configuration. Retrying...`,
+										)
+										pushToolResult(
+											formatResponse.toolError(
+												`Invalid debug configuration: ${error instanceof Error ? error.message : String(error)}`,
+											),
+										)
+										await this.saveCheckpoint()
+										break
+									}
+
+									this.consecutiveMistakeCount = 0
+
+									// Auto-approve or ask for approval
+									if (this.shouldAutoApproveTool(block.name)) {
+										await this.say(
+											"tool",
+											JSON.stringify({
+												tool: "startDebuggingAndWaitForStop",
+												nameOrConfiguration: parsedNameOrConfiguration,
+											}),
+											undefined,
+											undefined,
+											false,
+										)
+										this.consecutiveAutoApprovedRequestsCount++
+									} else {
+										const didApprove = await askApproval(
+											"tool",
+											JSON.stringify({
+												tool: "startDebuggingAndWaitForStop",
+												nameOrConfiguration: parsedNameOrConfiguration,
+											}),
+										)
+										if (!didApprove) {
+											await this.saveCheckpoint()
+											break
+										}
+									}
+
+									// Execute the tool
+									const result = await startDebuggingAndWaitForStop({
+										nameOrConfiguration: parsedNameOrConfiguration,
+										workspaceFolder: cwd,
+										variableFilter: block.params.variable_filter
+											? JSON.parse(block.params.variable_filter)
+											: undefined,
+										timeout_seconds: block.params.timeout_seconds
+											? parseInt(block.params.timeout_seconds, 10)
+											: undefined,
+									})
+									pushToolResult(result.content.map((value) => value.text).join(`\n`))
+									await this.saveCheckpoint()
+									break
+								}
+							}
+						} catch (error) {
+							await handleError("starting debug session", error)
+							await this.saveCheckpoint()
+							break
+						}
+						break
+					}
+					case "stop_debug_session": {
+						const session_name: string | undefined = block.params.session_name
+
+						try {
+							if (block.partial) {
+								// Handle partial tool use
+								break
+							} else {
+								if (!session_name) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("stop_debug_session", "session_name"))
+									await this.saveCheckpoint()
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+
+								// Auto-approve or ask for approval
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say(
+										"tool",
+										JSON.stringify({
+											tool: "stopDebugSession",
+											session_name,
+										}),
+										undefined,
+										undefined,
+										false,
+									)
+									this.consecutiveAutoApprovedRequestsCount++
+								} else {
+									const didApprove = await askApproval(
+										"tool",
+										JSON.stringify({
+											tool: "stopDebugSession",
+											session_name,
+										}),
+									)
+									if (!didApprove) {
+										await this.saveCheckpoint()
+										break
+									}
+								}
+
+								// Execute the tool
+								const result = await stopDebugSession({ sessionName: session_name })
+								pushToolResult(result.content.map((value) => value.text).join(`\n`))
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("stopping debug session", error)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+					case "resume_debug_session": {
+						const session_id: string | undefined = block.params.session_id
+
+						try {
+							if (block.partial) {
+								// Handle partial tool use
+								break
+							} else {
+								if (!session_id) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("resume_debug_session", "session_id"))
+									await this.saveCheckpoint()
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+
+								// Auto-approve or ask for approval
+								if (this.shouldAutoApproveTool(block.name)) {
+									await this.say(
+										"tool",
+										JSON.stringify({
+											tool: "resumeDebugSession",
+											session_id,
+										}),
+										undefined,
+										undefined,
+										false,
+									)
+									this.consecutiveAutoApprovedRequestsCount++
+								} else {
+									const didApprove = await askApproval(
+										"tool",
+										JSON.stringify({
+											tool: "resumeDebugSession",
+											session_id,
+										}),
+									)
+									if (!didApprove) {
+										await this.saveCheckpoint()
+										break
+									}
+								}
+
+								// Execute the tool
+								const result = await resumeDebugSession({ sessionId: session_id })
+								pushToolResult(result.content.map((value) => value.text).join(`\n`))
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("resuming debug session", error)
+							await this.saveCheckpoint()
+							break
+						}
+					}
 					case "new_rule":
 					case "write_to_file":
 					case "replace_in_file": {

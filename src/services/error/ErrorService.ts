@@ -16,8 +16,8 @@ vscode.workspace.onDidChangeConfiguration(() => {
 })
 
 export class ErrorService {
-	private static serviceEnabled: boolean
-	private static serviceLevel: string
+	private static serviceEnabled: boolean = false
+	private static serviceLevel: string = "error"
 
 	static initialize() {
 		// Initialize sentry
