@@ -606,7 +606,7 @@ ${
 4. All edits are applied in sequence, in the order they are provided
 5. All edits must be valid for the operation to succeed - if any edit fails, none will be applied
 6. Do not make more than 4 replacements in a single replace_in_file call, as this can lead to errors and make it difficult to track changes. If you need to make more than 4 changes, consider breaking them into multiple replace_in_file calls.
-7. Make sure a single old_str in a replace_in_file call is less than 5 lines as too many lines can lead to errors. If you need to replace a larger section, break it into smaller blocks.
+7. Make sure a single old_str in a replace_in_file call is no more than 4 lines, as too many lines can lead to errors. If you need to replace a larger section, break it into smaller blocks.
 
 `
 		: `
