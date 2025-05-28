@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.17.7
+
+### Patch Changes
+
+-   36f57ce: fix prompt for claude 4 family diff edits
+-   ed0181a: showChatView protobus migration
+
 ## [3.17.6]
 
 -   Add Cerebras as a new API provider with 5 high-performance models including reasoning-capable models (Thanks @kevint-cerebras!)
