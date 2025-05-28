@@ -33,7 +33,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
 import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
-import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
+import { MAX_IMAGES_AND_FILES_PER_MESSAGE } from "@/components/chat/ChatView"
 import ContextMenu from "@/components/chat/ContextMenu"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { ChatSettings } from "@shared/ChatSettings"
@@ -65,11 +65,13 @@ interface ChatTextAreaProps {
 	setInputValue: (value: string) => void
 	sendingDisabled: boolean
 	placeholderText: string
+	selectedFiles: string[]
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
+	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
 	onSend: () => void
-	onSelectImages: () => void
-	shouldDisableImages: boolean
+	onSelectFilesAndImages: () => void
+	shouldDisableFilesAndImages: boolean
 	onHeightChange?: (height: number) => void
 	onFocusChange?: (isFocused: boolean) => void
 }
@@ -250,11 +252,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setInputValue,
 			sendingDisabled,
 			placeholderText,
+			selectedFiles,
 			selectedImages,
 			setSelectedImages,
+			setSelectedFiles,
 			onSend,
-			onSelectImages,
-			shouldDisableImages,
+			onSelectFilesAndImages,
+			shouldDisableFilesAndImages,
 			onHeightChange,
 			onFocusChange,
 		},
@@ -836,7 +840,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
-				if (!shouldDisableImages && imageItems.length > 0) {
+				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
 						return new Promise<string | null>((resolve) => {
@@ -873,13 +877,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
 					//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
 					if (dataUrls.length > 0) {
-						setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+						const filesAndImagesLength = selectedImages.length + selectedFiles.length
+						const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+
+						if (availableSlots > 0) {
+							const imagesToAdd = Math.min(dataUrls.length, availableSlots)
+							setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+						}
 					} else {
 						console.warn("No valid images were processed")
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, showDimensionErrorMessage],
+			[
+				shouldDisableFilesAndImages,
+				setSelectedImages,
+				selectedImages,
+				selectedFiles,
+				cursorPosition,
+				setInputValue,
+				inputValue,
+				showDimensionErrorMessage,
+			],
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -988,6 +1007,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					chatContent: {
 						message: inputValue.trim() ? inputValue : undefined,
 						images: selectedImages.length > 0 ? selectedImages : undefined,
+						files: selectedFiles.length > 0 ? selectedFiles : undefined,
 					},
 				})
 				// Focus the textarea after mode toggle with slight delay
@@ -995,7 +1015,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					textAreaRef.current?.focus()
 				}, 100)
 			}, changeModeDelay)
-		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages])
+		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1272,7 +1292,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableImages || imageFiles.length === 0) {
+			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
 				return
 			}
 
@@ -1280,7 +1300,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
 
 			if (dataUrls.length > 0) {
-				setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+				const filesAndImagesLength = selectedImages.length + selectedFiles.length
+				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+
+				if (availableSlots > 0) {
+					const imagesToAdd = Math.min(dataUrls.length, availableSlots)
+					setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+				}
 			} else {
 				console.warn("No valid images were processed")
 			}
@@ -1400,7 +1426,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									fontWeight: "bold",
 									fontSize: "12px",
 								}}>
-								Only image files are supported
+								Files other than images are currently disabled
 							</span>
 						</div>
 					)}
@@ -1544,10 +1570,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onScroll={() => updateHighlights()}
 					/>
-					{selectedImages.length > 0 && (
+					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
 						<Thumbnails
 							images={selectedImages}
+							files={selectedFiles}
 							setImages={setSelectedImages}
+							setFiles={setSelectedFiles}
 							onHeightChange={handleThumbnailsHeightChange}
 							style={{
 								position: "absolute",
@@ -1637,21 +1665,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</VSCodeButton>
 							</Tooltip>
 
-							<Tooltip tipText="Add Images">
+							<Tooltip tipText="Add Files & Images">
 								<VSCodeButton
-									data-testid="images-button"
+									data-testid="files-button"
 									appearance="icon"
-									aria-label="Add Images"
-									disabled={shouldDisableImages}
+									aria-label="Add Files & Images"
+									disabled={shouldDisableFilesAndImages}
 									onClick={() => {
-										if (!shouldDisableImages) {
-											onSelectImages()
+										if (!shouldDisableFilesAndImages) {
+											onSelectFilesAndImages()
 										}
 									}}
 									style={{ padding: "0px 0px", height: "20px" }}>
 									<ButtonContainer>
 										<span
-											className="codicon codicon-device-camera flex items-center"
+											className="codicon codicon-add flex items-center"
 											style={{ fontSize: "14px", marginBottom: -3 }}
 										/>
 									</ButtonContainer>

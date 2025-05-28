@@ -23,7 +23,7 @@ import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -53,6 +53,7 @@ import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
+import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
@@ -76,7 +77,7 @@ export class Controller {
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
-		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
+		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
@@ -86,14 +87,14 @@ export class Controller {
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
 			(msg) => this.postMessageToWebview(msg),
-			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			this.context.extension?.packageJSON?.version ?? "1.0.0"
 		)
 		this.accountService = new ClineAccountService(
 			(msg) => this.postMessageToWebview(msg),
 			async () => {
 				const { apiConfiguration } = await this.getStateToPostToWebview()
 				return apiConfiguration?.clineApiKey
-			},
+			}
 		)
 
 		// Clean up legacy checkpoints
@@ -141,7 +142,7 @@ export class Controller {
 		await updateGlobalState(this.context, "userInfo", info)
 	}
 
-	async initTask(task?: string, images?: string[], historyItem?: HistoryItem) {
+	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
 			apiConfiguration,
@@ -188,14 +189,15 @@ export class Controller {
 			customInstructions,
 			task,
 			images,
-			historyItem,
+			files,
+			historyItem
 		)
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
 		const history = await this.getTaskWithId(taskId)
 		if (history) {
-			await this.initTask(undefined, undefined, history.historyItem)
+			await this.initTask(undefined, undefined, undefined, history.historyItem)
 		}
 	}
 
@@ -223,7 +225,7 @@ export class Controller {
 					this.postMessageToWebview({
 						type: "theme",
 						text: JSON.stringify(theme),
-					}),
+					})
 				)
 				// post last cached models in case the call to endpoint fails
 				this.readOpenRouterModels().then((openRouterModels) => {
@@ -256,18 +258,11 @@ export class Controller {
 							await updateGlobalState(
 								this.context,
 								"openRouterModelInfo",
-								response.models[apiConfiguration.openRouterModelId],
+								response.models[apiConfiguration.openRouterModelId]
 							)
 							await this.postStateToWebview()
 						}
 					}
-				})
-
-				// If user already opted in to telemetry, enable telemetry service
-				this.getStateToPostToWebview().then((state) => {
-					const { telemetrySetting } = state
-					const isOptedIn = telemetrySetting !== "disabled"
-					telemetryService.updateTelemetryState(isOptedIn)
 				})
 				break
 			case "showChatView": {
@@ -286,7 +281,7 @@ export class Controller {
 				// Could also do this in extension .ts
 				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
 				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images)
+				await this.initTask(message.text, message.images, message.files)
 				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
@@ -298,30 +293,12 @@ export class Controller {
 				await this.postStateToWebview()
 				break
 			case "optionsResponse":
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: message.text,
-				})
-				break
-			case "openInBrowser":
-				if (message.url) {
-					vscode.env.openExternal(vscode.Uri.parse(message.url))
+				if (this.task) {
+					await this.task.handleWebviewAskResponse("messageResponse", message.text || "", [])
 				}
 				break
-			case "showAccountViewClicked": {
-				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
-				break
-			}
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
-				break
-			}
-			case "openMcpSettings": {
-				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
-				if (mcpSettingsFilePath) {
-					await handleFileServiceRequest(this, "openFile", { value: mcpSettingsFilePath })
-				}
 				break
 			}
 			case "fetchMcpMarketplace": {
@@ -381,30 +358,8 @@ export class Controller {
 				}
 				break
 			}
-			case "requestTotalTasksSize": {
-				this.refreshTotalTasksSize()
-				break
-			}
-
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
-			case "openExtensionSettings": {
-				const settingsFilter = message.text || ""
-				await vscode.commands.executeCommand(
-					"workbench.action.openSettings",
-					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
-				)
-				break
-			}
-			case "invoke": {
-				if (message.text) {
-					await this.postMessageToWebview({
-						type: "invoke",
-						invoke: message.text as Invoke,
-					})
-				}
 				break
 			}
 			// telemetry
@@ -463,17 +418,15 @@ export class Controller {
 					{ modal: true },
 					"Delete All Except Favorites",
 					"Delete Everything",
-					"Cancel",
+					"Cancel"
 				)
 
 				if (answer === "Delete All Except Favorites") {
 					await this.deleteNonFavoriteTaskHistory()
 					await this.postStateToWebview()
-					this.refreshTotalTasksSize()
 				} else if (answer === "Delete Everything") {
 					await this.deleteAllTaskHistory()
 					await this.postStateToWebview()
-					this.refreshTotalTasksSize()
 				}
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
@@ -490,6 +443,13 @@ export class Controller {
 				}
 				break
 			}
+			case "executeQuickWin":
+				if (message.payload) {
+					const { command, title } = message.payload
+					this.outputChannel.appendLine(`Received executeQuickWin: command='${command}', title='${title}'`)
+					await this.initTask(title)
+				}
+				break
 
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
@@ -545,12 +505,12 @@ export class Controller {
 					await updateGlobalState(
 						this.context,
 						"previousModeAwsBedrockCustomSelected",
-						apiConfiguration.awsBedrockCustomSelected,
+						apiConfiguration.awsBedrockCustomSelected
 					)
 					await updateGlobalState(
 						this.context,
 						"previousModeAwsBedrockCustomModelBaseId",
-						apiConfiguration.awsBedrockCustomModelBaseId,
+						apiConfiguration.awsBedrockCustomModelBaseId
 					)
 					break
 				case "openrouter":
@@ -563,7 +523,7 @@ export class Controller {
 					await updateGlobalState(
 						this.context,
 						"previousModeVsCodeLmModelSelector",
-						apiConfiguration.vsCodeLmModelSelector,
+						apiConfiguration.vsCodeLmModelSelector
 					)
 					break
 				case "openai":
@@ -656,12 +616,12 @@ export class Controller {
 			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
-					images: chatContent?.images,
-				})
+				await this.task.handleWebviewAskResponse(
+					"messageResponse",
+					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
+					chatContent?.images || [],
+					chatContent?.files || []
+				)
 			} else {
 				this.cancelTask()
 			}
@@ -684,7 +644,7 @@ export class Controller {
 					this.task.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
-				},
+				}
 			).catch(() => {
 				console.error("Failed to abort task")
 			})
@@ -692,7 +652,7 @@ export class Controller {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.abandoned = true
 			}
-			await this.initTask(undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
+			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
 	}
@@ -736,10 +696,7 @@ export class Controller {
 			await storeSecret(this.context, "clineApiKey", apiKey)
 
 			// Send custom token to webview for Firebase auth
-			await this.postMessageToWebview({
-				type: "authCallback",
-				customToken,
-			})
+			await sendAuthCallbackEvent(customToken)
 
 			const clineProvider: ApiProvider = "cline"
 			await updateGlobalState(this.context, "apiProvider", clineProvider)
@@ -811,6 +768,7 @@ export class Controller {
 			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
 				headers: {
 					"Content-Type": "application/json",
+					"User-Agent": "cline-vscode-extension",
 				},
 			})
 
@@ -1079,7 +1037,7 @@ export class Controller {
 		if (id !== this.task?.taskId) {
 			// non-current task
 			const { historyItem } = await this.getTaskWithId(id)
-			await this.initTask(undefined, undefined, historyItem) // clears existing task
+			await this.initTask(undefined, undefined, undefined, historyItem) // clears existing task
 		}
 		await this.postMessageToWebview({
 			type: "action",
@@ -1108,7 +1066,7 @@ export class Controller {
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`
 			)
 		}
 		// await this.postStateToWebview()
@@ -1144,24 +1102,11 @@ export class Controller {
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				`Error deleting task history: ${error instanceof Error ? error.message : String(error)}`,
+				`Error deleting task history: ${error instanceof Error ? error.message : String(error)}`
 			)
 		}
 
 		await this.postStateToWebview()
-	}
-
-	async refreshTotalTasksSize() {
-		getTotalTasksSize(this.context.globalStorageUri.fsPath)
-			.then((newTotalSize) => {
-				this.postMessageToWebview({
-					type: "totalTasksSize",
-					totalTasksSize: newTotalSize,
-				})
-			})
-			.catch((error) => {
-				console.error("Error calculating total tasks size:", error)
-			})
 	}
 
 	async deleteTaskWithId(id: string) {
@@ -1206,7 +1151,7 @@ export class Controller {
 			console.debug(`Error deleting task:`, error)
 		}
 
-		this.refreshTotalTasksSize()
+		await this.postStateToWebview()
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -1223,10 +1168,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		// For testing: Bypass gRPC stream and send state directly
-		console.log("[Controller Test Revert] Posting full state via direct 'state' message.")
-		await this.postMessageToWebview({ type: "state", state: state })
-		// await sendStateUpdate(state) // Original line for the GrPC stream
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -1282,7 +1224,7 @@ export class Controller {
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
-			vscMachineId: vscode.env.machineId,
+			distinctId: telemetryService.distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
@@ -1461,7 +1403,7 @@ Commit message:`
 						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
 						vscode.window.showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
 					}
-				},
+				}
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
