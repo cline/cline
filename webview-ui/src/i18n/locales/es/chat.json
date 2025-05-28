@@ -202,6 +202,7 @@
 	"contextCondense": {
 		"title": "Contexto condensado",
 		"condensing": "Condensando contexto...",
+		"errorHeader": "Error al condensar el contexto",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

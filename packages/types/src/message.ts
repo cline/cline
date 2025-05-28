@@ -50,6 +50,7 @@ export const clineSays = [
 	"rooignore_error",
 	"diff_error",
 	"condense_context",
+	"condense_context_error",
 	"codebase_search_result",
 ] as const
 

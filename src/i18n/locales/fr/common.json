@@ -53,7 +53,12 @@
 		"custom_storage_path_unusable": "Le chemin de stockage personnalisé \"{{path}}\" est inutilisable, le chemin par défaut sera utilisé",
 		"cannot_access_path": "Impossible d'accéder au chemin {{path}} : {{error}}",
 		"settings_import_failed": "Échec de l'importation des paramètres : {{error}}",
-		"mistake_limit_guidance": "Cela peut indiquer un échec dans le processus de réflexion du modèle ou une incapacité à utiliser un outil correctement, ce qui peut être atténué avec des conseils de l'utilisateur (par ex. \"Essaie de diviser la tâche en étapes plus petites\")."
+		"mistake_limit_guidance": "Cela peut indiquer un échec dans le processus de réflexion du modèle ou une incapacité à utiliser un outil correctement, ce qui peut être atténué avec des conseils de l'utilisateur (par ex. \"Essaie de diviser la tâche en étapes plus petites\").",
+		"condense_failed": "Échec de la condensation du contexte",
+		"condense_not_enough_messages": "Pas assez de messages pour condenser le contexte",
+		"condensed_recently": "Le contexte a été condensé récemment ; cette tentative est ignorée",
+		"condense_handler_invalid": "Le gestionnaire d'API pour condenser le contexte est invalide",
+		"condense_context_grew": "La taille du contexte a augmenté pendant la condensation ; cette tentative est ignorée"
 	},
 	"warnings": {
 		"no_terminal_content": "Aucun contenu de terminal sélectionné",

@@ -532,6 +532,7 @@ describe("truncateConversationIfNeeded", () => {
 			mockApiHandler,
 			"System prompt",
 			taskId,
+			70001,
 			true,
 			undefined, // customCondensingPrompt
 			undefined, // condensingApiHandler
@@ -551,11 +552,12 @@ describe("truncateConversationIfNeeded", () => {
 	})
 
 	it("should fall back to truncateConversation when autoCondenseContext is true but summarization fails", async () => {
-		// Mock the summarizeConversation function to return empty summary
+		// Mock the summarizeConversation function to return an error
 		const mockSummarizeResponse: condenseModule.SummarizeResponse = {
 			messages: messages, // Original messages unchanged
-			summary: "", // Empty summary indicates failure
+			summary: "", // Empty summary
 			cost: 0.01,
+			error: "Summarization failed", // Error indicates failure
 		}
 
 		const summarizeSpy = jest
@@ -678,6 +680,7 @@ describe("truncateConversationIfNeeded", () => {
 			mockApiHandler,
 			"System prompt",
 			taskId,
+			60000,
 			true,
 			undefined, // customCondensingPrompt
 			undefined, // condensingApiHandler

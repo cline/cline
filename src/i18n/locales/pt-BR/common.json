@@ -57,7 +57,12 @@
 		"custom_storage_path_unusable": "O caminho de armazenamento personalizado \"{{path}}\" não pode ser usado, será usado o caminho padrão",
 		"cannot_access_path": "Não é possível acessar o caminho {{path}}: {{error}}",
 		"settings_import_failed": "Falha ao importar configurações: {{error}}",
-		"mistake_limit_guidance": "Isso pode indicar uma falha no processo de pensamento do modelo ou incapacidade de usar uma ferramenta adequadamente, o que pode ser mitigado com orientação do usuário (ex. \"Tente dividir a tarefa em etapas menores\")."
+		"mistake_limit_guidance": "Isso pode indicar uma falha no processo de pensamento do modelo ou incapacidade de usar uma ferramenta adequadamente, o que pode ser mitigado com orientação do usuário (ex. \"Tente dividir a tarefa em etapas menores\").",
+		"condense_failed": "Falha ao condensar o contexto",
+		"condense_not_enough_messages": "Não há mensagens suficientes para condensar o contexto",
+		"condensed_recently": "O contexto foi condensado recentemente; pulando esta tentativa",
+		"condense_handler_invalid": "O manipulador de API para condensar o contexto é inválido",
+		"condense_context_grew": "O tamanho do contexto aumentou durante a condensação; pulando esta tentativa"
 	},
 	"warnings": {
 		"no_terminal_content": "Nenhum conteúdo do terminal selecionado",

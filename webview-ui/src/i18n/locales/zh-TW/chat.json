@@ -202,6 +202,7 @@
 	"contextCondense": {
 		"title": "上下文已壓縮",
 		"condensing": "正在壓縮上下文...",
+		"errorHeader": "上下文壓縮失敗",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

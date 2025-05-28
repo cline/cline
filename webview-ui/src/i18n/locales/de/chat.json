@@ -202,6 +202,7 @@
 	"contextCondense": {
 		"title": "Kontext komprimiert",
 		"condensing": "Kontext wird komprimiert...",
+		"errorHeader": "Kontext konnte nicht komprimiert werden",
 		"tokens": "Tokens"
 	},
 	"followUpSuggest": {

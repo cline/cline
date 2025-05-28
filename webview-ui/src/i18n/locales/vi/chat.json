@@ -202,6 +202,7 @@
 	"contextCondense": {
 		"title": "Ngữ cảnh đã tóm tắt",
 		"condensing": "Đang cô đọng ngữ cảnh...",
+		"errorHeader": "Không thể cô đọng ngữ cảnh",
 		"tokens": "token"
 	},
 	"followUpSuggest": {

@@ -96,6 +96,8 @@ export async function truncateConversationIfNeeded({
 	customCondensingPrompt,
 	condensingApiHandler,
 }: TruncateOptions): Promise<TruncateResponse> {
+	let error: string | undefined
+	let cost = 0
 	// Calculate the maximum tokens reserved for response
 	const reservedTokens = maxTokens || contextWindow * 0.2
 
@@ -122,11 +124,15 @@ export async function truncateConversationIfNeeded({
 				apiHandler,
 				systemPrompt,
 				taskId,
+				prevContextTokens,
 				true, // automatic trigger
 				customCondensingPrompt,
 				condensingApiHandler,
 			)
-			if (result.summary) {
+			if (result.error) {
+				error = result.error
+				cost = result.cost
+			} else {
 				return { ...result, prevContextTokens }
 			}
 		}
@@ -135,8 +141,8 @@ export async function truncateConversationIfNeeded({
 	// Fall back to sliding window truncation if needed
 	if (prevContextTokens > allowedTokens) {
 		const truncatedMessages = truncateConversation(messages, 0.5, taskId)
-		return { messages: truncatedMessages, prevContextTokens, summary: "", cost: 0 }
+		return { messages: truncatedMessages, prevContextTokens, summary: "", cost, error }
 	}
 	// No truncation or condensation needed
-	return { messages, summary: "", cost: 0, prevContextTokens }
+	return { messages, summary: "", cost, prevContextTokens, error }
 }

@@ -212,6 +212,7 @@
 	"contextCondense": {
 		"title": "Context samengevat",
 		"condensing": "Context aan het samenvatten...",
+		"errorHeader": "Context samenvatten mislukt",
 		"tokens": "tokens"
 	},
 	"followUpSuggest": {

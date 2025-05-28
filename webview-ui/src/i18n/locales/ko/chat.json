@@ -202,6 +202,7 @@
 	"contextCondense": {
 		"title": "컨텍스트 요약됨",
 		"condensing": "컨텍스트 압축 중...",
+		"errorHeader": "컨텍스트 압축 실패",
 		"tokens": "토큰"
 	},
 	"followUpSuggest": {

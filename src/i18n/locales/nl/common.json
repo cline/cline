@@ -53,7 +53,12 @@
 		"cannot_access_path": "Kan pad {{path}} niet openen: {{error}}",
 		"failed_update_project_mcp": "Bijwerken van project MCP-servers mislukt",
 		"settings_import_failed": "Importeren van instellingen mislukt: {{error}}.",
-		"mistake_limit_guidance": "Dit kan duiden op een fout in het denkproces van het model of het onvermogen om een tool correct te gebruiken, wat kan worden verminderd met gebruikersbegeleiding (bijv. \"Probeer de taak op te delen in kleinere stappen\")."
+		"mistake_limit_guidance": "Dit kan duiden op een fout in het denkproces van het model of het onvermogen om een tool correct te gebruiken, wat kan worden verminderd met gebruikersbegeleiding (bijv. \"Probeer de taak op te delen in kleinere stappen\").",
+		"condense_failed": "Comprimeren van context mislukt",
+		"condense_not_enough_messages": "Niet genoeg berichten om context te comprimeren",
+		"condensed_recently": "Context is recent gecomprimeerd; deze poging wordt overgeslagen",
+		"condense_handler_invalid": "API-handler voor het comprimeren van context is ongeldig",
+		"condense_context_grew": "Contextgrootte nam toe tijdens comprimeren; deze poging wordt overgeslagen"
 	},
 	"warnings": {
 		"no_terminal_content": "Geen terminalinhoud geselecteerd",

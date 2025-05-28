@@ -53,7 +53,12 @@
 		"cannot_access_path": "Cannot access path {{path}}: {{error}}",
 		"failed_update_project_mcp": "Failed to update project MCP servers",
 		"settings_import_failed": "Settings import failed: {{error}}.",
-		"mistake_limit_guidance": "This may indicate a failure in the model's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. \"Try breaking down the task into smaller steps\")."
+		"mistake_limit_guidance": "This may indicate a failure in the model's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. \"Try breaking down the task into smaller steps\").",
+		"condense_failed": "Failed to condense context",
+		"condense_not_enough_messages": "Not enough messages to condense context",
+		"condensed_recently": "Context was condensed recently; skipping this attempt",
+		"condense_handler_invalid": "API handler for condensing context is invalid",
+		"condense_context_grew": "Context size increased during condensing; skipping this attempt"
 	},
 	"warnings": {
 		"no_terminal_content": "No terminal content selected",

@@ -53,7 +53,12 @@
 		"custom_storage_path_unusable": "Il percorso di archiviazione personalizzato \"{{path}}\" non è utilizzabile, verrà utilizzato il percorso predefinito",
 		"cannot_access_path": "Impossibile accedere al percorso {{path}}: {{error}}",
 		"settings_import_failed": "Importazione delle impostazioni fallita: {{error}}.",
-		"mistake_limit_guidance": "Questo può indicare un fallimento nel processo di pensiero del modello o l'incapacità di utilizzare correttamente uno strumento, che può essere mitigato con la guida dell'utente (ad es. \"Prova a suddividere l'attività in passaggi più piccoli\")."
+		"mistake_limit_guidance": "Questo può indicare un fallimento nel processo di pensiero del modello o l'incapacità di utilizzare correttamente uno strumento, che può essere mitigato con la guida dell'utente (ad es. \"Prova a suddividere l'attività in passaggi più piccoli\").",
+		"condense_failed": "Impossibile condensare il contesto",
+		"condense_not_enough_messages": "Non ci sono abbastanza messaggi per condensare il contesto",
+		"condensed_recently": "Il contesto è stato condensato di recente; questo tentativo viene saltato",
+		"condense_handler_invalid": "Il gestore API per condensare il contesto non è valido",
+		"condense_context_grew": "La dimensione del contesto è aumentata durante la condensazione; questo tentativo viene saltato"
 	},
 	"warnings": {
 		"no_terminal_content": "Nessun contenuto del terminale selezionato",

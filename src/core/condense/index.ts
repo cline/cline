@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { t } from "../../i18n"
 import { ApiHandler } from "../../api"
 import { ApiMessage } from "../task-persistence/apiMessages"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
@@ -51,6 +52,7 @@ export type SummarizeResponse = {
 	summary: string // The summary text; empty string for no summary
 	cost: number // The cost of the summarization operation
 	newContextTokens?: number // The number of tokens in the context for the next API request
+	error?: string // Populated iff the operation fails: error message shown to the user on failure (see Task.ts)
 }
 
 /**
@@ -70,6 +72,7 @@ export type SummarizeResponse = {
  * @param {ApiHandler} apiHandler - The API handler to use for token counting (fallback if condensingApiHandler not provided)
  * @param {string} systemPrompt - The system prompt for API requests (fallback if customCondensingPrompt not provided)
  * @param {string} taskId - The task ID for the conversation, used for telemetry
+ * @param {number} prevContextTokens - The number of tokens currently in the context, used to ensure we don't grow the context
  * @param {boolean} isAutomaticTrigger - Whether the summarization is triggered automatically
  * @param {string} customCondensingPrompt - Optional custom prompt to use for condensing
  * @param {ApiHandler} condensingApiHandler - Optional specific API handler to use for condensing
@@ -80,6 +83,7 @@ export async function summarizeConversation(
 	apiHandler: ApiHandler,
 	systemPrompt: string,
 	taskId: string,
+	prevContextTokens: number,
 	isAutomaticTrigger?: boolean,
 	customCondensingPrompt?: string,
 	condensingApiHandler?: ApiHandler,
@@ -93,13 +97,18 @@ export async function summarizeConversation(
 	const response: SummarizeResponse = { messages, cost: 0, summary: "" }
 	const messagesToSummarize = getMessagesSinceLastSummary(messages.slice(0, -N_MESSAGES_TO_KEEP))
 	if (messagesToSummarize.length <= 1) {
-		return response // Not enough messages to warrant a summary
+		const error =
+			messages.length <= N_MESSAGES_TO_KEEP + 1
+				? t("common:errors.condense_not_enough_messages")
+				: t("common:errors.condensed_recently")
+		return { ...response, error }
 	}
 	const keepMessages = messages.slice(-N_MESSAGES_TO_KEEP)
 	// Check if there's a recent summary in the messages we're keeping
 	const recentSummaryExists = keepMessages.some((message) => message.isSummary)
 	if (recentSummaryExists) {
-		return response // We recently summarized these messages; it's too soon to summarize again.
+		const error = t("common:errors.condensed_recently")
+		return { ...response, error }
 	}
 	const finalRequestMessage: Anthropic.MessageParam = {
 		role: "user",
@@ -127,12 +136,8 @@ export async function summarizeConversation(
 			// Consider throwing an error or returning a specific error response.
 			console.error("Main API handler is also invalid for condensing. Cannot proceed.")
 			// Return an appropriate error structure for SummarizeResponse
-			return {
-				messages,
-				summary: "",
-				cost: 0,
-				newContextTokens: 0,
-			}
+			const error = t("common:errors.condense_handler_invalid")
+			return { ...response, error }
 		}
 	}
 
@@ -151,8 +156,8 @@ export async function summarizeConversation(
 	}
 	summary = summary.trim()
 	if (summary.length === 0) {
-		console.warn("Received empty summary from API")
-		return { ...response, cost }
+		const error = t("common:errors.condense_failed")
+		return { ...response, cost, error }
 	}
 	const summaryMessage: ApiMessage = {
 		role: "assistant",
@@ -172,6 +177,10 @@ export async function summarizeConversation(
 		typeof message.content === "string" ? [{ text: message.content, type: "text" as const }] : message.content,
 	)
 	const newContextTokens = outputTokens + (await apiHandler.countTokens(contextBlocks))
+	if (newContextTokens >= prevContextTokens) {
+		const error = t("common:errors.condense_context_grew")
+		return { ...response, cost, error }
+	}
 	return { messages: newMessages, summary, cost, newContextTokens }
 }
 

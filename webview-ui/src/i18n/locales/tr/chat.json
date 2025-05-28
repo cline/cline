@@ -202,6 +202,7 @@
 	"contextCondense": {
 		"title": "Bağlam Özetlendi",
 		"condensing": "Bağlam yoğunlaştırılıyor...",
+		"errorHeader": "Bağlam yoğunlaştırılamadı",
 		"tokens": "token"
 	},
 	"followUpSuggest": {

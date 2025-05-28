@@ -212,6 +212,7 @@
 	"contextCondense": {
 		"title": "Контекст сжат",
 		"condensing": "Сжатие контекста...",
+		"errorHeader": "Не удалось сжать контекст",
 		"tokens": "токены"
 	},
 	"followUpSuggest": {

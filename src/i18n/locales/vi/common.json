@@ -53,7 +53,12 @@
 		"custom_storage_path_unusable": "Đường dẫn lưu trữ tùy chỉnh \"{{path}}\" không thể sử dụng được, sẽ sử dụng đường dẫn mặc định",
 		"cannot_access_path": "Không thể truy cập đường dẫn {{path}}: {{error}}",
 		"settings_import_failed": "Nhập cài đặt thất bại: {{error}}.",
-		"mistake_limit_guidance": "Điều này có thể cho thấy sự thất bại trong quá trình suy nghĩ của mô hình hoặc không thể sử dụng công cụ đúng cách, có thể được giảm thiểu bằng hướng dẫn của người dùng (ví dụ: \"Hãy thử chia nhỏ nhiệm vụ thành các bước nhỏ hơn\")."
+		"mistake_limit_guidance": "Điều này có thể cho thấy sự thất bại trong quá trình suy nghĩ của mô hình hoặc không thể sử dụng công cụ đúng cách, có thể được giảm thiểu bằng hướng dẫn của người dùng (ví dụ: \"Hãy thử chia nhỏ nhiệm vụ thành các bước nhỏ hơn\").",
+		"condense_failed": "Không thể nén ngữ cảnh",
+		"condense_not_enough_messages": "Không đủ tin nhắn để nén ngữ cảnh",
+		"condensed_recently": "Ngữ cảnh đã được nén gần đây; bỏ qua lần thử này",
+		"condense_handler_invalid": "Trình xử lý API để nén ngữ cảnh không hợp lệ",
+		"condense_context_grew": "Kích thước ngữ cảnh tăng lên trong quá trình nén; bỏ qua lần thử này"
 	},
 	"warnings": {
 		"no_terminal_content": "Không có nội dung terminal được chọn",
