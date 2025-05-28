@@ -608,7 +608,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 					// Clear input state after sending
 					setInputValue("")
-					setActiveQuote(null) // Clear quote when using secondary button				
+					setActiveQuote(null) // Clear quote when using secondary button
 					setSelectedImages([])
 					break
 			}
@@ -1096,11 +1096,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									userHasManuallyScrolledRef.current = false
 									disableAutoScrollRef.current = false
 								}
-2
+								2
 								// Show scroll-to-bottom button if user is *not* at the bottom and auto-scroll is disabled
 								setShowScrollToBottom(disableAutoScrollRef.current && !isAtBottom)
 							}}
-
 							atBottomThreshold={10} // anything lower causes issues with followOutput
 							initialTopMostItemIndex={groupedMessages.length - 1}
 						/>
