@@ -263,13 +263,6 @@ export class Controller {
 					}
 				})
 				break
-			case "showChatView": {
-				this.postMessageToWebview({
-					type: "action",
-					action: "chatButtonClicked",
-				})
-				break
-			}
 			case "newTask":
 				// Code that should run in response to the hello message command
 				//vscode.window.showInformationMessage(message.text!)

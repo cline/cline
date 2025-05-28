@@ -13,7 +13,6 @@ export interface WebviewMessage {
 		| "newTask"
 		| "condense"
 		| "reportBug"
-		| "showChatView"
 		| "requestVsCodeLmModels"
 		| "authStateChanged"
 		| "fetchMcpMarketplace"
