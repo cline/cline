@@ -141,7 +141,7 @@ export class Controller {
 		await updateGlobalState(this.context, "userInfo", info)
 	}
 
-	async initTask(task?: string, images?: string[], historyItem?: HistoryItem) {
+	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
 			apiConfiguration,
@@ -188,6 +188,7 @@ export class Controller {
 			customInstructions,
 			task,
 			images,
+			files,
 			historyItem,
 		)
 	}
@@ -195,7 +196,7 @@ export class Controller {
 	async reinitExistingTaskFromId(taskId: string) {
 		const history = await this.getTaskWithId(taskId)
 		if (history) {
-			await this.initTask(undefined, undefined, history.historyItem)
+			await this.initTask(undefined, undefined, undefined, history.historyItem)
 		}
 	}
 
@@ -279,7 +280,7 @@ export class Controller {
 				// Could also do this in extension .ts
 				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
 				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images)
+				await this.initTask(message.text, message.images, message.files)
 				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
@@ -618,6 +619,7 @@ export class Controller {
 					"messageResponse",
 					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
 					chatContent?.images || [],
+					chatContent?.files || [],
 				)
 			} else {
 				this.cancelTask()
@@ -649,7 +651,7 @@ export class Controller {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.abandoned = true
 			}
-			await this.initTask(undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
+			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
 	}
@@ -1040,7 +1042,7 @@ export class Controller {
 		if (id !== this.task?.taskId) {
 			// non-current task
 			const { historyItem } = await this.getTaskWithId(id)
-			await this.initTask(undefined, undefined, historyItem) // clears existing task
+			await this.initTask(undefined, undefined, undefined, historyItem) // clears existing task
 		}
 		await this.postMessageToWebview({
 			type: "action",

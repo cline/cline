@@ -75,3 +75,34 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 
 	return extractedText
 }
+
+/**
+ * Helper function used to load file(s) and format them into a string
+ */
+export async function processFilesIntoText(files: string[]): Promise<string> {
+	const fileContentsPromises = files.map(async (filePath) => {
+		try {
+			// Check if file exists and is binary
+			//const isBinary = await isBinaryFile(filePath).catch(() => false)
+			//if (isBinary) {
+			//	return `<file_content path="${filePath.toPosix()}">\n(Binary file, unable to display content)\n</file_content>`
+			//}
+			const content = await extractTextFromFile(filePath)
+			return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
+		} catch (error) {
+			console.error(`Error processing file ${filePath}:`, error)
+			return `<file_content path="${filePath.toPosix()}">\nError fetching content: ${error.message}\n</file_content>`
+		}
+	})
+
+	const fileContents = await Promise.all(fileContentsPromises)
+
+	const validFileContents = fileContents.filter((content) => content !== null).join("\n\n")
+
+	if (validFileContents) {
+		return `Files attached by the user:\n\n${validFileContents}`
+	}
+
+	// returns empty string if no files were loaded properly
+	return ""
+}

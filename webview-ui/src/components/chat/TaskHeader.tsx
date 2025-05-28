@@ -352,7 +352,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								See less
 							</div>
 						)}
-						{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
+						{((task.images && task.images.length > 0) || (task.files && task.files.length > 0)) && (
+							<Thumbnails images={task.images ?? []} files={task.files ?? []} />
+						)}
 
 						<div
 							style={{
