@@ -605,6 +605,8 @@ ${
 3. Once the file has been edited with either write_to_file or replace_in_file, the system will provide you with the final state of the modified file. Use this updated content as the reference point for any subsequent SEARCH/REPLACE operations, since it reflects any auto-formatting or user-applied changes.
 4. All edits are applied in sequence, in the order they are provided
 5. All edits must be valid for the operation to succeed - if any edit fails, none will be applied
+6. Do not make more than 4 replacements in a single replace_in_file call, as this can lead to errors and make it difficult to track changes. If you need to make more than 4 changes, consider breaking them into multiple replace_in_file calls.
+7. Make sure a single old_str in a replace_in_file call is no more than 4 lines, as too many lines can lead to errors. If you need to replace a larger section, break it into smaller blocks.
 
 `
 		: `
