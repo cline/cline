@@ -4,8 +4,10 @@ import osName from "os-name"
 import { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
 
-import { createAntmlToolPrompt, createSimpleXmlToolPrompt } from "@core/prompts/model_prompts/jsonToolToXml"
-import {bashToolDefinition} from  "@core/tools/bashTool"
+import { createAntmlToolPrompt, createSimpleXmlToolPrompt, toolDefinitionToSimpleXml } from "@core/prompts/model_prompts/jsonToolToXml"
+import { bashToolDefinition } from "@core/tools/bashTool"
+import { readToolDefinition } from "@core/tools/readTool"
+import { writeToolDefinition } from "@core/tools/writeTool"
 
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
@@ -14,7 +16,7 @@ export const SYSTEM_PROMPT_CLAUDE4 = async (
 	browserSettings: BrowserSettings,
 ) => `
 
-${/* createAntmlToolPrompt([bashToolDefinition], true) */''}
+${/* createAntmlToolPrompt([bashToolDefinition, readToolDefinition, writeToolDefinition], true) */''}
 
 You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
