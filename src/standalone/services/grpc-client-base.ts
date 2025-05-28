@@ -67,7 +67,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 
 				// TODO: Implement actual gRPC streaming call to the IDE host
 				console.log(`[DEBUG] Would make streaming gRPC call to ${service.fullName}.${method.name}`, request)
-				
+
 				// For now, just simulate a response
 				setTimeout(() => {
 					if (options.onComplete) {
@@ -88,7 +88,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 				return new Promise((resolve, reject) => {
 					// TODO: Implement actual gRPC call to the IDE host
 					console.log(`[DEBUG] Would make gRPC call to ${service.fullName}.${method.name}`, request)
-					
+
 					// For now, just simulate a response based on the method
 					const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
 					if (methodKey === "parse") {
@@ -96,7 +96,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 						const uri = request.uri || ""
 						const scheme = uri.startsWith("file:") ? "file" : "https"
 						const path = uri.replace(/^file:\/\//, "").replace(/^https:\/\/[^/]+/, "")
-						
+
 						setTimeout(() => {
 							resolve({
 								scheme,
@@ -104,7 +104,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 								path,
 								query: "",
 								fragment: "",
-								fsPath: path
+								fsPath: path,
 							})
 						}, 100)
 					} else if (methodKey === "file") {
@@ -116,7 +116,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 								path: request.path || "",
 								query: "",
 								fragment: "",
-								fsPath: request.path || ""
+								fsPath: request.path || "",
 							})
 						}, 100)
 					} else if (methodKey === "joinPath") {
@@ -124,7 +124,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 						const base = request.base || { scheme: "file", authority: "", path: "/" }
 						const segments = request.pathSegments || []
 						const joinedPath = [base.path, ...segments].join("/").replace(/\/+/g, "/")
-						
+
 						setTimeout(() => {
 							resolve({
 								scheme: base.scheme,
@@ -132,7 +132,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 								path: joinedPath,
 								query: "",
 								fragment: "",
-								fsPath: joinedPath
+								fsPath: joinedPath,
 							})
 						}, 100)
 					} else {

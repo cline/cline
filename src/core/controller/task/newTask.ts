@@ -1,7 +1,7 @@
 import { Controller } from ".."
 import { Empty } from "../../../shared/proto/common"
 import { NewTaskRequest } from "../../../shared/proto/task"
-import { handleFileServiceRequest } from "../file"
+import { getRelativePaths } from "../file/getRelativePaths"
 
 /**
  * Creates a new task with the given text and optional images
@@ -10,11 +10,11 @@ import { handleFileServiceRequest } from "../file"
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
-	console.log("[DEBUG] DOING NEW TASK")
-	await controller.initTask(request.text, request.images)
+	console.log("[DEBUG] NEW TASK:", request.text.substring(0, 16))
+	await controller.initTask(request.text, request.images, request.files)
 	try {
-		console.log("[DEBUG] DOING getRelativePaths TASK")
-		const res = await handleFileServiceRequest(controller, "getRelativePaths", { uris: ["/home/etrnl/"] })
+		const res = await getRelativePaths(controller, { uris: ["/home/etrnl/"] })
+		console.log("[DEBUG] DID TEST getRelativePaths TASK:", res.values)
 	} catch (e) {
 		console.log(e)
 	}

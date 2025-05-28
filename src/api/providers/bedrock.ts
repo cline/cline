@@ -47,7 +47,11 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = baseModelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn =
+			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
+			budget_tokens !== 0
+				? true
+				: false
 
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -58,56 +62,62 @@ export class AwsBedrockHandler implements ApiHandler {
 		// initialization, and allowing for session renewal if necessary as well
 		const client = await this.getAnthropicClient()
 
-		// AWS SDK prioritizes AWS_PROFILE over AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair
-		// If this is set as an env variable already (ie. from ~/.zshrc) it will override credentials configured by Cline
-		const previousEnv = process.env
-		delete process.env["AWS_PROFILE"]
-		const stream = await client.messages.create({
-			model: modelId,
-			max_tokens: model.info.maxTokens || 8192,
-			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-			temperature: reasoningOn ? undefined : 0,
-			system: [
-				{
-					text: systemPrompt,
-					type: "text",
-					...(this.options.awsBedrockUsePromptCache === true && {
-						cache_control: { type: "ephemeral" },
-					}),
-				},
-			],
-			messages: messages.map((message, index) => {
-				if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-					return {
-						...message,
-						content:
-							typeof message.content === "string"
-								? [
-										{
-											type: "text",
-											text: message.content,
-											...(this.options.awsBedrockUsePromptCache === true && {
-												cache_control: { type: "ephemeral" },
-											}),
-										},
-									]
-								: message.content.map((content, contentIndex) =>
-										contentIndex === message.content.length - 1
-											? {
-													...content,
+		// Use withTempEnv to ensure environment variables are properly restored
+		const stream = await AwsBedrockHandler.withTempEnv(
+			() => {
+				// AWS SDK prioritizes AWS_PROFILE over AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair
+				// If this is set as an env variable already (ie. from ~/.zshrc) it will override credentials configured by Cline
+				// Temporarily remove AWS_PROFILE to ensure our credentials are used
+				delete process.env["AWS_PROFILE"]
+			},
+			async () => {
+				return await client.messages.create({
+					model: modelId,
+					max_tokens: model.info.maxTokens || 8192,
+					thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+					temperature: reasoningOn ? undefined : 0,
+					system: [
+						{
+							text: systemPrompt,
+							type: "text",
+							...(this.options.awsBedrockUsePromptCache === true && {
+								cache_control: { type: "ephemeral" },
+							}),
+						},
+					],
+					messages: messages.map((message, index) => {
+						if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+							return {
+								...message,
+								content:
+									typeof message.content === "string"
+										? [
+												{
+													type: "text",
+													text: message.content,
 													...(this.options.awsBedrockUsePromptCache === true && {
 														cache_control: { type: "ephemeral" },
 													}),
-												}
-											: content,
-									),
-					}
-				}
-				return message
-			}),
-			stream: true,
-		})
-		process.env = previousEnv
+												},
+											]
+										: message.content.map((content, contentIndex) =>
+												contentIndex === message.content.length - 1
+													? {
+															...content,
+															...(this.options.awsBedrockUsePromptCache === true && {
+																cache_control: { type: "ephemeral" },
+															}),
+														}
+													: content,
+											),
+							}
+						}
+						return message
+					}),
+					stream: true,
+				})
+			},
+		)
 
 		for await (const chunk of stream) {
 			switch (chunk.type) {
@@ -297,13 +307,23 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	private static async withTempEnv<R>(updateEnv: () => void, fn: () => Promise<R>): Promise<R> {
-		const previousEnv = { ...process.env }
+		const previousEnv = Object.assign({}, process.env)
 
 		try {
 			updateEnv()
 			return await fn()
 		} finally {
-			process.env = previousEnv
+			// Restore the previous environment
+			// First clear any new variables that might have been added
+			for (const key in process.env) {
+				if (!(key in previousEnv)) {
+					delete process.env[key]
+				}
+			}
+			// Then restore all previous values
+			for (const key in previousEnv) {
+				process.env[key] = previousEnv[key]
+			}
 		}
 	}
 

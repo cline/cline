@@ -16,14 +16,15 @@ export async function refreshRules(controller: Controller, _request: EmptyReques
 	try {
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(controller.context, cwd)
 		const { cursorLocalToggles, windsurfLocalToggles } = await refreshExternalRulesToggles(controller.context, cwd)
-		const workflowToggles = await refreshWorkflowToggles(controller.context, cwd)
+		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(controller.context, cwd)
 
 		return {
 			globalClineRulesToggles: { toggles: globalToggles },
 			localClineRulesToggles: { toggles: localToggles },
 			localCursorRulesToggles: { toggles: cursorLocalToggles },
 			localWindsurfRulesToggles: { toggles: windsurfLocalToggles },
-			workflowToggles: { toggles: workflowToggles },
+			localWorkflowToggles: { toggles: localWorkflowToggles },
+			globalWorkflowToggles: { toggles: globalWorkflowToggles },
 		}
 	} catch (error) {
 		console.error("Failed to refresh rules:", error)

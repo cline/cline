@@ -56,8 +56,10 @@ interface ExtensionStateContextType extends ExtensionState {
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
-	setWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
+	setTotalTasksSize: (value: number | null) => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -155,14 +157,15 @@ export const ExtensionStateContextProvider: React.FC<{
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
-		vscMachineId: "",
+		distinctId: "",
 		planActSeparateModelsSetting: true,
 		enableCheckpointsSetting: true,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
-		workflowToggles: {},
+		localWorkflowToggles: {},
+		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000, // default timeout for shell integration
 		isNewUser: false,
 	})
@@ -201,60 +204,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					case "chatButtonClicked":
 						navigateToChat()
 						break
-				}
-				break
-			}
-			case "state": {
-				// Handler for direct state messages
-				if (message.state) {
-					const stateData = message.state as ExtensionState
-					console.log("[Webview Context Test Revert] Received direct 'state' message, updating state.")
-					setState((prevState) => {
-						// Versioning logic for autoApprovalSettings (copied from original onResponse)
-						const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
-						const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-						const shouldUpdateAutoApproval = incomingVersion > currentVersion
-
-						const newState = {
-							...stateData,
-							autoApprovalSettings: shouldUpdateAutoApproval
-								? stateData.autoApprovalSettings
-								: prevState.autoApprovalSettings,
-						}
-
-						// Update welcome screen state based on API configuration (copied from original onResponse)
-						const config = stateData.apiConfiguration
-						const hasKey = config
-							? [
-									config.apiKey,
-									config.openRouterApiKey,
-									config.awsRegion,
-									config.vertexProjectId,
-									config.openAiApiKey,
-									config.ollamaModelId,
-									config.lmStudioModelId,
-									config.liteLlmApiKey,
-									config.geminiApiKey,
-									config.openAiNativeApiKey,
-									config.deepSeekApiKey,
-									config.requestyApiKey,
-									config.togetherApiKey,
-									config.qwenApiKey,
-									config.doubaoApiKey,
-									config.mistralApiKey,
-									config.vsCodeLmModelSelector,
-									config.clineApiKey,
-									config.asksageApiKey,
-									config.xaiApiKey,
-									config.sambanovaApiKey,
-									config.nebiusApiKey,
-								].some((key) => key !== undefined)
-							: false
-
-						setShowWelcome(!hasKey)
-						setDidHydrateState(true)
-						return newState
-					})
 				}
 				break
 			}
@@ -314,10 +263,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				}
 				break
 			}
-			case "totalTasksSize": {
-				setTotalTasksSize(message.totalTasksSize ?? null)
-				break
-			}
 		}
 	}, [])
 
@@ -327,33 +272,31 @@ export const ExtensionStateContextProvider: React.FC<{
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates using the new gRPC streaming API
-	/* // TEST REVERT: Commenting out gRPC state subscription
 	useEffect(() => {
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(
 			{},
 			{
 				onResponse: (response) => {
-					console.log("[DEBUG] got state update via subscription", response);
 					if (response.stateJson) {
 						try {
-							const stateData = JSON.parse(response.stateJson) as ExtensionState;
-							console.log("[DEBUG] parsed state JSON, updating state");
+							const stateData = JSON.parse(response.stateJson) as ExtensionState
+							console.log("[DEBUG] parsed state JSON, updating state")
 							setState((prevState) => {
 								// Versioning logic for autoApprovalSettings
-								const incomingVersion = stateData.autoApprovalSettings?.version ?? 1;
-								const currentVersion = prevState.autoApprovalSettings?.version ?? 1;
-								const shouldUpdateAutoApproval = incomingVersion > currentVersion;
+								const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+								const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+								const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
 								const newState = {
 									...stateData,
 									autoApprovalSettings: shouldUpdateAutoApproval
 										? stateData.autoApprovalSettings
 										: prevState.autoApprovalSettings,
-								};
+								}
 
 								// Update welcome screen state based on API configuration
-								const config = stateData.apiConfiguration;
+								const config = stateData.apiConfiguration
 								const hasKey = config
 									? [
 											config.apiKey,
@@ -378,52 +321,41 @@ export const ExtensionStateContextProvider: React.FC<{
 											config.xaiApiKey,
 											config.sambanovaApiKey,
 										].some((key) => key !== undefined)
-									: false;
+									: false
 
-								setShowWelcome(!hasKey);
-								setDidHydrateState(true);
+								setShowWelcome(!hasKey)
+								setDidHydrateState(true)
 
-								console.log("[DEBUG] returning new state in ESC");
+								console.log("[DEBUG] returning new state in ESC")
 
-								return newState;
-							});
+								return newState
+							})
 						} catch (error) {
-							console.error("Error parsing state JSON:", error);
-							console.log("[DEBUG] ERR getting state", error);
+							console.error("Error parsing state JSON:", error)
+							console.log("[DEBUG] ERR getting state", error)
 						}
 					}
-					console.log('[DEBUG] ended "got subscribed state"');
+					console.log('[DEBUG] ended "got subscribed state"')
 				},
 				onError: (error) => {
-					console.error("Error in state subscription:", error);
+					console.error("Error in state subscription:", error)
 				},
 				onComplete: () => {
-					console.log("State subscription completed");
+					console.log("State subscription completed")
 				},
 			},
-		);
+		)
 
 		// Still send the webviewDidLaunch message for other initialization
-		vscode.postMessage({ type: "webviewDidLaunch" });
+		vscode.postMessage({ type: "webviewDidLaunch" })
 
 		// Clean up subscription when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
-				stateSubscriptionRef.current();
-				stateSubscriptionRef.current = null;
+				stateSubscriptionRef.current()
+				stateSubscriptionRef.current = null
 			}
-		};
-	}, []);
-	*/ // END TEST REVERT
-
-	// For the test revert, ensure webviewDidLaunch is still sent if not done by the above useEffect
-	useEffect(() => {
-		// This effect now only sends webviewDidLaunch if the gRPC subscription is commented out.
-		// If the gRPC subscription is active, it sends webviewDidLaunch.
-		// To avoid sending it twice if you uncomment the above, you might add a flag.
-		// For this specific test (gRPC sub commented out), this is fine.
-		console.log("[Webview Context Test Revert] Sending webviewDidLaunch from separate useEffect.")
-		vscode.postMessage({ type: "webviewDidLaunch" })
+		}
 	}, [])
 
 	const contextValue: ExtensionStateContextType = {
@@ -448,7 +380,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
-		workflowToggles: state.workflowToggles || {},
+		localWorkflowToggles: state.localWorkflowToggles || {},
+		globalWorkflowToggles: state.globalWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
 
 		// Navigation functions
@@ -544,12 +477,18 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				localWindsurfRulesToggles: toggles,
 			})),
-		setWorkflowToggles: (toggles) =>
+		setLocalWorkflowToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
-				workflowToggles: toggles,
+				localWorkflowToggles: toggles,
+			})),
+		setGlobalWorkflowToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				globalWorkflowToggles: toggles,
 			})),
 		setMcpTab,
+		setTotalTasksSize,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

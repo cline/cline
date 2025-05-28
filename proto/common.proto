@@ -58,3 +58,8 @@ message Boolean {
 message StringArray {
   repeated string values = 1;
 }
+
+message StringArrays {
+  repeated string values1 = 1;
+  repeated string values2 = 2;
+}

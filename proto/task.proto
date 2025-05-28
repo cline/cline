@@ -11,6 +11,8 @@ service TaskService {
   rpc cancelTask(EmptyRequest) returns (Empty);
   // Clears the current task
   rpc clearTask(EmptyRequest) returns (Empty);
+  // Gets the total size of all tasks
+  rpc getTotalTasksSize(EmptyRequest) returns (Int64);
   // Deletes multiple tasks with the given IDs
   rpc deleteTasksWithIds(StringArrayRequest) returns (Empty);
   // Creates a new task with the given text and optional images
@@ -38,6 +40,7 @@ message NewTaskRequest {
   Metadata metadata = 1;
   string text = 2;
   repeated string images = 3;
+  repeated string files = 4;
 }
 
 // Request message for toggling task favorite status
@@ -102,4 +105,5 @@ message AskResponseRequest {
   string response_type = 2; 
   string text = 3;
   repeated string images = 4;
+  repeated string files = 5;
 }

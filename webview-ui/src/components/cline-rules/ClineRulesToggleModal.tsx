@@ -17,12 +17,14 @@ const ClineRulesToggleModal: React.FC = () => {
 		localClineRulesToggles = {},
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
-		workflowToggles = {},
+		localWorkflowToggles = {},
+		globalWorkflowToggles = {},
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
-		setWorkflowToggles,
+		setLocalWorkflowToggles,
+		setGlobalWorkflowToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -49,8 +51,11 @@ const ClineRulesToggleModal: React.FC = () => {
 					if (response.localWindsurfRulesToggles?.toggles) {
 						setLocalWindsurfRulesToggles(response.localWindsurfRulesToggles.toggles)
 					}
-					if (response.workflowToggles?.toggles) {
-						setWorkflowToggles(response.workflowToggles.toggles)
+					if (response.localWorkflowToggles?.toggles) {
+						setLocalWorkflowToggles(response.localWorkflowToggles.toggles)
+					}
+					if (response.globalWorkflowToggles?.toggles) {
+						setGlobalWorkflowToggles(response.globalWorkflowToggles.toggles)
 					}
 				})
 				.catch((error) => {
@@ -77,7 +82,11 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
-	const workflows = Object.entries(workflowToggles || {})
+	const localWorkflows = Object.entries(localWorkflowToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	const globalWorkflows = Object.entries(globalWorkflowToggles || {})
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
@@ -133,11 +142,12 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 	}
 
-	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {
+	const toggleWorkflow = (isGlobal: boolean, workflowPath: string, enabled: boolean) => {
 		vscode.postMessage({
 			type: "toggleWorkflow",
 			workflowPath,
 			enabled,
+			isGlobal,
 		})
 	}
 
@@ -299,19 +309,35 @@ const ClineRulesToggleModal: React.FC = () => {
 							</div>
 						</>
 					) : (
-						/* Workflows section */
-						<div style={{ marginBottom: -10 }}>
-							<div className="text-sm font-normal mb-2">Workspace Workflows</div>
-							<RulesToggleList
-								rules={workflows}
-								toggleRule={toggleWorkflow}
-								listGap="small"
-								isGlobal={false}
-								ruleType={"workflow"}
-								showNewRule={true}
-								showNoRules={false}
-							/>
-						</div>
+						<>
+							{/* Global Workflows Section */}
+							<div className="mb-3">
+								<div className="text-sm font-normal mb-2">Global Workflows</div>
+								<RulesToggleList
+									rules={globalWorkflows}
+									toggleRule={(rulePath, enabled) => toggleWorkflow(true, rulePath, enabled)}
+									listGap="small"
+									isGlobal={true}
+									ruleType={"workflow"}
+									showNewRule={true}
+									showNoRules={false}
+								/>
+							</div>
+
+							{/* Local Workflows Section */}
+							<div style={{ marginBottom: -10 }}>
+								<div className="text-sm font-normal mb-2">Workspace Workflows</div>
+								<RulesToggleList
+									rules={localWorkflows}
+									toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"workflow"}
+									showNewRule={true}
+									showNoRules={false}
+								/>
+							</div>
+						</>
 					)}
 				</div>
 			)}

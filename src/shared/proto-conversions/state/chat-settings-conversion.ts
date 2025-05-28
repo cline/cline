@@ -35,6 +35,7 @@ export function convertChatContentToProtoChatContent(chatContent?: ChatContent):
 	return {
 		message: chatContent.message,
 		images: chatContent.images || [],
+		files: chatContent.files || [],
 	}
 }
 
@@ -49,5 +50,6 @@ export function convertProtoChatContentToChatContent(protoChatContent?: ProtoCha
 	return {
 		message: protoChatContent.message,
 		images: protoChatContent.images || [],
+		files: protoChatContent.files || [],
 	}
 }

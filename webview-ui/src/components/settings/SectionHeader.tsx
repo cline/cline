@@ -12,10 +12,11 @@ export const SectionHeader = ({ description, children, className, ...props }: Se
 	return (
 		<div
 			className={cn(
-				`sticky top-0 z-${OPENROUTER_MODEL_PICKER_Z_INDEX + 20} text-[var(--vscode-foreground)] bg-[var(--vscode-panel-background)] px-5 py-3`,
+				`sticky top-0 text-[var(--vscode-foreground)] bg-[var(--vscode-panel-background)] px-5 py-3`,
 				className,
 			)}
-			{...props}>
+			{...props}
+			style={{ zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 20 }}>
 			<h4 className="m-0">{children}</h4>
 			{description && <p className="text-[var(--vscode-descriptionForeground)] text-sm mt-2 mb-0">{description}</p>}
 		</div>

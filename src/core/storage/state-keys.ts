@@ -21,6 +21,7 @@ export type SecretKey =
 	| "xaiApiKey"
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
+	| "cerebrasApiKey"
 
 export type GlobalStateKey =
 	| "apiProvider"
@@ -55,6 +56,7 @@ export type GlobalStateKey =
 	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
 	| "globalClineRulesToggles"
+	| "globalWorkflowToggles"
 	| "browserSettings"
 	| "chatSettings"
 	| "vsCodeLmModelSelector"

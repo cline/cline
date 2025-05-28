@@ -38,8 +38,8 @@ const WelcomeView = memo(() => {
 				</div>
 				<p>
 					I can do all kinds of tasks thanks to breakthroughs in{" "}
-					<VSCodeLink href="https://www.anthropic.com/claude/sonnet" className="inline">
-						Claude 4 Sonnet's
+					<VSCodeLink href="https://www.anthropic.com/news/claude-3-7-sonnet" className="inline">
+						Claude 3.7 Sonnet's
 					</VSCodeLink>
 					agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use
 					a browser, and execute terminal commands <i>(with your permission, of course)</i>. I can even use MCP to
@@ -47,8 +47,8 @@ const WelcomeView = memo(() => {
 				</p>
 
 				<p className="text-[var(--vscode-descriptionForeground)]">
-					Sign up for an account to get started for free, or use an API key that provides access to models like Claude 4
-					Sonnet.
+					Sign up for an account to get started for free, or use an API key that provides access to models like Claude
+					3.7 Sonnet.
 				</p>
 
 				<VSCodeButton appearance="primary" onClick={handleLogin} className="w-full mt-1">

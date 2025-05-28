@@ -111,7 +111,7 @@ interface ChatRowProps {
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
 	inputValue?: string
-	sendMessageFromChatRow?: (text: string, images: string[]) => void
+	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
 }
 
@@ -1046,6 +1046,7 @@ export const ChatRowContent = ({
 						<UserMessage
 							text={message.text}
 							images={message.images}
+							files={message.files}
 							messageTs={message.ts}
 							sendMessageFromChatRow={sendMessageFromChatRow}
 						/>

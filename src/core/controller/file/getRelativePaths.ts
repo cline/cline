@@ -1,5 +1,5 @@
 import { Controller } from ".."
-import { RelativePathsRequest, RelativePaths } from "@shared/proto/file"
+import { RelativePathsRequest } from "@shared/proto/file"
 import { FileMethodHandler } from "./index"
 import * as vscode from "vscode"
 import * as path from "path"
@@ -15,7 +15,7 @@ import { Metadata } from "@shared/proto/common"
 export const getRelativePaths: FileMethodHandler = async (
 	controller: Controller,
 	request: RelativePathsRequest,
-): Promise<RelativePaths> => {
+): Promise<StringArray> => {
 	const resolvedPaths = await Promise.all(
 		request.uris.map(async (uriString) => {
 			try {
@@ -54,5 +54,5 @@ export const getRelativePaths: FileMethodHandler = async (
 	// Filter out any null values from errors
 	const validPaths = resolvedPaths.filter((path): path is string => path !== null)
 
-	return RelativePaths.create({ paths: validPaths })
+	return StringArray.create({ values: validPaths })
 }

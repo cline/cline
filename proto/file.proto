@@ -31,9 +31,12 @@ service FileService {
 
   // Select images from the file system and return as data URLs
   rpc selectImages(EmptyRequest) returns (StringArray);
+
+  // Select images and other files from the file system and returns as data URLs & paths respectively
+  rpc selectFiles(EmptyRequest) returns (StringArrays);
   
   // Convert URIs to workspace-relative paths
-  rpc getRelativePaths(RelativePathsRequest) returns (RelativePaths);
+  rpc getRelativePaths(RelativePathsRequest) returns (StringArray);
 
   // Search for files in the workspace with fuzzy matching
   rpc searchFiles(FileSearchRequest) returns (FileSearchResults);
@@ -57,7 +60,8 @@ message RefreshedRules {
   ClineRulesToggles local_cline_rules_toggles = 2;
   ClineRulesToggles local_cursor_rules_toggles = 3;
   ClineRulesToggles local_windsurf_rules_toggles = 4;
-  ClineRulesToggles workflow_toggles = 5;
+  ClineRulesToggles local_workflow_toggles = 5;
+  ClineRulesToggles global_workflow_toggles = 6;
 }
 
 // Request to toggle a Windsurf rule
@@ -71,11 +75,6 @@ message ToggleWindsurfRuleRequest {
 message RelativePathsRequest {
   Metadata metadata = 1;
   repeated string uris = 2;
-}
-
-// Response containing the converted relative paths
-message RelativePaths {
-  repeated string paths = 1;
 }
 
 // Request for file search operations

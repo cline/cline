@@ -37,6 +37,7 @@ message ChatSettings {
 message ChatContent {
   optional string message = 1;
   repeated string images = 2;
+  repeated string files = 3;
 }
 
 // Message for auto approval settings
