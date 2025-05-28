@@ -4,12 +4,19 @@ import osName from "os-name"
 import { McpHub } from "@services/mcp/McpHub"
 import { BrowserSettings } from "@shared/BrowserSettings"
 
+import { createAntmlToolPrompt, createSimpleXmlToolPrompt } from "@core/prompts/model_prompts/jsonToolToXml"
+import {bashToolDefinition} from  "@core/tools/bashTool"
+
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
 	supportsBrowserUse: boolean,
 	mcpHub: McpHub,
 	browserSettings: BrowserSettings,
-) => `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
+) => `
+
+${/* createAntmlToolPrompt([bashToolDefinition], true) */''}
+
+You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 ====
 
@@ -351,38 +358,6 @@ Usage:
     }
   ]
 }
-</diff>
-</replace_in_file>
-
-<path>src/components/App.tsx</path>
-<diff>
-<<<<<<< SEARCH
-import React from 'react';
-=======
-import React, { useState } from 'react';
->>>>>>> REPLACE
-
-<<<<<<< SEARCH
-function handleSubmit() {
-  saveData();
-  setLoading(false);
-}
-
-=======
->>>>>>> REPLACE
-
-<<<<<<< SEARCH
-return (
-  <div>
-=======
-function handleSubmit() {
-  saveData();
-  setLoading(false);
-}
-
-return (
-  <div>
->>>>>>> REPLACE
 </diff>
 </replace_in_file>
 
