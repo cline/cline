@@ -64,7 +64,7 @@ cd ${await mcpHub.getMcpServersPath()}
 npx @modelcontextprotocol/create-server weather-server
 cd weather-server
 # Install dependencies
-npm install axios
+npm install axios zod @modelcontextprotocol/sdk
 \`\`\`
 
 This will create a new project with the following structure:
@@ -83,271 +83,185 @@ weather-server/
 			}
 	├── tsconfig.json
 	└── src/
-			└── weather-server/
-					└── index.ts      # Main server implementation
+			└── index.ts      # Main server implementation
 \`\`\`
 
 2. Replace \`src/index.ts\` with the following:
 
 \`\`\`typescript
 #!/usr/bin/env node
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-	CallToolRequestSchema,
-	ErrorCode,
-	ListResourcesRequestSchema,
-	ListResourceTemplatesRequestSchema,
-	ListToolsRequestSchema,
-	McpError,
-	ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 import axios from 'axios';
 
 const API_KEY = process.env.OPENWEATHER_API_KEY; // provided by MCP config
 if (!API_KEY) {
-	throw new Error('OPENWEATHER_API_KEY environment variable is required');
+  throw new Error('OPENWEATHER_API_KEY environment variable is required');
 }
 
-interface OpenWeatherResponse {
-	main: {
-		temp: number;
-		humidity: number;
-	};
-	weather: [{ description: string }];
-	wind: { speed: number };
-	dt_txt?: string;
+// Define types for OpenWeather API responses
+interface WeatherData {
+  main: {
+    temp: number;
+    humidity: number;
+  };
+  weather: Array<{
+    description: string;
+  }>;
+  wind: {
+    speed: number;
+  };
 }
 
-const isValidForecastArgs = (
-	args: any
-): args is { city: string; days?: number } =>
-	typeof args === 'object' &&
-	args !== null &&
-	typeof args.city === 'string' &&
-	(args.days === undefined || typeof args.days === 'number');
-
-class WeatherServer {
-	private server: Server;
-	private axiosInstance;
-
-	constructor() {
-		this.server = new Server(
-			{
-				name: 'example-weather-server',
-				version: '0.1.0',
-			},
-			{
-				capabilities: {
-					resources: {},
-					tools: {},
-				},
-			}
-		);
-
-		this.axiosInstance = axios.create({
-			baseURL: 'http://api.openweathermap.org/data/2.5',
-			params: {
-				appid: API_KEY,
-				units: 'metric',
-			},
-		});
-
-		this.setupResourceHandlers();
-		this.setupToolHandlers();
-		
-		// Error handling
-		this.server.onerror = (error) => console.error('[MCP Error]', error);
-		process.on('SIGINT', async () => {
-			await this.server.close();
-			process.exit(0);
-		});
-	}
-
-	// MCP Resources represent any kind of UTF-8 encoded data that an MCP server wants to make available to clients, such as database records, API responses, log files, and more. Servers define direct resources with a static URI or dynamic resources with a URI template that follows the format \`[protocol]://[host]/[path]\`.
-	private setupResourceHandlers() {
-		// For static resources, servers can expose a list of resources:
-		this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-			resources: [
-				// This is a poor example since you could use the resource template to get the same information but this demonstrates how to define a static resource
-				{
-					uri: \`weather://San Francisco/current\`, // Unique identifier for San Francisco weather resource
-					name: \`Current weather in San Francisco\`, // Human-readable name
-					mimeType: 'application/json', // Optional MIME type
-					// Optional description
-					description:
-						'Real-time weather data for San Francisco including temperature, conditions, humidity, and wind speed',
-				},
-			],
-		}));
-
-		// For dynamic resources, servers can expose resource templates:
-		this.server.setRequestHandler(
-			ListResourceTemplatesRequestSchema,
-			async () => ({
-				resourceTemplates: [
-					{
-						uriTemplate: 'weather://{city}/current', // URI template (RFC 6570)
-						name: 'Current weather for a given city', // Human-readable name
-						mimeType: 'application/json', // Optional MIME type
-						description: 'Real-time weather data for a specified city', // Optional description
-					},
-				],
-			})
-		);
-
-		// ReadResourceRequestSchema is used for both static resources and dynamic resource templates
-		this.server.setRequestHandler(
-			ReadResourceRequestSchema,
-			async (request) => {
-				const match = request.params.uri.match(
-					/^weather:\/\/([^/]+)\/current$/
-				);
-				if (!match) {
-					throw new McpError(
-						ErrorCode.InvalidRequest,
-						\`Invalid URI format: \${request.params.uri}\`
-					);
-				}
-				const city = decodeURIComponent(match[1]);
-
-				try {
-					const response = await this.axiosInstance.get(
-						'weather', // current weather
-						{
-							params: { q: city },
-						}
-					);
-
-					return {
-						contents: [
-							{
-								uri: request.params.uri,
-								mimeType: 'application/json',
-								text: JSON.stringify(
-									{
-										temperature: response.data.main.temp,
-										conditions: response.data.weather[0].description,
-										humidity: response.data.main.humidity,
-										wind_speed: response.data.wind.speed,
-										timestamp: new Date().toISOString(),
-									},
-									null,
-									2
-								),
-							},
-						],
-					};
-				} catch (error) {
-					if (axios.isAxiosError(error)) {
-						throw new McpError(
-							ErrorCode.InternalError,
-							\`Weather API error: \${
-								error.response?.data.message ?? error.message
-							}\`
-						);
-					}
-					throw error;
-				}
-			}
-		);
-	}
-
-	/* MCP Tools enable servers to expose executable functionality to the system. Through these tools, you can interact with external systems, perform computations, and take actions in the real world.
-	 * - Like resources, tools are identified by unique names and can include descriptions to guide their usage. However, unlike resources, tools represent dynamic operations that can modify state or interact with external systems.
-	 * - While resources and tools are similar, you should prefer to create tools over resources when possible as they provide more flexibility.
-	 */
-	private setupToolHandlers() {
-		this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-			tools: [
-				{
-					name: 'get_forecast', // Unique identifier
-					description: 'Get weather forecast for a city', // Human-readable description
-					inputSchema: {
-						// JSON Schema for parameters
-						type: 'object',
-						properties: {
-							city: {
-								type: 'string',
-								description: 'City name',
-							},
-							days: {
-								type: 'number',
-								description: 'Number of days (1-5)',
-								minimum: 1,
-								maximum: 5,
-							},
-						},
-						required: ['city'], // Array of required property names
-					},
-				},
-			],
-		}));
-
-		this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-			if (request.params.name !== 'get_forecast') {
-				throw new McpError(
-					ErrorCode.MethodNotFound,
-					\`Unknown tool: \${request.params.name}\`
-				);
-			}
-
-			if (!isValidForecastArgs(request.params.arguments)) {
-				throw new McpError(
-					ErrorCode.InvalidParams,
-					'Invalid forecast arguments'
-				);
-			}
-
-			const city = request.params.arguments.city;
-			const days = Math.min(request.params.arguments.days || 3, 5);
-
-			try {
-				const response = await this.axiosInstance.get<{
-					list: OpenWeatherResponse[];
-				}>('forecast', {
-					params: {
-						q: city,
-						cnt: days * 8,
-					},
-				});
-
-				return {
-					content: [
-						{
-							type: 'text',
-							text: JSON.stringify(response.data.list, null, 2),
-						},
-					],
-				};
-			} catch (error) {
-				if (axios.isAxiosError(error)) {
-					return {
-						content: [
-							{
-								type: 'text',
-								text: \`Weather API error: \${
-									error.response?.data.message ?? error.message
-								}\`,
-							},
-						],
-						isError: true,
-					};
-				}
-				throw error;
-			}
-		});
-	}
-
-	async run() {
-		const transport = new StdioServerTransport();
-		await this.server.connect(transport);
-		console.error('Weather MCP server running on stdio');
-	}
+interface ForecastData {
+  list: Array<WeatherData & {
+    dt_txt: string;
+  }>;
 }
 
-const server = new WeatherServer();
-server.run().catch(console.error);
+// Create an MCP server
+const server = new McpServer({
+  name: "weather-server",
+  version: "0.1.0"
+});
+
+// Create axios instance for OpenWeather API
+const weatherApi = axios.create({
+  baseURL: 'http://api.openweathermap.org/data/2.5',
+  params: {
+    appid: API_KEY,
+    units: 'metric',
+  },
+});
+
+// Add a tool for getting weather forecasts
+server.tool(
+  "get_forecast",
+  {
+    city: z.string().describe("City name"),
+    days: z.number().min(1).max(5).optional().describe("Number of days (1-5)"),
+  },
+  async ({ city, days = 3 }) => {
+    try {
+      const response = await weatherApi.get<ForecastData>('forecast', {
+        params: {
+          q: city,
+          cnt: Math.min(days, 5) * 8,
+        },
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(response.data.list, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: \`Weather API error: \${
+                error.response?.data.message ?? error.message
+              }\`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      throw error;
+    }
+  }
+);
+
+// Add a resource for current weather in San Francisco
+server.resource(
+  "sf_weather",
+  { uri: "weather://San Francisco/current", list: true },
+  async (uri) => {
+    try {
+      const response = weatherApi.get<WeatherData>('weather', {
+        params: { q: "San Francisco" },
+      });
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(
+              {
+                temperature: response.data.main.temp,
+                conditions: response.data.weather[0].description,
+                humidity: response.data.main.humidity,
+                wind_speed: response.data.wind.speed,
+                timestamp: new Date().toISOString(),
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(\`Weather API error: \${
+          error.response?.data.message ?? error.message
+        }\`);
+      }
+      throw error;
+    }
+  }
+);
+
+// Add a dynamic resource template for current weather by city
+server.resource(
+  "current_weather",
+  new ResourceTemplate("weather://{city}/current", { list: true }),
+  async (uri, { city }) => {
+    try {
+      const response = await weatherApi.get('weather', {
+        params: { q: city },
+      });
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(
+              {
+                temperature: response.data.main.temp,
+                conditions: response.data.weather[0].description,
+                humidity: response.data.main.humidity,
+                wind_speed: response.data.wind.speed,
+                timestamp: new Date().toISOString(),
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(\`Weather API error: \${
+          error.response?.data.message ?? error.message
+        }\`);
+      }
+      throw error;
+    }
+  }
+);
+
+// Start receiving messages on stdin and sending messages on stdout
+const transport = new StdioServerTransport();
+await server.connect(transport);
+console.error('Weather MCP server running on stdio');
 \`\`\`
 
 (Remember: This is just an example–you may use different dependencies, break the implementation up into multiple files, etc.)
@@ -387,12 +301,14 @@ IMPORTANT: Regardless of what else you see in the MCP settings file, you must de
 
 ## Editing MCP Servers
 
-The user may ask to add tools or resources that may make sense to add to an existing MCP server (listed under 'Connected MCP Servers' above: ${
-		mcpHub
+The user may ask to add tools or resources that may make sense to add to an existing MCP server (listed under 'Connected MCP Servers' above: ${(() => {
+		if (!mcpHub) return "(None running currently)"
+		const servers = mcpHub
 			.getServers()
 			.map((server) => server.name)
-			.join(", ") || "(None running currently)"
-	}, e.g. if it would use the same API. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file${diffStrategy ? " or apply_diff" : ""} to make changes to the files.
+			.join(", ")
+		return servers || "(None running currently)"
+	})()}, e.g. if it would use the same API. This would be possible if you can locate the MCP server repository on the user's system by looking at the server arguments for a filepath. You might then use list_files and read_file to explore the files in the repository, and use write_to_file${diffStrategy ? " or apply_diff" : ""} to make changes to the files.
 
 However some MCP servers may be running from installed packages rather than a local repository, in which case it may make more sense to create a new MCP server.
 
