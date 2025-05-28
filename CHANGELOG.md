@@ -6,7 +6,7 @@
 -   Add support for uploading various file types (XML, JSON, TXT, LOG, MD, DOCX, IPYNB, PDF) alongside images
 -   Add improved onboarding experience for new users with guided setup
 -   Add prompt cache indicator for Gemini 2.5 Flash models
--   Update SambaNova provider with new model list and documentation links
+-   Update SambaNova provider with new model list and documentation links (Thanks @luisfucros!)
 -   Fix diff editing support for Claude 4 family of models
 -   Improve telemetry and analytics for better user experience insights
 
