@@ -3,3 +3,4 @@ node_modules
 webview-ui/build/
 *.md
 package-lock.json
+src/core/prompts/system.ts
