@@ -59,20 +59,6 @@ export const BrowserSettingsSection: React.FC = () => {
 	const [isBundled, setIsBundled] = useState(false)
 	const [detectedChromePath, setDetectedChromePath] = useState<string | null>(null)
 
-	// Listen for browser connection test results
-	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "browserConnectionResult") {
-				setConnectionStatus(message.success)
-				setIsCheckingConnection(false)
-			}
-		}
-
-		window.addEventListener("message", handleMessage)
-		return () => window.removeEventListener("message", handleMessage)
-	}, [])
-
 	// Auto-clear relaunch result message after 15 seconds
 	useEffect(() => {
 		if (relaunchResult) {
