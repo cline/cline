@@ -1736,8 +1736,8 @@ export class Task extends EventEmitter<ClineEvents> {
 
 	// Checkpoints
 
-	public async checkpointSave() {
-		return checkpointSave(this)
+	public async checkpointSave(force: boolean = false) {
+		return checkpointSave(this, force)
 	}
 
 	public async checkpointRestore(options: CheckpointRestoreOptions) {

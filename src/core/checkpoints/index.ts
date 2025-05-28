@@ -152,7 +152,7 @@ async function getInitializedCheckpointService(
 	}
 }
 
-export async function checkpointSave(cline: Task) {
+export async function checkpointSave(cline: Task, force = false) {
 	const service = getCheckpointService(cline)
 
 	if (!service) {
@@ -169,7 +169,7 @@ export async function checkpointSave(cline: Task) {
 	telemetryService.captureCheckpointCreated(cline.taskId)
 
 	// Start the checkpoint process in the background.
-	return service.saveCheckpoint(`Task: ${cline.taskId}, Time: ${Date.now()}`).catch((err) => {
+	return service.saveCheckpoint(`Task: ${cline.taskId}, Time: ${Date.now()}`, { allowEmpty: force }).catch((err) => {
 		console.error("[Cline#checkpointSave] caught unexpected error, disabling checkpoints", err)
 		cline.enableCheckpoints = false
 	})

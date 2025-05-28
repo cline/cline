@@ -632,5 +632,180 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				expect(checkpointHandler).not.toHaveBeenCalled()
 			})
 		})
+
+		describe(`${klass.name}#saveCheckpoint with allowEmpty option`, () => {
+			it("creates checkpoint with allowEmpty=true even when no changes", async () => {
+				// No changes made, but force checkpoint creation
+				const result = await service.saveCheckpoint("Empty checkpoint", { allowEmpty: true })
+
+				expect(result).toBeDefined()
+				expect(result?.commit).toBeTruthy()
+				expect(typeof result?.commit).toBe("string")
+			})
+
+			it("does not create checkpoint with allowEmpty=false when no changes", async () => {
+				const result = await service.saveCheckpoint("No changes checkpoint", { allowEmpty: false })
+
+				expect(result).toBeUndefined()
+			})
+
+			it("does not create checkpoint by default when no changes", async () => {
+				const result = await service.saveCheckpoint("Default behavior checkpoint")
+
+				expect(result).toBeUndefined()
+			})
+
+			it("creates checkpoint with changes regardless of allowEmpty setting", async () => {
+				await fs.writeFile(testFile, "Modified content for allowEmpty test")
+
+				const resultWithAllowEmpty = await service.saveCheckpoint("With changes and allowEmpty", { allowEmpty: true })
+				expect(resultWithAllowEmpty?.commit).toBeTruthy()
+
+				await fs.writeFile(testFile, "Another modification for allowEmpty test")
+
+				const resultWithoutAllowEmpty = await service.saveCheckpoint("With changes, no allowEmpty")
+				expect(resultWithoutAllowEmpty?.commit).toBeTruthy()
+			})
+
+			it("emits checkpoint event for empty commits when allowEmpty=true", async () => {
+				const checkpointHandler = jest.fn()
+				service.on("checkpoint", checkpointHandler)
+
+				const result = await service.saveCheckpoint("Empty checkpoint event test", { allowEmpty: true })
+
+				expect(checkpointHandler).toHaveBeenCalledTimes(1)
+				const eventData = checkpointHandler.mock.calls[0][0]
+				expect(eventData.type).toBe("checkpoint")
+				expect(eventData.toHash).toBe(result?.commit)
+				expect(typeof eventData.duration).toBe("number")
+				expect(typeof eventData.isFirst).toBe("boolean") // Can be true or false depending on checkpoint history
+			})
+
+			it("does not emit checkpoint event when no changes and allowEmpty=false", async () => {
+				// First, create a checkpoint to ensure we're not in the initial state
+				await fs.writeFile(testFile, "Setup content")
+				await service.saveCheckpoint("Setup checkpoint")
+				
+				// Reset the file to original state
+				await fs.writeFile(testFile, "Hello, world!")
+				await service.saveCheckpoint("Reset to original")
+
+				// Now test with no changes and allowEmpty=false
+				const checkpointHandler = jest.fn()
+				service.on("checkpoint", checkpointHandler)
+
+				const result = await service.saveCheckpoint("No changes, no event", { allowEmpty: false })
+
+				expect(result).toBeUndefined()
+				expect(checkpointHandler).not.toHaveBeenCalled()
+			})
+
+			it("handles multiple empty checkpoints correctly", async () => {
+				const commit1 = await service.saveCheckpoint("First empty checkpoint", { allowEmpty: true })
+				expect(commit1?.commit).toBeTruthy()
+
+				const commit2 = await service.saveCheckpoint("Second empty checkpoint", { allowEmpty: true })
+				expect(commit2?.commit).toBeTruthy()
+
+				// Commits should be different
+				expect(commit1?.commit).not.toBe(commit2?.commit)
+			})
+
+			it("logs correct message for allowEmpty option", async () => {
+				const logMessages: string[] = []
+				const testService = await klass.create({
+					taskId: "log-test",
+					shadowDir: path.join(tmpDir, `log-test-${Date.now()}`),
+					workspaceDir: service.workspaceDir,
+					log: (message: string) => logMessages.push(message),
+				})
+				await testService.initShadowGit()
+
+				await testService.saveCheckpoint("Test logging with allowEmpty", { allowEmpty: true })
+
+				const saveCheckpointLogs = logMessages.filter(msg =>
+					msg.includes("starting checkpoint save") && msg.includes("allowEmpty: true")
+				)
+				expect(saveCheckpointLogs).toHaveLength(1)
+
+				await testService.saveCheckpoint("Test logging without allowEmpty")
+
+				const defaultLogs = logMessages.filter(msg =>
+					msg.includes("starting checkpoint save") && msg.includes("allowEmpty: false")
+				)
+				expect(defaultLogs).toHaveLength(1)
+			})
+
+			it("maintains checkpoint history with empty commits", async () => {
+				// Create a regular checkpoint
+				await fs.writeFile(testFile, "Regular change")
+				const regularCommit = await service.saveCheckpoint("Regular checkpoint")
+				expect(regularCommit?.commit).toBeTruthy()
+
+				// Create an empty checkpoint
+				const emptyCommit = await service.saveCheckpoint("Empty checkpoint", { allowEmpty: true })
+				expect(emptyCommit?.commit).toBeTruthy()
+
+				// Create another regular checkpoint
+				await fs.writeFile(testFile, "Another regular change")
+				const anotherCommit = await service.saveCheckpoint("Another regular checkpoint")
+				expect(anotherCommit?.commit).toBeTruthy()
+
+				// Verify we can restore to the empty checkpoint
+				await service.restoreCheckpoint(emptyCommit!.commit)
+				expect(await fs.readFile(testFile, "utf-8")).toBe("Regular change")
+
+				// Verify we can restore to other checkpoints
+				await service.restoreCheckpoint(regularCommit!.commit)
+				expect(await fs.readFile(testFile, "utf-8")).toBe("Regular change")
+
+				await service.restoreCheckpoint(anotherCommit!.commit)
+				expect(await fs.readFile(testFile, "utf-8")).toBe("Another regular change")
+			})
+
+			it("handles getDiff correctly with empty commits", async () => {
+				// Create a regular checkpoint
+				await fs.writeFile(testFile, "Content before empty")
+				const beforeEmpty = await service.saveCheckpoint("Before empty")
+				expect(beforeEmpty?.commit).toBeTruthy()
+
+				// Create an empty checkpoint
+				const emptyCommit = await service.saveCheckpoint("Empty checkpoint", { allowEmpty: true })
+				expect(emptyCommit?.commit).toBeTruthy()
+
+				// Get diff between regular commit and empty commit
+				const diff = await service.getDiff({
+					from: beforeEmpty!.commit,
+					to: emptyCommit!.commit
+				})
+
+				// Should have no differences since empty commit doesn't change anything
+				expect(diff).toHaveLength(0)
+			})
+
+			it("works correctly in integration with new task workflow", async () => {
+				// Simulate the new task workflow where we force a checkpoint even with no changes
+				// This tests the specific use case mentioned in the git commit
+
+				// Start with a clean state (no pending changes)
+				const initialState = await service.saveCheckpoint("Check initial state")
+				expect(initialState).toBeUndefined() // No changes, so no commit
+
+				// Force a checkpoint for new task (this is the new functionality)
+				const newTaskCheckpoint = await service.saveCheckpoint("New task checkpoint", { allowEmpty: true })
+				expect(newTaskCheckpoint?.commit).toBeTruthy()
+
+				// Verify the checkpoint was created and can be restored
+				await fs.writeFile(testFile, "Work done in new task")
+				const workCommit = await service.saveCheckpoint("Work in new task")
+				expect(workCommit?.commit).toBeTruthy()
+
+				// Restore to the new task checkpoint
+				await service.restoreCheckpoint(newTaskCheckpoint!.commit)
+				
+				// File should be back to original state
+				expect(await fs.readFile(testFile, "utf-8")).toBe("Hello, world!")
+			})
+		})
 	},
 )

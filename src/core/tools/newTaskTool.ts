@@ -69,6 +69,10 @@ export async function newTaskTool(
 				return
 			}
 
+			if (cline.enableCheckpoints) {
+				cline.checkpointSave(true)
+			}
+
 			// Preserve the current mode so we can resume with it later.
 			cline.pausedModeSlug = (await provider.getState()).mode ?? defaultModeSlug
 

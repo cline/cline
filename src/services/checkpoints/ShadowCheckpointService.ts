@@ -214,9 +214,14 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 		return this.shadowGitConfigWorktree
 	}
 
-	public async saveCheckpoint(message: string): Promise<CheckpointResult | undefined> {
+	public async saveCheckpoint(
+		message: string,
+		options?: { allowEmpty?: boolean },
+	): Promise<CheckpointResult | undefined> {
 		try {
-			this.log(`[${this.constructor.name}#saveCheckpoint] starting checkpoint save`)
+			this.log(
+				`[${this.constructor.name}#saveCheckpoint] starting checkpoint save (allowEmpty: ${options?.allowEmpty ?? false})`,
+			)
 
 			if (!this.git) {
 				throw new Error("Shadow git repo not initialized")
@@ -224,7 +229,8 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 
 			const startTime = Date.now()
 			await this.stageAll(this.git)
-			const result = await this.git.commit(message)
+			const commitArgs = options?.allowEmpty ? { "--allow-empty": null } : undefined
+			const result = await this.git.commit(message, commitArgs)
 			const isFirst = this._checkpoints.length === 0
 			const fromHash = this._checkpoints[this._checkpoints.length - 1] ?? this.baseHash!
 			const toHash = result.commit || fromHash
