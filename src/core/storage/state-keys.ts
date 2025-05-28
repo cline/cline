@@ -87,6 +87,7 @@ export type GlobalStateKey =
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
 	| "enableCheckpointsSetting"
+	| "enableDebuggerSetting"
 	| "mcpMarketplaceEnabled"
 	| "favoritedModelIds"
 	| "requestTimeoutMs"

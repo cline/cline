@@ -1,0 +1,4 @@
+Get-Random | %{
+    $MyRandomVar = $_
+    
+}

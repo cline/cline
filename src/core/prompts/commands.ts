@@ -176,3 +176,6 @@ Usage:
 Below is the user's input when they indicated that they wanted to submit a Github issue.
 </explicit_instructions>\n
 `
+export const startDebugSessionResponse = () => `
+
+`

@@ -24,7 +24,8 @@ export async function updateGlobalState(context: vscode.ExtensionContext, key: G
 }
 
 export async function getGlobalState(context: vscode.ExtensionContext, key: GlobalStateKey) {
-	return await context.globalState.get(key)
+	const value = await context.globalState.get(key)
+	return value
 }
 
 // secrets
@@ -163,6 +164,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		requestTimeoutMs,
 		shellIntegrationTimeout,
 		enableCheckpointsSettingRaw,
+		enableDebuggerSettingRaw,
 		mcpMarketplaceEnabledRaw,
 		globalWorkflowToggles,
 	] = await Promise.all([
@@ -253,6 +255,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "requestTimeoutMs") as Promise<number | undefined>,
 		getGlobalState(context, "shellIntegrationTimeout") as Promise<number | undefined>,
 		getGlobalState(context, "enableCheckpointsSetting") as Promise<boolean | undefined>,
+		getGlobalState(context, "enableDebuggerSetting") as Promise<boolean | undefined>,
 		getGlobalState(context, "mcpMarketplaceEnabled") as Promise<boolean | undefined>,
 		getGlobalState(context, "globalWorkflowToggles") as Promise<ClineRulesToggles | undefined>,
 		fetch,
@@ -389,6 +392,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		telemetrySetting: telemetrySetting || "unset",
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting: enableCheckpointsSetting,
+		enableDebuggerSetting: enableDebuggerSettingRaw ?? false,
 		shellIntegrationTimeout: shellIntegrationTimeout || 4000,
 		globalWorkflowToggles: globalWorkflowToggles || {},
 	}
