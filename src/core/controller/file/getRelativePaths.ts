@@ -4,7 +4,7 @@ import { FileMethodHandler } from "./index"
 import * as vscode from "vscode"
 import * as path from "path"
 import { UriServiceClient } from "../../../standalone/services/host-grpc-client"
-import { Metadata } from "@shared/proto/common"
+import { Metadata, StringArray } from "@shared/proto/common"
 
 /**
  * Converts a list of URIs to workspace-relative paths
