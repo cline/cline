@@ -443,13 +443,16 @@ export class McpHub {
 
 			let transport: StdioClientTransport | SSEClientTransport
 
-			if (config.type === "stdio") {
+			// Inject environment variables to the config
+			const configInjected = (await injectEnv(config)) as typeof config
+
+			if (configInjected.type === "stdio") {
 				transport = new StdioClientTransport({
-					command: config.command,
-					args: config.args,
-					cwd: config.cwd,
+					command: configInjected.command,
+					args: configInjected.args,
+					cwd: configInjected.cwd,
 					env: {
-						...(config.env ? await injectEnv(config.env) : {}),
+					...(configInjected.env || {}),
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
 						...(process.env.HOME ? { HOME: process.env.HOME } : {}),
 					},
@@ -508,16 +511,16 @@ export class McpHub {
 				// SSE connection
 				const sseOptions = {
 					requestInit: {
-						headers: config.headers,
+						headers: configInjected.headers,
 					},
 				}
 				// Configure ReconnectingEventSource options
 				const reconnectingEventSourceOptions = {
 					max_retry_time: 5000, // Maximum retry time in milliseconds
-					withCredentials: config.headers?.["Authorization"] ? true : false, // Enable credentials if Authorization header exists
+					withCredentials: configInjected.headers?.["Authorization"] ? true : false, // Enable credentials if Authorization header exists
 				}
 				global.EventSource = ReconnectingEventSource
-				transport = new SSEClientTransport(new URL(config.url), {
+				transport = new SSEClientTransport(new URL(configInjected.url), {
 					...sseOptions,
 					eventSourceInit: reconnectingEventSourceOptions,
 				})
@@ -537,9 +540,9 @@ export class McpHub {
 			const connection: McpConnection = {
 				server: {
 					name,
-					config: JSON.stringify(config),
+					config: JSON.stringify(configInjected),
 					status: "connecting",
-					disabled: config.disabled,
+					disabled: configInjected.disabled,
 					source,
 					projectPath: source === "project" ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined,
 					errorHistory: [],
