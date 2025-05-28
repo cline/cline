@@ -28,3 +28,7 @@ src/core/controller/*/index.ts
 src/core/controller/grpc-service-config.ts
 webview-ui/src/services/grpc-client.ts
 src/standalone/server-setup.ts
+hosts/vscode/*/methods.ts
+hosts/vscode/*/index.ts
+src/core/host/grpc-host-service-config.ts
+src/standalone/services/host-grpc-client.ts

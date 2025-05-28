@@ -36,7 +36,7 @@ service FileService {
   rpc selectFiles(EmptyRequest) returns (StringArrays);
   
   // Convert URIs to workspace-relative paths
-  rpc getRelativePaths(RelativePathsRequest) returns (RelativePaths);
+  rpc getRelativePaths(RelativePathsRequest) returns (StringArray);
 
   // Search for files in the workspace with fuzzy matching
   rpc searchFiles(FileSearchRequest) returns (FileSearchResults);
@@ -75,11 +75,6 @@ message ToggleWindsurfRuleRequest {
 message RelativePathsRequest {
   Metadata metadata = 1;
   repeated string uris = 2;
-}
-
-// Response containing the converted relative paths
-message RelativePaths {
-  repeated string paths = 1;
 }
 
 // Request for file search operations
