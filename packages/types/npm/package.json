@@ -1,0 +1,40 @@
+{
+	"name": "@roo-code/types",
+	"version": "1.19.0",
+	"description": "TypeScript type definitions for Roo Code.",
+	"publishConfig": {
+		"access": "public",
+		"name": "@roo-code/types"
+	},
+	"author": "Roo Code Team",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/RooCodeInc/Roo-Code.git"
+	},
+	"bugs": {
+		"url": "https://github.com/RooCodeInc/Roo-Code/issues"
+	},
+	"homepage": "https://github.com/RooCodeInc/Roo-Code/tree/main/packages/types",
+	"keywords": [
+		"roo",
+		"roo-code",
+		"ai"
+	],
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist"
+	]
+}

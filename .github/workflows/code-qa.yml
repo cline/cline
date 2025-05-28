@@ -134,8 +134,8 @@ jobs:
         working-directory: apps/vscode-e2e
         run: xvfb-run -a pnpm test:ci
 
-  unit-test:
-    needs: [platform-unit-test] # [platform-unit-test, integration-test]
+  qa:
+    needs: [check-translations, knip, compile, platform-unit-test, integration-test]
     runs-on: ubuntu-latest
     steps:
       - name: NO-OP

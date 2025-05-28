@@ -24,6 +24,19 @@ pnpm install
 If things are in good working order then you should be able to build a vsix and install it in VSCode:
 
 ```sh
-pnpm build --out ../bin/roo-code-main.vsix && \
+pnpm build -- --out ../bin/roo-code-main.vsix && \
   code --install-extension bin/roo-code-main.vsix
+```
+
+To fully stress the monorepo setup, run the following:
+
+```sh
+pnpm clean && pnpm lint
+pnpm clean && pnpm check-types
+pnpm clean && pnpm test
+pnpm clean && pnpm bundle
+pnpm clean && pnpm build
+pnpm clean && pnpm npx turbo watch:bundle
+pnpm clean && pnpm npx turbo watch:tsc
+cd apps/vscode-e2e && pnpm test:ci
 ```

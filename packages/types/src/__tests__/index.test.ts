@@ -1,4 +1,4 @@
-// npx vitest run --globals src/__tests__/index.test.ts
+// npx vitest run src/__tests__/index.test.ts
 
 import { GLOBAL_STATE_KEYS } from "../index.js"
 

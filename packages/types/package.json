@@ -1,58 +1,26 @@
 {
 	"name": "@roo-code/types",
-	"version": "1.16.0",
-	"description": "TypeScript type definitions for Roo Code.",
-	"publishConfig": {
-		"access": "public",
-		"main": "./dist/index.js",
-		"module": "./dist/index.mjs",
-		"types": "./dist/index.d.ts",
-		"exports": {
-			".": {
-				"types": "./dist/index.d.ts",
-				"import": "./dist/index.mjs",
-				"require": "./dist/index.js"
-			}
-		}
-	},
-	"author": "Roo Code Team",
-	"license": "MIT",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/RooCodeInc/Roo-Code.git"
-	},
-	"bugs": {
-		"url": "https://github.com/RooCodeInc/Roo-Code/issues"
-	},
-	"homepage": "https://github.com/RooCodeInc/Roo-Code/tree/main/packages/types",
-	"keywords": [
-		"roo",
-		"roo-code",
-		"ai"
-	],
-	"main": "./dist/index.js",
+	"version": "0.0.0",
+	"type": "module",
+	"main": "./dist/index.cjs",
 	"exports": {
 		".": {
 			"types": "./src/index.ts",
 			"import": "./src/index.ts",
 			"require": {
-				"types": "./dist/index.d.ts",
-				"default": "./dist/index.js"
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
 			}
 		}
 	},
-	"files": [
-		"dist"
-	],
 	"scripts": {
 		"lint": "eslint src --ext=ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"test": "vitest --globals --run",
 		"build": "tsup",
-		"prepublishOnly": "pnpm run build",
-		"publish:test": "pnpm publish --dry-run",
-		"publish": "pnpm publish",
-		"clean": "rimraf dist .turbo"
+		"npm:publish:test": "tsup --outDir npm/dist && cd npm && npm publish --dry-run",
+		"npm:publish": "tsup --outDir npm/dist && cd npm && npm publish",
+		"clean": "rimraf dist npm/dist .turbo"
 	},
 	"dependencies": {
 		"zod": "^3.24.2"
