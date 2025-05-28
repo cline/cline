@@ -3,7 +3,6 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextF
 import debounce from "debounce"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
 import styled from "styled-components"
 import { BrowserServiceClient } from "../../services/grpc-client"
 
@@ -60,19 +59,13 @@ export const BrowserSettingsSection: React.FC = () => {
 	const [isBundled, setIsBundled] = useState(false)
 	const [detectedChromePath, setDetectedChromePath] = useState<string | null>(null)
 
-	// Listen for browser connection test results and relaunch results
+	// Listen for browser connection test results
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "browserConnectionResult") {
 				setConnectionStatus(message.success)
 				setIsCheckingConnection(false)
-			} else if (message.type === "browserRelaunchResult") {
-				setRelaunchResult({
-					success: message.success,
-					message: message.text,
-				})
-				setDebugMode(false)
 			}
 		}
 
@@ -349,9 +342,22 @@ export const BrowserSettingsSection: React.FC = () => {
 		setRelaunchResult(null)
 		// The connection status will be automatically updated by our polling
 
-		vscode.postMessage({
-			type: "relaunchChromeDebugMode",
-		})
+		BrowserServiceClient.relaunchChromeDebugMode({})
+			.then((result) => {
+				setRelaunchResult({
+					success: result.success,
+					message: result.message,
+				})
+				setDebugMode(false)
+			})
+			.catch((error) => {
+				console.error("Error relaunching Chrome:", error)
+				setRelaunchResult({
+					success: false,
+					message: `Error relaunching Chrome: ${error.message}`,
+				})
+				setDebugMode(false)
+			})
 	}
 
 	// Determine if we should show the relaunch button
@@ -360,11 +366,7 @@ export const BrowserSettingsSection: React.FC = () => {
 	const isSubSettingsOpen = !(browserSettings.disableToolUse || false)
 
 	return (
-		<div
-			id="browser-settings-section"
-			style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
-			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Browser Settings</h3>
-
+		<div id="browser-settings-section" style={{ marginBottom: 20 }}>
 			{/* Master Toggle */}
 			<div style={{ marginBottom: isSubSettingsOpen ? 0 : 10 }}>
 				<VSCodeCheckbox

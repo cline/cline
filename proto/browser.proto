@@ -12,6 +12,7 @@ service BrowserService {
   rpc discoverBrowser(EmptyRequest) returns (BrowserConnection);
   rpc getDetectedChromePath(EmptyRequest) returns (ChromePath);
   rpc updateBrowserSettings(UpdateBrowserSettingsRequest) returns (Boolean);
+  rpc relaunchChromeDebugMode(EmptyRequest) returns (String);
 }
 
 message BrowserConnectionInfo {

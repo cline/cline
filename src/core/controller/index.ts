@@ -23,7 +23,7 @@ import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ChatSettings } from "@shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Invoke, Platform } from "@shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "@shared/mcp"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -32,8 +32,12 @@ import { fileExistsAtPath } from "@utils/fs"
 import { getWorkingState } from "@utils/git"
 import { extractCommitMessage } from "@integrations/git/commit-message-generator"
 import { getTotalTasksSize } from "@utils/storage"
-import { openMention } from "../mentions"
-import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
+import {
+	ensureMcpServersDirectoryExists,
+	ensureSettingsDirectoryExists,
+	GlobalFileNames,
+	ensureWorkflowsDirectoryExists,
+} from "../storage/disk"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -48,6 +52,7 @@ import {
 import { Task, cwd } from "../task"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
+import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
@@ -66,7 +71,7 @@ export class Controller {
 	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	private latestAnnouncementId = "may-16-2025_16:11:00" // update to some unique identifier when we add a new announcement
+	latestAnnouncementId = "may-22-2025_16:11:00" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -136,7 +141,7 @@ export class Controller {
 		await updateGlobalState(this.context, "userInfo", info)
 	}
 
-	async initTask(task?: string, images?: string[], historyItem?: HistoryItem) {
+	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const {
 			apiConfiguration,
@@ -183,6 +188,7 @@ export class Controller {
 			customInstructions,
 			task,
 			images,
+			files,
 			historyItem,
 		)
 	}
@@ -190,7 +196,7 @@ export class Controller {
 	async reinitExistingTaskFromId(taskId: string) {
 		const history = await this.getTaskWithId(taskId)
 		if (history) {
-			await this.initTask(undefined, undefined, history.historyItem)
+			await this.initTask(undefined, undefined, undefined, history.historyItem)
 		}
 	}
 
@@ -257,21 +263,7 @@ export class Controller {
 						}
 					}
 				})
-
-				// If user already opted in to telemetry, enable telemetry service
-				this.getStateToPostToWebview().then((state) => {
-					const { telemetrySetting } = state
-					const isOptedIn = telemetrySetting !== "disabled"
-					telemetryService.updateTelemetryState(isOptedIn)
-				})
 				break
-			case "showChatView": {
-				this.postMessageToWebview({
-					type: "action",
-					action: "chatButtonClicked",
-				})
-				break
-			}
 			case "newTask":
 				// Code that should run in response to the hello message command
 				//vscode.window.showInformationMessage(message.text!)
@@ -281,7 +273,7 @@ export class Controller {
 				// Could also do this in extension .ts
 				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
 				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initTask(message.text, message.images)
+				await this.initTask(message.text, message.images, message.files)
 				break
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
@@ -292,80 +284,17 @@ export class Controller {
 				}
 				await this.postStateToWebview()
 				break
-			case "autoApprovalSettings":
-				if (message.autoApprovalSettings) {
-					const currentSettings = (await getAllExtensionState(this.context)).autoApprovalSettings
-					const incomingVersion = message.autoApprovalSettings.version ?? 1
-					const currentVersion = currentSettings?.version ?? 1
-					if (incomingVersion > currentVersion) {
-						await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
-						if (this.task) {
-							this.task.autoApprovalSettings = message.autoApprovalSettings
-						}
-						await this.postStateToWebview()
-					}
-				}
-				break
-			case "togglePlanActMode":
-				if (message.chatSettings) {
-					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
-				}
-				break
 			case "optionsResponse":
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: message.text,
-				})
-				break
-			case "relaunchChromeDebugMode":
-				const { browserSettings } = await getAllExtensionState(this.context)
-				const browserSession = new BrowserSession(this.context, browserSettings)
-				await browserSession.relaunchChromeDebugMode(this)
-				break
-			case "didShowAnnouncement":
-				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
-				await this.postStateToWebview()
-				break
-			case "refreshClineRules":
-				await refreshClineRulesToggles(this.context, cwd)
-				await refreshExternalRulesToggles(this.context, cwd)
-				await refreshWorkflowToggles(this.context, cwd)
-				await this.postStateToWebview()
-				break
-			case "openInBrowser":
-				if (message.url) {
-					vscode.env.openExternal(vscode.Uri.parse(message.url))
+				if (this.task) {
+					await this.task.handleWebviewAskResponse("messageResponse", message.text || "", [])
 				}
 				break
-			case "openMention":
-				openMention(message.text)
-				break
-			case "accountLogoutClicked": {
-				await this.handleSignOut()
-				break
-			}
-			case "showAccountViewClicked": {
-				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
-				break
-			}
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
 				break
 			}
-			case "openMcpSettings": {
-				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
-				if (mcpSettingsFilePath) {
-					await handleFileServiceRequest(this, "openFile", { value: mcpSettingsFilePath })
-				}
-				break
-			}
 			case "fetchMcpMarketplace": {
 				await this.fetchMcpMarketplace(message.bool)
-				break
-			}
-			case "silentlyRefreshMcpMarketplace": {
-				await this.silentlyRefreshMcpMarketplace()
 				break
 			}
 			// case "openMcpMarketplaceServerDetails": {
@@ -403,88 +332,21 @@ export class Controller {
 
 			// 	break
 			// }
-			case "toggleToolAutoApprove": {
-				try {
-					await this.mcpHub?.toggleToolAutoApprove(message.serverName!, message.toolNames!, message.autoApprove!)
-				} catch (error) {
-					if (message.toolNames?.length === 1) {
-						console.error(
-							`Failed to toggle auto-approve for server ${message.serverName} with tool ${message.toolNames[0]}:`,
-							error,
-						)
-					} else {
-						console.error(`Failed to toggle auto-approve tools for server ${message.serverName}:`, error)
-					}
-				}
-				break
-			}
-			case "toggleClineRule": {
-				const { isGlobal, rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
-					if (isGlobal) {
-						const toggles =
-							((await getGlobalState(this.context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
-						toggles[rulePath] = enabled
-						await updateGlobalState(this.context, "globalClineRulesToggles", toggles)
-					} else {
-						const toggles =
-							((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
-						toggles[rulePath] = enabled
-						await updateWorkspaceState(this.context, "localClineRulesToggles", toggles)
-					}
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleClineRule: Missing or invalid parameters", {
-						rulePath,
-						isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
-						enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
-					})
-				}
-				break
-			}
-			case "toggleWindsurfRule": {
-				const { rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean") {
-					const toggles =
-						((await getWorkspaceState(this.context, "localWindsurfRulesToggles")) as ClineRulesToggles) || {}
-					toggles[rulePath] = enabled
-					await updateWorkspaceState(this.context, "localWindsurfRulesToggles", toggles)
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleWindsurfRule: Missing or invalid parameters")
-				}
-				break
-			}
-			case "toggleCursorRule": {
-				const { rulePath, enabled } = message
-				if (rulePath && typeof enabled === "boolean") {
-					const toggles =
-						((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
-					toggles[rulePath] = enabled
-					await updateWorkspaceState(this.context, "localCursorRulesToggles", toggles)
-					await this.postStateToWebview()
-				} else {
-					console.error("toggleCursorRule: Missing or invalid parameters")
-				}
-				break
-			}
 			case "toggleWorkflow": {
-				const { workflowPath, enabled } = message
-				if (workflowPath && typeof enabled === "boolean") {
-					const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
-					toggles[workflowPath] = enabled
-					await updateWorkspaceState(this.context, "workflowToggles", toggles)
-					await this.postStateToWebview()
-				}
-				break
-			}
-			case "requestTotalTasksSize": {
-				this.refreshTotalTasksSize()
-				break
-			}
-			case "deleteMcpServer": {
-				if (message.serverName) {
-					this.mcpHub?.deleteServer(message.serverName)
+				const { workflowPath, enabled, isGlobal } = message
+				if (workflowPath && typeof enabled === "boolean" && typeof isGlobal === "boolean") {
+					if (isGlobal) {
+						const globalWorkflowToggles =
+							((await getGlobalState(this.context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
+						globalWorkflowToggles[workflowPath] = enabled
+						await updateGlobalState(this.context, "globalWorkflowToggles", globalWorkflowToggles)
+						await this.postStateToWebview()
+					} else {
+						const toggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+						toggles[workflowPath] = enabled
+						await updateWorkspaceState(this.context, "workflowToggles", toggles)
+						await this.postStateToWebview()
+					}
 				}
 				break
 			}
@@ -492,38 +354,7 @@ export class Controller {
 				this.mcpHub?.sendLatestMcpServers()
 				break
 			}
-			case "openExtensionSettings": {
-				const settingsFilter = message.text || ""
-				await vscode.commands.executeCommand(
-					"workbench.action.openSettings",
-					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
-				)
-				break
-			}
-			case "invoke": {
-				if (message.text) {
-					await this.postMessageToWebview({
-						type: "invoke",
-						invoke: message.text as Invoke,
-					})
-				}
-				break
-			}
 			// telemetry
-			case "openSettings": {
-				await this.postMessageToWebview({
-					type: "action",
-					action: "settingsButtonClicked",
-				})
-				break
-			}
-			case "scrollToSettings": {
-				await this.postMessageToWebview({
-					type: "scrollToSettings",
-					text: message.text,
-				})
-				break
-			}
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
 					await this.updateTelemetrySetting(message.telemetrySetting)
@@ -585,11 +416,9 @@ export class Controller {
 				if (answer === "Delete All Except Favorites") {
 					await this.deleteNonFavoriteTaskHistory()
 					await this.postStateToWebview()
-					this.refreshTotalTasksSize()
 				} else if (answer === "Delete Everything") {
 					await this.deleteAllTaskHistory()
 					await this.postStateToWebview()
-					this.refreshTotalTasksSize()
 				}
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
@@ -606,30 +435,14 @@ export class Controller {
 				}
 				break
 			}
-
-			case "copyToClipboard": {
-				try {
-					await vscode.env.clipboard.writeText(message.text || "")
-				} catch (error) {
-					console.error("Error copying to clipboard:", error)
+			case "executeQuickWin":
+				if (message.payload) {
+					const { command, title } = message.payload
+					this.outputChannel.appendLine(`Received executeQuickWin: command='${command}', title='${title}'`)
+					await this.initTask(title)
 				}
 				break
-			}
-			case "updateTerminalConnectionTimeout": {
-				if (message.shellIntegrationTimeout !== undefined) {
-					const timeout = message.shellIntegrationTimeout
 
-					if (typeof timeout === "number" && !isNaN(timeout) && timeout > 0) {
-						await updateGlobalState(this.context, "shellIntegrationTimeout", timeout)
-						await this.postStateToWebview()
-					} else {
-						console.warn(
-							`Invalid shell integration timeout value received: ${timeout}. ` + `Expected a positive number.`,
-						)
-					}
-				}
-				break
-			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -801,12 +614,12 @@ export class Controller {
 			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
-					images: chatContent?.images,
-				})
+				await this.task.handleWebviewAskResponse(
+					"messageResponse",
+					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
+					chatContent?.images || [],
+					chatContent?.files || [],
+				)
 			} else {
 				this.cancelTask()
 			}
@@ -837,7 +650,7 @@ export class Controller {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.abandoned = true
 			}
-			await this.initTask(undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
+			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
 			// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
 	}
@@ -881,10 +694,7 @@ export class Controller {
 			await storeSecret(this.context, "clineApiKey", apiKey)
 
 			// Send custom token to webview for Firebase auth
-			await this.postMessageToWebview({
-				type: "authCallback",
-				customToken,
-			})
+			await sendAuthCallbackEvent(customToken)
 
 			const clineProvider: ApiProvider = "cline"
 			await updateGlobalState(this.context, "apiProvider", clineProvider)
@@ -951,6 +761,41 @@ export class Controller {
 		}
 	}
 
+	private async fetchMcpMarketplaceFromApiRPC(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
+		try {
+			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
+				headers: {
+					"Content-Type": "application/json",
+					"User-Agent": "cline-vscode-extension",
+				},
+			})
+
+			if (!response.data) {
+				throw new Error("Invalid response from MCP marketplace API")
+			}
+
+			const catalog: McpMarketplaceCatalog = {
+				items: (response.data || []).map((item: any) => ({
+					...item,
+					githubStars: item.githubStars ?? 0,
+					downloadCount: item.downloadCount ?? 0,
+					tags: item.tags ?? [],
+				})),
+			}
+
+			// Store in global state
+			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
+			return catalog
+		} catch (error) {
+			console.error("Failed to fetch MCP marketplace:", error)
+			if (!silent) {
+				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
+				throw new Error(errorMessage)
+			}
+			return undefined
+		}
+	}
+
 	async silentlyRefreshMcpMarketplace() {
 		try {
 			const catalog = await this.fetchMcpMarketplaceFromApi(true)
@@ -962,6 +807,20 @@ export class Controller {
 			}
 		} catch (error) {
 			console.error("Failed to silently refresh MCP marketplace:", error)
+		}
+	}
+
+	/**
+	 * RPC variant that silently refreshes the MCP marketplace catalog and returns the result
+	 * Unlike silentlyRefreshMcpMarketplace, this doesn't post a message to the webview
+	 * @returns MCP marketplace catalog or undefined if refresh failed
+	 */
+	async silentlyRefreshMcpMarketplaceRPC() {
+		try {
+			return await this.fetchMcpMarketplaceFromApiRPC(true)
+		} catch (error) {
+			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
+			return undefined
 		}
 	}
 
@@ -1182,7 +1041,7 @@ export class Controller {
 		if (id !== this.task?.taskId) {
 			// non-current task
 			const { historyItem } = await this.getTaskWithId(id)
-			await this.initTask(undefined, undefined, historyItem) // clears existing task
+			await this.initTask(undefined, undefined, undefined, historyItem) // clears existing task
 		}
 		await this.postMessageToWebview({
 			type: "action",
@@ -1254,19 +1113,6 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async refreshTotalTasksSize() {
-		getTotalTasksSize(this.context.globalStorageUri.fsPath)
-			.then((newTotalSize) => {
-				this.postMessageToWebview({
-					type: "totalTasksSize",
-					totalTasksSize: newTotalSize,
-				})
-			})
-			.catch((error) => {
-				console.error("Error calculating total tasks size:", error)
-			})
-	}
-
 	async deleteTaskWithId(id: string) {
 		console.info("deleteTaskWithId: ", id)
 
@@ -1309,7 +1155,7 @@ export class Controller {
 			console.debug(`Error deleting task:`, error)
 		}
 
-		this.refreshTotalTasksSize()
+		await this.postStateToWebview()
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -1326,10 +1172,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		// For testing: Bypass gRPC stream and send state directly
-		console.log("[Controller Test Revert] Posting full state via direct 'state' message.")
-		await this.postMessageToWebview({ type: "state", state: state })
-		// await sendStateUpdate(state) // Original line for the GrPC stream
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -1347,6 +1190,7 @@ export class Controller {
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting,
 			globalClineRulesToggles,
+			globalWorkflowToggles,
 			shellIntegrationTimeout,
 			isNewUser,
 		} = await getAllExtensionState(this.context)
@@ -1360,7 +1204,7 @@ export class Controller {
 		const localCursorRulesToggles =
 			((await getWorkspaceState(this.context, "localCursorRulesToggles")) as ClineRulesToggles) || {}
 
-		const workflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
+		const localWorkflowToggles = ((await getWorkspaceState(this.context, "workflowToggles")) as ClineRulesToggles) || {}
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
@@ -1384,12 +1228,13 @@ export class Controller {
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
-			vscMachineId: vscode.env.machineId,
+			distinctId: telemetryService.distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
-			workflowToggles: workflowToggles || {},
+			localWorkflowToggles: localWorkflowToggles || {},
+			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			isNewUser,
 		}

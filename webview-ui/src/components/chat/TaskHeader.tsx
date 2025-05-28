@@ -11,7 +11,7 @@ import Thumbnails from "@/components/common/Thumbnails"
 import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import { validateSlashCommand } from "@/utils/slash-commands"
 import TaskTimeline from "./TaskTimeline"
-import { TaskServiceClient } from "@/services/grpc-client"
+import { TaskServiceClient, FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import HeroTooltip from "@/components/common/HeroTooltip"
 
 interface TaskHeaderProps {
@@ -37,7 +37,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	onClose,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages } = useExtensionState()
+	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
+		useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
@@ -351,7 +352,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								See less
 							</div>
 						)}
-						{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
+						{((task.images && task.images.length > 0) || (task.files && task.files.length > 0)) && (
+							<Thumbnails images={task.images ?? []} files={task.files ?? []} />
+						)}
 
 						<div
 							style={{
@@ -483,20 +486,23 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										{checkpointTrackerErrorMessage.replace(/disabling checkpoints\.$/, "")}
 										{checkpointTrackerErrorMessage.endsWith("disabling checkpoints.") && (
 											<>
-												<a
+												<button
 													onClick={() => {
-														vscode.postMessage({
-															type: "openExtensionSettings",
-															text: "enableCheckpoints",
-														})
+														// First open the settings panel using direct navigation
+														navigateToSettings()
+
+														// After a short delay, send a message to scroll to settings
+														setTimeout(async () => {
+															try {
+																await UiServiceClient.scrollToSettings({ value: "features" })
+															} catch (error) {
+																console.error("Error scrolling to checkpoint settings:", error)
+															}
+														}, 300)
 													}}
-													style={{
-														color: "inherit",
-														textDecoration: "underline",
-														cursor: "pointer",
-													}}>
+													className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit">
 													disabling checkpoints.
-												</a>
+												</button>
 											</>
 										)}
 										{checkpointTrackerErrorMessage.includes("Git must be installed to use checkpoints.") && (
@@ -597,7 +603,7 @@ export const highlightMentions = (text: string, withShadow = true) => {
 					key={index}
 					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
 					style={{ cursor: "pointer" }}
-					onClick={() => vscode.postMessage({ type: "openMention", text: part })}>
+					onClick={() => FileServiceClient.openMention({ value: part })}>
 					@{part}
 				</span>
 			)

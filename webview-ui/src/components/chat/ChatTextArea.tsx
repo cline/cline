@@ -33,12 +33,13 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import Tooltip from "@/components/common/Tooltip"
 import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
-import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
+import { MAX_IMAGES_AND_FILES_PER_MESSAGE } from "@/components/chat/ChatView"
 import ContextMenu from "@/components/chat/ContextMenu"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { ChatSettings } from "@shared/ChatSettings"
 import ServersToggleModal from "./ServersToggleModal"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
+import { PlanActMode } from "@shared/proto/state"
 
 const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
@@ -64,11 +65,13 @@ interface ChatTextAreaProps {
 	setInputValue: (value: string) => void
 	sendingDisabled: boolean
 	placeholderText: string
+	selectedFiles: string[]
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
+	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
 	onSend: () => void
-	onSelectImages: () => void
-	shouldDisableImages: boolean
+	onSelectFilesAndImages: () => void
+	shouldDisableFilesAndImages: boolean
 	onHeightChange?: (height: number) => void
 	onFocusChange?: (isFocused: boolean) => void
 }
@@ -249,17 +252,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setInputValue,
 			sendingDisabled,
 			placeholderText,
+			selectedFiles,
 			selectedImages,
 			setSelectedImages,
+			setSelectedFiles,
 			onSend,
-			onSelectImages,
-			shouldDisableImages,
+			onSelectFilesAndImages,
+			shouldDisableFilesAndImages,
 			onHeightChange,
 			onFocusChange,
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform, workflowToggles } = useExtensionState()
+		const {
+			filePaths,
+			chatSettings,
+			apiConfiguration,
+			openRouterModels,
+			platform,
+			localWorkflowToggles,
+			globalWorkflowToggles,
+		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -483,7 +496,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setSelectedSlashCommandsIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
 							// Get commands with workflow toggles
-							const allCommands = getMatchingSlashCommands(slashCommandsQuery, workflowToggles)
+							const allCommands = getMatchingSlashCommands(
+								slashCommandsQuery,
+								localWorkflowToggles,
+								globalWorkflowToggles,
+							)
 
 							if (allCommands.length === 0) {
 								return prevIndex
@@ -501,7 +518,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
-						const commands = getMatchingSlashCommands(slashCommandsQuery, workflowToggles)
+						const commands = getMatchingSlashCommands(slashCommandsQuery, localWorkflowToggles, globalWorkflowToggles)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
 						}
@@ -823,7 +840,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
-				if (!shouldDisableImages && imageItems.length > 0) {
+				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
 						return new Promise<string | null>((resolve) => {
@@ -860,13 +877,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
 					//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
 					if (dataUrls.length > 0) {
-						setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+						const filesAndImagesLength = selectedImages.length + selectedFiles.length
+						const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+
+						if (availableSlots > 0) {
+							const imagesToAdd = Math.min(dataUrls.length, availableSlots)
+							setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+						}
 					} else {
 						console.warn("No valid images were processed")
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, showDimensionErrorMessage],
+			[
+				shouldDisableFilesAndImages,
+				setSelectedImages,
+				selectedImages,
+				selectedFiles,
+				cursorPosition,
+				setInputValue,
+				inputValue,
+				showDimensionErrorMessage,
+			],
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -904,7 +936,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// extract and validate the exact command text
 				const commandText = processedText.substring(slashIndex + 1, endIndex)
-				const isValidCommand = validateSlashCommand(commandText, workflowToggles)
+				const isValidCommand = validateSlashCommand(commandText, localWorkflowToggles, globalWorkflowToggles)
 
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
@@ -917,7 +949,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [workflowToggles])
+		}, [localWorkflowToggles, globalWorkflowToggles])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -965,15 +997,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
 			}
 			setTimeout(() => {
-				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
-				vscode.postMessage({
-					type: "togglePlanActMode",
+				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+				StateServiceClient.togglePlanActMode({
 					chatSettings: {
 						mode: newMode,
+						preferredLanguage: chatSettings.preferredLanguage,
+						openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 					},
 					chatContent: {
 						message: inputValue.trim() ? inputValue : undefined,
 						images: selectedImages.length > 0 ? selectedImages : undefined,
+						files: selectedFiles.length > 0 ? selectedFiles : undefined,
 					},
 				})
 				// Focus the textarea after mode toggle with slight delay
@@ -981,7 +1015,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					textAreaRef.current?.focus()
 				}, 100)
 			}, changeModeDelay)
-		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages])
+		}, [chatSettings.mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
 
 		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1071,6 +1105,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "litellm":
 					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
 				case "requesty":
+					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
 				case "anthropic":
 				case "openrouter":
 				default:
@@ -1259,7 +1294,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableImages || imageFiles.length === 0) {
+			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
 				return
 			}
 
@@ -1267,7 +1302,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
 
 			if (dataUrls.length > 0) {
-				setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
+				const filesAndImagesLength = selectedImages.length + selectedFiles.length
+				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+
+				if (availableSlots > 0) {
+					const imagesToAdd = Math.min(dataUrls.length, availableSlots)
+					setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+				}
 			} else {
 				console.warn("No valid images were processed")
 			}
@@ -1387,7 +1428,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									fontWeight: "bold",
 									fontSize: "12px",
 								}}>
-								Only image files are supported
+								Files other than images are currently disabled
 							</span>
 						</div>
 					)}
@@ -1399,7 +1440,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 								onMouseDown={handleMenuMouseDown}
 								query={slashCommandsQuery}
-								workflowToggles={workflowToggles}
+								localWorkflowToggles={localWorkflowToggles}
+								globalWorkflowToggles={globalWorkflowToggles}
 							/>
 						</div>
 					)}
@@ -1530,10 +1572,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onScroll={() => updateHighlights()}
 					/>
-					{selectedImages.length > 0 && (
+					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
 						<Thumbnails
 							images={selectedImages}
+							files={selectedFiles}
 							setImages={setSelectedImages}
+							setFiles={setSelectedFiles}
 							onHeightChange={handleThumbnailsHeightChange}
 							style={{
 								position: "absolute",
@@ -1623,21 +1667,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</VSCodeButton>
 							</Tooltip>
 
-							<Tooltip tipText="Add Images">
+							<Tooltip tipText="Add Files & Images">
 								<VSCodeButton
-									data-testid="images-button"
+									data-testid="files-button"
 									appearance="icon"
-									aria-label="Add Images"
-									disabled={shouldDisableImages}
+									aria-label="Add Files & Images"
+									disabled={shouldDisableFilesAndImages}
 									onClick={() => {
-										if (!shouldDisableImages) {
-											onSelectImages()
+										if (!shouldDisableFilesAndImages) {
+											onSelectFilesAndImages()
 										}
 									}}
 									style={{ padding: "0px 0px", height: "20px" }}>
 									<ButtonContainer>
 										<span
-											className="codicon codicon-device-camera flex items-center"
+											className="codicon codicon-add flex items-center"
 											style={{ fontSize: "14px", marginBottom: -3 }}
 										/>
 									</ButtonContainer>

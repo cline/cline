@@ -14,6 +14,7 @@ import { DeepSeekHandler } from "./providers/deepseek"
 import { RequestyHandler } from "./providers/requesty"
 import { NetmindHandler } from "./providers/netmind"
 import { TogetherHandler } from "./providers/together"
+import { NebiusHandler } from "./providers/nebius"
 import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
 import { DoubaoHandler } from "./providers/doubao"
@@ -24,6 +25,7 @@ import { FireworksHandler } from "./providers/fireworks"
 import { AskSageHandler } from "./providers/asksage"
 import { XAIHandler } from "./providers/xai"
 import { SambanovaHandler } from "./providers/sambanova"
+import { CerebrasHandler } from "./providers/cerebras"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -76,6 +78,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new ClineHandler(options)
 		case "litellm":
 			return new LiteLlmHandler(options)
+		case "nebius":
+			return new NebiusHandler(options)
 		case "asksage":
 			return new AskSageHandler(options)
 		case "xai":
@@ -84,6 +88,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new SambanovaHandler(options)
 		case "netmind":
 			return new NetmindHandler(options)
+		case "cerebras":
+			return new CerebrasHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

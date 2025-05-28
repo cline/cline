@@ -47,13 +47,16 @@ import {
 	askSageDefaultURL,
 	xaiDefaultModelId,
 	xaiModels,
+	nebiusModels,
+	nebiusDefaultModelId,
 	sambanovaModels,
 	sambanovaDefaultModelId,
+	cerebrasModels,
+	cerebrasDefaultModelId,
 	doubaoModels,
 	doubaoDefaultModelId,
 	liteLlmModelInfoSaneDefaults,
 } from "@shared/api"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -325,9 +328,11 @@ const ApiOptions = ({
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
+					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -892,8 +897,14 @@ const ApiOptions = ({
 						</div>
 					)}
 					{(selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0" ||
+						selectedModelId === "anthropic.claude-sonnet-4-20250514-v1:0" ||
+						selectedModelId === "anthropic.claude-opus-4-20250514-v1:0" ||
 						(apiConfiguration?.awsBedrockCustomSelected &&
-							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-3-7-sonnet-20250219-v1:0")) && (
+							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+						(apiConfiguration?.awsBedrockCustomSelected &&
+							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-20250514-v1:0") ||
+						(apiConfiguration?.awsBedrockCustomSelected &&
+							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-opus-4-20250514-v1:0")) && (
 						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 					)}
 					<ModelInfoView
@@ -1712,7 +1723,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.liteLlmModelId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("liteLlmModelId")}
-						placeholder={"e.g. anthropic/claude-3-7-sonnet-20250219"}>
+						placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 
@@ -1746,7 +1757,7 @@ const ApiOptions = ({
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							Extended thinking is available for models as Sonnet-3-7, o3-mini, Deepseek R1, etc. More info on{" "}
+							Extended thinking is available for models such as Sonnet-4, o3-mini, Deepseek R1, etc. More info on{" "}
 							<VSCodeLink
 								href="https://docs.litellm.ai/docs/reasoning_content"
 								style={{ display: "inline", fontSize: "inherit" }}>
@@ -1951,6 +1962,52 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "nebius" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.nebiusApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("nebiusApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Nebius API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.{" "}
+						{!apiConfiguration?.nebiusApiKey && (
+							<VSCodeLink
+								href="https://studio.nebius.com/settings/api-keys"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Nebius API key by signing up here.{" "}
+							</VSCodeLink>
+						)}
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
+			{apiErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{apiErrorMessage}
+				</p>
+			)}
+
 			{selectedProvider === "xai" && (
 				<div>
 					<VSCodeTextField
@@ -1967,6 +2024,10 @@ const ApiOptions = ({
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.xaiApiKey && (
 							<VSCodeLink href="https://x.ai" style={{ display: "inline", fontSize: "inherit" }}>
@@ -2016,6 +2077,37 @@ const ApiOptions = ({
 									fontSize: "inherit",
 								}}>
 								You can get a SambaNova API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "cerebras" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.cerebrasApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("cerebrasApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Cerebras API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.cerebrasApiKey && (
+							<VSCodeLink
+								href="https://cloud.cerebras.ai/"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Cerebras API key by signing up here.
 							</VSCodeLink>
 						)}
 					</p>
@@ -2139,12 +2231,29 @@ const ApiOptions = ({
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
+							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
+							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
 
-						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
-							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
-							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-						)}
+						{selectedProvider === "anthropic" &&
+							(selectedModelId === "claude-3-7-sonnet-20250219" ||
+								selectedModelId === "claude-sonnet-4-20250514" ||
+								selectedModelId === "claude-opus-4-20250514") && (
+								<ThinkingBudgetSlider
+									apiConfiguration={apiConfiguration}
+									setApiConfiguration={setApiConfiguration}
+								/>
+							)}
+
+						{selectedProvider === "vertex" &&
+							(selectedModelId === "claude-3-7-sonnet@20250219" ||
+								selectedModelId === "claude-sonnet-4@20250514" ||
+								selectedModelId === "claude-opus-4@20250514") && (
+								<ThinkingBudgetSlider
+									apiConfiguration={apiConfiguration}
+									setApiConfiguration={setApiConfiguration}
+								/>
+							)}
 
 						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
 							<>
@@ -2197,7 +2306,6 @@ const ApiOptions = ({
 								)}
 							</>
 						)}
-
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
@@ -2555,8 +2663,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "nebius":
+			return getProviderData(nebiusModels, nebiusDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
+		case "cerebras":
+			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
