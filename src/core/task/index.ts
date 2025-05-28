@@ -104,6 +104,7 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
+import { parseAssistantMessageV3 } from "../assistant-message/parse-assistant-message"
 
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -4268,7 +4269,13 @@ export class Task {
 							// parse raw assistant message into content blocks
 							const prevLength = this.assistantMessageContent.length
 							const enableFunctionCallsParsing = await this.isClaude4ModelFamily()
-							this.assistantMessageContent = parseAssistantMessageV2(assistantMessage, enableFunctionCallsParsing)
+
+							if (enableFunctionCallsParsing) {
+								this.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
+							} else {
+								this.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+							}
+
 							if (this.assistantMessageContent.length > prevLength) {
 								this.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
