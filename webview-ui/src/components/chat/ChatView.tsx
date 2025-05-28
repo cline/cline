@@ -499,7 +499,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk, activeQuote]
+		[messages.length, clineAsk, activeQuote],
 	)
 
 	const startNewTask = useCallback(async () => {
@@ -568,7 +568,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
-		[clineAsk, startNewTask, lastMessage]
+		[clineAsk, startNewTask, lastMessage],
 	)
 
 	const handleSecondaryButtonClick = useCallback(
@@ -617,7 +617,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
-		[clineAsk, startNewTask, isStreaming]
+		[clineAsk, startNewTask, isStreaming],
 	)
 
 	const handleTaskCloseButtonClick = useCallback(() => {
@@ -696,7 +696,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			}
 			// textAreaRef.current is not explicitly required here since react guarantees that ref will be stable across re-renders, and we're not using its value but its reference.
 		},
-		[isHidden, sendingDisabled, enableButtons, handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick]
+		[isHidden, sendingDisabled, enableButtons, handleSendMessage, handlePrimaryButtonClick, handleSecondaryButtonClick],
 	)
 
 	useEvent("message", handleMessage)
@@ -729,7 +729,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onComplete: () => {
 					console.log("addToInput subscription completed")
 				},
-			}
+			},
 		)
 
 		return cleanup
@@ -882,9 +882,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					})
 				},
 				10,
-				{ immediate: true }
+				{ immediate: true },
 			),
-		[]
+		[],
 	)
 
 	const scrollToBottomAuto = useCallback(() => {
@@ -946,7 +946,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}
 			}
 		},
-		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom]
+		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
 	)
 
 	const handleRowHeightChange = useCallback(
@@ -961,7 +961,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}
 			}
 		},
-		[scrollToBottomSmooth, scrollToBottomAuto]
+		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
 	useEffect(() => {
@@ -1044,7 +1044,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			handleRowHeightChange,
 			inputValue,
 			setActiveQuote,
-		]
+		],
 	)
 
 	return (

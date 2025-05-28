@@ -77,7 +77,7 @@ export class Controller {
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
-		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
+		postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.postMessage = postMessage
@@ -87,14 +87,14 @@ export class Controller {
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
 			(msg) => this.postMessageToWebview(msg),
-			this.context.extension?.packageJSON?.version ?? "1.0.0"
+			this.context.extension?.packageJSON?.version ?? "1.0.0",
 		)
 		this.accountService = new ClineAccountService(
 			(msg) => this.postMessageToWebview(msg),
 			async () => {
 				const { apiConfiguration } = await this.getStateToPostToWebview()
 				return apiConfiguration?.clineApiKey
-			}
+			},
 		)
 
 		// Clean up legacy checkpoints
@@ -190,7 +190,7 @@ export class Controller {
 			task,
 			images,
 			files,
-			historyItem
+			historyItem,
 		)
 	}
 
@@ -225,7 +225,7 @@ export class Controller {
 					this.postMessageToWebview({
 						type: "theme",
 						text: JSON.stringify(theme),
-					})
+					}),
 				)
 				// post last cached models in case the call to endpoint fails
 				this.readOpenRouterModels().then((openRouterModels) => {
@@ -258,7 +258,7 @@ export class Controller {
 							await updateGlobalState(
 								this.context,
 								"openRouterModelInfo",
-								response.models[apiConfiguration.openRouterModelId]
+								response.models[apiConfiguration.openRouterModelId],
 							)
 							await this.postStateToWebview()
 						}
@@ -418,7 +418,7 @@ export class Controller {
 					{ modal: true },
 					"Delete All Except Favorites",
 					"Delete Everything",
-					"Cancel"
+					"Cancel",
 				)
 
 				if (answer === "Delete All Except Favorites") {
@@ -505,12 +505,12 @@ export class Controller {
 					await updateGlobalState(
 						this.context,
 						"previousModeAwsBedrockCustomSelected",
-						apiConfiguration.awsBedrockCustomSelected
+						apiConfiguration.awsBedrockCustomSelected,
 					)
 					await updateGlobalState(
 						this.context,
 						"previousModeAwsBedrockCustomModelBaseId",
-						apiConfiguration.awsBedrockCustomModelBaseId
+						apiConfiguration.awsBedrockCustomModelBaseId,
 					)
 					break
 				case "openrouter":
@@ -523,7 +523,7 @@ export class Controller {
 					await updateGlobalState(
 						this.context,
 						"previousModeVsCodeLmModelSelector",
-						apiConfiguration.vsCodeLmModelSelector
+						apiConfiguration.vsCodeLmModelSelector,
 					)
 					break
 				case "openai":
@@ -620,7 +620,7 @@ export class Controller {
 					"messageResponse",
 					chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
 					chatContent?.images || [],
-					chatContent?.files || []
+					chatContent?.files || [],
 				)
 			} else {
 				this.cancelTask()
@@ -644,7 +644,7 @@ export class Controller {
 					this.task.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
-				}
+				},
 			).catch(() => {
 				console.error("Failed to abort task")
 			})
@@ -1066,7 +1066,7 @@ export class Controller {
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`
+				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
 		// await this.postStateToWebview()
@@ -1102,7 +1102,7 @@ export class Controller {
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				`Error deleting task history: ${error instanceof Error ? error.message : String(error)}`
+				`Error deleting task history: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
 
@@ -1403,7 +1403,7 @@ Commit message:`
 						const innerErrorMessage = innerError instanceof Error ? innerError.message : String(innerError)
 						vscode.window.showErrorMessage(`Failed to generate commit message: ${innerErrorMessage}`)
 					}
-				}
+				},
 			)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
