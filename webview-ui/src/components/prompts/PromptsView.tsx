@@ -11,7 +11,14 @@ import { ChevronsUpDown, X } from "lucide-react"
 
 import { ModeConfig, GroupEntry, PromptComponent, ToolGroup, modeConfigSchema } from "@roo-code/types"
 
-import { Mode, getRoleDefinition, getWhenToUse, getCustomInstructions, getAllModes } from "@roo/modes"
+import {
+	Mode,
+	getRoleDefinition,
+	getWhenToUse,
+	getCustomInstructions,
+	getAllModes,
+	findModeBySlug as findCustomModeBySlug,
+} from "@roo/modes"
 import { supportPrompt, SupportPromptType } from "@roo/support-prompt"
 import { TOOL_GROUPS } from "@roo/tools"
 
@@ -133,9 +140,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	// Helper function to find a mode by slug
 	const findModeBySlug = useCallback(
 		(searchSlug: string, modes: readonly ModeConfig[] | undefined): ModeConfig | undefined => {
-			if (!modes) return undefined
-			const isModeWithSlug = (mode: ModeConfig): mode is ModeConfig => mode.slug === searchSlug
-			return modes.find(isModeWithSlug)
+			return findCustomModeBySlug(searchSlug, modes)
 		},
 		[],
 	)

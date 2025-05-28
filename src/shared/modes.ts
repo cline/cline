@@ -1,6 +1,14 @@
 import * as vscode from "vscode"
 
-import type { GroupOptions, GroupEntry, ModeConfig, CustomModePrompts, ExperimentId, ToolGroup } from "@roo-code/types"
+import type {
+	GroupOptions,
+	GroupEntry,
+	ModeConfig,
+	CustomModePrompts,
+	ExperimentId,
+	ToolGroup,
+	PromptComponent,
+} from "@roo-code/types"
 
 import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
 
@@ -147,6 +155,34 @@ export function getAllModes(customModes?: ModeConfig[]): ModeConfig[] {
 // Check if a mode is custom or an override
 export function isCustomMode(slug: string, customModes?: ModeConfig[]): boolean {
 	return !!customModes?.some((mode) => mode.slug === slug)
+}
+
+/**
+ * Find a mode by its slug, don't fall back to built-in modes
+ */
+export function findModeBySlug(slug: string, modes: readonly ModeConfig[] | undefined): ModeConfig | undefined {
+	return modes?.find((mode) => mode.slug === slug)
+}
+
+/**
+ * Get the mode selection based on the provided mode slug, prompt component, and custom modes.
+ * If a custom mode is found, it takes precedence over the built-in modes.
+ * If no custom mode is found, the built-in mode is used.
+ * If neither is found, the default mode is used.
+ */
+export function getModeSelection(mode: string, promptComponent?: PromptComponent, customModes?: ModeConfig[]) {
+	const customMode = findModeBySlug(mode, customModes)
+	const builtInMode = findModeBySlug(mode, modes)
+
+	const modeToUse = customMode || promptComponent || builtInMode
+
+	const roleDefinition = modeToUse?.roleDefinition || ""
+	const baseInstructions = modeToUse?.customInstructions || ""
+
+	return {
+		roleDefinition,
+		baseInstructions,
+	}
 }
 
 // Custom error class for file restrictions

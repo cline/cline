@@ -1,6 +1,6 @@
 // npx jest src/shared/__tests__/modes.test.ts
 
-import type { ModeConfig } from "@roo-code/types"
+import type { ModeConfig, PromptComponent } from "@roo-code/types"
 
 // Mock setup must come before imports
 jest.mock("vscode")
@@ -11,7 +11,7 @@ jest.mock("../../core/prompts/sections/custom-instructions", () => ({
 	addCustomInstructions: mockAddCustomInstructions,
 }))
 
-import { isToolAllowedForMode, FileRestrictionError, getFullModeDetails, modes } from "../modes"
+import { isToolAllowedForMode, FileRestrictionError, getFullModeDetails, modes, getModeSelection } from "../modes"
 import { addCustomInstructions } from "../../core/prompts/sections/custom-instructions"
 
 describe("isToolAllowedForMode", () => {
@@ -369,5 +369,211 @@ describe("FileRestrictionError", () => {
 			"This mode (Markdown Editor) can only edit files matching pattern: \\.md$ (Markdown files only). Got: test.js",
 		)
 		expect(error.name).toBe("FileRestrictionError")
+	})
+})
+
+describe("getModeSelection", () => {
+	const builtInAskMode = modes.find((m) => m.slug === "ask")!
+	const customModesList: ModeConfig[] = [
+		{
+			slug: "code", // Override
+			name: "Custom Code Mode",
+			roleDefinition: "Custom Code Role",
+			customInstructions: "Custom Code Instructions",
+			groups: ["read"],
+		},
+		{
+			slug: "new-custom",
+			name: "New Custom Mode",
+			roleDefinition: "New Custom Role",
+			customInstructions: "New Custom Instructions",
+			groups: ["edit"],
+		},
+	]
+
+	const promptComponentCode: PromptComponent = {
+		roleDefinition: "Prompt Component Code Role",
+		customInstructions: "Prompt Component Code Instructions",
+	}
+
+	const promptComponentAsk: PromptComponent = {
+		roleDefinition: "Prompt Component Ask Role",
+		customInstructions: "Prompt Component Ask Instructions",
+	}
+
+	test("should return built-in mode details if no overrides", () => {
+		const selection = getModeSelection("ask")
+		expect(selection.roleDefinition).toBe(builtInAskMode.roleDefinition)
+		expect(selection.baseInstructions).toBe(builtInAskMode.customInstructions || "")
+	})
+
+	test("should prioritize promptComponent for built-in mode if no custom mode exists for that slug", () => {
+		const selection = getModeSelection("ask", promptComponentAsk) // "ask" is not in customModesList
+		expect(selection.roleDefinition).toBe(promptComponentAsk.roleDefinition)
+		expect(selection.baseInstructions).toBe(promptComponentAsk.customInstructions)
+	})
+
+	test("should prioritize customMode over built-in mode", () => {
+		const selection = getModeSelection("code", undefined, customModesList)
+		const customCode = customModesList.find((m) => m.slug === "code")!
+		expect(selection.roleDefinition).toBe(customCode.roleDefinition)
+		expect(selection.baseInstructions).toBe(customCode.customInstructions)
+	})
+
+	test("should prioritize customMode over promptComponent and built-in mode", () => {
+		const selection = getModeSelection("code", promptComponentCode, customModesList)
+		const customCode = customModesList.find((m) => m.slug === "code")!
+		expect(selection.roleDefinition).toBe(customCode.roleDefinition)
+		expect(selection.baseInstructions).toBe(customCode.customInstructions)
+	})
+
+	test("should return new custom mode details if it exists", () => {
+		const selection = getModeSelection("new-custom", undefined, customModesList)
+		const newCustom = customModesList.find((m) => m.slug === "new-custom")!
+		expect(selection.roleDefinition).toBe(newCustom.roleDefinition)
+		expect(selection.baseInstructions).toBe(newCustom.customInstructions)
+	})
+
+	test("customMode takes precedence for a new custom mode even if promptComponent is provided", () => {
+		const promptComponentNew: PromptComponent = {
+			roleDefinition: "Prompt New Custom Role",
+			customInstructions: "Prompt New Custom Instructions",
+		}
+		const selection = getModeSelection("new-custom", promptComponentNew, customModesList)
+		const newCustomMode = customModesList.find((m) => m.slug === "new-custom")!
+		expect(selection.roleDefinition).toBe(newCustomMode.roleDefinition)
+		expect(selection.baseInstructions).toBe(newCustomMode.customInstructions)
+	})
+
+	test("should return empty strings if slug does not exist in custom, prompt, or built-in modes", () => {
+		const selection = getModeSelection("non-existent-mode", undefined, customModesList)
+		expect(selection.roleDefinition).toBe("")
+		expect(selection.baseInstructions).toBe("")
+	})
+
+	test("customMode's properties are used if customMode exists, ignoring promptComponent's properties", () => {
+		const selection = getModeSelection(
+			"code",
+			{ roleDefinition: "Prompt Role Only", customInstructions: "Prompt Instructions Only" },
+			customModesList,
+		)
+		const customCodeMode = customModesList.find((m) => m.slug === "code")!
+		expect(selection.roleDefinition).toBe(customCodeMode.roleDefinition) // Takes from customCodeMode
+		expect(selection.baseInstructions).toBe(customCodeMode.customInstructions) // Takes from customCodeMode
+	})
+
+	test("handles undefined customInstructions in customMode gracefully", () => {
+		const modesWithoutCustomInstructions: ModeConfig[] = [
+			{
+				slug: "no-instr",
+				name: "No Instructions Mode",
+				roleDefinition: "Role for no instructions",
+				groups: ["read"],
+				// customInstructions is undefined
+			},
+		]
+		const selection = getModeSelection("no-instr", undefined, modesWithoutCustomInstructions)
+		expect(selection.roleDefinition).toBe("Role for no instructions")
+		expect(selection.baseInstructions).toBe("") // Defaults to empty string
+	})
+
+	test("handles empty or undefined roleDefinition in customMode gracefully", () => {
+		const modesWithEmptyRoleDef: ModeConfig[] = [
+			{
+				slug: "empty-role",
+				name: "Empty Role Mode",
+				roleDefinition: "",
+				customInstructions: "Instructions for empty role",
+				groups: ["read"],
+			},
+		]
+		const selection = getModeSelection("empty-role", undefined, modesWithEmptyRoleDef)
+		expect(selection.roleDefinition).toBe("")
+		expect(selection.baseInstructions).toBe("Instructions for empty role")
+
+		const modesWithUndefinedRoleDef: ModeConfig[] = [
+			{
+				slug: "undefined-role",
+				name: "Undefined Role Mode",
+				roleDefinition: "", // Test undefined explicitly by using an empty string
+				customInstructions: "Instructions for undefined role",
+				groups: ["read"],
+			},
+		]
+		const selection2 = getModeSelection("undefined-role", undefined, modesWithUndefinedRoleDef)
+		expect(selection2.roleDefinition).toBe("")
+		expect(selection2.baseInstructions).toBe("Instructions for undefined role")
+	})
+
+	test("customMode's defined properties take precedence, undefined ones in customMode result in ''", () => {
+		const customModeRoleOnlyList: ModeConfig[] = [
+			// Renamed for clarity
+			{
+				slug: "role-custom",
+				name: "Role Custom",
+				roleDefinition: "Custom Role Only",
+				groups: ["read"] /* customInstructions undefined */,
+			},
+		]
+		const promptComponentInstrOnly: PromptComponent = { customInstructions: "Prompt Instructions Only" }
+		// "role-custom" exists in customModeRoleOnlyList
+		const selection = getModeSelection("role-custom", promptComponentInstrOnly, customModeRoleOnlyList)
+		// customMode is chosen.
+		expect(selection.roleDefinition).toBe("Custom Role Only") // From customMode
+		expect(selection.baseInstructions).toBe("") // From customMode (undefined || '' -> '')
+	})
+
+	test("customMode's defined properties take precedence, empty string ones in customMode are used", () => {
+		const customModeInstrOnlyList: ModeConfig[] = [
+			// Renamed for clarity
+			{
+				slug: "instr-custom",
+				name: "Instr Custom",
+				roleDefinition: "", // Explicitly empty
+				customInstructions: "Custom Instructions Only",
+				groups: ["read"],
+			},
+		]
+		const promptComponentRoleOnly: PromptComponent = { roleDefinition: "Prompt Role Only" }
+		// "instr-custom" exists in customModeInstrOnlyList
+		const selection = getModeSelection("instr-custom", promptComponentRoleOnly, customModeInstrOnlyList)
+		// customMode is chosen
+		expect(selection.roleDefinition).toBe("") // From customMode ( "" || '' -> "")
+		expect(selection.baseInstructions).toBe("Custom Instructions Only") // From customMode
+	})
+
+	test("customMode with empty/undefined fields takes precedence over promptComponent and builtInMode", () => {
+		const customModeMinimal: ModeConfig[] = [
+			{ slug: "ask", name: "Custom Ask Minimal", roleDefinition: "", groups: ["read"] }, // roleDef empty, customInstr undefined
+		]
+		const promptComponentMinimal: PromptComponent = {
+			roleDefinition: "Prompt Min Role",
+			customInstructions: "Prompt Min Instr",
+		}
+		// "ask" is in customModeMinimal
+		const selection = getModeSelection("ask", promptComponentMinimal, customModeMinimal)
+		// customMode is chosen
+		expect(selection.roleDefinition).toBe("") // From customModeMinimal
+		expect(selection.baseInstructions).toBe("") // From customModeMinimal
+	})
+
+	test("promptComponent is used if customMode for slug does not exist, even if customModesList is provided", () => {
+		// 'ask' is not in customModesList, but 'code' and 'new-custom' are.
+		const selection = getModeSelection("ask", promptComponentAsk, customModesList)
+		expect(selection.roleDefinition).toBe(promptComponentAsk.roleDefinition)
+		expect(selection.baseInstructions).toBe(promptComponentAsk.customInstructions)
+	})
+
+	test("builtInMode is used if customMode for slug does not exist and promptComponent is not provided", () => {
+		// 'ask' is not in customModesList
+		const selection = getModeSelection("ask", undefined, customModesList)
+		expect(selection.roleDefinition).toBe(builtInAskMode.roleDefinition)
+		expect(selection.baseInstructions).toBe(builtInAskMode.customInstructions || "")
+	})
+
+	test("promptComponent is used if customMode is not provided (undefined customModesList)", () => {
+		const selection = getModeSelection("ask", promptComponentAsk, undefined)
+		expect(selection.roleDefinition).toBe(promptComponentAsk.roleDefinition)
+		expect(selection.baseInstructions).toBe(promptComponentAsk.customInstructions)
 	})
 })
