@@ -151,6 +151,9 @@ describe("OpenApiInfoOptions", () => {
 		vi.clearAllMocks()
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
 		global.vscode = { postMessage: mockPostMessage }
+		mockExtensionState({
+			apiProvider: "openai",
+		})
 	})
 
 	it("renders OpenAI Supports Images input", () => {
