@@ -164,6 +164,7 @@ Key providers include:
 - **OpenRouter**: Meta-provider supporting multiple model providers
 - **AWS Bedrock**: Integration with Amazon's AI services
 - **Gemini**: Google's AI models
+- **Cerebras**: High-performance inference with Llama, Qwen, and DeepSeek models
 - **Ollama**: Local model hosting
 - **LM Studio**: Local model hosting
 - **VSCode LM**: VSCode's built-in language models

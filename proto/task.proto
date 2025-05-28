@@ -11,6 +11,8 @@ service TaskService {
   rpc cancelTask(EmptyRequest) returns (Empty);
   // Clears the current task
   rpc clearTask(EmptyRequest) returns (Empty);
+  // Gets the total size of all tasks
+  rpc getTotalTasksSize(EmptyRequest) returns (Int64);
   // Deletes multiple tasks with the given IDs
   rpc deleteTasksWithIds(StringArrayRequest) returns (Empty);
   // Creates a new task with the given text and optional images

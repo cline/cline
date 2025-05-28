@@ -1,13 +1,12 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
-import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 
 export const ClineAccountInfoCard = () => {
 	const { user: firebaseUser, handleSignOut } = useFirebaseAuth()
-	const { userInfo, apiConfiguration } = useExtensionState()
+	const { userInfo, apiConfiguration, navigateToAccount } = useExtensionState()
 
 	let user = apiConfiguration?.clineApiKey ? firebaseUser || userInfo : undefined
 
@@ -18,7 +17,7 @@ export const ClineAccountInfoCard = () => {
 	}
 
 	const handleShowAccount = () => {
-		vscode.postMessage({ type: "showAccountViewClicked" })
+		navigateToAccount()
 	}
 
 	return (

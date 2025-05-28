@@ -1,5 +1,4 @@
 import { useRef, useState } from "react"
-import { vscode } from "@/utils/vscode"
 import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { LINKS } from "@/constants"
 import { McpServiceClient } from "@/services/grpc-client"
@@ -116,7 +115,9 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 					appearance="secondary"
 					style={{ width: "100%", marginBottom: "5px", marginTop: 15 }}
 					onClick={() => {
-						vscode.postMessage({ type: "openMcpSettings" })
+						McpServiceClient.openMcpSettings({}).catch((error) => {
+							console.error("Error opening MCP settings:", error)
+						})
 					}}>
 					Edit Configuration
 				</VSCodeButton>

@@ -22,6 +22,7 @@ export type SecretKey =
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
 	| "makehubApiKey"
+	| "cerebrasApiKey"
 
 export type GlobalStateKey =
 	| "apiProvider"

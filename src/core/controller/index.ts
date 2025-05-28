@@ -273,13 +273,6 @@ export class Controller {
 						})
 					}
 				})
-
-				// If user already opted in to telemetry, enable telemetry service
-				this.getStateToPostToWebview().then((state) => {
-					const { telemetrySetting } = state
-					const isOptedIn = telemetrySetting !== "disabled"
-					telemetryService.updateTelemetryState(isOptedIn)
-				})
 				break
 			case "showChatView": {
 				this.postMessageToWebview({
@@ -315,24 +308,8 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			case "openInBrowser":
-				if (message.url) {
-					vscode.env.openExternal(vscode.Uri.parse(message.url))
-				}
-				break
-			case "showAccountViewClicked": {
-				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
-				break
-			}
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
-				break
-			}
-			case "openMcpSettings": {
-				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
-				if (mcpSettingsFilePath) {
-					await handleFileServiceRequest(this, "openFile", { value: mcpSettingsFilePath })
-				}
 				break
 			}
 			case "fetchMcpMarketplace": {
@@ -392,21 +369,8 @@ export class Controller {
 				}
 				break
 			}
-			case "requestTotalTasksSize": {
-				this.refreshTotalTasksSize()
-				break
-			}
-
 			case "fetchLatestMcpServersFromHub": {
 				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
-			case "openExtensionSettings": {
-				const settingsFilter = message.text || ""
-				await vscode.commands.executeCommand(
-					"workbench.action.openSettings",
-					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
-				)
 				break
 			}
 			case "invoke": {
@@ -480,11 +444,9 @@ export class Controller {
 				if (answer === "Delete All Except Favorites") {
 					await this.deleteNonFavoriteTaskHistory()
 					await this.postStateToWebview()
-					this.refreshTotalTasksSize()
 				} else if (answer === "Delete Everything") {
 					await this.deleteAllTaskHistory()
 					await this.postStateToWebview()
-					this.refreshTotalTasksSize()
 				}
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
@@ -822,6 +784,7 @@ export class Controller {
 			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
 				headers: {
 					"Content-Type": "application/json",
+					"User-Agent": "cline-vscode-extension",
 				},
 			})
 
@@ -1263,19 +1226,6 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async refreshTotalTasksSize() {
-		getTotalTasksSize(this.context.globalStorageUri.fsPath)
-			.then((newTotalSize) => {
-				this.postMessageToWebview({
-					type: "totalTasksSize",
-					totalTasksSize: newTotalSize,
-				})
-			})
-			.catch((error) => {
-				console.error("Error calculating total tasks size:", error)
-			})
-	}
-
 	async deleteTaskWithId(id: string) {
 		console.info("deleteTaskWithId: ", id)
 
@@ -1318,7 +1268,7 @@ export class Controller {
 			console.debug(`Error deleting task:`, error)
 		}
 
-		this.refreshTotalTasksSize()
+		await this.postStateToWebview()
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -1335,10 +1285,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		// For testing: Bypass gRPC stream and send state directly
-		console.log("[Controller Test Revert] Posting full state via direct 'state' message.")
-		await this.postMessageToWebview({ type: "state", state: state })
-		// await sendStateUpdate(state) // Original line for the GrPC stream
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -1394,7 +1341,7 @@ export class Controller {
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
-			vscMachineId: vscode.env.machineId,
+			distinctId: telemetryService.distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
