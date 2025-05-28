@@ -262,7 +262,10 @@ export function parseAssistantMessageV1(assistantMessage: string): AssistantMess
  * @returns An array of `AssistantMessageContent` objects, which can be `TextContent` or `ToolUse`.
  *          Blocks that were not fully closed by the end of the input string will have their `partial` flag set to `true`.
  */
-export function parseAssistantMessageV2(assistantMessage: string): AssistantMessageContent[] {
+export function parseAssistantMessageV2(
+	assistantMessage: string,
+	enableFunctionCallsParsing: boolean = false,
+): AssistantMessageContent[] {
 	const contentBlocks: AssistantMessageContent[] = []
 	let currentTextContentStart = 0 // Index where the current text block started
 	let currentTextContent: TextContent | undefined = undefined
@@ -281,9 +284,154 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 		toolParamOpenTags.set(`<${name}>`, name)
 	}
 
+	// Function calls format detection
+	const isFunctionCallsOpen = "<function_calls>"
+	const isFunctionCallsClose = "</function_calls>"
+	const isInvokeStart = '<invoke name="'
+	const isInvokeEnd = '">'
+	const isInvokeClose = "</invoke>"
+	const isParameterStart = '<parameter name="'
+	const isParameterNameEnd = '">'
+	const isParameterClose = "</parameter>"
+
+	// Variables for function calls parsing
+	let inFunctionCalls = false
+	let currentInvokeName = ""
+	let currentParameterName = ""
+
 	const len = assistantMessage.length
 	for (let i = 0; i < len; i++) {
 		const currentCharIndex = i
+
+		// --- State: Parsing Function Calls ---
+		// Only process function_calls if enabled for this model
+		if (enableFunctionCallsParsing) {
+			// Check for opening function_calls tag
+			if (
+				!inFunctionCalls &&
+				currentCharIndex >= isFunctionCallsOpen.length - 1 &&
+				assistantMessage.startsWith(isFunctionCallsOpen, currentCharIndex - isFunctionCallsOpen.length + 1)
+			) {
+				// End current text block if one was active
+				if (currentTextContent) {
+					currentTextContent.content = assistantMessage
+						.slice(currentTextContentStart, currentCharIndex - isFunctionCallsOpen.length + 1)
+						.trim()
+					currentTextContent.partial = false
+					if (currentTextContent.content.length > 0) {
+						contentBlocks.push(currentTextContent)
+					}
+					currentTextContent = undefined
+				}
+
+				inFunctionCalls = true
+				continue
+			}
+
+			// Check for invoke start within function_calls
+			if (
+				inFunctionCalls &&
+				currentInvokeName === "" &&
+				currentCharIndex >= isInvokeStart.length - 1 &&
+				assistantMessage.startsWith(isInvokeStart, currentCharIndex - isInvokeStart.length + 1)
+			) {
+				// Find the end of the invoke name
+				const nameEndPos = assistantMessage.indexOf(isInvokeEnd, currentCharIndex + 1)
+				if (nameEndPos !== -1) {
+					// Extract the invoke name
+					currentInvokeName = assistantMessage.slice(currentCharIndex + 1, nameEndPos)
+					i = nameEndPos + isInvokeEnd.length - 1 // Skip to after the '">
+
+					// If this is an LS invoke, create a list_files tool
+					if (currentInvokeName === "LS") {
+						currentToolUse = {
+							type: "tool_use",
+							name: "list_files",
+							params: {},
+							partial: true,
+						}
+					}
+					continue
+				}
+			}
+
+			// Check for parameter start within invoke
+			if (
+				inFunctionCalls &&
+				currentInvokeName !== "" &&
+				currentParameterName === "" &&
+				currentCharIndex >= isParameterStart.length - 1 &&
+				assistantMessage.startsWith(isParameterStart, currentCharIndex - isParameterStart.length + 1)
+			) {
+				// Find the end of the parameter name
+				const nameEndPos = assistantMessage.indexOf(isParameterNameEnd, currentCharIndex + 1)
+				if (nameEndPos !== -1) {
+					// Extract the parameter name
+					currentParameterName = assistantMessage.slice(currentCharIndex + 1, nameEndPos)
+					currentParamValueStart = nameEndPos + isParameterNameEnd.length
+					i = nameEndPos + isParameterNameEnd.length - 1 // Skip to after the '">'
+					continue
+				}
+			}
+
+			// Check for parameter end
+			if (
+				inFunctionCalls &&
+				currentInvokeName !== "" &&
+				currentParameterName !== "" &&
+				currentCharIndex >= isParameterClose.length - 1 &&
+				assistantMessage.startsWith(isParameterClose, currentCharIndex - isParameterClose.length + 1)
+			) {
+				// Extract parameter value
+				const value = assistantMessage
+					.slice(currentParamValueStart, currentCharIndex - isParameterClose.length + 1)
+					.trim()
+
+				// Map parameter to tool params
+				if (currentToolUse && currentInvokeName === "LS" && currentParameterName === "path") {
+					currentToolUse.params["path"] = value
+					// Default recursive to false - only show top level
+					currentToolUse.params["recursive"] = "false"
+				}
+
+				currentParameterName = ""
+				continue
+			}
+
+			// Check for invoke end
+			if (
+				inFunctionCalls &&
+				currentInvokeName !== "" &&
+				currentCharIndex >= isInvokeClose.length - 1 &&
+				assistantMessage.startsWith(isInvokeClose, currentCharIndex - isInvokeClose.length + 1)
+			) {
+				// If we have a tool use from this invoke, finalize it
+				if (currentToolUse && currentInvokeName === "LS") {
+					currentToolUse.partial = false
+					contentBlocks.push(currentToolUse)
+					currentToolUse = undefined
+				}
+
+				currentInvokeName = ""
+				continue
+			}
+
+			// Check for function_calls end
+			if (
+				inFunctionCalls &&
+				currentCharIndex >= isFunctionCallsClose.length - 1 &&
+				assistantMessage.startsWith(isFunctionCallsClose, currentCharIndex - isFunctionCallsClose.length + 1)
+			) {
+				inFunctionCalls = false
+				currentTextContentStart = currentCharIndex + 1
+				continue
+			}
+
+			// Skip normal parsing when inside function_calls
+			if (inFunctionCalls) {
+				continue
+			}
+		}
 
 		// --- State: Parsing a Tool Parameter ---
 		if (currentToolUse && currentParamName) {
