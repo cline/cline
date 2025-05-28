@@ -104,6 +104,7 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
+import { parseAssistantMessageV3 } from "../assistant-message/parse-assistant-message"
 
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1590,7 +1591,7 @@ export class Task {
 	private async isClaude4ModelFamily(): Promise<boolean> {
 		const model = this.api.getModel()
 		const modelId = model.id
-		return modelId.includes("claude-sonnet-4") || modelId.includes("claude-opus-4")
+		return modelId.includes("sonnet-4") || modelId.includes("opus-4")
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
@@ -2016,16 +2017,27 @@ export class Task {
 					break
 				}
 
-				const pushToolResult = (content: ToolResponse) => {
-					this.userMessageContent.push({
-						type: "text",
-						text: `${toolDescription()} Result:`,
-					})
+				const pushToolResult = (content: ToolResponse, isClaude4ModelFamily: boolean = false) => {
 					if (typeof content === "string") {
-						this.userMessageContent.push({
-							type: "text",
-							text: content || "(tool did not return anything)",
-						})
+						const resultText = content || "(tool did not return anything)"
+
+						if (isClaude4ModelFamily) {
+							// Claude 4 family: Use function_results format
+							this.userMessageContent.push({
+								type: "text",
+								text: `<function_results>\n${resultText}\n</function_results>`,
+							})
+						} else {
+							// Non-Claude 4: Use traditional format with header
+							this.userMessageContent.push({
+								type: "text",
+								text: `${toolDescription()} Result:`,
+							})
+							this.userMessageContent.push({
+								type: "text",
+								text: resultText,
+							})
+						}
 					} else {
 						this.userMessageContent.push(...content)
 					}
@@ -2095,7 +2107,7 @@ export class Task {
 					}
 				}
 
-				const handleError = async (action: string, error: Error) => {
+				const handleError = async (action: string, error: Error, isClaude4ModelFamily: boolean = false) => {
 					if (this.abandoned) {
 						console.log("Ignoring error since task was abandoned (i.e. from task cancellation after resetting)")
 						return
@@ -2105,12 +2117,8 @@ export class Task {
 						"error",
 						`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
 					)
-					// this.toolResults.push({
-					// 	type: "tool_result",
-					// 	tool_use_id: toolUseId,
-					// 	content: await this.formatToolError(errorString),
-					// })
-					pushToolResult(formatResponse.toolError(errorString))
+
+					pushToolResult(formatResponse.toolError(errorString), isClaude4ModelFamily)
 				}
 
 				// If block is partial, remove partial closing tag so its not presented to user
@@ -2558,6 +2566,7 @@ export class Task {
 						}
 					}
 					case "list_files": {
+						const isClaude4ModelFamily = await this.isClaude4ModelFamily()
 						const relDirPath: string | undefined = block.params.path
 						const recursiveRaw: string | undefined = block.params.recursive
 						const recursive = recursiveRaw?.toLowerCase() === "true"
@@ -2583,7 +2592,10 @@ export class Task {
 							} else {
 								if (!relDirPath) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("list_files", "path"))
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("list_files", "path"),
+										isClaude4ModelFamily,
+									)
 									await this.saveCheckpoint()
 									break
 								}
@@ -2622,12 +2634,12 @@ export class Task {
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
-								pushToolResult(result)
+								pushToolResult(result, isClaude4ModelFamily)
 								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
-							await handleError("listing files", error)
+							await handleError("listing files", error, isClaude4ModelFamily)
 							await this.saveCheckpoint()
 							break
 						}
@@ -4256,7 +4268,14 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.assistantMessageContent.length
-							this.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+							const enableFunctionCallsParsing = await this.isClaude4ModelFamily()
+
+							if (enableFunctionCallsParsing) {
+								this.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
+							} else {
+								this.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+							}
+
 							if (this.assistantMessageContent.length > prevLength) {
 								this.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
