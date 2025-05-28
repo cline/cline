@@ -65,7 +65,7 @@ Use sandbox=false when you suspect the command might modify the system or access
   - Git writes: git add, git commit, git push
   - Build systems:  npm run build, make, ninja, etc. (see below)
   - Test suites: npm run test, pytest, cargo test, make check, ert, etc. (see below)
-  - Network programs: gh, ping, coo, ssh, scp, etc.
+  - Network programs: gh, ping, curl, ssh, scp, etc.
 
 Use sandbox=true for:
   - Information gathering: ls, cat, head, tail, rg, find, du, df, ps
