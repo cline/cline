@@ -1,7 +1,7 @@
-# Debug mode
+### Always Use the Best Models
 
-  <img src="images/unknown_error_stripe_rb.png" alt="Fixing an Unknown Error" />
+**Connect your keys for Anthropic (Claude), Google (Gemini), OpenAI (GPT), and other leading LLMs.**
 
-Running into errors? Switch to Debug mode and describe the problem. Cline, find the issue, and apply a fix.
+Cline puts you at the forefront of AI. Bring your own API keys for leading models like Anthropic (Claude), Google (Gemini), and OpenAI (GPT). Always leverage the most powerful State-of-the-Art (SOTA) capabilities, ensuring you control both cost and cutting-edge performance.
 
-You can paste error messages or point to a file. Cline will take it from there.
+<!-- Space for image/gif -->

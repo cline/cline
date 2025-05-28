@@ -1,7 +1,7 @@
-# Architect mode
+### Unlock Specialized Capabilities with MCP
 
-<img src="images/design_patterns.png" alt="design patterns" />
+**The Model Context Protocol (MCP) connects Cline to a world of powerful tools.**
 
-Need to plan before writing code? Switch to Architect mode and ask high-level questions about structure, patterns, or logic.
+Go beyond local code. With the Model Context Protocol (MCP), Cline accesses vital context from external datasources like databases and APIs. It can interact with these platforms and leverage a growing marketplace of specialized, secure tools to tackle complex, real-world development tasks.
 
-Use it to break down features, map out components, or design how everything should work before diving in.
+<!-- Space for image/gif -->

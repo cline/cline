@@ -54,16 +54,16 @@
 				"steps": [
 					{
 						"id": "welcome",
-						"title": "Write code for you",
-						"description": "Describe what you want to build. Cline will write it from scratch, generate the files, and run them for you.",
+						"title": "Meet Cline, your new coding partner",
+						"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
 						"media": {
 							"markdown": "walkthrough/step1.md"
 						}
 					},
 					{
 						"id": "getting-started",
-						"title": "Understand your codebase",
-						"description": "Need clarity on how something works? Ask Cline about any part of your files and get a clear explanation.",
+						"title": "Start with a Goal, Not Just a Prompt",
+						"description": "Tell Cline what you want to achieve. It plans, asks, and then codes, like a true partner.",
 						"media": {
 							"markdown": "walkthrough/step2.md"
 						},
@@ -72,25 +72,33 @@
 						}
 					},
 					{
-						"id": "modes",
-						"title": "Get things working again",
-						"description": "Stuck on an error? Cline running.",
+						"id": "learn",
+						"title": "Let Cline Learn Your Codebase",
+						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
 						"media": {
 							"markdown": "walkthrough/step3.md"
 						}
 					},
 					{
-						"id": "code-actions",
-						"title": "Plan your logic",
-						"description": "Not sure where to start? Map out your logic and structure before writing a single line of code.",
+						"id": "advanced-features",
+						"title": "Always Use the Best AI Models",
+						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
 						"media": {
 							"markdown": "walkthrough/step4.md"
 						}
 					},
 					{
-						"id": "advanced-features",
-						"title": "And more",
-						"description": "Improve your prompt, add context, or create your own custom modes.",
+						"id": "mcp",
+						"title": "Extend with Powerful Tools (MCP)",
+						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
+						"media": {
+							"markdown": "walkthrough/step5.md"
+						}
+					},
+					{
+						"id": "review",
+						"title": "You're Always in Control",
+						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
 						"media": {
 							"markdown": "walkthrough/step5.md"
 						}
@@ -200,6 +208,11 @@
 			{
 				"command": "cline.improveCode",
 				"title": "Improve with Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.openWalkthrough",
+				"title": "Open Walkthrough",
 				"category": "Cline"
 			}
 		],

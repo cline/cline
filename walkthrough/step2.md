@@ -1,7 +1,7 @@
-# Ask mode
+### Deep Codebase Intelligence
 
-  <img src="images/askui.png" alt="Ask Mode" />
+**Cline starts with broad context and explores deeply where needed.**
 
-Have a question about your code? Switch to Ask mode and type it out. Clinebase and give you a clear, accurate explanation.
+Cline is designed with inherent codebase intelligence. It doesn't operate in a vacuum, but starts with a structural understanding of your project. Before making changes, it performs targeted agentic exploration to gain any additional specific context required, ensuring its actions are always well-informed and aligned with your architecture.
 
-Tip: Reference specific files or functions for more precise answers.
+<!-- Space for image/gif -->

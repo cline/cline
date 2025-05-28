@@ -1,15 +1,7 @@
-# Improve your prompt
+### No Black Box: Full Visibility & Control
 
-Click the stars icon to make your prompt clearer and more complete. Cline will rewrite it to get better results.
+**Cline operates with complete transparency, showing you every file read and every proposed diff.**
 
-# Add files or folders for context
+Understand exactly what Cline is doing and why—no obfuscation. Review all actions and approve changes before they're made. Cline uses checkpoints, allowing you to easily revert if needed, maintaining full control over your codebase. With BYO-key, you also have clear cost transparency.
 
-Mention files or folders in your prompt. Cline will use them to better understand and respond to your request.
-
-Click the paperclip in the text area or use @ to add context.
-
-# Add custom modes
-
-Go beyond the default modes by creating your own. Tailor them to your workflow with specific instructions or focus areas.
-
-Click mode switcher in the text area or use / to switch modes.
+<!-- Space for image/gif -->
