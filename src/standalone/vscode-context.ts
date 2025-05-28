@@ -57,7 +57,7 @@ class SecretStore {
 	private filePath: string
 
 	constructor() {
-		qthis.filePath = path.join(DATA_DIR, "secrets.json")
+		this.filePath = path.join(DATA_DIR, "secrets.json")
 		this.load()
 		log("SecretStore initialized with:", JSON.stringify(this.store, null, 2))
 	}
