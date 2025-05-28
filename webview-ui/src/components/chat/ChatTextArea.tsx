@@ -1586,7 +1586,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onScroll={() => updateHighlights()}
 					/>
-					{!inputValue && selectedImages.length === 0 && selectedFiles.length == 0 && (
+					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
 						<HelperTextBelowInput>Type @ for context, / for slash commands & workflows</HelperTextBelowInput>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
