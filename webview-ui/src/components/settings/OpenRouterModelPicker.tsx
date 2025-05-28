@@ -6,7 +6,7 @@ import { useMount } from "react-use"
 import styled from "styled-components"
 import { openRouterDefaultModelId } from "@shared/api"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
+import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -42,11 +42,11 @@ export interface OpenRouterModelPickerProps {
 const featuredModels = [
 	{
 		id: "anthropic/claude-3.7-sonnet",
-		description: "Leading model for agentic coding",
+		description: "Recommended for agentic coding in Cline",
 		label: "Best",
 	},
 	{
-		id: "google/gemini-2.5-pro-preview-03-25",
+		id: "google/gemini-2.5-pro-preview",
 		description: "Large 1M context window, great value",
 		label: "Trending",
 	},
@@ -84,7 +84,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [apiConfiguration])
 
 	useMount(() => {
-		vscode.postMessage({ type: "refreshOpenRouterModels" })
+		ModelsServiceClient.refreshOpenRouterModels({}).catch((error: Error) =>
+			console.error("Failed to refresh OpenRouter models:", error),
+		)
 	})
 
 	useEffect(() => {
@@ -196,6 +198,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 
 	const showBudgetSlider = useMemo(() => {
 		return (
+			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
@@ -289,10 +293,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 												isFavorite={isFavorite}
 												onClick={(e) => {
 													e.stopPropagation()
-													vscode.postMessage({
-														type: "toggleFavoriteModel",
-														modelId: item.id,
-													})
+													StateServiceClient.toggleFavoriteModel({ value: item.id }).catch((error) =>
+														console.error("Failed to toggle favorite model:", error),
+													)
 												}}
 											/>
 										</div>

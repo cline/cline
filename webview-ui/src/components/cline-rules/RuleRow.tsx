@@ -9,8 +9,10 @@ const RuleRow: React.FC<{
 	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
 }> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType }) => {
+	// Check if the path type is Windows
+	const win32Path = /^[a-zA-Z]:\\/.test(rulePath)
 	// Get the filename from the path for display
-	const displayName = rulePath.split("/").pop() || rulePath
+	const displayName = rulePath.split(win32Path ? "\\" : "/").pop() || rulePath
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
@@ -62,6 +64,7 @@ const RuleRow: React.FC<{
 			DeleteRuleFileRequest.create({
 				rulePath: rulePath,
 				isGlobal: isGlobal,
+				type: ruleType || "cline",
 			}),
 		).catch((err) => console.error("Failed to delete rule file:", err))
 	}
@@ -74,7 +77,7 @@ const RuleRow: React.FC<{
 				}`}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
-					{displayName}
+					<span className="ph-no-capture">{displayName}</span>
 				</span>
 
 				{/* Toggle Switch */}

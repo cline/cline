@@ -40,7 +40,8 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			return extractTextFromIPYNB(filePath)
 		default:
 			const fileBuffer = await fs.readFile(filePath)
-			if (fileBuffer.byteLength > 300 * 1024) {
+			if (fileBuffer.byteLength > 20 * 1000 * 1024) {
+				// 20MB limit (20 * 1000 * 1024 bytes, decimal MB)
 				throw new Error(`File is too large to read into context.`)
 			}
 			const encoding = await detectEncoding(fileBuffer, fileExtension)
@@ -73,4 +74,35 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 	}
 
 	return extractedText
+}
+
+/**
+ * Helper function used to load file(s) and format them into a string
+ */
+export async function processFilesIntoText(files: string[]): Promise<string> {
+	const fileContentsPromises = files.map(async (filePath) => {
+		try {
+			// Check if file exists and is binary
+			//const isBinary = await isBinaryFile(filePath).catch(() => false)
+			//if (isBinary) {
+			//	return `<file_content path="${filePath.toPosix()}">\n(Binary file, unable to display content)\n</file_content>`
+			//}
+			const content = await extractTextFromFile(filePath)
+			return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
+		} catch (error) {
+			console.error(`Error processing file ${filePath}:`, error)
+			return `<file_content path="${filePath.toPosix()}">\nError fetching content: ${error.message}\n</file_content>`
+		}
+	})
+
+	const fileContents = await Promise.all(fileContentsPromises)
+
+	const validFileContents = fileContents.filter((content) => content !== null).join("\n\n")
+
+	if (validFileContents) {
+		return `Files attached by the user:\n\n${validFileContents}`
+	}
+
+	// returns empty string if no files were loaded properly
+	return ""
 }

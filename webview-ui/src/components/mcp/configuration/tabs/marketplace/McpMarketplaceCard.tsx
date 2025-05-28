@@ -1,8 +1,8 @@
 import { useCallback, useState, useRef, useMemo } from "react"
 import styled from "styled-components"
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
-import { vscode } from "@/utils/vscode"
 import { useEvent } from "react-use"
+import { McpServiceClient } from "@/services/grpc-client"
 
 interface McpMarketplaceCardProps {
 	item: McpMarketplaceItem
@@ -107,15 +107,17 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								{item.name}
 							</h3>
 							<div
-								onClick={(e) => {
+								onClick={async (e) => {
 									e.preventDefault() // Prevent card click when clicking install
 									e.stopPropagation() // Stop event from bubbling up to parent link
 									if (!isInstalled && !isDownloading) {
 										setIsDownloading(true)
-										vscode.postMessage({
-											type: "downloadMcp",
-											mcpId: item.mcpId,
-										})
+										try {
+											await McpServiceClient.downloadMcp({ value: item.mcpId })
+										} catch (error) {
+											setIsDownloading(false)
+											console.error("Failed to download MCP:", error)
+										}
 									}
 								}}
 								style={{}}>

@@ -1,5 +1,159 @@
 # Changelog
 
+## [3.17.7]
+
+-   Fix diff editing reliability for Claude 4 family models by adding constraints to prevent errors with large replacements
+
+## [3.17.6]
+
+-   Add Cerebras as a new API provider with 5 high-performance models including reasoning-capable models (Thanks @kevint-cerebras!)
+-   Add support for uploading various file types (XML, JSON, TXT, LOG, MD, DOCX, IPYNB, PDF) alongside images
+-   Add improved onboarding experience for new users with guided setup
+-   Add prompt cache indicator for Gemini 2.5 Flash models
+-   Update SambaNova provider with new model list and documentation links (Thanks @luisfucros!)
+-   Fix diff editing support for Claude 4 family of models
+-   Improve telemetry and analytics for better user experience insights
+
+## [3.17.5]
+
+-   Fix issue with Claude 4 models where after several conversation turns, it would start making invalid diff edits
+
+## [3.17.4]
+
+-   Fix thinking budget slider for Claude 4
+
+## [3.17.3]
+
+-   Fix diff edit errors with Claude 4 models
+
+## [3.17.2]
+
+-   Add support for Claude 4 models (Sonnet 4 and Opus 4) in AWS Bedrock and Vertex AI providers
+-   Add support for global workflows, allowing workflows to be shared across workspaces with local workflows taking precedence
+-   Fix settings page z-index UI issues that caused display problems
+-   Fix AWS Bedrock environment variable handling to properly restore process.env after API calls (Thanks @DaveFres!)
+
+## [3.17.1]
+
+-   Add prompt caching for Claude 4 models on Cline and OpenRouter providers
+-   Increase max tokens for Claude Opus 4 from 4096 to 8192
+
+## [3.17.0]
+
+-   Add support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and Vertex providers
+-   Add integration with Nebius AI Studio as a new provider (Thanks @Aktsvigun!)
+-   Add custom highlight and hotkey suggestion when the assistant prompts to switch to Act mode
+-   Update settings page design, now split into tabs for easier navigation (Thanks Yellow Bat @dlab-anton, and Roo Team!)
+-   Fix MCP Server configuration bug
+-   Fix model listing for Requesty provider
+-   Move all advanced settings to settings page
+
+## [3.16.3]
+
+-   Add devstral-small-2505 to the Mistral model list, a new specialized coding model from Mistral AI (Thanks @BarreiroT!)
+-   Add documentation links to rules & workflows UI
+-   Add support for Streameable HTTP Transport for MCPs (Thanks @alejandropta!)
+-   Improve error handling for Mistral SDK API
+
+## [3.16.2]
+
+-   Add support for Gemini 2.5 Flash Preview 05-20 model to Vertex AI provider with massive 1M token context window (Thanks @omercelik!)
+-   Add keyboard shortcut (Cmd+') to quickly focus Cline from anywhere in VS Code
+-   Add lightbulb actions for selected text with options to "Add to Cline", "Explain with Cline", and "Improve with Cline"
+-   Automatically focus Cline window after extension updates
+
+## [3.16.1]
+
+-   Add Enable auto approve toggle switch, allowing users to easily turn auto-approve functionality on or off without losing their action settings
+-   Improve Gemini retry handling with better UI feedback, showing retry progress during API request attempts
+-   Fix memory leak issue that could occur during long sessions with multiple tasks
+-   Improve UI for Gemini model retry attempts with clearer status updates
+-   Fix quick actions functionality in auto-approve settings
+-   Update UI styling for auto-approve menu items to conserve space
+
+## [3.16.0]
+
+-   Add new workflow feature allowing users to create and manage workflow files that can be injected into conversations via slash commands
+-   Add collapsible recent task list, allowing users to hide their task history when sharing their screen (Thanks @cosmix!)
+-   Add global endpoint option for Vertex AI users, providing higher availability and reducing 429 errors (Thanks @soniqua!)
+-   Add detection for new users to display special components and guidance
+-   Add Tailwind CSS IntelliSense to the recommended extensions list
+-   Fix eternal loading states when the last message is a checkpoint (Thanks @BarreiroT!)
+-   Improve settings organization by migrating VSCode Advanced settings to Settings Webview
+
+## [3.15.5]
+
+-   Fix inefficient memory management in the task timeline
+-   Fix Gemini rate limitation response not being handled properly (Thanks @BarreiroT!)
+
+## [3.15.4]
+
+-   Add gemini model back to vertex provider
+-   Add gemini telemetry
+-   Add filtering for tasks tied to the current workspace
+
+## [3.15.3]
+
+-   Add Fireworks API Provider
+-   Fix minor visual issues with auto-approve menu
+-   Fix one instance of terminal not getting output
+-   Fix 'Chrome was launched but debug port is not responding' error
+
+## [3.15.2]
+
+-   Added details to auto approve menu and more sensible default controls
+-   Add detailed configuration options for LiteLLM provider
+-   Add webview telemetry for users who have opted in to telemetry
+-   Update Gemini in OpenRouter/Cline providers to use implicit caching
+-   Fix freezing issues during rendering of large streaming text
+-   Fix grey screen webview crashes by releasing memory after every diff edit
+-   Fix breaking out of diff auto-scroll
+-   Fix IME composition Enter auto‑sending edited message
+
+## [3.15.1]
+
+-   Fix bug where PowerShell commands weren't given enough time before giving up and showing an error
+
+## [3.15.0]
+
+-   Add Task Timeline visualization to tasks (Thanks eomcaleb!)
+-   Add cache to ui for OpenAi provider
+-   Add FeatureFlagProvider service for the Node.js extension side
+-   Add copy buttons to task header and assistant messages
+-   Add a more simplified home header was added
+-   Add ability to favorite a task, allowing it to be kept when clearing all tasks
+-   Add npm script for issue creation (Thanks DaveFres!)
+-   Add confirmation dialog to Delete All History button
+-   Add ability to allow the user to type their next message into the chat while Cline is taking action
+-   Add ability to generate commit message via cline (Thanks zapp88!)
+-   Add improvements to caching for gemini models on OpenRouter and Cline providers
+-   Add improvements to allow scrolling the file being edited.
+-   Add ui for windsurf and cursor rules
+-   Add mistral medium-3 model
+-   Add option to collect events to send them in a bundle to avoid sending too many events
+-   Add support to quote a previous message in chat
+-   Add support for Gemini Implicit Caching
+-   Add support for batch selection and deletion of tasks in history (Thanks danix800!)
+-   Update change suggested models
+-   Update fetch cache details from generation endpoint
+-   Update converted docs to Mintlify
+-   Update the isOminiModel to include o4-mini model (Thanks PeterDaveHello!)
+-   Update file size that can be read by Cline, allowing larger files
+-   Update defaults for bedrock API models (Thanks Watany!)
+-   Update to extend ReasoningEffort to non-o3-mini reasoning models for all providers (Thanks PeterDaveHello!)
+-   Update to give error when a user tries to upload an image larger than 7500x7500 pixels
+-   Update announcement so that previous updates are in a dropdown
+-   Update UI for auto approve with favorited settings
+-   Fix bug where certain terminal commands would lock you out of a task
+-   Fix only initialize posthog in the webview if the user has opted into telemetry
+-   Fix bug where autocapture was on for front-end telemetry
+-   Fix for markdown copy excessively escaping characters (Thanks weshoke!)
+-   Fix an issue where loading never finished when using an application inference profile for the model ID (Thanks WinterYukky!)
+
+## [3.14.1]
+
+-   Disables autocaptures when initializing feature flags
+
 ## [3.14.0]
 
 -   Add support for custom model ID in AWS Bedrock provider, enabling use of Application Inference Profile (Thanks @clicube!)

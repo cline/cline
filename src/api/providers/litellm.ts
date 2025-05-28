@@ -58,14 +58,14 @@ export class LiteLlmHandler implements ApiHandler {
 			content: systemPrompt,
 		}
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
-		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini")
+		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini") || modelId.includes("o4-mini")
 
 		// Configuration for extended thinking
 		const budgetTokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = budgetTokens !== 0 ? true : false
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
-		let temperature: number | undefined = 0
+		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 0
 
 		if (isOminiModel && reasoningOn) {
 			temperature = undefined // Thinking mode doesn't support temperature
@@ -169,7 +169,7 @@ export class LiteLlmHandler implements ApiHandler {
 	getModel() {
 		return {
 			id: this.options.liteLlmModelId || liteLlmDefaultModelId,
-			info: liteLlmModelInfoSaneDefaults,
+			info: this.options.liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
 		}
 	}
 }
