@@ -22,6 +22,7 @@ export type SecretKey =
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
 	| "cerebrasApiKey"
+	| "groqApiKey"
 
 export type GlobalStateKey =
 	| "apiProvider"
@@ -92,5 +93,7 @@ export type GlobalStateKey =
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
 	| "isNewUser"
+	| "groqModelId"
+	| "groqModelInfo"
 
 export type LocalStateKey = "localClineRulesToggles"

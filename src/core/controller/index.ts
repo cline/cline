@@ -261,6 +261,17 @@ export class Controller {
 						}
 					}
 				})
+				// Refresh Groq models on launch
+				handleModelsServiceRequest(this, "refreshGroqModels", EmptyRequest.create()).then(async (response) => {
+					if (response && response.models) {
+						// update model info in state for Groq
+						const { apiConfiguration } = await getAllExtensionState(this.context)
+						if (apiConfiguration.groqModelId && response.models[apiConfiguration.groqModelId]) {
+							await updateGlobalState(this.context, "groqModelInfo", response.models[apiConfiguration.groqModelId])
+							await this.postStateToWebview()
+						}
+					}
+				})
 				break
 			case "newTask":
 				// Code that should run in response to the hello message command

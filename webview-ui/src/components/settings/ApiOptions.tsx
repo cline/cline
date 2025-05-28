@@ -22,6 +22,8 @@ import {
 	doubaoModels,
 	geminiDefaultModelId,
 	geminiModels,
+	groqModels,
+	groqDefaultModelId,
 	internationalQwenDefaultModelId,
 	internationalQwenModels,
 	liteLlmModelInfoSaneDefaults,
@@ -272,24 +274,24 @@ const ApiOptions = ({
 		)
 	}
 
-	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
-	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+	// Shared debounce timer for model refreshing (prevents excessive API calls while typing)
+	const modelRefreshDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 	useEffect(() => {
 		return () => {
-			if (debounceTimerRef.current) {
-				clearTimeout(debounceTimerRef.current)
+			if (modelRefreshDebounceTimerRef.current) {
+				clearTimeout(modelRefreshDebounceTimerRef.current)
 			}
 		}
 	}, [])
 
 	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
-		if (debounceTimerRef.current) {
-			clearTimeout(debounceTimerRef.current)
+		if (modelRefreshDebounceTimerRef.current) {
+			clearTimeout(modelRefreshDebounceTimerRef.current)
 		}
 
 		if (baseUrl && apiKey) {
-			debounceTimerRef.current = setTimeout(() => {
+			modelRefreshDebounceTimerRef.current = setTimeout(() => {
 				ModelsServiceClient.refreshOpenAiModels(
 					OpenAiModelsRequest.create({
 						baseUrl,
@@ -297,6 +299,20 @@ const ApiOptions = ({
 					}),
 				).catch((error) => {
 					console.error("Failed to refresh OpenAI models:", error)
+				})
+			}, 500)
+		}
+	}, [])
+
+	const debouncedRefreshGroqModels = useCallback((apiKey?: string) => {
+		if (modelRefreshDebounceTimerRef.current) {
+			clearTimeout(modelRefreshDebounceTimerRef.current)
+		}
+
+		if (apiKey) {
+			modelRefreshDebounceTimerRef.current = setTimeout(() => {
+				ModelsServiceClient.refreshGroqModels(EmptyRequest.create({})).catch((error) => {
+					console.error("Failed to refresh Groq models:", error)
 				})
 			}, 500)
 		}
@@ -340,6 +356,7 @@ const ApiOptions = ({
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
+					<VSCodeOption value="groq">Groq</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -2055,6 +2072,57 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "groq" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.groqApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={(e: any) => {
+							const apiKey = e.target.value
+							handleInputChange("groqApiKey")({ target: { value: apiKey } })
+
+							// Auto-refresh models when API key changes
+							debouncedRefreshGroqModels(apiKey)
+						}}
+						placeholder="Enter API Key...">
+						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+							<span style={{ fontWeight: 500 }}>Groq API Key</span>
+							{apiConfiguration?.groqApiKey && (
+								<VSCodeButton
+									appearance="secondary"
+									onClick={() => {
+										ModelsServiceClient.refreshGroqModels(EmptyRequest.create({})).catch((error) => {
+											console.error("Failed to refresh Groq models:", error)
+										})
+									}}
+									style={{ fontSize: "12px", padding: "2px 8px" }}>
+									Refresh Models
+								</VSCodeButton>
+							)}
+						</div>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.groqApiKey && (
+							<VSCodeLink
+								href="https://console.groq.com/keys"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Groq API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -2173,6 +2241,7 @@ const ApiOptions = ({
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
 							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
+							{selectedProvider === "groq" && createDropdown(groqModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
 
@@ -2610,6 +2679,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
+		case "groq":
+			return getProviderData(groqModels, groqDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

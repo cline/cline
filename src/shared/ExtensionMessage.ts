@@ -197,6 +197,7 @@ export type ClineSay =
 	| "clineignore_error"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
+	| "search_strategy_suggestion"
 	| "info" // Added for general informational messages like retry status
 
 export interface ClineSayTool {
