@@ -252,6 +252,11 @@ export class Controller {
 				this.silentlyRefreshMcpMarketplace()
 				handleModelsServiceRequest(this, "refreshOpenRouterModels", EmptyRequest.create()).then(async (response) => {
 					if (response && response.models) {
+						this.postMessageToWebview({
+							type: "openRouterModels",
+							openRouterModels: response.models,
+						})
+
 						// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 						const { apiConfiguration } = await getAllExtensionState(this.context)
 						if (apiConfiguration.openRouterModelId && response.models[apiConfiguration.openRouterModelId]) {
