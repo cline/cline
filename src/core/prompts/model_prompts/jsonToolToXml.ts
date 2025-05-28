@@ -2,13 +2,20 @@
  * Converts a tool definition to ANTML (Anthropic Markup Language) format
  * as used internally by Claude for tool calling.
  *
- * Based on the Claude 4 Model Card: https://www-cdn.anthropic.com/6be99a52cb68eb70eb9572b4cafad13df32ed995.pdf
+ * Based on the Claude 4 System Card: https://www-cdn.anthropic.com/6be99a52cb68eb70eb9572b4cafad13df32ed995.pdf
  *
- * Here are the functions available in JSONSchema format:
+ * Tool definitions are provided in JSON schema within <functions> tags:
  * <functions>
  *   <function>{"description": "...", "name": "...", "parameters": {...}}</function>
  *   ... (other functions) ...
  * </functions>
+ *
+ * Tool calls are made using <antml:function_calls> blocks:
+ * <antml:function_calls>
+ *   <antml:invoke name="tool_name">
+ *     <antml:parameter name="param_name">value</antml:parameter>
+ *   </antml:invoke>
+ * </antml:function_calls>
  */
 
 export interface ToolDefinition {
@@ -24,31 +31,29 @@ export interface ToolDefinition {
 }
 
 /**
- * Converts a single tool definition to the ANTML function format
+ * Converts a single tool definition (JSON schema) to the <function> tag format.
+ * This is for *defining* the tool, not calling it.
  * @param toolDef The tool definition object
  * @returns The tool definition as a JSON string wrapped in <function> tags
  */
-export function toolDefinitionToAntml(toolDef: ToolDefinition): string {
-	// Create the JSON schema format that Claude expects
+export function toolDefinitionToAntmlDefinition(toolDef: ToolDefinition): string {
 	const functionDef = {
 		name: toolDef.name,
 		description: toolDef.descriptionForAgent || toolDef.description || "",
 		parameters: toolDef.inputSchema,
 	}
-
-	// Convert to JSON and wrap in function tags
 	const jsonString = JSON.stringify(functionDef)
 	return `<function>${jsonString}</function>`
 }
 
 /**
- * Converts multiple tool definitions to the complete ANTML functions format
+ * Converts multiple tool definitions to the complete <functions> block.
+ * This is for *defining* the tools.
  * @param toolDefs Array of tool definition objects
- * @returns Complete functions block with all tools
+ * @returns Complete <functions> block with all tool definitions
  */
-export function toolDefinitionsToAntml(toolDefs: ToolDefinition[]): string {
-	const functionTags = toolDefs.map((toolDef) => toolDefinitionToAntml(toolDef))
-
+export function toolDefinitionsToAntmlDefinitions(toolDefs: ToolDefinition[]): string {
+	const functionTags = toolDefs.map((toolDef) => toolDefinitionToAntmlDefinition(toolDef))
 	return `Here are the functions available in JSONSchema format:
 <functions>
   ${functionTags.join("\n  ")}
@@ -56,12 +61,48 @@ export function toolDefinitionsToAntml(toolDefs: ToolDefinition[]): string {
 }
 
 /**
- * Creates a complete system prompt section for tools in ANTML format
+ * Creates an example of an ANTML tool call for a given tool definition.
+ * This is for *calling* a tool.
+ * @param toolDef The tool definition object
+ * @param exampleValues Optional example values for parameters
+ * @returns Example ANTML function call string
+ */
+export function toolDefinitionToAntmlCallExample(toolDef: ToolDefinition, exampleValues: Record<string, any> = {}): string {
+	const properties = toolDef.inputSchema.properties || {}
+	let parametersXml = ""
+	if (Object.keys(properties).length > 0) {
+		parametersXml = Object.entries(properties)
+			.map(([paramName]) => {
+				const exampleValue = exampleValues[paramName] || `$${paramName.toUpperCase()}` // Use placeholder like $PARAMETER_NAME
+				return `    <antml:parameter name="${paramName}">${exampleValue}</antml:parameter>`
+			})
+			.join("\n")
+	} else {
+		// Handle tools with no parameters
+		parametersXml = "    <!-- This tool takes no parameters -->"
+	}
+
+	return `<antml:function_calls>
+  <antml:invoke name="${toolDef.name}">
+${parametersXml}
+  </antml:invoke>
+</antml:function_calls>`
+}
+
+/**
+ * Creates a complete system prompt section for tools in ANTML format,
+ * including instructions and tool definitions.
  * @param toolDefs Array of tool definition objects
  * @param includeInstructions Whether to include the standard tool calling instructions
- * @returns Complete system prompt section for tools
+ * @returns Complete system prompt section for ANTML tools
  */
 export function createAntmlToolPrompt(toolDefs: ToolDefinition[], includeInstructions: boolean = true): string {
+	if (toolDefs.length === 0 && includeInstructions) {
+		// If no tools but instructions are requested, still provide basic instruction.
+		return `In this environment you have access to a set of tools you can use to answer the user's question.
+You can invoke functions by writing a "<antml:function_calls>" block as part of your reply.
+However, no tools are currently available.`
+	}
 	if (toolDefs.length === 0) {
 		return ""
 	}
@@ -69,23 +110,28 @@ export function createAntmlToolPrompt(toolDefs: ToolDefinition[], includeInstruc
 	let prompt = ""
 
 	if (includeInstructions) {
+		// Generate a generic example or use the first tool for a more concrete example
+		const exampleToolCall =
+			toolDefs.length > 0
+				? toolDefinitionToAntmlCallExample(toolDefs[0])
+				: `<antml:function_calls>
+  <antml:invoke name="$FUNCTION_NAME">
+    <antml:parameter name="$PARAMETER_NAME">$VALUE</antml:parameter>
+  </antml:invoke>
+</antml:function_calls>`
+
 		prompt += `In this environment you have access to a set of tools you can use to answer the user's question.
 
-You can invoke functions by writing a "<function_calls>" block as part of your reply:
-<function_calls>
-  <invoke name="$FUNCTION_NAME">
-    <parameter name="$PARAMETER_NAME">$VALUE</parameter>
-    ... (other parameters) ...
-  </invoke>
-  <invoke name="$FUNCTION_NAME2"> ... </invoke>
-</function_calls>
+You can invoke functions by writing a "<antml:function_calls>" block as part of your reply. For example:
+${exampleToolCall}
 
 String and scalar parameters should be specified as is, while lists and objects should use JSON format.
-
+The output is not expected to be valid XML and is parsed with regular expressions.
+DO NOT use antml unless you intend to invoke a tool.
 `
 	}
 
-	prompt += toolDefinitionsToAntml(toolDefs)
+	prompt += toolDefinitionsToAntmlDefinitions(toolDefs)
 
 	if (includeInstructions) {
 		prompt += `
@@ -96,9 +142,11 @@ Answer the user's request using the relevant tool(s), if they are available. Che
 	return prompt
 }
 
+// --- SimpleXML Functions (Cline's internal format) ---
+
 /**
  * Converts a single tool definition to the SimpleXML format
- * as used by Cline's current system prompts.
+ * as used by Cline's current system prompts for non-ANTML models.
  * @param toolDef The tool definition object
  * @returns The tool definition formatted for SimpleXML usage
  */
@@ -107,48 +155,45 @@ export function toolDefinitionToSimpleXml(toolDef: ToolDefinition): string {
 	const properties = toolDef.inputSchema.properties || {}
 	const required = toolDef.inputSchema.required || []
 
-	// Build parameter documentation
 	let parameterDocs = ""
 	if (Object.keys(properties).length > 0) {
 		parameterDocs = "Parameters:\n"
 		for (const [paramName, paramDef] of Object.entries(properties)) {
 			const isRequired = required.includes(paramName)
 			const requiredText = isRequired ? "(required)" : "(optional)"
-			const paramDescription = (paramDef as any).description || ""
+			const paramDescription = (paramDef as any).description || "No description."
 			parameterDocs += `- ${paramName}: ${requiredText} ${paramDescription}\n`
 		}
 	}
 
-	// Build usage example
 	const exampleParams = Object.keys(properties)
 		.map((paramName) => `<${paramName}>${paramName} value here</${paramName}>`)
 		.join("\n")
 
 	const usageExample = `Usage:
 <${toolDef.name}>
-${exampleParams}
-</${toolDef.name}>`
+${exampleParams.length > 0 ? exampleParams + "\n" : ""}</${toolDef.name}>`
 
 	return `## ${toolDef.name}
 Description: ${description}
-${parameterDocs}${usageExample}`
+${parameterDocs.trim()}
+${usageExample}`
 }
 
 /**
- * Converts multiple tool definitions to the complete SimpleXML format
+ * Converts multiple tool definitions to the complete SimpleXML format.
  * @param toolDefs Array of tool definition objects
  * @returns Complete tools documentation in SimpleXML format
  */
 export function toolDefinitionsToSimpleXml(toolDefs: ToolDefinition[]): string {
 	const toolDocs = toolDefs.map((toolDef) => toolDefinitionToSimpleXml(toolDef))
-
 	return `# Tools
 
 ${toolDocs.join("\n\n")}`
 }
 
 /**
- * Creates a complete system prompt section for tools in SimpleXML format
+ * Creates a complete system prompt section for tools in SimpleXML format.
  * @param toolDefs Array of tool definition objects
  * @param includeInstructions Whether to include the standard tool calling instructions
  * @returns Complete system prompt section for SimpleXML tools
@@ -182,7 +227,6 @@ For example:
 </read_file>
 
 Always adhere to this format for the tool use to ensure proper parsing and execution.
-
 `
 	}
 
@@ -199,6 +243,5 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 4. After each tool use, the user will respond with the result of that tool use.
 5. ALWAYS wait for user confirmation after each tool use before proceeding.`
 	}
-
 	return prompt
 }
