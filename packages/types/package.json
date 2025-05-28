@@ -1,9 +1,19 @@
 {
 	"name": "@roo-code/types",
-	"version": "1.15.0",
+	"version": "1.16.0",
 	"description": "TypeScript type definitions for Roo Code.",
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"main": "./dist/index.js",
+		"module": "./dist/index.mjs",
+		"types": "./dist/index.d.ts",
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"import": "./dist/index.mjs",
+				"require": "./dist/index.js"
+			}
+		}
 	},
 	"author": "Roo Code Team",
 	"license": "MIT",
@@ -20,13 +30,11 @@
 		"roo-code",
 		"ai"
 	],
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.mjs",
-	"types": "./dist/index.d.ts",
+	"main": "./dist/index.js",
 	"exports": {
 		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.mjs",
+			"types": "./src/index.ts",
+			"import": "./src/index.ts",
 			"require": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
