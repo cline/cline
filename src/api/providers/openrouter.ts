@@ -35,7 +35,7 @@ export class OpenRouterHandler implements ApiHandler {
 			systemPrompt,
 			messages,
 			this.getModel(),
-			this.options.o3MiniReasoningEffort,
+			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 		)
@@ -105,9 +105,8 @@ export class OpenRouterHandler implements ApiHandler {
 				// console.log("OpenRouter generation details:", generation)
 				return {
 					type: "usage",
-					// at this time there's no support for gatting cached_tokens from generation endpoint
 					cacheWriteTokens: 0,
-					cacheReadTokens: 0,
+					cacheReadTokens: generation?.native_tokens_cached || 0,
 					// openrouter generation endpoint fails often
 					inputTokens: generation?.native_tokens_prompt || 0,
 					outputTokens: generation?.native_tokens_completion || 0,

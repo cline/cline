@@ -4,6 +4,16 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "compile-standalone",
+			"type": "npm",
+			"script": "compile-standalone",
+			"group": "build",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
 			"label": "npm: protos",
 			"type": "npm",
 			"script": "protos",
@@ -185,6 +195,12 @@
 			"label": "stop",
 			"command": "echo ${input:terminate}",
 			"type": "shell"
+		},
+		{
+			"label": "clean-sandbox",
+			"type": "shell",
+			"dependsOn": ["watch"],
+			"command": "rm -rf .vscode-dev"
 		}
 	],
 	"inputs": [

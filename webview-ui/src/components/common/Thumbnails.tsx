@@ -5,13 +5,15 @@ import { vscode } from "@/utils/vscode"
 
 interface ThumbnailsProps {
 	images: string[]
+	files: string[]
 	style?: React.CSSProperties
 	setImages?: React.Dispatch<React.SetStateAction<string[]>>
+	setFiles?: React.Dispatch<React.SetStateAction<string[]>>
 	onHeightChange?: (height: number) => void
 }
 
-const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProps) => {
-	const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange }: ThumbnailsProps) => {
+	const [hoveredIndex, setHoveredIndex] = useState<string | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const { width } = useWindowSize()
 
@@ -25,16 +27,25 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 			onHeightChange?.(height)
 		}
 		setHoveredIndex(null)
-	}, [images, width, onHeightChange])
+	}, [images, files, width, onHeightChange])
 
-	const handleDelete = (index: number) => {
+	const handleDeleteImages = (index: number) => {
 		setImages?.((prevImages) => prevImages.filter((_, i) => i !== index))
 	}
 
-	const isDeletable = setImages !== undefined
+	const handleDeleteFiles = (index: number) => {
+		setFiles?.((prevFiles) => prevFiles.filter((_, i) => i !== index))
+	}
+
+	const isDeletableImages = setImages !== undefined
+	const isDeletableFiles = setFiles !== undefined
 
 	const handleImageClick = (image: string) => {
 		FileServiceClient.openImage({ value: image }).catch((err) => console.error("Failed to open image:", err))
+	}
+
+	const handleFileClick = (filePath: string) => {
+		FileServiceClient.openFile({ value: filePath }).catch((err) => console.error("Failed to open file:", err))
 	}
 
 	return (
@@ -49,13 +60,13 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 			}}>
 			{images.map((image, index) => (
 				<div
-					key={index}
+					key={`image-${index}`}
 					style={{ position: "relative" }}
-					onMouseEnter={() => setHoveredIndex(index)}
+					onMouseEnter={() => setHoveredIndex(`image-${index}`)}
 					onMouseLeave={() => setHoveredIndex(null)}>
 					<img
 						src={image}
-						alt={`Thumbnail ${index + 1}`}
+						alt={`Thumbnail image-${index + 1}`}
 						style={{
 							width: 34,
 							height: 34,
@@ -65,9 +76,9 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 						}}
 						onClick={() => handleImageClick(image)}
 					/>
-					{isDeletable && hoveredIndex === index && (
+					{isDeletableImages && hoveredIndex === `image-${index}` && (
 						<div
-							onClick={() => handleDelete(index)}
+							onClick={() => handleDeleteImages(index)}
 							style={{
 								position: "absolute",
 								top: -4,
@@ -92,6 +103,78 @@ const Thumbnails = ({ images, style, setImages, onHeightChange }: ThumbnailsProp
 					)}
 				</div>
 			))}
+
+			{files.map((filePath, index) => {
+				const fileName = filePath.split(/[\\/]/).pop() || filePath
+
+				return (
+					<div
+						key={`file-${index}`}
+						style={{ position: "relative" }}
+						onMouseEnter={() => setHoveredIndex(`file-${index}`)}
+						onMouseLeave={() => setHoveredIndex(null)}>
+						<div
+							style={{
+								width: 34,
+								height: 34,
+								borderRadius: 4,
+								cursor: "pointer",
+								backgroundColor: "var(--vscode-editor-background)",
+								border: "1px solid var(--vscode-input-border)",
+								display: "flex",
+								flexDirection: "column",
+								alignItems: "center",
+								justifyContent: "center",
+							}}
+							onClick={() => handleFileClick(filePath)}>
+							<span
+								className="codicon codicon-file"
+								style={{
+									fontSize: 16,
+									color: "var(--vscode-foreground)",
+								}}></span>
+							<span
+								style={{
+									fontSize: 7,
+									marginTop: 1,
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									maxWidth: "90%",
+									whiteSpace: "nowrap",
+									textAlign: "center",
+								}}
+								title={fileName}>
+								{fileName}
+							</span>
+						</div>
+						{isDeletableFiles && hoveredIndex === `file-${index}` && (
+							<div
+								onClick={() => handleDeleteFiles(index)}
+								style={{
+									position: "absolute",
+									top: -4,
+									right: -4,
+									width: 13,
+									height: 13,
+									borderRadius: "50%",
+									backgroundColor: "var(--vscode-badge-background)",
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "center",
+									cursor: "pointer",
+								}}>
+								<span
+									className="codicon codicon-close"
+									style={{
+										color: "var(--vscode-foreground)",
+										fontSize: 10,
+										fontWeight: "bold",
+									}}></span>
+							</div>
+						)}
+					</div>
+				)
+			})}
 		</div>
 	)
 }

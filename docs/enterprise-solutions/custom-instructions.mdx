@@ -1,0 +1,22 @@
+---
+title: "Custom Instructions"
+---
+
+## Building Custom Instructions for Teams
+
+**Creating standardized project instructions ensures that all team members work within consistent guidelines. Start by documenting your project's technical foundation, then identify which information needs to be included in the instructions. The exact scope will vary depending on your team's needs, but generally it's best to provide as much information as possible. By creating comprehensive instructions that all team members follow, you establish a shared understanding of how code should be written, tested, and deployed across your project, resulting in more maintainable and consistent software.**
+
+---
+
+Here are a few topics and examples to consider for your team's custom instructions:
+
+1. **Testing framework and specific commands**
+    - "All components must include Jest tests with at least 85% coverage. Run tests using `npm run test:coverage` before submitting any pull request."
+2. **Explicit library preferences**
+    - "Use React Query for data fetching and state management. Avoid Redux unless specifically required for complex global state. For styling, use Tailwind CSS with our custom theme configuration found in `src/styles/theme.js.`"
+3. **Where to find documentation**
+    - "All API documentation is available in our internal Notion workspace under 'Engineering > API Reference'. For component usage examples, refer to our Storybook instance at `https://storybook.internal.company.com`"
+4. **Which MCP servers to use, and for which purposes**
+    - "For database operations, use the Postgres MCP server with credentials stored in 1Password under 'Development > Database'. For deployments, use the AWS MCP server which requires the deployment role from IAM. Refer to `docs/mcp-setup.md` for configuration instructions."
+5. **Coding conventions specific to your project**
+    - "Name all React components using PascalCase and all helper functions using camelCase. Place components in the `src/components` directory organized by feature, not by type. Always use TypeScript interfaces for prop definitions."

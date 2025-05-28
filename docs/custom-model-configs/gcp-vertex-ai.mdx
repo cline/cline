@@ -1,0 +1,209 @@
+---
+title: "GCP Vertex AI"
+description: "Configure GCP Vertex AI with Cline to access leading generative AI models like Claude 3.5 Sonnet v2. This guide covers GCP environment setup, authentication, and secure integration for enterprise teams."
+---
+
+### Overview
+
+**GCP Vertex AI:**\
+A fully managed service that provides access to leading generative AI models—such as Anthropic's Claude 3.5 Sonnet v2—through Google Cloud.\
+[Learn more about GCP Vertex AI](https://cloud.google.com/vertex-ai).
+
+This guide is tailored for organizations with established GCP environments (leveraging IAM roles, service accounts, and best practices in resource management) to ensure secure and compliant usage.
+
+---
+
+### Step 1: Prepare Your GCP Environment
+
+#### 1.1 Create or Use a GCP Project
+
+-   **Sign in to the GCP Console:**\
+    [Google Cloud Console](https://console.cloud.google.com/)
+-   **Select or Create a Project:**\
+    Use an existing project or create a new one dedicated to Vertex AI.
+
+#### 1.2 Set Up IAM Permissions and Service Accounts
+
+-   **Assign Required Roles:**
+
+    -   Grant your user (or service account) the **Vertex AI User** role (`roles/aiplatform.user`)
+    -   For service accounts, also attach the **Vertex AI Service Agent** role (`roles/aiplatform.serviceAgent`) to enable certain operations
+    -   Consider additional predefined roles as needed:
+        -   Vertex AI Platform Express Admin
+        -   Vertex AI Platform Express User
+        -   Vertex AI Migration Service User
+
+-   **Cross-Project Resource Access:**
+    -   For BigQuery tables in different projects, assign the **BigQuery Data Viewer** role
+    -   For Cloud Storage buckets in different projects, assign the **Storage Object Viewer** role
+    -   For external data sources, refer to the [GCP Vertex AI Access Control documentation](https://cloud.google.com/vertex-ai/docs/general/access-control)
+
+---
+
+### Step 2: Verify Regional and Model Access
+
+#### 2.1 Choose and Confirm a Region
+
+Vertex AI supports multiple regions. Select a region that meets your latency, compliance, and capacity needs. Examples include:
+
+-   **us-east5 (Columbus, Ohio)**
+-   **us-central1 (Iowa)**
+-   **europe-west1 (Belgium)**
+-   **europe-west4 (Netherlands)**
+-   **asia-southeast1 (Singapore)**
+-   **global (Global)**
+
+The Global endpoint may offer higher availability and reduce resource exhausted errors. Only Gemini models are supported.
+
+#### 2.2 Enable the Claude 3.5 Sonnet v2 Model
+
+-   **Open Vertex AI Model Garden:**\
+    In the Cloud Console, navigate to **Vertex AI → Model Garden**
+-   **Enable Claude 3.5 Sonnet v2:**\
+    Locate the model card for Claude 3.5 Sonnet v2 and click **Enable**
+
+---
+
+### Step 3: Configure the Cline VS Code Extension
+
+#### 3.1 Install and Open Cline
+
+-   **Download VS Code:**\
+    [Download Visual Studio Code](https://code.visualstudio.com/)
+-   **Install the Cline Extension:**
+    -   Open VS Code
+    -   Navigate to the Extensions Marketplace (Ctrl+Shift+X or Cmd+Shift+X)
+    -   Search for **Cline** and install the extension
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-extension-arrow.png"
+		alt="Cline extension in VS Code"
+	/>
+</Frame>
+
+#### 3.2 Configure Cline Settings
+
+-   **Open Cline Settings:**\
+    Click the settings ⚙️ icon within the Cline extension
+-   **Set API Provider:**\
+    Choose **GCP Vertex AI** from the API Provider dropdown
+-   **Enter Your Google Cloud Project ID:**\
+    Provide the project ID you set up earlier
+-   **Select the Region:**\
+    Choose one of the supported regions (e.g., `us-east5`)
+-   **Select the Model:**\
+    From the available list, choose **Claude 3.5 Sonnet v2**
+-   **Save and Test:**\
+    Save your settings and test by sending a simple prompt (e.g., "Generate a Python function to check if a number is prime.")
+
+---
+
+### Step 4: Authentication and Credentials Setup
+
+#### Option A: Using Your Google Account (User Credentials)
+
+1. **Install the Google Cloud CLI:**\
+   Follow the [installation guide](https://cloud.google.com/sdk/docs/install)
+2. **Initialize and Authenticate:**
+
+    ```bash
+    gcloud init
+    gcloud auth application-default login
+    ```
+
+    - This sets up Application Default Credentials (ADC) using your Google account
+
+3. **Restart VS Code:**\
+   Ensure VS Code is restarted so that the Cline extension picks up the new credentials
+
+#### Option B: Using a Service Account (JSON Key)
+
+1. **Create a Service Account:**
+
+    - In the GCP Console, navigate to **IAM & Admin > Service Accounts**
+    - Create a new service account (e.g., "vertex-ai-client")
+
+2. **Assign Roles:**
+
+    - Attach **Vertex AI User** (`roles/aiplatform.user`)
+    - Attach **Vertex AI Service Agent** (`roles/aiplatform.serviceAgent`)
+    - Optionally, add other roles as required
+
+3. **Generate a JSON Key:**
+
+    - In the Service Accounts section, manage keys for your service account and download the JSON key
+
+4. **Set the Environment Variable:**
+
+    ```bash
+    export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
+    ```
+
+    - This instructs Google Cloud client libraries (and Cline) to use this key
+
+5. **Restart VS Code:**\
+   Launch VS Code from a terminal where the `GOOGLE_APPLICATION_CREDENTIALS` variable is set
+
+---
+
+### Step 5: Security, Monitoring, and Best Practices
+
+#### 5.1 Enforce Least Privilege
+
+-   **Principle of Least Privilege:**\
+    Only grant the minimum necessary permissions. Custom roles can offer finer control compared to broad predefined roles
+-   **Best Practices:**\
+    Refer to [GCP IAM Best Practices](https://cloud.google.com/iam/docs/best-practices)
+
+#### 5.2 Manage Resource Access
+
+-   **Project vs. Resource-Level Access:**\
+    Access can be managed at both levels. Note that resource-level permissions (e.g., for BigQuery or Cloud Storage) add to, but do not override, project-level policies
+
+#### 5.3 Monitor Usage and Quotas
+
+-   **Model Observability Dashboard:**
+
+    -   In the Vertex AI Console, navigate to the **Model Observability** dashboard
+    -   Monitor metrics such as request throughput, latency, and error rates (including 429 quota errors)
+
+-   **Quota Management:**
+    -   If you encounter 429 errors, check the **IAM & Admin > Quotas** page
+    -   Request a quota increase if necessary\
+        [Learn more about GCP Vertex AI Quotas](https://cloud.google.com/vertex-ai/docs/quotas)
+
+#### 5.4 Service Agents and Cross-Project Considerations
+
+-   **Service Agents:**\
+    Be aware of the different service agents:
+
+    -   Vertex AI Service Agent
+    -   Vertex AI RAG Data Service Agent
+    -   Vertex AI Custom Code Service Agent
+    -   Vertex AI Extension Service Agent
+
+-   **Cross-Project Access:**\
+    For resources in other projects (e.g., BigQuery, Cloud Storage), ensure that the appropriate roles (BigQuery Data Viewer, Storage Object Viewer) are assigned
+
+---
+
+### Conclusion
+
+By following these steps, your enterprise team can securely integrate GCP Vertex AI with the Cline VS Code extension to harness the power of **Claude 3.5 Sonnet v2**:
+
+-   **Prepare Your GCP Environment:**\
+    Create or use a project, configure IAM with least privilege, and ensure necessary roles (including the Vertex AI Service Agent role) are attached
+-   **Verify Regional and Model Access:**\
+    Confirm that your chosen region supports Claude 3.5 Sonnet v2 and that the model is enabled
+-   **Configure Cline in VS Code:**\
+    Install Cline, enter your project ID, select the appropriate region, and choose the model
+-   **Set Up Authentication:**\
+    Use either user credentials (via `gcloud auth application-default login`) or a service account with a JSON key
+-   **Implement Security and Monitoring:**\
+    Adhere to best practices for IAM, manage resource access carefully, and monitor usage with the Model Observability dashboard
+
+For further details, please consult the [GCP Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs) and your internal security policies.\
+Happy coding!
+
+_This guide will be updated as GCP Vertex AI and Cline evolve. Always refer to the latest documentation for current practices._
