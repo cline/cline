@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from "react"
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { useTranslation, Trans } from "react-i18next"
 import deepEqual from "fast-deep-equal"
@@ -44,7 +44,7 @@ interface ChatRowProps {
 	isExpanded: boolean
 	isLast: boolean
 	isStreaming: boolean
-	onToggleExpand: () => void
+	onToggleExpand: (ts: number) => void
 	onHeightChange: (isTaller: boolean) => void
 	onSuggestionClick?: (answer: string, event?: React.MouseEvent) => void
 }
@@ -102,6 +102,11 @@ export const ChatRowContent = ({
 	const [isDiffErrorExpanded, setIsDiffErrorExpanded] = useState(false)
 	const [showCopySuccess, setShowCopySuccess] = useState(false)
 	const { copyWithFeedback } = useCopyToClipboard()
+
+	// Memoized callback to prevent re-renders caused by inline arrow functions
+	const handleToggleExpand = useCallback(() => {
+		onToggleExpand(message.ts)
+	}, [onToggleExpand, message.ts])
 
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text !== null && message.text !== undefined && message.say === "api_req_started") {
@@ -302,7 +307,7 @@ export const ChatRowContent = ({
 							progressStatus={message.progressStatus}
 							isLoading={message.partial}
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -328,7 +333,7 @@ export const ChatRowContent = ({
 							progressStatus={message.progressStatus}
 							isLoading={message.partial}
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -350,7 +355,7 @@ export const ChatRowContent = ({
 							progressStatus={message.progressStatus}
 							isLoading={message.partial}
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -389,7 +394,7 @@ export const ChatRowContent = ({
 							language={getLanguageFromPath(tool.path || "") || "log"}
 							isLoading={message.partial}
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -435,7 +440,7 @@ export const ChatRowContent = ({
 							language="markdown"
 							isLoading={message.partial}
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -455,7 +460,7 @@ export const ChatRowContent = ({
 							code={tool.content}
 							language="shell-session"
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -475,7 +480,7 @@ export const ChatRowContent = ({
 							code={tool.content}
 							language="shellsession"
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -495,7 +500,7 @@ export const ChatRowContent = ({
 							code={tool.content}
 							language="markdown"
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -525,7 +530,7 @@ export const ChatRowContent = ({
 							code={tool.content}
 							language="shellsession"
 							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
+							onToggleExpand={handleToggleExpand}
 						/>
 					</>
 				)
@@ -813,7 +818,7 @@ export const ChatRowContent = ({
 									MozUserSelect: "none",
 									msUserSelect: "none",
 								}}
-								onClick={onToggleExpand}>
+								onClick={handleToggleExpand}>
 								<div style={{ display: "flex", alignItems: "center", gap: "10px", flexGrow: 1 }}>
 									{icon}
 									{title}
@@ -852,7 +857,7 @@ export const ChatRowContent = ({
 										code={safeJsonParse<any>(message.text)?.request}
 										language="markdown"
 										isExpanded={true}
-										onToggleExpand={onToggleExpand}
+										onToggleExpand={handleToggleExpand}
 									/>
 								</div>
 							)}
@@ -898,7 +903,7 @@ export const ChatRowContent = ({
 								language="diff"
 								isFeedback={true}
 								isExpanded={isExpanded}
-								onToggleExpand={onToggleExpand}
+								onToggleExpand={handleToggleExpand}
 							/>
 						</div>
 					)
@@ -945,7 +950,7 @@ export const ChatRowContent = ({
 									code={message.text}
 									language="json"
 									isExpanded={true}
-									onToggleExpand={onToggleExpand}
+									onToggleExpand={handleToggleExpand}
 								/>
 							</div>
 						</>
@@ -1105,7 +1110,7 @@ export const ChatRowContent = ({
 													code={useMcpServer.arguments}
 													language="json"
 													isExpanded={true}
-													onToggleExpand={onToggleExpand}
+													onToggleExpand={handleToggleExpand}
 												/>
 											</div>
 										)}

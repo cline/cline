@@ -47,6 +47,7 @@
 		"i18next": "^24.2.2",
 		"i18next-http-backend": "^3.0.2",
 		"knuth-shuffle-seeded": "^1.0.6",
+		"lru-cache": "^11.1.0",
 		"lucide-react": "^0.510.0",
 		"mermaid": "^11.4.1",
 		"posthog-js": "^1.227.2",
@@ -70,8 +71,8 @@
 		"tailwindcss": "^4.0.0",
 		"tailwindcss-animate": "^1.0.7",
 		"unist-util-visit": "^5.0.0",
-		"vscode-material-icons": "^0.1.1",
 		"use-sound": "^5.0.0",
+		"vscode-material-icons": "^0.1.1",
 		"vscrui": "^0.2.2",
 		"zod": "^3.24.2"
 	},

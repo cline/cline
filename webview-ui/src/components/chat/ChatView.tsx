@@ -38,6 +38,7 @@ import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import SystemPromptWarning from "./SystemPromptWarning"
 import { CheckpointWarning } from "./CheckpointWarning"
+import { LRUCache } from "lru-cache"
 
 export interface ChatViewProps {
 	isHidden: boolean
@@ -91,6 +92,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		soundVolume,
 	} = useExtensionState()
 
+	const messagesRef = useRef(messages)
+	useEffect(() => {
+		messagesRef.current = messages
+	}, [messages])
+
 	const { tasks } = useTaskSearch()
 
 	// Initialize expanded state based on the persisted setting (default to expanded if undefined)
@@ -128,6 +134,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const [didClickCancel, setDidClickCancel] = useState(false)
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
+	const prevExpandedRowsRef = useRef<Record<number, boolean>>()
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
@@ -136,6 +143,17 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
 	const [showCheckpointWarning, setShowCheckpointWarning] = useState<boolean>(false)
 	const [isCondensing, setIsCondensing] = useState<boolean>(false)
+	const everVisibleMessagesTsRef = useRef<LRUCache<number, boolean>>(
+		new LRUCache({
+			max: 250,
+			ttl: 1000 * 60 * 15, // 15 minutes TTL for long-running tasks
+		}),
+	)
+
+	const clineAskRef = useRef(clineAsk)
+	useEffect(() => {
+		clineAskRef.current = clineAsk
+	}, [clineAsk])
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -367,7 +385,32 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		}
 	}, [messages.length])
 
-	useEffect(() => setExpandedRows({}), [task?.ts])
+	useEffect(() => {
+		setExpandedRows({})
+		everVisibleMessagesTsRef.current.clear() // Clear for new task
+	}, [task?.ts])
+
+	useEffect(() => () => everVisibleMessagesTsRef.current.clear(), [])
+
+	useEffect(() => {
+		const prev = prevExpandedRowsRef.current
+		let wasAnyRowExpandedByUser = false
+		if (prev) {
+			// Check if any row transitioned from false/undefined to true
+			for (const [tsKey, isExpanded] of Object.entries(expandedRows)) {
+				const ts = Number(tsKey)
+				if (isExpanded && !(prev[ts] ?? false)) {
+					wasAnyRowExpandedByUser = true
+					break
+				}
+			}
+		}
+
+		if (wasAnyRowExpandedByUser) {
+			disableAutoScrollRef.current = true
+		}
+		prevExpandedRowsRef.current = expandedRows // Store current state for next comparison
+	}, [expandedRows])
 
 	const isStreaming = useMemo(() => {
 		// Checking clineAsk isn't enough since messages effect may be called
@@ -428,10 +471,13 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			text = text.trim()
 
 			if (text || images.length > 0) {
-				if (messages.length === 0) {
+				if (messagesRef.current.length === 0) {
 					vscode.postMessage({ type: "newTask", text, images })
-				} else if (clineAsk) {
-					switch (clineAsk) {
+				} else if (clineAskRef.current) {
+					// Use clineAskRef.current
+					switch (
+						clineAskRef.current // Use clineAskRef.current
+					) {
 						case "followup":
 						case "tool":
 						case "browser_action_launch":
@@ -451,7 +497,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				handleChatReset()
 			}
 		},
-		[messages.length, clineAsk, handleChatReset],
+		[handleChatReset], // messagesRef and clineAskRef are stable
 	)
 
 	const handleSetChatBoxMessage = useCallback(
@@ -663,51 +709,68 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	}, [isHidden, sendingDisabled, enableButtons])
 
 	const visibleMessages = useMemo(() => {
-		return modifiedMessages.filter((message) => {
+		const newVisibleMessages = modifiedMessages.filter((message) => {
+			if (everVisibleMessagesTsRef.current.has(message.ts)) {
+				// If it was ever visible, and it's not one of the types that should always be hidden once processed, keep it.
+				// This helps prevent flickering for messages like 'api_req_retry_delayed' if they are no longer the absolute last.
+				const alwaysHiddenOnceProcessedAsk: ClineAsk[] = [
+					"api_req_failed",
+					"resume_task",
+					"resume_completed_task",
+				]
+				const alwaysHiddenOnceProcessedSay = [
+					"api_req_finished",
+					"api_req_retried",
+					"api_req_deleted",
+					"mcp_server_request_started",
+				]
+				if (message.ask && alwaysHiddenOnceProcessedAsk.includes(message.ask)) return false
+				if (message.say && alwaysHiddenOnceProcessedSay.includes(message.say)) return false
+				// Also, re-evaluate empty text messages if they were previously visible but now empty (e.g. partial stream ended)
+				if (message.say === "text" && (message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
+					return false
+				}
+				return true
+			}
+
+			// Original filter logic
 			switch (message.ask) {
 				case "completion_result":
-					// Don't show a chat row for a completion_result ask without
-					// text. This specific type of message only occurs if cline
-					// wants to execute a command as part of its completion
-					// result, in which case we interject the completion_result
-					// tool with the execute_command tool.
-					if (message.text === "") {
-						return false
-					}
+					if (message.text === "") return false
 					break
-				case "api_req_failed": // This message is used to update the latest `api_req_started` that the request failed.
+				case "api_req_failed":
 				case "resume_task":
 				case "resume_completed_task":
 					return false
 			}
 			switch (message.say) {
-				case "api_req_finished": // `combineApiRequests` removes this from `modifiedMessages` anyways.
-				case "api_req_retried": // This message is used to update the latest `api_req_started` that the request was retried.
-				case "api_req_deleted": // Aggregated `api_req` metrics from deleted messages.
+				case "api_req_finished":
+				case "api_req_retried":
+				case "api_req_deleted":
 					return false
 				case "api_req_retry_delayed":
-					// Only show the retry message if it's the last message or
-					// the last messages is api_req_retry_delayed+resume_task.
 					const last1 = modifiedMessages.at(-1)
 					const last2 = modifiedMessages.at(-2)
 					if (last1?.ask === "resume_task" && last2 === message) {
-						return true
-					}
-					return message === last1
-				case "text":
-					// Sometimes cline returns an empty text message, we don't
-					// want to render these. (We also use a say text for user
-					// messages, so in case they just sent images we still
-					// render that.)
-					if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
+						// This specific sequence should be visible
+					} else if (message !== last1) {
+						// If not the specific sequence above, and not the last message, hide it.
 						return false
 					}
+					break
+				case "text":
+					if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) return false
 					break
 				case "mcp_server_request_started":
 					return false
 			}
 			return true
 		})
+
+		// Update the set of ever-visible messages (LRUCache automatically handles cleanup)
+		newVisibleMessages.forEach((msg) => everVisibleMessagesTsRef.current.set(msg.ts, true))
+
+		return newVisibleMessages
 	}, [modifiedMessages])
 
 	const isReadOnlyToolAction = useCallback((message: ClineMessage | undefined) => {
@@ -1006,54 +1069,21 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		})
 	}, [])
 
+	const handleSetExpandedRow = useCallback(
+		(ts: number, expand?: boolean) => {
+			setExpandedRows((prev) => ({ ...prev, [ts]: expand === undefined ? !prev[ts] : expand }))
+		},
+		[setExpandedRows], // setExpandedRows is stable
+	)
+
 	// Scroll when user toggles certain rows.
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
-			const isCollapsing = expandedRows[ts] ?? false
-			const lastGroup = groupedMessages.at(-1)
-			const isLast = Array.isArray(lastGroup) ? lastGroup[0].ts === ts : lastGroup?.ts === ts
-			const secondToLastGroup = groupedMessages.at(-2)
-			const isSecondToLast = Array.isArray(secondToLastGroup)
-				? secondToLastGroup[0].ts === ts
-				: secondToLastGroup?.ts === ts
-
-			const isLastCollapsedApiReq =
-				isLast &&
-				!Array.isArray(lastGroup) && // Make sure it's not a browser session group
-				lastGroup?.say === "api_req_started" &&
-				!expandedRows[lastGroup.ts]
-
-			setExpandedRows((prev) => ({ ...prev, [ts]: !prev[ts] }))
-
-			// Disable auto scroll when user expands row
-			if (!isCollapsing) {
-				disableAutoScrollRef.current = true
-			}
-
-			if (isCollapsing && isAtBottom) {
-				const timer = setTimeout(() => scrollToBottomAuto(), 0)
-				return () => clearTimeout(timer)
-			} else if (isLast || isSecondToLast) {
-				if (isCollapsing) {
-					if (isSecondToLast && !isLastCollapsedApiReq) {
-						return
-					}
-
-					const timer = setTimeout(() => scrollToBottomAuto(), 0)
-					return () => clearTimeout(timer)
-				} else {
-					const timer = setTimeout(() => {
-						virtuosoRef.current?.scrollToIndex({
-							index: groupedMessages.length - (isLast ? 1 : 2),
-							align: "start",
-						})
-					}, 0)
-
-					return () => clearTimeout(timer)
-				}
-			}
+			handleSetExpandedRow(ts)
+			// The logic to set disableAutoScrollRef.current = true on expansion
+			// is now handled by the useEffect hook that observes expandedRows.
 		},
-		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
+		[handleSetExpandedRow],
 	)
 
 	const handleRowHeightChange = useCallback(
@@ -1111,6 +1141,20 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	const placeholderText = task ? t("chat:typeMessage") : t("chat:typeTask")
 
+	const handleSuggestionClickInRow = useCallback(
+		(answer: string, event?: React.MouseEvent) => {
+			if (event?.shiftKey) {
+				// Always append to existing text, don't overwrite
+				setInputValue((currentValue) => {
+					return currentValue !== "" ? `${currentValue} \n${answer}` : answer
+				})
+			} else {
+				handleSendMessage(answer, [])
+			}
+		},
+		[handleSendMessage, setInputValue], // setInputValue is stable, handleSendMessage depends on clineAsk
+	)
+
 	const itemContent = useCallback(
 		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {
 			// browser session group
@@ -1122,7 +1166,6 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 						lastModifiedMessage={modifiedMessages.at(-1)}
 						onHeightChange={handleRowHeightChange}
 						isStreaming={isStreaming}
-						// Pass handlers for each message in the group
 						isExpanded={(messageTs: number) => expandedRows[messageTs] ?? false}
 						onToggleExpand={(messageTs: number) => {
 							setExpandedRows((prev) => ({
@@ -1140,32 +1183,25 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					key={messageOrGroup.ts}
 					message={messageOrGroup}
 					isExpanded={expandedRows[messageOrGroup.ts] || false}
-					onToggleExpand={() => toggleRowExpansion(messageOrGroup.ts)}
-					lastModifiedMessage={modifiedMessages.at(-1)}
-					isLast={index === groupedMessages.length - 1}
+					onToggleExpand={toggleRowExpansion} // This was already stabilized
+					lastModifiedMessage={modifiedMessages.at(-1)} // Original direct access
+					isLast={index === groupedMessages.length - 1} // Original direct access
 					onHeightChange={handleRowHeightChange}
 					isStreaming={isStreaming}
-					onSuggestionClick={(answer: string, event?: React.MouseEvent) => {
-						if (event?.shiftKey) {
-							// Always append to existing text, don't overwrite
-							setInputValue((currentValue) => {
-								return currentValue !== "" ? `${currentValue} \n${answer}` : answer
-							})
-						} else {
-							handleSendMessage(answer, [])
-						}
-					}}
+					onSuggestionClick={handleSuggestionClickInRow} // This was already stabilized
 				/>
 			)
 		},
 		[
+			// Original broader dependencies
 			expandedRows,
+			groupedMessages,
 			modifiedMessages,
-			groupedMessages.length,
 			handleRowHeightChange,
 			isStreaming,
 			toggleRowExpansion,
-			handleSendMessage,
+			handleSuggestionClickInRow,
+			setExpandedRows, // For the inline onToggleExpand in BrowserSessionRow
 		],
 	)
 

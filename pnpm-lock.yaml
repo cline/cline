@@ -577,6 +577,9 @@ importers:
       knuth-shuffle-seeded:
         specifier: ^1.0.6
         version: 1.0.6
+      lru-cache:
+        specifier: ^11.1.0
+        version: 11.1.0
       lucide-react:
         specifier: ^0.510.0
         version: 0.510.0(react@18.3.1)
