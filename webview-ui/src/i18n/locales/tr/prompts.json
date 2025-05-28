@@ -1,5 +1,5 @@
 {
-	"title": "Promptlar",
+	"title": "Modlar",
 	"done": "Tamamlandı",
 	"modes": {
 		"title": "Modlar",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "Promptları geliştirmek için her zaman kullanılacak bir API yapılandırması seçebilir veya şu anda seçili olanı kullanabilirsiniz",
 			"useCurrentConfig": "Şu anda seçili API yapılandırmasını kullan",
 			"testPromptPlaceholder": "Geliştirmeyi test etmek için bir prompt girin",
-			"previewButton": "Prompt geliştirmesini önizle"
+			"previewButton": "Prompt geliştirmesini önizle",
+			"testEnhancement": "Geliştirmeyi test et"
 		},
 		"types": {
 			"ENHANCE": {

@@ -28,9 +28,13 @@
 		"notifications": "Notifications",
 		"contextManagement": "Context",
 		"terminal": "Terminal",
+		"prompts": "Prompts",
 		"experimental": "Experimental",
 		"language": "Language",
 		"about": "About Roo Code"
+	},
+	"prompts": {
+		"description": "Configure support prompts that are used for quick actions like enhancing prompts, explaining code, and fixing issues. These prompts help Roo provide better assistance for common development tasks."
 	},
 	"codeIndex": {
 		"title": "Codebase Indexing",

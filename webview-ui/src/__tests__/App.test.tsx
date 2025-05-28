@@ -56,12 +56,12 @@ jest.mock("@src/components/mcp/McpView", () => ({
 	},
 }))
 
-jest.mock("@src/components/prompts/PromptsView", () => ({
+jest.mock("@src/components/modes/ModesView", () => ({
 	__esModule: true,
-	default: function PromptsView({ onDone }: { onDone: () => void }) {
+	default: function ModesView({ onDone }: { onDone: () => void }) {
 		return (
 			<div data-testid="prompts-view" onClick={onDone}>
-				Prompts View
+				Modes View
 			</div>
 		)
 	},

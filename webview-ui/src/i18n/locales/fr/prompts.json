@@ -1,5 +1,5 @@
 {
-	"title": "Prompts",
+	"title": "Modes",
 	"done": "Terminé",
 	"modes": {
 		"title": "Modes",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "Vous pouvez sélectionner une configuration API à toujours utiliser pour améliorer les prompts, ou simplement utiliser celle qui est actuellement sélectionnée",
 			"useCurrentConfig": "Utiliser la configuration API actuellement sélectionnée",
 			"testPromptPlaceholder": "Entrez un prompt pour tester l'amélioration",
-			"previewButton": "Aperçu de l'amélioration du prompt"
+			"previewButton": "Aperçu de l'amélioration du prompt",
+			"testEnhancement": "Tester l'amélioration"
 		},
 		"types": {
 			"ENHANCE": {

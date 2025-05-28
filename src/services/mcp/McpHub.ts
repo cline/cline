@@ -452,7 +452,7 @@ export class McpHub {
 					args: configInjected.args,
 					cwd: configInjected.cwd,
 					env: {
-					...(configInjected.env || {}),
+						...(configInjected.env || {}),
 						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
 						...(process.env.HOME ? { HOME: process.env.HOME } : {}),
 					},

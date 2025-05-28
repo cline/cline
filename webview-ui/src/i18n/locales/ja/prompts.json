@@ -1,5 +1,5 @@
 {
-	"title": "プロンプト",
+	"title": "モード",
 	"done": "完了",
 	"modes": {
 		"title": "モード",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "プロンプトの強化に常に使用するAPI設定を選択するか、現在選択されているものを使用できます",
 			"useCurrentConfig": "現在選択されているAPI設定を使用",
 			"testPromptPlaceholder": "強化をテストするプロンプトを入力してください",
-			"previewButton": "プロンプト強化のプレビュー"
+			"previewButton": "プロンプト強化のプレビュー",
+			"testEnhancement": "強化をテスト"
 		},
 		"types": {
 			"ENHANCE": {

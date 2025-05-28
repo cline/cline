@@ -658,7 +658,9 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 			it("creates checkpoint with changes regardless of allowEmpty setting", async () => {
 				await fs.writeFile(testFile, "Modified content for allowEmpty test")
 
-				const resultWithAllowEmpty = await service.saveCheckpoint("With changes and allowEmpty", { allowEmpty: true })
+				const resultWithAllowEmpty = await service.saveCheckpoint("With changes and allowEmpty", {
+					allowEmpty: true,
+				})
 				expect(resultWithAllowEmpty?.commit).toBeTruthy()
 
 				await fs.writeFile(testFile, "Another modification for allowEmpty test")
@@ -685,7 +687,7 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				// First, create a checkpoint to ensure we're not in the initial state
 				await fs.writeFile(testFile, "Setup content")
 				await service.saveCheckpoint("Setup checkpoint")
-				
+
 				// Reset the file to original state
 				await fs.writeFile(testFile, "Hello, world!")
 				await service.saveCheckpoint("Reset to original")
@@ -723,15 +725,15 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 
 				await testService.saveCheckpoint("Test logging with allowEmpty", { allowEmpty: true })
 
-				const saveCheckpointLogs = logMessages.filter(msg =>
-					msg.includes("starting checkpoint save") && msg.includes("allowEmpty: true")
+				const saveCheckpointLogs = logMessages.filter(
+					(msg) => msg.includes("starting checkpoint save") && msg.includes("allowEmpty: true"),
 				)
 				expect(saveCheckpointLogs).toHaveLength(1)
 
 				await testService.saveCheckpoint("Test logging without allowEmpty")
 
-				const defaultLogs = logMessages.filter(msg =>
-					msg.includes("starting checkpoint save") && msg.includes("allowEmpty: false")
+				const defaultLogs = logMessages.filter(
+					(msg) => msg.includes("starting checkpoint save") && msg.includes("allowEmpty: false"),
 				)
 				expect(defaultLogs).toHaveLength(1)
 			})
@@ -776,7 +778,7 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				// Get diff between regular commit and empty commit
 				const diff = await service.getDiff({
 					from: beforeEmpty!.commit,
-					to: emptyCommit!.commit
+					to: emptyCommit!.commit,
 				})
 
 				// Should have no differences since empty commit doesn't change anything
@@ -802,7 +804,7 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 
 				// Restore to the new task checkpoint
 				await service.restoreCheckpoint(newTaskCheckpoint!.commit)
-				
+
 				// File should be back to original state
 				expect(await fs.readFile(testFile, "utf-8")).toBe("Hello, world!")
 			})

@@ -17,7 +17,7 @@
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",
 	"command.mcpServers.title": "MCP 服务器",
-	"command.prompts.title": "提示",
+	"command.prompts.title": "模式",
 	"command.history.title": "历史记录",
 	"command.openInEditor.title": "在编辑器中打开",
 	"command.settings.title": "设置",

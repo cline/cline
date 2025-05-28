@@ -1,5 +1,5 @@
 {
-	"title": "提示詞",
+	"title": "模式",
 	"done": "完成",
 	"modes": {
 		"title": "模式",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "您可以選擇一個固定的 API 設定用於增強提示詞，或使用目前選擇的設定",
 			"useCurrentConfig": "使用目前選擇的 API 設定",
 			"testPromptPlaceholder": "輸入提示詞以測試增強效果",
-			"previewButton": "預覽提示詞增強"
+			"previewButton": "預覽提示詞增強",
+			"testEnhancement": "測試增強"
 		},
 		"types": {
 			"ENHANCE": {

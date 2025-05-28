@@ -83,7 +83,7 @@
 			{
 				"command": "roo-cline.promptsButtonClicked",
 				"title": "%command.prompts.title%",
-				"icon": "$(notebook)"
+				"icon": "$(organization)"
 			},
 			{
 				"command": "roo-cline.historyButtonClicked",

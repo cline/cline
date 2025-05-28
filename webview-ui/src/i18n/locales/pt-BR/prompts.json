@@ -1,5 +1,5 @@
 {
-	"title": "Prompts",
+	"title": "Modos",
 	"done": "Concluído",
 	"modes": {
 		"title": "Modos",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "Você pode selecionar uma configuração de API para usar sempre para aprimorar prompts, ou simplesmente use o que está atualmente selecionado",
 			"useCurrentConfig": "Usar configuração de API atualmente selecionada",
 			"testPromptPlaceholder": "Digite um prompt para testar o aprimoramento",
-			"previewButton": "Visualizar aprimoramento do prompt"
+			"previewButton": "Visualizar aprimoramento do prompt",
+			"testEnhancement": "Testar aprimoramento"
 		},
 		"types": {
 			"ENHANCE": {

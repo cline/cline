@@ -1,5 +1,5 @@
 {
-	"title": "Prompts",
+	"title": "Modes",
 	"done": "Fet",
 	"modes": {
 		"title": "Modes",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "Podeu seleccionar una configuració d'API per utilitzar sempre per millorar els prompts, o simplement utilitzar la que està seleccionada actualment",
 			"useCurrentConfig": "Utilitzar la configuració d'API seleccionada actualment",
 			"testPromptPlaceholder": "Introduïu un prompt per provar la millora",
-			"previewButton": "Previsualització de la millora del prompt"
+			"previewButton": "Previsualització de la millora del prompt",
+			"testEnhancement": "Prova la millora"
 		},
 		"types": {
 			"ENHANCE": {

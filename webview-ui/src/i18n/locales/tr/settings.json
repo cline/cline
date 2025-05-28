@@ -28,9 +28,13 @@
 		"notifications": "Bildirimler",
 		"contextManagement": "Bağlam",
 		"terminal": "Terminal",
+		"prompts": "Promptlar",
 		"experimental": "Deneysel",
 		"language": "Dil",
 		"about": "Roo Code Hakkında"
+	},
+	"prompts": {
+		"description": "Prompt geliştirme, kod açıklama ve sorun çözme gibi hızlı eylemler için kullanılan destek promptlarını yapılandırın. Bu promptlar, Roo'nun yaygın geliştirme görevleri için daha iyi destek sağlamasına yardımcı olur."
 	},
 	"codeIndex": {
 		"title": "Kod Tabanı İndeksleme",

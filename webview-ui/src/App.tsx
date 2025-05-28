@@ -13,15 +13,15 @@ import HistoryView from "./components/history/HistoryView"
 import SettingsView, { SettingsViewRef } from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import McpView from "./components/mcp/McpView"
-import PromptsView from "./components/prompts/PromptsView"
+import ModesView from "./components/modes/ModesView"
 import { HumanRelayDialog } from "./components/human-relay/HumanRelayDialog"
 
-type Tab = "settings" | "history" | "mcp" | "prompts" | "chat"
+type Tab = "settings" | "history" | "mcp" | "modes" | "chat"
 
 const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]>, Tab>> = {
 	chatButtonClicked: "chat",
 	settingsButtonClicked: "settings",
-	promptsButtonClicked: "prompts",
+	promptsButtonClicked: "modes",
 	mcpButtonClicked: "mcp",
 	historyButtonClicked: "history",
 }
@@ -112,7 +112,7 @@ const App = () => {
 		<WelcomeView />
 	) : (
 		<>
-			{tab === "prompts" && <PromptsView onDone={() => switchTab("chat")} />}
+			{tab === "modes" && <ModesView onDone={() => switchTab("chat")} />}
 			{tab === "mcp" && <McpView onDone={() => switchTab("chat")} />}
 			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
 			{tab === "settings" && (

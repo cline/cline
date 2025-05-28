@@ -1,7 +1,7 @@
 // npx jest src/components/prompts/__tests__/PromptsView.test.tsx
 
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
-import PromptsView from "../PromptsView"
+import ModesView from "../ModesView"
 import { ExtensionStateContext } from "@src/context/ExtensionStateContext"
 import { vscode } from "@src/utils/vscode"
 
@@ -48,7 +48,7 @@ const renderPromptsView = (props = {}) => {
 	const mockOnDone = jest.fn()
 	return render(
 		<ExtensionStateContext.Provider value={{ ...mockExtensionState, ...props } as any}>
-			<PromptsView onDone={mockOnDone} />
+			<ModesView onDone={mockOnDone} />
 		</ExtensionStateContext.Provider>,
 	)
 }
@@ -144,7 +144,7 @@ describe("PromptsView", () => {
 		const { unmount } = render(
 			<ExtensionStateContext.Provider
 				value={{ ...mockExtensionState, mode: "code", customModes: [customMode] } as any}>
-				<PromptsView onDone={jest.fn()} />
+				<ModesView onDone={jest.fn()} />
 			</ExtensionStateContext.Provider>,
 		)
 
@@ -167,30 +167,12 @@ describe("PromptsView", () => {
 		render(
 			<ExtensionStateContext.Provider
 				value={{ ...mockExtensionState, mode: "custom-mode", customModes: [customMode] } as any}>
-				<PromptsView onDone={jest.fn()} />
+				<ModesView onDone={jest.fn()} />
 			</ExtensionStateContext.Provider>,
 		)
 
 		// Verify reset button is not present for custom mode
 		expect(screen.queryByTestId("role-definition-reset")).not.toBeInTheDocument()
-	})
-
-	it("handles API configuration selection", async () => {
-		renderPromptsView()
-
-		const trigger = screen.getByTestId("support-prompt-select-trigger")
-		fireEvent.click(trigger)
-
-		const enhanceOption = await waitFor(() => screen.getByTestId("ENHANCE-option"))
-		fireEvent.click(enhanceOption)
-
-		const apiConfig = await waitFor(() => screen.getByTestId("api-config-select"))
-		fireEvent.click(apiConfig)
-
-		const config1 = await waitFor(() => screen.getByTestId("config1-option"))
-		fireEvent.click(config1)
-
-		expect(mockExtensionState.setEnhancementApiConfigId).toHaveBeenCalledWith("config1") // Ensure this is not called by mode switch
 	})
 
 	it("handles clearing custom instructions correctly", async () => {

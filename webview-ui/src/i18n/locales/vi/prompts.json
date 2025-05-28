@@ -1,5 +1,5 @@
 {
-	"title": "Lời nhắc",
+	"title": "Chế độ",
 	"done": "Hoàn thành",
 	"modes": {
 		"title": "Chế độ",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "Bạn có thể chọn cấu hình API để luôn sử dụng cho việc nâng cao lời nhắc, hoặc chỉ sử dụng bất cứ cấu hình nào hiện đang được chọn",
 			"useCurrentConfig": "Sử dụng cấu hình API hiện tại đã chọn",
 			"testPromptPlaceholder": "Nhập lời nhắc để kiểm tra việc nâng cao",
-			"previewButton": "Xem trước nâng cao lời nhắc"
+			"previewButton": "Xem trước nâng cao lời nhắc",
+			"testEnhancement": "Kiểm tra cải tiến"
 		},
 		"types": {
 			"ENHANCE": {

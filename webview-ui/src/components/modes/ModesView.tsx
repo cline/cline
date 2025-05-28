@@ -19,7 +19,6 @@ import {
 	getAllModes,
 	findModeBySlug as findCustomModeBySlug,
 } from "@roo/modes"
-import { supportPrompt, SupportPromptType } from "@roo/support-prompt"
 import { TOOL_GROUPS } from "@roo/tools"
 
 import { vscode } from "@src/utils/vscode"
@@ -51,7 +50,7 @@ const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group)
 
 type ModeSource = "global" | "project"
 
-type PromptsViewProps = {
+type ModesViewProps = {
 	onDone: () => void
 }
 
@@ -60,16 +59,13 @@ function getGroupName(group: GroupEntry): ToolGroup {
 	return Array.isArray(group) ? group[0] : group
 }
 
-const PromptsView = ({ onDone }: PromptsViewProps) => {
+const ModesView = ({ onDone }: ModesViewProps) => {
 	const { t } = useAppTranslation()
 
 	const {
 		customModePrompts,
-		customSupportPrompts,
 		listApiConfigMeta,
 		currentApiConfigName,
-		enhancementApiConfigId,
-		setEnhancementApiConfigId,
 		mode,
 		customInstructions,
 		setCustomInstructions,
@@ -86,15 +82,12 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	// Memoize modes to preserve array order
 	const modes = useMemo(() => getAllModes(customModes), [customModes])
 
-	const [testPrompt, setTestPrompt] = useState("")
-	const [isEnhancing, setIsEnhancing] = useState(false)
 	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [selectedPromptContent, setSelectedPromptContent] = useState("")
 	const [selectedPromptTitle, setSelectedPromptTitle] = useState("")
 	const [isToolsEditMode, setIsToolsEditMode] = useState(false)
 	const [showConfigMenu, setShowConfigMenu] = useState(false)
 	const [isCreateModeDialogOpen, setIsCreateModeDialogOpen] = useState(false)
-	const [activeSupportOption, setActiveSupportOption] = useState<SupportPromptType>("ENHANCE")
 	const [isSystemPromptDisclosureOpen, setIsSystemPromptDisclosureOpen] = useState(false)
 
 	// State for mode selection popover and search
@@ -380,12 +373,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
 			const message = event.data
-			if (message.type === "enhancedPrompt") {
-				if (message.text) {
-					setTestPrompt(message.text)
-				}
-				setIsEnhancing(false)
-			} else if (message.type === "systemPrompt") {
+			if (message.type === "systemPrompt") {
 				if (message.text) {
 					setSelectedPromptContent(message.text)
 					setSelectedPromptTitle(`System Prompt (${message.mode} mode)`)
@@ -398,15 +386,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		return () => window.removeEventListener("message", handler)
 	}, [])
 
-	const updateSupportPrompt = (type: SupportPromptType, value: string | undefined) => {
-		vscode.postMessage({
-			type: "updateSupportPrompt",
-			values: {
-				[type]: value,
-			},
-		})
-	}
-
 	const handleAgentReset = (modeSlug: string, type: "roleDefinition" | "whenToUse" | "customInstructions") => {
 		// Only reset for built-in modes
 		const existingPrompt = customModePrompts?.[modeSlug] as PromptComponent
@@ -417,27 +396,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 			type: "updatePrompt",
 			promptMode: modeSlug,
 			customPrompt: updatedPrompt,
-		})
-	}
-
-	const handleSupportReset = (type: SupportPromptType) => {
-		vscode.postMessage({
-			type: "resetSupportPrompt",
-			text: type,
-		})
-	}
-
-	const getSupportPromptValue = (type: SupportPromptType): string => {
-		return supportPrompt.get(customSupportPrompts, type)
-	}
-
-	const handleTestEnhancement = () => {
-		if (!testPrompt.trim()) return
-
-		setIsEnhancing(true)
-		vscode.postMessage({
-			type: "enhancePrompt",
-			text: testPrompt,
 		})
 	}
 
@@ -1078,7 +1036,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 
-				<div className="pb-5 border-b border-vscode-input-border">
+				<div className="pb-5">
 					<h3 className="text-vscode-foreground mb-3">{t("prompts:globalCustomInstructions.title")}</h3>
 
 					<div className="text-sm text-vscode-descriptionForeground mb-2">
@@ -1129,128 +1087,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								),
 							}}
 						/>
-					</div>
-				</div>
-
-				<div className="mt-5 pb-15 border-b border-vscode-input-border">
-					<h3 className="text-vscode-foreground mb-3">{t("prompts:supportPrompts.title")}</h3>
-					<div className="flex gap-4 items-center flex-wrap py-1">
-						<Select
-							value={activeSupportOption}
-							onValueChange={(type) => setActiveSupportOption(type as SupportPromptType)}>
-							<SelectTrigger className="w-full" data-testid="support-prompt-select-trigger">
-								<SelectValue placeholder={t("settings:common.select")} />
-							</SelectTrigger>
-							<SelectContent>
-								{Object.keys(supportPrompt.default).map((type) => (
-									<SelectItem key={type} value={type} data-testid={`${type}-option`}>
-										{t(`prompts:supportPrompts.types.${type}.label`)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-
-					{/* Support prompt description */}
-					<div className="text-[13px] text-vscode-descriptionForeground my-2 mb-4">
-						{t(`prompts:supportPrompts.types.${activeSupportOption}.description`)}
-					</div>
-
-					<div key={activeSupportOption}>
-						<div className="flex justify-between items-center mb-1">
-							<div className="font-bold">{t("prompts:supportPrompts.prompt")}</div>
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={() => handleSupportReset(activeSupportOption)}
-								title={t("prompts:supportPrompts.resetPrompt", {
-									promptType: activeSupportOption,
-								})}>
-								<span className="codicon codicon-discard"></span>
-							</Button>
-						</div>
-
-						<VSCodeTextArea
-							resize="vertical"
-							value={getSupportPromptValue(activeSupportOption)}
-							onChange={(e) => {
-								const value =
-									(e as unknown as CustomEvent)?.detail?.target?.value ||
-									((e as any).target as HTMLTextAreaElement).value
-								const trimmedValue = value.trim()
-								updateSupportPrompt(activeSupportOption, trimmedValue || undefined)
-							}}
-							rows={6}
-							className="w-full"
-						/>
-
-						{activeSupportOption === "ENHANCE" && (
-							<>
-								<div>
-									<div className="text-vscode-foreground text-[13px] mb-5 mt-1.5"></div>
-									<div className="mb-3">
-										<div className="mb-2">
-											<div className="font-bold mb-1">
-												{t("prompts:supportPrompts.enhance.apiConfiguration")}
-											</div>
-											<div className="text-[13px] text-vscode-descriptionForeground">
-												{t("prompts:supportPrompts.enhance.apiConfigDescription")}
-											</div>
-										</div>
-										<Select
-											value={enhancementApiConfigId || "-"}
-											onValueChange={(value) => {
-												// normalise to empty string for empty value
-												// because we can't use it directly for the select element
-												setEnhancementApiConfigId(value === "-" ? "" : value)
-												vscode.postMessage({
-													type: "enhancementApiConfigId",
-													text: value,
-												})
-											}}>
-											<SelectTrigger data-testid="api-config-select" className="w-full">
-												<SelectValue
-													placeholder={t("prompts:supportPrompts.enhance.useCurrentConfig")}
-												/>
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="-">
-													{t("prompts:supportPrompts.enhance.useCurrentConfig")}
-												</SelectItem>
-												{(listApiConfigMeta || []).map((config) => (
-													<SelectItem
-														key={config.id}
-														value={config.id}
-														data-testid={`${config.id}-option`}>
-														{config.name}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
-
-								<div className="mt-4">
-									<VSCodeTextArea
-										resize="vertical"
-										value={testPrompt}
-										onChange={(e) => setTestPrompt((e.target as HTMLTextAreaElement).value)}
-										placeholder={t("prompts:supportPrompts.enhance.testPromptPlaceholder")}
-										rows={3}
-										className="w-full"
-										data-testid="test-prompt-textarea"
-									/>
-									<div className="mt-2 flex justify-start items-center gap-2">
-										<Button
-											variant="default"
-											onClick={handleTestEnhancement}
-											disabled={isEnhancing}>
-											{t("prompts:supportPrompts.enhance.previewButton")}
-										</Button>
-									</div>
-								</div>
-							</>
-						)}
 					</div>
 				</div>
 			</TabContent>
@@ -1461,4 +1297,4 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	)
 }
 
-export default PromptsView
+export default ModesView

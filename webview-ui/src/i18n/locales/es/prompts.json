@@ -1,5 +1,5 @@
 {
-	"title": "Solicitudes",
+	"title": "Modos",
 	"done": "Listo",
 	"modes": {
 		"title": "Modos",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "Puedes seleccionar una configuración de API para usar siempre en la mejora de solicitudes, o simplemente usar la que esté seleccionada actualmente",
 			"useCurrentConfig": "Usar la configuración de API actualmente seleccionada",
 			"testPromptPlaceholder": "Ingresa una solicitud para probar la mejora",
-			"previewButton": "Vista previa de la mejora de solicitud"
+			"previewButton": "Vista previa de la mejora de solicitud",
+			"testEnhancement": "Probar mejora"
 		},
 		"types": {
 			"ENHANCE": {

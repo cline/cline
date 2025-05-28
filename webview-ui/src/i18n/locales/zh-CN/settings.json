@@ -28,9 +28,13 @@
 		"notifications": "通知",
 		"contextManagement": "上下文",
 		"terminal": "终端",
+		"prompts": "提示词",
 		"experimental": "实验性",
 		"language": "语言",
 		"about": "关于 Roo Code"
+	},
+	"prompts": {
+		"description": "配置用于快速操作的支持提示词，如增强提示词、解释代码和修复问题。这些提示词帮助 Roo 为常见开发任务提供更好的支持。"
 	},
 	"codeIndex": {
 		"title": "代码库索引",

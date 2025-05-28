@@ -1,5 +1,5 @@
 {
-	"title": "Podpowiedzi",
+	"title": "Tryby",
 	"done": "Gotowe",
 	"modes": {
 		"title": "Tryby",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "Możesz wybrać konfigurację API, która będzie zawsze używana do ulepszania podpowiedzi, lub po prostu użyć aktualnie wybranej",
 			"useCurrentConfig": "Użyj aktualnie wybranej konfiguracji API",
 			"testPromptPlaceholder": "Wprowadź podpowiedź, aby przetestować ulepszenie",
-			"previewButton": "Podgląd ulepszenia podpowiedzi"
+			"previewButton": "Podgląd ulepszenia podpowiedzi",
+			"testEnhancement": "Testuj ulepszenie"
 		},
 		"types": {
 			"ENHANCE": {

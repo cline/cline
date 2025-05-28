@@ -28,9 +28,13 @@
 		"notifications": "Notificações",
 		"contextManagement": "Contexto",
 		"terminal": "Terminal",
+		"prompts": "Prompts",
 		"experimental": "Experimental",
 		"language": "Idioma",
 		"about": "Sobre"
+	},
+	"prompts": {
+		"description": "Configure prompts de suporte usados para ações rápidas como melhorar prompts, explicar código e corrigir problemas. Esses prompts ajudam o Roo a fornecer melhor assistência para tarefas comuns de desenvolvimento."
 	},
 	"codeIndex": {
 		"title": "Indexação de Código",

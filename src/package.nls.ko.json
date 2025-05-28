@@ -17,7 +17,7 @@
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",
 	"command.mcpServers.title": "MCP 서버",
-	"command.prompts.title": "프롬프트",
+	"command.prompts.title": "모드",
 	"command.history.title": "기록",
 	"command.openInEditor.title": "에디터에서 열기",
 	"command.settings.title": "설정",

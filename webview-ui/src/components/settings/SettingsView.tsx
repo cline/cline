@@ -21,6 +21,7 @@ import {
 	AlertTriangle,
 	Globe,
 	Info,
+	MessageSquare,
 	LucideIcon,
 } from "lucide-react"
 
@@ -62,6 +63,7 @@ import { ExperimentalSettings } from "./ExperimentalSettings"
 import { LanguageSettings } from "./LanguageSettings"
 import { About } from "./About"
 import { Section } from "./Section"
+import PromptsSettings from "./PromptsSettings"
 import { cn } from "@/lib/utils"
 
 export const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]:hidden"
@@ -83,6 +85,7 @@ const sectionNames = [
 	"notifications",
 	"contextManagement",
 	"terminal",
+	"prompts",
 	"experimental",
 	"language",
 	"about",
@@ -369,6 +372,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			{ id: "notifications", icon: Bell },
 			{ id: "contextManagement", icon: Database },
 			{ id: "terminal", icon: SquareTerminal },
+			{ id: "prompts", icon: MessageSquare },
 			{ id: "experimental", icon: FlaskConical },
 			{ id: "language", icon: Globe },
 			{ id: "about", icon: Info },
@@ -634,6 +638,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							setCachedStateField={setCachedStateField}
 						/>
 					)}
+
+					{/* Prompts Section */}
+					{activeTab === "prompts" && <PromptsSettings />}
 
 					{/* Experimental Section */}
 					{activeTab === "experimental" && (

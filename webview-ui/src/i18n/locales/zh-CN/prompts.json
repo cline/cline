@@ -1,5 +1,5 @@
 {
-	"title": "模型提示词设置",
+	"title": "模式",
 	"done": "完成",
 	"modes": {
 		"title": "模式配置",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "您可以选择一个固定的API配置用于增强提示词，或者使用当前选择的配置",
 			"useCurrentConfig": "使用当前选择的API配置",
 			"testPromptPlaceholder": "输入提示词以测试增强效果",
-			"previewButton": "测试提示词增强"
+			"previewButton": "测试提示词增强",
+			"testEnhancement": "测试增强"
 		},
 		"types": {
 			"ENHANCE": {

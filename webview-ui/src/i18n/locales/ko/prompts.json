@@ -1,5 +1,5 @@
 {
-	"title": "프롬프트",
+	"title": "모드",
 	"done": "완료",
 	"modes": {
 		"title": "모드",
@@ -64,7 +64,8 @@
 			"apiConfigDescription": "프롬프트 향상에 항상 사용할 API 구성을 선택하거나, 현재 선택된 구성을 사용할 수 있습니다",
 			"useCurrentConfig": "현재 선택된 API 구성 사용",
 			"testPromptPlaceholder": "향상을 테스트할 프롬프트 입력",
-			"previewButton": "프롬프트 향상 미리보기"
+			"previewButton": "프롬프트 향상 미리보기",
+			"testEnhancement": "향상 테스트"
 		},
 		"types": {
 			"ENHANCE": {
