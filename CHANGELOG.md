@@ -2,8 +2,6 @@
 
 ## 3.17.7
 
-### Patch Changes
-
 -   36f57ce: fix prompt for claude 4 family diff edits
 -   ed0181a: showChatView protobus migration
 
