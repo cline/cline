@@ -1,9 +1,8 @@
 # Changelog
 
-## 3.17.7
+## [3.17.7]
 
--   36f57ce: fix prompt for claude 4 family diff edits
--   ed0181a: showChatView protobus migration
+-   Fix diff editing reliability for Claude 4 family models by adding constraints to prevent errors with large replacements
 
 ## [3.17.6]
 
