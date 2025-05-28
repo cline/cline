@@ -1,34 +1,14 @@
 # Changelog
 
-## 3.18.0
+## [3.17.6]
 
--   6fa819a: Add Cerebras as a new API provider with comprehensive model support. Features include:
-
--   **5 Cerebras models**: llama3.1-8b, llama-4-scout-17b-16e-instruct, llama-3.3-70b, qwen-3-32b, and deepseek-r1-distill-llama-70b
--   **Native Cerebras SDK integration** using @cerebras/cerebras_cloud_sdk
--   **Reasoning support** for Qwen and DeepSeek R1 Distill models with `<think>` tag handling
--   **Streaming responses** with proper error handling and usage tracking
--   **Cost calculation** and token counting
--   **UI integration** with API key configuration and model selection
--   **Free pricing** for all models (set to $0 input/output costs)
-
-Users can now connect to Cerebras's high-performance inference API using their API key and access fast, efficient LLM services directly from within Cline.
-
--   9f1b01b: Migrate openExtensionSettings to protobus
--   10239f0: Migrate showAccountViewClicked to protobus
--   ee347bf: add functionality for uploading any file types
--   fec8626: Migrate authCallback to protobus
--   cf0af8a: Migrate openMcpSettings to protobus
--   9d801a1: Update sambanova provider model list and add new docs link
--   7bfc00b: add back missing function
--   7f64107: Adding Telemetry for button clicks
--   ffeee7e: openInBrowser protobus migration
--   35929b6: Use identify to enhance distinct user segmentation
--   adf2568: Add a beautiful experience for new users of Cline
--   f74a8ba: Show prompt cache for gemini 2.5 flash
--   e2f73bc: invoke message removed as part of protobus migratiuon, deemed unnecesary as webview messages can be handled by askResponse, and ClineAPI usage can be handled through the extension without grpc. Also added tests for ClineAPI.
--   a346f05: requestTotalTasksSize protobus migration
--   9451609: Fixed diff editing support for claude 4 family of models
+-   Add Cerebras as a new API provider with 5 high-performance models including reasoning-capable models (Thanks @kevint-cerebras!)
+-   Add support for uploading various file types (XML, JSON, TXT, LOG, MD, DOCX, IPYNB, PDF) alongside images
+-   Add improved onboarding experience for new users with guided setup
+-   Add prompt cache indicator for Gemini 2.5 Flash models
+-   Update SambaNova provider with new model list and documentation links
+-   Fix diff editing support for Claude 4 family of models
+-   Improve telemetry and analytics for better user experience insights
 
 ## [3.17.5]
 
