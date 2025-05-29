@@ -2715,6 +2715,7 @@ export class Task {
 						}
 					}
 					case "search_files": {
+						const isClaude4ModelFamily = await this.isClaude4ModelFamily()
 						const relDirPath: string | undefined = block.params.path
 						const regex: string | undefined = block.params.regex
 						const filePattern: string | undefined = block.params.file_pattern
@@ -2742,13 +2743,19 @@ export class Task {
 							} else {
 								if (!relDirPath) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "path"))
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("search_files", "path"),
+										isClaude4ModelFamily,
+									)
 									await this.saveCheckpoint()
 									break
 								}
 								if (!regex) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "regex"))
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("search_files", "regex"),
+										isClaude4ModelFamily,
+									)
 									await this.saveCheckpoint()
 									break
 								}
@@ -2786,12 +2793,12 @@ export class Task {
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
-								pushToolResult(results)
+								pushToolResult(results, isClaude4ModelFamily)
 								await this.saveCheckpoint()
 								break
 							}
 						} catch (error) {
-							await handleError("searching files", error)
+							await handleError("searching files", error, isClaude4ModelFamily)
 							await this.saveCheckpoint()
 							break
 						}

@@ -126,7 +126,9 @@ export function createAntmlToolPrompt(
   systemPrompt = '',
 ): string {
   if (toolDefs.length === 0) {
-    if (!includeInstructions) return '';
+    if (!includeInstructions) {
+      return '';
+    }
     
     const noToolsMessage = [
       'In this environment you have access to a set of tools you can use to answer the user\'s question.',
