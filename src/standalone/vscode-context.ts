@@ -1,7 +1,12 @@
 // @ts-nocheck
 import * as vscode from "vscode"
+import * as fs from "fs"
+import * as path from "path"
+
 import open from "open"
 import { log } from "./utils"
+
+const DATA_DIR = process.env.DATA_DIR ?? "."
 
 function stubUri(path: string): vscode.Uri {
 	console.log(`Using file path: ${path}`)
@@ -43,6 +48,46 @@ function createMemento(): vscode.Memento {
 			store[key] = value
 			return Promise.resolve()
 		},
+	}
+}
+
+class SecretStore {
+	// A simple key-value store for secrets backed by a JSON file. This is not secure, and it is not thread-safe.
+	private store = new Map<string, string>()
+	private filePath: string
+
+	constructor() {
+		this.filePath = path.join(DATA_DIR, "secrets.json")
+		this.load()
+	}
+
+	private load(): void {
+		if (fs.existsSync(this.filePath)) {
+			const data = JSON.parse(fs.readFileSync(this.filePath, "utf-8"))
+			Object.entries(data).forEach(([k, v]) => {
+				if (typeof v === "string") {
+					this.store.set(k, v)
+				}
+			})
+		}
+	}
+
+	private save(): void {
+		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.store), null, 2))
+	}
+
+	get(key: string): string | undefined {
+		return this.store.get(key)
+	}
+
+	storeSecret(key: string, value: string): void {
+		this.store.set(key, value)
+		this.save()
+	}
+
+	delete(key: string): void {
+		this.store.delete(key)
+		this.save()
 	}
 }
 
@@ -121,7 +166,7 @@ const extensionContext: vscode.ExtensionContext = {
 	extensionMode: 1, // Development
 
 	extension: {
-		id: "your.extension.id",
+		id: "saoudrizwan.claude-dev",
 		isActive: true,
 		extensionPath: "/tmp/vscode/extension",
 		extensionUri: stubUri("/tmp/vscode/extension"),
@@ -134,14 +179,9 @@ const extensionContext: vscode.ExtensionContext = {
 	subscriptions: [],
 
 	asAbsolutePath: (relPath) => `/tmp/vscode/extension/${relPath}`,
-
-	secrets: {
-		store: async () => {},
-		get: async () => undefined,
-		delete: async () => {},
-		onDidChange: {},
-	},
 }
+
+extensionContext.secrets = new SecretStore()
 
 const outputChannel: vscode.OutputChannel = {
 	append: (text) => process.stdout.write(text),
