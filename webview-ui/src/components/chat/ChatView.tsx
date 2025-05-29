@@ -900,6 +900,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 			const visibleIndex = visibleMessages.findIndex((msg) => msg.ts === targetMessage.ts)
 			if (visibleIndex === -1) {
+				setPendingScrollToMessage(null)
 				return
 			}
 
