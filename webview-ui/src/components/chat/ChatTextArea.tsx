@@ -85,21 +85,6 @@ interface GitCommit {
 
 const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
 
-const HelperTextBelowInput = styled.div`
-	position: absolute;
-	bottom: 16px; /* Increased from 8px to create more space below */
-	left: 25px; /* Aligns with DynamicTextArea's content (approx. 15px parent padding + 9px textarea padding) */
-	right: 60px; /* Leaves space for the send button on the right */
-	font-size: 10px;
-	color: var(--vscode-input-placeholderForeground);
-	opacity: 0.7;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	pointer-events: none; /* Prevents it from capturing mouse events meant for the textarea */
-	z-index: 1; /* Ensures it's above the textarea background/highlight but below thumbnails (zIndex 2) */
-`
-
 const SwitchOption = styled.div<{ isActive: boolean }>`
 	padding: 2px 8px;
 	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
@@ -1509,7 +1494,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderTop: 0,
 							borderColor: "transparent",
 							borderBottom: `${thumbnailsHeight}px solid transparent`,
-							padding: "9px 28px 3px 9px",
+							padding: "9px 28px 9px 9px",
 						}}
 					/>
 					<DynamicTextArea
@@ -1572,7 +1557,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "9px 28px 3px 9px",
+							padding: "9px 28px 9px 9px",
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
@@ -1587,7 +1572,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						onScroll={() => updateHighlights()}
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<HelperTextBelowInput>Type @ for context, / for slash commands & workflows</HelperTextBelowInput>
+						<div className="absolute bottom-4 left-[25px] right-[60px] text-[10px] text-[var(--vscode-input-placeholderForeground)] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-[1]">
+							Type @ for context, / for slash commands & workflows
+						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
 						<Thumbnails
