@@ -6,7 +6,7 @@ interface RetryOptions {
 }
 
 const DEFAULT_OPTIONS: Required<RetryOptions> = {
-	maxRetries: 3,
+	maxRetries: 20,
 	baseDelay: 1_000,
 	maxDelay: 10_000,
 	retryAllErrors: false,
