@@ -53,7 +53,9 @@ export function toolDefinitionToAntmlDefinition(
     rawJson += `"description": "${(propDef as any).description || ''}", `;
     rawJson += `"type": "${(propDef as any).type || 'string'}"`;
     rawJson += `}`;
-    if (index < propEntries.length - 1) rawJson += ', ';
+    if (index < propEntries.length - 1) { 
+		rawJson += ', ';
+	}
   });
   rawJson += `}, `;
   
@@ -138,7 +140,9 @@ export function createAntmlToolPrompt(
   systemPrompt = ''
 ): string {
   if (toolDefs.length === 0) {
-    if (!includeInstructions) return '';
+    if (!includeInstructions) {
+		return '';
+	}
 
     const noToolsMessage = [
       "In this environment you have access to a set of tools you can use to answer the user's question.",
