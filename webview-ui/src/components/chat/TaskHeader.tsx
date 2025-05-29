@@ -58,6 +58,16 @@ const TaskHeader = ({
 
 	const { width: windowWidth } = useWindowSize()
 
+	const condenseButton = (
+		<button
+			title={t("chat:task.condenseContext")}
+			disabled={buttonsDisabled}
+			onClick={() => currentTaskItem && handleCondenseContext(currentTaskItem.id)}
+			className="shrink-0 min-h-[20px] min-w-[20px] p-[2px] cursor-pointer disabled:cursor-not-allowed opacity-85 hover:opacity-100 bg-transparent border-none rounded-md">
+			<FoldVertical size={16} />
+		</button>
+	)
+
 	return (
 		<div className="py-2 px-3">
 			<div
@@ -107,13 +117,7 @@ const TaskHeader = ({
 									: undefined
 							}
 						/>
-						<button
-							title={t("chat:task.condenseContext")}
-							disabled={buttonsDisabled}
-							onClick={() => currentTaskItem && handleCondenseContext(currentTaskItem.id)}
-							className="shrink-0 min-h-[20px] min-w-[20px] p-[2px] cursor-pointer disabled:cursor-not-allowed opacity-85 hover:opacity-100 bg-transparent border-none rounded-md">
-							<FoldVertical size={16} />
-						</button>
+						{condenseButton}
 						{!!totalCost && <VSCodeBadge>${totalCost.toFixed(2)}</VSCodeBadge>}
 					</div>
 				)}
@@ -158,6 +162,7 @@ const TaskHeader = ({
 												: undefined
 										}
 									/>
+									{condenseButton}
 								</div>
 							)}
 							<div className="flex justify-between items-center h-[20px]">
