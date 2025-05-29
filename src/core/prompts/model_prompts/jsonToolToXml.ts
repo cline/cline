@@ -1,23 +1,3 @@
-/**
- * Converts a tool definition to ANTML (Anthropic Markup Language) format
- * as used internally by Claude for tool calling.
- *
- * Based on the Claude 4 System Card: https://www-cdn.anthropic.com/6be99a52cb68eb70eb9572b4cafad13df32ed995.pdf
- *
- * Tool definitions are provided in JSON schema within <functions> tags:
- * <functions>
- *   <function>{"description": "...", "name": "...", "parameters": {...}}</function>
- *   ... (other functions) ...
- * </functions>
- *
- * Tool calls are made using <antml:function_calls> blocks:
- * <antml:function_calls>
- *   <antml:invoke name="tool_name">
- *     <antml:parameter name="param_name">value</antml:parameter>
- *   </antml:invoke>
- * </antml:function_calls>
- */
-
 function escapeXml(text: string): string {
 	// Anything that could be interpreted as markup has to be entity-encoded
 	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -42,14 +22,46 @@ export interface ToolDefinition {
  * @returns The tool definition as a JSON string wrapped in <function> tags
  */
 export function toolDefinitionToAntmlDefinition(toolDef: ToolDefinition): string {
-	const functionDef = {
-		name: toolDef.name,
-		description: toolDef.descriptionForAgent || toolDef.description || "",
-		parameters: toolDef.inputSchema,
+	// Restructure the parameters object to match the expected order
+	const { type, properties, required, ...rest } = toolDef.inputSchema
+	const parameters = {
+		properties,
+		required,
+		type,
+		...rest,
 	}
 
-	// 1.  Build JSON
-	const rawJson = JSON.stringify(functionDef)
+	const functionDef = {
+		description: toolDef.descriptionForAgent || toolDef.description || "",
+		name: toolDef.name,
+		parameters,
+	}
+
+	// 1. Create a custom JSON string with the exact format we want
+	let rawJson = `{"description": "${functionDef.description}", "name": "${functionDef.name}", "parameters": {`
+
+	// Add properties
+	rawJson += `"properties": {`
+	const propEntries = Object.entries(parameters.properties)
+	propEntries.forEach(([propName, propDef], index) => {
+		rawJson += `"${propName}": {`
+		rawJson += `"description": "${(propDef as any).description || ""}", `
+		rawJson += `"type": "${(propDef as any).type || "string"}"`
+		rawJson += `}`
+		if (index < propEntries.length - 1) {
+			rawJson += ", "
+		}
+	})
+	rawJson += `}, `
+
+	// Add required
+	rawJson += `"required": ${JSON.stringify(parameters.required || [])}, `
+
+	// Add type
+	rawJson += `"type": "object"`
+
+	// Close parameters and the whole object
+	rawJson += `}}`
 
 	// 2.  Escape <, > and & so the JSON can sit INSIDE the XML tag safely.
 	//     (Quotes don’t need escaping - they’re not markup.)
@@ -65,17 +77,13 @@ export function toolDefinitionToAntmlDefinition(toolDef: ToolDefinition): string
  * @param toolDefs Array of tool definition objects
  * @returns Complete <functions> block with all tool definitions
  */
-export function toolDefinitionsToAntmlDefinitions(
-	toolDefs: ToolDefinition[],
-): string {
-	const functionTags = toolDefs.map(toolDefinitionToAntmlDefinition);
+export function toolDefinitionsToAntmlDefinitions(toolDefs: ToolDefinition[]): string {
+	const functionTags = toolDefs.map(toolDefinitionToAntmlDefinition)
 	return `Here are the functions available in JSONSchema format:
 <functions>
-${functionTags.join('\n')}
-</functions>`;
+${functionTags.join("\n")}
+</functions>`
 }
-
-
 
 /**
  * Creates an example of an ANTML tool call for a given tool definition.
@@ -84,33 +92,23 @@ ${functionTags.join('\n')}
  * @param exampleValues Optional example values for parameters
  * @returns Example ANTML function call string
  */
-export function toolDefinitionToAntmlCallExample(
-  toolDef: ToolDefinition,
-  exampleValues: Record<string, any> = {},
-): string {
-  const props = toolDef.inputSchema.properties ?? {};
+export function toolDefinitionToAntmlCallExample(toolDef: ToolDefinition, exampleValues: Record<string, any> = {}): string {
+	const props = toolDef.inputSchema.properties ?? {}
 
-  const paramLines = Object.keys(props).length
-    ? Object.entries(props)
-        .map(([name]) => {
-          const value = exampleValues[name] ?? `$${name.toUpperCase()}`; // placeholder
-          // Don't escape XML here - the example should show raw format
-          return `<parameter name="${name}">${value}</parameter>`;
-        })
-        .join('\n')
-    : '';
+	const paramLines = Object.keys(props).length
+		? Object.entries(props)
+				.map(([name]) => {
+					const value = exampleValues[name] ?? `$${name.toUpperCase()}` // placeholder
+					// Don't escape XML here - the example should show raw format
+					return `<parameter name="${name}">${value}</parameter>`
+				})
+				.join("\n")
+		: ""
 
-  // Include the dots to show multiple invokes can be used
-  return [
-    '<function_calls>',
-    `<invoke name="${toolDef.name}">`,
-    paramLines,
-    '</invoke>',
-    '<invoke name="$FUNCTION_NAME2">',
-    '...',
-    '</invoke>',
-    '</function_calls>'
-  ].filter(Boolean).join('\n');
+	// Only include one invoke block
+	return ["<function_calls>", `<invoke name="${toolDef.name}">`, paramLines, "</invoke>", "</function_calls>"]
+		.filter(Boolean)
+		.join("\n")
 }
 
 /**
@@ -120,72 +118,64 @@ export function toolDefinitionToAntmlCallExample(
  * @param includeInstructions Whether to include the standard tool calling instructions
  * @returns Complete system prompt section for ANTML tools
  */
-export function createAntmlToolPrompt(
-  toolDefs: ToolDefinition[],
-  includeInstructions = true,
-  systemPrompt = '',
-): string {
-  if (toolDefs.length === 0) {
-    if (!includeInstructions) return '';
-    
-    const noToolsMessage = [
-      'In this environment you have access to a set of tools you can use to answer the user\'s question.',
-      'You can invoke functions by writing a "<function_calls>" block like the following as part of your reply to the user:',
-      '<function_calls>',
-      '<invoke name="$FUNCTION_NAME">',
-      '<parameter name="$PARAMETER_NAME">$PARAMETER_VALUE</parameter>',
-      '...',
-      '</invoke>',
-      '<invoke name="$FUNCTION_NAME2">',
-      '...',
-      '</invoke>',
-      '</function_calls>',
-      '',
-      'String and scalar parameters should be specified as is, while lists and objects should use JSON format.',
-      '',
-      'However, no tools are currently available.'
-    ].join('\n');
-    
-    return noToolsMessage;
-  }
+export function createAntmlToolPrompt(toolDefs: ToolDefinition[], includeInstructions = true, systemPrompt = ""): string {
+	if (toolDefs.length === 0) {
+		if (!includeInstructions) {
+			return ""
+		}
 
-  let prompt = '';
+		const noToolsMessage = [
+			"In this environment you have access to a set of tools you can use to answer the user's question.",
+			'You can invoke functions by writing a "<function_calls>" block like the following as part of your reply to the user:',
+			"<function_calls>",
+			'<invoke name="$FUNCTION_NAME">',
+			'<parameter name="$PARAMETER_NAME">$PARAMETER_VALUE</parameter>',
+			"...",
+			"</invoke>",
+			"</function_calls>",
+			"",
+			"String and scalar parameters should be specified as is, while lists and objects should use JSON format.",
+			"",
+			"However, no tools are currently available.",
+		].join("\n")
 
-  if (includeInstructions) {
-    const instructionLines = [
-      'In this environment you have access to a set of tools you can use to answer the user\'s question.',
-      'You can invoke functions by writing a "<function_calls>" block like the following as part of your reply to the user:',
-      '<function_calls>',
-      '<invoke name="$FUNCTION_NAME">',
-      '<parameter name="$PARAMETER_NAME">$PARAMETER_VALUE</parameter>',
-      '...',
-      '</invoke>',
-      '<invoke name="$FUNCTION_NAME2">',
-      '...',
-      '</invoke>',
-      '</function_calls>',
-      '',
-      'String and scalar parameters should be specified as is, while lists and objects should use JSON format.',
-      ''
-    ];
-    prompt += instructionLines.join('\n');
-  }
+		return noToolsMessage
+	}
 
-  prompt += toolDefinitionsToAntmlDefinitions(toolDefs);
+	let prompt = ""
 
-  if (includeInstructions) {
-    const closingInstructions = [
-	  '',
-	  '',
-	  systemPrompt,
-      '',
-      '',
-      'Answer the user\'s request using the relevant tool(s), if they are available. Check that all the required parameters for each tool call are provided or can reasonably be inferred from context. IF there are no relevant tools or there are missing values for required parameters, ask the user to supply these values; otherwise proceed with the tool calls. If the user provides a specific value for a parameter (for example provided in quotes), make sure to use that value EXACTLY. DO NOT make up values for or ask about optional parameters. Carefully analyze descriptive terms in the request as they may indicate required parameter values that should be included even if not explicitly quoted.'
-    ];
-    prompt += closingInstructions.join('\n');
-  }
+	if (includeInstructions) {
+		const instructionLines = [
+			"In this environment you have access to a set of tools you can use to answer the user's question.",
+			'You can invoke functions by writing a "<function_calls>" block like the following as part of your reply to the user:',
+			"<function_calls>",
+			'<invoke name="$FUNCTION_NAME">',
+			'<parameter name="$PARAMETER_NAME">$PARAMETER_VALUE</parameter>',
+			"...",
+			"</invoke>",
+			"</function_calls>",
+			"",
+			"String and scalar parameters should be specified as is, while lists and objects should use JSON format.",
+			"",
+		]
+		prompt += instructionLines.join("\n")
+	}
 
-  return prompt;  // Don't trim - preserve exact formatting
+	prompt += toolDefinitionsToAntmlDefinitions(toolDefs)
+
+	if (includeInstructions) {
+		const closingInstructions = [
+			"",
+			"",
+			systemPrompt,
+			"",
+			"",
+			"Answer the user's request using the relevant tool(s), if they are available. Check that all the required parameters for each tool call are provided or can reasonably be inferred from context. IF there are no relevant tools or there are missing values for required parameters, ask the user to supply these values; otherwise proceed with the tool calls. If the user provides a specific value for a parameter (for example provided in quotes), make sure to use that value EXACTLY. DO NOT make up values for or ask about optional parameters. Carefully analyze descriptive terms in the request as they may indicate required parameter values that should be included even if not explicitly quoted.",
+		]
+		prompt += closingInstructions.join("\n")
+	}
+
+	return prompt // Don't trim - preserve exact formatting
 }
 
 // --- SimpleXML Functions (Cline's internal format) ---
@@ -289,5 +279,5 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 4. After each tool use, the user will respond with the result of that tool use.
 5. ALWAYS wait for user confirmation after each tool use before proceeding.`
 	}
-	return prompt.trimEnd();
+	return prompt.trimEnd()
 }
