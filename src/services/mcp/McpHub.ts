@@ -142,6 +142,16 @@ export class McpHub {
 				return undefined
 			}
 
+			// Backward compatibility: default transportType to "stdio" if missing
+			if (config && config.mcpServers) {
+				for (const [name, server] of Object.entries(config.mcpServers)) {
+					const srv = server as Record<string, any>
+					if (!srv.transportType) {
+						srv.transportType = "stdio"
+					}
+				}
+			}
+
 			// Validate against schema
 			const result = McpSettingsSchema.safeParse(config)
 			if (!result.success) {
