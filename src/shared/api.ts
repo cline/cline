@@ -1687,6 +1687,7 @@ export const groqModels = {
 // Chutes AI
 // https://llm.chutes.ai/v1 (OpenAI compatible)
 export type ChutesModelId =
+	| "deepseek-ai/DeepSeek-R1-0528"
 	| "deepseek-ai/DeepSeek-R1"
 	| "deepseek-ai/DeepSeek-V3"
 	| "unsloth/Llama-3.3-70B-Instruct"
@@ -1708,8 +1709,18 @@ export type ChutesModelId =
 	| "Qwen/Qwen3-8B"
 	| "microsoft/MAI-DS-R1-FP8"
 	| "tngtech/DeepSeek-R1T-Chimera"
-export const chutesDefaultModelId: ChutesModelId = "deepseek-ai/DeepSeek-R1"
+
+export const chutesDefaultModelId: ChutesModelId = "deepseek-ai/DeepSeek-R1-0528"
 export const chutesModels = {
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 32768,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek R1 0528 model.",
+	},
 	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 32768,
 		contextWindow: 163840,
