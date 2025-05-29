@@ -48,7 +48,9 @@ export function createConverter<TSource, TTarget>(options: ConversionOptions<TSo
 	 * @returns The converted target object
 	 */
 	return function convert(source: TSource, targetCreator?: (data: any) => TTarget): TTarget {
-		if (!source) return {} as TTarget
+		if (!source) {
+			return {} as TTarget
+		}
 
 		const result: Record<string, any> = {}
 
@@ -101,7 +103,9 @@ export function createConverter<TSource, TTarget>(options: ConversionOptions<TSo
  */
 export function createJsonStringifier(jsonFields: string[]) {
 	return function stringifyJsonFields(obj: Record<string, any>): Record<string, any> {
-		if (!obj) return {}
+		if (!obj) {
+			return {}
+		}
 
 		const result = { ...obj }
 
