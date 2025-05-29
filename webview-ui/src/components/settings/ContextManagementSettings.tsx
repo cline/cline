@@ -1,7 +1,7 @@
 import { HTMLAttributes } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
-import { Database } from "lucide-react"
+import { Database, FoldVertical } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from "@/components/ui"
@@ -197,7 +197,7 @@ export const ContextManagementSettings = ({
 				{autoCondenseContext && (
 					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
 						<div className="flex items-center gap-4 font-bold">
-							<span className="codicon codicon-fold" />
+							<FoldVertical size={16} />
 							<div>{t("settings:contextManagement.autoCondenseContextPercent.label")}</div>
 						</div>
 						<div>

@@ -28,22 +28,6 @@ jest.mock("shiki", () => ({
 	},
 }))
 
-// Mock all lucide-react icons with a proxy to handle any icon requested
-jest.mock("lucide-react", () => {
-	return new Proxy(
-		{},
-		{
-			get: function (_obj, prop) {
-				// Return a component factory for any icon that's requested
-				if (prop === "__esModule") {
-					return true
-				}
-				return () => <div data-testid={`${String(prop)}-icon`}>{String(prop)}</div>
-			},
-		},
-	)
-})
-
 // Mock the highlighter utility
 jest.mock("../../../utils/highlighter", () => {
 	const mockHighlighter = {

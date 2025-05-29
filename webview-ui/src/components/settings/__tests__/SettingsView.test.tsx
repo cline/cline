@@ -10,22 +10,6 @@ import SettingsView from "../SettingsView"
 // Mock vscode API
 jest.mock("@src/utils/vscode", () => ({ vscode: { postMessage: jest.fn() } }))
 
-// Mock all lucide-react icons with a proxy to handle any icon requested
-jest.mock("lucide-react", () => {
-	return new Proxy(
-		{},
-		{
-			get: function (_obj, prop) {
-				// Return a component factory for any icon that's requested
-				if (prop === "__esModule") {
-					return true
-				}
-				return () => <div data-testid={`${String(prop)}-icon`}>{String(prop)}</div>
-			},
-		},
-	)
-})
-
 // Mock ApiConfigManager component
 jest.mock("../ApiConfigManager", () => ({
 	__esModule: true,

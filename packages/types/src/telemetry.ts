@@ -109,6 +109,8 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 			TelemetryEventName.DIFF_APPLICATION_ERROR,
 			TelemetryEventName.SHELL_INTEGRATION_ERROR,
 			TelemetryEventName.CONSECUTIVE_MISTAKE_ERROR,
+			TelemetryEventName.CONTEXT_CONDENSED,
+			TelemetryEventName.SLIDING_WINDOW_TRUNCATION,
 		]),
 		properties: telemetryPropertiesSchema,
 	}),

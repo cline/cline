@@ -13,20 +13,6 @@ class MockResizeObserver {
 
 global.ResizeObserver = MockResizeObserver
 
-// Mock lucide-react icons - these don't work well in Jest/JSDOM environment
-jest.mock("lucide-react", () => {
-	return {
-		Database: React.forwardRef((props: any, ref: any) => <div ref={ref} data-testid="database-icon" {...props} />),
-		ChevronDown: React.forwardRef((props: any, ref: any) => (
-			<div ref={ref} data-testid="chevron-down-icon" {...props} />
-		)),
-		ChevronUp: React.forwardRef((props: any, ref: any) => (
-			<div ref={ref} data-testid="chevron-up-icon" {...props} />
-		)),
-		Check: React.forwardRef((props: any, ref: any) => <div ref={ref} data-testid="check-icon" {...props} />),
-	}
-})
-
 // Mock translation hook to return the key as the translation
 jest.mock("@/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({

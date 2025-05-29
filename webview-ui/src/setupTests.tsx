@@ -30,3 +30,23 @@ Object.defineProperty(window, "matchMedia", {
 		dispatchEvent: jest.fn(),
 	})),
 })
+
+// Mock lucide-react icons globally using Proxy for dynamic icon handling
+jest.mock("lucide-react", () => {
+	return new Proxy(
+		{},
+		{
+			get: function (_obj, prop) {
+				// Return a component factory for any icon that's requested
+				if (prop === "__esModule") {
+					return true
+				}
+				return (props: any) => (
+					<div {...props} data-testid={`${String(prop)}-icon`}>
+						{String(prop)}
+					</div>
+				)
+			},
+		},
+	)
+})

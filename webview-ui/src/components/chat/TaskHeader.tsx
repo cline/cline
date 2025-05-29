@@ -2,7 +2,7 @@ import { memo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { useTranslation } from "react-i18next"
 import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
-import { CloudUpload, CloudDownload } from "lucide-react"
+import { CloudUpload, CloudDownload, FoldVertical } from "lucide-react"
 
 import type { ClineMessage } from "@roo-code/types"
 
@@ -19,7 +19,6 @@ import Thumbnails from "../common/Thumbnails"
 import { TaskActions } from "./TaskActions"
 import { ContextWindowProgress } from "./ContextWindowProgress"
 import { Mention } from "./Mention"
-import { IconButton } from "./IconButton"
 
 export interface TaskHeaderProps {
 	task: ClineMessage
@@ -108,13 +107,13 @@ const TaskHeader = ({
 									: undefined
 							}
 						/>
-						<IconButton
-							iconClass="codicon-fold"
+						<button
 							title={t("chat:task.condenseContext")}
 							disabled={buttonsDisabled}
 							onClick={() => currentTaskItem && handleCondenseContext(currentTaskItem.id)}
-							className="shrink-0 min-h-[20px] min-w-[20px] p-[2px]"
-						/>
+							className="shrink-0 min-h-[20px] min-w-[20px] p-[2px] cursor-pointer disabled:cursor-not-allowed opacity-85 hover:opacity-100 bg-transparent border-none rounded-md">
+							<FoldVertical size={16} />
+						</button>
 						{!!totalCost && <VSCodeBadge>${totalCost.toFixed(2)}</VSCodeBadge>}
 					</div>
 				)}
