@@ -334,6 +334,7 @@ export const ExtensionStateContextProvider: React.FC<{
 											config.asksageApiKey,
 											config.xaiApiKey,
 											config.sambanovaApiKey,
+											config.makehubApiKey,
 										].some((key) => key !== undefined)
 									: false
 

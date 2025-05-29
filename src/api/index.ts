@@ -86,6 +86,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new XAIHandler(options)
 		case "sambanova":
 			return new SambanovaHandler(options)
+		case "makehub":
+			return new MakehubHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
