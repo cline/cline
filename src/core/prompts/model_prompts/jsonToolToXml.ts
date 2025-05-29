@@ -1,38 +1,21 @@
-/**
- * Converts a tool definition to ANTML (Anthropic Markup Language) format
- * as used internally by Claude for tool calling.
- *
- * Based on the Claude 4 System Card: https://www-cdn.anthropic.com/6be99a52cb68eb70eb9572b4cafad13df32ed995.pdf
- *
- * Tool definitions are provided in JSON schema within <functions> tags:
- * <functions>
- *   <function>{"description": "...", "name": "...", "parameters": {...}}</function>
- *   ... (other functions) ...
- * </functions>
- *
- * Tool calls are made using <antml:function_calls> blocks:
- * <antml:function_calls>
- *   <antml:invoke name="tool_name">
- *     <antml:parameter name="param_name">value</antml:parameter>
- *   </antml:invoke>
- * </antml:function_calls>
- */
-
 function escapeXml(text: string): string {
-	// Anything that could be interpreted as markup has to be entity-encoded
-	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  // Anything that could be interpreted as markup has to be entity-encoded
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 export interface ToolDefinition {
-	name: string
-	description?: string
-	descriptionForAgent?: string
-	inputSchema: {
-		type: string
-		properties: Record<string, any>
-		required?: string[]
-		[key: string]: any
-	}
+  name: string;
+  description?: string;
+  descriptionForAgent?: string;
+  inputSchema: {
+    type: string;
+    properties: Record<string, any>;
+    required?: string[];
+    [key: string]: any;
+  };
 }
 
 /**
@@ -41,22 +24,56 @@ export interface ToolDefinition {
  * @param toolDef The tool definition object
  * @returns The tool definition as a JSON string wrapped in <function> tags
  */
-export function toolDefinitionToAntmlDefinition(toolDef: ToolDefinition): string {
-	const functionDef = {
-		name: toolDef.name,
-		description: toolDef.descriptionForAgent || toolDef.description || "",
-		parameters: toolDef.inputSchema,
+export function toolDefinitionToAntmlDefinition(
+  toolDef: ToolDefinition
+): string {
+  // Restructure the parameters object to match the expected order
+  const { type, properties, required, ...rest } = toolDef.inputSchema;
+  const parameters = {
+    properties,
+    required,
+    type,
+    ...rest
+  };
+
+  const functionDef = {
+    description: toolDef.descriptionForAgent || toolDef.description || '',
+    name: toolDef.name,
+    parameters,
+  };
+
+  // 1. Create a custom JSON string with the exact format we want
+  let rawJson = `{"description": "${functionDef.description}", "name": "${functionDef.name}", "parameters": {`;
+  
+  // Add properties
+  rawJson += `"properties": {`;
+  const propEntries = Object.entries(parameters.properties);
+  propEntries.forEach(([propName, propDef], index) => {
+    rawJson += `"${propName}": {`;
+    rawJson += `"description": "${(propDef as any).description || ''}", `;
+    rawJson += `"type": "${(propDef as any).type || 'string'}"`;
+    rawJson += `}`;
+    if (index < propEntries.length - 1) { 
+		rawJson += ', ';
 	}
+  });
+  rawJson += `}, `;
+  
+  // Add required
+  rawJson += `"required": ${JSON.stringify(parameters.required || [])}, `;
+  
+  // Add type
+  rawJson += `"type": "object"`;
+  
+  // Close parameters and the whole object
+  rawJson += `}}`;
 
-	// 1.  Build JSON
-	const rawJson = JSON.stringify(functionDef)
+  // 2.  Escape <, > and & so the JSON can sit INSIDE the XML tag safely.
+  //     (Quotes don’t need escaping - they’re not markup.)
+  const safeJson = escapeXml(rawJson);
 
-	// 2.  Escape <, > and & so the JSON can sit INSIDE the XML tag safely.
-	//     (Quotes don’t need escaping - they’re not markup.)
-	const safeJson = escapeXml(rawJson)
-
-	// 3.  Return wrapped in <function> tags
-	return `<function>${safeJson}</function>`
+  // 3.  Return wrapped in <function> tags
+  return `<function>${safeJson}</function>`;
 }
 
 /**
@@ -66,16 +83,14 @@ export function toolDefinitionToAntmlDefinition(toolDef: ToolDefinition): string
  * @returns Complete <functions> block with all tool definitions
  */
 export function toolDefinitionsToAntmlDefinitions(
-	toolDefs: ToolDefinition[],
+  toolDefs: ToolDefinition[]
 ): string {
-	const functionTags = toolDefs.map(toolDefinitionToAntmlDefinition);
-	return `Here are the functions available in JSONSchema format:
+  const functionTags = toolDefs.map(toolDefinitionToAntmlDefinition);
+  return `Here are the functions available in JSONSchema format:
 <functions>
 ${functionTags.join('\n')}
 </functions>`;
 }
-
-
 
 /**
  * Creates an example of an ANTML tool call for a given tool definition.
@@ -86,7 +101,7 @@ ${functionTags.join('\n')}
  */
 export function toolDefinitionToAntmlCallExample(
   toolDef: ToolDefinition,
-  exampleValues: Record<string, any> = {},
+  exampleValues: Record<string, any> = {}
 ): string {
   const props = toolDef.inputSchema.properties ?? {};
 
@@ -100,17 +115,16 @@ export function toolDefinitionToAntmlCallExample(
         .join('\n')
     : '';
 
-  // Include the dots to show multiple invokes can be used
+  // Only include one invoke block
   return [
     '<function_calls>',
     `<invoke name="${toolDef.name}">`,
     paramLines,
     '</invoke>',
-    '<invoke name="$FUNCTION_NAME2">',
-    '...',
-    '</invoke>',
-    '</function_calls>'
-  ].filter(Boolean).join('\n');
+    '</function_calls>',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /**
@@ -123,31 +137,28 @@ export function toolDefinitionToAntmlCallExample(
 export function createAntmlToolPrompt(
   toolDefs: ToolDefinition[],
   includeInstructions = true,
-  systemPrompt = '',
+  systemPrompt = ''
 ): string {
   if (toolDefs.length === 0) {
     if (!includeInstructions) {
-      return '';
-    }
-    
+		return '';
+	}
+
     const noToolsMessage = [
-      'In this environment you have access to a set of tools you can use to answer the user\'s question.',
+      "In this environment you have access to a set of tools you can use to answer the user's question.",
       'You can invoke functions by writing a "<function_calls>" block like the following as part of your reply to the user:',
       '<function_calls>',
       '<invoke name="$FUNCTION_NAME">',
       '<parameter name="$PARAMETER_NAME">$PARAMETER_VALUE</parameter>',
       '...',
       '</invoke>',
-      '<invoke name="$FUNCTION_NAME2">',
-      '...',
-      '</invoke>',
       '</function_calls>',
       '',
       'String and scalar parameters should be specified as is, while lists and objects should use JSON format.',
       '',
-      'However, no tools are currently available.'
+      'However, no tools are currently available.',
     ].join('\n');
-    
+
     return noToolsMessage;
   }
 
@@ -155,20 +166,17 @@ export function createAntmlToolPrompt(
 
   if (includeInstructions) {
     const instructionLines = [
-      'In this environment you have access to a set of tools you can use to answer the user\'s question.',
+      "In this environment you have access to a set of tools you can use to answer the user's question.",
       'You can invoke functions by writing a "<function_calls>" block like the following as part of your reply to the user:',
       '<function_calls>',
       '<invoke name="$FUNCTION_NAME">',
       '<parameter name="$PARAMETER_NAME">$PARAMETER_VALUE</parameter>',
       '...',
       '</invoke>',
-      '<invoke name="$FUNCTION_NAME2">',
-      '...',
-      '</invoke>',
       '</function_calls>',
       '',
       'String and scalar parameters should be specified as is, while lists and objects should use JSON format.',
-      ''
+      '',
     ];
     prompt += instructionLines.join('\n');
   }
@@ -177,17 +185,17 @@ export function createAntmlToolPrompt(
 
   if (includeInstructions) {
     const closingInstructions = [
-	  '',
-	  '',
-	  systemPrompt,
       '',
       '',
-      'Answer the user\'s request using the relevant tool(s), if they are available. Check that all the required parameters for each tool call are provided or can reasonably be inferred from context. IF there are no relevant tools or there are missing values for required parameters, ask the user to supply these values; otherwise proceed with the tool calls. If the user provides a specific value for a parameter (for example provided in quotes), make sure to use that value EXACTLY. DO NOT make up values for or ask about optional parameters. Carefully analyze descriptive terms in the request as they may indicate required parameter values that should be included even if not explicitly quoted.'
+      systemPrompt,
+      '',
+      '',
+      "Answer the user's request using the relevant tool(s), if they are available. Check that all the required parameters for each tool call are provided or can reasonably be inferred from context. IF there are no relevant tools or there are missing values for required parameters, ask the user to supply these values; otherwise proceed with the tool calls. If the user provides a specific value for a parameter (for example provided in quotes), make sure to use that value EXACTLY. DO NOT make up values for or ask about optional parameters. Carefully analyze descriptive terms in the request as they may indicate required parameter values that should be included even if not explicitly quoted.",
     ];
     prompt += closingInstructions.join('\n');
   }
 
-  return prompt;  // Don't trim - preserve exact formatting
+  return prompt; // Don't trim - preserve exact formatting
 }
 
 // --- SimpleXML Functions (Cline's internal format) ---
@@ -199,33 +207,34 @@ export function createAntmlToolPrompt(
  * @returns The tool definition formatted for SimpleXML usage
  */
 export function toolDefinitionToSimpleXml(toolDef: ToolDefinition): string {
-	const description = toolDef.descriptionForAgent || toolDef.description || ""
-	const properties = toolDef.inputSchema.properties || {}
-	const required = toolDef.inputSchema.required || []
+  const description = toolDef.descriptionForAgent || toolDef.description || '';
+  const properties = toolDef.inputSchema.properties || {};
+  const required = toolDef.inputSchema.required || [];
 
-	let parameterDocs = ""
-	if (Object.keys(properties).length > 0) {
-		parameterDocs = "Parameters:\n"
-		for (const [paramName, paramDef] of Object.entries(properties)) {
-			const isRequired = required.includes(paramName)
-			const requiredText = isRequired ? "(required)" : "(optional)"
-			const paramDescription = (paramDef as any).description || "No description."
-			parameterDocs += `- ${paramName}: ${requiredText} ${paramDescription}\n`
-		}
-	}
+  let parameterDocs = '';
+  if (Object.keys(properties).length > 0) {
+    parameterDocs = 'Parameters:\n';
+    for (const [paramName, paramDef] of Object.entries(properties)) {
+      const isRequired = required.includes(paramName);
+      const requiredText = isRequired ? '(required)' : '(optional)';
+      const paramDescription =
+        (paramDef as any).description || 'No description.';
+      parameterDocs += `- ${paramName}: ${requiredText} ${paramDescription}\n`;
+    }
+  }
 
-	const exampleParams = Object.keys(properties)
-		.map((paramName) => `<${paramName}>${paramName} value here</${paramName}>`)
-		.join("\n")
+  const exampleParams = Object.keys(properties)
+    .map(paramName => `<${paramName}>${paramName} value here</${paramName}>`)
+    .join('\n');
 
-	const usageExample = `Usage:
+  const usageExample = `Usage:
 <${toolDef.name}>
-${exampleParams.length > 0 ? exampleParams + "\n" : ""}</${toolDef.name}>`
+${exampleParams.length > 0 ? exampleParams + '\n' : ''}</${toolDef.name}>`;
 
-	return `## ${toolDef.name}
+  return `## ${toolDef.name}
 Description: ${description}
 ${parameterDocs.trim()}
-${usageExample}`
+${usageExample}`;
 }
 
 /**
@@ -234,10 +243,10 @@ ${usageExample}`
  * @returns Complete tools documentation in SimpleXML format
  */
 export function toolDefinitionsToSimpleXml(toolDefs: ToolDefinition[]): string {
-	const toolDocs = toolDefs.map((toolDef) => toolDefinitionToSimpleXml(toolDef))
-	return `# Tools
+  const toolDocs = toolDefs.map(toolDef => toolDefinitionToSimpleXml(toolDef));
+  return `# Tools
 
-${toolDocs.join("\n\n")}`
+${toolDocs.join('\n\n')}`;
 }
 
 /**
@@ -246,15 +255,18 @@ ${toolDocs.join("\n\n")}`
  * @param includeInstructions Whether to include the standard tool calling instructions
  * @returns Complete system prompt section for SimpleXML tools
  */
-export function createSimpleXmlToolPrompt(toolDefs: ToolDefinition[], includeInstructions: boolean = true): string {
-	if (toolDefs.length === 0) {
-		return ""
-	}
+export function createSimpleXmlToolPrompt(
+  toolDefs: ToolDefinition[],
+  includeInstructions: boolean = true
+): string {
+  if (toolDefs.length === 0) {
+    return '';
+  }
 
-	let prompt = ""
+  let prompt = '';
 
-	if (includeInstructions) {
-		prompt += `TOOL USE
+  if (includeInstructions) {
+    prompt += `TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
@@ -275,13 +287,13 @@ For example:
 </read_file>
 
 Always adhere to this format for the tool use to ensure proper parsing and execution.
-`
-	}
+`;
+  }
 
-	prompt += toolDefinitionsToSimpleXml(toolDefs)
+  prompt += toolDefinitionsToSimpleXml(toolDefs);
 
-	if (includeInstructions) {
-		prompt += `
+  if (includeInstructions) {
+    prompt += `
 
 # Tool Use Guidelines
 
@@ -289,7 +301,7 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
 2. If multiple actions are needed, use one tool at a time per message to accomplish the task iteratively.
 3. Formulate your tool use using the XML format specified for each tool.
 4. After each tool use, the user will respond with the result of that tool use.
-5. ALWAYS wait for user confirmation after each tool use before proceeding.`
-	}
-	return prompt.trimEnd();
+5. ALWAYS wait for user confirmation after each tool use before proceeding.`;
+  }
+  return prompt.trimEnd();
 }
