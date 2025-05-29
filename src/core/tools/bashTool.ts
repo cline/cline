@@ -1,5 +1,10 @@
 import { cwd } from "@/core/task"
 
+const CO_AUTHORED_COMMIT_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)
+
+   Co-Authored-By: Cline <noreply@cline.bot>`
+const CO_AUTHORED_PR_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)`
+
 const descriptionForAgent = `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd.toPosix()}
 
 # Committing changes with git
@@ -52,7 +57,7 @@ Use the gh command via the Bash tool for ALL GitHub-related tasks including work
 
 IMPORTANT: When the user asks you to create a pull request, follow these steps carefully:
 
-1. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following bash commands in parallel using the Bash tool, in order to understand the current state of the branch since it diverged from the main branch:
+1. Gather information
    - Run a git status command to see all untracked files
    - Run a git diff command to see both staged and unstaged changes that will be committed
    - Check if the current branch tracks a remote branch and is up to date with the remote, so you know if you need to push to the remote
@@ -76,14 +81,16 @@ IMPORTANT: When the user asks you to create a pull request, follow these steps c
 </pr_analysis>
 
 <example>
-gh pr create --title "the pr title" --body "\$(cat <<'EOF'
+gh pr create \
+  --title "the pr title" \
+  --body "$(cat <<'EOF'
 ## Summary
 <1-3 bullet points>
 
 ## Test plan
 [Checklist of TODOs for testing the pull request...]
 
-\${CO_AUTHORED_PR_MSG}
+${CO_AUTHORED_PR_MSG}
 EOF
 )"
 </example>
