@@ -26,8 +26,10 @@ describe("OllamaHandler", () => {
 
 	beforeEach(() => {
 		options = {
-			ollamaModelId: "llama2",
-			ollamaBaseUrl: "http://localhost:11434",
+			ollama: {
+				modelId: "llama2",
+				baseUrl: "http://localhost:11434",
+			},
 		}
 		handler = new OllamaHandler(options)
 		// Use fake timers for testing timeouts

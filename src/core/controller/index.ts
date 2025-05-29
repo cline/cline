@@ -96,7 +96,7 @@ export class Controller {
 			(msg) => this.postMessageToWebview(msg),
 			async () => {
 				const { apiConfiguration } = await this.getStateToPostToWebview()
-				return apiConfiguration?.clineApiKey
+				return apiConfiguration?.cline?.apiKey
 			},
 		)
 
@@ -254,12 +254,9 @@ export class Controller {
 					if (response && response.models) {
 						// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 						const { apiConfiguration } = await getAllExtensionState(this.context)
-						if (apiConfiguration.openRouterModelId && response.models[apiConfiguration.openRouterModelId]) {
-							await updateGlobalState(
-								this.context,
-								"openRouterModelInfo",
-								response.models[apiConfiguration.openRouterModelId],
-							)
+						const modelId = apiConfiguration.openrouter?.modelId
+						if (modelId && response.models[modelId]) {
+							await updateGlobalState(this.context, "openRouterModelInfo", response.models[modelId])
 							await this.postStateToWebview()
 						}
 					}
@@ -458,44 +455,44 @@ export class Controller {
 					await updateGlobalState(
 						this.context,
 						"previousModeAwsBedrockCustomSelected",
-						apiConfiguration.awsBedrockCustomSelected,
+						apiConfiguration.aws?.bedrockCustomSelected,
 					)
 					await updateGlobalState(
 						this.context,
 						"previousModeAwsBedrockCustomModelBaseId",
-						apiConfiguration.awsBedrockCustomModelBaseId,
+						apiConfiguration.aws?.bedrockCustomModelBaseId,
 					)
 					break
 				case "openrouter":
 				case "cline":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openRouterModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openRouterModelInfo)
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openrouter?.modelId)
+					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openrouter?.modelInfo)
 					break
 				case "vscode-lm":
 					// Important we don't set modelId to this, as it's an object not string (webview expects model id to be a string)
 					await updateGlobalState(
 						this.context,
 						"previousModeVsCodeLmModelSelector",
-						apiConfiguration.vsCodeLmModelSelector,
+						apiConfiguration.vscode?.modelSelector,
 					)
 					break
 				case "openai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openai?.modelId)
+					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openai?.modelInfo)
 					break
 				case "ollama":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollama?.modelId)
 					break
 				case "lmstudio":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmStudioModelId)
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmstudio?.modelId)
 					break
 				case "litellm":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.litellm?.modelId)
+					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.litellm?.modelInfo)
 					break
 				case "requesty":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requesty?.modelId)
+					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requesty?.modelInfo)
 					break
 			}
 
@@ -545,8 +542,8 @@ export class Controller {
 						await updateGlobalState(this.context, "lmStudioModelId", newModelId)
 						break
 					case "litellm":
-						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
-						await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.liteLlmModelInfo)
+						await updateGlobalState(this.context, "liteLlmModelId", apiConfiguration.litellm?.modelId)
+						await updateGlobalState(this.context, "liteLlmModelInfo", apiConfiguration.litellm?.modelInfo)
 						break
 					case "requesty":
 						await updateGlobalState(this.context, "requestyModelId", newModelId)
@@ -659,7 +656,10 @@ export class Controller {
 			const updatedConfig = {
 				...apiConfiguration,
 				apiProvider: clineProvider,
-				clineApiKey: apiKey,
+				cline: {
+					...apiConfiguration.cline,
+					apiKey: apiKey,
+				},
 			}
 
 			if (this.task) {
@@ -834,7 +834,9 @@ export class Controller {
 		if (this.task) {
 			this.task.api = buildApiHandler({
 				apiProvider: openrouter,
-				openRouterApiKey: apiKey,
+				openrouter: {
+					apiKey: apiKey,
+				},
 			})
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
