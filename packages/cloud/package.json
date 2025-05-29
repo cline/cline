@@ -1,7 +1,7 @@
 {
 	"name": "@roo-code/cloud",
 	"description": "Roo Code Cloud VSCode integration.",
-	"private": true,
+	"version": "0.0.0",
 	"type": "module",
 	"exports": "./src/index.ts",
 	"scripts": {

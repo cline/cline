@@ -1,7 +1,7 @@
 {
 	"name": "@roo-code/telemetry",
 	"description": "Roo Code telemetry service and clients.",
-	"private": true,
+	"version": "0.0.0",
 	"type": "module",
 	"exports": "./src/index.ts",
 	"scripts": {
