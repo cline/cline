@@ -906,10 +906,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [])
 
 		useEffect(() => {
-			if (selectedImages.length === 0) {
+			if (selectedImages.length === 0 && selectedFiles.length === 0) {
 				setThumbnailsHeight(0)
 			}
-		}, [selectedImages])
+		}, [selectedImages, selectedFiles])
 
 		const handleMenuMouseDown = useCallback(() => {
 			setIsMouseDownOnMenu(true)
@@ -1493,12 +1493,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderRight: 0,
 							borderTop: 0,
 							borderColor: "transparent",
-							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
-							padding: "9px 28px 3px 9px",
+							borderBottom: `${thumbnailsHeight}px solid transparent`,
+							padding: "9px 28px 9px 9px",
 						}}
 					/>
 					<DynamicTextArea
 						data-testid="chat-input"
+						minRows={3}
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
@@ -1550,13 +1551,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderLeft: 0,
 							borderRight: 0,
 							borderTop: 0,
-							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
+							borderBottom: `${thumbnailsHeight}px solid transparent`,
 							borderColor: "transparent",
 							// borderRight: "54px solid transparent",
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "9px 28px 3px 9px",
+							padding: "9px 28px 9px 9px",
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
@@ -1570,6 +1571,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onScroll={() => updateHighlights()}
 					/>
+					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
+						<div className="absolute bottom-4 left-[25px] right-[60px] text-[10px] text-[var(--vscode-input-placeholderForeground)] opacity-70 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-[1]">
+							Type @ for context, / for slash commands & workflows
+						</div>
+					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
 						<Thumbnails
 							images={selectedImages}
@@ -1592,9 +1598,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							position: "absolute",
 							right: 23,
 							display: "flex",
-							alignItems: "flex-center",
+							alignItems: "flex-end",
 							height: textAreaBaseHeight || 31,
 							bottom: 9.5, // should be 10 but doesn't look good on mac
+							paddingBottom: "8px",
 							zIndex: 2,
 						}}>
 						<div
