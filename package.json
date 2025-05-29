@@ -54,21 +54,10 @@
 				"steps": [
 					{
 						"id": "welcome",
-						"title": "Meet Cline, your new coding partner",
-						"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
-						"media": {
-							"markdown": "walkthrough/step1.md"
-						}
-					},
-					{
-						"id": "getting-started",
 						"title": "Start with a Goal, Not Just a Prompt",
 						"description": "Tell Cline what you want to achieve. It plans, asks, and then codes, like a true partner.",
 						"media": {
-							"markdown": "walkthrough/step2.md"
-						},
-						"content": {
-							"path": "walkthrough/step2.md"
+							"markdown": "walkthrough/step1.md"
 						}
 					},
 					{
@@ -76,7 +65,7 @@
 						"title": "Let Cline Learn Your Codebase",
 						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
 						"media": {
-							"markdown": "walkthrough/step3.md"
+							"markdown": "walkthrough/step2.md"
 						}
 					},
 					{
@@ -84,7 +73,7 @@
 						"title": "Always Use the Best AI Models",
 						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
 						"media": {
-							"markdown": "walkthrough/step4.md"
+							"markdown": "walkthrough/step3.md"
 						}
 					},
 					{
@@ -92,7 +81,18 @@
 						"title": "Extend with Powerful Tools (MCP)",
 						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
 						"media": {
+							"markdown": "walkthrough/step4.md"
+						}
+					},
+					{
+						"id": "getting-started",
+						"title": "You're Always in Control",
+						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
+						"media": {
 							"markdown": "walkthrough/step5.md"
+						},
+						"content": {
+							"path": "walkthrough/step5.md"
 						}
 					}
 				]
