@@ -212,9 +212,9 @@
 		"title": "🎉 Rilasciato Roo Code {{version}}",
 		"description": "Roo Code {{version}} introduce potenti nuove funzionalità e miglioramenti basati sui tuoi feedback.",
 		"whatsNew": "Novità",
-		"feature1": "<bold>Modelli di anteprima Gemini 2.5 Flash</bold>: Accedi agli ultimi modelli Gemini Flash per risposte più veloci ed efficienti",
-		"feature2": "<bold>Condensazione intelligente del contesto</bold>: Nuovo pulsante nell'intestazione dell'attività che ti permette di condensare intelligentemente il contenuto con feedback visivo",
-		"feature3": "<bold>Supporto YAML per definizioni di modalità</bold>: Crea e personalizza le modalità più facilmente con il supporto YAML",
+		"feature1": "<bold>Condensazione Intelligente del Contesto Abilitata di Default</bold>: La condensazione del contesto è ora abilitata di default con impostazioni configurabili per quando avviene la condensazione automatica",
+		"feature2": "<bold>Pulsante di Condensazione Manuale</bold>: Nuovo pulsante nell'intestazione delle attività che ti permette di attivare manualmente la condensazione del contesto in qualsiasi momento",
+		"feature3": "<bold>Impostazioni di Condensazione Migliorate</bold>: Regola quando e come avviene la condensazione automatica tramite le <contextSettingsLink>Impostazioni di Contesto</contextSettingsLink>",
 		"hideButton": "Nascondi annuncio",
 		"detailsDiscussLinks": "Ottieni maggiori dettagli e partecipa alle discussioni su <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	},

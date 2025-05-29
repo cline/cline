@@ -212,9 +212,9 @@
 		"title": "🎉 Roo Code {{version}} publicat",
 		"description": "Roo Code {{version}} porta noves funcionalitats potents i millores basades en els teus comentaris.",
 		"whatsNew": "Novetats",
-		"feature1": "<bold>Models de vista prèvia Gemini 2.5 Flash</bold>: Accedeix als darrers models Gemini Flash per a respostes més ràpides i eficients",
-		"feature2": "<bold>Condensació intel·ligent de context</bold>: Nou botó a la capçalera de tasques que et permet condensar intel·ligentment el contingut amb retroalimentació visual",
-		"feature3": "<bold>Suport YAML per a definicions de mode</bold>: Crea i personalitza modes més fàcilment amb suport YAML",
+		"feature1": "<bold>Condensació intel·ligent de context activada per defecte</bold>: La condensació de context ara està activada per defecte amb configuracions configurables per quan es produeix la condensació automàtica",
+		"feature2": "<bold>Botó de condensació manual</bold>: Nou botó a la capçalera de tasques que et permet activar manualment la condensació de context en qualsevol moment",
+		"feature3": "<bold>Configuració avançada de condensació</bold>: Ajusta quan i com es produeix la condensació automàtica a través de <contextSettingsLink>Configuració de context</contextSettingsLink>",
 		"hideButton": "Amagar anunci",
 		"detailsDiscussLinks": "Obtingues més detalls i participa a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
 	},

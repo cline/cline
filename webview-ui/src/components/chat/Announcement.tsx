@@ -54,7 +54,31 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 						</li>
 						<li>
 							•{" "}
-							<Trans i18nKey="chat:announcement.feature3" components={{ bold: <b />, code: <code /> }} />
+							<Trans
+								i18nKey="chat:announcement.feature3"
+								components={{
+									bold: <b />,
+									code: <code />,
+									contextSettingsLink: (
+										<VSCodeLink
+											href="#"
+											onClick={(e) => {
+												e.preventDefault()
+												setOpen(false)
+												hideAnnouncement()
+												window.postMessage(
+													{
+														type: "action",
+														action: "settingsButtonClicked",
+														values: { section: "contextManagement" },
+													},
+													"*",
+												)
+											}}
+										/>
+									),
+								}}
+							/>
 						</li>
 					</ul>
 					<Trans
