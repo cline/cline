@@ -43,6 +43,11 @@ export const organizationSettingsSchema = z.object({
 			fuzzyMatchThreshold: z.number().optional(),
 		})
 		.optional(),
+	cloudSettings: z
+		.object({
+			recordTaskMessages: z.boolean().optional(),
+		})
+		.optional(),
 	allowList: organizationAllowListSchema,
 })
 

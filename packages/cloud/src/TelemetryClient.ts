@@ -3,10 +3,12 @@ import { BaseTelemetryClient } from "@roo-code/telemetry"
 
 import { getRooCodeApiUrl } from "./Config"
 import { AuthService } from "./AuthService"
+import { SettingsService } from "./SettingsService"
 
 export class TelemetryClient extends BaseTelemetryClient {
 	constructor(
 		private authService: AuthService,
+		private settingsService: SettingsService,
 		debug = false,
 	) {
 		super(
@@ -80,6 +82,21 @@ export class TelemetryClient extends BaseTelemetryClient {
 	public override updateTelemetryState(_didUserOptIn: boolean) {}
 
 	public override isTelemetryEnabled(): boolean {
+		return true
+	}
+
+	protected override isEventCapturable(eventName: TelemetryEventName): boolean {
+		// Ensure that this event type is supported by the telemetry client
+		if (!super.isEventCapturable(eventName)) {
+			return false
+		}
+
+		// Only record message telemetry if a cloud account is present and explicitly configured to record messages
+		if (eventName === TelemetryEventName.TASK_MESSAGE) {
+			return this.settingsService.getSettings()?.cloudSettings?.recordTaskMessages || false
+		}
+
+		// Other telemetry types are capturable at this point
 		return true
 	}
 

@@ -43,7 +43,7 @@ export class CloudService {
 				this.callbacks.stateChanged?.(),
 			)
 
-			this.telemetryClient = new TelemetryClient(this.authService)
+			this.telemetryClient = new TelemetryClient(this.authService, this.settingsService)
 
 			try {
 				TelemetryService.instance.register(this.telemetryClient)
