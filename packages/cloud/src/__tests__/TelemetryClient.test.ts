@@ -181,6 +181,7 @@ describe("TelemetryClient", () => {
 			const client = new TelemetryClient(mockAuthService)
 
 			const providerProperties = {
+				appName: "roo-code",
 				appVersion: "1.0.0",
 				vscodeVersion: "1.60.0",
 				platform: "darwin",

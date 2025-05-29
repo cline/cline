@@ -1633,8 +1633,11 @@ export class ClineProvider
 		const { mode, apiConfiguration, language } = await this.getState()
 		const task = this.getCurrentCline()
 
+		const packageJSON = this.context.extension?.packageJSON
+
 		return {
-			appVersion: this.context.extension?.packageJSON?.version,
+			appName: packageJSON?.name ?? Package.name,
+			appVersion: packageJSON?.version ?? Package.version,
 			vscodeVersion: vscode.version,
 			platform: process.platform,
 			editorName: vscode.env.appName,

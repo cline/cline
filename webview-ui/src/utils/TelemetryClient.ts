@@ -1,4 +1,5 @@
 import posthog from "posthog-js"
+
 import { TelemetrySetting } from "@roo/TelemetrySetting"
 
 class TelemetryClient {
@@ -28,6 +29,7 @@ class TelemetryClient {
 		if (!TelemetryClient.instance) {
 			TelemetryClient.instance = new TelemetryClient()
 		}
+
 		return TelemetryClient.instance
 	}
 
