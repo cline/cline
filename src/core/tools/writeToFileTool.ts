@@ -26,7 +26,7 @@ export async function writeToFileTool(
 	let newContent: string | undefined = block.params.content
 	let predictedLineCount: number | undefined = parseInt(block.params.line_count ?? "0")
 
-	if (!relPath || !newContent) {
+	if (!relPath || newContent === undefined) {
 		// checking for newContent ensure relPath is complete
 		// wait so we can determine if it's a new file or editing an existing file
 		return
@@ -104,7 +104,7 @@ export async function writeToFileTool(
 				return
 			}
 
-			if (!newContent) {
+			if (newContent === undefined) {
 				cline.consecutiveMistakeCount++
 				cline.recordToolError("write_to_file")
 				pushToolResult(await cline.sayAndCreateMissingParamError("write_to_file", "content"))
@@ -112,7 +112,7 @@ export async function writeToFileTool(
 				return
 			}
 
-			if (!predictedLineCount) {
+			if (predictedLineCount === undefined) {
 				cline.consecutiveMistakeCount++
 				cline.recordToolError("write_to_file")
 
