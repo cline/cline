@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.17.8]
+
+-   Fix bug where terminal would get stuck and output "capture failure"
+
 ## [3.17.7]
 
 -   Fix diff editing reliability for Claude 4 family models by adding constraints to prevent errors with large replacements
