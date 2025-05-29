@@ -24,6 +24,7 @@ interface TaskHeaderProps {
 	totalCost: number
 	lastApiReqTotalTokens?: number
 	onClose: () => void
+	onScrollToMessage?: (messageIndex: number) => void
 }
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({
@@ -36,6 +37,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	lastApiReqTotalTokens,
 	onClose,
+	onScrollToMessage,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
 		useExtensionState()
@@ -469,7 +471,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								</div>
 							)}
 							<div className="flex flex-col">
-								<TaskTimeline messages={clineMessages} />
+								<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 								{ContextWindowComponent}
 							</div>
 							{checkpointTrackerErrorMessage && (
