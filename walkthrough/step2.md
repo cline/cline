@@ -4,4 +4,4 @@
 
 Cline is designed with inherent codebase intelligence. It doesn't operate in a vacuum, but starts with a structural understanding of your project. Before making changes, it performs targeted agentic exploration to gain any additional specific context required, ensuring its actions are always well-informed and aligned with your architecture.
 
-<!-- Space for image/gif -->
+![Cline Deep Codebase Intelligence Demo](https://storage.googleapis.com/cline_public_images/cline-reading-codebase-hifi-2.gif)

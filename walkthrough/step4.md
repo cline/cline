@@ -4,4 +4,4 @@
 
 Go beyond local code. With the Model Context Protocol (MCP), Cline accesses vital context from external datasources like databases and APIs. It can interact with these platforms and leverage a growing marketplace of specialized, secure tools to tackle complex, real-world development tasks.
 
-<!-- Space for image/gif -->
+![Cline MCP Servers Demo](https://storage.googleapis.com/cline_public_images/clines-mcp-servers-4.gif)
