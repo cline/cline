@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
+import { ApiHandlerOptions, ModelInfo, VertexConfig, vertexDefaultModelId, VertexModelId, vertexModels } from "@shared/api"
 import { ApiStream } from "@api/transform/stream"
 import { GeminiHandler } from "./gemini"
 
@@ -14,6 +14,10 @@ export class VertexHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 
+		if (!this.options.vertex) {
+			throw new Error("Vertex configuration is required")
+		}
+
 		// Create a GeminiHandler with isVertex flag for Gemini models
 		this.geminiHandler = new GeminiHandler({
 			...options,
@@ -22,10 +26,17 @@ export class VertexHandler implements ApiHandler {
 
 		// Initialize Anthropic client for Claude models
 		this.clientAnthropic = new AnthropicVertex({
-			projectId: this.options.vertexProjectId,
+			projectId: this.getVertexConfig().projectId,
 			// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
-			region: this.options.vertexRegion,
+			region: this.getVertexConfig().region,
 		})
+	}
+
+	private getVertexConfig(): VertexConfig {
+		if (!this.options.vertex) {
+			throw new Error("Vertex configuration is required")
+		}
+		return this.options.vertex
 	}
 
 	@withRetry()

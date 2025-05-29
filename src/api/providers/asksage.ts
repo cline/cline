@@ -7,6 +7,7 @@ import {
 	askSageModels,
 	askSageDefaultModelId,
 	askSageDefaultURL,
+	AskSageConfig,
 } from "@shared/api"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
@@ -36,10 +37,15 @@ export class AskSageHandler implements ApiHandler {
 	private apiKey: string
 
 	constructor(options: ApiHandlerOptions) {
-		console.log("init api url", options.asksageApiUrl, askSageDefaultURL)
+		console.log("init api url", options.asksage?.apiUrl, askSageDefaultURL)
 		this.options = options
-		this.apiKey = options.asksageApiKey || ""
-		this.apiUrl = options.asksageApiUrl || askSageDefaultURL
+
+		if (!this.options.asksage) {
+			throw new Error("AskSage configuration is required")
+		}
+
+		this.apiKey = this.options.asksage.apiKey || ""
+		this.apiUrl = this.options.asksage.apiUrl || askSageDefaultURL
 
 		if (!this.apiKey) {
 			throw new Error("AskSage API key is required")

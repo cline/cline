@@ -3,7 +3,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { convertToR1Format } from "../transform/r1-format"
-import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "@shared/api"
+import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo, AwsConfig } from "@shared/api"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
@@ -31,8 +31,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		// This baseModelId is used to indicate the capabilities of the model.
 		// If the user selects a custom model, baseModelId will be set to the base model ID of the custom model.
 		// Otherwise, baseModelId will be the same as modelId.
-		const baseModelId =
-			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : modelId) || modelId
+		const config = this.getAwsConfig()
+		const baseModelId = (config.bedrockCustomSelected ? config.bedrockCustomModelBaseId : modelId) || modelId
 
 		// Check if this is an Amazon Nova model
 		if (baseModelId.includes("amazon.nova")) {
@@ -80,7 +80,7 @@ export class AwsBedrockHandler implements ApiHandler {
 						{
 							text: systemPrompt,
 							type: "text",
-							...(this.options.awsBedrockUsePromptCache === true && {
+							...(this.getAwsConfig().bedrockUsePromptCache === true && {
 								cache_control: { type: "ephemeral" },
 							}),
 						},
@@ -95,7 +95,7 @@ export class AwsBedrockHandler implements ApiHandler {
 												{
 													type: "text",
 													text: message.content,
-													...(this.options.awsBedrockUsePromptCache === true && {
+													...(this.getAwsConfig().bedrockUsePromptCache === true && {
 														cache_control: { type: "ephemeral" },
 													}),
 												},
@@ -104,7 +104,7 @@ export class AwsBedrockHandler implements ApiHandler {
 												contentIndex === message.content.length - 1
 													? {
 															...content,
-															...(this.options.awsBedrockUsePromptCache === true && {
+															...(this.getAwsConfig().bedrockUsePromptCache === true && {
 																cache_control: { type: "ephemeral" },
 															}),
 														}
@@ -188,6 +188,16 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Gets the AWS configuration with validation
+	 */
+	private getAwsConfig(): AwsConfig {
+		if (!this.options.aws) {
+			throw new Error("AWS configuration is required")
+		}
+		return this.options.aws
+	}
+
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in bedrockModels) {
@@ -195,8 +205,9 @@ export class AwsBedrockHandler implements ApiHandler {
 			return { id, info: bedrockModels[id] }
 		}
 
-		const customSelected = this.options.awsBedrockCustomSelected
-		const baseModel = this.options.awsBedrockCustomModelBaseId
+		const config = this.getAwsConfig()
+		const customSelected = config.bedrockCustomSelected
+		const baseModel = config.bedrockCustomModelBaseId
 		if (customSelected && modelId && baseModel && baseModel in bedrockModels) {
 			// Use the user-input model ID but inherit capabilities from the base model
 			return {
@@ -236,16 +247,17 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Create AWS credentials by executing an AWS provider chain
 		const providerChain = fromNodeProviderChain(providerOptions)
+		const config = this.getAwsConfig()
 		return await AwsBedrockHandler.withTempEnv(
 			() => {
-				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
-				if (this.options.awsUseProfile) {
-					AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
+				AwsBedrockHandler.setEnv("AWS_REGION", config.region)
+				if (config.useProfile) {
+					AwsBedrockHandler.setEnv("AWS_PROFILE", config.profile)
 				} else {
 					delete process.env["AWS_PROFILE"]
-					AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
-					AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
-					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
+					AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", config.accessKey)
+					AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", config.secretKey)
+					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", config.sessionToken)
 				}
 			},
 			() => providerChain(),
@@ -256,7 +268,8 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Gets the AWS region to use, with fallback to default
 	 */
 	private getRegion(): string {
-		return this.options.awsRegion || AwsBedrockHandler.DEFAULT_REGION
+		const config = this.getAwsConfig()
+		return config.region || AwsBedrockHandler.DEFAULT_REGION
 	}
 
 	/**
@@ -272,7 +285,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				secretAccessKey: credentials.secretAccessKey,
 				sessionToken: credentials.sessionToken,
 			},
-			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
+			...(this.getAwsConfig().bedrockEndpoint && { endpoint: this.getAwsConfig().bedrockEndpoint }),
 		})
 	}
 
@@ -288,7 +301,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			awsSecretKey: credentials.secretAccessKey,
 			awsSessionToken: credentials.sessionToken,
 			awsRegion: this.getRegion(),
-			...(this.options.awsBedrockEndpoint && { baseURL: this.options.awsBedrockEndpoint }),
+			...(this.getAwsConfig().bedrockEndpoint && { baseURL: this.getAwsConfig().bedrockEndpoint }),
 		})
 	}
 
@@ -297,10 +310,11 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * If the model ID is an ARN that contains a slash, you will get the URL encoded ARN.
 	 */
 	async getModelId(): Promise<string> {
-		if (this.options.awsBedrockCustomSelected && this.getModel().id.includes("/")) {
+		const config = this.getAwsConfig()
+		if (config.bedrockCustomSelected && this.getModel().id.includes("/")) {
 			return encodeURIComponent(this.getModel().id)
 		}
-		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
+		if (!config.bedrockCustomSelected && config.useCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":

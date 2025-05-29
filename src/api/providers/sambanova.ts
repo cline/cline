@@ -1,7 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels } from "@shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	SambanovaConfig,
+	SambanovaModelId,
+	sambanovaDefaultModelId,
+	sambanovaModels,
+} from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "@/api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
@@ -13,10 +20,25 @@ export class SambanovaHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.sambanova) {
+			throw new Error("SambaNova configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://api.sambanova.ai/v1",
-			apiKey: this.options.sambanovaApiKey,
+			apiKey: this.options.sambanova.apiKey,
 		})
+	}
+
+	/**
+	 * Helper method to get the SambaNova configuration
+	 */
+	private getSambanovaConfig(): SambanovaConfig {
+		if (!this.options.sambanova) {
+			throw new Error("SambaNova configuration is required")
+		}
+		return this.options.sambanova
 	}
 
 	@withRetry()

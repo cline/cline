@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { ApiHandlerOptions, ClineConfig, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import axios from "axios"
@@ -15,15 +15,27 @@ export class ClineHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.cline) {
+			throw new Error("Cline configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://api.cline.bot/v1",
-			apiKey: this.options.clineApiKey || "",
+			apiKey: this.options.cline.apiKey || "",
 			defaultHeaders: {
 				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on cline.bot rankings.
 				"X-Title": "Cline", // Optional. Shows in rankings on cline.bot.
 				"X-Task-ID": this.options.taskId || "", // Include the task ID in the request headers
 			},
 		})
+	}
+	
+	private getClineConfig(): ClineConfig {
+		if (!this.options.cline) {
+			throw new Error("Cline configuration is required")
+		}
+		return this.options.cline
 	}
 
 	@withRetry()
@@ -37,7 +49,7 @@ export class ClineHandler implements ApiHandler {
 			this.getModel(),
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
-			this.options.openRouterProviderSorting,
+			this.options.openrouter?.providerSorting,
 		)
 
 		let didOutputUsage: boolean = false
@@ -101,7 +113,7 @@ export class ClineHandler implements ApiHandler {
 			try {
 				const response = await axios.get(`https://api.cline.bot/v1/generation?id=${this.lastGenerationId}`, {
 					headers: {
-						Authorization: `Bearer ${this.options.clineApiKey}`,
+						Authorization: `Bearer ${this.getClineConfig().apiKey}`,
 					},
 					timeout: 15_000, // this request hangs sometimes
 				})
@@ -124,10 +136,9 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId
-		const modelInfo = this.options.openRouterModelInfo
-		if (modelId && modelInfo) {
-			return { id: modelId, info: modelInfo }
+		const openrouter = this.options.openrouter
+		if (openrouter?.modelId && openrouter?.modelInfo) {
+			return { id: openrouter.modelId, info: openrouter.modelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}

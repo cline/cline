@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
+import { ApiHandlerOptions, ModelInfo, RequestyConfig, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
@@ -23,14 +23,26 @@ export class RequestyHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.requesty) {
+			throw new Error("Requesty configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://router.requesty.ai/v1",
-			apiKey: this.options.requestyApiKey,
+			apiKey: this.options.requesty.apiKey,
 			defaultHeaders: {
 				"HTTP-Referer": "https://cline.bot",
 				"X-Title": "Cline",
 			},
 		})
+	}
+
+	private getRequestyConfig(): RequestyConfig {
+		if (!this.options.requesty) {
+			throw new Error("Requesty configuration is required")
+		}
+		return this.options.requesty
 	}
 
 	@withRetry()
@@ -111,8 +123,9 @@ export class RequestyHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.requestyModelId
-		const modelInfo = this.options.requestyModelInfo
+		const config = this.getRequestyConfig()
+		const modelId = config.modelId
+		const modelInfo = config.modelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}

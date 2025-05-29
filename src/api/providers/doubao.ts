@@ -1,5 +1,5 @@
 import { ApiHandler } from ".."
-import { ApiHandlerOptions, doubaoDefaultModelId, DoubaoModelId, doubaoModels, ModelInfo } from "@shared/api"
+import { ApiHandlerOptions, doubaoDefaultModelId, DoubaoModelId, doubaoModels, ModelInfo, DoubaoConfig } from "@shared/api"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -11,13 +11,26 @@ export class DoubaoHandler implements ApiHandler {
 	private client: OpenAI
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.doubao) {
+			throw new Error("Doubao configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://ark.cn-beijing.volces.com/api/v3/",
-			apiKey: this.options.doubaoApiKey,
+			apiKey: this.options.doubao.apiKey,
 		})
 	}
 
+	private getDoubaoConfig(): DoubaoConfig {
+		if (!this.options.doubao) {
+			throw new Error("Doubao configuration is required")
+		}
+		return this.options.doubao
+	}
+
 	getModel(): { id: DoubaoModelId; info: ModelInfo } {
+		// Use apiModelId as the DoubaoConfig interface doesn't contain modelId
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in doubaoModels) {
 			const id = modelId as DoubaoModelId

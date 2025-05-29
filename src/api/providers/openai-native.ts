@@ -2,7 +2,14 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openAiNativeDefaultModelId, OpenAiNativeModelId, openAiNativeModels } from "@shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	openAiNativeDefaultModelId,
+	OpenAiNativeModelId,
+	openAiNativeModels,
+	OpenAINativeConfig,
+} from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
@@ -14,9 +21,21 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.openaiNative) {
+			throw new Error("OpenAI Native configuration is required")
+		}
+
 		this.client = new OpenAI({
-			apiKey: this.options.openAiNativeApiKey,
+			apiKey: this.options.openaiNative.apiKey,
 		})
+	}
+
+	private getOpenAINativeConfig(): OpenAINativeConfig {
+		if (!this.options.openaiNative) {
+			throw new Error("OpenAI Native configuration is required")
+		}
+		return this.options.openaiNative
 	}
 
 	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
@@ -66,7 +85,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
-					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium", // Keeping reasoningEffort at top level as it's a general setting
 				})
 
 				for await (const chunk of stream) {
@@ -112,6 +131,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	getModel(): { id: OpenAiNativeModelId; info: ModelInfo } {
+		// apiModelId is kept at the top level as it's shared across providers
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in openAiNativeModels) {
 			const id = modelId as OpenAiNativeModelId

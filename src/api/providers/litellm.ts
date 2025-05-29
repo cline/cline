@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { ApiHandlerOptions, LiteLLMConfig, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import { ApiHandler } from ".."
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -12,21 +12,34 @@ export class LiteLlmHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.litellm) {
+			throw new Error("LiteLLM configuration is required")
+		}
+
 		this.client = new OpenAI({
-			baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
-			apiKey: this.options.liteLlmApiKey || "noop",
+			baseURL: this.options.litellm.baseUrl || "http://localhost:4000",
+			apiKey: this.options.litellm.apiKey || "noop",
 		})
+	}
+
+	private getLiteLLMConfig(): LiteLLMConfig {
+		if (!this.options.litellm) {
+			throw new Error("LiteLLM configuration is required")
+		}
+		return this.options.litellm
 	}
 
 	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
-		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
+		const config = this.getLiteLLMConfig()
+		const modelId = config.modelId || liteLlmDefaultModelId
 		try {
 			const response = await fetch(`${this.client.baseURL}/spend/calculate`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					Authorization: `Bearer ${this.options.liteLlmApiKey}`,
+					Authorization: `Bearer ${config.apiKey}`,
 				},
 				body: JSON.stringify({
 					completion_response: {
@@ -59,7 +72,8 @@ export class LiteLlmHandler implements ApiHandler {
 			role: "system",
 			content: systemPrompt,
 		}
-		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
+		const config = this.getLiteLLMConfig()
+		const modelId = config.modelId || liteLlmDefaultModelId
 		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini") || modelId.includes("o4-mini")
 
 		// Configuration for extended thinking
@@ -67,14 +81,14 @@ export class LiteLlmHandler implements ApiHandler {
 		const reasoningOn = budgetTokens !== 0 ? true : false
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
-		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 0
+		let temperature: number | undefined = config.modelInfo?.temperature ?? 0
 
 		if (isOminiModel && reasoningOn) {
 			temperature = undefined // Thinking mode doesn't support temperature
 		}
 
 		// Define cache control object if prompt caching is enabled
-		const cacheControl = this.options.liteLlmUsePromptCache ? { cache_control: { type: "ephemeral" } } : undefined
+		const cacheControl = config.usePromptCache ? { cache_control: { type: "ephemeral" } } : undefined
 
 		// Add cache_control to system message if enabled
 		const enhancedSystemMessage = {
@@ -102,7 +116,7 @@ export class LiteLlmHandler implements ApiHandler {
 		})
 
 		const stream = await this.client.chat.completions.create({
-			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
+			model: config.modelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
 			stream: true,
@@ -169,9 +183,10 @@ export class LiteLlmHandler implements ApiHandler {
 	}
 
 	getModel() {
+		const config = this.getLiteLLMConfig()
 		return {
-			id: this.options.liteLlmModelId || liteLlmDefaultModelId,
-			info: this.options.liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
+			id: config.modelId || liteLlmDefaultModelId,
+			info: config.modelInfo || liteLlmModelInfoSaneDefaults,
 		}
 	}
 }

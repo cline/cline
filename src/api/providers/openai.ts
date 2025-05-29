@@ -1,7 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import {
+	ApiHandlerOptions,
+	azureOpenAiDefaultApiVersion,
+	ModelInfo,
+	OpenAIConfig,
+	openAiModelInfoSaneDefaults,
+} from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -14,46 +20,59 @@ export class OpenAiHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.openai) {
+			throw new Error("OpenAI configuration is required")
+		}
+
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 		// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
 		if (
-			this.options.azureApiVersion ||
-			((this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") ||
-				this.options.openAiBaseUrl?.toLowerCase().includes("azure.us")) &&
-				!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
+			this.options.azure?.apiVersion ||
+			((this.options.openai.baseUrl?.toLowerCase().includes("azure.com") ||
+				this.options.openai.baseUrl?.toLowerCase().includes("azure.us")) &&
+				!this.options.openai.modelId?.toLowerCase().includes("deepseek"))
 		) {
 			this.client = new AzureOpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-				defaultHeaders: this.options.openAiHeaders,
+				baseURL: this.options.openai.baseUrl,
+				apiKey: this.options.openai.apiKey,
+				apiVersion: this.options.azure?.apiVersion || azureOpenAiDefaultApiVersion,
+				defaultHeaders: this.options.openai.headers,
 			})
 		} else {
 			this.client = new OpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-				defaultHeaders: this.options.openAiHeaders,
+				baseURL: this.options.openai.baseUrl,
+				apiKey: this.options.openai.apiKey,
+				defaultHeaders: this.options.openai.headers,
 			})
 		}
 	}
 
+	private getOpenAIConfig(): OpenAIConfig {
+		if (!this.options.openai) {
+			throw new Error("OpenAI configuration is required")
+		}
+		return this.options.openai
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const modelId = this.options.openAiModelId ?? ""
+		const config = this.getOpenAIConfig()
+		const modelId = config.modelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
-		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
+		const isR1FormatRequired = config.modelInfo?.isR1FormatRequired ?? false
 		const isReasoningModelFamily = modelId.includes("o1") || modelId.includes("o3") || modelId.includes("o4")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
+		let temperature: number | undefined = config.modelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
 		let maxTokens: number | undefined
 
-		if (this.options.openAiModelInfo?.maxTokens && this.options.openAiModelInfo.maxTokens > 0) {
-			maxTokens = Number(this.options.openAiModelInfo.maxTokens)
+		if (config.modelInfo?.maxTokens && config.modelInfo.maxTokens > 0) {
+			maxTokens = Number(config.modelInfo.maxTokens)
 		} else {
 			maxTokens = undefined
 		}
@@ -108,9 +127,10 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const config = this.getOpenAIConfig()
 		return {
-			id: this.options.openAiModelId ?? "",
-			info: this.options.openAiModelInfo ?? openAiModelInfoSaneDefaults,
+			id: config.modelId ?? "",
+			info: config.modelInfo ?? openAiModelInfoSaneDefaults,
 		}
 	}
 }

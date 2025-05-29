@@ -10,6 +10,7 @@ import {
 	internationalQwenDefaultModelId,
 	MainlandQwenModelId,
 	InternationalQwenModelId,
+	QwenConfig,
 } from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -22,19 +23,32 @@ export class QwenHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.qwen) {
+			throw new Error("Qwen configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL:
-				this.options.qwenApiLine === "china"
+				this.options.qwen.apiLine === "china"
 					? "https://dashscope.aliyuncs.com/compatible-mode/v1"
 					: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-			apiKey: this.options.qwenApiKey,
+			apiKey: this.options.qwen.apiKey,
 		})
 	}
 
+	private getQwenConfig(): QwenConfig {
+		if (!this.options.qwen) {
+			throw new Error("Qwen configuration is required")
+		}
+		return this.options.qwen
+	}
+
 	getModel(): { id: MainlandQwenModelId | InternationalQwenModelId; info: ModelInfo } {
+		const config = this.getQwenConfig()
 		const modelId = this.options.apiModelId
 		// Branch based on API line to let poor typescript know what to do
-		if (this.options.qwenApiLine === "china") {
+		if (config.apiLine === "china") {
 			return {
 				id: (modelId as MainlandQwenModelId) ?? mainlandQwenDefaultModelId,
 				info: mainlandQwenModels[modelId as MainlandQwenModelId] ?? mainlandQwenModels[mainlandQwenDefaultModelId],

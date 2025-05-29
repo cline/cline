@@ -5,6 +5,7 @@ import { ApiHandler } from ".."
 import {
 	ApiHandlerOptions,
 	DeepSeekModelId,
+	FireworksConfig,
 	ModelInfo,
 	deepSeekDefaultModelId,
 	deepSeekModels,
@@ -19,15 +20,28 @@ export class FireworksHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.fireworks) {
+			throw new Error("Fireworks configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://api.fireworks.ai/inference/v1",
-			apiKey: this.options.fireworksApiKey,
+			apiKey: this.options.fireworks.apiKey,
 		})
+	}
+
+	private getFireworksConfig(): FireworksConfig {
+		if (!this.options.fireworks) {
+			throw new Error("Fireworks configuration is required")
+		}
+		return this.options.fireworks
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const modelId = this.options.fireworksModelId ?? ""
+		const config = this.getFireworksConfig()
+		const modelId = config.modelId ?? ""
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -36,10 +50,8 @@ export class FireworksHandler implements ApiHandler {
 
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
-			...(this.options.fireworksModelMaxCompletionTokens
-				? { max_completion_tokens: this.options.fireworksModelMaxCompletionTokens }
-				: {}),
-			...(this.options.fireworksModelMaxTokens ? { max_tokens: this.options.fireworksModelMaxTokens } : {}),
+			...(config.modelMaxCompletionTokens ? { max_completion_tokens: config.modelMaxCompletionTokens } : {}),
+			...(config.modelMaxTokens ? { max_tokens: config.modelMaxTokens } : {}),
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
@@ -86,8 +98,9 @@ export class FireworksHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const config = this.getFireworksConfig()
 		return {
-			id: this.options.fireworksModelId ?? "",
+			id: config.modelId ?? "",
 			info: openAiModelInfoSaneDefaults,
 		}
 	}

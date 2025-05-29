@@ -3,7 +3,7 @@ import type { Anthropic } from "@anthropic-ai/sdk"
 import { GoogleGenAI, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "@shared/api"
+import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo, GeminiConfig } from "@shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
@@ -45,8 +45,12 @@ export class GeminiHandler implements ApiHandler {
 
 		if (options.isVertex) {
 			// Initialize with Vertex AI configuration
-			const project = this.options.vertexProjectId ?? "not-provided"
-			const location = this.options.vertexRegion ?? "not-provided"
+			if (!this.options.vertex) {
+				throw new Error("Vertex configuration is required when isVertex is true")
+			}
+
+			const project = this.options.vertex.projectId ?? "not-provided"
+			const location = this.options.vertex.region ?? "not-provided"
 
 			this.client = new GoogleGenAI({
 				vertexai: true,
@@ -55,12 +59,28 @@ export class GeminiHandler implements ApiHandler {
 			})
 		} else {
 			// Initialize with standard API key
-			if (!options.geminiApiKey) {
+			if (!this.options.gemini) {
+				throw new Error("Gemini configuration is required")
+			}
+
+			if (!this.options.gemini.apiKey) {
 				throw new Error("API key is required for Google Gemini when not using Vertex AI")
 			}
 
-			this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
+			this.client = new GoogleGenAI({ apiKey: this.options.gemini.apiKey })
 		}
+	}
+
+	/**
+	 * Get the Gemini-specific configuration
+	 * @returns The Gemini configuration
+	 * @throws Error if Gemini configuration is missing
+	 */
+	private getGeminiConfig(): GeminiConfig {
+		if (!this.options.gemini) {
+			throw new Error("Gemini configuration is required")
+		}
+		return this.options.gemini
 	}
 
 	/**
@@ -89,7 +109,7 @@ export class GeminiHandler implements ApiHandler {
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
-			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
+			httpOptions: this.getGeminiConfig().baseUrl ? { baseUrl: this.getGeminiConfig().baseUrl } : undefined,
 			...{ systemInstruction: systemPrompt },
 			// Set temperature (default to 0)
 			temperature: 0,

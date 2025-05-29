@@ -3,7 +3,7 @@ import axios from "axios"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { ApiHandlerOptions, ModelInfo, OpenRouterConfig, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -16,14 +16,26 @@ export class OpenRouterHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.openrouter) {
+			throw new Error("OpenRouter configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://openrouter.ai/api/v1",
-			apiKey: this.options.openRouterApiKey,
+			apiKey: this.options.openrouter.apiKey,
 			defaultHeaders: {
 				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
 				"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
 			},
 		})
+	}
+
+	private getOpenRouterConfig(): OpenRouterConfig {
+		if (!this.options.openrouter) {
+			throw new Error("OpenRouter configuration is required")
+		}
+		return this.options.openrouter
 	}
 
 	@withRetry()
@@ -37,7 +49,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.getModel(),
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
-			this.options.openRouterProviderSorting,
+			this.getOpenRouterConfig().providerSorting,
 		)
 
 		let didOutputUsage: boolean = false
@@ -124,9 +136,10 @@ export class OpenRouterHandler implements ApiHandler {
 	async *fetchGenerationDetails(genId: string) {
 		// console.log("Fetching generation details for:", genId)
 		try {
+			const config = this.getOpenRouterConfig()
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
-					Authorization: `Bearer ${this.options.openRouterApiKey}`,
+					Authorization: `Bearer ${config.apiKey}`,
 				},
 				timeout: 15_000, // this request hangs sometimes
 			})
@@ -139,8 +152,9 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId
-		const modelInfo = this.options.openRouterModelInfo
+		const config = this.getOpenRouterConfig()
+		const modelId = config.modelId
+		const modelInfo = config.modelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}

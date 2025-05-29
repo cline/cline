@@ -5,16 +5,34 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
-import { nebiusDefaultModelId, nebiusModels, type ModelInfo, type ApiHandlerOptions, type NebiusModelId } from "../../shared/api"
+import {
+	nebiusDefaultModelId,
+	nebiusModels,
+	type ModelInfo,
+	type ApiHandlerOptions,
+	type NebiusModelId,
+	type NebiusConfig,
+} from "../../shared/api"
 
 export class NebiusHandler implements ApiHandler {
 	private client: OpenAI
 
 	constructor(private readonly options: ApiHandlerOptions) {
+		if (!this.options.nebius) {
+			throw new Error("Nebius configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://api.studio.nebius.ai/v1",
-			apiKey: this.options.nebiusApiKey,
+			apiKey: this.getNebiusConfig().apiKey,
 		})
+	}
+
+	private getNebiusConfig(): NebiusConfig {
+		if (!this.options.nebius) {
+			throw new Error("Nebius configuration is required")
+		}
+		return this.options.nebius
 	}
 
 	@withRetry()

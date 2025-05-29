@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ApiHandlerOptions, ModelInfo, TogetherConfig, openAiModelInfoSaneDefaults } from "@shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
@@ -13,15 +13,28 @@ export class TogetherHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.together) {
+			throw new Error("Together configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://api.together.xyz/v1",
-			apiKey: this.options.togetherApiKey,
+			apiKey: this.options.together.apiKey,
 		})
+	}
+
+	private getTogetherConfig(): TogetherConfig {
+		if (!this.options.together) {
+			throw new Error("Together configuration is required")
+		}
+		return this.options.together
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const modelId = this.options.togetherModelId ?? ""
+		const config = this.getTogetherConfig()
+		const modelId = config.modelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -67,8 +80,9 @@ export class TogetherHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const config = this.getTogetherConfig()
 		return {
-			id: this.options.togetherModelId ?? "",
+			id: config.modelId ?? "",
 			info: openAiModelInfoSaneDefaults,
 		}
 	}

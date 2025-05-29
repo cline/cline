@@ -12,8 +12,12 @@ export class CerebrasHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 
+		if (!this.options.cerebras) {
+			throw new Error("Cerebras configuration is required")
+		}
+
 		// Clean and validate the API key
-		const cleanApiKey = this.options.cerebrasApiKey?.trim()
+		const cleanApiKey = this.options.cerebras.apiKey?.trim()
 
 		if (!cleanApiKey) {
 			throw new Error("Cerebras API key is required")

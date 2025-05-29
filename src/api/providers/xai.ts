@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
+import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels, XAIConfig } from "@shared/api"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
@@ -13,9 +13,14 @@ export class XAIHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.xai) {
+			throw new Error("XAI configuration is required")
+		}
+
 		this.client = new OpenAI({
 			baseURL: "https://api.x.ai/v1",
-			apiKey: this.options.xaiApiKey,
+			apiKey: this.options.xai.apiKey,
 		})
 	}
 
@@ -69,6 +74,13 @@ export class XAIHandler implements ApiHandler {
 				}
 			}
 		}
+	}
+
+	private getXAIConfig(): XAIConfig {
+		if (!this.options.xai) {
+			throw new Error("XAI configuration is required")
+		}
+		return this.options.xai
 	}
 
 	getModel(): { id: XAIModelId; info: ModelInfo } {

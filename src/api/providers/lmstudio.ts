@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ApiHandlerOptions, LMStudioConfig, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
@@ -12,10 +12,22 @@ export class LmStudioHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		if (!this.options.lmstudio) {
+			throw new Error("LM Studio configuration is required")
+		}
+
 		this.client = new OpenAI({
-			baseURL: (this.options.lmStudioBaseUrl || "http://localhost:1234") + "/v1",
+			baseURL: (this.options.lmstudio.baseUrl || "http://localhost:1234") + "/v1",
 			apiKey: "noop",
 		})
+	}
+	
+	private getLmStudioConfig(): LMStudioConfig {
+		if (!this.options.lmstudio) {
+			throw new Error("LM Studio configuration is required")
+		}
+		return this.options.lmstudio
 	}
 
 	@withRetry({ retryAllErrors: true })
@@ -55,8 +67,9 @@ export class LmStudioHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const config = this.getLmStudioConfig()
 		return {
-			id: this.options.lmStudioModelId || "",
+			id: config.modelId || "",
 			info: openAiModelInfoSaneDefaults,
 		}
 	}
