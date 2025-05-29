@@ -49,8 +49,8 @@
 		"walkthroughs": [
 			{
 				"id": "ClineWalkthrough",
-				"title": "5 ways Cline Code helps you code",
-				"description": "You now have a personal AI coding assistant.",
+				"title": "Meet Cline, your new coding partner",
+				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
 				"steps": [
 					{
 						"id": "welcome",
