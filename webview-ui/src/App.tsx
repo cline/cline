@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
+import type { CloudUserInfo } from "@roo-code/types"
 import { ExtensionMessage } from "@roo/ExtensionMessage"
 
 import TranslationProvider from "./i18n/TranslationContext"
@@ -15,8 +16,9 @@ import WelcomeView from "./components/welcome/WelcomeView"
 import McpView from "./components/mcp/McpView"
 import ModesView from "./components/modes/ModesView"
 import { HumanRelayDialog } from "./components/human-relay/HumanRelayDialog"
+import { AccountView } from "./components/account/AccountView"
 
-type Tab = "settings" | "history" | "mcp" | "modes" | "chat"
+type Tab = "settings" | "history" | "mcp" | "modes" | "chat" | "account"
 
 const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]>, Tab>> = {
 	chatButtonClicked: "chat",
@@ -24,6 +26,7 @@ const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]
 	promptsButtonClicked: "modes",
 	mcpButtonClicked: "mcp",
 	historyButtonClicked: "history",
+	accountButtonClicked: "account",
 }
 
 const App = () => {
@@ -32,6 +35,7 @@ const App = () => {
 
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [tab, setTab] = useState<Tab>("chat")
+	const [userInfo, setUserInfo] = useState<CloudUserInfo | null>(null)
 
 	const [humanRelayDialogState, setHumanRelayDialogState] = useState<{
 		isOpen: boolean
@@ -80,6 +84,10 @@ const App = () => {
 			if (message.type === "acceptInput") {
 				chatViewRef.current?.acceptInput()
 			}
+
+			if (message.type === "authenticatedUser") {
+				setUserInfo(message.userInfo || null)
+			}
 		},
 		[switchTab],
 	)
@@ -118,6 +126,7 @@ const App = () => {
 			{tab === "settings" && (
 				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
 			)}
+			{tab === "account" && <AccountView userInfo={userInfo} onDone={() => switchTab("chat")} />}
 			<ChatView
 				ref={chatViewRef}
 				isHidden={tab !== "chat"}

@@ -1,27 +1,27 @@
-import { RefreshTimer } from "../refresh-timer"
+// npx vitest run --globals src/__tests__/RefreshTimer.test.ts
 
-// Mock timers
-jest.useFakeTimers()
+import { Mock } from "vitest"
+
+import { RefreshTimer } from "../RefreshTimer"
+
+vi.useFakeTimers()
 
 describe("RefreshTimer", () => {
-	let mockCallback: jest.Mock
+	let mockCallback: Mock
 	let refreshTimer: RefreshTimer
 
 	beforeEach(() => {
-		// Reset mocks before each test
-		mockCallback = jest.fn()
-
-		// Default mock implementation returns success
+		mockCallback = vi.fn()
 		mockCallback.mockResolvedValue(true)
 	})
 
 	afterEach(() => {
-		// Clean up after each test
 		if (refreshTimer) {
 			refreshTimer.stop()
 		}
-		jest.clearAllTimers()
-		jest.clearAllMocks()
+
+		vi.clearAllTimers()
+		vi.clearAllMocks()
 	})
 
 	it("should execute callback immediately when started", () => {
@@ -50,7 +50,7 @@ describe("RefreshTimer", () => {
 		expect(mockCallback).toHaveBeenCalledTimes(1)
 
 		// Fast-forward 50 seconds
-		jest.advanceTimersByTime(50000)
+		vi.advanceTimersByTime(50000)
 
 		// Callback should be called again
 		expect(mockCallback).toHaveBeenCalledTimes(2)
@@ -72,7 +72,7 @@ describe("RefreshTimer", () => {
 		expect(mockCallback).toHaveBeenCalledTimes(1)
 
 		// Fast-forward 1 second
-		jest.advanceTimersByTime(1000)
+		vi.advanceTimersByTime(1000)
 
 		// Callback should be called again
 		expect(mockCallback).toHaveBeenCalledTimes(2)
@@ -81,7 +81,7 @@ describe("RefreshTimer", () => {
 		await Promise.resolve()
 
 		// Fast-forward 2 seconds
-		jest.advanceTimersByTime(2000)
+		vi.advanceTimersByTime(2000)
 
 		// Callback should be called again
 		expect(mockCallback).toHaveBeenCalledTimes(3)
@@ -103,13 +103,13 @@ describe("RefreshTimer", () => {
 
 		// Fast-forward through multiple failures to reach max backoff
 		await Promise.resolve() // First attempt
-		jest.advanceTimersByTime(1000)
+		vi.advanceTimersByTime(1000)
 
 		await Promise.resolve() // Second attempt (backoff = 2000ms)
-		jest.advanceTimersByTime(2000)
+		vi.advanceTimersByTime(2000)
 
 		await Promise.resolve() // Third attempt (backoff = 4000ms)
-		jest.advanceTimersByTime(4000)
+		vi.advanceTimersByTime(4000)
 
 		await Promise.resolve() // Fourth attempt (backoff would be 8000ms but max is 5000ms)
 
@@ -132,13 +132,13 @@ describe("RefreshTimer", () => {
 		await Promise.resolve()
 
 		// Fast-forward 1 second
-		jest.advanceTimersByTime(1000)
+		vi.advanceTimersByTime(1000)
 
 		// Second attempt (succeeds)
 		await Promise.resolve()
 
 		// Fast-forward 5 seconds
-		jest.advanceTimersByTime(5000)
+		vi.advanceTimersByTime(5000)
 
 		// Third attempt (fails)
 		await Promise.resolve()
@@ -173,7 +173,7 @@ describe("RefreshTimer", () => {
 		refreshTimer.stop()
 
 		// Fast-forward a long time
-		jest.advanceTimersByTime(1000000)
+		vi.advanceTimersByTime(1000000)
 
 		// Callback should only have been called once (the initial call)
 		expect(mockCallback).toHaveBeenCalledTimes(1)
@@ -191,10 +191,10 @@ describe("RefreshTimer", () => {
 
 		// Fast-forward through a few failures
 		await Promise.resolve()
-		jest.advanceTimersByTime(1000)
+		vi.advanceTimersByTime(1000)
 
 		await Promise.resolve()
-		jest.advanceTimersByTime(2000)
+		vi.advanceTimersByTime(2000)
 
 		// Reset the timer
 		refreshTimer.reset()

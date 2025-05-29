@@ -96,6 +96,12 @@
 				"icon": "$(link-external)"
 			},
 			{
+				"command": "roo-cline.accountButtonClicked",
+				"title": "Account",
+				"icon": "$(account)",
+				"when": "config.roo-cline.rooCodeCloudEnabled"
+			},
+			{
 				"command": "roo-cline.settingsButtonClicked",
 				"title": "%command.settings.title%",
 				"icon": "$(settings-gear)"
@@ -229,8 +235,13 @@
 					"when": "view == roo-cline.SidebarProvider"
 				},
 				{
-					"command": "roo-cline.settingsButtonClicked",
+					"command": "roo-cline.accountButtonClicked",
 					"group": "navigation@6",
+					"when": "view == roo-cline.SidebarProvider && config.roo-cline.rooCodeCloudEnabled"
+				},
+				{
+					"command": "roo-cline.settingsButtonClicked",
+					"group": "navigation@7",
 					"when": "view == roo-cline.SidebarProvider"
 				}
 			],
@@ -261,8 +272,13 @@
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				},
 				{
-					"command": "roo-cline.settingsButtonClicked",
+					"command": "roo-cline.accountButtonClicked",
 					"group": "navigation@6",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider && config.roo-cline.rooCodeCloudEnabled"
+				},
+				{
+					"command": "roo-cline.settingsButtonClicked",
+					"group": "navigation@7",
 					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
 				}
 			]
@@ -313,6 +329,11 @@
 					"type": "string",
 					"default": "",
 					"description": "%settings.customStoragePath.description%"
+				},
+				"roo-cline.rooCodeCloudEnabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "%settings.rooCodeCloudEnabled.description%"
 				}
 			}
 		}
@@ -340,6 +361,8 @@
 		"@google/genai": "^0.13.0",
 		"@mistralai/mistralai": "^1.3.6",
 		"@modelcontextprotocol/sdk": "^1.9.0",
+		"@roo-code/cloud": "workspace:^",
+		"@roo-code/telemetry": "workspace:^",
 		"@roo-code/types": "workspace:^",
 		"@qdrant/js-client-rest": "^1.14.0",
 		"@types/lodash.debounce": "^4.0.9",
@@ -373,7 +396,6 @@
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
 		"pkce-challenge": "^4.1.0",
-		"posthog-node": "^4.7.0",
 		"pretty-bytes": "^6.1.1",
 		"ps-tree": "^1.2.0",
 		"puppeteer-chromium-resolver": "^23.0.0",

@@ -250,6 +250,7 @@
 		}
 	},
 	"systemPromptWarning": "UYARI: Özel sistem komut geçersiz kılma aktif. Bu işlevselliği ciddi şekilde bozabilir ve öngörülemeyen davranışlara neden olabilir.",
+	"profileViolationWarning": "Geçerli profil kuruluşunuzun ayarlarını ihlal ediyor",
 	"shellIntegration": {
 		"title": "Komut Çalıştırma Uyarısı",
 		"description": "Komutunuz VSCode terminal kabuk entegrasyonu olmadan çalıştırılıyor. Bu uyarıyı gizlemek için <settingsLink>Roo Code ayarları</settingsLink>'nın <strong>Terminal</strong> bölümünden kabuk entegrasyonunu devre dışı bırakabilir veya aşağıdaki bağlantıyı kullanarak VSCode terminal entegrasyonu sorunlarını giderebilirsiniz.",

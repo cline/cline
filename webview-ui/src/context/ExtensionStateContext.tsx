@@ -1,12 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 
-import type {
-	ProviderSettings,
-	ProviderSettingsEntry,
-	CustomModePrompts,
-	ModeConfig,
-	ExperimentId,
+import {
+	type ProviderSettings,
+	type ProviderSettingsEntry,
+	type CustomModePrompts,
+	type ModeConfig,
+	type ExperimentId,
+	type OrganizationAllowList,
+	ORGANIZATION_ALLOW_ALL,
 } from "@roo-code/types"
 
 import { ExtensionMessage, ExtensionState } from "@roo/ExtensionMessage"
@@ -32,6 +34,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	currentCheckpoint?: string
 	filePaths: string[]
 	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
+	organizationAllowList: OrganizationAllowList
 	condensingApiConfigId?: string
 	setCondensingApiConfigId: (value: string) => void
 	customCondensingPrompt?: string
@@ -145,7 +148,7 @@ export const mergeExtensionState = (prevState: ExtensionState, newState: Extensi
 }
 
 export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-	const [state, setState] = useState<ExtensionState>({
+	const [state, setState] = useState<ExtensionState & { organizationAllowList?: OrganizationAllowList }>({
 		version: "",
 		clineMessages: [],
 		taskHistory: [],
@@ -193,6 +196,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		terminalZdotdir: false, // Default ZDOTDIR handling setting
 		terminalCompressProgressBar: true, // Default to compress progress bar output
 		historyPreviewCollapsed: false, // Initialize the new state (default to expanded)
+		organizationAllowList: ORGANIZATION_ALLOW_ALL,
 		autoCondenseContext: true,
 		autoCondenseContextPercent: 100,
 		codebaseIndexConfig: {

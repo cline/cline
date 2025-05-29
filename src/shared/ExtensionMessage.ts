@@ -7,6 +7,8 @@ import type {
 	TelemetrySetting,
 	ExperimentId,
 	ClineMessage,
+	OrganizationAllowList,
+	CloudUserInfo,
 } from "@roo-code/types"
 
 import { GitCommit } from "../utils/git"
@@ -65,6 +67,7 @@ export interface ExtensionMessage {
 		| "setHistoryPreviewCollapsed"
 		| "commandExecutionStatus"
 		| "vsCodeSetting"
+		| "authenticatedUser"
 		| "condenseTaskContextResponse"
 		| "singleRouterModelFetchResponse"
 		| "indexingStatusUpdate"
@@ -77,6 +80,7 @@ export interface ExtensionMessage {
 		| "settingsButtonClicked"
 		| "historyButtonClicked"
 		| "promptsButtonClicked"
+		| "accountButtonClicked"
 		| "didBecomeVisible"
 		| "focusInput"
 	invoke?: "newChat" | "sendMessage" | "primaryButtonClick" | "secondaryButtonClick" | "setChatBoxMessage"
@@ -108,6 +112,8 @@ export interface ExtensionMessage {
 	error?: string
 	setting?: string
 	value?: any
+	userInfo?: CloudUserInfo
+	organizationAllowList?: OrganizationAllowList
 }
 
 export type ExtensionState = Pick<
@@ -210,6 +216,9 @@ export type ExtensionState = Pick<
 	renderContext: "sidebar" | "editor"
 	settingsImportedAt?: number
 	historyPreviewCollapsed?: boolean
+
+	organizationAllowList: OrganizationAllowList
+
 	autoCondenseContext: boolean
 	autoCondenseContextPercent: number
 }

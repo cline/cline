@@ -1,0 +1,10 @@
+{
+	"title": "Hesap",
+	"profilePicture": "Profil resmi",
+	"unknownUser": "Bilinmeyen kullanıcı",
+	"logOut": "Çıkış yap",
+	"testApiAuthentication": "API Kimlik Doğrulamayı Test Et",
+	"signUpTitle": "Hesabınıza giriş yapın",
+	"signUpDescription": "Roo'nun kişiselleştirilmiş özelliklerine ve ayarlarına erişmek için giriş yapın.",
+	"signIn": "Roo Code Cloud'a giriş yapın"
+}

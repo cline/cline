@@ -250,6 +250,7 @@
 		}
 	},
 	"systemPromptWarning": "ATTENZIONE: Sovrascrittura personalizzata delle istruzioni di sistema attiva. Questo può compromettere gravemente le funzionalità e causare comportamenti imprevedibili.",
+	"profileViolationWarning": "Il profilo corrente viola le impostazioni della tua organizzazione",
 	"shellIntegration": {
 		"title": "Avviso di esecuzione comando",
 		"description": "Il tuo comando viene eseguito senza l'integrazione shell del terminale VSCode. Per sopprimere questo avviso puoi disattivare l'integrazione shell nella sezione <strong>Terminal</strong> delle <settingsLink>impostazioni di Roo Code</settingsLink> o risolvere i problemi di integrazione del terminale VSCode utilizzando il link qui sotto.",

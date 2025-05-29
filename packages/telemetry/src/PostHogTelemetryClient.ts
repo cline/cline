@@ -14,11 +14,11 @@ export class PostHogTelemetryClient extends BaseTelemetryClient {
 	private client: PostHog
 	private distinctId: string = vscode.env.machineId
 
-	private constructor(debug = false) {
+	constructor(debug = false) {
 		super(
 			{
 				type: "exclude",
-				events: [TelemetryEventName.LLM_COMPLETION],
+				events: [TelemetryEventName.TASK_MESSAGE, TelemetryEventName.LLM_COMPLETION],
 			},
 			debug,
 		)
@@ -74,15 +74,5 @@ export class PostHogTelemetryClient extends BaseTelemetryClient {
 
 	public override async shutdown(): Promise<void> {
 		await this.client.shutdown()
-	}
-
-	private static _instance: PostHogTelemetryClient | null = null
-
-	public static getInstance(): PostHogTelemetryClient {
-		if (!PostHogTelemetryClient._instance) {
-			PostHogTelemetryClient._instance = new PostHogTelemetryClient()
-		}
-
-		return PostHogTelemetryClient._instance
 	}
 }

@@ -1,10 +1,11 @@
-// npx jest src/core/webview/__tests__/ClineProvider.test.ts
+// npx jest core/webview/__tests__/ClineProvider.test.ts
 
 import Anthropic from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import axios from "axios"
 
-import type { ProviderSettingsEntry, ClineMessage } from "@roo-code/types"
+import { type ProviderSettingsEntry, type ClineMessage, ORGANIZATION_ALLOW_ALL } from "@roo-code/types"
+import { TelemetryService } from "@roo-code/telemetry"
 
 import { ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessage"
 import { defaultModeSlug } from "../../../shared/modes"
@@ -94,13 +95,11 @@ jest.mock("../../../services/browser/browserDiscovery", () => ({
 	}),
 }))
 
-// Initialize mocks
 const mockAddCustomInstructions = jest.fn().mockResolvedValue("Combined instructions")
 
 ;(jest.requireMock("../../prompts/sections/custom-instructions") as any).addCustomInstructions =
 	mockAddCustomInstructions
 
-// Mock delay module
 jest.mock("delay", () => {
 	const delayFn = (_ms: number) => Promise.resolve()
 	delayFn.createDelay = () => delayFn
@@ -109,7 +108,7 @@ jest.mock("delay", () => {
 	return delayFn
 })
 
-// MCP-related modules are mocked once above (lines 87-109)
+// MCP-related modules are mocked once above (lines 87-109).
 
 jest.mock(
 	"@modelcontextprotocol/sdk/client/index.js",
@@ -240,10 +239,12 @@ describe("ClineProvider", () => {
 	let updateGlobalStateSpy: jest.SpyInstance<ClineProvider["contextProxy"]["updateGlobalState"]>
 
 	beforeEach(() => {
-		// Reset mocks
 		jest.clearAllMocks()
 
-		// Mock context
+		if (!TelemetryService.hasInstance()) {
+			TelemetryService.createInstance([])
+		}
+
 		const globalState: Record<string, string | undefined> = {
 			mode: "architect",
 			currentApiConfigName: "current-config",
@@ -422,6 +423,7 @@ describe("ClineProvider", () => {
 			showRooIgnoredFiles: true,
 			renderContext: "sidebar",
 			maxReadFileLine: 500,
+			organizationAllowList: ORGANIZATION_ALLOW_ALL,
 			autoCondenseContext: true,
 			autoCondenseContextPercent: 100,
 		}

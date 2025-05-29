@@ -1,10 +1,31 @@
 import i18next from "i18next"
 
-import type { ProviderSettings } from "@roo-code/types"
+import type { ProviderSettings, OrganizationAllowList } from "@roo-code/types"
 
 import { isRouterName, RouterModels } from "@roo/api"
 
-export function validateApiConfiguration(apiConfiguration: ProviderSettings): string | undefined {
+export function validateApiConfiguration(
+	apiConfiguration: ProviderSettings,
+	routerModels?: RouterModels,
+	organizationAllowList?: OrganizationAllowList,
+): string | undefined {
+	const keysAndIdsPresentErrorMessage = validateModelsAndKeysProvided(apiConfiguration)
+	if (keysAndIdsPresentErrorMessage) {
+		return keysAndIdsPresentErrorMessage
+	}
+
+	const organizationAllowListErrorMessage = validateProviderAgainstOrganizationSettings(
+		apiConfiguration,
+		organizationAllowList,
+	)
+	if (organizationAllowListErrorMessage) {
+		return organizationAllowListErrorMessage
+	}
+
+	return validateModelId(apiConfiguration, routerModels)
+}
+
+function validateModelsAndKeysProvided(apiConfiguration: ProviderSettings): string | undefined {
 	switch (apiConfiguration.apiProvider) {
 		case "openrouter":
 			if (!apiConfiguration.openRouterApiKey) {
@@ -84,6 +105,59 @@ export function validateApiConfiguration(apiConfiguration: ProviderSettings): st
 	}
 
 	return undefined
+}
+
+function validateProviderAgainstOrganizationSettings(
+	apiConfiguration: ProviderSettings,
+	organizationAllowList?: OrganizationAllowList,
+): string | undefined {
+	if (organizationAllowList && !organizationAllowList.allowAll) {
+		const provider = apiConfiguration.apiProvider
+		if (!provider) return undefined
+
+		const providerConfig = organizationAllowList.providers[provider]
+		if (!providerConfig) {
+			return i18next.t("settings:validation.providerNotAllowed", { provider })
+		}
+
+		if (!providerConfig.allowAll) {
+			const modelId = getModelIdForProvider(apiConfiguration, provider)
+			const allowedModels = providerConfig.models || []
+
+			if (modelId && !allowedModels.includes(modelId)) {
+				return i18next.t("settings:validation.modelNotAllowed", {
+					model: modelId,
+					provider,
+				})
+			}
+		}
+	}
+}
+
+function getModelIdForProvider(apiConfiguration: ProviderSettings, provider: string): string | undefined {
+	switch (provider) {
+		case "openrouter":
+			return apiConfiguration.openRouterModelId
+		case "glama":
+			return apiConfiguration.glamaModelId
+		case "unbound":
+			return apiConfiguration.unboundModelId
+		case "requesty":
+			return apiConfiguration.requestyModelId
+		case "litellm":
+			return apiConfiguration.litellmModelId
+		case "openai":
+			return apiConfiguration.openAiModelId
+		case "ollama":
+			return apiConfiguration.ollamaModelId
+		case "lmstudio":
+			return apiConfiguration.lmStudioModelId
+		case "vscode-lm":
+			// vsCodeLmModelSelector is an object, not a string
+			return apiConfiguration.vsCodeLmModelSelector?.id
+		default:
+			return apiConfiguration.apiModelId
+	}
 }
 /**
  * Validates an Amazon Bedrock ARN format and optionally checks if the region in the ARN matches the provided region

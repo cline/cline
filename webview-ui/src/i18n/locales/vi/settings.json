@@ -540,7 +540,10 @@
 			"invalidFormat": "Định dạng ARN không hợp lệ. Vui lòng kiểm tra yêu cầu về định dạng.",
 			"regionMismatch": "Cảnh báo: Vùng trong ARN của bạn ({{arnRegion}}) không khớp với vùng bạn đã chọn ({{region}}). Điều này có thể gây ra vấn đề truy cập. Nhà cung cấp sẽ sử dụng vùng từ ARN."
 		},
-		"modelAvailability": "ID mô hình ({{modelId}}) bạn đã cung cấp không khả dụng. Vui lòng chọn một mô hình khác."
+		"modelAvailability": "ID mô hình ({{modelId}}) bạn đã cung cấp không khả dụng. Vui lòng chọn một mô hình khác.",
+		"providerNotAllowed": "Nhà cung cấp '{{provider}}' không được phép bởi tổ chức của bạn",
+		"modelNotAllowed": "Mô hình '{{model}}' không được phép cho nhà cung cấp '{{provider}}' bởi tổ chức của bạn",
+		"profileInvalid": "Hồ sơ này chứa một nhà cung cấp hoặc mô hình không được phép bởi tổ chức của bạn"
 	},
 	"placeholders": {
 		"apiKey": "Nhập khóa API...",

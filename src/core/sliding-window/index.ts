@@ -1,8 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+
+import { TelemetryService } from "@roo-code/telemetry"
+
 import { ApiHandler } from "../../api"
 import { summarizeConversation, SummarizeResponse } from "../condense"
 import { ApiMessage } from "../task-persistence/apiMessages"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 /**
  * Default percentage of the context window to use as a buffer when deciding when to truncate
@@ -36,7 +38,7 @@ export async function estimateTokenCount(
  * @returns {ApiMessage[]} The truncated conversation messages.
  */
 export function truncateConversation(messages: ApiMessage[], fracToRemove: number, taskId: string): ApiMessage[] {
-	telemetryService.captureSlidingWindowTruncation(taskId)
+	TelemetryService.instance.captureSlidingWindowTruncation(taskId)
 	const truncatedMessages = [messages[0]]
 	const rawMessagesToRemove = Math.floor((messages.length - 1) * fracToRemove)
 	const messagesToRemove = rawMessagesToRemove - (rawMessagesToRemove % 2)

@@ -133,10 +133,3 @@ jobs:
       - name: Run integration tests
         working-directory: apps/vscode-e2e
         run: xvfb-run -a pnpm test:ci
-
-  qa:
-    needs: [check-translations, knip, compile, platform-unit-test, integration-test]
-    runs-on: ubuntu-latest
-    steps:
-      - name: NO-OP
-        run: echo "All tests passed."

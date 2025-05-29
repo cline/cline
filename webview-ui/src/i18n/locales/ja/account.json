@@ -1,0 +1,10 @@
+{
+	"title": "アカウント",
+	"profilePicture": "プロフィール画像",
+	"unknownUser": "不明なユーザー",
+	"logOut": "ログアウト",
+	"testApiAuthentication": "API認証をテスト",
+	"signUpTitle": "アカウントにサインイン",
+	"signUpDescription": "サインインして、Roo のパーソナライズされた機能と設定にアクセスします。",
+	"signIn": "Roo Code Cloud にサインイン"
+}

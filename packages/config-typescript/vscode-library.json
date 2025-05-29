@@ -1,0 +1,12 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"extends": "./base.json",
+	"compilerOptions": {
+		"types": ["vitest/globals"],
+		"outDir": "dist",
+		"module": "esnext",
+		"moduleResolution": "Bundler",
+		"noUncheckedIndexedAccess": false,
+		"useUnknownInCatchVariables": false
+	}
+}

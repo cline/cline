@@ -146,7 +146,7 @@ export class RefreshTimer {
 			const result = await this.callback()
 
 			this.scheduleNextAttempt(result)
-		} catch (error) {
+		} catch (_error) {
 			// Treat errors as failed attempts
 			this.scheduleNextAttempt(false)
 		}

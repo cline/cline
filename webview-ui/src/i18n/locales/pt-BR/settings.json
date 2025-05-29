@@ -540,7 +540,10 @@
 			"invalidFormat": "Formato de ARN inválido. Por favor, verifique os requisitos de formato.",
 			"regionMismatch": "Aviso: A região em seu ARN ({{arnRegion}}) não corresponde à região selecionada ({{region}}). Isso pode causar problemas de acesso. O provedor usará a região do ARN."
 		},
-		"modelAvailability": "O ID do modelo ({{modelId}}) que você forneceu não está disponível. Por favor, escolha outro modelo."
+		"modelAvailability": "O ID do modelo ({{modelId}}) que você forneceu não está disponível. Por favor, escolha outro modelo.",
+		"providerNotAllowed": "O provedor '{{provider}}' não é permitido pela sua organização",
+		"modelNotAllowed": "O modelo '{{model}}' não é permitido para o provedor '{{provider}}' pela sua organização",
+		"profileInvalid": "Este perfil contém um provedor ou modelo que não é permitido pela sua organização"
 	},
 	"placeholders": {
 		"apiKey": "Digite a chave API...",

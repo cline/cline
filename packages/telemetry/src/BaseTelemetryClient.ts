@@ -1,6 +1,10 @@
-import { TelemetryEvent, TelemetryEventName } from "@roo-code/types"
-
-import { TelemetryClient, TelemetryPropertiesProvider, TelemetryEventSubscription } from "../types"
+import {
+	TelemetryEvent,
+	TelemetryEventName,
+	TelemetryClient,
+	TelemetryPropertiesProvider,
+	TelemetryEventSubscription,
+} from "@roo-code/types"
 
 export abstract class BaseTelemetryClient implements TelemetryClient {
 	protected providerRef: WeakRef<TelemetryPropertiesProvider> | null = null

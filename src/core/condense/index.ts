@@ -1,9 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk"
+
+import { TelemetryService } from "@roo-code/telemetry"
+
 import { t } from "../../i18n"
 import { ApiHandler } from "../../api"
 import { ApiMessage } from "../task-persistence/apiMessages"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 export const N_MESSAGES_TO_KEEP = 3
 
@@ -88,14 +90,16 @@ export async function summarizeConversation(
 	customCondensingPrompt?: string,
 	condensingApiHandler?: ApiHandler,
 ): Promise<SummarizeResponse> {
-	telemetryService.captureContextCondensed(
+	TelemetryService.instance.captureContextCondensed(
 		taskId,
 		isAutomaticTrigger ?? false,
 		!!customCondensingPrompt?.trim(),
 		!!condensingApiHandler,
 	)
+
 	const response: SummarizeResponse = { messages, cost: 0, summary: "" }
 	const messagesToSummarize = getMessagesSinceLastSummary(messages.slice(0, -N_MESSAGES_TO_KEEP))
+
 	if (messagesToSummarize.length <= 1) {
 		const error =
 			messages.length <= N_MESSAGES_TO_KEEP + 1
@@ -103,20 +107,25 @@ export async function summarizeConversation(
 				: t("common:errors.condensed_recently")
 		return { ...response, error }
 	}
+
 	const keepMessages = messages.slice(-N_MESSAGES_TO_KEEP)
 	// Check if there's a recent summary in the messages we're keeping
 	const recentSummaryExists = keepMessages.some((message) => message.isSummary)
+
 	if (recentSummaryExists) {
 		const error = t("common:errors.condensed_recently")
 		return { ...response, error }
 	}
+
 	const finalRequestMessage: Anthropic.MessageParam = {
 		role: "user",
 		content: "Summarize the conversation so far, as described in the prompt instructions.",
 	}
+
 	const requestMessages = maybeRemoveImageBlocks([...messagesToSummarize, finalRequestMessage], apiHandler).map(
 		({ role, content }) => ({ role, content }),
 	)
+
 	// Note: this doesn't need to be a stream, consider using something like apiHandler.completePrompt
 	// Use custom prompt if provided and non-empty, otherwise use the default SUMMARY_PROMPT
 	const promptToUse = customCondensingPrompt?.trim() ? customCondensingPrompt.trim() : SUMMARY_PROMPT
@@ -129,7 +138,9 @@ export async function summarizeConversation(
 		console.warn(
 			"Chosen API handler for condensing does not support message creation or is invalid, falling back to main apiHandler.",
 		)
+
 		handlerToUse = apiHandler // Fallback to the main, presumably valid, apiHandler
+
 		// Ensure the main apiHandler itself is valid before this point or add another check.
 		if (!handlerToUse || typeof handlerToUse.createMessage !== "function") {
 			// This case should ideally not happen if main apiHandler is always valid.
@@ -142,9 +153,11 @@ export async function summarizeConversation(
 	}
 
 	const stream = handlerToUse.createMessage(promptToUse, requestMessages)
+
 	let summary = ""
 	let cost = 0
 	let outputTokens = 0
+
 	for await (const chunk of stream) {
 		if (chunk.type === "text") {
 			summary += chunk.text
@@ -154,28 +167,35 @@ export async function summarizeConversation(
 			outputTokens = chunk.outputTokens ?? 0
 		}
 	}
+
 	summary = summary.trim()
+
 	if (summary.length === 0) {
 		const error = t("common:errors.condense_failed")
 		return { ...response, cost, error }
 	}
+
 	const summaryMessage: ApiMessage = {
 		role: "assistant",
 		content: summary,
 		ts: keepMessages[0].ts,
 		isSummary: true,
 	}
+
 	const newMessages = [...messages.slice(0, -N_MESSAGES_TO_KEEP), summaryMessage, ...keepMessages]
 
 	// Count the tokens in the context for the next API request
 	// We only estimate the tokens in summaryMesage if outputTokens is 0, otherwise we use outputTokens
 	const systemPromptMessage: ApiMessage = { role: "user", content: systemPrompt }
+
 	const contextMessages = outputTokens
 		? [systemPromptMessage, ...keepMessages]
 		: [systemPromptMessage, summaryMessage, ...keepMessages]
+
 	const contextBlocks = contextMessages.flatMap((message) =>
 		typeof message.content === "string" ? [{ text: message.content, type: "text" as const }] : message.content,
 	)
+
 	const newContextTokens = outputTokens + (await apiHandler.countTokens(contextBlocks))
 	if (newContextTokens >= prevContextTokens) {
 		const error = t("common:errors.condense_context_grew")
@@ -187,9 +207,11 @@ export async function summarizeConversation(
 /* Returns the list of all messages since the last summary message, including the summary. Returns all messages if there is no summary. */
 export function getMessagesSinceLastSummary(messages: ApiMessage[]): ApiMessage[] {
 	let lastSummaryIndexReverse = [...messages].reverse().findIndex((message) => message.isSummary)
+
 	if (lastSummaryIndexReverse === -1) {
 		return messages
 	}
+
 	const lastSummaryIndex = messages.length - lastSummaryIndexReverse - 1
 	return messages.slice(lastSummaryIndex)
 }

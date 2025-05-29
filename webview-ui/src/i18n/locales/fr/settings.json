@@ -540,7 +540,10 @@
 			"invalidFormat": "Format ARN invalide. Veuillez vérifier les exigences de format.",
 			"regionMismatch": "Attention : La région dans votre ARN ({{arnRegion}}) ne correspond pas à votre région sélectionnée ({{region}}). Cela peut causer des problèmes d'accès. Le fournisseur utilisera la région de l'ARN."
 		},
-		"modelAvailability": "L'ID de modèle ({{modelId}}) que vous avez fourni n'est pas disponible. Veuillez choisir un modèle différent."
+		"modelAvailability": "L'ID de modèle ({{modelId}}) que vous avez fourni n'est pas disponible. Veuillez choisir un modèle différent.",
+		"providerNotAllowed": "Le fournisseur '{{provider}}' n'est pas autorisé par votre organisation",
+		"modelNotAllowed": "Le modèle '{{model}}' n'est pas autorisé pour le fournisseur '{{provider}}' par votre organisation",
+		"profileInvalid": "Ce profil contient un fournisseur ou un modèle qui n'est pas autorisé par votre organisation"
 	},
 	"placeholders": {
 		"apiKey": "Saisissez la clé API...",

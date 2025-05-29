@@ -4,13 +4,13 @@ import * as path from "path"
 import delay from "delay"
 
 import { CommandExecutionStatus } from "@roo-code/types"
+import { TelemetryService } from "@roo-code/telemetry"
 
 import { Task } from "../task/Task"
 
 import { ToolUse, AskApproval, HandleError, PushToolResult, RemoveClosingTag, ToolResponse } from "../../shared/tools"
 import { formatResponse } from "../prompts/responses"
 import { unescapeHtmlEntities } from "../../utils/text-normalization"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { ExitCodeDetails, RooTerminalCallbacks, RooTerminalProcess } from "../../integrations/terminal/types"
 import { TerminalRegistry } from "../../integrations/terminal/TerminalRegistry"
 import { Terminal } from "../../integrations/terminal/Terminal"
@@ -192,7 +192,7 @@ export async function executeCommand(
 
 	if (terminalProvider === "vscode") {
 		callbacks.onNoShellIntegration = async (error: string) => {
-			telemetryService.captureShellIntegrationError(cline.taskId)
+			TelemetryService.instance.captureShellIntegrationError(cline.taskId)
 			shellIntegrationError = error
 		}
 	}

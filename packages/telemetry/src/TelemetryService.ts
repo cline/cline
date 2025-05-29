@@ -1,38 +1,17 @@
-import * as vscode from "vscode"
 import { ZodError } from "zod"
 
-import { TelemetryEventName } from "@roo-code/types"
-
-import { logger } from "../../utils/logging"
-
-import { PostHogTelemetryClient } from "./clients/PostHogTelemetryClient"
-import { type TelemetryClient, type TelemetryPropertiesProvider } from "./types"
+import { type TelemetryClient, type TelemetryPropertiesProvider, TelemetryEventName } from "@roo-code/types"
 
 /**
  * TelemetryService wrapper class that defers initialization.
  * This ensures that we only create the various clients after environment
  * variables are loaded.
  */
-class TelemetryService {
-	private clients: TelemetryClient[] = []
-	private initialized = false
+export class TelemetryService {
+	constructor(private clients: TelemetryClient[]) {}
 
-	/**
-	 * Initialize the telemetry client. This should be called after environment
-	 * variables are loaded.
-	 */
-	public async initialize(context: vscode.ExtensionContext): Promise<void> {
-		if (this.initialized) {
-			return
-		}
-
-		this.initialized = true
-
-		try {
-			this.clients.push(PostHogTelemetryClient.getInstance())
-		} catch (error) {
-			console.warn("Failed to initialize telemetry service:", error)
-		}
+	public register(client: TelemetryClient): void {
+		this.clients.push(client)
 	}
 
 	/**
@@ -44,8 +23,6 @@ class TelemetryService {
 		if (this.isReady) {
 			this.clients.forEach((client) => client.setProvider(provider))
 		}
-
-		logger.debug("TelemetryService: ClineProvider reference set")
 	}
 
 	/**
@@ -54,7 +31,7 @@ class TelemetryService {
 	 * @returns Whether the service is ready to use
 	 */
 	private get isReady(): boolean {
-		return this.initialized && this.clients.length > 0
+		return this.clients.length > 0
 	}
 
 	/**
@@ -74,7 +51,8 @@ class TelemetryService {
 	 * @param eventName The event name to capture
 	 * @param properties The event properties
 	 */
-	public captureEvent(eventName: TelemetryEventName, properties?: any): void {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	public captureEvent(eventName: TelemetryEventName, properties?: Record<string, any>): void {
 		if (!this.isReady) {
 			return
 		}
@@ -197,6 +175,27 @@ class TelemetryService {
 
 		this.clients.forEach((client) => client.shutdown())
 	}
-}
 
-export const telemetryService = new TelemetryService()
+	private static _instance: TelemetryService | null = null
+
+	static createInstance(clients: TelemetryClient[] = []) {
+		if (this._instance) {
+			throw new Error("TelemetryService instance already created")
+		}
+
+		this._instance = new TelemetryService(clients)
+		return this._instance
+	}
+
+	static get instance() {
+		if (!this._instance) {
+			throw new Error("TelemetryService not initialized")
+		}
+
+		return this._instance
+	}
+
+	static hasInstance(): boolean {
+		return this._instance !== null
+	}
+}

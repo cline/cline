@@ -250,6 +250,7 @@
 		}
 	},
 	"systemPromptWarning": "警告：自定义系统提示词覆盖已激活。这可能严重破坏功能并导致不可预测的行为。",
+	"profileViolationWarning": "当前配置文件违反了您的组织设置",
 	"shellIntegration": {
 		"title": "命令执行警告",
 		"description": "您的命令正在没有 VSCode 终端 shell 集成的情况下执行。要隐藏此警告，您可以在 <settingsLink>Roo Code 设置</settingsLink>的 <strong>Terminal</strong> 部分禁用 shell 集成，或使用下方链接排查 VSCode 终端集成问题。",

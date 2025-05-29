@@ -99,9 +99,6 @@ async function main() {
 		entryPoints: ["extension.ts"],
 		outfile: "dist/extension.js",
 		external: ["vscode"],
-		alias: {
-			"@roo-code/types": path.resolve(__dirname, "../packages/types/dist/index.js"),
-		},
 	}
 
 	/**
@@ -111,9 +108,6 @@ async function main() {
 		...buildOptions,
 		entryPoints: ["workers/countTokens.ts"],
 		outdir: "dist/workers",
-		alias: {
-			"@roo-code/types": path.resolve(__dirname, "../packages/types/dist/index.js"),
-		},
 	}
 
 	const [extensionCtx, workerCtx] = await Promise.all([

@@ -1,0 +1,10 @@
+{
+	"title": "Cuenta",
+	"profilePicture": "Foto de perfil",
+	"unknownUser": "Usuario desconocido",
+	"logOut": "Cerrar sesión",
+	"testApiAuthentication": "Probar autenticación de API",
+	"signUpTitle": "Inicia sesión en tu cuenta",
+	"signUpDescription": "Inicia sesión para acceder a las funciones y ajustes personalizados de Roo.",
+	"signIn": "Iniciar sesión en Roo Code Cloud"
+}

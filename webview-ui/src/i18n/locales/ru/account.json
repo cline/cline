@@ -1,0 +1,10 @@
+{
+	"title": "Учетная запись",
+	"profilePicture": "Фото профиля",
+	"unknownUser": "Неизвестный пользователь",
+	"logOut": "Выход",
+	"testApiAuthentication": "Проверить аутентификацию API",
+	"signUpTitle": "Войдите в свой аккаунт",
+	"signUpDescription": "Войдите, чтобы получить доступ к персонализированным функциям и настройкам Roo.",
+	"signIn": "Войти в Roo Code Cloud"
+}

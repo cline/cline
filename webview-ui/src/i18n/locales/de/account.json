@@ -1,0 +1,10 @@
+{
+	"title": "Konto",
+	"profilePicture": "Profilbild",
+	"unknownUser": "Unbekannter Benutzer",
+	"logOut": "Abmelden",
+	"testApiAuthentication": "API-Authentifizierung testen",
+	"signUpTitle": "Melde dich bei deinem Konto an",
+	"signUpDescription": "Melde dich an, um auf Roos personalisierte Funktionen und Einstellungen zuzugreifen.",
+	"signIn": "Melde dich bei Roo Code Cloud an"
+}

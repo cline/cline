@@ -27,5 +27,6 @@
 	"settings.vsCodeLmModelSelector.description": "Impostazioni per l'API del modello linguistico VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "Il fornitore del modello linguistico (es. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "La famiglia del modello linguistico (es. gpt-4)",
-	"settings.customStoragePath.description": "Percorso di archiviazione personalizzato. Lasciare vuoto per utilizzare la posizione predefinita. Supporta percorsi assoluti (es. 'D:\\RooCodeStorage')"
+	"settings.customStoragePath.description": "Percorso di archiviazione personalizzato. Lasciare vuoto per utilizzare la posizione predefinita. Supporta percorsi assoluti (es. 'D:\\RooCodeStorage')",
+	"settings.rooCodeCloudEnabled.description": "Abilita Roo Code Cloud."
 }

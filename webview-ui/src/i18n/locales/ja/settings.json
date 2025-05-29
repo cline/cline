@@ -540,7 +540,10 @@
 			"invalidFormat": "ARNの形式が無効です。フォーマット要件を確認してください。",
 			"regionMismatch": "警告：ARN内のリージョン（{{arnRegion}}）が選択したリージョン（{{region}}）と一致しません。これによりアクセスの問題が発生する可能性があります。プロバイダーはARNのリージョンを使用します。"
 		},
-		"modelAvailability": "指定されたモデルID（{{modelId}}）は利用できません。別のモデルを選択してください。"
+		"modelAvailability": "指定されたモデルID（{{modelId}}）は利用できません。別のモデルを選択してください。",
+		"providerNotAllowed": "プロバイダー「{{provider}}」は組織によって許可されていません",
+		"modelNotAllowed": "モデル「{{model}}」はプロバイダー「{{provider}}」に対して組織によって許可されていません",
+		"profileInvalid": "このプロファイルには、組織によって許可されていないプロバイダーまたはモデルが含まれています"
 	},
 	"placeholders": {
 		"apiKey": "API キーを入力...",

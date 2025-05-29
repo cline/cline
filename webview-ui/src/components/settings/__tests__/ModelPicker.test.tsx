@@ -51,6 +51,7 @@ describe("ModelPicker", () => {
 		recommendedModel: "recommended-model",
 		models: mockModels,
 		setApiConfigurationField: mockSetApiConfigurationField,
+		organizationAllowList: { allowAll: true, providers: {} },
 	}
 
 	const queryClient = new QueryClient()

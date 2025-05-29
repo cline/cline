@@ -540,7 +540,10 @@
 			"invalidFormat": "Geçersiz ARN formatı. Lütfen format gereksinimlerini kontrol edin.",
 			"regionMismatch": "Uyarı: ARN'nizdeki bölge ({{arnRegion}}) seçtiğiniz bölge ({{region}}) ile eşleşmiyor. Bu erişim sorunlarına neden olabilir. Sağlayıcı, ARN'deki bölgeyi kullanacak."
 		},
-		"modelAvailability": "Sağladığınız model kimliği ({{modelId}}) kullanılamıyor. Lütfen başka bir model seçin."
+		"modelAvailability": "Sağladığınız model kimliği ({{modelId}}) kullanılamıyor. Lütfen başka bir model seçin.",
+		"providerNotAllowed": "Sağlayıcı '{{provider}}' kuruluşunuz tarafından izin verilmiyor",
+		"modelNotAllowed": "Model '{{model}}' sağlayıcı '{{provider}}' için kuruluşunuz tarafından izin verilmiyor",
+		"profileInvalid": "Bu profil, kuruluşunuz tarafından izin verilmeyen bir sağlayıcı veya model içeriyor"
 	},
 	"placeholders": {
 		"apiKey": "API anahtarını girin...",

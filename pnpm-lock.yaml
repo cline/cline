@@ -118,6 +118,34 @@ importers:
         specifier: ^3.1.3
         version: 3.1.3(@types/debug@4.1.12)(@types/node@22.15.20)(jiti@2.4.2)(jsdom@20.0.3)(lightningcss@1.29.2)(tsx@4.19.4)(yaml@2.8.0)
 
+  packages/cloud:
+    dependencies:
+      '@roo-code/telemetry':
+        specifier: workspace:^
+        version: link:../telemetry
+      '@roo-code/types':
+        specifier: workspace:^
+        version: link:../types
+      axios:
+        specifier: ^1.7.4
+        version: 1.9.0
+    devDependencies:
+      '@roo-code/config-eslint':
+        specifier: workspace:^
+        version: link:../config-eslint
+      '@roo-code/config-typescript':
+        specifier: workspace:^
+        version: link:../config-typescript
+      '@types/node':
+        specifier: ^22.15.20
+        version: 22.15.20
+      '@types/vscode':
+        specifier: ^1.84.0
+        version: 1.100.0
+      vitest:
+        specifier: ^3.1.3
+        version: 3.1.3(@types/debug@4.1.12)(@types/node@22.15.20)(jiti@2.4.2)(jsdom@20.0.3)(lightningcss@1.29.2)(tsx@4.19.4)(yaml@2.8.0)
+
   packages/config-eslint:
     devDependencies:
       '@eslint/js':
@@ -152,6 +180,34 @@ importers:
         version: 8.32.1(eslint@9.27.0(jiti@2.4.2))(typescript@5.8.3)
 
   packages/config-typescript: {}
+
+  packages/telemetry:
+    dependencies:
+      '@roo-code/types':
+        specifier: workspace:^
+        version: link:../types
+      posthog-node:
+        specifier: ^4.7.0
+        version: 4.17.2
+      zod:
+        specifier: ^3.24.2
+        version: 3.24.4
+    devDependencies:
+      '@roo-code/config-eslint':
+        specifier: workspace:^
+        version: link:../config-eslint
+      '@roo-code/config-typescript':
+        specifier: workspace:^
+        version: link:../config-typescript
+      '@types/node':
+        specifier: ^22.15.20
+        version: 22.15.20
+      '@types/vscode':
+        specifier: ^1.84.0
+        version: 1.100.0
+      vitest:
+        specifier: ^3.1.3
+        version: 3.1.3(@types/debug@4.1.12)(@types/node@22.15.20)(jiti@2.4.2)(jsdom@20.0.3)(lightningcss@1.29.2)(tsx@4.19.4)(yaml@2.8.0)
 
   packages/types:
     dependencies:
@@ -204,6 +260,12 @@ importers:
       '@qdrant/js-client-rest':
         specifier: ^1.14.0
         version: 1.14.0(typescript@5.8.3)
+      '@roo-code/cloud':
+        specifier: workspace:^
+        version: link:../packages/cloud
+      '@roo-code/telemetry':
+        specifier: workspace:^
+        version: link:../packages/telemetry
       '@roo-code/types':
         specifier: workspace:^
         version: link:../packages/types
@@ -300,9 +362,6 @@ importers:
       pkce-challenge:
         specifier: ^4.1.0
         version: 4.1.0
-      posthog-node:
-        specifier: ^4.7.0
-        version: 4.17.2
       pretty-bytes:
         specifier: ^6.1.1
         version: 6.1.1

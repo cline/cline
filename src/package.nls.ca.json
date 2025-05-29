@@ -27,5 +27,6 @@
 	"settings.vsCodeLmModelSelector.description": "Configuració per a l'API del model de llenguatge VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "El proveïdor del model de llenguatge (p. ex. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "La família del model de llenguatge (p. ex. gpt-4)",
-	"settings.customStoragePath.description": "Ruta d'emmagatzematge personalitzada. Deixeu-la buida per utilitzar la ubicació predeterminada. Admet rutes absolutes (p. ex. 'D:\\RooCodeStorage')"
+	"settings.customStoragePath.description": "Ruta d'emmagatzematge personalitzada. Deixeu-la buida per utilitzar la ubicació predeterminada. Admet rutes absolutes (p. ex. 'D:\\RooCodeStorage')",
+	"settings.rooCodeCloudEnabled.description": "Habilitar Roo Code Cloud."
 }

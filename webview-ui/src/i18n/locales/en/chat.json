@@ -255,6 +255,7 @@
 		}
 	},
 	"systemPromptWarning": "WARNING: Custom system prompt override active. This can severely break functionality and cause unpredictable behavior.",
+	"profileViolationWarning": "The current profile violates your organization's settings",
 	"shellIntegration": {
 		"title": "Command Execution Warning",
 		"description": "Your command is being executed without VSCode terminal shell integration. To suppress this warning you can disable shell integration in the <strong>Terminal</strong> section of the <settingsLink>Roo Code settings</settingsLink> or troubleshoot VSCode terminal integration using the link below.",

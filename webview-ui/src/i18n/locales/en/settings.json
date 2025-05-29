@@ -540,7 +540,10 @@
 			"invalidFormat": "Invalid ARN format. Please check the format requirements.",
 			"regionMismatch": "Warning: The region in your ARN ({{arnRegion}}) does not match your selected region ({{region}}). This may cause access issues. The provider will use the region from the ARN."
 		},
-		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model."
+		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model.",
+		"providerNotAllowed": "Provider '{{provider}}' is not allowed by your organization",
+		"modelNotAllowed": "Model '{{model}}' is not allowed for provider '{{provider}}' by your organization",
+		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization"
 	},
 	"placeholders": {
 		"apiKey": "Enter API Key...",

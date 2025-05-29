@@ -1,4 +1,5 @@
 name: Publish Extension
+
 on:
   pull_request:
     types: [closed]

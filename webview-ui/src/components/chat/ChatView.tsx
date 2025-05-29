@@ -6,6 +6,7 @@ import removeMd from "remove-markdown"
 import { Trans } from "react-i18next"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import useSound from "use-sound"
+import { LRUCache } from "lru-cache"
 
 import type { ClineAsk, ClineMessage } from "@roo-code/types"
 
@@ -17,6 +18,7 @@ import { combineCommandSequences } from "@roo/combineCommandSequences"
 import { getApiMetrics } from "@roo/getApiMetrics"
 import { AudioType } from "@roo/WebviewMessage"
 import { getAllModes } from "@roo/modes"
+import { ProfileValidator } from "@roo/ProfileValidator"
 
 import { vscode } from "@src/utils/vscode"
 import { validateCommand } from "@src/utils/command-validation"
@@ -37,8 +39,8 @@ import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import SystemPromptWarning from "./SystemPromptWarning"
+import ProfileViolationWarning from "./ProfileViolationWarning"
 import { CheckpointWarning } from "./CheckpointWarning"
-import { LRUCache } from "lru-cache"
 
 export interface ChatViewProps {
 	isHidden: boolean
@@ -69,6 +71,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		currentTaskItem,
 		taskHistory,
 		apiConfiguration,
+		organizationAllowList,
 		mcpServers,
 		alwaysAllowBrowser,
 		alwaysAllowReadOnly,
@@ -154,6 +157,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	useEffect(() => {
 		clineAskRef.current = clineAsk
 	}, [clineAsk])
+
+	const isProfileDisabled = useMemo(
+		() => !!apiConfiguration && !ProfileValidator.isProfileAllowed(apiConfiguration, organizationAllowList),
+		[apiConfiguration, organizationAllowList],
+	)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -1282,7 +1290,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		acceptInput: () => {
 			if (enableButtons && primaryButtonText) {
 				handlePrimaryButtonClick(inputValue, selectedImages)
-			} else if (!sendingDisabled && (inputValue.trim() || selectedImages.length > 0)) {
+			} else if (!sendingDisabled && !isProfileDisabled && (inputValue.trim() || selectedImages.length > 0)) {
 				handleSendMessage(inputValue, selectedImages)
 			}
 		},
@@ -1494,7 +1502,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				ref={textAreaRef}
 				inputValue={inputValue}
 				setInputValue={setInputValue}
-				sendingDisabled={sendingDisabled}
+				sendingDisabled={sendingDisabled || isProfileDisabled}
 				selectApiConfigDisabled={sendingDisabled && clineAsk !== "api_req_failed"}
 				placeholderText={placeholderText}
 				selectedImages={selectedImages}
@@ -1511,6 +1519,12 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				setMode={setMode}
 				modeShortcutText={modeShortcutText}
 			/>
+
+			{isProfileDisabled && (
+				<div className="px-3">
+					<ProfileViolationWarning />
+				</div>
+			)}
 
 			<div id="roo-portal" />
 		</div>

@@ -27,5 +27,6 @@
 	"settings.vsCodeLmModelSelector.description": "Ustawienia dla API modelu językowego VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "Dostawca modelu językowego (np. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Rodzina modelu językowego (np. gpt-4)",
-	"settings.customStoragePath.description": "Niestandardowa ścieżka przechowywania. Pozostaw puste, aby użyć domyślnej lokalizacji. Obsługuje ścieżki bezwzględne (np. 'D:\\RooCodeStorage')"
+	"settings.customStoragePath.description": "Niestandardowa ścieżka przechowywania. Pozostaw puste, aby użyć domyślnej lokalizacji. Obsługuje ścieżki bezwzględne (np. 'D:\\RooCodeStorage')",
+	"settings.rooCodeCloudEnabled.description": "Włącz Roo Code Cloud."
 }

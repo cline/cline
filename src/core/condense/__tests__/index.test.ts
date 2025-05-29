@@ -1,18 +1,23 @@
+// npx jest core/condense/__tests__/index.test.ts
+
 import { describe, expect, it, jest, beforeEach } from "@jest/globals"
+
+import { TelemetryService } from "@roo-code/telemetry"
+
 import { ApiHandler } from "../../../api"
 import { ApiMessage } from "../../task-persistence/apiMessages"
 import { maybeRemoveImageBlocks } from "../../../api/transform/image-cleaning"
 import { summarizeConversation, getMessagesSinceLastSummary, N_MESSAGES_TO_KEEP } from "../index"
-import { telemetryService } from "../../../services/telemetry/TelemetryService"
 
-// Mock dependencies
 jest.mock("../../../api/transform/image-cleaning", () => ({
 	maybeRemoveImageBlocks: jest.fn((messages: ApiMessage[], _apiHandler: ApiHandler) => [...messages]),
 }))
 
-jest.mock("../../../services/telemetry/TelemetryService", () => ({
-	telemetryService: {
-		captureContextCondensed: jest.fn(),
+jest.mock("@roo-code/telemetry", () => ({
+	TelemetryService: {
+		instance: {
+			captureContextCondensed: jest.fn(),
+		},
 	},
 }))
 
@@ -524,7 +529,7 @@ describe("summarizeConversation with custom settings", () => {
 		jest.clearAllMocks()
 
 		// Reset telemetry mock
-		;(telemetryService.captureContextCondensed as jest.Mock).mockClear()
+		;(TelemetryService.instance.captureContextCondensed as jest.Mock).mockClear()
 
 		// Setup mock API handlers
 		mockMainApiHandler = {
@@ -729,7 +734,7 @@ describe("summarizeConversation with custom settings", () => {
 		)
 
 		// Verify telemetry was called with custom prompt flag
-		expect(telemetryService.captureContextCondensed).toHaveBeenCalledWith(
+		expect(TelemetryService.instance.captureContextCondensed).toHaveBeenCalledWith(
 			taskId,
 			false,
 			true, // usedCustomPrompt
@@ -753,7 +758,7 @@ describe("summarizeConversation with custom settings", () => {
 		)
 
 		// Verify telemetry was called with custom API handler flag
-		expect(telemetryService.captureContextCondensed).toHaveBeenCalledWith(
+		expect(TelemetryService.instance.captureContextCondensed).toHaveBeenCalledWith(
 			taskId,
 			false,
 			false, // usedCustomPrompt
@@ -777,7 +782,7 @@ describe("summarizeConversation with custom settings", () => {
 		)
 
 		// Verify telemetry was called with both flags
-		expect(telemetryService.captureContextCondensed).toHaveBeenCalledWith(
+		expect(TelemetryService.instance.captureContextCondensed).toHaveBeenCalledWith(
 			taskId,
 			true, // isAutomaticTrigger
 			true, // usedCustomPrompt

@@ -1,0 +1,10 @@
+{
+	"title": "खाता",
+	"profilePicture": "प्रोफाइल चित्र",
+	"unknownUser": "अज्ञात उपयोगकर्ता",
+	"logOut": "लॉग आउट",
+	"testApiAuthentication": "API प्रमाणीकरण का परीक्षण करें",
+	"signUpTitle": "अपने खाते में साइन इन करें",
+	"signUpDescription": "Roo की व्यक्तिगत सुविधाओं और सेटिंग्स तक पहुँचने के लिए साइन इन करें।",
+	"signIn": "Roo Code Cloud में साइन इन करें"
+}

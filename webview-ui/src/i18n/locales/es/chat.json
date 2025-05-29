@@ -250,6 +250,7 @@
 		}
 	},
 	"systemPromptWarning": "ADVERTENCIA: Anulación de instrucciones del sistema personalizada activa. Esto puede romper gravemente la funcionalidad y causar un comportamiento impredecible.",
+	"profileViolationWarning": "El perfil actual infringe la configuración de tu organización",
 	"shellIntegration": {
 		"title": "Advertencia de ejecución de comandos",
 		"description": "Tu comando se está ejecutando sin la integración de shell de terminal de VSCode. Para suprimir esta advertencia, puedes desactivar la integración de shell en la sección <strong>Terminal</strong> de la <settingsLink>configuración de Roo Code</settingsLink> o solucionar problemas de integración de terminal de VSCode usando el enlace de abajo.",

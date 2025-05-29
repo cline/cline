@@ -1,21 +1,23 @@
-// npx jest src/services/telemetry/clients/__tests__/PostHogTelemetryClient.test.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
+// npx vitest run src/__tests__/PostHogTelemetryClient.test.ts
+
+import { describe, it, expect, beforeEach, vi } from "vitest"
 import * as vscode from "vscode"
 import { PostHog } from "posthog-node"
 
-import { TelemetryEventName } from "@roo-code/types"
+import { type TelemetryPropertiesProvider, TelemetryEventName } from "@roo-code/types"
 
-import { TelemetryPropertiesProvider } from "../../types"
 import { PostHogTelemetryClient } from "../PostHogTelemetryClient"
 
-jest.mock("posthog-node")
+vi.mock("posthog-node")
 
-jest.mock("vscode", () => ({
+vi.mock("vscode", () => ({
 	env: {
 		machineId: "test-machine-id",
 	},
 	workspace: {
-		getConfiguration: jest.fn(),
+		getConfiguration: vi.fn(),
 	},
 }))
 
@@ -24,37 +26,29 @@ describe("PostHogTelemetryClient", () => {
 		return instance[propertyName]
 	}
 
-	let mockPostHogClient: jest.Mocked<PostHog>
+	let mockPostHogClient: any
 
 	beforeEach(() => {
-		jest.clearAllMocks()
+		vi.clearAllMocks()
 
 		mockPostHogClient = {
-			capture: jest.fn(),
-			optIn: jest.fn(),
-			optOut: jest.fn(),
-			shutdown: jest.fn().mockResolvedValue(undefined),
-		} as unknown as jest.Mocked<PostHog>
-		;(PostHog as unknown as jest.Mock).mockImplementation(() => mockPostHogClient)
+			capture: vi.fn(),
+			optIn: vi.fn(),
+			optOut: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		}
+		;(PostHog as any).mockImplementation(() => mockPostHogClient)
 
-		// @ts-ignore - Accessing private static property for testing
+		// @ts-expect-error - Accessing private static property for testing
 		PostHogTelemetryClient._instance = undefined
-		;(vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-			get: jest.fn().mockReturnValue("all"),
-		})
-	})
-
-	describe("getInstance", () => {
-		it("should return the same instance when called multiple times", () => {
-			const instance1 = PostHogTelemetryClient.getInstance()
-			const instance2 = PostHogTelemetryClient.getInstance()
-			expect(instance1).toBe(instance2)
+		;(vscode.workspace.getConfiguration as any).mockReturnValue({
+			get: vi.fn().mockReturnValue("all"),
 		})
 	})
 
 	describe("isEventCapturable", () => {
 		it("should return true for events not in exclude list", () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 
 			const isEventCapturable = getPrivateProperty<(eventName: TelemetryEventName) => boolean>(
 				client,
@@ -66,7 +60,7 @@ describe("PostHogTelemetryClient", () => {
 		})
 
 		it("should return false for events in exclude list", () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 
 			const isEventCapturable = getPrivateProperty<(eventName: TelemetryEventName) => boolean>(
 				client,
@@ -79,10 +73,10 @@ describe("PostHogTelemetryClient", () => {
 
 	describe("getEventProperties", () => {
 		it("should merge provider properties with event properties", async () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 
 			const mockProvider: TelemetryPropertiesProvider = {
-				getTelemetryProperties: jest.fn().mockResolvedValue({
+				getTelemetryProperties: vi.fn().mockResolvedValue({
 					appVersion: "1.0.0",
 					vscodeVersion: "1.60.0",
 					platform: "darwin",
@@ -120,13 +114,13 @@ describe("PostHogTelemetryClient", () => {
 		})
 
 		it("should handle errors from provider gracefully", async () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 
 			const mockProvider: TelemetryPropertiesProvider = {
-				getTelemetryProperties: jest.fn().mockRejectedValue(new Error("Provider error")),
+				getTelemetryProperties: vi.fn().mockRejectedValue(new Error("Provider error")),
 			}
 
-			const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation()
+			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
 			client.setProvider(mockProvider)
 
 			const getEventProperties = getPrivateProperty<
@@ -147,7 +141,7 @@ describe("PostHogTelemetryClient", () => {
 		})
 
 		it("should return event properties when no provider is set", async () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 
 			const getEventProperties = getPrivateProperty<
 				(event: { event: TelemetryEventName; properties?: Record<string, any> }) => Promise<Record<string, any>>
@@ -164,7 +158,7 @@ describe("PostHogTelemetryClient", () => {
 
 	describe("capture", () => {
 		it("should not capture events when telemetry is disabled", async () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 			client.updateTelemetryState(false)
 
 			await client.capture({
@@ -176,7 +170,7 @@ describe("PostHogTelemetryClient", () => {
 		})
 
 		it("should not capture events that are not capturable", async () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 			client.updateTelemetryState(true)
 
 			await client.capture({
@@ -188,11 +182,11 @@ describe("PostHogTelemetryClient", () => {
 		})
 
 		it("should capture events when telemetry is enabled and event is capturable", async () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 			client.updateTelemetryState(true)
 
 			const mockProvider: TelemetryPropertiesProvider = {
-				getTelemetryProperties: jest.fn().mockResolvedValue({
+				getTelemetryProperties: vi.fn().mockResolvedValue({
 					appVersion: "1.0.0",
 					vscodeVersion: "1.60.0",
 					platform: "darwin",
@@ -222,10 +216,10 @@ describe("PostHogTelemetryClient", () => {
 
 	describe("updateTelemetryState", () => {
 		it("should enable telemetry when user opts in and global telemetry is enabled", () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 
-			;(vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-				get: jest.fn().mockReturnValue("all"),
+			;(vscode.workspace.getConfiguration as any).mockReturnValue({
+				get: vi.fn().mockReturnValue("all"),
 			})
 
 			client.updateTelemetryState(true)
@@ -235,10 +229,10 @@ describe("PostHogTelemetryClient", () => {
 		})
 
 		it("should disable telemetry when user opts out", () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 
-			;(vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-				get: jest.fn().mockReturnValue("all"),
+			;(vscode.workspace.getConfiguration as any).mockReturnValue({
+				get: vi.fn().mockReturnValue("all"),
 			})
 
 			client.updateTelemetryState(false)
@@ -248,10 +242,10 @@ describe("PostHogTelemetryClient", () => {
 		})
 
 		it("should disable telemetry when global telemetry is disabled, regardless of user opt-in", () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 
-			;(vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-				get: jest.fn().mockReturnValue("off"),
+			;(vscode.workspace.getConfiguration as any).mockReturnValue({
+				get: vi.fn().mockReturnValue("off"),
 			})
 
 			client.updateTelemetryState(true)
@@ -262,7 +256,7 @@ describe("PostHogTelemetryClient", () => {
 
 	describe("shutdown", () => {
 		it("should call shutdown on the PostHog client", async () => {
-			const client = PostHogTelemetryClient.getInstance()
+			const client = new PostHogTelemetryClient()
 			await client.shutdown()
 			expect(mockPostHogClient.shutdown).toHaveBeenCalled()
 		})

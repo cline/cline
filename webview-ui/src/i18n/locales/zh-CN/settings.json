@@ -540,7 +540,10 @@
 			"invalidFormat": "ARN 格式无效。请检查格式要求。",
 			"regionMismatch": "警告：您的 ARN 中的区域 ({{arnRegion}}) 与您选择的区域 ({{region}}) 不匹配。这可能会导致访问问题。提供程序将使用 ARN 中的区域。"
 		},
-		"modelAvailability": "模型ID {{modelId}} 不可用，请重新选择"
+		"modelAvailability": "模型ID {{modelId}} 不可用，请重新选择",
+		"providerNotAllowed": "提供商 '{{provider}}' 不允许用于您的组织",
+		"modelNotAllowed": "模型 '{{model}}' 不允许用于提供商 '{{provider}}'，您的组织不允许",
+		"profileInvalid": "此配置文件包含您的组织不允许的提供商或模型"
 	},
 	"placeholders": {
 		"apiKey": "请输入 API 密钥...",

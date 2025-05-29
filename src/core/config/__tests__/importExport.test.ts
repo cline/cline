@@ -6,6 +6,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 
 import type { ProviderName } from "@roo-code/types"
+import { TelemetryService } from "@roo-code/telemetry"
 
 import { importSettings, exportSettings } from "../importExport"
 import { ProviderSettingsManager } from "../ProviderSettingsManager"
@@ -40,6 +41,10 @@ describe("importExport", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks()
+
+		if (!TelemetryService.hasInstance()) {
+			TelemetryService.createInstance([])
+		}
 
 		mockProviderSettingsManager = {
 			export: jest.fn(),

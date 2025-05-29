@@ -1,0 +1,10 @@
+{
+	"title": "账户",
+	"profilePicture": "头像",
+	"unknownUser": "未知用户",
+	"logOut": "退出登录",
+	"testApiAuthentication": "测试 API 认证",
+	"signUpTitle": "登录你的账户",
+	"signUpDescription": "登录以访问 Roo 的个性化功能和设置。",
+	"signIn": "登录 Roo Code Cloud"
+}

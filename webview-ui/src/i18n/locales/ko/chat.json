@@ -250,6 +250,7 @@
 		}
 	},
 	"systemPromptWarning": "경고: 사용자 정의 시스템 프롬프트 재정의가 활성화되었습니다. 이로 인해 기능이 심각하게 손상되고 예측할 수 없는 동작이 발생할 수 있습니다.",
+	"profileViolationWarning": "현재 프로필이 조직 설정을 위반합니다",
 	"shellIntegration": {
 		"title": "명령 실행 경고",
 		"description": "명령이 VSCode 터미널 쉘 통합 없이 실행되고 있습니다. 이 경고를 숨기려면 <settingsLink>Roo Code 설정</settingsLink>의 <strong>Terminal</strong> 섹션에서 쉘 통합을 비활성화하거나 아래 링크를 사용하여 VSCode 터미널 통합 문제를 해결하세요.",

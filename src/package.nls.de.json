@@ -27,5 +27,6 @@
 	"settings.vsCodeLmModelSelector.description": "Einstellungen für die VSCode-Sprachmodell-API",
 	"settings.vsCodeLmModelSelector.vendor.description": "Der Anbieter des Sprachmodells (z.B. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Die Familie des Sprachmodells (z.B. gpt-4)",
-	"settings.customStoragePath.description": "Benutzerdefinierter Speicherpfad. Leer lassen, um den Standardspeicherort zu verwenden. Unterstützt absolute Pfade (z.B. 'D:\\RooCodeStorage')"
+	"settings.customStoragePath.description": "Benutzerdefinierter Speicherpfad. Leer lassen, um den Standardspeicherort zu verwenden. Unterstützt absolute Pfade (z.B. 'D:\\RooCodeStorage')",
+	"settings.rooCodeCloudEnabled.description": "Aktiviere Roo Code Cloud."
 }

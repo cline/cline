@@ -250,6 +250,7 @@
 		}
 	},
 	"systemPromptWarning": "CẢNH BÁO: Đã kích hoạt ghi đè lệnh nhắc hệ thống tùy chỉnh. Điều này có thể phá vỡ nghiêm trọng chức năng và gây ra hành vi không thể dự đoán.",
+	"profileViolationWarning": "Hồ sơ hiện tại vi phạm cài đặt của tổ chức của bạn",
 	"shellIntegration": {
 		"title": "Cảnh báo thực thi lệnh",
 		"description": "Lệnh của bạn đang được thực thi mà không có tích hợp shell terminal VSCode. Để ẩn cảnh báo này, bạn có thể vô hiệu hóa tích hợp shell trong phần <strong>Terminal</strong> của <settingsLink>cài đặt Roo Code</settingsLink> hoặc khắc phục sự cố tích hợp terminal VSCode bằng liên kết bên dưới.",

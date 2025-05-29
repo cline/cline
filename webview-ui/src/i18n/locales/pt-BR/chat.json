@@ -250,6 +250,7 @@
 		}
 	},
 	"systemPromptWarning": "AVISO: Substituição personalizada de instrução do sistema ativa. Isso pode comprometer gravemente a funcionalidade e causar comportamento imprevisível.",
+	"profileViolationWarning": "O perfil atual viola as configurações da sua organização",
 	"shellIntegration": {
 		"title": "Aviso de execução de comando",
 		"description": "Seu comando está sendo executado sem a integração de shell do terminal VSCode. Para suprimir este aviso, você pode desativar a integração de shell na seção <strong>Terminal</strong> das <settingsLink>configurações do Roo Code</settingsLink> ou solucionar problemas de integração do terminal VSCode usando o link abaixo.",

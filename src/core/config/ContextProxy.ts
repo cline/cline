@@ -15,9 +15,9 @@ import {
 	globalSettingsSchema,
 	isSecretStateKey,
 } from "@roo-code/types"
+import { TelemetryService } from "@roo-code/telemetry"
 
 import { logger } from "../../utils/logging"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 type GlobalStateKey = keyof GlobalState
 type SecretStateKey = keyof SecretState
@@ -162,7 +162,7 @@ export class ContextProxy {
 			return globalSettingsSchema.parse(values)
 		} catch (error) {
 			if (error instanceof ZodError) {
-				telemetryService.captureSchemaValidationError({ schemaName: "GlobalSettings", error })
+				TelemetryService.instance.captureSchemaValidationError({ schemaName: "GlobalSettings", error })
 			}
 
 			return GLOBAL_SETTINGS_KEYS.reduce((acc, key) => ({ ...acc, [key]: values[key] }), {} as GlobalSettings)
@@ -180,7 +180,7 @@ export class ContextProxy {
 			return providerSettingsSchema.parse(values)
 		} catch (error) {
 			if (error instanceof ZodError) {
-				telemetryService.captureSchemaValidationError({ schemaName: "ProviderSettings", error })
+				TelemetryService.instance.captureSchemaValidationError({ schemaName: "ProviderSettings", error })
 			}
 
 			return PROVIDER_SETTINGS_KEYS.reduce((acc, key) => ({ ...acc, [key]: values[key] }), {} as ProviderSettings)
@@ -248,7 +248,7 @@ export class ContextProxy {
 			return Object.fromEntries(Object.entries(globalSettings).filter(([_, value]) => value !== undefined))
 		} catch (error) {
 			if (error instanceof ZodError) {
-				telemetryService.captureSchemaValidationError({ schemaName: "GlobalSettings", error })
+				TelemetryService.instance.captureSchemaValidationError({ schemaName: "GlobalSettings", error })
 			}
 
 			return undefined

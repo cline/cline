@@ -250,6 +250,7 @@
 		}
 	},
 	"systemPromptWarning": "ADVERTÈNCIA: S'ha activat una substitució personalitzada d'instruccions del sistema. Això pot trencar greument la funcionalitat i causar un comportament impredictible.",
+	"profileViolationWarning": "El perfil actual infringeix la configuració de la teva organització",
 	"shellIntegration": {
 		"title": "Advertència d'execució d'ordres",
 		"description": "La teva ordre s'està executant sense la integració de shell del terminal VSCode. Per suprimir aquest advertiment, pots desactivar la integració de shell a la secció <strong>Terminal</strong> de la <settingsLink>configuració de Roo Code</settingsLink> o solucionar problemes d'integració del terminal VSCode utilitzant l'enllaç a continuació.",

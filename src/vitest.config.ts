@@ -6,9 +6,4 @@ export default defineConfig({
 		include: ["**/__tests__/**/*.spec.ts"],
 		globals: true,
 	},
-	resolve: {
-		alias: {
-			"@roo-code/types": path.resolve(__dirname, "..", "packages", "types", "src", "index.ts"),
-		},
-	},
 })
