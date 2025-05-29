@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "Bepaal welke informatie wordt opgenomen in het contextvenster van de AI, wat invloed heeft op tokengebruik en antwoordkwaliteit",
+		"autoCondenseContextPercent": {
+			"label": "Drempelwaarde om intelligente contextcompressie te activeren",
+			"description": "Wanneer het contextvenster deze drempelwaarde bereikt, zal Roo het automatisch comprimeren."
+		},
+		"condensingApiConfiguration": {
+			"label": "API-configuratie voor contextcondensatie",
+			"description": "Selecteer welke API-configuratie gebruikt moet worden voor contextcondensatie. Laat leeg om de huidige actieve configuratie te gebruiken.",
+			"useCurrentConfig": "Standaard"
+		},
+		"customCondensingPrompt": {
+			"label": "Aangepaste contextcondensatieprompt",
+			"description": "Aangepaste systeemprompt voor contextcondensatie. Laat leeg om de standaardprompt te gebruiken.",
+			"placeholder": "Voer hier je aangepaste condensatieprompt in...\n\nJe kunt dezelfde structuur gebruiken als de standaardprompt:\n- Vorig gesprek\n- Huidig werk\n- Belangrijke technische concepten\n- Relevante bestanden en code\n- Probleemoplossing\n- Openstaande taken en volgende stappen",
+			"reset": "Herstellen naar standaard",
+			"hint": "Leeg = gebruik standaardprompt"
+		},
+		"autoCondenseContext": {
+			"name": "Automatisch intelligente contextcompressie activeren"
+		},
 		"openTabs": {
 			"label": "Limiet geopende tabbladen in context",
 			"description": "Maximaal aantal geopende VSCode-tabbladen dat in de context wordt opgenomen. Hogere waarden geven meer context maar verhogen het tokengebruik."
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "Aangepaste contextcondensatieprompt",
-			"description": "Aangepaste systeemprompt voor contextcondensatie. Laat leeg om de standaardprompt te gebruiken.",
-			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
-			"reset": "Reset to Default",
-			"hint": "Empty = use default prompt"
-		},
-		"autoCondenseContextPercent": {
-			"label": "Drempelwaarde om intelligente contextcompressie te activeren",
-			"description": "Wanneer het contextvenster deze drempelwaarde bereikt, zal Roo het automatisch comprimeren."
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Automatisch intelligente contextcompressie activeren",
-			"description": "Intelligente contextcompressie gebruikt een LLM-aanroep om eerdere gesprekken samen te vatten wanneer het contextvenster van de taak een vooraf ingestelde drempelwaarde bereikt, in plaats van oude berichten te verwijderen wanneer de context vol is."
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Experimentele unified diff-strategie gebruiken",
 			"description": "Schakel de experimentele unified diff-strategie in. Deze strategie kan het aantal herhalingen door model fouten verminderen, maar kan onverwacht gedrag of onjuiste bewerkingen veroorzaken. Alleen inschakelen als je de risico's begrijpt en wijzigingen zorgvuldig wilt controleren."

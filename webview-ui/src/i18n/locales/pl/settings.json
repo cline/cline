@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "Kontroluj, jakie informacje są zawarte w oknie kontekstu AI, wpływając na zużycie token i jakość odpowiedzi",
+		"autoCondenseContextPercent": {
+			"label": "Próg wyzwalający inteligentną kondensację kontekstu",
+			"description": "Gdy okno kontekstu osiągnie ten próg, Roo automatycznie je skondensuje."
+		},
+		"condensingApiConfiguration": {
+			"label": "Konfiguracja API dla kondensacji kontekstu",
+			"description": "Wybierz, którą konfigurację API używać do operacji kondensacji kontekstu. Pozostaw niewybrane, aby użyć aktualnej aktywnej konfiguracji.",
+			"useCurrentConfig": "Domyślna"
+		},
+		"customCondensingPrompt": {
+			"label": "Niestandardowy monit kondensacji kontekstu",
+			"description": "Niestandardowy monit systemowy dla kondensacji kontekstu. Pozostaw puste, aby użyć domyślnego monitu.",
+			"placeholder": "Wprowadź tutaj swój niestandardowy monit kondensacji...\n\nMożesz użyć tej samej struktury co domyślny monit:\n- Poprzednia rozmowa\n- Aktualna praca\n- Kluczowe koncepcje techniczne\n- Istotne pliki i kod\n- Rozwiązywanie problemów\n- Oczekujące zadania i następne kroki",
+			"reset": "Przywróć domyślne",
+			"hint": "Puste = użyj domyślnego monitu"
+		},
+		"autoCondenseContext": {
+			"name": "Automatycznie wyzwalaj inteligentną kondensację kontekstu"
+		},
 		"openTabs": {
 			"label": "Limit kontekstu otwartych kart",
 			"description": "Maksymalna liczba otwartych kart VSCode do uwzględnienia w kontekście. Wyższe wartości zapewniają więcej kontekstu, ale zwiększają zużycie token."
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "Niestandardowy monit kondensacji kontekstu",
-			"description": "Niestandardowy monit systemowy dla kondensacji kontekstu. Pozostaw puste, aby użyć domyślnego monitu.",
-			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
-			"reset": "Reset to Default",
-			"hint": "Empty = use default prompt"
-		},
-		"autoCondenseContextPercent": {
-			"label": "Próg wyzwalający inteligentną kondensację kontekstu",
-			"description": "Gdy okno kontekstu osiągnie ten próg, Roo automatycznie je skondensuje."
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Automatycznie wyzwalaj inteligentną kondensację kontekstu",
-			"description": "Inteligentna kondensacja kontekstu używa wywołania LLM do podsumowania wcześniejszej rozmowy, gdy okno kontekstu zadania osiągnie ustawiony próg, zamiast usuwać stare wiadomości, gdy kontekst się zapełni."
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Użyj eksperymentalnej ujednoliconej strategii diff",
 			"description": "Włącz eksperymentalną ujednoliconą strategię diff. Ta strategia może zmniejszyć liczbę ponownych prób spowodowanych błędami modelu, ale może powodować nieoczekiwane zachowanie lub nieprawidłowe edycje. Włącz tylko jeśli rozumiesz ryzyko i jesteś gotów dokładnie przeglądać wszystkie zmiany."

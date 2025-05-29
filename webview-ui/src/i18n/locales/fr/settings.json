@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "Contrôlez quelles informations sont incluses dans la fenêtre de contexte de l'IA, affectant l'utilisation de token et la qualité des réponses",
+		"autoCondenseContextPercent": {
+			"label": "Seuil de déclenchement de la condensation intelligente du contexte",
+			"description": "Lorsque la fenêtre de contexte atteint ce seuil, Roo la condensera automatiquement."
+		},
+		"condensingApiConfiguration": {
+			"label": "Configuration API pour la condensation du contexte",
+			"description": "Sélectionnez quelle configuration API utiliser pour les opérations de condensation du contexte. Laissez non sélectionné pour utiliser la configuration active actuelle.",
+			"useCurrentConfig": "Par défaut"
+		},
+		"customCondensingPrompt": {
+			"label": "Prompt personnalisé de condensation du contexte",
+			"description": "Personnalisez le prompt système utilisé pour la condensation du contexte. Laissez vide pour utiliser le prompt par défaut.",
+			"placeholder": "Entrez votre prompt de condensation personnalisé ici...\n\nVous pouvez utiliser la même structure que le prompt par défaut :\n- Conversation précédente\n- Travail en cours\n- Concepts techniques clés\n- Fichiers et code pertinents\n- Résolution de problèmes\n- Tâches en attente et prochaines étapes",
+			"reset": "Réinitialiser par défaut",
+			"hint": "Vide = utiliser le prompt par défaut"
+		},
+		"autoCondenseContext": {
+			"name": "Déclencher automatiquement la condensation intelligente du contexte"
+		},
 		"openTabs": {
 			"label": "Limite de contexte des onglets ouverts",
 			"description": "Nombre maximum d'onglets VSCode ouverts à inclure dans le contexte. Des valeurs plus élevées fournissent plus de contexte mais augmentent l'utilisation de token."
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"autoCondenseContextPercent": {
-			"label": "Seuil pour déclencher la condensation intelligente du contexte",
-			"description": "Lorsque la fenêtre de contexte atteint ce seuil, Roo la condensera automatiquement."
-		},
-		"condensingApiConfiguration": {
-			"label": "Configuration API pour la condensation du contexte",
-			"description": "Sélectionnez quelle configuration API utiliser pour les opérations de condensation du contexte. Laissez non sélectionné pour utiliser la configuration active actuelle.",
-			"useCurrentConfig": "Utiliser la configuration actuelle"
-		},
-		"customCondensingPrompt": {
-			"label": "Prompt personnalisé pour la condensation du contexte",
-			"description": "Personnalisez le prompt système utilisé pour la condensation du contexte. Laissez vide pour utiliser le prompt par défaut.",
-			"placeholder": "Entrez votre prompt de condensation personnalisé ici...\n\nVous pouvez utiliser la même structure que le prompt par défaut :\n- Conversation précédente\n- Travail actuel\n- Concepts techniques clés\n- Fichiers et code pertinents\n- Résolution de problèmes\n- Tâches en attente et prochaines étapes",
-			"reset": "Réinitialiser par défaut",
-			"hint": "Vide = utiliser le prompt par défaut"
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Déclencher automatiquement la condensation intelligente du contexte",
-			"description": "La condensation intelligente du contexte utilise un appel LLM pour résumer la conversation passée lorsque la fenêtre de contexte de la tâche atteint un seuil prédéfini, plutôt que de supprimer les anciens messages lorsque le contexte est plein."
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Utiliser la stratégie diff unifiée expérimentale",
 			"description": "Activer la stratégie diff unifiée expérimentale. Cette stratégie pourrait réduire le nombre de tentatives causées par des erreurs de modèle, mais peut provoquer des comportements inattendus ou des modifications incorrectes. Activez-la uniquement si vous comprenez les risques et êtes prêt à examiner attentivement tous les changements."

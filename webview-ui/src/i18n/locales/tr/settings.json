@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "Yapay zekanın bağlam penceresine hangi bilgilerin dahil edileceğini kontrol edin, token kullanımını ve yanıt kalitesini etkiler",
+		"autoCondenseContextPercent": {
+			"label": "Akıllı bağlam sıkıştırmayı tetikleyecek eşik",
+			"description": "Bağlam penceresi bu eşiğe ulaştığında, Roo otomatik olarak sıkıştıracaktır."
+		},
+		"condensingApiConfiguration": {
+			"label": "Bağlam Yoğunlaştırma için API Yapılandırması",
+			"description": "Bağlam yoğunlaştırma işlemleri için hangi API yapılandırmasının kullanılacağını seçin. Mevcut aktif yapılandırmayı kullanmak için seçimsiz bırakın.",
+			"useCurrentConfig": "Varsayılan"
+		},
+		"customCondensingPrompt": {
+			"label": "Özel Bağlam Yoğunlaştırma İstemcisi",
+			"description": "Bağlam yoğunlaştırma için özel sistem istemcisi. Varsayılan istemciyi kullanmak için boş bırakın.",
+			"placeholder": "Özel yoğunlaştırma promptunuzu buraya girin...\n\nVarsayılan prompt ile aynı yapıyı kullanabilirsiniz:\n- Önceki Konuşma\n- Mevcut Çalışma\n- Temel Teknik Kavramlar\n- İlgili Dosyalar ve Kod\n- Problem Çözme\n- Bekleyen Görevler ve Sonraki Adımlar",
+			"reset": "Varsayılana Sıfırla",
+			"hint": "Boş = varsayılan promptu kullan"
+		},
+		"autoCondenseContext": {
+			"name": "Akıllı bağlam sıkıştırmayı otomatik olarak tetikle"
+		},
 		"openTabs": {
 			"label": "Açık sekmeler bağlam sınırı",
 			"description": "Bağlama dahil edilecek maksimum VSCode açık sekme sayısı. Daha yüksek değerler daha fazla bağlam sağlar ancak token kullanımını artırır."
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "Özel Bağlam Yoğunlaştırma İstemcisi",
-			"description": "Bağlam yoğunlaştırma için özel sistem istemcisi. Varsayılan istemciyi kullanmak için boş bırakın.",
-			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
-			"reset": "Reset to Default",
-			"hint": "Empty = use default prompt"
-		},
-		"autoCondenseContextPercent": {
-			"label": "Akıllı bağlam sıkıştırmayı tetikleyecek eşik",
-			"description": "Bağlam penceresi bu eşiğe ulaştığında, Roo otomatik olarak sıkıştıracaktır."
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Akıllı bağlam sıkıştırmayı otomatik olarak tetikle",
-			"description": "Akıllı bağlam sıkıştırma, görevin bağlam penceresi önceden belirlenmiş bir eşiğe ulaştığında, bağlam dolduğunda eski mesajları atmak yerine önceki konuşmayı özetlemek için bir LLM çağrısı kullanır."
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Deneysel birleştirilmiş diff stratejisini kullan",
 			"description": "Deneysel birleştirilmiş diff stratejisini etkinleştir. Bu strateji, model hatalarından kaynaklanan yeniden deneme sayısını azaltabilir, ancak beklenmeyen davranışlara veya hatalı düzenlemelere neden olabilir. Yalnızca riskleri anlıyorsanız ve tüm değişiklikleri dikkatlice incelemeye istekliyseniz etkinleştirin."

@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "Controlla quali informazioni sono incluse nella finestra di contesto dell'IA, influenzando l'utilizzo di token e la qualità delle risposte",
+		"autoCondenseContextPercent": {
+			"label": "Soglia per attivare la condensazione intelligente del contesto",
+			"description": "Quando la finestra di contesto raggiunge questa soglia, Roo la condenserà automaticamente."
+		},
+		"condensingApiConfiguration": {
+			"label": "Configurazione API per la condensazione del contesto",
+			"description": "Seleziona quale configurazione API utilizzare per le operazioni di condensazione del contesto. Lascia deselezionato per utilizzare la configurazione attiva corrente.",
+			"useCurrentConfig": "Predefinito"
+		},
+		"customCondensingPrompt": {
+			"label": "Prompt personalizzato condensazione contesto",
+			"description": "Prompt di sistema personalizzato per la condensazione del contesto. Lascia vuoto per utilizzare il prompt predefinito.",
+			"placeholder": "Inserisci qui il tuo prompt di condensazione personalizzato...\n\nPuoi utilizzare la stessa struttura del prompt predefinito:\n- Conversazione precedente\n- Lavoro attuale\n- Concetti tecnici chiave\n- File e codice pertinenti\n- Risoluzione dei problemi\n- Attività in sospeso e prossimi passi",
+			"reset": "Ripristina predefinito",
+			"hint": "Vuoto = usa prompt predefinito"
+		},
+		"autoCondenseContext": {
+			"name": "Attiva automaticamente la condensazione intelligente del contesto"
+		},
 		"openTabs": {
 			"label": "Limite contesto schede aperte",
 			"description": "Numero massimo di schede VSCode aperte da includere nel contesto. Valori più alti forniscono più contesto ma aumentano l'utilizzo di token."
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "Prompt personalizzato condensazione contesto",
-			"description": "Prompt di sistema personalizzato per la condensazione del contesto. Lascia vuoto per utilizzare il prompt predefinito.",
-			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
-			"reset": "Reset to Default",
-			"hint": "Empty = use default prompt"
-		},
-		"autoCondenseContextPercent": {
-			"label": "Soglia per attivare la condensazione intelligente del contesto",
-			"description": "Quando la finestra di contesto raggiunge questa soglia, Roo la condenserà automaticamente."
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Attiva automaticamente la condensazione intelligente del contesto",
-			"description": "La condensazione intelligente del contesto utilizza una chiamata LLM per riassumere la conversazione precedente quando la finestra di contesto dell'attività raggiunge una soglia preimpostata, invece di eliminare i messaggi vecchi quando il contesto si riempie."
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usa strategia diff unificata sperimentale",
 			"description": "Abilita la strategia diff unificata sperimentale. Questa strategia potrebbe ridurre il numero di tentativi causati da errori del modello, ma può causare comportamenti imprevisti o modifiche errate. Abilitala solo se comprendi i rischi e sei disposto a rivedere attentamente tutte le modifiche."

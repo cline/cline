@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "控制 AI 上下文視窗中要包含哪些資訊，會影響 token 用量和回應品質",
+		"autoCondenseContextPercent": {
+			"label": "觸發智慧上下文壓縮的閾值",
+			"description": "當上下文視窗達到此閾值時，Roo 將自動壓縮它。"
+		},
+		"condensingApiConfiguration": {
+			"label": "上下文壓縮的API配置",
+			"description": "選擇用於上下文壓縮操作的API配置。留空則使用當前活動的配置。",
+			"useCurrentConfig": "使用當前配置"
+		},
+		"customCondensingPrompt": {
+			"label": "自訂上下文壓縮提示",
+			"description": "自訂用於上下文壓縮的系統提示。留空則使用預設提示。",
+			"placeholder": "請在此輸入您的自訂上下文壓縮提示...\n\n您可以參考預設提示的結構：\n- 先前對話\n- 目前工作\n- 主要技術概念\n- 相關檔案與程式碼\n- 問題解決\n- 未完成的任務與後續步驟",
+			"reset": "重設為預設值",
+			"hint": "留空 = 使用預設提示"
+		},
+		"autoCondenseContext": {
+			"name": "自動觸發智慧上下文壓縮"
+		},
 		"openTabs": {
 			"label": "開啟分頁的上下文限制",
 			"description": "上下文中最多包含多少個 VS Code 開啟的分頁。數值越高提供的上下文越多，但 token 用量也會增加。"
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "自訂上下文壓縮提示",
-			"description": "自訂用於上下文壓縮的系統提示。留空則使用預設提示。",
-			"placeholder": "請在此輸入您的自訂上下文壓縮提示...\n\n您可以參考預設提示的結構：\n- 先前對話\n- 目前工作\n- 主要技術概念\n- 相關檔案與程式碼\n- 問題解決\n- 未完成的任務與後續步驟",
-			"reset": "重設為預設值",
-			"hint": "Empty = use default prompt"
-		},
-		"autoCondenseContextPercent": {
-			"label": "觸發智慧上下文壓縮的閾值",
-			"description": "當上下文視窗達到此閾值時，Roo 將自動壓縮它。"
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "自動觸發智慧上下文壓縮",
-			"description": "智慧上下文壓縮使用 LLM 呼叫來摘要過去的對話，在工作的上下文視窗達到預設閾值時進行，而非在上下文填滿時捨棄舊訊息。"
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "使用實驗性統一差異比對策略",
 			"description": "啟用實驗性的統一差異比對策略。此策略可能減少因模型錯誤而導致的重試次數，但也可能導致意外行為或錯誤的編輯。請務必了解風險，並願意仔細檢查所有變更後再啟用。"

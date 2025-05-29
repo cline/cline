@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "Controle quais informações são incluídas na janela de contexto da IA, afetando o uso de token e a qualidade da resposta",
+		"autoCondenseContextPercent": {
+			"label": "Limite para acionar a condensação inteligente de contexto",
+			"description": "Quando a janela de contexto atingir este limite, o Roo a condensará automaticamente."
+		},
+		"condensingApiConfiguration": {
+			"label": "Configuração de API para Condensação de Contexto",
+			"description": "Selecione qual configuração de API usar para operações de condensação de contexto. Deixe desmarcado para usar a configuração ativa atual.",
+			"useCurrentConfig": "Padrão"
+		},
+		"customCondensingPrompt": {
+			"label": "Prompt Personalizado de Condensação de Contexto",
+			"description": "Prompt de sistema personalizado para condensação de contexto. Deixe em branco para usar o prompt padrão.",
+			"placeholder": "Digite seu prompt de condensação personalizado aqui...\n\nVocê pode usar a mesma estrutura do prompt padrão:\n- Conversa Anterior\n- Trabalho Atual\n- Conceitos Técnicos Principais\n- Arquivos e Código Relevantes\n- Resolução de Problemas\n- Tarefas Pendentes e Próximos Passos",
+			"reset": "Restaurar Padrão",
+			"hint": "Vazio = usar prompt padrão"
+		},
+		"autoCondenseContext": {
+			"name": "Acionar automaticamente a condensação inteligente de contexto"
+		},
 		"openTabs": {
 			"label": "Limite de contexto de abas abertas",
 			"description": "Número máximo de abas abertas do VSCode a incluir no contexto. Valores mais altos fornecem mais contexto, mas aumentam o uso de token."
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "Prompt Personalizado de Condensação de Contexto",
-			"description": "Prompt de sistema personalizado para condensação de contexto. Deixe em branco para usar o prompt padrão.",
-			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
-			"reset": "Reset to Default",
-			"hint": "Empty = use default prompt"
-		},
-		"autoCondenseContextPercent": {
-			"label": "Limite para acionar a condensação inteligente de contexto",
-			"description": "Quando a janela de contexto atingir este limite, o Roo a condensará automaticamente."
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Acionar automaticamente a condensação inteligente de contexto",
-			"description": "A condensação inteligente de contexto usa uma chamada LLM para resumir a conversa anterior quando a janela de contexto da tarefa atinge um limite predefinido, em vez de descartar mensagens antigas quando o contexto estiver cheio."
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usar estratégia diff unificada experimental",
 			"description": "Ativar a estratégia diff unificada experimental. Esta estratégia pode reduzir o número de novas tentativas causadas por erros do modelo, mas pode causar comportamento inesperado ou edições incorretas. Ative apenas se compreender os riscos e estiver disposto a revisar cuidadosamente todas as alterações."

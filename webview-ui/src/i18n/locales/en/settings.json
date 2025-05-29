@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "Control what information is included in the AI's context window, affecting token usage and response quality",
+		"autoCondenseContextPercent": {
+			"label": "Threshold to trigger intelligent context condensing",
+			"description": "When the context window reaches this threshold, Roo will automatically condense it."
+		},
+		"condensingApiConfiguration": {
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
+		},
+		"customCondensingPrompt": {
+			"label": "Custom Context Condensing Prompt",
+			"description": "Customize the system prompt used for context condensing. Leave empty to use the default prompt.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
+		},
+		"autoCondenseContext": {
+			"name": "Automatically trigger intelligent context condensing"
+		},
 		"openTabs": {
 			"label": "Open tabs context limit",
 			"description": "Maximum number of VSCode open tabs to include in context. Higher values provide more context but increase token usage."
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"autoCondenseContextPercent": {
-			"label": "Threshold to trigger intelligent context condensing",
-			"description": "When the context window reaches this threshold, Roo will automatically condense it."
-		},
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "Custom Context Condensing Prompt",
-			"description": "Customize the system prompt used for context condensing. Leave empty to use the default prompt.",
-			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
-			"reset": "Reset to Default",
-			"hint": "Empty = use default prompt"
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Automatically trigger intelligent context condensing",
-			"description": "Intelligent context condensing uses an LLM call to summarize the past conversation when the task's context window reaches a preset threshold, rather than dropping old messages when the context fills."
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Use experimental unified diff strategy",
 			"description": "Enable the experimental unified diff strategy. This strategy might reduce the number of retries caused by model errors but may cause unexpected behavior or incorrect edits. Only enable if you understand the risks and are willing to carefully review all changes."

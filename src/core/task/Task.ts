@@ -1527,8 +1527,8 @@ export class Task extends EventEmitter<ClineEvents> {
 			autoApprovalEnabled,
 			alwaysApproveResubmit,
 			requestDelaySeconds,
-			experiments,
 			mode,
+			autoCondenseContext = true,
 			autoCondenseContextPercent = 100,
 		} = state ?? {}
 
@@ -1592,7 +1592,6 @@ export class Task extends EventEmitter<ClineEvents> {
 
 			const contextWindow = modelInfo.contextWindow
 
-			const autoCondenseContext = experiments?.autoCondenseContext ?? false
 			const truncateResult = await truncateConversationIfNeeded({
 				messages: this.apiConversationHistory,
 				totalTokens: contextTokens,

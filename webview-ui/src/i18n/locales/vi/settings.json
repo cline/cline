@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "Kiểm soát thông tin nào được đưa vào cửa sổ ngữ cảnh của AI, ảnh hưởng đến việc sử dụng token và chất lượng phản hồi",
+		"autoCondenseContextPercent": {
+			"label": "Ngưỡng kích hoạt nén ngữ cảnh thông minh",
+			"description": "Khi cửa sổ ngữ cảnh đạt đến ngưỡng này, Roo sẽ tự động nén nó."
+		},
+		"condensingApiConfiguration": {
+			"label": "Cấu hình API cho Tóm tắt Ngữ cảnh",
+			"description": "Chọn cấu hình API để sử dụng cho các thao tác tóm tắt ngữ cảnh. Để trống để sử dụng cấu hình đang hoạt động hiện tại.",
+			"useCurrentConfig": "Mặc định"
+		},
+		"customCondensingPrompt": {
+			"label": "Lời nhắc nén ngữ cảnh tùy chỉnh",
+			"description": "Lời nhắc hệ thống tùy chỉnh cho việc nén ngữ cảnh. Để trống để sử dụng lời nhắc mặc định.",
+			"placeholder": "Nhập prompt tóm tắt tùy chỉnh của bạn tại đây...\n\nBạn có thể sử dụng cùng cấu trúc như prompt mặc định:\n- Cuộc hội thoại trước\n- Công việc hiện tại\n- Khái niệm kỹ thuật chính\n- Tệp và mã liên quan\n- Giải quyết vấn đề\n- Công việc đang chờ và các bước tiếp theo",
+			"reset": "Khôi phục mặc định",
+			"hint": "Để trống = sử dụng prompt mặc định"
+		},
+		"autoCondenseContext": {
+			"name": "Tự động kích hoạt nén ngữ cảnh thông minh"
+		},
 		"openTabs": {
 			"label": "Giới hạn ngữ cảnh tab đang mở",
 			"description": "Số lượng tab VSCode đang mở tối đa để đưa vào ngữ cảnh. Giá trị cao hơn cung cấp nhiều ngữ cảnh hơn nhưng tăng sử dụng token."
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "Lời nhắc nén ngữ cảnh tùy chỉnh",
-			"description": "Lời nhắc hệ thống tùy chỉnh cho việc nén ngữ cảnh. Để trống để sử dụng lời nhắc mặc định.",
-			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
-			"reset": "Reset to Default",
-			"hint": "Empty = use default prompt"
-		},
-		"autoCondenseContextPercent": {
-			"label": "Ngưỡng kích hoạt nén ngữ cảnh thông minh",
-			"description": "Khi cửa sổ ngữ cảnh đạt đến ngưỡng này, Roo sẽ tự động nén nó."
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "Tự động kích hoạt nén ngữ cảnh thông minh",
-			"description": "Nén ngữ cảnh thông minh sử dụng một lệnh gọi LLM để tóm tắt cuộc trò chuyện trước đó khi cửa sổ ngữ cảnh của tác vụ đạt đến ngưỡng đã định, thay vì loại bỏ các tin nhắn cũ khi ngữ cảnh đầy."
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Sử dụng chiến lược diff thống nhất thử nghiệm",
 			"description": "Bật chiến lược diff thống nhất thử nghiệm. Chiến lược này có thể giảm số lần thử lại do lỗi mô hình nhưng có thể gây ra hành vi không mong muốn hoặc chỉnh sửa không chính xác. Chỉ bật nếu bạn hiểu rõ các rủi ro và sẵn sàng xem xét cẩn thận tất cả các thay đổi."

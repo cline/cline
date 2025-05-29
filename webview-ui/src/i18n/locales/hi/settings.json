@@ -337,6 +337,25 @@
 	},
 	"contextManagement": {
 		"description": "AI के संदर्भ विंडो में शामिल जानकारी को नियंत्रित करें, जो token उपयोग और प्रतिक्रिया गुणवत्ता को प्रभावित करता है",
+		"autoCondenseContextPercent": {
+			"label": "बुद्धिमान संदर्भ संघनन को ट्रिगर करने की सीमा",
+			"description": "जब संदर्भ विंडो इस सीमा तक पहुंचती है, तो Roo इसे स्वचालित रूप से संघनित कर देगा।"
+		},
+		"condensingApiConfiguration": {
+			"label": "संदर्भ संघनन के लिए API कॉन्फ़िगरेशन",
+			"description": "संदर्भ संघनन कार्यों के लिए किस API कॉन्फ़िगरेशन का उपयोग करना है, यह चुनें। वर्तमान सक्रिय कॉन्फ़िगरेशन का उपयोग करने के लिए अचयनित छोड़ें।",
+			"useCurrentConfig": "डिफ़ॉल्ट"
+		},
+		"customCondensingPrompt": {
+			"label": "कस्टम संदर्भ संघनन प्रॉम्प्ट",
+			"description": "संदर्भ संघनन के लिए कस्टम सिस्टम प्रॉम्प्ट। डिफ़ॉल्ट प्रॉम्प्ट का उपयोग करने के लिए खाली छोड़ें।",
+			"placeholder": "अपना कस्टम संघनन प्रॉम्प्ट यहाँ दर्ज करें...\n\nआप डिफ़ॉल्ट प्रॉम्प्ट जैसी ही संरचना का उपयोग कर सकते हैं:\n- पिछली बातचीत\n- वर्तमान कार्य\n- प्रमुख तकनीकी अवधारणाएँ\n- प्रासंगिक फ़ाइलें और कोड\n- समस्या समाधान\n- लंबित कार्य और अगले चरण",
+			"reset": "डिफ़ॉल्ट पर रीसेट करें",
+			"hint": "खाली = डिफ़ॉल्ट प्रॉम्प्ट का उपयोग करें"
+		},
+		"autoCondenseContext": {
+			"name": "बुद्धिमान संदर्भ संघनन को स्वचालित रूप से ट्रिगर करें"
+		},
 		"openTabs": {
 			"label": "खुले टैब संदर्भ सीमा",
 			"description": "संदर्भ में शामिल करने के लिए VSCode खुले टैब की अधिकतम संख्या। उच्च मान अधिक संदर्भ प्रदान करते हैं लेकिन token उपयोग बढ़ाते हैं।"
@@ -434,26 +453,6 @@
 		}
 	},
 	"experimental": {
-		"condensingApiConfiguration": {
-			"label": "API Configuration for Context Condensing",
-			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
-			"useCurrentConfig": "Default"
-		},
-		"customCondensingPrompt": {
-			"label": "कस्टम संदर्भ संघनन प्रॉम्प्ट",
-			"description": "संदर्भ संघनन के लिए कस्टम सिस्टम प्रॉम्प्ट। डिफ़ॉल्ट प्रॉम्प्ट का उपयोग करने के लिए खाली छोड़ें।",
-			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
-			"reset": "Reset to Default",
-			"hint": "Empty = use default prompt"
-		},
-		"autoCondenseContextPercent": {
-			"label": "बुद्धिमान संदर्भ संघनन को ट्रिगर करने की सीमा",
-			"description": "जब संदर्भ विंडो इस सीमा तक पहुंचती है, तो Roo इसे स्वचालित रूप से संघनित कर देगा।"
-		},
-		"AUTO_CONDENSE_CONTEXT": {
-			"name": "बुद्धिमान संदर्भ संघनन को स्वचालित रूप से ट्रिगर करें",
-			"description": "बुद्धिमान संदर्भ संघनन कार्य के संदर्भ विंडो के पूर्व-निर्धारित सीमा तक पहुंचने पर पिछली बातचीत को संक्षेप में प्रस्तुत करने के लिए LLM कॉल का उपयोग करता है, बजाय इसके कि संदर्भ भरने पर पुराने संदेशों को हटा दिया जाए।"
-		},
 		"DIFF_STRATEGY_UNIFIED": {
 			"name": "प्रायोगिक एकीकृत diff रणनीति का उपयोग करें",
 			"description": "प्रायोगिक एकीकृत diff रणनीति सक्षम करें। यह रणनीति मॉडल त्रुटियों के कारण पुनः प्रयासों की संख्या को कम कर सकती है, लेकिन अप्रत्याशित व्यवहार या गलत संपादन का कारण बन सकती है। केवल तभी सक्षम करें जब आप जोखिमों को समझते हों और सभी परिवर्तनों की सावधानीपूर्वक समीक्षा करने के लिए तैयार हों।"

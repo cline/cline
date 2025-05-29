@@ -210,6 +210,7 @@ export type ExtensionState = Pick<
 	renderContext: "sidebar" | "editor"
 	settingsImportedAt?: number
 	historyPreviewCollapsed?: boolean
+	autoCondenseContext: boolean
 	autoCondenseContextPercent: number
 }
 

@@ -132,6 +132,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		alwaysAllowWrite,
 		alwaysAllowWriteOutsideWorkspace,
 		alwaysApproveResubmit,
+		autoCondenseContext,
 		autoCondenseContextPercent,
 		browserToolEnabled,
 		browserViewportSize,
@@ -256,6 +257,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "alwaysAllowMcp", bool: alwaysAllowMcp })
 			vscode.postMessage({ type: "allowedCommands", commands: allowedCommands ?? [] })
 			vscode.postMessage({ type: "allowedMaxRequests", value: allowedMaxRequests ?? undefined })
+			vscode.postMessage({ type: "autoCondenseContext", bool: autoCondenseContext })
 			vscode.postMessage({ type: "autoCondenseContextPercent", value: autoCondenseContextPercent })
 			vscode.postMessage({ type: "browserToolEnabled", bool: browserToolEnabled })
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
@@ -614,6 +616,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					{/* Context Management Section */}
 					{activeTab === "contextManagement" && (
 						<ContextManagementSettings
+							autoCondenseContext={autoCondenseContext}
+							autoCondenseContextPercent={autoCondenseContextPercent}
+							condensingApiConfigId={condensingApiConfigId}
+							customCondensingPrompt={customCondensingPrompt}
+							listApiConfigMeta={listApiConfigMeta ?? []}
 							maxOpenTabsContext={maxOpenTabsContext}
 							maxWorkspaceFiles={maxWorkspaceFiles ?? 200}
 							showRooIgnoredFiles={showRooIgnoredFiles}
@@ -647,12 +654,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						<ExperimentalSettings
 							setExperimentEnabled={setExperimentEnabled}
 							experiments={experiments}
-							autoCondenseContextPercent={autoCondenseContextPercent}
-							condensingApiConfigId={condensingApiConfigId}
-							setCondensingApiConfigId={(value) => setCachedStateField("condensingApiConfigId", value)}
-							customCondensingPrompt={customCondensingPrompt}
-							setCustomCondensingPrompt={(value) => setCachedStateField("customCondensingPrompt", value)}
-							listApiConfigMeta={listApiConfigMeta ?? []}
 							setCachedStateField={setCachedStateField}
 							codebaseIndexModels={codebaseIndexModels}
 							codebaseIndexConfig={codebaseIndexConfig}
