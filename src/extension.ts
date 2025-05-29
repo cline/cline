@@ -70,9 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Initialize Roo Code Cloud service.
 	await CloudService.createInstance(context, {
-		userChanged: (userInfo) =>
-			ClineProvider.getVisibleInstance()?.postMessageToWebview({ type: "authenticatedUser", userInfo }),
-		settingsChanged: () => ClineProvider.getVisibleInstance()?.postStateToWebview(),
+		stateChanged: () => ClineProvider.getVisibleInstance()?.postStateToWebview(),
 	})
 
 	// Initialize i18n for internationalization support

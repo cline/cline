@@ -106,16 +106,6 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 					await Promise.all([
 						await updateGlobalState("listApiConfigMeta", listApiConfig),
 						await provider.postMessageToWebview({ type: "listApiConfig", listApiConfig }),
-						async () => {
-							try {
-								if (CloudService.instance.hasActiveSession()) {
-									const userInfo = await CloudService.instance.getUserInfo()
-									provider.postMessageToWebview({ type: "authenticatedUser", userInfo })
-								}
-							} catch (error) {
-								provider.log(`AuthService#getUserInfo failed: ${error}`)
-							}
-						},
 					])
 				})
 				.catch((error) =>

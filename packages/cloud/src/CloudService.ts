@@ -13,6 +13,7 @@ export class CloudService {
 
 	private context: vscode.ExtensionContext
 	private callbacks: CloudServiceCallbacks
+	private authListener: () => void
 	private authService: AuthService | null = null
 	private settingsService: SettingsService | null = null
 	private telemetryClient: TelemetryClient | null = null
@@ -21,6 +22,9 @@ export class CloudService {
 	private constructor(context: vscode.ExtensionContext, callbacks: CloudServiceCallbacks) {
 		this.context = context
 		this.callbacks = callbacks
+		this.authListener = () => {
+			this.callbacks.stateChanged?.()
+		}
 	}
 
 	public async initialize(): Promise<void> {
@@ -29,12 +33,14 @@ export class CloudService {
 		}
 
 		try {
-			this.authService = await AuthService.createInstance(this.context, (userInfo) => {
-				this.callbacks.userChanged?.(userInfo)
-			})
+			this.authService = await AuthService.createInstance(this.context)
+
+			this.authService.on("active-session", this.authListener)
+			this.authService.on("logged-out", this.authListener)
+			this.authService.on("user-info", this.authListener)
 
 			this.settingsService = await SettingsService.createInstance(this.context, () =>
-				this.callbacks.settingsChanged?.(),
+				this.callbacks.stateChanged?.(),
 			)
 
 			this.telemetryClient = new TelemetryClient(this.authService)
@@ -74,7 +80,7 @@ export class CloudService {
 		return this.authService!.hasActiveSession()
 	}
 
-	public async getUserInfo(): Promise<CloudUserInfo | undefined> {
+	public getUserInfo(): CloudUserInfo | null {
 		this.ensureInitialized()
 		return this.authService!.getUserInfo()
 	}
@@ -106,6 +112,11 @@ export class CloudService {
 	// Lifecycle
 
 	public dispose(): void {
+		if (this.authService) {
+			this.authService.off("active-session", this.authListener)
+			this.authService.off("logged-out", this.authListener)
+			this.authService.off("user-info", this.authListener)
+		}
 		if (this.settingsService) {
 			this.settingsService.dispose()
 		}

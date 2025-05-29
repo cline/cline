@@ -196,6 +196,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		terminalZdotdir: false, // Default ZDOTDIR handling setting
 		terminalCompressProgressBar: true, // Default to compress progress bar output
 		historyPreviewCollapsed: false, // Initialize the new state (default to expanded)
+		cloudUserInfo: null,
 		organizationAllowList: ORGANIZATION_ALLOW_ALL,
 		autoCondenseContext: true,
 		autoCondenseContextPercent: 100,

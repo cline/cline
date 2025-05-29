@@ -6,13 +6,13 @@ import * as vscode from "vscode"
 
 import type { CloudUserInfo } from "@roo-code/types"
 
-import { CloudServiceCallbacks } from "./types"
 import { getClerkBaseUrl, getRooCodeApiUrl } from "./Config"
 import { RefreshTimer } from "./RefreshTimer"
 
 export interface AuthServiceEvents {
 	"active-session": [data: { previousState: AuthState }]
 	"logged-out": [data: { previousState: AuthState }]
+	"user-info": [data: { userInfo: CloudUserInfo }]
 }
 
 const CLIENT_TOKEN_KEY = "clerk-client-token"
@@ -23,19 +23,18 @@ type AuthState = "initializing" | "logged-out" | "active-session" | "inactive-se
 
 export class AuthService extends EventEmitter<AuthServiceEvents> {
 	private context: vscode.ExtensionContext
-	private userChanged: CloudServiceCallbacks["userChanged"]
 	private timer: RefreshTimer
 	private state: AuthState = "initializing"
 
 	private clientToken: string | null = null
 	private sessionToken: string | null = null
 	private sessionId: string | null = null
+	private userInfo: CloudUserInfo | null = null
 
-	constructor(context: vscode.ExtensionContext, userChanged: CloudServiceCallbacks["userChanged"]) {
+	constructor(context: vscode.ExtensionContext) {
 		super()
 
 		this.context = context
-		this.userChanged = userChanged
 
 		this.timer = new RefreshTimer({
 			callback: async () => {
@@ -140,9 +139,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			this.emit("active-session", { previousState })
 			this.timer.start()
 
-			if (this.userChanged) {
-				this.getUserInfo().then(this.userChanged)
-			}
+			this.fetchUserInfo()
 
 			vscode.window.showInformationMessage("Successfully authenticated with Roo Code Cloud")
 			console.log("[auth] Successfully authenticated with Roo Code Cloud")
@@ -174,6 +171,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			this.clientToken = null
 			this.sessionToken = null
 			this.sessionId = null
+			this.userInfo = null
 			const previousState = this.state
 			this.state = "logged-out"
 			this.emit("logged-out", { previousState })
@@ -182,9 +180,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 				await this.clerkLogout(oldClientToken, oldSessionId)
 			}
 
-			if (this.userChanged) {
-				this.getUserInfo().then(this.userChanged)
-			}
+			this.fetchUserInfo()
 
 			vscode.window.showInformationMessage("Logged out from Roo Code Cloud")
 			console.log("[auth] Logged out from Roo Code Cloud")
@@ -224,7 +220,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	 *
 	 * This method refreshes the session token using the client token.
 	 */
-	private async refreshSession() {
+	private async refreshSession(): Promise<void> {
 		if (!this.sessionId || !this.clientToken) {
 			console.log("[auth] Cannot refresh session: missing session ID or token")
 			this.state = "inactive-session"
@@ -237,11 +233,17 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 
 		if (previousState !== "active-session") {
 			this.emit("active-session", { previousState })
-
-			if (this.userChanged) {
-				this.getUserInfo().then(this.userChanged)
-			}
+			this.fetchUserInfo()
 		}
+	}
+
+	private async fetchUserInfo(): Promise<void> {
+		if (!this.clientToken) {
+			return
+		}
+
+		this.userInfo = await this.clerkMe()
+		this.emit("user-info", { userInfo: this.userInfo })
 	}
 
 	/**
@@ -249,12 +251,8 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	 *
 	 * @returns User information from ID token claims or null if no ID token available
 	 */
-	public async getUserInfo(): Promise<CloudUserInfo | undefined> {
-		if (!this.clientToken) {
-			return undefined
-		}
-
-		return await this.clerkMe()
+	public getUserInfo(): CloudUserInfo | null {
+		return this.userInfo
 	}
 
 	private async clerkSignIn(
@@ -383,12 +381,12 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		return this._instance
 	}
 
-	static async createInstance(context: vscode.ExtensionContext, userChanged: CloudServiceCallbacks["userChanged"]) {
+	static async createInstance(context: vscode.ExtensionContext) {
 		if (this._instance) {
 			throw new Error("AuthService instance already created")
 		}
 
-		this._instance = new AuthService(context, userChanged)
+		this._instance = new AuthService(context)
 		await this._instance.initialize()
 		return this._instance
 	}

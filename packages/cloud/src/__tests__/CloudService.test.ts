@@ -128,11 +128,14 @@ describe("CloudService", () => {
 
 	describe("createInstance", () => {
 		it("should create and initialize CloudService instance", async () => {
-			const callbacks = { userChanged: vi.fn(), settingsChanged: vi.fn() }
+			const callbacks = {
+				stateChanged: vi.fn(),
+			}
+
 			const cloudService = await CloudService.createInstance(mockContext, callbacks)
 
 			expect(cloudService).toBeInstanceOf(CloudService)
-			expect(AuthService.createInstance).toHaveBeenCalledWith(mockContext, expect.any(Function))
+			expect(AuthService.createInstance).toHaveBeenCalledWith(mockContext)
 			expect(SettingsService.createInstance).toHaveBeenCalledWith(mockContext, expect.any(Function))
 		})
 
@@ -150,7 +153,7 @@ describe("CloudService", () => {
 		let callbacks: CloudServiceCallbacks
 
 		beforeEach(async () => {
-			callbacks = { userChanged: vi.fn(), settingsChanged: vi.fn() }
+			callbacks = { stateChanged: vi.fn() }
 			cloudService = await CloudService.createInstance(mockContext, callbacks)
 		})
 

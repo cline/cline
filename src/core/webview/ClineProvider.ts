@@ -23,6 +23,7 @@ import {
 	type TerminalActionPromptType,
 	type HistoryItem,
 	ORGANIZATION_ALLOW_ALL,
+	CloudUserInfo,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService } from "@roo-code/cloud"
@@ -1296,6 +1297,7 @@ export class ClineProvider
 			maxReadFileLine,
 			terminalCompressProgressBar,
 			historyPreviewCollapsed,
+			cloudUserInfo,
 			organizationAllowList,
 			condensingApiConfigId,
 			customCondensingPrompt,
@@ -1391,6 +1393,7 @@ export class ClineProvider
 			terminalCompressProgressBar: terminalCompressProgressBar ?? true,
 			hasSystemPromptOverride,
 			historyPreviewCollapsed: historyPreviewCollapsed ?? false,
+			cloudUserInfo,
 			organizationAllowList,
 			condensingApiConfigId,
 			customCondensingPrompt,
@@ -1433,6 +1436,16 @@ export class ClineProvider
 		} catch (error) {
 			console.error(
 				`[getState] failed to get organization allow list: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+
+		let cloudUserInfo: CloudUserInfo | null = null
+
+		try {
+			cloudUserInfo = CloudService.instance.getUserInfo()
+		} catch (error) {
+			console.error(
+				`[getState] failed to get cloud user info: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
 
@@ -1504,6 +1517,7 @@ export class ClineProvider
 			showRooIgnoredFiles: stateValues.showRooIgnoredFiles ?? true,
 			maxReadFileLine: stateValues.maxReadFileLine ?? -1,
 			historyPreviewCollapsed: stateValues.historyPreviewCollapsed ?? false,
+			cloudUserInfo,
 			organizationAllowList,
 			// Explicitly add condensing settings
 			condensingApiConfigId: stateValues.condensingApiConfigId,
