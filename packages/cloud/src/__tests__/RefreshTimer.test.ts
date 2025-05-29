@@ -1,4 +1,4 @@
-// npx vitest run --globals src/__tests__/RefreshTimer.test.ts
+// npx vitest run src/__tests__/RefreshTimer.test.ts
 
 import { Mock } from "vitest"
 

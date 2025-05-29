@@ -8,7 +8,7 @@
 	"scripts": {
 		"lint": "eslint src --ext=ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
-		"test": "vitest --globals --run",
+		"test": "vitest run",
 		"build": "tsc",
 		"clean": "rimraf dist .turbo"
 	},

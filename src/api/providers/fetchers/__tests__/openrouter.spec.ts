@@ -1,4 +1,4 @@
-// npx vitest run --globals api/providers/fetchers/__tests__/openrouter.spec.ts
+// npx vitest run api/providers/fetchers/__tests__/openrouter.spec.ts
 
 import * as path from "path"
 

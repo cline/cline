@@ -213,12 +213,12 @@ function transformArrayRecord<T>(obj: Record<string, any[]>, from: string, to: s
 	return Object.entries(obj).reduce(
 		(acc, [key, ary]) => ({
 			...acc,
-			[key.replace(from, to)]: ary.map((item) => {
+			[key.replaceAll(from, to)]: ary.map((item) => {
 				const transformedItem = { ...item }
 
 				for (const prop of props) {
 					if (prop in item && typeof item[prop] === "string") {
-						transformedItem[prop] = item[prop].replace(from, to)
+						transformedItem[prop] = item[prop].replaceAll(from, to)
 					}
 				}
 
@@ -232,7 +232,7 @@ function transformArrayRecord<T>(obj: Record<string, any[]>, from: string, to: s
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformArray<T>(arr: any[], from: string, to: string, idProp: string): T[] {
 	return arr.map(({ [idProp]: id, ...rest }) => ({
-		[idProp]: id.replace(from, to),
+		[idProp]: id.replaceAll(from, to),
 		...rest,
 	}))
 }
@@ -242,7 +242,7 @@ function transformRecord<T>(obj: Record<string, any>, from: string, to: string):
 	return Object.entries(obj).reduce(
 		(acc, [key, value]) => ({
 			...acc,
-			[key.replace(from, to)]: value,
+			[key.replaceAll(from, to)]: value,
 		}),
 		{} as T,
 	)

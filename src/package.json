@@ -342,7 +342,7 @@
 		"lint": "eslint . --ext=ts --max-warnings=0",
 		"check-types": "tsc --noEmit",
 		"pretest": "turbo run bundle --cwd ..",
-		"test": "jest -w=40% && vitest run --globals",
+		"test": "jest -w=40% && vitest run",
 		"format": "prettier --write .",
 		"bundle": "node esbuild.mjs",
 		"vscode:prepublish": "pnpm bundle --production",
