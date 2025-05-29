@@ -2,4 +2,4 @@
 "claude-dev": minor
 ---
 
-Add newly formatted LS tool
+update chat box ui

@@ -135,6 +135,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
+	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
@@ -887,6 +888,61 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		})
 	}, [])
 
+	const scrollToMessage = useCallback(
+		(messageIndex: number) => {
+			setPendingScrollToMessage(messageIndex)
+
+			const targetMessage = messages[messageIndex]
+			if (!targetMessage) {
+				setPendingScrollToMessage(null)
+				return
+			}
+
+			const visibleIndex = visibleMessages.findIndex((msg) => msg.ts === targetMessage.ts)
+			if (visibleIndex === -1) {
+				setPendingScrollToMessage(null)
+				return
+			}
+
+			let groupIndex = -1
+			let currentVisibleIndex = 0
+
+			for (let i = 0; i < groupedMessages.length; i++) {
+				const group = groupedMessages[i]
+				if (Array.isArray(group)) {
+					const groupSize = group.length
+					const messageInGroup = group.some((msg) => msg.ts === targetMessage.ts)
+					if (messageInGroup) {
+						groupIndex = i
+						break
+					}
+					currentVisibleIndex += groupSize
+				} else {
+					if (group.ts === targetMessage.ts) {
+						groupIndex = i
+						break
+					}
+					currentVisibleIndex++
+				}
+			}
+
+			if (groupIndex !== -1) {
+				setPendingScrollToMessage(null)
+				disableAutoScrollRef.current = true
+				requestAnimationFrame(() => {
+					requestAnimationFrame(() => {
+						virtuosoRef.current?.scrollToIndex({
+							index: groupIndex,
+							align: "start",
+							behavior: "smooth",
+						})
+					})
+				})
+			}
+		},
+		[messages, visibleMessages, groupedMessages],
+	)
+
 	// scroll when user toggles certain rows
 	const toggleRowExpansion = useCallback(
 		(ts: number) => {
@@ -965,6 +1021,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// return () => clearTimeout(timer) // dont cleanup since if visibleMessages.length changes it cancels.
 		}
 	}, [groupedMessages.length, scrollToBottomSmooth])
+
+	useEffect(() => {
+		if (pendingScrollToMessage !== null) {
+			scrollToMessage(pendingScrollToMessage)
+		}
+	}, [pendingScrollToMessage, groupedMessages, scrollToMessage])
 
 	const handleWheel = useCallback((event: Event) => {
 		const wheelEvent = event as WheelEvent
@@ -1063,6 +1125,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					totalCost={apiMetrics.totalCost}
 					lastApiReqTotalTokens={lastApiReqTotalTokens}
 					onClose={handleTaskCloseButtonClick}
+					onScrollToMessage={scrollToMessage}
 				/>
 			) : (
 				<div

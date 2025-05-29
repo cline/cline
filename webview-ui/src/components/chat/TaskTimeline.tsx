@@ -14,6 +14,7 @@ const TOOLTIP_MARGIN = 32 // 32px margin on each side
 
 interface TaskTimelineProps {
 	messages: ClineMessage[]
+	onBlockClick?: (messageIndex: number) => void
 }
 
 const getBlockColor = (message: ClineMessage): string => {
@@ -94,16 +95,19 @@ const getBlockColor = (message: ClineMessage): string => {
 	return COLOR_WHITE // Default color
 }
 
-const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
+const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) => {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const scrollableRef = useRef<HTMLDivElement>(null)
 
-	const taskTimelinePropsMessages = useMemo(() => {
-		if (messages.length <= 1) return []
+	const { taskTimelinePropsMessages, messageIndexMap } = useMemo(() => {
+		if (messages.length <= 1) return { taskTimelinePropsMessages: [], messageIndexMap: [] }
 
 		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
+		const indexMap: number[] = []
 
-		return processed.filter((msg) => {
+		const filtered = processed.filter((msg, processedIndex) => {
+			const originalIndex = messages.findIndex((originalMsg, idx) => idx > 0 && originalMsg.ts === msg.ts)
+
 			// Filter out standard "say" events we don't want to show
 			if (
 				msg.type === "say" &&
@@ -124,9 +128,13 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 			) {
 				return false
 			}
+			if (originalIndex !== -1) {
+				indexMap.push(originalIndex)
+			}
 
 			return true
 		})
+		return { taskTimelinePropsMessages: filtered, messageIndexMap: indexMap }
 	}, [messages])
 
 	useEffect(() => {
@@ -145,9 +153,18 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 	const TimelineBlock = useCallback(
 		(index: number) => {
 			const message = taskTimelinePropsMessages[index]
+			const originalMessageIndex = messageIndexMap[index]
+
+			const handleClick = () => {
+				if (onBlockClick && originalMessageIndex !== undefined) {
+					onBlockClick(originalMessageIndex)
+				}
+			}
+
 			return (
 				<TaskTimelineTooltip message={message}>
 					<div
+						onClick={handleClick}
 						style={{
 							width: BLOCK_WIDTH,
 							height: "100%",
@@ -160,7 +177,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				</TaskTimelineTooltip>
 			)
 		},
-		[taskTimelinePropsMessages],
+		[taskTimelinePropsMessages, messageIndexMap, onBlockClick],
 	)
 
 	// Scroll to the end when messages change

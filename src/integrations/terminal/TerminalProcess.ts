@@ -35,42 +35,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
-			let firstChunkTimeout: NodeJS.Timeout
-
-			const isWindows = process.platform === "win32"
-			const timeoutMs = isWindows ? 5000 : 500
-
-			const onTimeout = () => {
-				// In rare cases (e.g. running the same command twice like `npm run build`),
-				// the shell integration stream enters a broken state where no data is ever emitted.
-				// We never even get the first chunk, which bricks the UI and locks the user out.
-				// Interestingly, the stream still gets created, and future commands (like `ls`) will work,
-				// suggesting the stream itself isn't one-shot—but certain shell states break its behavior.
-				// To recover, we add a timeout waiting for the first chunk.
-				// If it doesn’t arrive in time, we assume the terminal is broken, dispose it,
-				// and emit an error so the user can safely retry in a clean terminal.
-
-				Logger.debug(
-					`[TerminalProcess.run] First chunk timeout hit — terminal likely in bad state. Terminating terminal.`,
-				)
-				try {
-					terminal.dispose()
-				} catch (err) {
-					Logger.debug(`[TerminalProcess.run] Failed to dispose terminal: ${String(err)}`)
-				}
-				this.emit(
-					"error",
-					new Error("The command ran successfully, but we couldn't capture its output. Please proceed accordingly."),
-				)
-				this.emit("completed")
-				this.emit("continue")
-			}
-
-			firstChunkTimeout = setTimeout(onTimeout, timeoutMs)
 
 			for await (let data of stream) {
-				clearTimeout(firstChunkTimeout)
-
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
