@@ -94,14 +94,6 @@
 						"media": {
 							"markdown": "walkthrough/step5.md"
 						}
-					},
-					{
-						"id": "review",
-						"title": "You're Always in Control",
-						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
-						"media": {
-							"markdown": "walkthrough/step5.md"
-						}
 					}
 				]
 			}
