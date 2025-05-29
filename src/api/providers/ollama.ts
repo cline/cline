@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Message, Ollama } from "ollama"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, OllamaConfig, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOllamaMessages } from "../transform/ollama-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
@@ -12,7 +12,14 @@ export class OllamaHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new Ollama({ host: this.options.ollamaBaseUrl || "http://localhost:11434" })
+
+		if (!this.options.ollama) {
+			throw new Error("Ollama configuration is required")
+		}
+
+		this.client = new Ollama({
+			host: this.options.ollama.baseUrl || "http://localhost:11434",
+		})
 	}
 
 	@withRetry({ retryAllErrors: true })
@@ -32,7 +39,7 @@ export class OllamaHandler implements ApiHandler {
 				messages: ollamaMessages,
 				stream: true,
 				options: {
-					num_ctx: Number(this.options.ollamaApiOptionsCtxNum) || 32768,
+					num_ctx: Number(this.getOllamaConfig().apiOptionsCtxNum) || 32768,
 				},
 			})
 
@@ -77,11 +84,19 @@ export class OllamaHandler implements ApiHandler {
 		}
 	}
 
+	private getOllamaConfig(): OllamaConfig {
+		if (!this.options.ollama) {
+			throw new Error("Ollama configuration is required")
+		}
+		return this.options.ollama
+	}
+
 	getModel(): { id: string; info: ModelInfo } {
+		const config = this.getOllamaConfig()
 		return {
-			id: this.options.ollamaModelId || "",
-			info: this.options.ollamaApiOptionsCtxNum
-				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(this.options.ollamaApiOptionsCtxNum) || 32768 }
+			id: config.modelId || "",
+			info: config.apiOptionsCtxNum
+				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(config.apiOptionsCtxNum) || 32768 }
 				: openAiModelInfoSaneDefaults,
 		}
 	}

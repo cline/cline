@@ -295,72 +295,177 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		await updateGlobalState(context, "planActSeparateModelsSetting", planActSeparateModelsSetting)
 	}
 
+	// Build nested provider configurations
+	const anthropicConfig = {
+		apiKey,
+		baseUrl: anthropicBaseUrl,
+	}
+
+	const openrouterConfig = {
+		apiKey: openRouterApiKey,
+		modelId: openRouterModelId,
+		modelInfo: openRouterModelInfo,
+		providerSorting: openRouterProviderSorting,
+	}
+
+	const openaiConfig = {
+		apiKey: openAiApiKey,
+		modelId: openAiModelId,
+		modelInfo: openAiModelInfo,
+		baseUrl: openAiBaseUrl,
+		headers: openAiHeaders || {},
+	}
+
+	const openaiNativeConfig = {
+		apiKey: openAiNativeApiKey,
+	}
+
+	const awsConfig = {
+		accessKey: awsAccessKey,
+		secretKey: awsSecretKey,
+		sessionToken: awsSessionToken,
+		region: awsRegion,
+		useCrossRegionInference: awsUseCrossRegionInference,
+		bedrockUsePromptCache: awsBedrockUsePromptCache,
+		bedrockEndpoint: awsBedrockEndpoint,
+		profile: awsProfile,
+		useProfile: awsUseProfile,
+		bedrockCustomSelected: awsBedrockCustomSelected,
+		bedrockCustomModelBaseId: awsBedrockCustomModelBaseId,
+	}
+
+	const vertexConfig = {
+		projectId: vertexProjectId,
+		region: vertexRegion,
+	}
+
+	const ollamaConfig = {
+		modelId: ollamaModelId,
+		baseUrl: ollamaBaseUrl,
+		apiOptionsCtxNum: ollamaApiOptionsCtxNum,
+	}
+
+	const lmstudioConfig = {
+		modelId: lmStudioModelId,
+		baseUrl: lmStudioBaseUrl,
+	}
+
+	const geminiConfig = {
+		apiKey: geminiApiKey,
+		baseUrl: geminiBaseUrl,
+	}
+
+	const litellmConfig = {
+		apiKey: liteLlmApiKey,
+		modelId: liteLlmModelId,
+		baseUrl: liteLlmBaseUrl,
+		modelInfo: liteLlmModelInfo,
+		usePromptCache: liteLlmUsePromptCache,
+	}
+
+	const fireworksConfig = {
+		apiKey: fireworksApiKey,
+		modelId: fireworksModelId,
+		modelMaxCompletionTokens: fireworksModelMaxCompletionTokens,
+		modelMaxTokens: fireworksModelMaxTokens,
+	}
+
+	const requestyConfig = {
+		apiKey: requestyApiKey,
+		modelId: requestyModelId,
+		modelInfo: requestyModelInfo,
+	}
+
+	const togetherConfig = {
+		apiKey: togetherApiKey,
+		modelId: togetherModelId,
+	}
+
+	const deepseekConfig = {
+		apiKey: deepSeekApiKey,
+	}
+
+	const qwenConfig = {
+		apiKey: qwenApiKey,
+		apiLine: qwenApiLine,
+	}
+
+	const doubaoConfig = {
+		apiKey: doubaoApiKey,
+	}
+
+	const mistralConfig = {
+		apiKey: mistralApiKey,
+	}
+
+	const azureConfig = {
+		apiVersion: azureApiVersion,
+	}
+
+	const vscodeConfig = {
+		modelSelector: vsCodeLmModelSelector,
+	}
+
+	const nebiusConfig = {
+		apiKey: nebiusApiKey,
+	}
+
+	const asksageConfig = {
+		apiKey: asksageApiKey,
+		apiUrl: asksageApiUrl,
+	}
+
+	const xaiConfig = {
+		apiKey: xaiApiKey,
+	}
+
+	const sambanovaConfig = {
+		apiKey: sambanovaApiKey,
+	}
+
+	const cerebrasConfig = {
+		apiKey: cerebrasApiKey,
+	}
+
+	const clineConfig = {
+		apiKey: clineApiKey,
+	}
+
 	return {
 		apiConfiguration: {
 			apiProvider,
 			apiModelId,
-			apiKey,
-			openRouterApiKey,
-			clineApiKey,
-			awsAccessKey,
-			awsSecretKey,
-			awsSessionToken,
-			awsRegion,
-			awsUseCrossRegionInference,
-			awsBedrockUsePromptCache,
-			awsBedrockEndpoint,
-			awsProfile,
-			awsUseProfile,
-			awsBedrockCustomSelected,
-			awsBedrockCustomModelBaseId,
-			vertexProjectId,
-			vertexRegion,
-			openAiBaseUrl,
-			openAiApiKey,
-			openAiModelId,
-			openAiModelInfo,
-			openAiHeaders: openAiHeaders || {},
-			ollamaModelId,
-			ollamaBaseUrl,
-			ollamaApiOptionsCtxNum,
-			lmStudioModelId,
-			lmStudioBaseUrl,
-			anthropicBaseUrl,
-			geminiApiKey,
-			geminiBaseUrl,
-			openAiNativeApiKey,
-			deepSeekApiKey,
-			requestyApiKey,
-			requestyModelId,
-			requestyModelInfo,
-			togetherApiKey,
-			togetherModelId,
-			qwenApiKey,
-			qwenApiLine,
-			doubaoApiKey,
-			mistralApiKey,
-			azureApiVersion,
-			openRouterModelId,
-			openRouterModelInfo,
-			openRouterProviderSorting,
-			vsCodeLmModelSelector,
+
+			// Provider-specific configurations
+			anthropic: anthropicConfig,
+			openrouter: openrouterConfig,
+			openai: openaiConfig,
+			openaiNative: openaiNativeConfig,
+			aws: awsConfig,
+			vertex: vertexConfig,
+			ollama: ollamaConfig,
+			lmstudio: lmstudioConfig,
+			gemini: geminiConfig,
+			litellm: litellmConfig,
+			fireworks: fireworksConfig,
+			requesty: requestyConfig,
+			together: togetherConfig,
+			deepseek: deepseekConfig,
+			qwen: qwenConfig,
+			doubao: doubaoConfig,
+			mistral: mistralConfig,
+			azure: azureConfig,
+			vscode: vscodeConfig,
+			nebius: nebiusConfig,
+			asksage: asksageConfig,
+			xai: xaiConfig,
+			sambanova: sambanovaConfig,
+			cerebras: cerebrasConfig,
+			cline: clineConfig,
+
+			// General settings
 			thinkingBudgetTokens,
 			reasoningEffort,
-			liteLlmBaseUrl,
-			liteLlmModelId,
-			liteLlmModelInfo,
-			liteLlmApiKey,
-			liteLlmUsePromptCache,
-			fireworksApiKey,
-			fireworksModelId,
-			fireworksModelMaxCompletionTokens,
-			fireworksModelMaxTokens,
-			asksageApiKey,
-			asksageApiUrl,
-			xaiApiKey,
-			sambanovaApiKey,
-			cerebrasApiKey,
-			nebiusApiKey,
 			favoritedModelIds,
 			requestTimeoutMs,
 		},
@@ -395,131 +500,178 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 }
 
 export async function updateApiConfiguration(context: vscode.ExtensionContext, apiConfiguration: ApiConfiguration) {
-	const {
-		apiProvider,
-		apiModelId,
-		apiKey,
-		openRouterApiKey,
-		awsAccessKey,
-		awsSecretKey,
-		awsSessionToken,
-		awsRegion,
-		awsUseCrossRegionInference,
-		awsBedrockUsePromptCache,
-		awsBedrockEndpoint,
-		awsProfile,
-		awsUseProfile,
-		awsBedrockCustomSelected,
-		awsBedrockCustomModelBaseId,
-		vertexProjectId,
-		vertexRegion,
-		openAiBaseUrl,
-		openAiApiKey,
-		openAiModelId,
-		openAiModelInfo,
-		openAiHeaders,
-		ollamaModelId,
-		ollamaBaseUrl,
-		ollamaApiOptionsCtxNum,
-		lmStudioModelId,
-		lmStudioBaseUrl,
-		anthropicBaseUrl,
-		geminiApiKey,
-		geminiBaseUrl,
-		openAiNativeApiKey,
-		deepSeekApiKey,
-		requestyApiKey,
-		requestyModelId,
-		requestyModelInfo,
-		togetherApiKey,
-		togetherModelId,
-		qwenApiKey,
-		doubaoApiKey,
-		mistralApiKey,
-		azureApiVersion,
-		openRouterModelId,
-		openRouterModelInfo,
-		openRouterProviderSorting,
-		vsCodeLmModelSelector,
-		liteLlmBaseUrl,
-		liteLlmModelId,
-		liteLlmModelInfo,
-		liteLlmApiKey,
-		liteLlmUsePromptCache,
-		qwenApiLine,
-		asksageApiKey,
-		asksageApiUrl,
-		xaiApiKey,
-		thinkingBudgetTokens,
-		reasoningEffort,
-		clineApiKey,
-		sambanovaApiKey,
-		cerebrasApiKey,
-		nebiusApiKey,
-		favoritedModelIds,
-	} = apiConfiguration
+	const { apiProvider, apiModelId, thinkingBudgetTokens, reasoningEffort, favoritedModelIds, requestTimeoutMs } =
+		apiConfiguration
+
+	// Update core fields
 	await updateGlobalState(context, "apiProvider", apiProvider)
 	await updateGlobalState(context, "apiModelId", apiModelId)
-	await storeSecret(context, "apiKey", apiKey)
-	await storeSecret(context, "openRouterApiKey", openRouterApiKey)
-	await storeSecret(context, "awsAccessKey", awsAccessKey)
-	await storeSecret(context, "awsSecretKey", awsSecretKey)
-	await storeSecret(context, "awsSessionToken", awsSessionToken)
-	await updateGlobalState(context, "awsRegion", awsRegion)
-	await updateGlobalState(context, "awsUseCrossRegionInference", awsUseCrossRegionInference)
-	await updateGlobalState(context, "awsBedrockUsePromptCache", awsBedrockUsePromptCache)
-	await updateGlobalState(context, "awsBedrockEndpoint", awsBedrockEndpoint)
-	await updateGlobalState(context, "awsProfile", awsProfile)
-	await updateGlobalState(context, "awsUseProfile", awsUseProfile)
-	await updateGlobalState(context, "awsBedrockCustomSelected", awsBedrockCustomSelected)
-	await updateGlobalState(context, "awsBedrockCustomModelBaseId", awsBedrockCustomModelBaseId)
-	await updateGlobalState(context, "vertexProjectId", vertexProjectId)
-	await updateGlobalState(context, "vertexRegion", vertexRegion)
-	await updateGlobalState(context, "openAiBaseUrl", openAiBaseUrl)
-	await storeSecret(context, "openAiApiKey", openAiApiKey)
-	await updateGlobalState(context, "openAiModelId", openAiModelId)
-	await updateGlobalState(context, "openAiModelInfo", openAiModelInfo)
-	await updateGlobalState(context, "openAiHeaders", openAiHeaders || {})
-	await updateGlobalState(context, "ollamaModelId", ollamaModelId)
-	await updateGlobalState(context, "ollamaBaseUrl", ollamaBaseUrl)
-	await updateGlobalState(context, "ollamaApiOptionsCtxNum", ollamaApiOptionsCtxNum)
-	await updateGlobalState(context, "lmStudioModelId", lmStudioModelId)
-	await updateGlobalState(context, "lmStudioBaseUrl", lmStudioBaseUrl)
-	await updateGlobalState(context, "anthropicBaseUrl", anthropicBaseUrl)
-	await storeSecret(context, "geminiApiKey", geminiApiKey)
-	await updateGlobalState(context, "geminiBaseUrl", geminiBaseUrl)
-	await storeSecret(context, "openAiNativeApiKey", openAiNativeApiKey)
-	await storeSecret(context, "deepSeekApiKey", deepSeekApiKey)
-	await storeSecret(context, "requestyApiKey", requestyApiKey)
-	await storeSecret(context, "togetherApiKey", togetherApiKey)
-	await storeSecret(context, "qwenApiKey", qwenApiKey)
-	await storeSecret(context, "doubaoApiKey", doubaoApiKey)
-	await storeSecret(context, "mistralApiKey", mistralApiKey)
-	await storeSecret(context, "liteLlmApiKey", liteLlmApiKey)
-	await storeSecret(context, "xaiApiKey", xaiApiKey)
-	await updateGlobalState(context, "azureApiVersion", azureApiVersion)
-	await updateGlobalState(context, "openRouterModelId", openRouterModelId)
-	await updateGlobalState(context, "openRouterModelInfo", openRouterModelInfo)
-	await updateGlobalState(context, "openRouterProviderSorting", openRouterProviderSorting)
-	await updateGlobalState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
-	await updateGlobalState(context, "liteLlmBaseUrl", liteLlmBaseUrl)
-	await updateGlobalState(context, "liteLlmModelId", liteLlmModelId)
-	await updateGlobalState(context, "liteLlmModelInfo", liteLlmModelInfo)
-	await updateGlobalState(context, "liteLlmUsePromptCache", liteLlmUsePromptCache)
-	await updateGlobalState(context, "qwenApiLine", qwenApiLine)
-	await updateGlobalState(context, "requestyModelId", requestyModelId)
-	await updateGlobalState(context, "requestyModelInfo", requestyModelInfo)
-	await updateGlobalState(context, "togetherModelId", togetherModelId)
-	await storeSecret(context, "asksageApiKey", asksageApiKey)
-	await updateGlobalState(context, "asksageApiUrl", asksageApiUrl)
 	await updateGlobalState(context, "thinkingBudgetTokens", thinkingBudgetTokens)
 	await updateGlobalState(context, "reasoningEffort", reasoningEffort)
-	await storeSecret(context, "clineApiKey", clineApiKey)
-	await storeSecret(context, "sambanovaApiKey", sambanovaApiKey)
-	await storeSecret(context, "cerebrasApiKey", cerebrasApiKey)
-	await storeSecret(context, "nebiusApiKey", nebiusApiKey)
 	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
-	await updateGlobalState(context, "requestTimeoutMs", apiConfiguration.requestTimeoutMs)
+	await updateGlobalState(context, "requestTimeoutMs", requestTimeoutMs)
+
+	// Update provider-specific fields
+
+	// Anthropic
+	if (apiConfiguration.anthropic) {
+		await storeSecret(context, "apiKey", apiConfiguration.anthropic.apiKey)
+		await updateGlobalState(context, "anthropicBaseUrl", apiConfiguration.anthropic.baseUrl)
+	}
+
+	// OpenRouter
+	if (apiConfiguration.openrouter) {
+		await storeSecret(context, "openRouterApiKey", apiConfiguration.openrouter.apiKey)
+		await updateGlobalState(context, "openRouterModelId", apiConfiguration.openrouter.modelId)
+		await updateGlobalState(context, "openRouterModelInfo", apiConfiguration.openrouter.modelInfo)
+		await updateGlobalState(context, "openRouterProviderSorting", apiConfiguration.openrouter.providerSorting)
+	}
+
+	// OpenAI
+	if (apiConfiguration.openai) {
+		await storeSecret(context, "openAiApiKey", apiConfiguration.openai.apiKey)
+		await updateGlobalState(context, "openAiModelId", apiConfiguration.openai.modelId)
+		await updateGlobalState(context, "openAiModelInfo", apiConfiguration.openai.modelInfo)
+		await updateGlobalState(context, "openAiBaseUrl", apiConfiguration.openai.baseUrl)
+		await updateGlobalState(context, "openAiHeaders", apiConfiguration.openai.headers || {})
+	}
+
+	// OpenAI Native
+	if (apiConfiguration.openaiNative) {
+		await storeSecret(context, "openAiNativeApiKey", apiConfiguration.openaiNative.apiKey)
+	}
+
+	// AWS Bedrock
+	if (apiConfiguration.aws) {
+		await storeSecret(context, "awsAccessKey", apiConfiguration.aws.accessKey)
+		await storeSecret(context, "awsSecretKey", apiConfiguration.aws.secretKey)
+		await storeSecret(context, "awsSessionToken", apiConfiguration.aws.sessionToken)
+		await updateGlobalState(context, "awsRegion", apiConfiguration.aws.region)
+		await updateGlobalState(context, "awsUseCrossRegionInference", apiConfiguration.aws.useCrossRegionInference)
+		await updateGlobalState(context, "awsBedrockUsePromptCache", apiConfiguration.aws.bedrockUsePromptCache)
+		await updateGlobalState(context, "awsBedrockEndpoint", apiConfiguration.aws.bedrockEndpoint)
+		await updateGlobalState(context, "awsProfile", apiConfiguration.aws.profile)
+		await updateGlobalState(context, "awsUseProfile", apiConfiguration.aws.useProfile)
+		await updateGlobalState(context, "awsBedrockCustomSelected", apiConfiguration.aws.bedrockCustomSelected)
+		await updateGlobalState(context, "awsBedrockCustomModelBaseId", apiConfiguration.aws.bedrockCustomModelBaseId)
+	}
+
+	// Vertex
+	if (apiConfiguration.vertex) {
+		await updateGlobalState(context, "vertexProjectId", apiConfiguration.vertex.projectId)
+		await updateGlobalState(context, "vertexRegion", apiConfiguration.vertex.region)
+	}
+
+	// Ollama
+	if (apiConfiguration.ollama) {
+		await updateGlobalState(context, "ollamaModelId", apiConfiguration.ollama.modelId)
+		await updateGlobalState(context, "ollamaBaseUrl", apiConfiguration.ollama.baseUrl)
+		await updateGlobalState(context, "ollamaApiOptionsCtxNum", apiConfiguration.ollama.apiOptionsCtxNum)
+	}
+
+	// LM Studio
+	if (apiConfiguration.lmstudio) {
+		await updateGlobalState(context, "lmStudioModelId", apiConfiguration.lmstudio.modelId)
+		await updateGlobalState(context, "lmStudioBaseUrl", apiConfiguration.lmstudio.baseUrl)
+	}
+
+	// Gemini
+	if (apiConfiguration.gemini) {
+		await storeSecret(context, "geminiApiKey", apiConfiguration.gemini.apiKey)
+		await updateGlobalState(context, "geminiBaseUrl", apiConfiguration.gemini.baseUrl)
+	}
+
+	// LiteLLM
+	if (apiConfiguration.litellm) {
+		await storeSecret(context, "liteLlmApiKey", apiConfiguration.litellm.apiKey)
+		await updateGlobalState(context, "liteLlmModelId", apiConfiguration.litellm.modelId)
+		await updateGlobalState(context, "liteLlmBaseUrl", apiConfiguration.litellm.baseUrl)
+		await updateGlobalState(context, "liteLlmModelInfo", apiConfiguration.litellm.modelInfo)
+		await updateGlobalState(context, "liteLlmUsePromptCache", apiConfiguration.litellm.usePromptCache)
+	}
+
+	// Fireworks
+	if (apiConfiguration.fireworks) {
+		await storeSecret(context, "fireworksApiKey", apiConfiguration.fireworks.apiKey)
+		await updateGlobalState(context, "fireworksModelId", apiConfiguration.fireworks.modelId)
+		await updateGlobalState(context, "fireworksModelMaxCompletionTokens", apiConfiguration.fireworks.modelMaxCompletionTokens)
+		await updateGlobalState(context, "fireworksModelMaxTokens", apiConfiguration.fireworks.modelMaxTokens)
+	}
+
+	// Requesty
+	if (apiConfiguration.requesty) {
+		await storeSecret(context, "requestyApiKey", apiConfiguration.requesty.apiKey)
+		await updateGlobalState(context, "requestyModelId", apiConfiguration.requesty.modelId)
+		await updateGlobalState(context, "requestyModelInfo", apiConfiguration.requesty.modelInfo)
+	}
+
+	// Together
+	if (apiConfiguration.together) {
+		await storeSecret(context, "togetherApiKey", apiConfiguration.together.apiKey)
+		await updateGlobalState(context, "togetherModelId", apiConfiguration.together.modelId)
+	}
+
+	// DeepSeek
+	if (apiConfiguration.deepseek) {
+		await storeSecret(context, "deepSeekApiKey", apiConfiguration.deepseek.apiKey)
+	}
+
+	// Qwen
+	if (apiConfiguration.qwen) {
+		await storeSecret(context, "qwenApiKey", apiConfiguration.qwen.apiKey)
+		await updateGlobalState(context, "qwenApiLine", apiConfiguration.qwen.apiLine)
+	}
+
+	// Doubao
+	if (apiConfiguration.doubao) {
+		await storeSecret(context, "doubaoApiKey", apiConfiguration.doubao.apiKey)
+	}
+
+	// Mistral
+	if (apiConfiguration.mistral) {
+		await storeSecret(context, "mistralApiKey", apiConfiguration.mistral.apiKey)
+	}
+
+	// Azure
+	if (apiConfiguration.azure) {
+		await updateGlobalState(context, "azureApiVersion", apiConfiguration.azure.apiVersion)
+	}
+
+	// VSCode
+	if (apiConfiguration.vscode) {
+		await updateGlobalState(context, "vsCodeLmModelSelector", apiConfiguration.vscode.modelSelector)
+	}
+
+	// Nebius
+	if (apiConfiguration.nebius) {
+		await storeSecret(context, "nebiusApiKey", apiConfiguration.nebius.apiKey)
+	}
+
+	// AskSage
+	if (apiConfiguration.asksage) {
+		await storeSecret(context, "asksageApiKey", apiConfiguration.asksage.apiKey)
+		await updateGlobalState(context, "asksageApiUrl", apiConfiguration.asksage.apiUrl)
+	}
+
+	// XAI
+	if (apiConfiguration.xai) {
+		await storeSecret(context, "xaiApiKey", apiConfiguration.xai.apiKey)
+	}
+
+	// SambaNova
+	if (apiConfiguration.sambanova) {
+		await storeSecret(context, "sambanovaApiKey", apiConfiguration.sambanova.apiKey)
+	}
+
+	// Cerebras
+	if (apiConfiguration.cerebras) {
+		await storeSecret(context, "cerebrasApiKey", apiConfiguration.cerebras.apiKey)
+	}
+
+	// Cline
+	if (apiConfiguration.cline) {
+		await storeSecret(context, "clineApiKey", apiConfiguration.cline.apiKey)
+	}
 }
 
 export async function resetExtensionState(context: vscode.ExtensionContext) {

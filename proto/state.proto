@@ -80,73 +80,185 @@ message UpdateSettingsRequest {
   optional int32 request_timeout_ms = 10;
 }
 
-// API Configuration message
+
+
+
+// API Configuration message with nested provider-specific configurations
+
 message ApiConfiguration {
-  string api_provider = 1;
-  optional string api_model_id = 2;
-  optional string anthropic_api_key = 3;
-  optional string openai_api_key = 4;
-  optional string openrouter_api_key = 5;
-  optional string openrouter_model_id = 6;
-  optional string openai_model_id = 7;
-  optional string ollama_model_id = 8;
-  optional string ollama_base_url = 9;
-  optional string lm_studio_model_id = 10;
-  optional string lm_studio_base_url = 11;
-  optional string cline_api_key = 12;
-  optional string reasoning_effort = 13;
-  optional int32 thinking_budget_tokens = 14;
-  optional bool aws_bedrock_custom_selected = 15;
-  optional string aws_bedrock_custom_model_base_id = 16;
-  optional string litellm_model_id = 17;
-  optional string litellm_base_url = 18;
-  optional string litellm_api_key = 19;
-  optional string requesty_model_id = 20;
-  optional string requesty_base_url = 21;
-  optional string requesty_api_key = 22;
-  // Additional fields from state-keys.ts
-  optional string azure_api_version = 23;
-  optional string anthropic_base_url = 24;
-  optional string openai_headers = 25; // Might need a dedicated message type for complex objects
-  optional string openai_model_info = 26; // Might need a dedicated message type for complex objects
-  optional string openrouter_model_info = 27; // Might need a dedicated message type for complex objects
-  optional string openrouter_provider_sorting = 28;
-  optional string vscode_lm_model_selector = 29; // Might need a dedicated message type for complex objects
-  optional string ollama_api_options_ctx_num = 30;
-  optional string fireworks_model_id = 31;
-  optional int32 fireworks_model_max_completion_tokens = 32;
-  optional int32 fireworks_model_max_tokens = 33;
-  optional string together_model_id = 34;
-  optional string together_api_key = 35;
-  optional string qwen_api_line = 36;
-  optional string qwen_api_key = 37;
-  optional string doubao_api_key = 38;
-  optional string mistral_api_key = 39;
-  optional string aws_region = 40;
-  optional bool aws_use_cross_region_inference = 41;
-  optional bool aws_bedrock_use_prompt_cache = 42;
-  optional string aws_bedrock_endpoint = 43;
-  optional string aws_profile = 44;
-  optional bool aws_use_profile = 45;
-  optional string aws_access_key = 46;
-  optional string aws_secret_key = 47;
-  optional string aws_session_token = 48;
-  optional string vertex_project_id = 49;
-  optional string vertex_region = 50;
-  optional string gemini_api_key = 51;
-  optional string gemini_base_url = 52;
-  optional string openai_native_api_key = 53;
-  optional string deepseek_api_key = 54;
-  optional string asksage_api_url = 55;
-  optional string asksage_api_key = 56;
-  optional string xai_api_key = 57;
-  optional string nebius_api_key = 58;
-  optional string sambanova_api_key = 59;
-  optional string cerebras_api_key = 60;
-  optional bool litellm_use_prompt_cache = 61;
-  optional string litellm_model_info = 62; // Might need a dedicated message type for complex objects
-  optional string requesty_model_info = 63; // Might need a dedicated message type for complex objects
-  optional string open_ai_base_url = 64; // Base URL for OpenAI API
+  string api_provider = 1;   // Sets the provider of the API, e.g., "openai", "anthropic", "ollama", etc.
+  optional string api_model_id = 2;   // Sets the model ID for providers that do not have a provider-specific model ID field
+
+  // Provider-specific configurations
+  optional AnthropicConfig anthropic = 3;
+  optional OpenRouterConfig openrouter = 4;
+  optional OpenAIConfig openai = 5;
+  optional OpenAINativeConfig openai_native = 6;
+  optional AwsConfig aws = 7;
+  optional VertexConfig vertex = 8;
+  optional OllamaConfig ollama = 9;
+  optional LMStudioConfig lm_studio = 10;
+  optional GeminiConfig gemini = 11;
+  optional LiteLLMConfig litellm = 12;
+  optional FireworksConfig fireworks = 13;
+  optional RequestyConfig requesty = 14;
+  optional TogetherConfig together = 15;
+  optional DeepSeekConfig deepseek = 16;
+  optional QwenConfig qwen = 17;
+  optional DoubaoConfig doubao = 18;
+  optional MistralConfig mistral = 19;
+  optional AzureConfig azure = 20;
+  optional VSCodeConfig vscode = 21;
+  optional NebiusConfig nebius = 22;
+  optional AskSageConfig asksage = 23;
+  optional XAIConfig xai = 24;
+  optional SambanovaConfig sambanova = 25;
+  optional CerebrasConfig cerebras = 26;
+  optional ClineConfig cline = 27;
+  
+  // General settings
+  optional string reasoning_effort = 28;
+  optional int32 thinking_budget_tokens = 29;
+  optional int32 request_timeout_ms = 30;
+  repeated string favorited_model_ids = 31;
+}
+
+// Provider-specific configuration messages
+
+message AnthropicConfig {
+  optional string api_key = 1;
+  optional string base_url = 2;
+}
+
+message OpenRouterConfig {
+  optional string api_key = 1;
+  optional string model_id = 2;
+  optional string model_info = 3;
+  optional string provider_sorting = 4;
+}
+
+message OpenAIConfig {
+  optional string api_key = 1;
+  optional string model_id = 2;
+  optional string model_info = 3;
+  optional string base_url = 4;
+  optional string headers = 5;
+}
+
+message OpenAINativeConfig {
+  optional string api_key = 1;
+}
+
+message AwsConfig {
+  optional string access_key = 1;
+  optional string secret_key = 2;
+  optional string session_token = 3;
+  optional string region = 4;
+  optional bool use_cross_region_inference = 5;
+  optional bool bedrock_use_prompt_cache = 6;
+  optional string bedrock_endpoint = 7;
+  optional string profile = 8;
+  optional bool use_profile = 9;
+  optional bool bedrock_custom_selected = 10;
+  optional string bedrock_custom_model_base_id = 11;
+}
+
+message VertexConfig {
+  optional string project_id = 1;
+  optional string region = 2;
+}
+
+message OllamaConfig {
+  optional string model_id = 1;
+  optional string base_url = 2;
+  optional string api_options_ctx_num = 3;
+}
+
+message LMStudioConfig {
+  optional string model_id = 1;
+  optional string base_url = 2;
+}
+
+message GeminiConfig {
+  optional string api_key = 1;
+  optional string base_url = 2;
+}
+
+message LiteLLMConfig {
+  optional string api_key = 1;
+  optional string model_id = 2;
+  optional string base_url = 3;
+  optional string model_info = 4;
+  optional bool use_prompt_cache = 5;
+}
+
+message FireworksConfig {
+  optional string api_key = 1;
+  optional string model_id = 2;
+  optional int32 model_max_completion_tokens = 3;
+  optional int32 model_max_tokens = 4;
+}
+
+message RequestyConfig {
+  optional string api_key = 1;
+  optional string model_id = 2;
+  optional string model_info = 3;
+  optional string base_url = 4;
+}
+
+message TogetherConfig {
+  optional string api_key = 1;
+  optional string model_id = 2;
+}
+
+message DeepSeekConfig {
+  optional string api_key = 1;
+}
+
+message QwenConfig {
+  optional string api_key = 1;
+  optional string api_line = 2;
+}
+
+message DoubaoConfig {
+  optional string api_key = 1;
+}
+
+message MistralConfig {
+  optional string api_key = 1;
+}
+
+message AzureConfig {
+  optional string api_version = 1;
+}
+
+message VSCodeConfig {
+  optional string model_selector = 1;
+}
+
+message NebiusConfig {
+  optional string api_key = 1;
+}
+
+message AskSageConfig {
+  optional string api_key = 1;
+  optional string api_url = 2;
+}
+
+message XAIConfig {
+  optional string api_key = 1;
+}
+
+message SambanovaConfig {
+  optional string api_key = 1;
+}
+
+message CerebrasConfig {
+  optional string api_key = 1;
+}
+
+message ClineConfig {
+  optional string api_key = 1;
 }
 
 // Telemetry settings enum

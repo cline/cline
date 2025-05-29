@@ -1,3 +1,4 @@
+import { Ollama } from "ollama"
 import type { LanguageModelChatSelector } from "../api/providers/types"
 
 export type ApiProvider =
@@ -26,73 +27,187 @@ export type ApiProvider =
 	| "sambanova"
 	| "cerebras"
 
-export interface ApiHandlerOptions {
+// Common API options
+export interface CommonApiOptions {
 	apiModelId?: string
-	apiKey?: string // anthropic
-	clineApiKey?: string
+}
+
+/**
+ * Base interface for API handler options
+ */
+export interface ApiHandlerOptions {
+	// Core fields
+	apiModelId?: string
 	taskId?: string // Used to identify the task in API requests
-	liteLlmBaseUrl?: string
-	liteLlmModelId?: string
-	liteLlmApiKey?: string
-	liteLlmUsePromptCache?: boolean
-	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
-	liteLlmModelInfo?: LiteLLMModelInfo
-	anthropicBaseUrl?: string
-	openRouterApiKey?: string
-	openRouterModelId?: string
-	openRouterModelInfo?: ModelInfo
-	openRouterProviderSorting?: string
-	awsAccessKey?: string
-	awsSecretKey?: string
-	awsSessionToken?: string
-	awsRegion?: string
-	awsUseCrossRegionInference?: boolean
-	awsBedrockUsePromptCache?: boolean
-	awsUseProfile?: boolean
-	awsProfile?: string
-	awsBedrockEndpoint?: string
-	awsBedrockCustomSelected?: boolean
-	awsBedrockCustomModelBaseId?: BedrockModelId
-	vertexProjectId?: string
-	vertexRegion?: string
-	openAiBaseUrl?: string
-	openAiApiKey?: string
-	openAiModelId?: string
-	openAiModelInfo?: OpenAiCompatibleModelInfo
-	ollamaModelId?: string
-	ollamaBaseUrl?: string
-	ollamaApiOptionsCtxNum?: string
-	lmStudioModelId?: string
-	lmStudioBaseUrl?: string
-	geminiApiKey?: string
-	geminiBaseUrl?: string
-	openAiNativeApiKey?: string
-	deepSeekApiKey?: string
-	requestyApiKey?: string
-	requestyModelId?: string
-	requestyModelInfo?: ModelInfo
-	togetherApiKey?: string
-	togetherModelId?: string
-	fireworksApiKey?: string
-	fireworksModelId?: string
-	fireworksModelMaxCompletionTokens?: number
-	fireworksModelMaxTokens?: number
-	qwenApiKey?: string
-	doubaoApiKey?: string
-	mistralApiKey?: string
-	azureApiVersion?: string
-	vsCodeLmModelSelector?: LanguageModelChatSelector
-	qwenApiLine?: string
-	nebiusApiKey?: string
-	asksageApiUrl?: string
-	asksageApiKey?: string
-	xaiApiKey?: string
+
+	// Provider-specific configurations
+	anthropic?: AnthropicConfig
+	openrouter?: OpenRouterConfig
+	openai?: OpenAIConfig
+	openaiNative?: OpenAINativeConfig
+	aws?: AwsConfig
+	vertex?: VertexConfig
+	lmstudio?: LMStudioConfig
+	ollama?: OllamaConfig
+	gemini?: GeminiConfig
+	litellm?: LiteLLMConfig
+	fireworks?: FireworksConfig
+	requesty?: RequestyConfig
+	together?: TogetherConfig
+	deepseek?: DeepSeekConfig
+	qwen?: QwenConfig
+	doubao?: DoubaoConfig
+	mistral?: MistralConfig
+	azure?: AzureConfig
+	vscode?: VSCodeConfig
+	nebius?: NebiusConfig
+	asksage?: AskSageConfig
+	xai?: XAIConfig
+	sambanova?: SambanovaConfig
+	cerebras?: CerebrasConfig
+	cline?: ClineConfig
+
+	// General settings
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
-	sambanovaApiKey?: string
-	cerebrasApiKey?: string
 	requestTimeoutMs?: number
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+}
+
+// Provider-specific configurations
+export interface AnthropicConfig {
+	apiKey?: string
+	baseUrl?: string
+}
+
+export interface OpenRouterConfig {
+	apiKey?: string
+	modelId?: string
+	modelInfo?: ModelInfo
+	providerSorting?: string
+}
+
+export interface OpenAIConfig {
+	apiKey?: string
+	modelId?: string
+	modelInfo?: OpenAiCompatibleModelInfo
+	baseUrl?: string
+	headers?: Record<string, string> // Custom headers for OpenAI requests
+}
+
+export interface OpenAINativeConfig {
+	apiKey?: string
+}
+
+export interface AwsConfig {
+	accessKey?: string
+	secretKey?: string
+	sessionToken?: string
+	region?: string
+	useCrossRegionInference?: boolean
+	bedrockUsePromptCache?: boolean
+	useProfile?: boolean
+	profile?: string
+	bedrockEndpoint?: string
+	bedrockCustomSelected?: boolean
+	bedrockCustomModelBaseId?: BedrockModelId
+}
+
+export interface VertexConfig {
+	projectId?: string
+	region?: string
+}
+
+export interface GeminiConfig {
+	apiKey?: string
+	baseUrl?: string
+}
+
+export interface OllamaConfig {
+	modelId?: string
+	baseUrl?: string
+	apiOptionsCtxNum?: string
+}
+
+export interface LiteLLMConfig {
+	baseUrl?: string
+	modelId?: string
+	apiKey?: string
+	usePromptCache?: boolean
+	modelInfo?: LiteLLMModelInfo
+}
+
+export interface LMStudioConfig {
+	modelId?: string
+	baseUrl?: string
+}
+
+export interface FireworksConfig {
+	apiKey?: string
+	modelId?: string
+	modelMaxCompletionTokens?: number
+	modelMaxTokens?: number
+}
+
+export interface RequestyConfig {
+	apiKey?: string
+	modelId?: string
+	modelInfo?: ModelInfo
+}
+
+export interface TogetherConfig {
+	apiKey?: string
+	modelId?: string
+}
+
+export interface DeepSeekConfig {
+	apiKey?: string
+}
+
+export interface QwenConfig {
+	apiKey?: string
+	apiLine?: string
+}
+
+export interface DoubaoConfig {
+	apiKey?: string
+}
+
+export interface MistralConfig {
+	apiKey?: string
+}
+
+export interface AzureConfig {
+	apiVersion?: string
+}
+
+export interface VSCodeConfig {
+	modelSelector?: LanguageModelChatSelector
+}
+
+export interface NebiusConfig {
+	apiKey?: string
+}
+
+export interface AskSageConfig {
+	apiKey?: string
+	apiUrl?: string
+}
+
+export interface XAIConfig {
+	apiKey?: string
+}
+
+export interface SambanovaConfig {
+	apiKey?: string
+}
+
+export interface CerebrasConfig {
+	apiKey?: string
+}
+
+export interface ClineConfig {
+	apiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
