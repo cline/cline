@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   abfaf6c: Add newly formatted LS tool
+-   3c7a42c: Add grep tool with new parsing format
+
+### Patch Changes
+
+-   9f59b60: browserConnectionResult protobus migration/removal
+-   e4e03fa: Fix bug where terminal would get stuck and output "capture failure"
+-   9818d97: Refatored system prompt with switch capabilities
+-   29d3175: Added alt readTool & writeTool tool calls
+-   9818d97: System prompt switching for Claude4 models
+
 ## [3.17.7]
 
 -   Fix diff editing reliability for Claude 4 family models by adding constraints to prevent errors with large replacements
