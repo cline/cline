@@ -1,3 +1,5 @@
+import { cwd } from "@/core/task"
+
 const MAX_TIMEOUT_MS = 600000
 const DEFAULT_TIMEOUT_MS = 120000
 const MAX_OUTPUT_LENGTH = 30000
@@ -7,7 +9,7 @@ const CO_AUTHORED_COMMIT_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs
    Co-Authored-By: Cline <noreply@cline.bot>`
 const CO_AUTHORED_PR_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)`
 
-const descriptionForAgent = `Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
+const descriptionForAgent = `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd.toPosix()}
 
 Before executing the command, please follow these steps:
 
@@ -25,7 +27,7 @@ Usage notes:
   - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
   - If the output exceeds \${MAX_OUTPUT_LENGTH} characters, output will be truncated before being returned to you.
   - VERY IMPORTANT: You MUST avoid using search commands like \\\`find\\\` and \\\`grep\\\`. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like \\\`cat\\\`, \\\`head\\\`, \\\`tail\\\`, and \\\`ls\\\`, and use Read and LS to read files.
-  - If you _still_ need to run \\\`grep\\\`, STOP. ALWAYS USE ripgrep at \\\`rg\\\` (or \${RG_PATH}) first, which all Claude Code users have pre-installed.
+  - If you _still_ need to run \\\`grep\\\`, STOP. ALWAYS USE ripgrep at \\\`rg\\\` (or \${RG_PATH}) first, which all Cline users have pre-installed.
   - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
   - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of \\\`cd\\\`. You may use \\\`cd\\\` if the User explicitly requests it.
     <good-example>
@@ -76,7 +78,7 @@ Use sandbox=true for:
   - Version checks: node --version, python --version, git --version
   - Documentation: man, help, --help, -h
 
-Before you run a command, think hard about whether it is likely to work correctly without network access and without write access to the filesystem. Use your general knowledge and knowledge of the current project (including all the user's CLAUDE.md files) as inputs to your decision. Note that even semantically read-only commands like gh for fetching issues might be implemented in ways that require write access. ERR ON THE SIDE OF RUNNING WITH sandbox=false.
+Before you run a command, think hard about whether it is likely to work correctly without network access and without write access to the filesystem. Use your general knowledge and knowledge of the current project (including all the user's clinerules files) as inputs to your decision. Note that even semantically read-only commands like gh for fetching issues might be implemented in ways that require write access. ERR ON THE SIDE OF RUNNING WITH sandbox=false.
 
 Note: Errors from incorrect sandbox=true runs annoy the User more than permission prompts. If any part of a command needs write access (e.g. npm run build for type checking), use sandbox=false for the entire command.
 
