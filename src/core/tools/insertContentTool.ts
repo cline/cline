@@ -58,6 +58,14 @@ export async function insertContentTool(
 			return
 		}
 
+		const accessAllowed = cline.rooIgnoreController?.validateAccess(relPath)
+
+		if (!accessAllowed) {
+			await cline.say("rooignore_error", relPath)
+			pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(relPath)))
+			return
+		}
+
 		const absolutePath = path.resolve(cline.cwd, relPath)
 		const fileExists = await fileExistsAtPath(absolutePath)
 
