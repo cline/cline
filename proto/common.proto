@@ -1,6 +1,8 @@
 syntax = "proto3";
 
 package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
 
 message Metadata {
 }
@@ -15,6 +17,11 @@ message Empty {
 message StringRequest {
   Metadata metadata = 1;
   string value = 2;
+}
+
+message StringArrayRequest {
+  Metadata metadata = 1;
+  repeated string value = 2;
 }
 
 message String {
@@ -37,4 +44,22 @@ message BytesRequest {
 
 message Bytes {
   bytes value = 1;
+}
+
+message BooleanRequest {
+  Metadata metadata = 1;
+  bool value = 2;
+}
+
+message Boolean {
+  bool value = 1;
+}
+
+message StringArray {
+  repeated string values = 1;
+}
+
+message StringArrays {
+  repeated string values1 = 1;
+  repeated string values2 = 2;
 }

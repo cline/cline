@@ -33,7 +33,7 @@ export class ClineHandler implements ApiHandler {
 			systemPrompt,
 			messages,
 			this.getModel(),
-			this.options.o3MiniReasoningEffort,
+			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 		)
@@ -74,6 +74,8 @@ export class ClineHandler implements ApiHandler {
 			if (!didOutputUsage && chunk.usage) {
 				yield {
 					type: "usage",
+					cacheWriteTokens: 0,
+					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-ignore-next-line
@@ -105,6 +107,8 @@ export class ClineHandler implements ApiHandler {
 				const generation = response.data
 				return {
 					type: "usage",
+					cacheWriteTokens: 0,
+					cacheReadTokens: generation?.native_tokens_cached || 0,
 					inputTokens: generation?.native_tokens_prompt || 0,
 					outputTokens: generation?.native_tokens_completion || 0,
 					totalCost: generation?.total_cost || 0,

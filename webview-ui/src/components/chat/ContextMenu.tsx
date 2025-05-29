@@ -93,8 +93,11 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				if (option.value) {
 					return (
 						<div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-							<span style={{ lineHeight: "1.2" }}>{option.label}</span>
+							<span className="ph-no-capture" style={{ lineHeight: "1.2" }}>
+								{option.label}
+							</span>
 							<span
+								className="ph-no-capture"
 								style={{
 									fontSize: "0.85em",
 									opacity: 0.7,
@@ -118,6 +121,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							<span>/</span>
 							{option.value?.startsWith("/.") && <span>.</span>}
 							<span
+								className="ph-no-capture"
 								style={{
 									whiteSpace: "nowrap",
 									overflow: "hidden",

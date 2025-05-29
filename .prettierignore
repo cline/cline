@@ -3,3 +3,6 @@ node_modules
 webview-ui/build/
 *.md
 package-lock.json
+src/core/prompts/system.ts
+src/core/prompts/model_prompts/claude4.ts
+src/core/prompts/model_prompts/jsonToolToXml.ts

@@ -45,31 +45,43 @@ export const CheckpointOverlay = ({ messageTs }: CheckpointOverlayProps) => {
 
 	useEvent("message", handleMessage)
 
-	const handleRestoreTask = () => {
+	const handleRestoreTask = async () => {
 		setRestoreTaskDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "task" satisfies ClineCheckpointRestore,
-		})
+		try {
+			await CheckpointsServiceClient.checkpointRestore({
+				number: messageTs,
+				restoreType: "task",
+			})
+		} catch (err) {
+			console.error("Checkpoint restore task error:", err)
+			setRestoreTaskDisabled(false)
+		}
 	}
 
-	const handleRestoreWorkspace = () => {
+	const handleRestoreWorkspace = async () => {
 		setRestoreWorkspaceDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "workspace" satisfies ClineCheckpointRestore,
-		})
+		try {
+			await CheckpointsServiceClient.checkpointRestore({
+				number: messageTs,
+				restoreType: "workspace",
+			})
+		} catch (err) {
+			console.error("Checkpoint restore workspace error:", err)
+			setRestoreWorkspaceDisabled(false)
+		}
 	}
 
-	const handleRestoreBoth = () => {
+	const handleRestoreBoth = async () => {
 		setRestoreBothDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "taskAndWorkspace" satisfies ClineCheckpointRestore,
-		})
+		try {
+			await CheckpointsServiceClient.checkpointRestore({
+				number: messageTs,
+				restoreType: "taskAndWorkspace",
+			})
+		} catch (err) {
+			console.error("Checkpoint restore both error:", err)
+			setRestoreBothDisabled(false)
+		}
 	}
 
 	const handleMouseEnter = () => {

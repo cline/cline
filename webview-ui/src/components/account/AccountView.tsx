@@ -8,6 +8,8 @@ import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { AccountServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
 
 type AccountViewProps = {
 	onDone: () => void
@@ -68,12 +70,14 @@ export const ClineAccountView = () => {
 	}, [user])
 
 	const handleLogin = () => {
-		vscode.postMessage({ type: "accountLoginClicked" })
+		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
+			console.error("Failed to get login URL:", err),
+		)
 	}
 
 	const handleLogout = () => {
-		// First notify extension to clear API keys and state
-		vscode.postMessage({ type: "accountLogoutClicked" })
+		// Use gRPC client to notify extension to clear API keys and state
+		AccountServiceClient.accountLogoutClicked(EmptyRequest.create()).catch((err) => console.error("Failed to logout:", err))
 		// Then sign out of Firebase
 		handleSignOut()
 	}

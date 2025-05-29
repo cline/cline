@@ -2,7 +2,7 @@ import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
 import * as vscode from "vscode"
-import { telemetryService } from "@services/telemetry/TelemetryService"
+import { telemetryService } from "@/services/posthog/telemetry/TelemetryService"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 
@@ -90,7 +90,11 @@ class CheckpointTracker {
 	 * Configuration:
 	 * - Respects 'cline.enableCheckpoints' VS Code setting
 	 */
-	public static async create(taskId: string, globalStoragePath: string | undefined): Promise<CheckpointTracker | undefined> {
+	public static async create(
+		taskId: string,
+		globalStoragePath: string | undefined,
+		enableCheckpointsSetting: boolean,
+	): Promise<CheckpointTracker | undefined> {
 		if (!globalStoragePath) {
 			throw new Error("Global storage path is required to create a checkpoint tracker")
 		}
@@ -98,9 +102,9 @@ class CheckpointTracker {
 			console.info(`Creating new CheckpointTracker for task ${taskId}`)
 			const startTime = performance.now()
 
-			// Check if checkpoints are disabled in VS Code settings
-			const enableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
-			if (!enableCheckpoints) {
+			// Check if checkpoints are disabled by setting
+			if (!enableCheckpointsSetting) {
+				console.info(`Checkpoints disabled by setting for task ${taskId}`)
 				return undefined // Don't create tracker when disabled
 			}
 

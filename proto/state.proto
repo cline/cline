@@ -1,0 +1,66 @@
+syntax = "proto3";
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+service StateService {
+  rpc getLatestState(EmptyRequest) returns (State);
+  rpc subscribeToState(EmptyRequest) returns (stream State);
+  rpc toggleFavoriteModel(StringRequest) returns (Empty);
+  rpc resetState(EmptyRequest) returns (Empty);
+  rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
+  rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
+  rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
+}
+
+message State {
+  string state_json = 1;
+}
+
+message TogglePlanActModeRequest {
+  Metadata metadata = 1;
+  ChatSettings chat_settings = 2;
+  optional ChatContent chat_content = 3;
+}
+
+enum PlanActMode {
+  PLAN = 0;
+  ACT = 1;
+}
+
+message ChatSettings {
+  PlanActMode mode = 1;
+  optional string preferred_language = 2;
+  optional string open_ai_reasoning_effort = 3;
+}
+
+message ChatContent {
+  optional string message = 1;
+  repeated string images = 2;
+  repeated string files = 3;
+}
+
+// Message for auto approval settings
+message AutoApprovalSettingsRequest {
+  Metadata metadata = 1;
+
+  message Actions {
+    bool read_files = 1;
+    bool read_files_externally = 2;
+    bool edit_files = 3;
+    bool edit_files_externally = 4;
+    bool execute_safe_commands = 5;
+    bool execute_all_commands = 6;
+    bool use_browser = 7;
+    bool use_mcp = 8;
+  }
+
+  int32 version = 2;
+  bool enabled = 3;
+  Actions actions = 4;
+  int32 max_requests = 5;
+  bool enable_notifications = 6;
+  repeated string favorites = 7;
+}

@@ -1,8 +1,7 @@
 import React from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "@/utils/vscode"
-import { Invoke } from "@shared/ExtensionMessage"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
@@ -40,11 +39,16 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 			</VSCodeButtonLink>
 
 			<VSCodeButton
-				onClick={() => {
-					vscode.postMessage({
-						type: "invoke",
-						text: "primaryButtonClick" satisfies Invoke,
-					})
+				onClick={async () => {
+					try {
+						await TaskServiceClient.askResponse({
+							responseType: "yesButtonClicked",
+							text: "",
+							images: [],
+						})
+					} catch (error) {
+						console.error("Error invoking action:", error)
+					}
 				}}
 				appearance="secondary"
 				style={{

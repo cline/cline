@@ -3,7 +3,6 @@ import * as path from "path"
 import * as fs from "fs"
 import fetch from "node-fetch"
 import * as os from "os"
-import * as child_process from "child_process"
 import { installRequiredExtensions, configureExtensionSettings } from "./extensions"
 
 // Store temporary directories for cleanup

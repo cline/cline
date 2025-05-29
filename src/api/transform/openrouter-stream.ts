@@ -9,7 +9,7 @@ export async function createOpenRouterStream(
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
-	o3MiniReasoningEffort?: string,
+	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
 ) {
@@ -20,8 +20,11 @@ export async function createOpenRouterStream(
 	]
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
-	// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
+	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
+	// handles direct model.id match logic
 	switch (model.id) {
+		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
 		case "anthropic/claude-3.7-sonnet:thinking":
@@ -78,6 +81,8 @@ export async function createOpenRouterStream(
 	// (models usually default to max tokens allowed)
 	let maxTokens: number | undefined
 	switch (model.id) {
+		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
 		case "anthropic/claude-3.7-sonnet:thinking":
@@ -111,6 +116,8 @@ export async function createOpenRouterStream(
 
 	let reasoning: { max_tokens: number } | undefined = undefined
 	switch (model.id) {
+		case "anthropic/claude-sonnet-4":
+		case "anthropic/claude-opus-4":
 		case "anthropic/claude-3.7-sonnet":
 		case "anthropic/claude-3.7-sonnet:beta":
 		case "anthropic/claude-3.7-sonnet:thinking":
@@ -143,7 +150,7 @@ export async function createOpenRouterStream(
 		stream_options: { include_usage: true },
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
-		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
+		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 	})

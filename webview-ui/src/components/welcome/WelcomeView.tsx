@@ -5,6 +5,8 @@ import { validateApiConfiguration } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import ApiOptions from "@/components/settings/ApiOptions"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import { AccountServiceClient } from "@/services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
 
 const WelcomeView = memo(() => {
 	const { apiConfiguration } = useExtensionState()
@@ -14,7 +16,9 @@ const WelcomeView = memo(() => {
 	const disableLetsGoButton = apiErrorMessage != null
 
 	const handleLogin = () => {
-		vscode.postMessage({ type: "accountLoginClicked" })
+		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
+			console.error("Failed to get login URL:", err),
+		)
 	}
 
 	const handleSubmit = () => {
@@ -34,7 +38,7 @@ const WelcomeView = memo(() => {
 				</div>
 				<p>
 					I can do all kinds of tasks thanks to breakthroughs in{" "}
-					<VSCodeLink href="https://www.anthropic.com/claude/sonnet" className="inline">
+					<VSCodeLink href="https://www.anthropic.com/news/claude-3-7-sonnet" className="inline">
 						Claude 3.7 Sonnet's
 					</VSCodeLink>
 					agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use

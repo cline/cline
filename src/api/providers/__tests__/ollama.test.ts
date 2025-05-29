@@ -96,7 +96,7 @@ describe("OllamaHandler", () => {
 				try {
 					// Create a promise that rejects after a short timeout
 					const timeoutPromise = new Promise<never>((_, reject) => {
-						setTimeout(() => reject(new Error("Ollama request timed out after 30 seconds")), 100)
+						setTimeout(() => reject(new Error("Ollama request timed out after 120 seconds")), 100)
 					})
 
 					// Create a promise that never resolves
@@ -125,7 +125,7 @@ describe("OllamaHandler", () => {
 			}
 
 			// Check the result
-			errorMessage.should.equal("Ollama request timed out after 30 seconds")
+			errorMessage.should.equal("Ollama request timed out after 120 seconds")
 
 			// Restore the fake timers for other tests
 			clock = sinon.useFakeTimers()

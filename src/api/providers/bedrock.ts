@@ -43,20 +43,30 @@ export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 		const modelId = await this.getModelId()
 		const model = this.getModel()
 
+		// This baseModelId is used to indicate the capabilities of the model.
+		// If the user selects a custom model, baseModelId will be set to the base model ID of the custom model.
+		// Otherwise, baseModelId will be the same as modelId.
+		const baseModelId =
+			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : modelId) || modelId
+
 		// Check if this is an Amazon Nova model
-		if (modelId.includes("amazon.nova")) {
+		if (baseModelId.includes("amazon.nova")) {
 			yield* this.createNovaMessage(systemPrompt, messages, modelId, model)
 			return
 		}
 
 		// Check if this is a Deepseek model
-		if (modelId.includes("deepseek")) {
+		if (baseModelId.includes("deepseek")) {
 			yield* this.createDeepseekMessage(systemPrompt, messages, modelId, model)
 			return
 		}
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn =
+			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
+			budget_tokens !== 0
+				? true
+				: false
 
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -67,51 +77,62 @@ export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 		// initialization, and allowing for session renewal if necessary as well
 		const client = await this.getAnthropicClient()
 
-		const stream = await client.messages.create({
-			model: modelId,
-			max_tokens: model.info.maxTokens || 8192,
-			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-			temperature: reasoningOn ? undefined : 0,
-			system: [
-				{
-					text: systemPrompt,
-					type: "text",
-					...(this.options.awsBedrockUsePromptCache === true && {
-						cache_control: { type: "ephemeral" },
-					}),
-				},
-			],
-			messages: messages.map((message, index) => {
-				if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-					return {
-						...message,
-						content:
-							typeof message.content === "string"
-								? [
-										{
-											type: "text",
-											text: message.content,
-											...(this.options.awsBedrockUsePromptCache === true && {
-												cache_control: { type: "ephemeral" },
-											}),
-										},
-									]
-								: message.content.map((content, contentIndex) =>
-										contentIndex === message.content.length - 1
-											? {
-													...content,
+		// Use withTempEnv to ensure environment variables are properly restored
+		const stream = await AwsBedrockHandler.withTempEnv(
+			() => {
+				// AWS SDK prioritizes AWS_PROFILE over AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair
+				// If this is set as an env variable already (ie. from ~/.zshrc) it will override credentials configured by Cline
+				// Temporarily remove AWS_PROFILE to ensure our credentials are used
+				delete process.env["AWS_PROFILE"]
+			},
+			async () => {
+				return await client.messages.create({
+					model: modelId,
+					max_tokens: model.info.maxTokens || 8192,
+					thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+					temperature: reasoningOn ? undefined : 0,
+					system: [
+						{
+							text: systemPrompt,
+							type: "text",
+							...(this.options.awsBedrockUsePromptCache === true && {
+								cache_control: { type: "ephemeral" },
+							}),
+						},
+					],
+					messages: messages.map((message, index) => {
+						if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+							return {
+								...message,
+								content:
+									typeof message.content === "string"
+										? [
+												{
+													type: "text",
+													text: message.content,
 													...(this.options.awsBedrockUsePromptCache === true && {
 														cache_control: { type: "ephemeral" },
 													}),
-												}
-											: content,
-									),
-					}
-				}
-				return message
-			}),
-			stream: true,
-		})
+												},
+											]
+										: message.content.map((content, contentIndex) =>
+												contentIndex === message.content.length - 1
+													? {
+															...content,
+															...(this.options.awsBedrockUsePromptCache === true && {
+																cache_control: { type: "ephemeral" },
+															}),
+														}
+													: content,
+											),
+							}
+						}
+						return message
+					}),
+					stream: true,
+				})
+			},
+		)
 
 		for await (const chunk of stream) {
 			switch (chunk.type) {
@@ -182,12 +203,23 @@ export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 		}
 	}
 
-	getModel(): { id: BedrockModelId; info: ModelInfo } {
+	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in bedrockModels) {
 			const id = modelId as BedrockModelId
 			return { id, info: bedrockModels[id] }
 		}
+
+		const customSelected = this.options.awsBedrockCustomSelected
+		const baseModel = this.options.awsBedrockCustomModelBaseId
+		if (customSelected && modelId && baseModel && baseModel in bedrockModels) {
+			// Use the user-input model ID but inherit capabilities from the base model
+			return {
+				id: modelId,
+				info: bedrockModels[baseModel],
+			}
+		}
+
 		return {
 			id: bedrockDefaultModelId,
 			info: bedrockModels[bedrockDefaultModelId],
@@ -211,10 +243,14 @@ export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 		return await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
-				AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
-				AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
-				AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
-				AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
+				if (this.options.awsUseProfile) {
+					AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
+				} else {
+					delete process.env["AWS_PROFILE"]
+					AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
+					AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
+					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
+				}
 			},
 			() => providerChain(),
 		)
@@ -289,10 +325,14 @@ export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 	}
 
 	/**
-	 * Gets the appropriate model ID, accounting for cross-region inference if enabled
+	 * Gets the appropriate model ID, accounting for cross-region inference if enabled.
+	 * If the model ID is an ARN that contains a slash, you will get the URL encoded ARN.
 	 */
 	async getModelId(): Promise<string> {
-		if (this.options.awsUseCrossRegionInference) {
+		if (this.options.awsBedrockCustomSelected && this.getModel().id.includes("/")) {
+			return encodeURIComponent(this.getModel().id)
+		}
+		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
@@ -310,13 +350,23 @@ export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 	}
 
 	private static async withTempEnv<R>(updateEnv: () => void, fn: () => Promise<R>): Promise<R> {
-		const previousEnv = { ...process.env }
+		const previousEnv = Object.assign({}, process.env)
 
 		try {
 			updateEnv()
 			return await fn()
 		} finally {
-			process.env = previousEnv
+			// Restore the previous environment
+			// First clear any new variables that might have been added
+			for (const key in process.env) {
+				if (!(key in previousEnv)) {
+					delete process.env[key]
+				}
+			}
+			// Then restore all previous values
+			for (const key in previousEnv) {
+				process.env[key] = previousEnv[key]
+			}
 		}
 	}
 
@@ -333,7 +383,7 @@ export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
-		model: { id: BedrockModelId; info: ModelInfo },
+		model: { id: string; info: ModelInfo },
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
@@ -519,13 +569,13 @@ export class AwsBedrockHandler implements ApiHandler, RegionProvider {
 
 	/**
 	 * Creates a message using Amazon Nova models through AWS Bedrock
-	 * Implements support for Nova Micro, Nova Lite, and Nova Pro models
+	 * Implements support for Amazon Nova models
 	 */
 	private async *createNovaMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
-		model: { id: BedrockModelId; info: ModelInfo },
+		model: { id: string; info: ModelInfo },
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
