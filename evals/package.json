@@ -10,7 +10,14 @@
 		"build": "turbo build --log-order grouped --output-logs new-only",
 		"web": "turbo dev --filter @evals/web",
 		"cli": "turbo dev --filter @evals/cli -- run",
-		"drizzle:studio": "pnpm --filter @evals/db db:studio"
+		"drizzle:studio": "pnpm --filter @evals/db db:studio",
+		"docker:build": "docker build -f Dockerfile -t roo-code-eval --progress=plain ..",
+		"docker:run": "touch /tmp/evals.db && docker run -d -it -p 3000:3000 -v /tmp/evals.db:/tmp/evals.db roo-code-eval",
+		"docker:start": "pnpm docker:build && pnpm docker:run",
+		"docker:shell": "docker exec -it $(docker ps --filter \"ancestor=roo-code-eval\" -q) /bin/bash",
+		"docker:stop": "docker stop $(docker ps --filter \"ancestor=roo-code-eval\" -q)",
+		"docker:rm": "docker rm $(docker ps -a --filter \"ancestor=roo-code-eval\" -q)",
+		"docker:clean": "pnpm docker:stop && pnpm docker:rm"
 	},
 	"devDependencies": {
 		"@dotenvx/dotenvx": "^1.41.0",

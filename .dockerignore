@@ -1,0 +1,18 @@
+# Build artifacts
+bin/
+!bin/roo-code-latest.vsix
+dist/
+**/dist/
+out/
+**/out/
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Test and development files
+coverage/
+**/.vscode-test/
+
+knip.json
+.husky/
