@@ -93,7 +93,13 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			// Generate a cryptographically random state parameter.
 			const state = crypto.randomBytes(16).toString("hex")
 			await this.context.globalState.update(AUTH_STATE_KEY, state)
-			const params = new URLSearchParams({ state, uri_scheme: vscode.env.uriScheme })
+			const packageJSON = this.context.extension?.packageJSON
+			const publisher = packageJSON?.publisher ?? "RooVeterinaryInc"
+			const name = packageJSON?.name ?? "roo-cline"
+			const params = new URLSearchParams({
+				state,
+				auth_redirect: `${vscode.env.uriScheme}://${publisher}.${name}`,
+			})
 			const url = `${getRooCodeApiUrl()}/extension/sign-in?${params.toString()}`
 			await vscode.env.openExternal(vscode.Uri.parse(url))
 		} catch (error) {
