@@ -4,7 +4,5 @@
 	"unknownUser": "未知使用者",
 	"logOut": "登出",
 	"testApiAuthentication": "測試 API 認證",
-	"signUpTitle": "登入你的帳戶",
-	"signUpDescription": "登入以存取 Roo 的個人化功能和設定。",
-	"signIn": "登入 Roo Code Cloud"
+	"signIn": "連接到 Roo Code Cloud"
 }

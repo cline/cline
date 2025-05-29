@@ -4,7 +4,5 @@
 	"unknownUser": "Nieznany użytkownik",
 	"logOut": "Wyloguj",
 	"testApiAuthentication": "Testuj uwierzytelnianie API",
-	"signUpTitle": "Zaloguj się do swojego konta",
-	"signUpDescription": "Zaloguj się, aby uzyskać dostęp do spersonalizowanych funkcji i ustawień Roo.",
-	"signIn": "Zaloguj się do Roo Code Cloud"
+	"signIn": "Połącz z Roo Code Cloud"
 }

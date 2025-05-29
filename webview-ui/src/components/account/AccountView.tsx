@@ -13,6 +13,8 @@ type AccountViewProps = {
 export const AccountView = ({ userInfo, onDone }: AccountViewProps) => {
 	const { t } = useAppTranslation()
 
+	const rooLogoUri = (window as any).IMAGES_BASE_URI + "/roo-logo.svg"
+
 	return (
 		<div className="flex flex-col h-full p-4 bg-vscode-editor-background">
 			<div className="flex justify-between items-center mb-6">
@@ -53,16 +55,23 @@ export const AccountView = ({ userInfo, onDone }: AccountViewProps) => {
 				</>
 			) : (
 				<>
-					<div className="flex flex-col items-center mb-6 text-center">
-						<div className="w-16 h-16 mb-3 rounded-full overflow-hidden bg-vscode-button-background flex items-center justify-center">
-							<span className="codicon codicon-account text-3xl"></span>
+					<div className="flex flex-col items-center mb-4 text-center">
+						<div className="w-16 h-16 mb-4 flex items-center justify-center">
+							<div
+								className="w-12 h-12 bg-vscode-foreground"
+								style={{
+									WebkitMaskImage: `url('${rooLogoUri}')`,
+									WebkitMaskRepeat: "no-repeat",
+									WebkitMaskSize: "contain",
+									maskImage: `url('${rooLogoUri}')`,
+									maskRepeat: "no-repeat",
+									maskSize: "contain",
+								}}>
+								<img src={rooLogoUri} alt="Roo logo" className="w-12 h-12 opacity-0" />
+							</div>
 						</div>
-						<h2 className="text-lg font-medium text-vscode-foreground mb-1">{t("account:signUpTitle")}</h2>
-						<p className="text-sm text-vscode-descriptionForeground max-w-xs">
-							{t("account:signUpDescription")}
-						</p>
 					</div>
-					<div className="flex flex-col gap-2 mt-4">
+					<div className="flex flex-col gap-4">
 						<VSCodeButton
 							appearance="primary"
 							onClick={() => vscode.postMessage({ type: "rooCloudSignIn" })}

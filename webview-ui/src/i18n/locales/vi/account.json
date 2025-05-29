@@ -4,7 +4,5 @@
 	"unknownUser": "Người dùng không xác định",
 	"logOut": "Đăng xuất",
 	"testApiAuthentication": "Kiểm tra xác thực API",
-	"signUpTitle": "Đăng nhập vào tài khoản của bạn",
-	"signUpDescription": "Đăng nhập để truy cập các tính năng và cài đặt được cá nhân hóa của Roo.",
-	"signIn": "Đăng nhập vào Roo Code Cloud"
+	"signIn": "Kết nối với Roo Code Cloud"
 }

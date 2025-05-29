@@ -4,7 +4,5 @@
 	"unknownUser": "Usuari desconegut",
 	"logOut": "Tancar sessió",
 	"testApiAuthentication": "Provar autenticació d'API",
-	"signUpTitle": "Inicia sessió al teu compte",
-	"signUpDescription": "Inicia sessió per accedir a les funcions i configuracions personalitzades de Roo.",
-	"signIn": "Inicia sessió a Roo Code Cloud"
+	"signIn": "Connecta't a Roo Code Cloud"
 }
