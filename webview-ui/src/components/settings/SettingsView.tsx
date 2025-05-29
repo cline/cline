@@ -21,6 +21,11 @@ import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added impor
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
 import TerminalSettingsSection from "./TerminalSettingsSection"
+import {
+	convertDomainApiConfigurationToProtoApiConfiguration,
+	convertDomainTelemetrySettingToProtoTelemetrySetting,
+	convertDomainChatSettingsToProtoChatSettings,
+} from "@shared/proto-conversions/state/settings-conversion"
 const { IS_DEV } = process.env
 
 // Styles for the tab system
@@ -153,72 +158,31 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		} else {
 			// if the api configuration is invalid, we don't save it
 			apiConfigurationToSubmit = undefined
+			console.log("API configuration is invalid:", { apiConfiguration })
 		}
 
-		// Prepare apiConfiguration with proper field mapping for proto
-		// Each provider has a specific field name in the proto definition
-
-		// TODO - review this - need better mapping and conversion. Script?
-		const mappedApiConfig = apiConfigurationToSubmit
-			? {
-					...apiConfigurationToSubmit,
-					// Map domain model fields to proto field names
-					anthropicApiKey: apiConfigurationToSubmit.apiKey,
-					openaiApiKey: apiConfigurationToSubmit.openAiApiKey,
-					openaiBaseUrl: apiConfigurationToSubmit.openAiBaseUrl,
-					openaiModelId: apiConfigurationToSubmit.openAiModelId,
-					openaiModelInfo: apiConfigurationToSubmit.openAiModelInfo
-						? JSON.stringify(apiConfigurationToSubmit.openAiModelInfo)
-						: undefined,
-					openaiHeaders: apiConfigurationToSubmit.openAiHeaders
-						? JSON.stringify(apiConfigurationToSubmit.openAiHeaders)
-						: undefined,
-					openaiNativeApiKey: apiConfigurationToSubmit.openAiNativeApiKey,
-					openrouterApiKey: apiConfigurationToSubmit.openRouterApiKey,
-					openrouterModelId: apiConfigurationToSubmit.openRouterModelId,
-					openrouterModelInfo: apiConfigurationToSubmit.openRouterModelInfo
-						? JSON.stringify(apiConfigurationToSubmit.openRouterModelInfo)
-						: undefined,
-					openrouterProviderSorting: apiConfigurationToSubmit.openRouterProviderSorting,
-					litellmApiKey: apiConfigurationToSubmit.liteLlmApiKey,
-					litellmBaseUrl: apiConfigurationToSubmit.liteLlmBaseUrl,
-					litellmModelId: apiConfigurationToSubmit.liteLlmModelId,
-					litellmModelInfo: apiConfigurationToSubmit.liteLlmModelInfo
-						? JSON.stringify(apiConfigurationToSubmit.liteLlmModelInfo)
-						: undefined,
-					litellmUsePromptCache: apiConfigurationToSubmit.liteLlmUsePromptCache,
-					vscodeLmModelSelector: apiConfigurationToSubmit.vsCodeLmModelSelector
-						? JSON.stringify(apiConfigurationToSubmit.vsCodeLmModelSelector)
-						: undefined,
-					deepseekApiKey: apiConfigurationToSubmit.deepSeekApiKey,
-				}
-			: undefined
+		// Use the centralized conversion functions instead of manual mapping
 
 		StateServiceClient.updateSettings({
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
-			telemetrySetting: telemetrySetting === "enabled" ? 0 : 1, // ENABLED=0, DISABLED=1
+			telemetrySetting: convertDomainTelemetrySettingToProtoTelemetrySetting(telemetrySetting),
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
-			apiConfiguration: mappedApiConfig,
-			chatSettings: chatSettings
-				? {
-						mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-						preferredLanguage: chatSettings.preferredLanguage,
-						openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-					}
+			apiConfiguration: apiConfigurationToSubmit
+				? convertDomainApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
 				: undefined,
+			chatSettings: chatSettings ? convertDomainChatSettingsToProtoChatSettings(chatSettings) : undefined,
 		})
 			.then(() => {
 				// If there's a pendingTabChange, execute it now that settings are saved
 				if (pendingTabChange) {
 					// Call togglePlanActMode directly instead of waiting for didUpdateSettings message
 					StateServiceClient.togglePlanActMode({
-						chatSettings: {
-							mode: pendingTabChange === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-							preferredLanguage: chatSettings.preferredLanguage,
-							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-						},
+						chatSettings: convertDomainChatSettingsToProtoChatSettings({
+							...chatSettings,
+							mode: pendingTabChange,
+						}),
 					})
 						.catch((error) => {
 							console.error("Failed to toggle plan/act mode:", error)

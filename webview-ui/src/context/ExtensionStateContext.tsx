@@ -521,18 +521,15 @@ export const ExtensionStateContextProvider: React.FC<{
 				chatSettings: value,
 			}))
 			StateServiceClient.updateSettings({
-				chatSettings: {
-					mode: value.mode === "plan" ? 0 : 1, // PlanActMode.PLAN : PlanActMode.ACT   --- TODO review this
-					preferredLanguage: value.preferredLanguage,
-					openAiReasoningEffort: value.openAIReasoningEffort,
-				},
-				apiConfiguration: state.apiConfiguration,
+				chatSettings: convertDomainChatSettingsToProtoChatSettings(value),
+				apiConfiguration: state.apiConfiguration
+					? convertDomainApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
+					: undefined,
 				customInstructionsSetting: state.customInstructions,
-				telemetrySetting: state.telemetrySetting === "enabled" ? 0 : 1, // TelemetrySetting.ENABLED : TelemetrySetting.DISABLED
+				telemetrySetting: convertDomainTelemetrySettingToProtoTelemetrySetting(state.telemetrySetting),
 				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
 				enableCheckpointsSetting: state.enableCheckpointsSetting,
 				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-				favoritedModelIds: [],
 			}).catch((error) => {
 				console.error("Error updating settings:", error)
 			})
