@@ -558,6 +558,17 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 						partial: true,
 					}
 				}
+
+				// If this is a Grep invoke, create a search_files tool
+				if (currentInvokeName === "Grep") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "search_files",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -599,6 +610,17 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 				currentToolUse.params["recursive"] = "false"
 			}
 
+			// Map parameter to tool params for Grep
+			if (currentToolUse && currentInvokeName === "Grep") {
+				if (currentParameterName === "pattern") {
+					currentToolUse.params["regex"] = value
+				} else if (currentParameterName === "path") {
+					currentToolUse.params["path"] = value
+				} else if (currentParameterName === "include") {
+					currentToolUse.params["file_pattern"] = value
+				}
+			}
+
 			currentParameterName = ""
 			continue
 		}
@@ -611,7 +633,7 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 			assistantMessage.startsWith(isInvokeClose, currentCharIndex - isInvokeClose.length + 1)
 		) {
 			// If we have a tool use from this invoke, finalize it
-			if (currentToolUse && currentInvokeName === "LS") {
+			if (currentToolUse && (currentInvokeName === "LS" || currentInvokeName === "Grep")) {
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)
 				currentToolUse = undefined
