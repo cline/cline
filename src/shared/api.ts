@@ -688,7 +688,7 @@ export const geminiModels = {
 		outputPrice: 3.5,
 		cacheReadsPrice: 0.0375,
 		cacheWritesPrice: 1.0,
-	},	
+	},
 	"gemini-2.5-flash-preview-05-20": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
