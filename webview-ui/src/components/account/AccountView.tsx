@@ -35,7 +35,7 @@ export const ClineAccountView = () => {
 	const { user: firebaseUser, handleSignOut } = useFirebaseAuth()
 	const { userInfo, apiConfiguration } = useExtensionState()
 
-	let user = apiConfiguration?.clineApiKey ? firebaseUser || userInfo : undefined
+	let user = apiConfiguration?.cline?.apiKey ? firebaseUser || userInfo : undefined
 
 	const [balance, setBalance] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)

@@ -19,7 +19,7 @@ export interface RequestyModelPickerProps {
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) => {
 	const { apiConfiguration, setApiConfiguration, requestyModels } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.requestyModelId || requestyDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.requesty?.modelId || requestyDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)

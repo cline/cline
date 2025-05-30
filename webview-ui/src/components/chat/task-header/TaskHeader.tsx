@@ -132,8 +132,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const isCostAvailable = useMemo(() => {
 		const openAiCompatHasPricing =
 			apiConfiguration?.apiProvider === "openai" &&
-			apiConfiguration?.openAiModelInfo?.inputPrice &&
-			apiConfiguration?.openAiModelInfo?.outputPrice
+			apiConfiguration?.openai?.modelInfo?.inputPrice &&
+			apiConfiguration?.openai?.modelInfo?.outputPrice
 		if (openAiCompatHasPricing) {
 			return true
 		}
@@ -142,7 +142,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			apiConfiguration?.apiProvider !== "ollama" &&
 			apiConfiguration?.apiProvider !== "lmstudio"
 		)
-	}, [apiConfiguration?.apiProvider, apiConfiguration?.openAiModelInfo])
+	}, [apiConfiguration?.apiProvider, apiConfiguration?.openai?.modelInfo])
 
 	const shouldShowPromptCacheInfo = () => {
 		// Hybrid logic: Show cache info if we have actual cache data,

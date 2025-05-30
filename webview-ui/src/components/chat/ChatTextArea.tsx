@@ -1096,19 +1096,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "openai":
 					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
-					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
+					return `vscode-lm:${apiConfiguration.vscode?.modelSelector ? `${apiConfiguration.vscode.modelSelector.vendor ?? ""}/${apiConfiguration.vscode.modelSelector.family ?? ""}` : unknownModel}`
 				case "together":
-					return `${selectedProvider}:${apiConfiguration.togetherModelId}`
+					return `${selectedProvider}:${apiConfiguration.together?.modelId}`
 				case "fireworks":
-					return `fireworks:${apiConfiguration.fireworksModelId}`
+					return `fireworks:${apiConfiguration.fireworks?.modelId}`
 				case "lmstudio":
-					return `${selectedProvider}:${apiConfiguration.lmStudioModelId}`
+					return `${selectedProvider}:${apiConfiguration.lmstudio?.modelId}`
 				case "ollama":
-					return `${selectedProvider}:${apiConfiguration.ollamaModelId}`
+					return `${selectedProvider}:${apiConfiguration.ollama?.modelId}`
 				case "litellm":
-					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
+					return `${selectedProvider}:${apiConfiguration.litellm?.modelId}`
 				case "requesty":
-					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
+					return `${selectedProvider}:${apiConfiguration.requesty?.modelId}`
 				case "anthropic":
 				case "openrouter":
 				default:

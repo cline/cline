@@ -295,33 +295,33 @@ export const ExtensionStateContextProvider: React.FC<{
 									: prevState.autoApprovalSettings,
 							}
 
-							// Update welcome screen state based on API configuration
-							const config = stateData.apiConfiguration
-							const hasKey = config
-								? [
-										config.apiKey,
-										config.openRouterApiKey,
-										config.awsRegion,
-										config.vertexProjectId,
-										config.openAiApiKey,
-										config.ollamaModelId,
-										config.lmStudioModelId,
-										config.liteLlmApiKey,
-										config.geminiApiKey,
-										config.openAiNativeApiKey,
-										config.deepSeekApiKey,
-										config.requestyApiKey,
-										config.togetherApiKey,
-										config.qwenApiKey,
-										config.doubaoApiKey,
-										config.mistralApiKey,
-										config.vsCodeLmModelSelector,
-										config.clineApiKey,
-										config.asksageApiKey,
-										config.xaiApiKey,
-										config.sambanovaApiKey,
-									].some((key) => key !== undefined)
-								: false
+								// Update welcome screen state based on API configuration
+								const config = stateData.apiConfiguration
+								const hasKey = config
+									? [
+											config.anthropic?.apiKey,
+											config.openrouter?.apiKey,
+											config.aws?.region,
+											config.vertex?.projectId,
+											config.openai?.apiKey,
+											config.ollama?.modelId,
+											config.lmstudio?.modelId,
+											config.litellm?.apiKey,
+											config.gemini?.apiKey,
+											config.openaiNative?.apiKey,
+											config.deepseek?.apiKey,
+											config.requesty?.apiKey,
+											config.together?.apiKey,
+											config.qwen?.apiKey,
+											config.doubao?.apiKey,
+											config.mistral?.apiKey,
+											config.vscode?.modelSelector,
+											config.cline?.apiKey,
+											config.asksage?.apiKey,
+											config.xai?.apiKey,
+											config.sambanova?.apiKey,
+										].some((key) => key !== undefined)
+									: false
 
 							setShowWelcome(!hasKey)
 							setDidHydrateState(true)

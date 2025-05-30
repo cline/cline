@@ -8,7 +8,7 @@ export const ClineAccountInfoCard = () => {
 	const { user: firebaseUser, handleSignOut } = useFirebaseAuth()
 	const { userInfo, apiConfiguration, navigateToAccount } = useExtensionState()
 
-	let user = apiConfiguration?.clineApiKey ? firebaseUser || userInfo : undefined
+	let user = apiConfiguration?.cline?.apiKey ? firebaseUser || userInfo : undefined
 
 	const handleLogin = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>

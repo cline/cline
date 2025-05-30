@@ -107,10 +107,12 @@ describe("ApiOptions Component", () => {
 
 		mockExtensionState({
 			apiProvider: "fireworks",
-			fireworksApiKey: "",
-			fireworksModelId: "",
-			fireworksModelMaxCompletionTokens: 2000,
-			fireworksModelMaxTokens: 4000,
+			fireworks: {
+				apiKey: "",
+				modelId: "",
+				modelMaxCompletionTokens: 2000,
+				modelMaxTokens: 4000,
+			},
 		})
 	})
 
@@ -211,7 +213,9 @@ describe("ApiOptions Component", () => {
 
 		mockExtensionState({
 			apiProvider: "nebius",
-			nebiusApiKey: "",
+			nebius: {
+				apiKey: "",
+			},
 		})
 	})
 

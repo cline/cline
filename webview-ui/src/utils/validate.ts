@@ -4,112 +4,112 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
 			case "anthropic":
-				if (!apiConfiguration.apiKey) {
+				if (!apiConfiguration.anthropic?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "bedrock":
-				if (!apiConfiguration.awsRegion) {
+				if (!apiConfiguration.aws?.region) {
 					return "You must choose a region to use with AWS Bedrock."
 				}
 				break
 			case "openrouter":
-				if (!apiConfiguration.openRouterApiKey) {
+				if (!apiConfiguration.openrouter?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "vertex":
-				if (!apiConfiguration.vertexProjectId || !apiConfiguration.vertexRegion) {
+				if (!apiConfiguration.vertex?.projectId || !apiConfiguration.vertex?.region) {
 					return "You must provide a valid Google Cloud Project ID and Region."
 				}
 				break
 			case "gemini":
-				if (!apiConfiguration.geminiApiKey) {
+				if (!apiConfiguration.gemini?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "openai-native":
-				if (!apiConfiguration.openAiNativeApiKey) {
+				if (!apiConfiguration.openaiNative?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "deepseek":
-				if (!apiConfiguration.deepSeekApiKey) {
+				if (!apiConfiguration.deepseek?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "xai":
-				if (!apiConfiguration.xaiApiKey) {
+				if (!apiConfiguration.xai?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "qwen":
-				if (!apiConfiguration.qwenApiKey) {
+				if (!apiConfiguration.qwen?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "doubao":
-				if (!apiConfiguration.doubaoApiKey) {
+				if (!apiConfiguration.doubao?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "mistral":
-				if (!apiConfiguration.mistralApiKey) {
+				if (!apiConfiguration.mistral?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "cline":
-				if (!apiConfiguration.clineApiKey) {
+				if (!apiConfiguration.cline?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "openai":
-				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !apiConfiguration.openAiModelId) {
+				if (!apiConfiguration.openai?.baseUrl || !apiConfiguration.openai?.apiKey || !apiConfiguration.openai?.modelId) {
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break
 			case "requesty":
-				if (!apiConfiguration.requestyApiKey || !apiConfiguration.requestyModelId) {
+				if (!apiConfiguration.requesty?.apiKey || !apiConfiguration.requesty?.modelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "fireworks":
-				if (!apiConfiguration.fireworksApiKey || !apiConfiguration.fireworksModelId) {
+				if (!apiConfiguration.fireworks?.apiKey || !apiConfiguration.fireworks?.modelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "together":
-				if (!apiConfiguration.togetherApiKey || !apiConfiguration.togetherModelId) {
+				if (!apiConfiguration.together?.apiKey || !apiConfiguration.together?.modelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "ollama":
-				if (!apiConfiguration.ollamaModelId) {
+				if (!apiConfiguration.ollama?.modelId) {
 					return "You must provide a valid model ID."
 				}
 				break
 			case "lmstudio":
-				if (!apiConfiguration.lmStudioModelId) {
+				if (!apiConfiguration.lmstudio?.modelId) {
 					return "You must provide a valid model ID."
 				}
 				break
 			case "vscode-lm":
-				if (!apiConfiguration.vsCodeLmModelSelector) {
+				if (!apiConfiguration.vscode?.modelSelector) {
 					return "You must provide a valid model selector."
 				}
 				break
 			case "nebius":
-				if (!apiConfiguration.nebiusApiKey) {
+				if (!apiConfiguration.nebius?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "asksage":
-				if (!apiConfiguration.asksageApiKey) {
+				if (!apiConfiguration.asksage?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "sambanova":
-				if (!apiConfiguration.sambanovaApiKey) {
+				if (!apiConfiguration.sambanova?.apiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
@@ -126,7 +126,7 @@ export function validateModelId(
 		switch (apiConfiguration.apiProvider) {
 			case "openrouter":
 			case "cline":
-				const modelId = apiConfiguration.openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
+				const modelId = apiConfiguration.openrouter?.modelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
 				if (!modelId) {
 					return "You must provide a model ID."
 				}
