@@ -15,6 +15,7 @@ import { askQuestionToolDefinition } from "@core/tools/askQuestionTool"
 import { useMCPToolDefinition } from  "@core/tools/useMcpTool"
 import {listCodeDefinitionNamesToolDefinition} from "@core/tools/listCodeDefinitionNamesTool"
 import {accessMcpResourceToolDefinition} from "@core/tools/accessMcpResourceTool"
+import {planModeRespondToolDefinition} from  "@core/tools/planModeRespondTool"
 
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
@@ -156,15 +157,6 @@ Usage:
 <new_task>
 <context>context to preload new task with</context>
 </new_task>
-
-## plan_mode_respond
-Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
-Parameters:
-- response: (required) The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.)
-Usage:
-<plan_mode_respond>
-<response>Your response here</response>
-</plan_mode_respond>
 
 ## load_mcp_documentation
 Description: Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server (the user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with \`${useMCPToolDefinition.name}\` and \`access_mcp_resource\`). The documentation provides detailed information about the MCP server creation process, including setup instructions, best practices, and examples.
@@ -384,11 +376,11 @@ ACT MODE V.S. PLAN MODE
 
 In each user message, the environment_details will specify the current mode. There are two modes:
 
-- ACT MODE: In this mode, you have access to all tools EXCEPT the plan_mode_respond tool.
+- ACT MODE: In this mode, you have access to all tools EXCEPT the ${planModeRespondToolDefinition.name} tool.
  - In ACT MODE, you use tools to accomplish the user's task. Once you've completed the user's task, you use the attempt_completion tool to present the result of the task to the user.
-- PLAN MODE: In this special mode, you have access to the plan_mode_respond tool.
+- PLAN MODE: In this special mode, you have access to the ${planModeRespondToolDefinition.name} tool.
  - In PLAN MODE, the goal is to gather information and get context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
- - In PLAN MODE, when you need to converse with the user or present a plan, you should use the plan_mode_respond tool to deliver your response directly, rather than using <thinking> tags to analyze when to respond. Do not talk about using plan_mode_respond - just use it directly to share your thoughts and provide helpful answers.
+ - In PLAN MODE, when you need to converse with the user or present a plan, you should use the ${planModeRespondToolDefinition.name} tool to deliver your response directly, rather than using <thinking> tags to analyze when to respond. Do not talk about using ${planModeRespondToolDefinition.name} - just use it directly to share your thoughts and provide helpful answers.
 
 ## What is PLAN MODE?
 
@@ -483,5 +475,5 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-  return createAntmlToolPrompt([readTool, writeTool, askQuestionToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, listCodeDefinitionNamesTool, useMCPToolDefinition, accessMcpResourceToolDefinition], true, systemPrompt);
+  return createAntmlToolPrompt([readTool, writeTool, askQuestionToolDefinition, planModeRespondToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, listCodeDefinitionNamesTool, useMCPToolDefinition, accessMcpResourceToolDefinition], true, systemPrompt);
 }

@@ -641,6 +641,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "PlanModeRespond") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "plan_mode_respond",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -684,6 +693,10 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 
 			if (currentToolUse && currentInvokeName === "Read" && currentParameterName === "file_path") {
 				currentToolUse.params["path"] = value
+			}
+
+			if (currentToolUse && currentInvokeName === "PlanModeRespond" && currentParameterName === "response") {
+				currentToolUse.params["response"] = value
 			}
 
 			if (currentToolUse && currentInvokeName === "WebFetch" && currentParameterName === "url") {
@@ -759,7 +772,20 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 			assistantMessage.startsWith(isInvokeClose, currentCharIndex - isInvokeClose.length + 1)
 		) {
 			// If we have a tool use from this invoke, finalize it
-			if (currentToolUse && (currentInvokeName === "LS" || currentInvokeName === "Grep" || currentInvokeName === "Bash")) {
+			if (
+				currentToolUse &&
+				(currentInvokeName === "LS" ||
+					currentInvokeName === "Grep" ||
+					currentInvokeName === "Bash" ||
+					currentInvokeName === "Read" ||
+					currentInvokeName === "Write" ||
+					currentInvokeName === "WebFetch" ||
+					currentInvokeName === "AskQuestion" ||
+					currentInvokeName === "UseMCPTool" ||
+					currentInvokeName === "AccessMCPResource" ||
+					currentInvokeName === "ListCodeDefinitionNames" ||
+					currentInvokeName === "PlanModeRespond")
+			) {
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)
 				currentToolUse = undefined
