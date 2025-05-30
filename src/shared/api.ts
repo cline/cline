@@ -465,6 +465,46 @@ export const vertexModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.03,
 	},
+	"mistral-large-2411": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"mistral-small-2503": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"codestral-2501": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.9,
+	},
+	"llama-4-maverick-17b-128e-instruct-maas": {
+		maxTokens: 128_000,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.35,
+		outputPrice: 1.15,
+	},
+	"llama-4-scout-17b-16e-instruct-maas": {
+		maxTokens: 1_000_000,
+		contextWindow: 10_485_760,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.25,
+		outputPrice: 0.7,
+	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
@@ -1460,8 +1500,8 @@ export type MistralModelId = keyof typeof mistralModels
 export const mistralDefaultModelId: MistralModelId = "devstral-small-2505"
 export const mistralModels = {
 	"mistral-large-2411": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 2.0,
@@ -1476,24 +1516,24 @@ export const mistralModels = {
 		outputPrice: 6.0,
 	},
 	"ministral-3b-2410": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.04,
 		outputPrice: 0.04,
 	},
 	"ministral-8b-2410": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.1,
 		outputPrice: 0.1,
 	},
 	"mistral-small-latest": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.1,
@@ -1516,16 +1556,16 @@ export const mistralModels = {
 		outputPrice: 0.3,
 	},
 	"pixtral-12b-2409": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.15,
 		outputPrice: 0.15,
 	},
 	"open-mistral-nemo-2407": {
-		maxTokens: 131_000,
-		contextWindow: 131_000,
+		maxTokens: 128_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.15,
@@ -1715,7 +1755,7 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
-export const xaiDefaultModelId: XAIModelId = "grok-3-beta"
+export const xaiDefaultModelId: XAIModelId = "grok-3"
 export const xaiModels = {
 	"grok-3-beta": {
 		maxTokens: 8192,
@@ -1752,6 +1792,42 @@ export const xaiModels = {
 		inputPrice: 0.6,
 		outputPrice: 4.0,
 		description: "X AI's Grok-3 mini fast beta model with 131K context window",
+	},
+	"grok-3": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description: "X AI's Grok-3 model with 131K context window",
+	},
+	"grok-3-fast": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "X AI's Grok-3 fast model with 131K context window",
+	},
+	"grok-3-mini": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.5,
+		description: "X AI's Grok-3 mini model with 131K context window",
+	},
+	"grok-3-mini-fast": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 4.0,
+		description: "X AI's Grok-3 mini fast model with 131K context window",
 	},
 	"grok-2-latest": {
 		maxTokens: 8192,

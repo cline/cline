@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient } from "../services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
+import { ModelsServiceClient, StateServiceClient } from "../services/grpc-client"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
 import {
@@ -60,6 +59,9 @@ interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
+
+	// Refresh functions
+	refreshOpenRouterModels: () => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -358,6 +360,17 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 
+	const refreshOpenRouterModels = useCallback(() => {
+		ModelsServiceClient.refreshOpenRouterModels({})
+			.then((res) => {
+				setOpenRouterModels({
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					...res.models,
+				})
+			})
+			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
+	}, [])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
@@ -489,6 +502,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpTab,
 		setTotalTasksSize,
+		refreshOpenRouterModels,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

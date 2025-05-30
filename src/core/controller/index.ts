@@ -285,11 +285,6 @@ export class Controller {
 				}
 				await this.postStateToWebview()
 				break
-			case "optionsResponse":
-				if (this.task) {
-					await this.task.handleWebviewAskResponse("messageResponse", message.text || "", [])
-				}
-				break
 			case "fetchUserCreditsData": {
 				await this.fetchUserCreditsData()
 				break

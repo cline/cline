@@ -695,6 +695,63 @@ export const ChatRowContent = ({
 						/>
 					</>
 				)
+			case "webFetch":
+				return (
+					<>
+						<div style={headerStyle}>
+							<span className="codicon codicon-link" style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
+							{tool.operationIsLocatedInWorkspace === false &&
+								toolIcon("sign-out", "yellow", -90, "This URL is external")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? "Cline wants to fetch content from this URL:"
+									: "Cline fetched content from this URL:"}
+							</span>
+						</div>
+						<div
+							style={{
+								borderRadius: 3,
+								backgroundColor: CODE_BLOCK_BG_COLOR,
+								overflow: "hidden",
+								border: "1px solid var(--vscode-editorGroup-border)",
+								padding: "9px 10px",
+								cursor: "pointer",
+								userSelect: "none",
+								WebkitUserSelect: "none",
+								MozUserSelect: "none",
+								msUserSelect: "none",
+							}}
+							onClick={() => {
+								// Attempt to open the URL in the default browser
+								if (tool.path) {
+									// Assuming 'openUrl' is a valid action the extension can handle.
+									// If not, this might need adjustment based on how other external link openings are handled.
+									vscode.postMessage({
+										type: "action", // This should be a valid MessageType from WebviewMessage
+										action: "openUrl", // This should be a valid WebviewAction from WebviewMessage
+										url: tool.path,
+									} as any) // Using 'as any' for now if 'openUrl' isn't strictly typed yet
+								}
+							}}>
+							<span
+								className="ph-no-capture"
+								style={{
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									marginRight: "8px",
+									direction: "rtl",
+									textAlign: "left",
+									color: "var(--vscode-textLink-foreground)",
+									textDecoration: "underline",
+								}}>
+								{tool.path + "\u200E"}
+							</span>
+						</div>
+						{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
+						{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
+					</>
+				)
 			default:
 				return null
 		}

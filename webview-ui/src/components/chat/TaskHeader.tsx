@@ -13,6 +13,7 @@ import { validateSlashCommand } from "@/utils/slash-commands"
 import TaskTimeline from "./TaskTimeline"
 import { TaskServiceClient, FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import HeroTooltip from "@/components/common/HeroTooltip"
+const { IS_DEV } = process.env
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -146,6 +147,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			((cacheReads !== undefined && cacheReads > 0) || (cacheWrites !== undefined && cacheWrites > 0))
 		)
 	}
+
+	console.log("IS_DEV", { IS_DEV, isItTrue: IS_DEV === '"true"' })
 
 	const ContextWindowComponent = (
 		<>
@@ -411,6 +414,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								{!shouldShowPromptCacheInfo() && (
 									<div className="flex items-center flex-wrap">
 										<CopyButton taskText={task.text} />
+										{IS_DEV === '"true"' && <TaskFolderButton taskId={currentTaskItem?.id} />}
 										<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 									</div>
 								)}
@@ -466,6 +470,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									</div>
 									<div className="flex items-center flex-wrap">
 										<CopyButton taskText={task.text} />
+										{IS_DEV === '"true"' && <TaskFolderButton taskId={currentTaskItem?.id} />}
 										<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 									</div>
 								</div>
@@ -661,6 +666,36 @@ const CopyButton: React.FC<{
 				aria-label="Copy Task">
 				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
 					<i className={`codicon codicon-${copied ? "check" : "copy"}`} />
+				</div>
+			</VSCodeButton>
+		</HeroTooltip>
+	)
+}
+
+const TaskFolderButton: React.FC<{
+	taskId?: string
+}> = ({ taskId }) => {
+	const [copied, setCopied] = useState(false)
+
+	const handleCopy = () => {
+		if (!taskId) return
+
+		navigator.clipboard.writeText(taskId).then(() => {
+			setCopied(true)
+			setTimeout(() => setCopied(false), 1500)
+		})
+	}
+
+	return (
+		<HeroTooltip content="Copy Task ID">
+			<VSCodeButton
+				appearance="icon"
+				onClick={handleCopy}
+				style={{ padding: "0px 0px" }}
+				className="p-0"
+				aria-label="Copy Task ID">
+				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
+					<i className={`codicon codicon-${copied ? "check" : "folder"}`} />
 				</div>
 			</VSCodeButton>
 		</HeroTooltip>
