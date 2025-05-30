@@ -12,6 +12,7 @@ import {lsToolDefinition} from "@core/tools/lsTool"
 import { grepToolDefinition } from "@/core/tools/grepTool"
 import {webFetchToolDefinition} from "@/core/tools/webFetchTool"
 import { askQuestionToolDefinition } from "@/core/tools/askQuestionTool"
+import { useMCPToolDefinition } from "@/core/tools/useMCPTool"
 
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
@@ -133,24 +134,6 @@ Usage:
 		: ""
 }
 
-## use_mcp_tool
-Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
-Parameters:
-- server_name: (required) The name of the MCP server providing the tool
-- tool_name: (required) The name of the tool to execute
-- arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
-Usage:
-<use_mcp_tool>
-<server_name>server name here</server_name>
-<tool_name>tool name here</tool_name>
-<arguments>
-{
-  "param1": "value1",
-  "param2": "value2"
-}
-</arguments>
-</use_mcp_tool>
-
 ## access_mcp_resource
 Description: Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.
 Parameters:
@@ -201,7 +184,7 @@ Usage:
 </plan_mode_respond>
 
 ## load_mcp_documentation
-Description: Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server (the user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with \`use_mcp_tool\` and \`access_mcp_resource\`). The documentation provides detailed information about the MCP server creation process, including setup instructions, best practices, and examples.
+Description: Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server (the user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with \`${useMCPToolDefinition.name}\` and \`access_mcp_resource\`). The documentation provides detailed information about the MCP server creation process, including setup instructions, best practices, and examples.
 Parameters: None
 Usage:
 <load_mcp_documentation>
@@ -265,37 +248,6 @@ Usage:
 </diff>
 </replace_in_file>
 
-
-## Example 3: Requesting to use an MCP tool
-
-<use_mcp_tool>
-<server_name>weather-server</server_name>
-<tool_name>get_forecast</tool_name>
-<arguments>
-{
-  "city": "San Francisco",
-  "days": 5
-}
-</arguments>
-</use_mcp_tool>
-
-## Example 4: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
-
-<use_mcp_tool>
-<server_name>github.com/modelcontextprotocol/servers/tree/main/src/github</server_name>
-<tool_name>create_issue</tool_name>
-<arguments>
-{
-  "owner": "octocat",
-  "repo": "hello-world",
-  "title": "Found a bug",
-  "body": "I'm having a problem with this.",
-  "labels": ["bug", "help wanted"],
-  "assignees": ["octocat"]
-}
-</arguments>
-</use_mcp_tool>
-
 # Tool Use Guidelines
 
 1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
@@ -325,7 +277,7 @@ The Model Context Protocol (MCP) enables communication between the system and lo
 
 # Connected MCP Servers
 
-When a server is connected, you can use the server's tools via the \`use_mcp_tool\` tool, and access the server's resources via the \`access_mcp_resource\` tool.
+When a server is connected, you can use the server's tools via the \`${useMCPToolDefinition.name}\` tool, and access the server's resources via the \`access_mcp_resource\` tool.
 
 ${
 	mcpHub.getServers().length > 0
@@ -548,5 +500,5 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-  return createAntmlToolPrompt([readTool, writeTool, askQuestionToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition], true, systemPrompt);
+  return createAntmlToolPrompt([readTool, writeTool, askQuestionToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, useMCPToolDefinition], true, systemPrompt);
 }

@@ -614,6 +614,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "UseMCPTool") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "use_mcp_tool",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -695,6 +704,16 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					currentToolUse.params["question"] = value
 				} else if (currentParameterName === "options") {
 					currentToolUse.params["options"] = value
+				}
+			}
+
+			if (currentToolUse && currentInvokeName === "UseMCPTool") {
+				if (currentParameterName === "server_name") {
+					currentToolUse.params["server_name"] = value
+				} else if (currentParameterName === "tool_name") {
+					currentToolUse.params["tool_name"] = value
+				} else if (currentParameterName === "arguments") {
+					currentToolUse.params["arguments"] = value
 				}
 			}
 
