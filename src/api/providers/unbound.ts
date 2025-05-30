@@ -5,7 +5,8 @@ import { ApiHandlerOptions, unboundDefaultModelId, unboundDefaultModelInfo } fro
 
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { addCacheBreakpoints } from "../transform/caching/anthropic"
+import { addCacheBreakpoints as addAnthropicCacheBreakpoints } from "../transform/caching/anthropic"
+import { addCacheBreakpoints as addGeminiCacheBreakpoints } from "../transform/caching/gemini"
 
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { RouterProvider } from "./router-provider"
@@ -44,8 +45,12 @@ export class UnboundHandler extends RouterProvider implements SingleCompletionHa
 			...convertToOpenAiMessages(messages),
 		]
 
-		if (modelId.startsWith("anthropic/claude-3")) {
-			addCacheBreakpoints(systemPrompt, openAiMessages)
+		if (info.supportsPromptCache) {
+			if (modelId.startsWith("google/")) {
+				addGeminiCacheBreakpoints(systemPrompt, openAiMessages)
+			} else if (modelId.startsWith("anthropic/")) {
+				addAnthropicCacheBreakpoints(systemPrompt, openAiMessages)
+			}
 		}
 
 		// Required by Anthropic; other providers default to max tokens allowed.
