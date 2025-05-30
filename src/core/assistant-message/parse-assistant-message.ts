@@ -623,6 +623,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "AccessMCPResource") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "access_mcp_resource",
+						params: {},
+						partial: true,
+					}
+				}
+
 				if (currentInvokeName === "ListCodeDefinitionNames") {
 					currentToolUse = {
 						type: "tool_use",
@@ -727,6 +736,14 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					currentToolUse.params["tool_name"] = value
 				} else if (currentParameterName === "arguments") {
 					currentToolUse.params["arguments"] = value
+				}
+			}
+
+			if (currentToolUse && currentInvokeName === "AccessMCPResource") {
+				if (currentParameterName === "server_name") {
+					currentToolUse.params["server_name"] = value
+				} else if (currentParameterName === "uri") {
+					currentToolUse.params["uri"] = value
 				}
 			}
 

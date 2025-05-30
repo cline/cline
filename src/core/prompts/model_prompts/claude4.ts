@@ -14,6 +14,7 @@ import {webFetchToolDefinition} from "@core/tools/webFetchTool"
 import { askQuestionToolDefinition } from "@core/tools/askQuestionTool"
 import { useMCPToolDefinition } from  "@core/tools/useMcpTool"
 import {listCodeDefinitionNamesToolDefinition} from "@core/tools/listCodeDefinitionNamesTool"
+import {accessMcpResourceToolDefinition} from "@core/tools/accessMcpResourceTool"
 
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
@@ -126,17 +127,6 @@ Usage:
 </browser_action>`
 		: ""
 }
-
-## access_mcp_resource
-Description: Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.
-Parameters:
-- server_name: (required) The name of the MCP server providing the resource
-- uri: (required) The URI identifying the specific resource to access
-Usage:
-<access_mcp_resource>
-<server_name>server name here</server_name>
-<uri>resource URI here</uri>
-</access_mcp_resource>
 
 ## attempt_completion
 Description: After each tool use, the user will respond with the result of that tool use, i.e. if it succeeded or failed, along with any reasons for failure. Once you've received the results of tool uses and can confirm that the task is complete, use this tool to present the result of your work to the user. Optionally you may provide a CLI command to showcase the result of your work. The user may respond with feedback if they are not satisfied with the result, which you can use to make improvements and try again.
@@ -493,5 +483,5 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-  return createAntmlToolPrompt([readTool, writeTool, askQuestionToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, listCodeDefinitionNamesTool, useMCPToolDefinition], true, systemPrompt);
+  return createAntmlToolPrompt([readTool, writeTool, askQuestionToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, listCodeDefinitionNamesTool, useMCPToolDefinition, accessMcpResourceToolDefinition], true, systemPrompt);
 }
