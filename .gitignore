@@ -25,8 +25,13 @@ coverage
 src/shared/proto/*.ts
 src/core/controller/*/methods.ts
 src/core/controller/*/index.ts
+src/core/controller/grpc-service-config.ts
+# Webview
+webview-ui/src/services/grpc-client.ts
+# Standalone
+src/standalone/server-setup.ts
+# Host bridge
 hosts/vscode/*/methods.ts
 hosts/vscode/*/index.ts
-src/core/controller/grpc-service-config.ts
-webview-ui/src/services/grpc-client.ts
-src/standalone/server-setup.ts
+src/core/host/grpc-host-service-config.ts
+src/standalone/services/host-grpc-client.ts
