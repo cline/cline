@@ -88,60 +88,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 				return new Promise((resolve, reject) => {
 					// TODO: Implement actual gRPC call to the IDE host
 					console.log(`[DEBUG] Would make gRPC call to ${service.fullName}.${method.name}`, request)
-
-					// For now, just simulate a response based on the method
-					const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
-					if (methodKey === "parse") {
-						// For Uri.parse, return a simulated Uri object
-						const uri = request.uri || ""
-						const scheme = uri.startsWith("file:") ? "file" : "https"
-						const path = uri.replace(/^file:\/\//, "").replace(/^https:\/\/[^/]+/, "")
-
-						setTimeout(() => {
-							resolve({
-								scheme,
-								authority: uri.includes("://") ? uri.split("://")[1].split("/")[0] : "",
-								path,
-								query: "",
-								fragment: "",
-								fsPath: path,
-							})
-						}, 100)
-					} else if (methodKey === "file") {
-						// For Uri.file, return a simulated Uri object
-						setTimeout(() => {
-							resolve({
-								scheme: "file",
-								authority: "",
-								path: request.path || "",
-								query: "",
-								fragment: "",
-								fsPath: request.path || "",
-							})
-						}, 100)
-					} else if (methodKey === "joinPath") {
-						// For Uri.joinPath, return a simulated Uri object
-						const base = request.base || { scheme: "file", authority: "", path: "/" }
-						const segments = request.pathSegments || []
-						const joinedPath = [base.path, ...segments].join("/").replace(/\/+/g, "/")
-
-						setTimeout(() => {
-							resolve({
-								scheme: base.scheme,
-								authority: base.authority,
-								path: joinedPath,
-								query: "",
-								fragment: "",
-								fsPath: joinedPath,
-							})
-						}, 100)
-					} else {
-						// Generic fallback
-						setTimeout(() => {
-							const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
-							reject(new Error(`Method ${methodKey} not implemented in standalone client`))
-						}, 100)
-					}
+					debugger
 				})
 			}) as any
 		}
