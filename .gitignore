@@ -33,5 +33,5 @@ src/standalone/server-setup.ts
 # Host bridge
 hosts/vscode/*/methods.ts
 hosts/vscode/*/index.ts
-src/core/host/grpc-host-service-config.ts
 src/standalone/services/host-grpc-client.ts
+hosts/vscode/host-grpc-service-config.ts
