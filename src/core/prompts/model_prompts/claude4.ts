@@ -10,6 +10,7 @@ import { readToolDefinition } from "@core/tools/readTool"
 import { writeToolDefinition } from "@core/tools/writeTool"
 import {lsToolDefinition} from "@core/tools/lsTool"
 import { grepToolDefinition } from "@/core/tools/grepTool"
+import {webFetchToolDefinition} from "@/core/tools/webFetchTool"
 
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
@@ -20,7 +21,6 @@ export const SYSTEM_PROMPT_CLAUDE4 = async (
   const bashTool = bashToolDefinition(cwd);
   const readTool = readToolDefinition(cwd);
   const writeTool = writeToolDefinition(cwd);
-
 
   const systemPrompt = `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
@@ -90,7 +90,9 @@ Parameters:
 Usage:
 <list_code_definition_names>
 <path>Directory path here</path>
-</list_code_definition_names>${
+</list_code_definition_names>
+
+${
 	supportsBrowserUse
 		? `
 
@@ -539,6 +541,15 @@ Current Working Directory: ${cwd.toPosix()}
 
 ====
 
+If the user asks for help or wants to give feedback inform them of the following: 
+- To give feedback, users should report the issue using the /reportbug slash command in the chat. 
+
+When the user directly asks about Cline (eg 'can Cline do...', 'does Cline have...') or asks in second person (eg 'are you able...', 'can you do...'), first use the ${webFetchToolDefinition.name} tool to gather information to answer the question from Cline docs at https://docs.cline.bot.
+  - The available sub-pages are \`getting-started\` (Intro for new coders, installing Cline and dev essentials), \`model-selection\` (Model Selection Guide, Custom Model Configs, Bedrock, Vertex, Codestral, LM Studio, Ollama), \`features\` (Auto approve, Checkpoints, Cline rules, Drag & Drop, Plan & Act, Workflows, etc), \`task-management\` (Task and Context Management in Cline), \`prompt-engineering\` (Improving your prompting skills, Prompt Engineering Guide), \`cline-tools\` (Cline Tools Reference Guide, New Task Tool, Remote Browser Support, Slash Commands), \`mcp\` (MCP Overview, Adding/Configuring Servers, Transport Mechanisms, MCP Dev Protocol), \`enterprise\` (Cloud provider integration, Security concerns, Custom instructions), \`more-info\` (Telemetry and other reference content)
+  - Example: https://docs.cline.bot/features/auto-approve
+
+====
+
 OBJECTIVE
 
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
@@ -549,5 +560,5 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the attempt_completion tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-  return createAntmlToolPrompt([readTool, writeTool, bashTool, lsToolDefinition, grepToolDefinition], true, systemPrompt);
+  return createAntmlToolPrompt([readTool, writeTool, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition], true, systemPrompt);
 }

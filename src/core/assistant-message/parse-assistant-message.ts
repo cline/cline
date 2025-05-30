@@ -596,6 +596,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "WebFetch") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "web_fetch",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -639,6 +648,10 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 
 			if (currentToolUse && currentInvokeName === "Read" && currentParameterName === "file_path") {
 				currentToolUse.params["path"] = value
+			}
+
+			if (currentToolUse && currentInvokeName === "WebFetch" && currentParameterName === "url") {
+				currentToolUse.params["url"] = value
 			}
 
 			// Map parameter to tool params for Grep
