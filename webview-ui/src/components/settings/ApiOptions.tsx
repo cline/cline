@@ -317,7 +317,7 @@ const ApiOptions = ({
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	// Poll ollama/lmstudio? models
+	// Poll ollama/lmstudio models
 	const requestLocalModels = useCallback(async () => {
 		if (selectedProvider === "ollama") {
 			try {

@@ -28,13 +28,6 @@ export class NebiusHandler implements ApiHandler {
 		})
 	}
 
-	private getNebiusConfig(): NebiusConfig {
-		if (!this.options.nebius) {
-			throw new Error("Nebius configuration is required")
-		}
-		return this.options.nebius
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
@@ -83,5 +76,12 @@ export class NebiusHandler implements ApiHandler {
 			return { id: modelId, info: nebiusModels[modelId as NebiusModelId] }
 		}
 		return { id: nebiusDefaultModelId, info: nebiusModels[nebiusDefaultModelId] }
+	}
+
+	private getNebiusConfig(): NebiusConfig {
+		if (!this.options.nebius) {
+			throw new Error("Nebius configuration is required")
+		}
+		return this.options.nebius
 	}
 }

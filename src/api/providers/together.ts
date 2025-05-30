@@ -24,17 +24,9 @@ export class TogetherHandler implements ApiHandler {
 		})
 	}
 
-	private getTogetherConfig(): TogetherConfig {
-		if (!this.options.together) {
-			throw new Error("Together configuration is required")
-		}
-		return this.options.together
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const config = this.getTogetherConfig()
-		const modelId = config.modelId ?? ""
+		const modelId = this.getTogetherConfig().modelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -80,10 +72,16 @@ export class TogetherHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const config = this.getTogetherConfig()
 		return {
-			id: config.modelId ?? "",
+			id: this.getTogetherConfig().modelId ?? "",
 			info: openAiModelInfoSaneDefaults,
 		}
+	}
+
+	private getTogetherConfig(): TogetherConfig {
+		if (!this.options.together) {
+			throw new Error("Together configuration is required")
+		}
+		return this.options.together
 	}
 }

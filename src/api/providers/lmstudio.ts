@@ -23,13 +23,6 @@ export class LmStudioHandler implements ApiHandler {
 		})
 	}
 	
-	private getLmStudioConfig(): LMStudioConfig {
-		if (!this.options.lmstudio) {
-			throw new Error("LM Studio configuration is required")
-		}
-		return this.options.lmstudio
-	}
-
 	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -67,10 +60,16 @@ export class LmStudioHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const config = this.getLmStudioConfig()
 		return {
-			id: config.modelId || "",
+			id: this.getLmStudioConfig().modelId || "",
 			info: openAiModelInfoSaneDefaults,
 		}
+	}
+
+	private getLmStudioConfig(): LMStudioConfig {
+		if (!this.options.lmstudio) {
+			throw new Error("LM Studio configuration is required")
+		}
+		return this.options.lmstudio
 	}
 }

@@ -72,18 +72,6 @@ export class GeminiHandler implements ApiHandler {
 	}
 
 	/**
-	 * Get the Gemini-specific configuration
-	 * @returns The Gemini configuration
-	 * @throws Error if Gemini configuration is missing
-	 */
-	private getGeminiConfig(): GeminiConfig {
-		if (!this.options.gemini) {
-			throw new Error("Gemini configuration is required")
-		}
-		return this.options.gemini
-	}
-
-	/**
 	 * Creates a message using the Gemini API with implicit caching.
 	 *
 	 * Cost accounting:
@@ -388,5 +376,15 @@ export class GeminiHandler implements ApiHandler {
 		}, 0)
 
 		return Math.ceil(totalChars / 4)
+	}
+
+	/**
+	 * Get the Gemini-specific configuration
+	 */
+	private getGeminiConfig(): GeminiConfig {
+		if (!this.options.gemini) {
+			throw new Error("Gemini configuration is required")
+		}
+		return this.options.gemini
 	}
 }

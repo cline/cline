@@ -64,7 +64,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 	//	console.log("[DEBUG] Saving favoritedModelIds:", request.favoritedModelIds)
 	//}
 	//
-	//// Request timeout - Used by Ollama provider  --- TODO review this
+	//// Request timeout - Used by Ollama provider
 	if (typeof request.requestTimeoutMs === "number") {
 		console.log("[DEBUG] Saving requestTimeoutMs:", request.requestTimeoutMs)
 		await updateGlobalState(controller.context, "requestTimeoutMs", request.requestTimeoutMs)

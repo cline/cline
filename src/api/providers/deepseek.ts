@@ -2,14 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	DeepSeekConfig,
-	DeepSeekModelId,
-	ModelInfo,
-	deepSeekDefaultModelId,
-	deepSeekModels,
-} from "@shared/api"
+import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "@shared/api"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -30,13 +23,6 @@ export class DeepSeekHandler implements ApiHandler {
 			baseURL: "https://api.deepseek.com/v1",
 			apiKey: this.options.deepseek.apiKey,
 		})
-	}
-
-	private getDeepSeekConfig(): DeepSeekConfig {
-		if (!this.options.deepseek) {
-			throw new Error("DeepSeek configuration is required")
-		}
-		return this.options.deepseek
 	}
 
 	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
@@ -119,7 +105,6 @@ export class DeepSeekHandler implements ApiHandler {
 	}
 
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
-		const config = this.getDeepSeekConfig()
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in deepSeekModels) {
 			const id = modelId as DeepSeekModelId

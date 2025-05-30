@@ -1,14 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { withRetry } from "../retry"
-import {
-	anthropicDefaultModelId,
-	AnthropicModelId,
-	anthropicModels,
-	ApiHandlerOptions,
-	ModelInfo,
-	AnthropicConfig,
-} from "@shared/api"
+import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
@@ -27,13 +20,6 @@ export class AnthropicHandler implements ApiHandler {
 			apiKey: this.options.anthropic.apiKey,
 			baseURL: this.options.anthropic.baseUrl || undefined,
 		})
-	}
-
-	private getAnthropicConfig(): AnthropicConfig {
-		if (!this.options.anthropic) {
-			throw new Error("Anthropic configuration is required")
-		}
-		return this.options.anthropic
 	}
 
 	@withRetry()

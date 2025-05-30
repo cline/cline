@@ -31,13 +31,6 @@ export class ClineHandler implements ApiHandler {
 		})
 	}
 	
-	private getClineConfig(): ClineConfig {
-		if (!this.options.cline) {
-			throw new Error("Cline configuration is required")
-		}
-		return this.options.cline
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		this.lastGenerationId = undefined
@@ -141,5 +134,12 @@ export class ClineHandler implements ApiHandler {
 			return { id: openrouter.modelId, info: openrouter.modelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
+	}
+
+	private getClineConfig(): ClineConfig {
+		if (!this.options.cline) {
+			throw new Error("Cline configuration is required")
+		}
+		return this.options.cline
 	}
 }

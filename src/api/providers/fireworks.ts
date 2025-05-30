@@ -23,17 +23,9 @@ export class FireworksHandler implements ApiHandler {
 		})
 	}
 
-	private getFireworksConfig(): FireworksConfig {
-		if (!this.options.fireworks) {
-			throw new Error("Fireworks configuration is required")
-		}
-		return this.options.fireworks
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const config = this.getFireworksConfig()
-		const modelId = config.modelId ?? ""
+		const modelId = this.getFireworksConfig().modelId ?? ""
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -42,8 +34,10 @@ export class FireworksHandler implements ApiHandler {
 
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
-			...(config.modelMaxCompletionTokens ? { max_completion_tokens: config.modelMaxCompletionTokens } : {}),
-			...(config.modelMaxTokens ? { max_tokens: config.modelMaxTokens } : {}),
+			...(this.getFireworksConfig().modelMaxCompletionTokens
+				? { max_completion_tokens: this.getFireworksConfig().modelMaxCompletionTokens }
+				: {}),
+			...(this.getFireworksConfig().modelMaxTokens ? { max_tokens: this.getFireworksConfig().modelMaxTokens } : {}),
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
@@ -90,10 +84,16 @@ export class FireworksHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const config = this.getFireworksConfig()
 		return {
-			id: config.modelId ?? "",
+			id: this.getFireworksConfig().modelId ?? "",
 			info: openAiModelInfoSaneDefaults,
 		}
+	}
+
+	private getFireworksConfig(): FireworksConfig {
+		if (!this.options.fireworks) {
+			throw new Error("Fireworks configuration is required")
+		}
+		return this.options.fireworks
 	}
 }

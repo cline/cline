@@ -92,11 +92,10 @@ export class OllamaHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const config = this.getOllamaConfig()
 		return {
-			id: config.modelId || "",
-			info: config.apiOptionsCtxNum
-				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(config.apiOptionsCtxNum) || 32768 }
+			id: this.getOllamaConfig().modelId || "",
+			info: this.getOllamaConfig().apiOptionsCtxNum
+				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(this.getOllamaConfig().apiOptionsCtxNum) || 32768 }
 				: openAiModelInfoSaneDefaults,
 		}
 	}

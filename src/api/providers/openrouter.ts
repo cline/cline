@@ -31,13 +31,6 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
-	private getOpenRouterConfig(): OpenRouterConfig {
-		if (!this.options.openrouter) {
-			throw new Error("OpenRouter configuration is required")
-		}
-		return this.options.openrouter
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		this.lastGenerationId = undefined
@@ -136,10 +129,9 @@ export class OpenRouterHandler implements ApiHandler {
 	async *fetchGenerationDetails(genId: string) {
 		// console.log("Fetching generation details for:", genId)
 		try {
-			const config = this.getOpenRouterConfig()
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
-					Authorization: `Bearer ${config.apiKey}`,
+					Authorization: `Bearer ${this.getOpenRouterConfig().apiKey}`,
 				},
 				timeout: 15_000, // this request hangs sometimes
 			})
@@ -152,12 +144,18 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const config = this.getOpenRouterConfig()
-		const modelId = config.modelId
-		const modelInfo = config.modelInfo
+		const modelId = this.getOpenRouterConfig().modelId
+		const modelInfo = this.getOpenRouterConfig().modelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
+	}
+
+	private getOpenRouterConfig(): OpenRouterConfig {
+		if (!this.options.openrouter) {
+			throw new Error("OpenRouter configuration is required")
+		}
+		return this.options.openrouter
 	}
 }

@@ -38,13 +38,6 @@ export class RequestyHandler implements ApiHandler {
 		})
 	}
 
-	private getRequestyConfig(): RequestyConfig {
-		if (!this.options.requesty) {
-			throw new Error("Requesty configuration is required")
-		}
-		return this.options.requesty
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
@@ -123,12 +116,18 @@ export class RequestyHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const config = this.getRequestyConfig()
-		const modelId = config.modelId
-		const modelInfo = config.modelInfo
+		const modelId = this.getRequestyConfig().modelId
+		const modelInfo = this.getRequestyConfig().modelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
 		return { id: requestyDefaultModelId, info: requestyDefaultModelInfo }
+	}
+
+	private getRequestyConfig(): RequestyConfig {
+		if (!this.options.requesty) {
+			throw new Error("Requesty configuration is required")
+		}
+		return this.options.requesty
 	}
 }

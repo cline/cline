@@ -311,13 +311,6 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		return systemTokens + messageTokens.reduce((sum: number, tokens: number): number => sum + tokens, 0)
 	}
 
-	private getVSCodeConfig(): VSCodeConfig {
-		if (!this.options.vscode) {
-			throw new Error("VSCode configuration is required")
-		}
-		return this.options.vscode
-	}
-
 	private ensureCleanState(): void {
 		if (this.currentRequestCancellation) {
 			this.currentRequestCancellation.cancel()
@@ -640,5 +633,12 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			}
 			throw error
 		}
+	}
+
+	private getVSCodeConfig(): VSCodeConfig {
+		if (!this.options.vscode) {
+			throw new Error("VSCode configuration is required")
+		}
+		return this.options.vscode
 	}
 }

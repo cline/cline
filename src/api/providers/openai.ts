@@ -48,31 +48,25 @@ export class OpenAiHandler implements ApiHandler {
 		}
 	}
 
-	private getOpenAIConfig(): OpenAIConfig {
-		if (!this.options.openai) {
-			throw new Error("OpenAI configuration is required")
-		}
-		return this.options.openai
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const config = this.getOpenAIConfig()
-		const modelId = config.modelId ?? ""
+		const modelId = this.getOpenAIConfig().modelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
-		const isR1FormatRequired = config.modelInfo?.isR1FormatRequired ?? false
+		const isR1FormatRequired = this.getOpenAIConfig().modelInfo?.isR1FormatRequired ?? false
 		const isReasoningModelFamily = modelId.includes("o1") || modelId.includes("o3") || modelId.includes("o4")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		let temperature: number | undefined = config.modelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
+		let temperature: number | undefined =
+			this.getOpenAIConfig().modelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
 		let maxTokens: number | undefined
 
-		if (config.modelInfo?.maxTokens && config.modelInfo.maxTokens > 0) {
-			maxTokens = Number(config.modelInfo.maxTokens)
+		const modelInfoMaxTokens = this.getOpenAIConfig().modelInfo?.maxTokens
+		if (modelInfoMaxTokens && modelInfoMaxTokens > 0) {
+			maxTokens = Number(modelInfoMaxTokens)
 		} else {
 			maxTokens = undefined
 		}
@@ -127,10 +121,16 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const config = this.getOpenAIConfig()
 		return {
-			id: config.modelId ?? "",
-			info: config.modelInfo ?? openAiModelInfoSaneDefaults,
+			id: this.getOpenAIConfig().modelId ?? "",
+			info: this.getOpenAIConfig().modelInfo ?? openAiModelInfoSaneDefaults,
 		}
+	}
+
+	private getOpenAIConfig(): OpenAIConfig {
+		if (!this.options.openai) {
+			throw new Error("OpenAI configuration is required")
+		}
+		return this.options.openai
 	}
 }

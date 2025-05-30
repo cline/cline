@@ -32,13 +32,6 @@ export class VertexHandler implements ApiHandler {
 		})
 	}
 
-	private getVertexConfig(): VertexConfig {
-		if (!this.options.vertex) {
-			throw new Error("Vertex configuration is required")
-		}
-		return this.options.vertex
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
@@ -247,5 +240,12 @@ export class VertexHandler implements ApiHandler {
 			id: vertexDefaultModelId,
 			info: vertexModels[vertexDefaultModelId],
 		}
+	}
+
+	private getVertexConfig(): VertexConfig {
+		if (!this.options.vertex) {
+			throw new Error("Vertex configuration is required")
+		}
+		return this.options.vertex
 	}
 }

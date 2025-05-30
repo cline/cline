@@ -31,8 +31,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		// This baseModelId is used to indicate the capabilities of the model.
 		// If the user selects a custom model, baseModelId will be set to the base model ID of the custom model.
 		// Otherwise, baseModelId will be the same as modelId.
-		const config = this.getAwsConfig()
-		const baseModelId = (config.bedrockCustomSelected ? config.bedrockCustomModelBaseId : modelId) || modelId
+		const baseModelId =
+			(this.getAwsConfig().bedrockCustomSelected ? this.getAwsConfig().bedrockCustomModelBaseId : modelId) || modelId
 
 		// Check if this is an Amazon Nova model
 		if (baseModelId.includes("amazon.nova")) {
@@ -188,16 +188,6 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 	}
 
-	/**
-	 * Gets the AWS configuration with validation
-	 */
-	private getAwsConfig(): AwsConfig {
-		if (!this.options.aws) {
-			throw new Error("AWS configuration is required")
-		}
-		return this.options.aws
-	}
-
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in bedrockModels) {
@@ -205,9 +195,8 @@ export class AwsBedrockHandler implements ApiHandler {
 			return { id, info: bedrockModels[id] }
 		}
 
-		const config = this.getAwsConfig()
-		const customSelected = config.bedrockCustomSelected
-		const baseModel = config.bedrockCustomModelBaseId
+		const customSelected = this.getAwsConfig().bedrockCustomSelected
+		const baseModel = this.getAwsConfig().bedrockCustomModelBaseId
 		if (customSelected && modelId && baseModel && baseModel in bedrockModels) {
 			// Use the user-input model ID but inherit capabilities from the base model
 			return {
@@ -236,12 +225,12 @@ export class AwsBedrockHandler implements ApiHandler {
 	}> {
 		// Configure provider options
 		const providerOptions: any = {}
-		if (this.options.awsUseProfile) {
+		if (this.options.aws?.useProfile) {
 			// For profile-based auth, always use ignoreCache to detect credential file changes
 			// This solves the AWS Identity Manager issue where credential files change externally
 			providerOptions.ignoreCache = true
-			if (this.options.awsProfile) {
-				providerOptions.profile = this.options.awsProfile
+			if (this.options.aws?.profile) {
+				providerOptions.profile = this.options.aws?.profile
 			}
 		}
 
@@ -250,14 +239,14 @@ export class AwsBedrockHandler implements ApiHandler {
 		const config = this.getAwsConfig()
 		return await AwsBedrockHandler.withTempEnv(
 			() => {
-				AwsBedrockHandler.setEnv("AWS_REGION", config.region)
-				if (config.useProfile) {
-					AwsBedrockHandler.setEnv("AWS_PROFILE", config.profile)
+				AwsBedrockHandler.setEnv("AWS_REGION", this.getAwsConfig().region)
+				if (this.getAwsConfig().useProfile) {
+					AwsBedrockHandler.setEnv("AWS_PROFILE", this.getAwsConfig().profile)
 				} else {
 					delete process.env["AWS_PROFILE"]
-					AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", config.accessKey)
-					AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", config.secretKey)
-					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", config.sessionToken)
+					AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.getAwsConfig().accessKey)
+					AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.getAwsConfig().secretKey)
+					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.getAwsConfig().sessionToken)
 				}
 			},
 			() => providerChain(),
@@ -268,8 +257,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Gets the AWS region to use, with fallback to default
 	 */
 	private getRegion(): string {
-		const config = this.getAwsConfig()
-		return config.region || AwsBedrockHandler.DEFAULT_REGION
+		return this.getAwsConfig().region || AwsBedrockHandler.DEFAULT_REGION
 	}
 
 	/**
@@ -310,11 +298,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * If the model ID is an ARN that contains a slash, you will get the URL encoded ARN.
 	 */
 	async getModelId(): Promise<string> {
-		const config = this.getAwsConfig()
-		if (config.bedrockCustomSelected && this.getModel().id.includes("/")) {
+		if (this.getAwsConfig().bedrockCustomSelected && this.getModel().id.includes("/")) {
 			return encodeURIComponent(this.getModel().id)
 		}
-		if (!config.bedrockCustomSelected && config.useCrossRegionInference) {
+		if (!this.getAwsConfig().bedrockCustomSelected && this.getAwsConfig().useCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
@@ -735,5 +722,15 @@ export class AwsBedrockHandler implements ApiHandler {
 				content,
 			}
 		})
+	}
+
+	/**
+	 * Gets the AWS configuration with validation
+	 */
+	private getAwsConfig(): AwsConfig {
+		if (!this.options.aws) {
+			throw new Error("AWS configuration is required")
+		}
+		return this.options.aws
 	}
 }

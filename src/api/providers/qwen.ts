@@ -37,18 +37,10 @@ export class QwenHandler implements ApiHandler {
 		})
 	}
 
-	private getQwenConfig(): QwenConfig {
-		if (!this.options.qwen) {
-			throw new Error("Qwen configuration is required")
-		}
-		return this.options.qwen
-	}
-
 	getModel(): { id: MainlandQwenModelId | InternationalQwenModelId; info: ModelInfo } {
-		const config = this.getQwenConfig()
 		const modelId = this.options.apiModelId
 		// Branch based on API line to let poor typescript know what to do
-		if (config.apiLine === "china") {
+		if (this.getQwenConfig().apiLine === "china") {
 			return {
 				id: (modelId as MainlandQwenModelId) ?? mainlandQwenDefaultModelId,
 				info: mainlandQwenModels[modelId as MainlandQwenModelId] ?? mainlandQwenModels[mainlandQwenDefaultModelId],
@@ -111,5 +103,12 @@ export class QwenHandler implements ApiHandler {
 				}
 			}
 		}
+	}
+
+	private getQwenConfig(): QwenConfig {
+		if (!this.options.qwen) {
+			throw new Error("Qwen configuration is required")
+		}
+		return this.options.qwen
 	}
 }

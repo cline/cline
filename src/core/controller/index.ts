@@ -254,9 +254,12 @@ export class Controller {
 					if (response && response.models) {
 						// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 						const { apiConfiguration } = await getAllExtensionState(this.context)
-						const modelId = apiConfiguration.openrouter?.modelId
-						if (modelId && response.models[modelId]) {
-							await updateGlobalState(this.context, "openRouterModelInfo", response.models[modelId])
+						if (apiConfiguration.openrouter?.modelId && response.models[apiConfiguration.openrouter?.modelId]) {
+							await updateGlobalState(
+								this.context,
+								"openRouterModelInfo",
+								response.models[apiConfiguration.openrouter?.modelId],
+							)
 							await this.postStateToWebview()
 						}
 					}

@@ -23,23 +23,15 @@ export class LiteLlmHandler implements ApiHandler {
 		})
 	}
 
-	private getLiteLLMConfig(): LiteLLMConfig {
-		if (!this.options.litellm) {
-			throw new Error("LiteLLM configuration is required")
-		}
-		return this.options.litellm
-	}
-
 	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
-		const config = this.getLiteLLMConfig()
-		const modelId = config.modelId || liteLlmDefaultModelId
+		const modelId = this.getLiteLLMConfig().modelId || liteLlmDefaultModelId
 		try {
 			const response = await fetch(`${this.client.baseURL}/spend/calculate`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					Authorization: `Bearer ${config.apiKey}`,
+					Authorization: `Bearer ${this.getLiteLLMConfig().apiKey}`,
 				},
 				body: JSON.stringify({
 					completion_response: {
@@ -72,8 +64,7 @@ export class LiteLlmHandler implements ApiHandler {
 			role: "system",
 			content: systemPrompt,
 		}
-		const config = this.getLiteLLMConfig()
-		const modelId = config.modelId || liteLlmDefaultModelId
+		const modelId = this.getLiteLLMConfig().modelId || liteLlmDefaultModelId
 		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini") || modelId.includes("o4-mini")
 
 		// Configuration for extended thinking
@@ -81,14 +72,14 @@ export class LiteLlmHandler implements ApiHandler {
 		const reasoningOn = budgetTokens !== 0 ? true : false
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
-		let temperature: number | undefined = config.modelInfo?.temperature ?? 0
+		let temperature: number | undefined = this.getLiteLLMConfig().modelInfo?.temperature ?? 0
 
 		if (isOminiModel && reasoningOn) {
 			temperature = undefined // Thinking mode doesn't support temperature
 		}
 
 		// Define cache control object if prompt caching is enabled
-		const cacheControl = config.usePromptCache ? { cache_control: { type: "ephemeral" } } : undefined
+		const cacheControl = this.getLiteLLMConfig().usePromptCache ? { cache_control: { type: "ephemeral" } } : undefined
 
 		// Add cache_control to system message if enabled
 		const enhancedSystemMessage = {
@@ -116,7 +107,7 @@ export class LiteLlmHandler implements ApiHandler {
 		})
 
 		const stream = await this.client.chat.completions.create({
-			model: config.modelId || liteLlmDefaultModelId,
+			model: this.getLiteLLMConfig().modelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
 			temperature,
 			stream: true,
@@ -183,10 +174,16 @@ export class LiteLlmHandler implements ApiHandler {
 	}
 
 	getModel() {
-		const config = this.getLiteLLMConfig()
 		return {
-			id: config.modelId || liteLlmDefaultModelId,
-			info: config.modelInfo || liteLlmModelInfoSaneDefaults,
+			id: this.getLiteLLMConfig().modelId || liteLlmDefaultModelId,
+			info: this.getLiteLLMConfig().modelInfo || liteLlmModelInfoSaneDefaults,
 		}
+	}
+
+	private getLiteLLMConfig(): LiteLLMConfig {
+		if (!this.options.litellm) {
+			throw new Error("LiteLLM configuration is required")
+		}
+		return this.options.litellm
 	}
 }
