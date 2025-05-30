@@ -6,10 +6,43 @@ import { fileURLToPath } from "url"
 import { execSync } from "child_process"
 import { globby } from "globby"
 import chalk from "chalk"
+import os from "os"
 
 import { createRequire } from "module"
 const require = createRequire(import.meta.url)
 const protoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+
+// Check for Apple Silicon compatibility
+function checkAppleSiliconCompatibility() {
+	// Only run check on macOS
+	if (process.platform !== "darwin") {
+		return
+	}
+
+	// Check if running on Apple Silicon
+	const cpuArchitecture = os.arch()
+	if (cpuArchitecture === "arm64") {
+		try {
+			// Check if Rosetta is installed
+			const rosettaCheck = execSync('/usr/bin/pgrep oahd || echo "NOT_INSTALLED"').toString().trim()
+
+			if (rosettaCheck === "NOT_INSTALLED") {
+				console.log(chalk.yellow("Detected Apple Silicon (ARM64) architecture."))
+				console.log(
+					chalk.red("Rosetta 2 is NOT installed. The npm version of protoc is not compatible with Apple Silicon."),
+				)
+				console.log(chalk.cyan("Please install Rosetta 2 using the following command:"))
+				console.log(chalk.cyan("  softwareupdate --install-rosetta --agree-to-license"))
+				console.log(chalk.red("Aborting build process."))
+				process.exit(1)
+			} else {
+				console.log(chalk.green("Rosetta 2 is installed. Continuing with build."))
+			}
+		} catch (error) {
+			console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
+		}
+	}
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const SCRIPT_DIR = path.dirname(__filename)
@@ -41,6 +74,9 @@ const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(RO
 
 async function main() {
 	console.log(chalk.bold.blue("Starting Protocol Buffer code generation..."))
+
+	// Check for Apple Silicon compatibility before proceeding
+	checkAppleSiliconCompatibility()
 
 	// Define output directories
 	const TS_OUT_DIR = path.join(ROOT_DIR, "src", "shared", "proto")
