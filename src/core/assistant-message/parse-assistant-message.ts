@@ -578,6 +578,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "Read") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "read_file",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -617,6 +626,10 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 				currentToolUse.params["path"] = value
 				// Default recursive to false - only show top level
 				currentToolUse.params["recursive"] = "false"
+			}
+
+			if (currentToolUse && currentInvokeName === "Read" && currentParameterName === "file_path") {
+				currentToolUse.params["path"] = value
 			}
 
 			// Map parameter to tool params for Grep
