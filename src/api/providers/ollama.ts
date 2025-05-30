@@ -80,7 +80,9 @@ export class OllamaHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.ollamaModelId || "",
-			info: this.options.ollamaApiOptionsCtxNum ? {contextWindow: parseInt(this.options.ollamaApiOptionsCtxNum), ...openAiModelInfoSaneDefaults} : openAiModelInfoSaneDefaults,
+			info: this.options.ollamaApiOptionsCtxNum
+				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(this.options.ollamaApiOptionsCtxNum) || 32768 }
+				: openAiModelInfoSaneDefaults,
 		}
 	}
 }
