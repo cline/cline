@@ -53,7 +53,7 @@ function createMemento(): vscode.Memento {
 
 class SecretStore {
 	// A simple key-value store for secrets backed by a JSON file. This is not secure, and it is not thread-safe.
-	private store = new Map<string, string>()
+	private data = new Map<string, string>()
 	private filePath: string
 
 	constructor() {
@@ -66,27 +66,27 @@ class SecretStore {
 			const data = JSON.parse(fs.readFileSync(this.filePath, "utf-8"))
 			Object.entries(data).forEach(([k, v]) => {
 				if (typeof v === "string") {
-					this.store.set(k, v)
+					this.data.set(k, v)
 				}
 			})
 		}
 	}
 
 	private save(): void {
-		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.store), null, 2))
+		fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.data), null, 2))
 	}
 
 	get(key: string): string | undefined {
-		return this.store.get(key)
+		return this.data.get(key)
 	}
 
-	storeSecret(key: string, value: string): void {
-		this.store.set(key, value)
+	store(key: string, value: string): void {
+		this.data.set(key, value)
 		this.save()
 	}
 
 	delete(key: string): void {
-		this.store.delete(key)
+		this.data.delete(key)
 		this.save()
 	}
 }
