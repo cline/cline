@@ -650,6 +650,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "LoadMcpDocumentation") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "load_mcp_documentation",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -784,7 +793,8 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					currentInvokeName === "UseMCPTool" ||
 					currentInvokeName === "AccessMCPResource" ||
 					currentInvokeName === "ListCodeDefinitionNames" ||
-					currentInvokeName === "PlanModeRespond")
+					currentInvokeName === "PlanModeRespond" ||
+					currentInvokeName === "LoadMcpDocumentation")
 			) {
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)
