@@ -76,6 +76,14 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Always update the main version tracker for the next launch.
 			await context.globalState.update("clineVersion", currentVersion)
 		}
+
+		// Run migrations - this must happen before the controller and other components are initialized
+		// Import here to avoid circular dependencies
+		const { runAllMigrations } = await import("./core/storage/migrations")
+
+		// In development mode, force migrations to run every time for testing
+		const forceRunInDevMode = process.env.IS_DEV === "true"
+		await runAllMigrations(context, forceRunInDevMode)
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		console.error(`Error during post-update actions: ${errorMessage}, Stack trace: ${error.stack}`)
