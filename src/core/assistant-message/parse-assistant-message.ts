@@ -668,6 +668,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "BrowserAction") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "browser_action",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -784,6 +793,18 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 				}
 				if (currentParameterName === "command") {
 					currentToolUse.params["command"] = value
+				}
+			}
+
+			if (currentToolUse && currentInvokeName === "BrowserAction") {
+				if (currentParameterName === "action") {
+					currentToolUse.params["action"] = value
+				} else if (currentParameterName === "url") {
+					currentToolUse.params["url"] = value
+				} else if (currentParameterName === "coordinate") {
+					currentToolUse.params["coordinate"] = value
+				} else if (currentParameterName === "text") {
+					currentToolUse.params["text"] = value
 				}
 			}
 

@@ -18,6 +18,7 @@ import {accessMcpResourceToolDefinition} from "@core/tools/accessMcpResourceTool
 import {planModeRespondToolDefinition} from  "@core/tools/planModeRespondTool"
 import {loadMcpDocumentationToolDefinition} from "@core/tools/loadMcpDocumentationTool"
 import { attemptCompletionToolDefinition } from "@core/tools/attemptCompletionTool"
+import {browserActionToolDefinition} from "@core/tools/browserActionTool"
 
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
@@ -30,6 +31,7 @@ export const SYSTEM_PROMPT_CLAUDE4 = async (
   const writeTool = writeToolDefinition(cwd);
   const listCodeDefinitionNamesTool = listCodeDefinitionNamesToolDefinition(cwd);
   const loadMcpDocumentationTool = loadMcpDocumentationToolDefinition(useMCPToolDefinition.name, accessMcpResourceToolDefinition.name);
+  const browserActionTool = browserActionToolDefinition(browserSettings);
 
   const systemPrompt = `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
@@ -91,46 +93,6 @@ Usage:
 }}
 </diff>
 </replace_in_file>
-
-${
-	supportsBrowserUse
-		? `
-
-## browser_action
-Description: Request to interact with a Puppeteer-controlled browser. Every action, except \`close\`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.
-- The sequence of actions **must always start with** launching the browser at a URL, and **must always end with** closing the browser. If you need to visit a new URL that is not possible to navigate to from the current webpage, you must first close the browser, then launch again at the new URL.
-- While the browser is active, only the \`browser_action\` tool can be used. No other tools should be called during this time. You may proceed to use other tools only after closing the browser. For example if you run into an error and need to fix a file, you must close the browser, then use other tools to make the necessary changes, then re-launch the browser to verify the result.
-- The browser window has a resolution of **${browserSettings.viewport.width}x${browserSettings.viewport.height}** pixels. When performing any click actions, ensure the coordinates are within this resolution range.
-- Before clicking on any elements such as icons, links, or buttons, you must consult the provided screenshot of the page to determine the coordinates of the element. The click should be targeted at the **center of the element**, not on its edges.
-Parameters:
-- action: (required) The action to perform. The available actions are:
-    * launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**.
-        - Use with the \`url\` parameter to provide the URL.
-        - Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.)
-    * click: Click at a specific x,y coordinate.
-        - Use with the \`coordinate\` parameter to specify the location.
-        - Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot.
-    * type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text.
-        - Use with the \`text\` parameter to provide the string to type.
-    * scroll_down: Scroll down the page by one page height.
-    * scroll_up: Scroll up the page by one page height.
-    * close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**.
-        - Example: \`<action>close</action>\`
-- url: (optional) Use this for providing the URL for the \`launch\` action.
-    * Example: <url>https://example.com</url>
-- coordinate: (optional) The X and Y coordinates for the \`click\` action. Coordinates should be within the **${browserSettings.viewport.width}x${browserSettings.viewport.height}** resolution.
-    * Example: <coordinate>450,300</coordinate>
-- text: (optional) Use this for providing the text for the \`type\` action.
-    * Example: <text>Hello, world!</text>
-Usage:
-<browser_action>
-<action>Action to perform (e.g., launch, click, type, scroll_down, scroll_up, close)</action>
-<url>URL to launch the browser at (optional)</url>
-<coordinate>x,y coordinates (optional)</coordinate>
-<text>Text to type (optional)</text>
-</browser_action>`
-		: ""
-}
 
 ## new_task
 Description: Request to create a new task with preloaded context covering the conversation with the user up to this point and key information for continuing with the new task. With this tool, you will create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions, with a focus on the most relevant information required for the new task.
@@ -386,7 +348,7 @@ CAPABILITIES
 	- For example, when asked to make edits or improvements you might analyze the file structure in the initial environment_details to get an overview of the project, then use ${listCodeDefinitionNamesTool.name} to get further insight using source code definitions for files located in relevant directories, then ${readTool.name} to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the replace_in_file tool to implement changes. If you refactored code that could affect other parts of the codebase, you could use ${grepToolDefinition.name} to ensure you update other files as needed.
 - You can use the ${bashTool.name} tool to run commands on the user's computer whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the commands are run in the user's VSCode terminal. The user may keep commands running in the background and you will be kept updated on their status along the way. Each command you execute is run in a new terminal instance.${
 	supportsBrowserUse
-		? `\n- You can use the browser_action tool to interact with websites (including html files and locally running development servers) through a Puppeteer-controlled browser when you feel it is necessary in accomplishing the user's task. This tool is particularly useful for web development tasks as it allows you to launch a browser, navigate to pages, interact with elements through clicks and keyboard input, and capture the results through screenshots and console logs. This tool may be useful at key stages of web development tasks-such as after implementing new features, making substantial changes, when troubleshooting issues, or to verify the result of your work. You can analyze the provided screenshots to ensure correct rendering or identify errors, and review console logs for runtime issues.\n	- For example, if asked to add a component to a react website, you might create the necessary files, use the ${bashTool.name} tool to run the site locally, then use browser_action to launch the browser, navigate to the local server, and verify the component renders & functions correctly before closing the browser.`
+		? `\n- You can use the ${browserActionTool.name} tool to interact with websites (including html files and locally running development servers) through a Puppeteer-controlled browser when you feel it is necessary in accomplishing the user's task. This tool is particularly useful for web development tasks as it allows you to launch a browser, navigate to pages, interact with elements through clicks and keyboard input, and capture the results through screenshots and console logs. This tool may be useful at key stages of web development tasks-such as after implementing new features, making substantial changes, when troubleshooting issues, or to verify the result of your work. You can analyze the provided screenshots to ensure correct rendering or identify errors, and review console logs for runtime issues.\n	- For example, if asked to add a component to a react website, you might create the necessary files, use the ${bashTool.name} tool to run the site locally, then use ${browserActionTool.name} to launch the browser, navigate to the local server, and verify the component renders & functions correctly before closing the browser.`
 		: ""
 }
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.
@@ -411,7 +373,7 @@ RULES
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the ${readTool.name} tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.${
 	supportsBrowserUse
-		? `\n- The user may ask generic non-development tasks, such as "what\'s the latest news" or "look up the weather in San Diego", in which case you might use the browser_action tool to complete the task if it makes sense to do so, rather than trying to create a website or using curl to answer the question. However, if an available MCP server tool or resource can be used instead, you should prefer to use it over browser_action.`
+		? `\n- The user may ask generic non-development tasks, such as "what\'s the latest news" or "look up the weather in San Diego", in which case you might use the ${browserActionTool.name} tool to complete the task if it makes sense to do so, rather than trying to create a website or using curl to answer the question. However, if an available MCP server tool or resource can be used instead, you should prefer to use it over ${browserActionTool.name}.`
 		: ""
 }
 - NEVER end ${attemptCompletionToolDefinition.name} result with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user.
@@ -422,7 +384,7 @@ RULES
 - When using the replace_in_file tool, you must include complete lines 
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.${
 	supportsBrowserUse
-		? " Then if you want to test your work, you might use browser_action to launch the site, wait for the user's response confirming the site was launched along with a screenshot, then perhaps e.g., click a button to test functionality if needed, wait for the user's response confirming the button was clicked along with a screenshot of the new state, before finally closing the browser."
+		? ` Then if you want to test your work, you might use ${browserActionTool.name} to launch the site, wait for the user's response confirming the site was launched along with a screenshot, then perhaps e.g., click a button to test functionality if needed, wait for the user's response confirming the button was clicked along with a screenshot of the new state, before finally closing the browser.`
 		: ""
 }
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
@@ -457,5 +419,10 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the ${attemptCompletionToolDefinition.name} tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-  return createAntmlToolPrompt([readTool, writeTool, askQuestionToolDefinition, planModeRespondToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, listCodeDefinitionNamesTool, useMCPToolDefinition, accessMcpResourceToolDefinition, loadMcpDocumentationTool], true, systemPrompt);
+  const tools = [readTool, writeTool, askQuestionToolDefinition, planModeRespondToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, listCodeDefinitionNamesTool, useMCPToolDefinition, accessMcpResourceToolDefinition, loadMcpDocumentationTool];
+  if (supportsBrowserUse) {
+    tools.push(browserActionTool);
+  }
+  
+  return createAntmlToolPrompt(tools, true, systemPrompt);
 }
