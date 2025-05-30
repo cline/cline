@@ -587,6 +587,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "Write") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "write_to_file",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -648,6 +657,14 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					currentToolUse.params["command"] = value
 				} else if (currentParameterName === "requires_approval") {
 					currentToolUse.params["requires_approval"] = value === "true" ? "true" : "false"
+				}
+			}
+
+			if (currentToolUse && currentInvokeName === "Write") {
+				if (currentParameterName === "file_path") {
+					currentToolUse.params["path"] = value
+				} else if (currentParameterName === "content") {
+					currentToolUse.params["content"] = value
 				}
 			}
 
