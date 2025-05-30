@@ -40,6 +40,8 @@ const getBlockColor = (message: ClineMessage): string => {
 							return COLOR_BEIGE // Beige for file read operations
 						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 							return COLOR_BLUE // Blue for file edit/create operations
+						} else if (toolData.tool === "webFetch") {
+							return COLOR_PURPLE // Purple for web fetch operations
 						}
 					} catch (e) {
 						// JSON parse error here
@@ -78,6 +80,8 @@ const getBlockColor = (message: ClineMessage): string => {
 							return COLOR_BEIGE // Beige for file read operations
 						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 							return COLOR_BLUE // Blue for file edit/create operations
+						} else if (toolData.tool === "webFetch") {
+							return COLOR_PURPLE // Purple for web fetch operations
 						}
 					} catch (e) {
 						// JSON parse error here
