@@ -40,6 +40,12 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 				shell: true,
 				cwd: this.terminal.getCurrentWorkingDirectory(),
 				all: true,
+				env: {
+					...process.env,
+					// Ensure UTF-8 encoding for Ruby, CocoaPods, etc.
+					LANG: "en_US.UTF-8",
+					LC_ALL: "en_US.UTF-8",
+				},
 			})`${command}`
 
 			this.pid = subprocess.pid
