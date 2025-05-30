@@ -45,6 +45,14 @@
 		"title": "Approve",
 		"tooltip": "Approve this action"
 	},
+	"read-batch": {
+		"approve": {
+			"title": "Approve All"
+		},
+		"deny": {
+			"title": "Deny All"
+		}
+	},
 	"runCommand": {
 		"title": "Run Command",
 		"tooltip": "Execute this command"
@@ -141,6 +149,8 @@
 	},
 	"fileOperations": {
 		"wantsToRead": "Roo wants to read this file:",
+		"wantsToReadMultiple": "Roo wants to read multiple files:",
+		"wantsToReadAndXMore": "Roo wants to read this file and {{count}} more:",
 		"wantsToReadOutsideWorkspace": "Roo wants to read this file outside of the workspace:",
 		"didRead": "Roo read this file:",
 		"wantsToEdit": "Roo wants to edit this file:",

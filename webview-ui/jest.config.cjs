@@ -20,10 +20,12 @@ module.exports = {
 		"^src/i18n/TranslationContext$": "<rootDir>/src/__mocks__/i18n/TranslationContext.tsx",
 		"^\\.\\./TranslationContext$": "<rootDir>/src/__mocks__/i18n/TranslationContext.tsx",
 		"^\\./TranslationContext$": "<rootDir>/src/__mocks__/i18n/TranslationContext.tsx",
+		"^@src/utils/highlighter$": "<rootDir>/src/__mocks__/utils/highlighter.ts",
+		"^shiki$": "<rootDir>/src/__mocks__/shiki.ts",
 	},
 	reporters: [["jest-simple-dot-reporter", {}]],
 	transformIgnorePatterns: [
-		"/node_modules/(?!(rehype-highlight|react-remark|unist-util-visit|unist-util-find-after|vfile|unified|bail|is-plain-obj|trough|vfile-message|unist-util-stringify-position|mdast-util-from-markdown|mdast-util-to-string|micromark|decode-named-character-reference|character-entities|markdown-table|zwitch|longest-streak|escape-string-regexp|unist-util-is|hast-util-to-text|@vscode/webview-ui-toolkit|@microsoft/fast-react-wrapper|@microsoft/fast-element|@microsoft/fast-foundation|@microsoft/fast-web-utilities|exenv-es6|vscrui)/)",
+		"/node_modules/(?!(shiki|rehype-highlight|react-remark|unist-util-visit|unist-util-find-after|vfile|unified|bail|is-plain-obj|trough|vfile-message|unist-util-stringify-position|mdast-util-from-markdown|mdast-util-to-string|micromark|decode-named-character-reference|character-entities|markdown-table|zwitch|longest-streak|escape-string-regexp|unist-util-is|hast-util-to-text|@vscode/webview-ui-toolkit|@microsoft/fast-react-wrapper|@microsoft/fast-element|@microsoft/fast-foundation|@microsoft/fast-web-utilities|exenv-es6|vscrui)/)",
 	],
 	roots: ["<rootDir>"],
 	moduleDirectories: ["node_modules", "src"],

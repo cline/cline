@@ -1513,6 +1513,7 @@ export class Task extends EventEmitter<ClineEvents> {
 			enableMcpServerCreation,
 			browserToolEnabled,
 			language,
+			maxConcurrentFileReads,
 			maxReadFileLine,
 		} = state ?? {}
 
@@ -1540,6 +1541,9 @@ export class Task extends EventEmitter<ClineEvents> {
 				language,
 				rooIgnoreInstructions,
 				maxReadFileLine !== -1,
+				{
+					maxConcurrentFileReads,
+				},
 			)
 		})()
 	}

@@ -58,6 +58,7 @@ export function getToolDescriptionsForMode(
 	customModes?: ModeConfig[],
 	experiments?: Record<string, boolean>,
 	partialReadsEnabled?: boolean,
+	settings?: Record<string, any>,
 ): string {
 	const config = getModeConfig(mode, customModes)
 	const args: ToolArgs = {
@@ -67,6 +68,7 @@ export function getToolDescriptionsForMode(
 		browserViewportSize,
 		mcpHub,
 		partialReadsEnabled,
+		settings,
 	}
 
 	const tools = new Set<string>()

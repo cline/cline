@@ -146,7 +146,9 @@
 		"didSearchReplace": "Roo a effectué une recherche et remplacement sur ce fichier :",
 		"wantsToInsert": "Roo veut insérer du contenu dans ce fichier :",
 		"wantsToInsertWithLineNumber": "Roo veut insérer du contenu dans ce fichier à la ligne {{lineNumber}} :",
-		"wantsToInsertAtEnd": "Roo veut ajouter du contenu à la fin de ce fichier :"
+		"wantsToInsertAtEnd": "Roo veut ajouter du contenu à la fin de ce fichier :",
+		"wantsToReadAndXMore": "Roo veut lire ce fichier et {{count}} de plus :",
+		"wantsToReadMultiple": "Roo souhaite lire plusieurs fichiers :"
 	},
 	"instructions": {
 		"wantsToFetch": "Roo veut récupérer des instructions détaillées pour aider à la tâche actuelle"
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo veut rechercher dans la base de code <code>{{query}}</code> :",
 		"wantsToSearchWithPath": "Roo veut rechercher dans la base de code <code>{{query}}</code> dans <code>{{path}}</code> :",
 		"didSearch": "{{count}} résultat(s) trouvé(s) pour <code>{{query}}</code> :"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "Tout approuver"
+		},
+		"deny": {
+			"title": "Tout refuser"
+		}
 	}
 }

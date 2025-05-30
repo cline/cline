@@ -4,7 +4,7 @@ import type { ProviderSettings, PromptComponent, ModeConfig } from "@roo-code/ty
 
 import { Mode } from "./modes"
 
-export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
+export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse" | "objectResponse"
 
 export type PromptMode = Mode | "enhance"
 
@@ -133,6 +133,7 @@ export interface WebviewMessage {
 		| "remoteBrowserEnabled"
 		| "language"
 		| "maxReadFileLine"
+		| "maxConcurrentFileReads"
 		| "searchFiles"
 		| "toggleApiConfigPin"
 		| "setHistoryPreviewCollapsed"

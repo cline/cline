@@ -149,7 +149,9 @@
 		"didSearchReplace": "Roo wykonał wyszukiwanie i zamianę w tym pliku:",
 		"wantsToInsert": "Roo chce wstawić zawartość do tego pliku:",
 		"wantsToInsertWithLineNumber": "Roo chce wstawić zawartość do tego pliku w linii {{lineNumber}}:",
-		"wantsToInsertAtEnd": "Roo chce dodać zawartość na końcu tego pliku:"
+		"wantsToInsertAtEnd": "Roo chce dodać zawartość na końcu tego pliku:",
+		"wantsToReadAndXMore": "Roo chce przeczytać ten plik i {{count}} więcej:",
+		"wantsToReadMultiple": "Roo chce odczytać wiele plików:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo chce zobaczyć pliki najwyższego poziomu w tym katalogu:",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo chce przeszukać bazę kodu w poszukiwaniu <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo chce przeszukać bazę kodu w poszukiwaniu <code>{{query}}</code> w <code>{{path}}</code>:",
 		"didSearch": "Znaleziono {{count}} wynik(ów) dla <code>{{query}}</code>:"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "Zatwierdź wszystko"
+		},
+		"deny": {
+			"title": "Odrzuć wszystko"
+		}
 	}
 }

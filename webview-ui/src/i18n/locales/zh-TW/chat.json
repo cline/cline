@@ -149,7 +149,9 @@
 		"didSearchReplace": "Roo 已在此檔案執行搜尋和取代：",
 		"wantsToInsert": "Roo 想要在此檔案中插入內容：",
 		"wantsToInsertWithLineNumber": "Roo 想要在此檔案第 {{lineNumber}} 行插入內容：",
-		"wantsToInsertAtEnd": "Roo 想要在此檔案末尾新增內容："
+		"wantsToInsertAtEnd": "Roo 想要在此檔案末尾新增內容：",
+		"wantsToReadAndXMore": "Roo 想要讀取此檔案以及另外 {{count}} 個檔案：",
+		"wantsToReadMultiple": "Roo 想要讀取多個檔案："
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo 想要檢視此目錄中最上層的檔案：",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo 想要搜尋程式碼庫：<code>{{query}}</code>",
 		"wantsToSearchWithPath": "Roo 想要在 <code>{{path}}</code> 中搜尋：<code>{{query}}</code>",
 		"didSearch": "找到 {{count}} 個結果：<code>{{query}}</code>"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "全部核准"
+		},
+		"deny": {
+			"title": "全部拒絕"
+		}
 	}
 }

@@ -37,7 +37,7 @@ import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
 import { Mode, defaultModeSlug } from "../../shared/modes"
-import { experimentDefault } from "../../shared/experiments"
+import { experimentDefault, experiments, EXPERIMENT_IDS } from "../../shared/experiments"
 import { formatLanguage } from "../../shared/language"
 import { Terminal } from "../../integrations/terminal/Terminal"
 import { downloadTask } from "../../integrations/misc/export-markdown"
@@ -1299,6 +1299,7 @@ export class ClineProvider
 			historyPreviewCollapsed,
 			cloudUserInfo,
 			organizationAllowList,
+			maxConcurrentFileReads,
 			condensingApiConfigId,
 			customCondensingPrompt,
 			codebaseIndexConfig,
@@ -1389,6 +1390,7 @@ export class ClineProvider
 			language: language ?? formatLanguage(vscode.env.language),
 			renderContext: this.renderContext,
 			maxReadFileLine: maxReadFileLine ?? -1,
+			maxConcurrentFileReads: maxConcurrentFileReads ?? 15,
 			settingsImportedAt: this.settingsImportedAt,
 			terminalCompressProgressBar: terminalCompressProgressBar ?? true,
 			hasSystemPromptOverride,
@@ -1516,6 +1518,10 @@ export class ClineProvider
 			telemetrySetting: stateValues.telemetrySetting || "unset",
 			showRooIgnoredFiles: stateValues.showRooIgnoredFiles ?? true,
 			maxReadFileLine: stateValues.maxReadFileLine ?? -1,
+			maxConcurrentFileReads: experiments.isEnabled(
+				stateValues.experiments ?? experimentDefault,
+				EXPERIMENT_IDS.CONCURRENT_FILE_READS
+			) ? (stateValues.maxConcurrentFileReads ?? 15) : 1,
 			historyPreviewCollapsed: stateValues.historyPreviewCollapsed ?? false,
 			cloudUserInfo,
 			organizationAllowList,

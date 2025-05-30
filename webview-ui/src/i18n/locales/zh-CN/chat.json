@@ -149,7 +149,9 @@
 		"didSearchReplace": "已完成搜索和替换:",
 		"wantsToInsert": "需要在此文件中插入内容:",
 		"wantsToInsertWithLineNumber": "需要在第 {{lineNumber}} 行插入内容:",
-		"wantsToInsertAtEnd": "需要在文件末尾添加内容:"
+		"wantsToInsertAtEnd": "需要在文件末尾添加内容:",
+		"wantsToReadAndXMore": "Roo 想读取此文件以及另外 {{count}} 个文件：",
+		"wantsToReadMultiple": "Roo 想要读取多个文件："
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "需要查看目录文件列表:",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo 需要搜索代码库: <code>{{query}}</code>",
 		"wantsToSearchWithPath": "Roo 需要在 <code>{{path}}</code> 中搜索: <code>{{query}}</code>",
 		"didSearch": "找到 {{count}} 个结果: <code>{{query}}</code>"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "全部批准"
+		},
+		"deny": {
+			"title": "全部拒绝"
+		}
 	}
 }

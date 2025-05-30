@@ -153,6 +153,7 @@ export type ExtensionState = Pick<
 	// | "maxWorkspaceFiles" // Optional in GlobalSettings, required here.
 	// | "showRooIgnoredFiles" // Optional in GlobalSettings, required here.
 	// | "maxReadFileLine" // Optional in GlobalSettings, required here.
+	| "maxConcurrentFileReads" // Optional in GlobalSettings, required here.
 	| "terminalOutputLineLimit"
 	| "terminalShellIntegrationTimeout"
 	| "terminalShellIntegrationDisabled"
@@ -249,6 +250,7 @@ export interface ClineSayTool {
 	mode?: string
 	reason?: string
 	isOutsideWorkspace?: boolean
+	additionalFileCount?: number // Number of additional files in the same read_file request
 	search?: string
 	replace?: string
 	useRegex?: boolean
@@ -257,6 +259,13 @@ export interface ClineSayTool {
 	endLine?: number
 	lineNumber?: number
 	query?: string
+	batchFiles?: Array<{
+		path: string
+		lineSnippet: string
+		isOutsideWorkspace?: boolean
+		key: string
+	}>
+	question?: string
 }
 
 // Must keep in sync with system prompt.

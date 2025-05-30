@@ -43,6 +43,7 @@ async function generatePrompt(
 	language?: string,
 	rooIgnoreInstructions?: string,
 	partialReadsEnabled?: boolean,
+	settings?: Record<string, any>,
 ): Promise<string> {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -81,6 +82,7 @@ ${getToolDescriptionsForMode(
 	customModeConfigs,
 	experiments,
 	partialReadsEnabled,
+	settings,
 )}
 
 ${getToolUseGuidelinesSection()}
@@ -119,6 +121,7 @@ export const SYSTEM_PROMPT = async (
 	language?: string,
 	rooIgnoreInstructions?: string,
 	partialReadsEnabled?: boolean,
+	settings?: Record<string, any>,
 ): Promise<string> => {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -191,5 +194,6 @@ ${customInstructions}`
 		language,
 		rooIgnoreInstructions,
 		partialReadsEnabled,
+		settings,
 	)
 }

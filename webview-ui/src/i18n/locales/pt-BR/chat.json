@@ -149,7 +149,9 @@
 		"didSearchReplace": "Roo realizou busca e substituição neste arquivo:",
 		"wantsToInsert": "Roo quer inserir conteúdo neste arquivo:",
 		"wantsToInsertWithLineNumber": "Roo quer inserir conteúdo neste arquivo na linha {{lineNumber}}:",
-		"wantsToInsertAtEnd": "Roo quer adicionar conteúdo ao final deste arquivo:"
+		"wantsToInsertAtEnd": "Roo quer adicionar conteúdo ao final deste arquivo:",
+		"wantsToReadAndXMore": "Roo quer ler este arquivo e mais {{count}}:",
+		"wantsToReadMultiple": "Roo deseja ler múltiplos arquivos:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo quer visualizar os arquivos de nível superior neste diretório:",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo quer pesquisar na base de código por <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo quer pesquisar na base de código por <code>{{query}}</code> em <code>{{path}}</code>:",
 		"didSearch": "Encontrado {{count}} resultado(s) para <code>{{query}}</code>:"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "Aprovar tudo"
+		},
+		"deny": {
+			"title": "Negar tudo"
+		}
 	}
 }

@@ -1,8 +1,6 @@
 {
 	"readFile": {
 		"linesRange": " (第 {{start}}-{{end}} 行)",
-		"linesFromToEnd": " (第 {{start}} 行至結尾)",
-		"linesFromStartTo": " (第 1-{{end}} 行)",
 		"definitionsOnly": " (僅定義)",
 		"maxLines": " (最多 {{max}} 行)"
 	},

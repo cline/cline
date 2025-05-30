@@ -123,6 +123,11 @@
 	--color-vscode-inputValidation-infoForeground: var(--vscode-inputValidation-infoForeground);
 	--color-vscode-inputValidation-infoBackground: var(--vscode-inputValidation-infoBackground);
 	--color-vscode-inputValidation-infoBorder: var(--vscode-inputValidation-infoBorder);
+
+	--color-vscode-widget-border: var(--vscode-widget-border);
+	--color-vscode-textLink-foreground: var(--vscode-textLink-foreground);
+	--color-vscode-textCodeBlock-background: var(--vscode-textCodeBlock-background);
+	--color-vscode-button-hoverBackground: var(--vscode-button-hoverBackground);
 }
 
 @layer base {

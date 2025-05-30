@@ -373,6 +373,10 @@
 			"description": "Model başlangıç/bitiş değerlerini belirtmediğinde Roo bu sayıda satırı okur. Bu sayı dosyanın toplam satır sayısından azsa, Roo kod tanımlamalarının satır numarası dizinini oluşturur. Özel durumlar: -1, Roo'ya tüm dosyayı okumasını (dizinleme olmadan), 0 ise hiç satır okumamasını ve minimum bağlam için yalnızca satır dizinleri sağlamasını belirtir. Düşük değerler başlangıç bağlam kullanımını en aza indirir ve sonraki hassas satır aralığı okumalarına olanak tanır. Açık başlangıç/bitiş istekleri bu ayarla sınırlı değildir.",
 			"lines": "satır",
 			"always_full_read": "Her zaman tüm dosyayı oku"
+		},
+		"maxConcurrentFileReads": {
+			"label": "Eşzamanlı dosya okuma sınırı",
+			"description": "'read_file' aracının aynı anda işleyebileceği maksimum dosya sayısı. Daha yüksek değerler birden çok küçük dosyanın okunmasını hızlandırabilir ancak bellek kullanımını artırır."
 		}
 	},
 	"terminal": {
@@ -472,6 +476,10 @@
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Deneysel çoklu blok diff aracını kullan",
 			"description": "Etkinleştirildiğinde, Roo çoklu blok diff aracını kullanacaktır. Bu, tek bir istekte dosyadaki birden fazla kod bloğunu güncellemeye çalışacaktır."
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "Eşzamanlı dosya okumayı etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo tek bir istekte birden fazla dosya okuyabilir (en fazla 15 dosya). Devre dışı bırakıldığında, Roo dosyaları birer birer okumalıdır. Daha az yetenekli modellerle çalışırken veya dosya erişimi üzerinde daha fazla kontrol istediğinizde devre dışı bırakmak yardımcı olabilir."
 		}
 	},
 	"promptCaching": {

@@ -1,8 +1,6 @@
 {
 	"readFile": {
 		"linesRange": " (строки {{start}}-{{end}})",
-		"linesFromToEnd": " (строки {{start}}-конец)",
-		"linesFromStartTo": " (строки 1-{{end}})",
 		"definitionsOnly": " (только определения)",
 		"maxLines": " (макс. {{max}} строк)"
 	},

@@ -140,6 +140,7 @@
 	},
 	"fileOperations": {
 		"wantsToRead": "Roo möchte diese Datei lesen:",
+		"wantsToReadAndXMore": "Roo möchte diese Datei und {{count}} weitere lesen:",
 		"wantsToReadOutsideWorkspace": "Roo möchte diese Datei außerhalb des Arbeitsbereichs lesen:",
 		"didRead": "Roo hat diese Datei gelesen:",
 		"wantsToEdit": "Roo möchte diese Datei bearbeiten:",
@@ -149,7 +150,8 @@
 		"didSearchReplace": "Roo hat Suchen und Ersetzen in dieser Datei durchgeführt:",
 		"wantsToInsert": "Roo möchte Inhalte in diese Datei einfügen:",
 		"wantsToInsertWithLineNumber": "Roo möchte Inhalte in diese Datei in Zeile {{lineNumber}} einfügen:",
-		"wantsToInsertAtEnd": "Roo möchte Inhalte am Ende dieser Datei anhängen:"
+		"wantsToInsertAtEnd": "Roo möchte Inhalte am Ende dieser Datei anhängen:",
+		"wantsToReadMultiple": "Roo möchte mehrere Dateien lesen:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo möchte die Dateien auf oberster Ebene in diesem Verzeichnis anzeigen:",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo möchte den Codebase nach <code>{{query}}</code> durchsuchen:",
 		"wantsToSearchWithPath": "Roo möchte den Codebase nach <code>{{query}}</code> in <code>{{path}}</code> durchsuchen:",
 		"didSearch": "{{count}} Ergebnis(se) für <code>{{query}}</code> gefunden:"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "Alle genehmigen"
+		},
+		"deny": {
+			"title": "Alle ablehnen"
+		}
 	}
 }

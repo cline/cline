@@ -149,7 +149,9 @@
 		"didSearchReplace": "Roo đã thực hiện tìm kiếm và thay thế trong tệp này:",
 		"wantsToInsert": "Roo muốn chèn nội dung vào tệp này:",
 		"wantsToInsertWithLineNumber": "Roo muốn chèn nội dung vào dòng {{lineNumber}} của tệp này:",
-		"wantsToInsertAtEnd": "Roo muốn thêm nội dung vào cuối tệp này:"
+		"wantsToInsertAtEnd": "Roo muốn thêm nội dung vào cuối tệp này:",
+		"wantsToReadAndXMore": "Roo muốn đọc tệp này và {{count}} tệp khác:",
+		"wantsToReadMultiple": "Roo muốn đọc nhiều tệp:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo muốn xem các tệp cấp cao nhất trong thư mục này:",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo muốn tìm kiếm trong cơ sở mã cho <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo muốn tìm kiếm trong cơ sở mã cho <code>{{query}}</code> trong <code>{{path}}</code>:",
 		"didSearch": "Đã tìm thấy {{count}} kết quả cho <code>{{query}}</code>:"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "Chấp nhận tất cả"
+		},
+		"deny": {
+			"title": "Từ chối tất cả"
+		}
 	}
 }

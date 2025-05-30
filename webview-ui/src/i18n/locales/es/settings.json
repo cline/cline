@@ -373,6 +373,10 @@
 			"description": "Roo lee este número de líneas cuando el modelo omite valores de inicio/fin. Si este número es menor que el total del archivo, Roo genera un índice de números de línea de las definiciones de código. Casos especiales: -1 indica a Roo que lea el archivo completo (sin indexación), y 0 indica que no lea líneas y proporcione solo índices de línea para un contexto mínimo. Valores más bajos minimizan el uso inicial de contexto, permitiendo lecturas posteriores de rangos de líneas precisos. Las solicitudes con inicio/fin explícitos no están limitadas por esta configuración.",
 			"lines": "líneas",
 			"always_full_read": "Siempre leer el archivo completo"
+		},
+		"maxConcurrentFileReads": {
+			"label": "Límite de lecturas simultáneas",
+			"description": "Número máximo de archivos que la herramienta 'read_file' puede procesar simultáneamente. Valores más altos pueden acelerar la lectura de múltiples archivos pequeños pero aumentan el uso de memoria."
 		}
 	},
 	"terminal": {
@@ -472,6 +476,10 @@
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Usar herramienta experimental de diff de bloques múltiples",
 			"description": "Cuando está habilitado, Roo usará la herramienta de diff de bloques múltiples. Esto intentará actualizar múltiples bloques de código en el archivo en una sola solicitud."
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "Habilitar lectura concurrente de archivos",
+			"description": "Cuando está habilitado, Roo puede leer múltiples archivos en una sola solicitud (hasta 15 archivos). Cuando está deshabilitado, Roo debe leer archivos uno a la vez. Deshabilitarlo puede ayudar cuando se trabaja con modelos menos capaces o cuando desea más control sobre el acceso a archivos."
 		}
 	},
 	"promptCaching": {

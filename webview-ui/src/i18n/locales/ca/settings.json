@@ -373,6 +373,10 @@
 			"description": "Roo llegeix aquest nombre de línies quan el model omet els valors d'inici/final. Si aquest nombre és menor que el total del fitxer, Roo genera un índex de números de línia de les definicions de codi. Casos especials: -1 indica a Roo que llegeixi tot el fitxer (sense indexació), i 0 indica que no llegeixi cap línia i proporcioni només índexs de línia per a un context mínim. Valors més baixos minimitzen l'ús inicial de context, permetent lectures posteriors de rangs de línies precisos. Les sol·licituds amb inici/final explícits no estan limitades per aquesta configuració.",
 			"lines": "línies",
 			"always_full_read": "Llegeix sempre el fitxer sencer"
+		},
+		"maxConcurrentFileReads": {
+			"label": "Límit de lectures simultànies",
+			"description": "Nombre màxim de fitxers que l'eina 'read_file' pot processar simultàniament. Els valors més alts poden accelerar la lectura de múltiples fitxers petits però augmenten l'ús de memòria."
 		}
 	},
 	"terminal": {
@@ -472,6 +476,10 @@
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Utilitzar eina diff de blocs múltiples experimental",
 			"description": "Quan està activat, Roo utilitzarà l'eina diff de blocs múltiples. Això intentarà actualitzar múltiples blocs de codi a l'arxiu en una sola petició."
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "Habilitar lectura concurrent de fitxers",
+			"description": "Quan està habilitat, Roo pot llegir múltiples fitxers en una sola sol·licitud (fins a 15 fitxers). Quan està deshabilitat, Roo ha de llegir fitxers un per un. Deshabilitar-ho pot ajudar quan es treballa amb models menys capaços o quan voleu més control sobre l'accés als fitxers."
 		}
 	},
 	"promptCaching": {

@@ -1,8 +1,6 @@
 {
 	"readFile": {
 		"linesRange": " (Zeilen {{start}}-{{end}})",
-		"linesFromToEnd": " (Zeilen {{start}}-Ende)",
-		"linesFromStartTo": " (Zeilen 1-{{end}})",
 		"definitionsOnly": " (nur Definitionen)",
 		"maxLines": " (maximal {{max}} Zeilen)"
 	},

@@ -18,6 +18,8 @@ describe("experiments", () => {
 		it("returns false when POWER_STEERING experiment is not enabled", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
+				concurrentFileReads: false,
+				
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})
@@ -25,6 +27,7 @@ describe("experiments", () => {
 		it("returns true when experiment POWER_STEERING is enabled", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: true,
+				concurrentFileReads: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(true)
 		})
@@ -32,6 +35,7 @@ describe("experiments", () => {
 		it("returns false when experiment is not present", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
+				concurrentFileReads: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})

@@ -21,6 +21,7 @@ export const generateSystemPrompt = async (provider: ClineProvider, message: Web
 		browserToolEnabled,
 		language,
 		maxReadFileLine,
+		maxConcurrentFileReads,
 	} = await provider.getState()
 
 	const diffStrategy = new MultiSearchReplaceDiffStrategy(fuzzyMatchThreshold)
@@ -69,6 +70,9 @@ export const generateSystemPrompt = async (provider: ClineProvider, message: Web
 		language,
 		rooIgnoreInstructions,
 		maxReadFileLine !== -1,
+		{
+			maxConcurrentFileReads,
+		},
 	)
 
 	return systemPrompt

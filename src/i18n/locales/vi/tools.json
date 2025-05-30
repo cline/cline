@@ -1,8 +1,6 @@
 {
 	"readFile": {
 		"linesRange": " (dòng {{start}}-{{end}})",
-		"linesFromToEnd": " (dòng {{start}}-cuối)",
-		"linesFromStartTo": " (dòng 1-{{end}})",
 		"definitionsOnly": " (chỉ định nghĩa)",
 		"maxLines": " (tối đa {{max}} dòng)"
 	},

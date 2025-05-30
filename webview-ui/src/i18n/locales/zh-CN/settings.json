@@ -373,6 +373,10 @@
 			"description": "自动读取文件行数设置：-1=完整读取 0=仅生成行号索引，较小值可节省token，支持后续使用行号进行读取。 <0>了解更多</0>",
 			"lines": "行",
 			"always_full_read": "始终读取整个文件"
+		},
+		"maxConcurrentFileReads": {
+			"label": "并发文件读取限制",
+			"description": "read_file 工具可以同时处理的最大文件数。较高的值可能会加快读取多个小文件的速度，但会增加内存使用量。"
 		}
 	},
 	"terminal": {
@@ -472,6 +476,10 @@
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "允许批量搜索和替换",
 			"description": "启用后，Roo 将尝试在一个请求中进行批量搜索和替换。"
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "启用并发文件读取",
+			"description": "启用后，Roo 可以在单个请求中读取多个文件（最多 15 个文件）。禁用后，Roo 必须逐个读取文件。在使用能力较弱的模型或希望对文件访问有更多控制时，禁用此功能可能会有所帮助。"
 		}
 	},
 	"promptCaching": {

@@ -368,6 +368,10 @@
 			"label": "Show .rooignore'd files in lists and searches",
 			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
 		},
+		"maxConcurrentFileReads": {
+			"label": "Concurrent file reads limit",
+			"description": "Maximum number of files the 'read_file' tool can process concurrently. Higher values may speed up reading multiple small files but increase memory usage."
+		},
 		"maxReadFile": {
 			"label": "File read auto-truncate threshold",
 			"description": "Roo reads this number of lines when the model omits start/end values. If this number is less than the file's total, Roo generates a line number index of code definitions. Special cases: -1 instructs Roo to read the entire file (without indexing), and 0 instructs it to read no lines and provides line indexes only for minimal context. Lower values minimize initial context usage, enabling precise subsequent line-range reads. Explicit start/end requests are not limited by this setting.",
@@ -468,6 +472,10 @@
 		"POWER_STEERING": {
 			"name": "Use experimental \"power steering\" mode",
 			"description": "When enabled, Roo will remind the model about the details of its current mode definition more frequently. This will lead to stronger adherence to role definitions and custom instructions, but will use more tokens per message."
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "Enable concurrent file reads",
+			"description": "When enabled, Roo can read multiple files in a single request (up to 15 files). When disabled, Roo must read files one at a time. Disabling this can help when working with less capable models or when you want more control over file access."
 		},
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Use experimental multi block diff tool",

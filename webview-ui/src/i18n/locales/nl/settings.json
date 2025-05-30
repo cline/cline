@@ -373,6 +373,10 @@
 			"description": "Roo leest dit aantal regels wanneer het model geen begin/eindwaarden opgeeft. Als dit aantal lager is dan het totaal, genereert Roo een index van codelijnen. Speciale gevallen: -1 laat Roo het hele bestand lezen (zonder indexering), 0 leest geen regels en geeft alleen een minimale index. Lagere waarden minimaliseren het initiële contextgebruik en maken precieze vervolg-leesopdrachten mogelijk. Expliciete begin/eind-aanvragen worden niet door deze instelling beperkt.",
 			"lines": "regels",
 			"always_full_read": "Altijd volledig bestand lezen"
+		},
+		"maxConcurrentFileReads": {
+			"label": "Limiet gelijktijdige bestandslezingen",
+			"description": "Maximum aantal bestanden dat de 'read_file' tool tegelijkertijd kan verwerken. Hogere waarden kunnen het lezen van meerdere kleine bestanden versnellen maar verhogen het geheugengebruik."
 		}
 	},
 	"terminal": {
@@ -472,6 +476,10 @@
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Experimentele multi-block diff-tool gebruiken",
 			"description": "Indien ingeschakeld, gebruikt Roo de multi-block diff-tool. Hiermee wordt geprobeerd meerdere codeblokken in het bestand in één verzoek bij te werken."
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "Gelijktijdig lezen van bestanden inschakelen",
+			"description": "Wanneer ingeschakeld, kan Roo meerdere bestanden in één verzoek lezen (tot 15 bestanden). Wanneer uitgeschakeld, moet Roo bestanden één voor één lezen. Uitschakelen kan helpen bij het werken met minder capabele modellen of wanneer u meer controle over bestandstoegang wilt."
 		}
 	},
 	"promptCaching": {

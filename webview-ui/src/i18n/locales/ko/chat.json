@@ -149,7 +149,9 @@
 		"didSearchReplace": "Roo가 이 파일에서 검색 및 바꾸기를 수행했습니다:",
 		"wantsToInsert": "Roo가 이 파일에 내용을 삽입하고 싶어합니다:",
 		"wantsToInsertWithLineNumber": "Roo가 이 파일의 {{lineNumber}}번 줄에 내용을 삽입하고 싶어합니다:",
-		"wantsToInsertAtEnd": "Roo가 이 파일의 끝에 내용을 추가하고 싶어합니다:"
+		"wantsToInsertAtEnd": "Roo가 이 파일의 끝에 내용을 추가하고 싶어합니다:",
+		"wantsToReadAndXMore": "Roo가 이 파일과 {{count}}개의 파일을 더 읽으려고 합니다:",
+		"wantsToReadMultiple": "Roo가 여러 파일을 읽으려고 합니다:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo가 이 디렉토리의 최상위 파일을 보고 싶어합니다:",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo가 코드베이스에서 <code>{{query}}</code>을(를) 검색하고 싶어합니다:",
 		"wantsToSearchWithPath": "Roo가 <code>{{path}}</code>에서 <code>{{query}}</code>을(를) 검색하고 싶어합니다:",
 		"didSearch": "<code>{{query}}</code>에 대한 검색 결과 {{count}}개 찾음:"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "모두 승인"
+		},
+		"deny": {
+			"title": "모두 거부"
+		}
 	}
 }

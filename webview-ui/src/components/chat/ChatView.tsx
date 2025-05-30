@@ -266,6 +266,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 									setPrimaryButtonText(t("chat:completeSubtaskAndReturn"))
 									setSecondaryButtonText(undefined)
 									break
+								case "readFile":
+									if (tool.batchFiles && Array.isArray(tool.batchFiles)) {
+										setPrimaryButtonText(t("chat:read-batch.approve.title"))
+										setSecondaryButtonText(t("chat:read-batch.deny.title"))
+									} else {
+										setPrimaryButtonText(t("chat:approve.title"))
+										setSecondaryButtonText(t("chat:reject.title"))
+									}
+									break
 								default:
 									setPrimaryButtonText(t("chat:approve.title"))
 									setSecondaryButtonText(t("chat:reject.title"))
@@ -1155,6 +1164,11 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		[handleSendMessage, setInputValue], // setInputValue is stable, handleSendMessage depends on clineAsk
 	)
 
+	const handleBatchFileResponse = useCallback((response: { [key: string]: boolean }) => {
+		// Handle batch file response, e.g., for file uploads
+		vscode.postMessage({ type: "askResponse", askResponse: "objectResponse", text: JSON.stringify(response) })
+	}, [])
+
 	const itemContent = useCallback(
 		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {
 			// browser session group
@@ -1189,19 +1203,19 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					onHeightChange={handleRowHeightChange}
 					isStreaming={isStreaming}
 					onSuggestionClick={handleSuggestionClickInRow} // This was already stabilized
+					onBatchFileResponse={handleBatchFileResponse}
 				/>
 			)
 		},
 		[
-			// Original broader dependencies
 			expandedRows,
-			groupedMessages,
+			toggleRowExpansion,
 			modifiedMessages,
+			groupedMessages.length,
 			handleRowHeightChange,
 			isStreaming,
-			toggleRowExpansion,
 			handleSuggestionClickInRow,
-			setExpandedRows, // For the inline onToggleExpand in BrowserSessionRow
+			handleBatchFileResponse,
 		],
 	)
 

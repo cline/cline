@@ -149,7 +149,9 @@
 		"didSearchReplace": "Rooはこのファイルで検索と置換を実行しました:",
 		"wantsToInsert": "Rooはこのファイルにコンテンツを挿入したい:",
 		"wantsToInsertWithLineNumber": "Rooはこのファイルの{{lineNumber}}行目にコンテンツを挿入したい:",
-		"wantsToInsertAtEnd": "Rooはこのファイルの末尾にコンテンツを追加したい:"
+		"wantsToInsertAtEnd": "Rooはこのファイルの末尾にコンテンツを追加したい:",
+		"wantsToReadAndXMore": "Roo はこのファイルと他に {{count}} 個のファイルを読み込もうとしています:",
+		"wantsToReadMultiple": "Rooは複数のファイルを読み取ろうとしています："
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示したい:",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Rooはコードベースで <code>{{query}}</code> を検索したい:",
 		"wantsToSearchWithPath": "Rooは <code>{{path}}</code> 内のコードベースで <code>{{query}}</code> を検索したい:",
 		"didSearch": "<code>{{query}}</code> の検索結果: {{count}} 件"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "すべて承認"
+		},
+		"deny": {
+			"title": "すべて拒否"
+		}
 	}
 }

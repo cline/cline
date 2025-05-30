@@ -373,6 +373,10 @@
 			"description": "Roo odczytuje tę liczbę linii, gdy model nie określa wartości początkowej/końcowej. Jeśli ta liczba jest mniejsza niż całkowita liczba linii pliku, Roo generuje indeks numerów linii definicji kodu. Przypadki specjalne: -1 nakazuje Roo odczytać cały plik (bez indeksowania), a 0 nakazuje nie czytać żadnych linii i dostarczyć tylko indeksy linii dla minimalnego kontekstu. Niższe wartości minimalizują początkowe użycie kontekstu, umożliwiając późniejsze precyzyjne odczyty zakresów linii. Jawne żądania początku/końca nie są ograniczone tym ustawieniem.",
 			"lines": "linii",
 			"always_full_read": "Zawsze czytaj cały plik"
+		},
+		"maxConcurrentFileReads": {
+			"label": "Limit jednoczesnych odczytów",
+			"description": "Maksymalna liczba plików, które narzędzie 'read_file' może przetwarzać jednocześnie. Wyższe wartości mogą przyspieszyć odczyt wielu małych plików, ale zwiększają zużycie pamięci."
 		}
 	},
 	"terminal": {
@@ -472,6 +476,10 @@
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Użyj eksperymentalnego narzędzia diff wieloblokowego",
 			"description": "Po włączeniu, Roo użyje narzędzia diff wieloblokowego. Spróbuje to zaktualizować wiele bloków kodu w pliku w jednym żądaniu."
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "Włącz jednoczesne odczytywanie plików",
+			"description": "Po włączeniu Roo może odczytać wiele plików w jednym żądaniu (do 15 plików). Po wyłączeniu Roo musi odczytywać pliki pojedynczo. Wyłączenie może pomóc podczas pracy z mniej wydajnymi modelami lub gdy chcesz mieć większą kontrolę nad dostępem do plików."
 		}
 	},
 	"promptCaching": {

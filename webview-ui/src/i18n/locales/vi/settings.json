@@ -373,6 +373,10 @@
 			"description": "Roo đọc số dòng này khi mô hình không chỉ định giá trị bắt đầu/kết thúc. Nếu số này nhỏ hơn tổng số dòng của tệp, Roo sẽ tạo một chỉ mục số dòng của các định nghĩa mã. Trường hợp đặc biệt: -1 chỉ thị Roo đọc toàn bộ tệp (không tạo chỉ mục), và 0 chỉ thị không đọc dòng nào và chỉ cung cấp chỉ mục dòng cho ngữ cảnh tối thiểu. Giá trị thấp hơn giảm thiểu việc sử dụng ngữ cảnh ban đầu, cho phép đọc chính xác các phạm vi dòng sau này. Các yêu cầu có chỉ định bắt đầu/kết thúc rõ ràng không bị giới hạn bởi cài đặt này.",
 			"lines": "dòng",
 			"always_full_read": "Luôn đọc toàn bộ tệp"
+		},
+		"maxConcurrentFileReads": {
+			"label": "Giới hạn đọc file đồng thời",
+			"description": "Số lượng file tối đa mà công cụ 'read_file' có thể xử lý cùng lúc. Giá trị cao hơn có thể tăng tốc độ đọc nhiều file nhỏ nhưng sẽ tăng mức sử dụng bộ nhớ."
 		}
 	},
 	"terminal": {
@@ -472,6 +476,10 @@
 		"MULTI_SEARCH_AND_REPLACE": {
 			"name": "Sử dụng công cụ diff đa khối thử nghiệm",
 			"description": "Khi được bật, Roo sẽ sử dụng công cụ diff đa khối. Điều này sẽ cố gắng cập nhật nhiều khối mã trong tệp trong một yêu cầu."
+		},
+		"CONCURRENT_FILE_READS": {
+			"name": "Bật đọc tệp đồng thời",
+			"description": "Khi bật, Roo có thể đọc nhiều tệp trong một yêu cầu duy nhất (tối đa 15 tệp). Khi tắt, Roo phải đọc từng tệp một. Việc tắt có thể hữu ích khi làm việc với các mô hình ít khả năng hơn hoặc khi bạn muốn kiểm soát nhiều hơn quyền truy cập tệp."
 		}
 	},
 	"promptCaching": {

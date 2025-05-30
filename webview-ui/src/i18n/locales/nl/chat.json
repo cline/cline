@@ -144,7 +144,9 @@
 		"didSearchReplace": "Roo heeft zoeken en vervangen uitgevoerd op dit bestand:",
 		"wantsToInsert": "Roo wil inhoud invoegen in dit bestand:",
 		"wantsToInsertWithLineNumber": "Roo wil inhoud invoegen in dit bestand op regel {{lineNumber}}:",
-		"wantsToInsertAtEnd": "Roo wil inhoud toevoegen aan het einde van dit bestand:"
+		"wantsToInsertAtEnd": "Roo wil inhoud toevoegen aan het einde van dit bestand:",
+		"wantsToReadAndXMore": "Roo wil dit bestand en nog {{count}} andere lezen:",
+		"wantsToReadMultiple": "Roo wil meerdere bestanden lezen:"
 	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo wil de bovenliggende bestanden in deze map bekijken:",
@@ -267,5 +269,13 @@
 		"wantsToSearch": "Roo wil de codebase doorzoeken op <code>{{query}}</code>:",
 		"wantsToSearchWithPath": "Roo wil de codebase doorzoeken op <code>{{query}}</code> in <code>{{path}}</code>:",
 		"didSearch": "{{count}} resultaat/resultaten gevonden voor <code>{{query}}</code>:"
+	},
+	"read-batch": {
+		"approve": {
+			"title": "Alles goedkeuren"
+		},
+		"deny": {
+			"title": "Alles weigeren"
+		}
 	}
 }
