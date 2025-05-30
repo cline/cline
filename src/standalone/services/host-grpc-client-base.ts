@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
+import { hostServiceHandlers } from "../../../hosts/vscode/host-grpc-service-config"
 
 // Generic type for any protobuf service definition
 export type ProtoService = {
@@ -30,21 +31,6 @@ export type GrpcClientType<T extends ProtoService> = {
 		: (request: InstanceType<T["methods"][K]["requestType"]>) => Promise<InstanceType<T["methods"][K]["responseType"]>>
 }
 
-/**
- * Helper function to encode request objects
- */
-function encodeRequest(request: any): any {
-	if (request === null || request === undefined) {
-		return {}
-	} else if (typeof request.toJSON === "function") {
-		return request.toJSON()
-	} else if (typeof request === "object") {
-		return { ...request }
-	} else {
-		return { value: request }
-	}
-}
-
 // Create a client for any protobuf service with inferred types
 export function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T> {
 	const client = {} as GrpcClientType<T>
@@ -66,7 +52,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 				const requestId = uuidv4()
 
 				// TODO: Implement actual gRPC streaming call to the IDE host
-				console.log(`[DEBUG] Would make streaming gRPC call to ${service.fullName}.${method.name}`, request)
+				console.log(`[DEBUG] Streaming gRPC call to ${service.fullName}.${method.name}`, request)
 
 				// For now, just simulate a response
 				setTimeout(() => {
@@ -82,13 +68,15 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 			}) as any
 		} else {
 			// Unary method implementation
-			// Use lowercase method name as the key in the client object
 			const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
 			client[methodKey as keyof GrpcClientType<T>] = ((request: any) => {
 				return new Promise((resolve, reject) => {
-					// TODO: Implement actual gRPC call to the IDE host
-					console.log(`[DEBUG] Would make gRPC call to ${service.fullName}.${method.name}`, request)
-					debugger
+					console.log(`[DEBUG] gRPC call to ${service.fullName}.${method.name}`, request)
+					const handler = hostServiceHandlers[service.fullName]
+					if (handler) {
+						console.log("[DEBUG] requestHandler", methodKey, request)
+						handler.requestHandler(methodKey, request)
+					}
 				})
 			}) as any
 		}
