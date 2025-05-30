@@ -96,25 +96,26 @@ declare module "vscode" {
 }
 
 /**
- * Hard-coded model registry for VS Code LM models with accurate capabilities.
- * This overrides GitHub Copilot's artificially limited API responses with actual model capabilities.
+ * Hard-coded model registry for VS Code LM models with GitHub Copilot's actual reported capabilities.
+ * This provides consistent model information when VS Code LM provider doesn't return proper model specs.
+ * Values are based on the exact GitHub Copilot API responses.
  */
 const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
-	// Claude Models - Using actual Anthropic capabilities, not GitHub Copilot's restrictions
+	// Claude Models - Using GitHub Copilot's actual reported limits
 	"claude-3.5-sonnet": {
 		maxTokens: 8192,
-		contextWindow: 200_000, // GitHub reports 90K, but actual is 200K
+		contextWindow: 90_000, // min(max_context_window_tokens: 90000, max_prompt_tokens: 90000)
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		description: "Claude 3.5 Sonnet via GitHub Copilot (corrected context window)",
+		description: "Claude 3.5 Sonnet via GitHub Copilot",
 	},
 	"claude-3.7-sonnet": {
-		maxTokens: 8192,
-		contextWindow: 200_000, // GitHub correctly reports 200K
+		maxTokens: 16384,
+		contextWindow: 90_000, // min(max_context_window_tokens: 200000, max_prompt_tokens: 90000)
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0,
@@ -125,7 +126,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"claude-3.7-sonnet-thought": {
 		maxTokens: 16384,
-		contextWindow: 200_000, // GitHub correctly reports 200K
+		contextWindow: 90_000, // min(max_context_window_tokens: 200000, max_prompt_tokens: 90000)
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 3.0,
@@ -135,32 +136,32 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 		description: "Claude 3.7 Sonnet Thinking via GitHub Copilot",
 	},
 	"claude-sonnet-4": {
-		maxTokens: 8192,
-		contextWindow: 200_000, // GitHub reports 80K, but actual is 200K
-		supportsImages: true,
+		maxTokens: 16000,
+		contextWindow: 80_000, // min(max_context_window_tokens: 80000, max_prompt_tokens: 80000)
+		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		description: "Claude Sonnet 4 via GitHub Copilot (corrected context window)",
+		description: "Claude Sonnet 4 via GitHub Copilot",
 	},
 	"claude-opus-4": {
-		maxTokens: 8192,
-		contextWindow: 200_000, // GitHub reports 80K, but actual is 200K
-		supportsImages: true,
+		maxTokens: 16000,
+		contextWindow: 80_000, // min(max_context_window_tokens: 80000, max_prompt_tokens: 80000)
+		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
 		cacheReadsPrice: 1.5,
-		description: "Claude Opus 4 via GitHub Copilot (corrected context window)",
+		description: "Claude Opus 4 via GitHub Copilot",
 	},
 
-	// OpenAI Models - GitHub's limits are generally accurate for these
+	// OpenAI Models - Using min(max_context_window_tokens, max_prompt_tokens)
 	"gpt-3.5-turbo": {
 		maxTokens: 4096,
-		contextWindow: 16_384, // GitHub reports correctly
+		contextWindow: 12_288, // min(max_context_window_tokens: 16384, max_prompt_tokens: 12288)
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.5,
@@ -169,7 +170,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-3.5-turbo-0613": {
 		maxTokens: 4096,
-		contextWindow: 16_384,
+		contextWindow: 12_288, // min(max_context_window_tokens: 16384, max_prompt_tokens: 12288)
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.5,
@@ -178,7 +179,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4": {
 		maxTokens: 4096,
-		contextWindow: 32_768, // GitHub reports correctly
+		contextWindow: 32_768, // min(max_context_window_tokens: 32768, max_prompt_tokens: 32768)
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 30.0,
@@ -187,7 +188,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4-0613": {
 		maxTokens: 4096,
-		contextWindow: 32_768,
+		contextWindow: 32_768, // min(max_context_window_tokens: 32768, max_prompt_tokens: 32768)
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 30.0,
@@ -196,7 +197,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4-0125-preview": {
 		maxTokens: 4096,
-		contextWindow: 128_000, // GitHub reports correctly
+		contextWindow: 64_000, // min(max_context_window_tokens: 128000, max_prompt_tokens: 64000)
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 10.0,
@@ -205,7 +206,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4o": {
 		maxTokens: 4096,
-		contextWindow: 128_000, // GitHub reports correctly
+		contextWindow: 64_000, // min(max_context_window_tokens: 128000, max_prompt_tokens: 64000)
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 2.5,
@@ -215,7 +216,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4o-2024-11-20": {
 		maxTokens: 16384,
-		contextWindow: 128_000,
+		contextWindow: 64_000, // min(max_context_window_tokens: 128000, max_prompt_tokens: 64000)
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 2.5,
@@ -225,7 +226,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4o-2024-05-13": {
 		maxTokens: 4096,
-		contextWindow: 128_000,
+		contextWindow: 64_000, // min(max_context_window_tokens: 128000, max_prompt_tokens: 64000)
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 5.0,
@@ -234,7 +235,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4-o-preview": {
 		maxTokens: 4096,
-		contextWindow: 128_000,
+		contextWindow: 64_000, // min(max_context_window_tokens: 128000, max_prompt_tokens: 64000)
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 10.0,
@@ -243,7 +244,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4o-2024-08-06": {
 		maxTokens: 16384,
-		contextWindow: 128_000,
+		contextWindow: 64_000, // min(max_context_window_tokens: 128000, max_prompt_tokens: 64000)
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 2.5,
@@ -252,7 +253,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4o-mini": {
 		maxTokens: 4096,
-		contextWindow: 128_000, // GitHub reports correctly
+		contextWindow: 12_288, // min(max_context_window_tokens: 128000, max_prompt_tokens: 12288)
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.15,
@@ -262,7 +263,7 @@ const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
 	},
 	"gpt-4o-mini-2024-07-18": {
 		maxTokens: 4096,
-		contextWindow: 128_000,
+		contextWindow: 12_288, // min(max_context_window_tokens: 128000, max_prompt_tokens: 12288)
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.15,
