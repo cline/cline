@@ -59,6 +59,19 @@
 				"NODE_PATH": "${workspaceFolder}/dist-standalone/node_modules"
 			},
 			"program": "standalone.js"
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "Debug Extension Tests",
+			"testConfiguration": "${workspaceFolder}/.vscode-test.mjs",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
+			"preLaunchTask": "${defaultBuildTask}",
+			"env": {
+				"IS_DEV": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
+			}
 		}
 	]
 }

@@ -4,11 +4,26 @@ import * as path from "path"
 import * as fs from "fs"
 import { Breakpoint } from "vscode"
 import * as DebugTools from "@/integrations/debug-tools"
+import { BreakpointsChangeEvent } from "vscode"
 describe("VSCode Integration Tests", () => {
 	// Use the fixtures directory - adjust path based on whether we're running from source or compiled output
 	const workspacePath = path.resolve(__dirname, "..", "..", "..", "src", "test", "fixtures/test-workspace")
 	const debugTestPath = path.join(workspacePath, "debug-me.js")
+	const cleanUp = async () => {
+		// Clear any existing debug sessions
+		const existingSessions = vscode.debug.activeDebugSession ? [vscode.debug.activeDebugSession] : []
+		for (const session of existingSessions) {
+			console.log("Stopping existing debug session before test")
+			await vscode.debug.stopDebugging(session)
+		}
 
+		// Remove any existing breakpoints
+		const existingBreakpoints = vscode.debug.breakpoints
+		if (existingBreakpoints.length > 0) {
+			console.log(`Removing ${existingBreakpoints.length} existing breakpoints`)
+			vscode.debug.removeBreakpoints(existingBreakpoints)
+		}
+	}
 	// Ensure the test files exist
 	before(async () => {
 		// Make sure the debug-me.js file exists in the fixtures directory
@@ -24,20 +39,8 @@ describe("VSCode Integration Tests", () => {
 		await vscode.workspace.openTextDocument(vscode.Uri.file(debugTestPath))
 	})
 
-	// Clean up after tests
-	after(async () => {
-		// Stop any running debug sessions
-		const sessions = vscode.debug.activeDebugSession ? [vscode.debug.activeDebugSession] : []
-		for (const session of sessions) {
-			await vscode.debug.stopDebugging(session)
-		}
-
-		// Remove any breakpoints
-		const breakpoints = vscode.debug.breakpoints
-		if (breakpoints.length > 0) {
-			vscode.debug.removeBreakpoints(breakpoints)
-		}
-	})
+	beforeEach(cleanUp)
+	after(cleanUp)
 
 	it("set_breakpoint should add a breakpoint", async () => {
 		// Set a breakpoint in the debug-me.js file
@@ -86,20 +89,6 @@ describe("VSCode Integration Tests", () => {
 		console.log("Starting 'start_debug_session should start a debug session' test")
 
 		try {
-			// Clear any existing debug sessions
-			const existingSessions = vscode.debug.activeDebugSession ? [vscode.debug.activeDebugSession] : []
-			for (const session of existingSessions) {
-				console.log("Stopping existing debug session before test")
-				await vscode.debug.stopDebugging(session)
-			}
-
-			// Remove any existing breakpoints
-			const existingBreakpoints = vscode.debug.breakpoints
-			if (existingBreakpoints.length > 0) {
-				console.log(`Removing ${existingBreakpoints.length} existing breakpoints`)
-				vscode.debug.removeBreakpoints(existingBreakpoints)
-			}
-
 			// Make sure we have a breakpoint set
 			console.log("Setting breakpoint for debug test")
 			const breakpointResult = await DebugTools.setBreakpoint({
@@ -519,22 +508,11 @@ describe("VSCode Integration Tests", () => {
 	it("start_debugging_and_wait_for_stop with breakpointConfig should set breakpoints", async function () {
 		this.timeout(60000) // Increase timeout for this test
 		console.log("Starting 'start_debugging_and_wait_for_stop with breakpointConfig' test")
-
+		const lines = [7, 14]
+		const disposable = vscode.debug.onDidChangeBreakpoints(async (event: BreakpointsChangeEvent) => {
+			console.log("Breakpoint modified", event)
+		})
 		try {
-			// Clear any existing debug sessions
-			const existingSessions = vscode.debug.activeDebugSession ? [vscode.debug.activeDebugSession] : []
-			for (const session of existingSessions) {
-				console.log("Stopping existing debug session before test")
-				await vscode.debug.stopDebugging(session)
-			}
-
-			// Remove any existing breakpoints
-			const existingBreakpoints = vscode.debug.breakpoints
-			if (existingBreakpoints.length > 0) {
-				console.log(`Removing ${existingBreakpoints.length} existing breakpoints`)
-				vscode.debug.removeBreakpoints(existingBreakpoints)
-			}
-
 			console.log("Starting debug session with breakpointConfig")
 			// Start a debug session with breakpointConfig
 			const result = await DebugTools.startDebuggingAndWaitForStop({
@@ -578,8 +556,8 @@ describe("VSCode Integration Tests", () => {
 			// If we have line information, verify it's one of the configured lines
 			if (breakpointInfo.line !== undefined) {
 				assert.ok(
-					breakpointInfo.line === 7 || breakpointInfo.line === 14,
-					`Expected breakpoint at line 7 or 14, but got ${breakpointInfo.line}`,
+					lines.find((line) => line === breakpointInfo.line) !== undefined,
+					`Expected breakpoint at line ${lines.join(", ")}, but got ${breakpointInfo.line}`,
 				)
 			} else {
 				console.log("Line information not available in breakpoint info, checking breakpoints were set correctly")
@@ -596,7 +574,7 @@ describe("VSCode Integration Tests", () => {
 				.map((bp) => (bp as vscode.SourceBreakpoint).location.range.start.line + 1) // Convert 0-based to 1-based
 				.sort((a, b) => a - b)
 			console.log(`Breakpoint lines: ${breakpointLines}`)
-			assert.deepStrictEqual(breakpointLines, [7, 14], "Expected breakpoints at lines 7 and 14")
+			assert.deepStrictEqual(breakpointLines, lines, `Expected breakpoints at lines ${lines.join(", ")}`)
 
 			// Clean up
 			const session = vscode.debug.activeDebugSession
@@ -615,6 +593,8 @@ describe("VSCode Integration Tests", () => {
 			}
 
 			throw error
+		} finally {
+			disposable.dispose()
 		}
 	})
 
@@ -623,20 +603,6 @@ describe("VSCode Integration Tests", () => {
 		console.log("Starting 'resume_debug_session should resume a paused debug session' test")
 
 		try {
-			// Clear any existing debug sessions
-			const existingSessions = vscode.debug.activeDebugSession ? [vscode.debug.activeDebugSession] : []
-			for (const session of existingSessions) {
-				console.log("Stopping existing debug session before test")
-				await vscode.debug.stopDebugging(session)
-			}
-
-			// Remove any existing breakpoints
-			const existingBreakpoints = vscode.debug.breakpoints
-			if (existingBreakpoints.length > 0) {
-				console.log(`Removing ${existingBreakpoints.length} existing breakpoints`)
-				vscode.debug.removeBreakpoints(existingBreakpoints)
-			}
-
 			// Set up a debug session that will hit a breakpoint
 			// First, set a breakpoint in the debug-me.js file
 			console.log("Setting breakpoint for resume test")
