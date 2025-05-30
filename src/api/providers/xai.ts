@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels, XAIConfig } from "@shared/api"
+import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
 import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
@@ -74,13 +74,6 @@ export class XAIHandler implements ApiHandler {
 				}
 			}
 		}
-	}
-
-	private getXAIConfig(): XAIConfig {
-		if (!this.options.xai) {
-			throw new Error("XAI configuration is required")
-		}
-		return this.options.xai
 	}
 
 	getModel(): { id: XAIModelId; info: ModelInfo } {

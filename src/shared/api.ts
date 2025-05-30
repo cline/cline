@@ -1,4 +1,3 @@
-import { Ollama } from "ollama"
 import type { LanguageModelChatSelector } from "../api/providers/types"
 
 export type ApiProvider =

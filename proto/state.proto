@@ -80,9 +80,6 @@ message UpdateSettingsRequest {
   optional int32 request_timeout_ms = 10;
 }
 
-
-
-
 // API Configuration message with nested provider-specific configurations
 
 message ApiConfiguration {
