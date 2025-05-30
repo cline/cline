@@ -4,6 +4,7 @@
 	"views.contextMenu.label": "Roo Code",
 	"views.terminalMenu.label": "Roo Code",
 	"views.activitybar.title": "Roo Code",
+	"views.sidebar.name": "Roo Code",
 	"command.newTask.title": "新しいタスク",
 	"command.mcpServers.title": "MCPサーバー",
 	"command.prompts.title": "モード",

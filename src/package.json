@@ -65,7 +65,7 @@
 				{
 					"type": "webview",
 					"id": "roo-cline.SidebarProvider",
-					"name": ""
+					"name": "%views.sidebar.name%"
 				}
 			]
 		},
