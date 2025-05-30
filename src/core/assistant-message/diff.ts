@@ -27,11 +27,19 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 	// For each possible starting position in original content
 	for (let i = startLineNum; i <= originalLines.length - searchLines.length; i++) {
 		let matches = true
+		let emptyLineCount = 0
 
 		// Try to match all search lines from this position
 		for (let j = 0; j < searchLines.length; j++) {
-			const originalTrimmed = originalLines[i + j].trim()
-			const searchTrimmed = searchLines[j].trim()
+			let originalTrimmed = originalLines[i + j].trim()
+			let searchTrimmed = searchLines[j].trim()
+
+			// skip empty lines in the original content (when the corresponding line in the search content is non-empty)
+			while(searchTrimmed !== '' && originalTrimmed === '' && i + j < originalLines.length - searchLines.length){
+				i++
+				emptyLineCount++
+				originalTrimmed = originalLines[i + j].trim()
+			}
 
 			if (originalTrimmed !== searchTrimmed) {
 				matches = false
