@@ -569,6 +569,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "Bash") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "execute_command",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -621,6 +630,14 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 				}
 			}
 
+			if (currentToolUse && currentInvokeName === "Bash") {
+				if (currentParameterName === "command") {
+					currentToolUse.params["command"] = value
+				} else if (currentParameterName === "requires_approval") {
+					currentToolUse.params["requires_approval"] = value === "true" ? "true" : "false"
+				}
+			}
+
 			currentParameterName = ""
 			continue
 		}
@@ -633,7 +650,7 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 			assistantMessage.startsWith(isInvokeClose, currentCharIndex - isInvokeClose.length + 1)
 		) {
 			// If we have a tool use from this invoke, finalize it
-			if (currentToolUse && (currentInvokeName === "LS" || currentInvokeName === "Grep")) {
+			if (currentToolUse && (currentInvokeName === "LS" || currentInvokeName === "Grep" || currentInvokeName === "Bash")) {
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)
 				currentToolUse = undefined
