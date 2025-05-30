@@ -279,7 +279,7 @@
 		"watch-tests": "tsc -p . -w --outDir out",
 		"pretest": "npm run compile-tests && npm run compile && npm run compile-standalone && npm run lint",
 		"check-types": "npm run protos && tsc --noEmit",
-		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts",
+		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts && cd webview-ui && npm run lint",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "npm-run-all test:unit test:integration",
