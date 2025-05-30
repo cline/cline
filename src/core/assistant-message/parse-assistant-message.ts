@@ -677,6 +677,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "NewTask") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "new_task",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -732,6 +741,10 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 
 			if (currentToolUse && currentInvokeName === "ListCodeDefinitionNames" && currentParameterName === "path") {
 				currentToolUse.params["path"] = value
+			}
+
+			if (currentToolUse && currentInvokeName === "NewTask" && currentParameterName === "context") {
+				currentToolUse.params["context"] = value
 			}
 
 			// Map parameter to tool params for Grep
@@ -833,7 +846,10 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					currentInvokeName === "AccessMCPResource" ||
 					currentInvokeName === "ListCodeDefinitionNames" ||
 					currentInvokeName === "PlanModeRespond" ||
-					currentInvokeName === "LoadMcpDocumentation")
+					currentInvokeName === "LoadMcpDocumentation" ||
+					currentInvokeName === "AttemptCompletion" ||
+					currentInvokeName === "BrowserAction" ||
+					currentInvokeName === "NewTask")
 			) {
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)

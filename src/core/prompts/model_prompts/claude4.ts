@@ -19,6 +19,7 @@ import {planModeRespondToolDefinition} from  "@core/tools/planModeRespondTool"
 import {loadMcpDocumentationToolDefinition} from "@core/tools/loadMcpDocumentationTool"
 import { attemptCompletionToolDefinition } from "@core/tools/attemptCompletionTool"
 import {browserActionToolDefinition} from "@core/tools/browserActionTool"
+import {newTaskToolDefinition} from "@core/tools/newTaskTool"
 
 export const SYSTEM_PROMPT_CLAUDE4 = async (
 	cwd: string,
@@ -93,54 +94,6 @@ Usage:
 }}
 </diff>
 </replace_in_file>
-
-## new_task
-Description: Request to create a new task with preloaded context covering the conversation with the user up to this point and key information for continuing with the new task. With this tool, you will create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions, with a focus on the most relevant information required for the new task.
-Among other important areas of focus, this summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing with the new task. The user will be presented with a preview of your generated context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.
-Parameters:
-- Context: (required) The context to preload the new task with. If applicable based on the current task, this should include:
-  1. Current Work: Describe in detail what was being worked on prior to this request to create a new task. Pay special attention to the more recent messages / conversation.
-  2. Key Technical Concepts: List all important technical concepts, technologies, coding conventions, and frameworks discussed, which might be relevant for the new task.
-  3. Relevant Files and Code: If applicable, enumerate specific files and code sections examined, modified, or created for the task continuation. Pay special attention to the most recent messages and changes.
-  4. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.
-  5. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no information loss in context between tasks. It's important to be detailed here.
-Usage:
-<new_task>
-<context>context to preload new task with</context>
-</new_task>
-
-# Tool Use Examples
-
-## Example 1: Creating a new task
-
-<new_task>
-<context>
-1. Current Work:
-   [Detailed description]
-
-2. Key Technical Concepts:
-   - [Concept 1]
-   - [Concept 2]
-   - [...]
-
-3. Relevant Files and Code:
-   - [File Name 1]
-      - [Summary of why this file is important]
-      - [Summary of the changes made to this file, if any]
-      - [Important Code Snippet]
-   - [File Name 2]
-      - [Important Code Snippet]
-   - [...]
-
-4. Problem Solving:
-   [Detailed description]
-
-5. Pending Tasks and Next Steps:
-   - [Task 1 details & next steps]
-   - [Task 2 details & next steps]
-   - [...]
-</context>
-</new_task>
 
 ## Example 2: Requesting to make targeted edits to a file
 
@@ -419,10 +372,10 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 4. Once you've completed the user's task, you must use the ${attemptCompletionToolDefinition.name} tool to present the result of the task to the user. You may also provide a CLI command to showcase the result of your task; this can be particularly useful for web development tasks, where you can run e.g. \`open index.html\` to show the website you've built.
 5. The user may provide feedback, which you can use to make improvements and try again. But DO NOT continue in pointless back and forth conversations, i.e. don't end your responses with questions or offers for further assistance.`
 
-  const tools = [readTool, writeTool, askQuestionToolDefinition, planModeRespondToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, listCodeDefinitionNamesTool, useMCPToolDefinition, accessMcpResourceToolDefinition, loadMcpDocumentationTool];
+  const tools = [readTool, writeTool, askQuestionToolDefinition, planModeRespondToolDefinition, bashTool, lsToolDefinition, grepToolDefinition, webFetchToolDefinition, listCodeDefinitionNamesTool, useMCPToolDefinition, accessMcpResourceToolDefinition, loadMcpDocumentationTool, newTaskToolDefinition];
   if (supportsBrowserUse) {
     tools.push(browserActionTool);
   }
-  
+
   return createAntmlToolPrompt(tools, true, systemPrompt);
 }
