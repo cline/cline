@@ -605,6 +605,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "AskQuestion") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "ask_followup_question",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -678,6 +687,14 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					currentToolUse.params["path"] = value
 				} else if (currentParameterName === "content") {
 					currentToolUse.params["content"] = value
+				}
+			}
+
+			if (currentToolUse && currentInvokeName === "AskQuestion") {
+				if (currentParameterName === "question") {
+					currentToolUse.params["question"] = value
+				} else if (currentParameterName === "options") {
+					currentToolUse.params["options"] = value
 				}
 			}
 
