@@ -4,6 +4,7 @@ import { activeSessions, getCallStack, outputChannel, onSessionStart, Breakpoint
 import { getStackFrameVariables } from "./inspection"
 import { DebugSessionOptions } from "vscode"
 import { waitForBreakpointHit } from "./events"
+import { BreakpointsChangeEvent } from "vscode"
 
 /**
  * Helper function to wait for a debug session to stop and gather debug information.

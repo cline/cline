@@ -19,7 +19,8 @@
 		"outFiles": ["${workspaceFolder}/out/**/*.js", "${workspaceFolder}/dist/**/*.js"],
 		"env": {
 			"IS_DEV": "true",
-			"IS_TEST": "true"
+			"IS_TEST": "true",
+			"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/src/test/fixtures/test-workspace"
 		}
 	}
 }
