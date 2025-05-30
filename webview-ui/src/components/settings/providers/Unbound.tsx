@@ -2,9 +2,9 @@ import { useCallback, useState, useRef } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useQueryClient } from "@tanstack/react-query"
 
-import type { ProviderSettings, OrganizationAllowList } from "@roo-code/types"
+import { type ProviderSettings, type OrganizationAllowList, unboundDefaultModelId } from "@roo-code/types"
 
-import { RouterModels, unboundDefaultModelId } from "@roo/api"
+import type { RouterModels } from "@roo/api"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"

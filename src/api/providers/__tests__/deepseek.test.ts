@@ -1,9 +1,12 @@
-import { DeepSeekHandler } from "../deepseek"
-import { ApiHandlerOptions, deepSeekDefaultModelId } from "../../../shared/api"
 import OpenAI from "openai"
 import { Anthropic } from "@anthropic-ai/sdk"
 
-// Mock OpenAI client
+import { deepSeekDefaultModelId } from "@roo-code/types"
+
+import type { ApiHandlerOptions } from "../../../shared/api"
+
+import { DeepSeekHandler } from "../deepseek"
+
 const mockCreate = jest.fn()
 jest.mock("openai", () => {
 	return {

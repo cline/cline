@@ -2,9 +2,10 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import axios from "axios"
 
-import type { ModelInfo } from "@roo-code/types"
+import { type ModelInfo, openAiModelInfoSaneDefaults, LMSTUDIO_DEFAULT_TEMPERATURE } from "@roo-code/types"
 
-import { ApiHandlerOptions, openAiModelInfoSaneDefaults } from "../../shared/api"
+import type { ApiHandlerOptions } from "../../shared/api"
+
 import { XmlMatcher } from "../../utils/xml-matcher"
 
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -12,8 +13,6 @@ import { ApiStream } from "../transform/stream"
 
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
-
-const LMSTUDIO_DEFAULT_TEMPERATURE = 0
 
 export class LmStudioHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions

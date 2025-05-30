@@ -1,4 +1,5 @@
-import { deepSeekModels, deepSeekDefaultModelId } from "../../shared/api"
+import { deepSeekModels, deepSeekDefaultModelId } from "@roo-code/types"
+
 import type { ApiHandlerOptions } from "../../shared/api"
 
 import type { ApiStreamUsageChunk } from "../transform/stream"

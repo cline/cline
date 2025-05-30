@@ -2,16 +2,21 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { GoogleAuth, JWTInput } from "google-auth-library"
 
-import type { ModelInfo } from "@roo-code/types"
+import {
+	type ModelInfo,
+	type VertexModelId,
+	vertexDefaultModelId,
+	vertexModels,
+	ANTHROPIC_DEFAULT_MAX_TOKENS,
+} from "@roo-code/types"
 
-import { ApiHandlerOptions, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
+import { ApiHandlerOptions } from "../../shared/api"
 import { safeJsonParse } from "../../shared/safeJsonParse"
 
 import { ApiStream } from "../transform/stream"
 import { addCacheBreakpoints } from "../transform/caching/vertex"
 import { getModelParams } from "../transform/model-params"
 
-import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 

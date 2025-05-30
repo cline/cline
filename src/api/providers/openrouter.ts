@@ -2,12 +2,14 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
 import {
-	ApiHandlerOptions,
-	ModelRecord,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	OPENROUTER_DEFAULT_PROVIDER_NAME,
 	OPEN_ROUTER_PROMPT_CACHING_MODELS,
-} from "../../shared/api"
+	DEEP_SEEK_DEFAULT_TEMPERATURE,
+} from "@roo-code/types"
+
+import type { ApiHandlerOptions, ModelRecord } from "../../shared/api"
 
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk } from "../transform/stream"
@@ -20,11 +22,9 @@ import { getModelParams } from "../transform/model-params"
 import { getModels } from "./fetchers/modelCache"
 import { getModelEndpoints } from "./fetchers/modelEndpointCache"
 
-import { DEFAULT_HEADERS, DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
+import { DEFAULT_HEADERS } from "./constants"
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler } from "../index"
-
-const OPENROUTER_DEFAULT_PROVIDER_NAME = "[default]"
 
 // Add custom interface for OpenRouter params.
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {

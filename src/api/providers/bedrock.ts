@@ -10,25 +10,25 @@ import {
 import { fromIni } from "@aws-sdk/credential-providers"
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import type { ModelInfo, ProviderSettings } from "@roo-code/types"
-
 import {
-	BedrockModelId,
+	type ModelInfo,
+	type ProviderSettings,
+	type BedrockModelId,
 	bedrockDefaultModelId,
 	bedrockModels,
 	bedrockDefaultPromptRouterModelId,
-} from "../../shared/api"
+	BEDROCK_DEFAULT_TEMPERATURE,
+	BEDROCK_MAX_TOKENS,
+	BEDROCK_REGION_INFO,
+} from "@roo-code/types"
+
 import { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
 import { logger } from "../../utils/logging"
 import { MultiPointStrategy } from "../transform/cache-strategy/multi-point-strategy"
 import { ModelInfo as CacheModelInfo } from "../transform/cache-strategy/types"
-import { AMAZON_BEDROCK_REGION_INFO } from "../../shared/aws_regions"
 import { convertToBedrockConverseMessages as sharedConverter } from "../transform/bedrock-converse-format"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
-
-const BEDROCK_DEFAULT_TEMPERATURE = 0.3
-const BEDROCK_MAX_TOKENS = 4096
 
 /************************************************************************************
  *
@@ -729,11 +729,11 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 	 *************************************************************************************/
 
 	private static getPrefixList(): string[] {
-		return Object.keys(AMAZON_BEDROCK_REGION_INFO)
+		return Object.keys(BEDROCK_REGION_INFO)
 	}
 
 	private static getPrefixForRegion(region: string): string | undefined {
-		for (const [prefix, info] of Object.entries(AMAZON_BEDROCK_REGION_INFO)) {
+		for (const [prefix, info] of Object.entries(BEDROCK_REGION_INFO)) {
 			if (info.pattern && region.startsWith(info.pattern)) {
 				return prefix
 			}
@@ -742,7 +742,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 	}
 
 	private static prefixIsMultiRegion(arnPrefix: string): boolean {
-		for (const [prefix, info] of Object.entries(AMAZON_BEDROCK_REGION_INFO)) {
+		for (const [prefix, info] of Object.entries(BEDROCK_REGION_INFO)) {
 			if (arnPrefix === prefix) {
 				if (info?.multiRegion) return info.multiRegion
 				else return false

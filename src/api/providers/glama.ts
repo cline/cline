@@ -2,8 +2,10 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
 
+import { glamaDefaultModelId, glamaDefaultModelInfo, GLAMA_DEFAULT_TEMPERATURE } from "@roo-code/types"
+
 import { Package } from "../../shared/package"
-import { ApiHandlerOptions, glamaDefaultModelId, glamaDefaultModelInfo } from "../../shared/api"
+import { ApiHandlerOptions } from "../../shared/api"
 
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -11,8 +13,6 @@ import { addCacheBreakpoints } from "../transform/caching/anthropic"
 
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { RouterProvider } from "./router-provider"
-
-const GLAMA_DEFAULT_TEMPERATURE = 0
 
 const DEFAULT_HEADERS = {
 	"X-Glama-Metadata": JSON.stringify({

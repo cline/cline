@@ -1,10 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 
-import type { ModelInfo } from "@roo-code/types"
+import { type ModelInfo, openAiModelInfoSaneDefaults } from "@roo-code/types"
 
+import type { ApiHandlerOptions } from "../../shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "../../shared/vsCodeSelectorUtils"
-import { ApiHandlerOptions, openAiModelInfoSaneDefaults } from "../../shared/api"
 
 import { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"

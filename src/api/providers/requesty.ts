@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-import type { ModelInfo } from "@roo-code/types"
+import { type ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@roo-code/types"
 
-import { ApiHandlerOptions, ModelRecord, requestyDefaultModelId, requestyDefaultModelInfo } from "../../shared/api"
+import type { ApiHandlerOptions, ModelRecord } from "../../shared/api"
 import { calculateApiCostOpenAI } from "../../shared/cost"
 
 import { convertToOpenAiMessages } from "../transform/openai-format"

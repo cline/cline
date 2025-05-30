@@ -22,8 +22,11 @@ import {
 	type TerminalActionId,
 	type TerminalActionPromptType,
 	type HistoryItem,
+	type CloudUserInfo,
+	requestyDefaultModelId,
+	openRouterDefaultModelId,
+	glamaDefaultModelId,
 	ORGANIZATION_ALLOW_ALL,
-	CloudUserInfo,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CloudService } from "@roo-code/cloud"
@@ -31,7 +34,6 @@ import { CloudService } from "@roo-code/cloud"
 import { t } from "../../i18n"
 import { setPanel } from "../../activate/registerCommands"
 import { Package } from "../../shared/package"
-import { requestyDefaultModelId, openRouterDefaultModelId, glamaDefaultModelId } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
@@ -1520,8 +1522,10 @@ export class ClineProvider
 			maxReadFileLine: stateValues.maxReadFileLine ?? -1,
 			maxConcurrentFileReads: experiments.isEnabled(
 				stateValues.experiments ?? experimentDefault,
-				EXPERIMENT_IDS.CONCURRENT_FILE_READS
-			) ? (stateValues.maxConcurrentFileReads ?? 15) : 1,
+				EXPERIMENT_IDS.CONCURRENT_FILE_READS,
+			)
+				? (stateValues.maxConcurrentFileReads ?? 15)
+				: 1,
 			historyPreviewCollapsed: stateValues.historyPreviewCollapsed ?? false,
 			cloudUserInfo,
 			organizationAllowList,

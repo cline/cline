@@ -1,4 +1,6 @@
-import { ApiHandlerOptions, ChutesModelId, chutesDefaultModelId, chutesModels } from "../../shared/api"
+import { type ChutesModelId, chutesDefaultModelId, chutesModels } from "@roo-code/types"
+
+import type { ApiHandlerOptions } from "../../shared/api"
 
 import { BaseOpenAiCompatibleProvider } from "./base-openai-compatible-provider"
 

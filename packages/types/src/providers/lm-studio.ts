@@ -1,0 +1,1 @@
+export const LMSTUDIO_DEFAULT_TEMPERATURE = 0

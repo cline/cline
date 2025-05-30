@@ -3,9 +3,15 @@ import { useEvent } from "react-use"
 import { Checkbox } from "vscrui"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import type { ProviderSettings, ModelInfo, ReasoningEffort, OrganizationAllowList } from "@roo-code/types"
+import {
+	type ProviderSettings,
+	type ModelInfo,
+	type ReasoningEffort,
+	type OrganizationAllowList,
+	azureOpenAiDefaultApiVersion,
+	openAiModelInfoSaneDefaults,
+} from "@roo-code/types"
 
-import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@roo/api"
 import { ExtensionMessage } from "@roo/ExtensionMessage"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"

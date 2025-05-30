@@ -1,7 +1,26 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ConversationRole, Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
 
-import { MessageContent } from "../../shared/api"
+interface BedrockMessageContent {
+	type: "text" | "image" | "video" | "tool_use" | "tool_result"
+	text?: string
+	source?: {
+		type: "base64"
+		data: string | Uint8Array // string for Anthropic, Uint8Array for Bedrock
+		media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp"
+	}
+	// Video specific fields
+	format?: string
+	s3Location?: {
+		uri: string
+		bucketOwner?: string
+	}
+	// Tool use and result fields
+	toolUseId?: string
+	name?: string
+	input?: any
+	output?: any // Used for tool_result type
+}
 
 /**
  * Convert Anthropic messages to Bedrock Converse format
@@ -24,7 +43,7 @@ export function convertToBedrockConverseMessages(anthropicMessages: Anthropic.Me
 
 		// Process complex content types
 		const content = anthropicMessage.content.map((block) => {
-			const messageBlock = block as MessageContent & {
+			const messageBlock = block as BedrockMessageContent & {
 				id?: string
 				tool_use_id?: string
 				content?: Array<{ type: string; text: string }>

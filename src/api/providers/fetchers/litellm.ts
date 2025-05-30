@@ -1,6 +1,8 @@
 import axios from "axios"
 
-import { LITELLM_COMPUTER_USE_MODELS, ModelRecord } from "../../../shared/api"
+import { LITELLM_COMPUTER_USE_MODELS } from "@roo-code/types"
+
+import type { ModelRecord } from "../../../shared/api"
 
 /**
  * Fetches available models from a LiteLLM server

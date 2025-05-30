@@ -1,13 +1,12 @@
 import { useCallback } from "react"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import type { ProviderSettings } from "@roo-code/types"
+import { type ProviderSettings, VERTEX_REGIONS } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
 
 import { inputEventTransform } from "../transforms"
-import { VERTEX_REGIONS } from "../constants"
 
 type VertexProps = {
 	apiConfiguration: ProviderSettings

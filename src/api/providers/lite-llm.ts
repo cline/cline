@@ -1,9 +1,13 @@
 import OpenAI from "openai"
 import { Anthropic } from "@anthropic-ai/sdk" // Keep for type usage only
 
-import { ApiHandlerOptions, litellmDefaultModelId, litellmDefaultModelInfo } from "../../shared/api"
+import { litellmDefaultModelId, litellmDefaultModelInfo } from "@roo-code/types"
+
+import { ApiHandlerOptions } from "../../shared/api"
+
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { RouterProvider } from "./router-provider"
 

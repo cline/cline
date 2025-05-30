@@ -1,6 +1,6 @@
-import type { ModelInfo } from "@roo-code/types"
+import { type ModelInfo, type VertexModelId, vertexDefaultModelId, vertexModels } from "@roo-code/types"
 
-import { ApiHandlerOptions, VertexModelId, vertexDefaultModelId, vertexModels } from "../../shared/api"
+import type { ApiHandlerOptions } from "../../shared/api"
 
 import { GeminiHandler } from "./gemini"
 import { SingleCompletionHandler } from "../index"

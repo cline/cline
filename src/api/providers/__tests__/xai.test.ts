@@ -1,9 +1,10 @@
-import { XAIHandler } from "../xai"
-import { xaiDefaultModelId, xaiModels } from "../../../shared/api"
 import OpenAI from "openai"
 import { Anthropic } from "@anthropic-ai/sdk"
 
-// Mock OpenAI client
+import { xaiDefaultModelId, xaiModels } from "@roo-code/types"
+
+import { XAIHandler } from "../xai"
+
 jest.mock("openai", () => {
 	const createMock = jest.fn()
 	return jest.fn(() => ({

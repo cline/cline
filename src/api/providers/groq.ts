@@ -1,4 +1,6 @@
-import { ApiHandlerOptions, GroqModelId, groqDefaultModelId, groqModels } from "../../shared/api" // Updated imports for Groq
+import { type GroqModelId, groqDefaultModelId, groqModels } from "@roo-code/types"
+
+import type { ApiHandlerOptions } from "../../shared/api"
 
 import { BaseOpenAiCompatibleProvider } from "./base-openai-compatible-provider"
 

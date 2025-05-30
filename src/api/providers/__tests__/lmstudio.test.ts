@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import { LmStudioHandler } from "../lmstudio"
+import { LmStudioHandler } from "../lm-studio"
 import { ApiHandlerOptions } from "../../../shared/api"
 
 // Mock OpenAI client

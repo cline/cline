@@ -3,7 +3,7 @@
 import OpenAI from "openai"
 import { Anthropic } from "@anthropic-ai/sdk"
 
-import { GroqModelId, groqDefaultModelId, groqModels } from "../../../shared/api"
+import { type GroqModelId, groqDefaultModelId, groqModels } from "@roo-code/types"
 
 import { GroqHandler } from "../groq"
 

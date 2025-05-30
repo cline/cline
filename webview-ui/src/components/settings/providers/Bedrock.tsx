@@ -2,12 +2,11 @@ import { useCallback } from "react"
 import { Checkbox } from "vscrui"
 import { VSCodeTextField, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 
-import type { ProviderSettings, ModelInfo } from "@roo-code/types"
+import { type ProviderSettings, type ModelInfo, BEDROCK_REGIONS } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
 
-import { AWS_REGIONS } from "../constants"
 import { inputEventTransform, noTransform } from "../transforms"
 
 type BedrockProps = {
@@ -89,7 +88,7 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 						<SelectValue placeholder={t("settings:common.select")} />
 					</SelectTrigger>
 					<SelectContent>
-						{AWS_REGIONS.map(({ value, label }) => (
+						{BEDROCK_REGIONS.map(({ value, label }) => (
 							<SelectItem key={value} value={value}>
 								{label}
 							</SelectItem>
