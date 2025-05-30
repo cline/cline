@@ -117,6 +117,7 @@ export interface ExtensionState {
 	mcpMarketplaceEnabled?: boolean
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
+	enableDebuggerSetting?: boolean
 	platform: Platform
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]

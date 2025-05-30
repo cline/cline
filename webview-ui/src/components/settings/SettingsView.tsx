@@ -146,6 +146,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setPlanActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		setEnableCheckpointsSetting,
+		enableDebuggerSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
 		setApiConfiguration,
@@ -199,6 +200,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			customInstructionsSetting: customInstructions,
 			telemetrySetting,
 			enableCheckpointsSetting,
+			enableDebuggerSetting,
 			mcpMarketplaceEnabled,
 			apiConfiguration: apiConfigurationToSubmit,
 		})

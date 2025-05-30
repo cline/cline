@@ -27,6 +27,11 @@ export const toolUseNames = [
 	"condense",
 	"report_bug",
 	"new_rule",
+	"start_debugging_and_wait_for_stop",
+	"list_breakpoints",
+	"resume_debug_session",
+	"stop_debug_session",
+	"set_breakpoint",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -35,6 +40,12 @@ export type ToolUseName = (typeof toolUseNames)[number]
 export const toolParamNames = [
 	"command",
 	"requires_approval",
+	"nameOrConfiguration",
+	"variable_filter",
+	"timeout_seconds",
+	"breakpointConfig",
+	"session_id",
+	"session_name",
 	"path",
 	"content",
 	"diff",
@@ -59,6 +70,17 @@ export const toolParamNames = [
 	"steps_to_reproduce",
 	"api_request_output",
 	"additional_context",
+	"file_path",
+	"line",
+	"column",
+	"highlight",
+	"session_id",
+	"session_name",
+	"configuration",
+	"nameOrConfiguration",
+	"variable_filter",
+	"severity",
+	"timeout_seconds",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

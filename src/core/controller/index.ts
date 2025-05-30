@@ -154,6 +154,7 @@ export class Controller {
 			enableCheckpointsSetting,
 			isNewUser,
 			taskHistory,
+			enableDebuggerSetting,
 		} = await getAllExtensionState(this.context)
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
@@ -186,6 +187,7 @@ export class Controller {
 			chatSettings,
 			shellIntegrationTimeout,
 			enableCheckpointsSetting ?? true,
+			enableDebuggerSetting ?? false,
 			customInstructions,
 			task,
 			images,
@@ -380,6 +382,10 @@ export class Controller {
 
 				if (typeof message.enableCheckpointsSetting === "boolean") {
 					await updateGlobalState(this.context, "enableCheckpointsSetting", message.enableCheckpointsSetting)
+				}
+
+				if (typeof message.enableDebuggerSetting === "boolean") {
+					await updateGlobalState(this.context, "enableDebuggerSetting", message.enableDebuggerSetting)
 				}
 
 				if (typeof message.mcpMarketplaceEnabled === "boolean") {
@@ -1175,6 +1181,7 @@ export class Controller {
 			enableCheckpointsSetting,
 			globalClineRulesToggles,
 			globalWorkflowToggles,
+			enableDebuggerSetting,
 			shellIntegrationTimeout,
 			isNewUser,
 		} = await getAllExtensionState(this.context)
@@ -1221,6 +1228,7 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			isNewUser,
+			enableDebuggerSetting,
 		}
 	}
 

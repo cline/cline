@@ -651,7 +651,6 @@ if (IS_DEV && IS_DEV !== "false") {
 
 	watcher.onDidChange(({ scheme, path }) => {
 		console.info(`${scheme} ${path} changed. Reloading VSCode...`)
-
 		vscode.commands.executeCommand("workbench.action.reloadWindow")
 	})
 }
