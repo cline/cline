@@ -213,5 +213,14 @@ export function getMessagesSinceLastSummary(messages: ApiMessage[]): ApiMessage[
 	}
 
 	const lastSummaryIndex = messages.length - lastSummaryIndexReverse - 1
-	return messages.slice(lastSummaryIndex)
+	const messagesSinceSummary = messages.slice(lastSummaryIndex)
+
+	// Bedrock requires the first message to be a user message.
+	// See https://github.com/RooCodeInc/Roo-Code/issues/4147
+	const userMessage: ApiMessage = {
+		role: "user",
+		content: "Please continue from the following summary:",
+		ts: messages[0]?.ts ? messages[0].ts - 1 : Date.now(),
+	}
+	return [userMessage, ...messagesSinceSummary]
 }
