@@ -6,6 +6,7 @@
 		"esbenp.prettier-vscode",
 		"csstools.postcss",
 		"bradlc.vscode-tailwindcss",
-		"connor4312.esbuild-problem-matchers"
+		"connor4312.esbuild-problem-matchers",
+		"yoavbls.pretty-ts-errors"
 	]
 }
