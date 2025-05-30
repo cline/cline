@@ -623,6 +623,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "ListCodeDefinitionNames") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "list_code_definition_names",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -670,6 +679,10 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 
 			if (currentToolUse && currentInvokeName === "WebFetch" && currentParameterName === "url") {
 				currentToolUse.params["url"] = value
+			}
+
+			if (currentToolUse && currentInvokeName === "ListCodeDefinitionNames" && currentParameterName === "path") {
+				currentToolUse.params["path"] = value
 			}
 
 			// Map parameter to tool params for Grep
