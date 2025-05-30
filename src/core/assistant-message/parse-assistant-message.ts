@@ -659,6 +659,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				if (currentInvokeName === "AttemptCompletion") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "attempt_completion",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -766,6 +775,15 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					currentToolUse.params["server_name"] = value
 				} else if (currentParameterName === "uri") {
 					currentToolUse.params["uri"] = value
+				}
+			}
+
+			if (currentToolUse && currentInvokeName === "AttemptCompletion") {
+				if (currentParameterName === "result") {
+					currentToolUse.params["result"] = value
+				}
+				if (currentParameterName === "command") {
+					currentToolUse.params["command"] = value
 				}
 			}
 
