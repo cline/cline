@@ -1,11 +1,13 @@
-import { cwd } from "@/core/task"
+export const bashToolName = "Bash"
 
 const CO_AUTHORED_COMMIT_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)
 
    Co-Authored-By: Cline <noreply@cline.bot>`
 const CO_AUTHORED_PR_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)`
 
-const descriptionForAgent = `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd}
+const descriptionForAgent = (
+	cwd: string,
+) => `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd.toPosix()}.
 
 # Committing changes with git
 
@@ -102,9 +104,9 @@ Important:
 # Other common operations
 - View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments`
 
-export const bashToolDefinition = {
-	name: "Bash",
-	descriptionForAgent,
+export const bashToolDefinition = (cwd: string) => ({
+	name: bashToolName,
+	descriptionForAgent: descriptionForAgent(cwd),
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -121,4 +123,4 @@ export const bashToolDefinition = {
 		},
 		required: ["command", "requires_approval"],
 	},
-}
+})
