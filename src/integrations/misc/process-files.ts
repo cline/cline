@@ -9,7 +9,7 @@ import sizeOf from "image-size"
  */
 export async function selectFiles(imagesAllowed: boolean): Promise<{ images: string[]; files: string[] }> {
 	const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] // supported by anthropic and openrouter
-	const OTHER_FILE_EXTENSIONS = ["xml", "json", "txt", "log", "md", "docx", "ipynb", "pdf"]
+	const OTHER_FILE_EXTENSIONS = ["xml", "json", "txt", "log", "md", "docx", "ipynb", "pdf", "xlsx", "csv"]
 
 	const options: vscode.OpenDialogOptions = {
 		canSelectMany: true,
