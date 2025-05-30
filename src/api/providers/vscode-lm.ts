@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import * as vscode from "vscode"
-import { ApiHandler, SingleCompletionHandler } from "../"
-import { calculateApiCostAnthropic } from "@utils/cost"
 import { ApiStream } from "@api/transform/stream"
 import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
-import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
+import { calculateApiCostAnthropic } from "@utils/cost"
+import * as vscode from "vscode"
+import { ApiHandler, SingleCompletionHandler } from "../"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 
 // Cline does not update VSCode type definitions or engine requirements to maintain compatibility.
@@ -93,6 +93,388 @@ declare module "vscode" {
 	namespace lm {
 		function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>
 	}
+}
+
+/**
+ * Hard-coded model registry for VS Code LM models with accurate capabilities.
+ * This overrides GitHub Copilot's artificially limited API responses with actual model capabilities.
+ */
+const VS_CODE_LM_MODEL_REGISTRY: Record<string, ModelInfo> = {
+	// Claude Models - Using actual Anthropic capabilities, not GitHub Copilot's restrictions
+	"claude-3.5-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000, // GitHub reports 90K, but actual is 200K
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description: "Claude 3.5 Sonnet via GitHub Copilot (corrected context window)",
+	},
+	"claude-3.7-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000, // GitHub correctly reports 200K
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description: "Claude 3.7 Sonnet via GitHub Copilot",
+	},
+	"claude-3.7-sonnet-thought": {
+		maxTokens: 16384,
+		contextWindow: 200_000, // GitHub correctly reports 200K
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description: "Claude 3.7 Sonnet Thinking via GitHub Copilot",
+	},
+	"claude-sonnet-4": {
+		maxTokens: 8192,
+		contextWindow: 200_000, // GitHub reports 80K, but actual is 200K
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description: "Claude Sonnet 4 via GitHub Copilot (corrected context window)",
+	},
+	"claude-opus-4": {
+		maxTokens: 8192,
+		contextWindow: 200_000, // GitHub reports 80K, but actual is 200K
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+		description: "Claude Opus 4 via GitHub Copilot (corrected context window)",
+	},
+
+	// OpenAI Models - GitHub's limits are generally accurate for these
+	"gpt-3.5-turbo": {
+		maxTokens: 4096,
+		contextWindow: 16_384, // GitHub reports correctly
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+		description: "GPT-3.5 Turbo via GitHub Copilot",
+	},
+	"gpt-3.5-turbo-0613": {
+		maxTokens: 4096,
+		contextWindow: 16_384,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+		description: "GPT-3.5 Turbo via GitHub Copilot",
+	},
+	"gpt-4": {
+		maxTokens: 4096,
+		contextWindow: 32_768, // GitHub reports correctly
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 30.0,
+		outputPrice: 60.0,
+		description: "GPT-4 via GitHub Copilot",
+	},
+	"gpt-4-0613": {
+		maxTokens: 4096,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 30.0,
+		outputPrice: 60.0,
+		description: "GPT-4 via GitHub Copilot",
+	},
+	"gpt-4-0125-preview": {
+		maxTokens: 4096,
+		contextWindow: 128_000, // GitHub reports correctly
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 10.0,
+		outputPrice: 30.0,
+		description: "GPT-4 Turbo via GitHub Copilot",
+	},
+	"gpt-4o": {
+		maxTokens: 4096,
+		contextWindow: 128_000, // GitHub reports correctly
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 10.0,
+		cacheReadsPrice: 1.25,
+		description: "GPT-4o via GitHub Copilot",
+	},
+	"gpt-4o-2024-11-20": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 10.0,
+		cacheReadsPrice: 1.25,
+		description: "GPT-4o via GitHub Copilot",
+	},
+	"gpt-4o-2024-05-13": {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 15.0,
+		description: "GPT-4o via GitHub Copilot",
+	},
+	"gpt-4-o-preview": {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 10.0,
+		outputPrice: 30.0,
+		description: "GPT-4o Preview via GitHub Copilot",
+	},
+	"gpt-4o-2024-08-06": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 10.0,
+		description: "GPT-4o via GitHub Copilot",
+	},
+	"gpt-4o-mini": {
+		maxTokens: 4096,
+		contextWindow: 128_000, // GitHub reports correctly
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheReadsPrice: 0.075,
+		description: "GPT-4o mini via GitHub Copilot",
+	},
+	"gpt-4o-mini-2024-07-18": {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheReadsPrice: 0.075,
+		description: "GPT-4o mini via GitHub Copilot",
+	},
+	"gpt-4o-copilot": {
+		maxTokens: -1, // No limit specified by GitHub
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "GPT-4o Copilot via GitHub Copilot",
+	},
+
+	// OpenAI o1 Series
+	o1: {
+		maxTokens: -1, // No limit specified by GitHub
+		contextWindow: 200_000, // GitHub reports correctly
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 15.0,
+		outputPrice: 60.0,
+		description: "o1 Preview via GitHub Copilot",
+	},
+	"o1-2024-12-17": {
+		maxTokens: -1,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 15.0,
+		outputPrice: 60.0,
+		description: "o1 Preview via GitHub Copilot",
+	},
+
+	// OpenAI o3 Series
+	"o3-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000, // GitHub reports correctly
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.55,
+		description: "o3-mini via GitHub Copilot",
+	},
+	"o3-mini-2025-01-31": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.55,
+		description: "o3-mini via GitHub Copilot",
+	},
+	"o3-mini-paygo": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.55,
+		description: "o3-mini Paygo via GitHub Copilot",
+	},
+	o3: {
+		maxTokens: 16384,
+		contextWindow: 128_000, // GitHub reports correctly
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 10.0,
+		outputPrice: 40.0,
+		description: "o3 Preview via GitHub Copilot",
+	},
+	"o3-2025-04-16": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 10.0,
+		outputPrice: 40.0,
+		description: "o3 Preview via GitHub Copilot",
+	},
+
+	// OpenAI o4 Series
+	"o4-mini": {
+		maxTokens: 16384,
+		contextWindow: 128_000, // GitHub reports correctly
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.275,
+		description: "o4-mini Preview via GitHub Copilot",
+	},
+	"o4-mini-2025-04-16": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		cacheReadsPrice: 0.275,
+		description: "o4-mini Preview via GitHub Copilot",
+	},
+
+	// GPT-4.5 Series
+	"gpt-4.5-preview": {
+		maxTokens: 16384,
+		contextWindow: 128_000, // GitHub reports correctly
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 75.0,
+		outputPrice: 150.0,
+		description: "GPT-4.5 Preview via GitHub Copilot",
+	},
+	"gpt-4.5-2025-02-27": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 75.0,
+		outputPrice: 150.0,
+		description: "GPT-4.5 Preview via GitHub Copilot",
+	},
+
+	// GPT-4.1 Series
+	"gpt-4.1": {
+		maxTokens: 16384,
+		contextWindow: 128_000, // GitHub reports correctly
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.0,
+		outputPrice: 8.0,
+		cacheReadsPrice: 0.5,
+		description: "GPT-4.1 via GitHub Copilot",
+	},
+	"gpt-4.1-2025-04-14": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.0,
+		outputPrice: 8.0,
+		cacheReadsPrice: 0.5,
+		description: "GPT-4.1 via GitHub Copilot",
+	},
+
+	// Google Gemini Models
+	"gemini-2.0-flash-001": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000, // GitHub reports correctly
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.025,
+		description: "Gemini 2.0 Flash via GitHub Copilot",
+	},
+	"gemini-2.5-pro": {
+		maxTokens: 64000,
+		contextWindow: 128_000, // GitHub reports 128K, but actual might be higher
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15.0,
+		cacheReadsPrice: 0.31,
+		description: "Gemini 2.5 Pro Preview via GitHub Copilot",
+	},
+	"gemini-2.5-pro-preview-05-06": {
+		maxTokens: 64000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15.0,
+		cacheReadsPrice: 0.31,
+		description: "Gemini 2.5 Pro Preview via GitHub Copilot",
+	},
+
+	// Embedding Models
+	"text-embedding-ada-002": {
+		maxTokens: -1,
+		contextWindow: 8191,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0,
+		description: "Text Embedding Ada 002 via GitHub Copilot",
+	},
+	"text-embedding-3-small": {
+		maxTokens: -1,
+		contextWindow: 8191,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.02,
+		outputPrice: 0,
+		description: "Text Embedding 3 Small via GitHub Copilot",
+	},
+	"text-embedding-3-small-inference": {
+		maxTokens: -1,
+		contextWindow: 8191,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.02,
+		outputPrice: 0,
+		description: "Text Embedding 3 Small Inference via GitHub Copilot",
+	},
 }
 
 /**
@@ -577,7 +959,18 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 
 			const modelId = this.client.id || modelParts.join(SELECTOR_SEPARATOR)
 
-			// Build model info with conservative defaults for missing values
+			// Check if we have a hard-coded entry for this model
+			const registryEntry = VS_CODE_LM_MODEL_REGISTRY[modelId]
+			if (registryEntry) {
+				console.debug(`Cline <Language Model API>: Using registry entry for model ${modelId}:`, {
+					registryContextWindow: registryEntry.contextWindow,
+					vsCodeReportedTokens: this.client.maxInputTokens,
+					corrected: registryEntry.contextWindow !== this.client.maxInputTokens,
+				})
+				return { id: modelId, info: registryEntry }
+			}
+
+			// Fallback to building model info from VS Code client data
 			const modelInfo: ModelInfo = {
 				maxTokens: -1, // Unlimited tokens by default
 				contextWindow:
@@ -590,6 +983,11 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				outputPrice: 0,
 				description: `VSCode Language Model: ${modelId}`,
 			}
+
+			console.debug(`Cline <Language Model API>: Using VS Code reported values for unknown model ${modelId}:`, {
+				vsCodeReportedTokens: this.client.maxInputTokens,
+				fallbackContextWindow: modelInfo.contextWindow,
+			})
 
 			return { id: modelId, info: modelInfo }
 		}
