@@ -5,7 +5,7 @@ const CO_AUTHORED_COMMIT_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs
    Co-Authored-By: Cline <noreply@cline.bot>`
 const CO_AUTHORED_PR_MSG = `\uD83E\uDD16 Generated with [Cline](https://docs.cline.bot)`
 
-const descriptionForAgent = `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd.toPosix()}
+const descriptionForAgent = `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: ${cwd}
 
 # Committing changes with git
 
