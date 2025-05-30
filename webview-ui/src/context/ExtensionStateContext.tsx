@@ -470,11 +470,13 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
-		setApiConfiguration: (value) =>
+		setApiConfiguration: (value) => {
+			console.log("[DEBUG] ExtensionStateContext: setApiConfiguration called with:", value)
 			setState((prevState) => ({
 				...prevState,
 				apiConfiguration: value,
-			})),
+			}))
+		},
 		setCustomInstructions: (value) =>
 			setState((prevState) => ({
 				...prevState,

@@ -799,8 +799,9 @@ const ApiOptions = ({
 							const value = (e.target as HTMLInputElement)?.value
 							const useProfile = value === "profile"
 							setApiConfiguration({
+								...apiConfiguration,
 								aws: {
-									...apiConfiguration,
+									...apiConfiguration?.aws,
 									useProfile: useProfile,
 								},
 							})
