@@ -112,7 +112,7 @@ ruleTester.run("no-protobuf-object-literals", rule, {
           };
         }
       `,
-			errors: [{ messageId: "useProtobufMethodGeneric" }],
+			errors: [{ messageId: "useProtobufMethod" }],
 		},
 		// Invalid case: Using object literal in a function parameter (with protobuf types imported)
 		{
