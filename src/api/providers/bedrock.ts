@@ -214,80 +214,18 @@ export class AwsBedrockHandler implements ApiHandler {
 	// Default AWS region
 	private static readonly DEFAULT_REGION = "us-east-1"
 
-	// Static cache for manual credentials (not used for profile-based auth)
-	private static credentialCache: {
-		credentials: {
-			accessKeyId: string
-			secretAccessKey: string
-			sessionToken?: string
-		}
-		timestamp: number
-		configHash: string
-	} | null = null
-
-	// Cache TTL - 5 minutes for manual credentials
-	private static readonly CACHE_TTL_MS = 5 * 60 * 1000
-
-	/**
-	 * Generates a hash of the current manual credential configuration
-	 */
-	private getConfigHash(): string {
-		const config = {
-			awsRegion: this.options.awsRegion,
-			awsAccessKey: this.options.awsAccessKey,
-			awsSecretKey: this.options.awsSecretKey,
-			awsSessionToken: this.options.awsSessionToken,
-		}
-		const crypto = require("crypto")
-		return crypto.createHash("sha256").update(JSON.stringify(config)).digest("hex")
-	}
-
-	/**
-	 * Checks if the cached credentials are still valid
-	 */
-	private isCacheValid(configHash: string): boolean {
-		if (!AwsBedrockHandler.credentialCache) return false
-
-		const now = Date.now()
-		const isNotExpired = now - AwsBedrockHandler.credentialCache.timestamp < AwsBedrockHandler.CACHE_TTL_MS
-		const configMatches = AwsBedrockHandler.credentialCache.configHash === configHash
-
-		return isNotExpired && configMatches
-	}
-
 	/**
 	 * Gets AWS credentials using the provider chain
 	 * Centralizes credential retrieval logic for all AWS services
-	 * Uses ignoreCache for profile-based auth to detect AWS Identity Manager changes
 	 */
 	private async getAwsCredentials(): Promise<{
 		accessKeyId: string
 		secretAccessKey: string
 		sessionToken?: string
 	}> {
-		// For manual credentials, use our own caching to maintain performance
-		if (!this.options.awsUseProfile) {
-			const configHash = this.getConfigHash()
-			if (this.isCacheValid(configHash)) {
-				return AwsBedrockHandler.credentialCache!.credentials
-			}
-		}
-
-		// Configure provider options
-		const providerOptions: any = {}
-
-		if (this.options.awsUseProfile) {
-			// For profile-based auth, always use ignoreCache to detect credential file changes
-			// This solves the AWS Identity Manager issue where credential files change externally
-			providerOptions.ignoreCache = true
-			if (this.options.awsProfile) {
-				providerOptions.profile = this.options.awsProfile
-			}
-		}
-
 		// Create AWS credentials by executing an AWS provider chain
-		const providerChain = fromNodeProviderChain(providerOptions)
-		const credentials = await AwsBedrockHandler.withTempEnv(
+		const providerChain = fromNodeProviderChain()
+		return await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
 				if (this.options.awsUseProfile) {
@@ -301,24 +239,6 @@ export class AwsBedrockHandler implements ApiHandler {
 			},
 			() => providerChain(),
 		)
-
-		// Cache manual credentials only (profile-based credentials are always fresh)
-		if (!this.options.awsUseProfile) {
-			AwsBedrockHandler.credentialCache = {
-				credentials,
-				timestamp: Date.now(),
-				configHash: this.getConfigHash(),
-			}
-		}
-
-		return credentials
-	}
-
-	/**
-	 * Invalidates the credential cache (useful for error recovery)
-	 */
-	public static invalidateCredentialCache(): void {
-		AwsBedrockHandler.credentialCache = null
 	}
 
 	/**
