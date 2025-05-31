@@ -9,6 +9,7 @@ import { UiServiceClient } from "./services/grpc-client"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { Providers } from "./Providers"
 import { Boolean, EmptyRequest } from "@shared/proto/common"
+import { WebviewProviderType } from "@shared/webview/types"
 
 const AppContent = () => {
 	const {
@@ -45,6 +46,11 @@ const AppContent = () => {
 				})
 		}
 	}, [shouldShowAnnouncement])
+
+	useEffect(() => {
+		const providerType = window.WEBVIEW_PROVIDER_TYPE || WebviewProviderType.TAB
+		console.log("[DEBUG] webviewProviderType", providerType)
+	}, [])
 
 	if (!didHydrateState) {
 		return null

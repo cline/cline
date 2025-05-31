@@ -7,6 +7,7 @@ import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
+import { WebviewProviderType } from "@/shared/webview/types"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -24,6 +25,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
+		private readonly providerType: WebviewProviderType = WebviewProviderType.TAB, // Default to tab provider
 	) {
 		WebviewProvider.activeInstances.add(this)
 		this.controller = new Controller(context, outputChannel, (message) => this.view?.webview.postMessage(message))
@@ -239,6 +241,10 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			<body>
 				<noscript>You need to enable JavaScript to run this app.</noscript>
 				<div id="root"></div>
+				 <script type="text/javascript" nonce="${nonce}">
+                    // Inject the provider type
+                    window.WEBVIEW_PROVIDER_TYPE = ${JSON.stringify(this.providerType)};
+                </script>
 				<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
 		</html>
@@ -348,6 +354,10 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				</head>
 				<body>
 					<div id="root"></div>
+					<script type="text/javascript" nonce="${nonce}">
+						// Inject the provider type
+						window.WEBVIEW_PROVIDER_TYPE = ${JSON.stringify(this.providerType)};
+					</script>
 					${reactRefresh}
 					<script type="module" src="${scriptUri}"></script>
 				</body>
