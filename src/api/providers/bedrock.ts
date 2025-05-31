@@ -47,6 +47,9 @@ export class AwsBedrockHandler implements ApiHandler {
 			yield* this.createDeepseekMessage(systemPrompt, messages, modelId, model)
 			return
 		}
+
+		// Default: Use Anthropic Converse API for all Anthropic models
+		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model)
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
