@@ -34,6 +34,8 @@ const ActModeHighlight: React.FC = () => (
 	</span>
 )
 
+import "highlight.js/styles/github-dark.css"
+
 interface MarkdownBlockProps {
 	markdown?: string
 }
