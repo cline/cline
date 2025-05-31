@@ -2407,4 +2407,168 @@ function two() {
 			expect(description).toContain("</apply_diff>")
 		})
 	})
+
+	describe("line marker validation in REPLACE sections", () => {
+		let strategy: MultiSearchReplaceDiffStrategy
+
+		beforeEach(() => {
+			strategy = new MultiSearchReplaceDiffStrategy()
+		})
+
+		it("should reject start_line marker in REPLACE section", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				":start_line:5\n" +
+				"replacement content\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("Invalid line marker ':start_line:' found in REPLACE section")
+			expect(result.error).toContain(
+				"Line markers (:start_line: and :end_line:) are only allowed in SEARCH sections",
+			)
+		})
+
+		it("should reject end_line marker in REPLACE section", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				":end_line:10\n" +
+				"replacement content\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("Invalid line marker ':end_line:' found in REPLACE section")
+			expect(result.error).toContain(
+				"Line markers (:start_line: and :end_line:) are only allowed in SEARCH sections",
+			)
+		})
+
+		it("should reject both line markers in REPLACE section", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				":start_line:5\n" +
+				":end_line:10\n" +
+				"replacement content\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("Invalid line marker ':start_line:' found in REPLACE section")
+		})
+
+		it("should reject line markers in multiple diff blocks where one has invalid markers", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				":start_line:1\n" +
+				"content1\n" +
+				"=======\n" +
+				"replacement1\n" +
+				">>>>>>> REPLACE\n\n" +
+				"<<<<<<< SEARCH\n" +
+				"content2\n" +
+				"=======\n" +
+				":start_line:5\n" +
+				"replacement2\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("Invalid line marker ':start_line:' found in REPLACE section")
+		})
+
+		it("should allow valid markers in SEARCH section with content in REPLACE", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				":start_line:5\n" +
+				":end_line:10\n" +
+				"-------\n" +
+				"content to find\n" +
+				"=======\n" +
+				"replacement content\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(true)
+		})
+
+		it("should allow escaped line markers in REPLACE content", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				"replacement content\n" +
+				"\\:start_line:5\n" +
+				"more content\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(true)
+		})
+
+		it("should allow escaped end_line markers in REPLACE content", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				"replacement content\n" +
+				"\\:end_line:10\n" +
+				"more content\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(true)
+		})
+
+		it("should allow both escaped line markers in REPLACE content", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				"replacement content\n" +
+				"\\:start_line:5\n" +
+				"\\:end_line:10\n" +
+				"more content\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(true)
+		})
+
+		it("should reject line markers with whitespace in REPLACE section", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				"  :start_line:5  \n" +
+				"replacement content\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("Invalid line marker ':start_line:' found in REPLACE section")
+		})
+
+		it("should reject line markers in middle of REPLACE content", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				"some replacement\n" +
+				":end_line:15\n" +
+				"more replacement\n" +
+				">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("Invalid line marker ':end_line:' found in REPLACE section")
+		})
+
+		it("should provide helpful error message format", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" + "content\n" + "=======\n" + ":start_line:5\n" + "replacement\n" + ">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("CORRECT FORMAT:")
+			expect(result.error).toContain("INCORRECT FORMAT:")
+			expect(result.error).toContain(":start_line:5    <-- Invalid location")
+		})
+	})
 })

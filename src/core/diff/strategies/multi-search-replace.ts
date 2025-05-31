@@ -243,6 +243,30 @@ Only use a single line of '=======' between search and replacement content, beca
 				">>>>>>> REPLACE\n",
 		})
 
+		const reportLineMarkerInReplaceError = (marker: string) => ({
+			success: false,
+			error:
+				`ERROR: Invalid line marker '${marker}' found in REPLACE section at line ${state.line}\n` +
+				"\n" +
+				"Line markers (:start_line: and :end_line:) are only allowed in SEARCH sections.\n" +
+				"\n" +
+				"CORRECT FORMAT:\n" +
+				"<<<<<<< SEARCH\n" +
+				":start_line:5\n" +
+				"content to find\n" +
+				"=======\n" +
+				"replacement content\n" +
+				">>>>>>> REPLACE\n" +
+				"\n" +
+				"INCORRECT FORMAT:\n" +
+				"<<<<<<< SEARCH\n" +
+				"content to find\n" +
+				"=======\n" +
+				":start_line:5    <-- Invalid location\n" +
+				"replacement content\n" +
+				">>>>>>> REPLACE\n",
+		})
+
 		const lines = diffContent.split("\n")
 		const searchCount = lines.filter((l) => l.trim() === SEARCH).length
 		const sepCount = lines.filter((l) => l.trim() === SEP).length
@@ -253,6 +277,16 @@ Only use a single line of '=======' between search and replacement content, beca
 		for (const line of diffContent.split("\n")) {
 			state.line++
 			const marker = line.trim()
+
+			// Check for line markers in REPLACE sections (but allow escaped ones)
+			if (state.current === State.AFTER_SEPARATOR) {
+				if (marker.startsWith(":start_line:") && !line.trim().startsWith("\\:start_line:")) {
+					return reportLineMarkerInReplaceError(":start_line:")
+				}
+				if (marker.startsWith(":end_line:") && !line.trim().startsWith("\\:end_line:")) {
+					return reportLineMarkerInReplaceError(":end_line:")
+				}
+			}
 
 			switch (state.current) {
 				case State.START:
