@@ -37,8 +37,8 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 	const globalToggles = ((await getGlobalState(controller.context, "globalClineRulesToggles")) as AppClineRulesToggles) || {}
 	const localToggles = ((await getWorkspaceState(controller.context, "localClineRulesToggles")) as AppClineRulesToggles) || {}
 
-	return ToggleClineRules.create({
+	return {
 		globalClineRulesToggles: { toggles: globalToggles },
 		localClineRulesToggles: { toggles: localToggles },
-	})
+	}
 }

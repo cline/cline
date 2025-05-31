@@ -50,13 +50,13 @@ export async function updateBrowserSettings(controller: Controller, request: Upd
 		// Post updated state to webview
 		await controller.postStateToWebview()
 
-		return Boolean.create({
+		return {
 			value: true,
-		})
+		}
 	} catch (error) {
 		console.error("Error updating browser settings:", error)
-		return Boolean.create({
+		return {
 			value: false,
-		})
+		}
 	}
 }

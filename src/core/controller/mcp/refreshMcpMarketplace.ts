@@ -19,9 +19,9 @@ export async function refreshMcpMarketplace(controller: Controller, _request: Em
 		}
 
 		// Return empty catalog if nothing was fetched
-		return McpMarketplaceCatalog.create({ items: [] })
+		return { items: [] }
 	} catch (error) {
 		console.error("Failed to refresh MCP marketplace:", error)
-		return McpMarketplaceCatalog.create({ items: [] })
+		return { items: [] }
 	}
 }

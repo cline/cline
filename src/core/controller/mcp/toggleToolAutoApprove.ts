@@ -16,7 +16,7 @@ export async function toggleToolAutoApprove(controller: Controller, request: Tog
 			(await controller.mcpHub?.toggleToolAutoApproveRPC(request.serverName, request.toolNames, request.autoApprove)) || []
 
 		// Convert application types to proto types
-		return McpServers.create({ mcpServers: convertMcpServersToProtoMcpServers(mcpServers) })
+		return { mcpServers: convertMcpServersToProtoMcpServers(mcpServers) }
 	} catch (error) {
 		console.error(`Failed to toggle tool auto-approve for ${request.serverName}:`, error)
 		throw error

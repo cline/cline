@@ -47,10 +47,10 @@ export async function deleteNonFavoritedTasks(
 			console.error("Error posting to webview:", webviewErr)
 		}
 
-		return DeleteNonFavoritedTasksResults.create({
+		return {
 			tasksPreserved: favoritedTasks.length,
 			tasksDeleted: deletedCount,
-		})
+		}
 	} catch (error) {
 		console.error("Error in deleteNonFavoritedTasks:", error)
 		throw error

@@ -16,7 +16,7 @@ export async function restartMcpServer(controller: Controller, request: StringRe
 		// Convert from McpServer[] to ProtoMcpServer[] ensuring all required fields are set
 		const protoServers = convertMcpServersToProtoMcpServers(mcpServers)
 
-		return McpServers.create({ mcpServers: protoServers })
+		return { mcpServers: protoServers }
 	} catch (error) {
 		console.error(`Failed to restart MCP server ${request.value}:`, error)
 		throw error

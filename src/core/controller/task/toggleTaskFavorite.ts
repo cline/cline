@@ -6,7 +6,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 	if (!request.taskId || request.isFavorited === undefined) {
 		const errorMsg = `[toggleTaskFavorite] Invalid request: taskId or isFavorited missing`
 		console.error(errorMsg)
-		return Empty.create({})
+		return {}
 	}
 
 	try {
@@ -47,5 +47,5 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 		console.error("Error in toggleTaskFavorite:", error)
 	}
 
-	return Empty.create({})
+	return {}
 }

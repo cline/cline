@@ -10,5 +10,5 @@ import type { Controller } from "../index"
  */
 export async function accountLogoutClicked(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	await controller.handleSignOut()
-	return Empty.create({})
+	return {}
 }

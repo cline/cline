@@ -29,7 +29,7 @@ export async function toggleCursorRule(controller: Controller, request: ToggleCu
 	// Get the current state to return in the response
 	const cursorToggles = ((await getWorkspaceState(controller.context, "localCursorRulesToggles")) as AppClineRulesToggles) || {}
 
-	return ClineRulesToggles.create({
+	return {
 		toggles: cursorToggles,
-	})
+	}
 }

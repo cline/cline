@@ -24,7 +24,7 @@ export async function addRemoteMcpServer(controller: Controller, request: AddRem
 
 		const protoServers = convertMcpServersToProtoMcpServers(servers)
 
-		return McpServers.create({ mcpServers: protoServers })
+		return { mcpServers: protoServers }
 	} catch (error) {
 		console.error(`Failed to add remote MCP server ${request.serverName}:`, error)
 

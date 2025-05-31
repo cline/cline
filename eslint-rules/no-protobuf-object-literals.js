@@ -43,43 +43,6 @@ module.exports = createRule({
 		const protobufNamespaceImports = new Set() // For namespace imports like "import * as proto"
 		const safeObjectExpressions = new Set() // Track object expressions in create/fromPartial calls
 
-		// Helper functions
-		function getTypeName(typeAnnotation) {
-			if (!typeAnnotation) return null
-
-			if (typeAnnotation.type === "TSTypeReference") {
-				if (typeAnnotation.typeName.type === "Identifier") {
-					return typeAnnotation.typeName.name
-				} else if (typeAnnotation.typeName.type === "TSQualifiedName") {
-					// Handle namespaced types like proto.MyRequest
-					return `${typeAnnotation.typeName.left.name}.${typeAnnotation.typeName.right.name}`
-				}
-			}
-			return null
-		}
-
-		function isNamespacedProtobufType(typeName) {
-			if (!typeName.includes(".")) return false
-
-			const namespace = typeName.split(".")[0]
-			return protobufNamespaceImports.has(namespace)
-		}
-
-		function findParentFunction(node) {
-			let current = node.parent
-			while (current) {
-				if (
-					current.type === "FunctionDeclaration" ||
-					current.type === "FunctionExpression" ||
-					current.type === "ArrowFunctionExpression"
-				) {
-					return current
-				}
-				current = current.parent
-			}
-			return null
-		}
-
 		return {
 			// Skip object literals inside create() or fromPartial() method calls
 			CallExpression(node) {
@@ -104,10 +67,13 @@ module.exports = createRule({
 					node.specifiers.forEach((spec) => {
 						if (spec.type === "ImportSpecifier") {
 							// import { MyRequest } from '@shared/proto'
+							console.log("Registered protobuf import:", context.getFilename(), "__", spec.imported.name)
 							protobufImports.add(spec.imported.name)
 							//console.log('📝 Registered protobuf type:', spec.imported.name);
 						} else if (spec.type === "ImportNamespaceSpecifier") {
 							// import * as proto from '@shared/proto'
+							console.log("Registered protobuf import:", context.getFilename(), "__", spec.local.name)
+
 							protobufNamespaceImports.add(spec.local.name)
 							//console.log('📝 Registered namespace:', spec.local.name);
 						}
@@ -152,7 +118,7 @@ module.exports = createRule({
 						}
 
 						// Check if it's a namespaced protobuf type (e.g., proto.MyRequest)
-						if (isNamespacedProtobufType(typeName)) {
+						if (isNamespacedProtobufType(protobufNamespaceImports, typeName)) {
 							//console.log('🚨 VIOLATION: Using object literal for namespaced protobuf type:', typeName);
 							const sourceCode = context.getSourceCode()
 							const declaratorText = sourceCode.getText(declarator)
@@ -236,22 +202,9 @@ module.exports = createRule({
 				const functionNode = findParentFunction(node)
 				if (!functionNode) return
 
-				// Try to get the return type from the function declaration
-				let returnTypeName = null
-				if (functionNode.returnType) {
-					returnTypeName = getTypeName(functionNode.returnType.typeAnnotation)
-				}
-				// For arrow functions and function expressions without explicit return type
-				// Try to get it from the parent variable declaration or assignment
-				else if (functionNode.parent) {
-					if (
-						functionNode.parent.type === "VariableDeclarator" &&
-						functionNode.parent.id &&
-						functionNode.parent.id.typeAnnotation
-					) {
-						returnTypeName = getTypeName(functionNode.parent.id.typeAnnotation.typeAnnotation)
-					}
-				}
+				// Try to get the return type using our enhanced helper
+				const sourceCode = context.getSourceCode()
+				let returnTypeName = getFunctionReturnType(functionNode, sourceCode)
 
 				// For async functions with Promise<Type> return type, extract the inner type
 				if (returnTypeName && returnTypeName.startsWith("Promise<") && returnTypeName.endsWith(">")) {
@@ -261,6 +214,8 @@ module.exports = createRule({
 				// Check if the return type is a protobuf type
 				if (returnTypeName) {
 					if (protobufImports.has(returnTypeName)) {
+						console.log("Return type: ", context.getFilename(), "___", returnTypeName)
+
 						const sourceCode = context.getSourceCode()
 						const returnText = sourceCode.getText(node.parent)
 						context.report({
@@ -280,13 +235,13 @@ module.exports = createRule({
 					}
 
 					// Check if it's a namespaced protobuf type
-					if (isNamespacedProtobufType(returnTypeName)) {
+					if (isNamespacedProtobufType(protobufNamespaceImports, returnTypeName)) {
 						const sourceCode = context.getSourceCode()
 						const returnText = sourceCode.getText(node.parent)
 						context.report({
 							node,
 							messageId: "useProtobufMethodGeneric",
-							data: { code: returnText },
+							data: { code: returnText + "111111111" },
 							fix(fixer) {
 								// For namespaced types in return statements, we need to extract the full type name
 								const objectCode = sourceCode.getText(node)
@@ -315,7 +270,7 @@ module.exports = createRule({
 								messageId: "useProtobufMethod",
 								data: {
 									typeName: protoType,
-									code: returnText,
+									code: returnText + "222222222",
 									objectContent: sourceCode.getText(node),
 								},
 								fix(fixer) {
@@ -331,65 +286,82 @@ module.exports = createRule({
 
 				// Final fallback - if there are any protobuf imports and the function signature
 				// mentions a return type that matches one of the imported types
-				if (protobufImports.size > 0 || protobufNamespaceImports.size > 0) {
-					const sourceCode = context.getSourceCode()
-					const functionText = functionNode ? sourceCode.getText(functionNode) : ""
+				const functionText = functionNode ? sourceCode.getText(functionNode) : ""
 
-					for (const protoType of protobufImports) {
-						// Check if the function signature includes the protobuf type name as the return type
-						// This is a more aggressive check that might have false positives but will catch more cases
-						if (
-							functionText.includes(`Promise<${protoType}>`) ||
-							functionText.includes(`: ${protoType}`) ||
-							functionText.includes(`:${protoType}`)
-						) {
-							const returnText = sourceCode.getText(node.parent)
-							context.report({
-								node,
-								messageId: "useProtobufMethod",
-								data: {
-									typeName: protoType,
-									code: returnText,
-									objectContent: sourceCode.getText(node),
-								},
-								fix(fixer) {
-									// Replace the object literal with Type.create() call
-									return fixer.replaceText(node, `${protoType}.create(${sourceCode.getText(node)})`)
-								},
-							})
-							return
-						}
+				for (const protoType of protobufImports) {
+					// Use more precise regex to match return type patterns specifically
+					// Rather than just checking if the type name appears anywhere in the signature
+					const returnTypeRegex = new RegExp(
+						// Match arrow function return type
+						`=>\\s*:?\\s*${protoType}\\b|` +
+							// Match function declaration return type
+							`\\)\\s*:?\\s*${protoType}\\b|` +
+							// Match Promise return type
+							`\\)\\s*:?\\s*Promise<\\s*${protoType}\\s*>|` +
+							// Match function type in variable declaration
+							`:\\s*\\(.*\\)\\s*=>\\s*${protoType}\\b`,
+					)
+
+					if (returnTypeRegex.test(functionText)) {
+						const returnText = sourceCode.getText(node.parent)
+						context.report({
+							node,
+							messageId: "useProtobufMethod",
+							data: {
+								typeName: protoType,
+								code: returnText,
+								objectContent: sourceCode.getText(node),
+							},
+							fix(fixer) {
+								// Replace the object literal with Type.create() call
+								return fixer.replaceText(node, `${protoType}.create(${sourceCode.getText(node)})`)
+							},
+						})
+						return
 					}
+				}
 
-					// Check for namespace imports too
-					for (const namespace of protobufNamespaceImports) {
-						if (
-							functionText.includes(`Promise<${namespace}.`) ||
-							functionText.includes(`: ${namespace}.`) ||
-							functionText.includes(`:${namespace}.`)
-						) {
-							const returnText = sourceCode.getText(node.parent)
-							context.report({
-								node,
-								messageId: "useProtobufMethodGeneric",
-								data: { code: returnText },
-								fix(fixer) {
-									// For namespaced types based on function signature patterns
-									// Extract the namespace and type from the function text
-									const match = functionText.match(
-										new RegExp(`Promise<(${namespace}\\.[\\w]+)>|: (${namespace}\\.[\\w]+)`),
-									)
-									if (match) {
-										const fullType = match[1] || match[2]
-										return fixer.replaceText(node, `${fullType}.create(${sourceCode.getText(node)})`)
-									}
-									// Fallback - we can't determine the exact type, but we know it's from the namespace
-									// Use a namespace-based approach
-									return fixer.replaceText(node, `${namespace}.create(${sourceCode.getText(node)})`)
-								},
-							})
-							return
-						}
+				// Check for namespace imports too
+				for (const namespace of protobufNamespaceImports) {
+					// Similar to above, but for namespaced types
+					const namespaceReturnTypeRegex = new RegExp(
+						// Match arrow function return type
+						`=>\\s*:?\\s*${namespace}\\.\\w+\\b|` +
+							// Match function declaration return type
+							`\\)\\s*:?\\s*${namespace}\\.\\w+\\b|` +
+							// Match Promise return type
+							`\\)\\s*:?\\s*Promise<\\s*${namespace}\\.\\w+\\s*>|` +
+							// Match function type in variable declaration
+							`:\\s*\\(.*\\)\\s*=>\\s*${namespace}\\.\\w+\\b`,
+					)
+
+					if (namespaceReturnTypeRegex.test(functionText)) {
+						const returnText = sourceCode.getText(node.parent)
+						context.report({
+							node,
+							messageId: "useProtobufMethodGeneric",
+							data: { code: returnText },
+							fix(fixer) {
+								// For namespaced types based on function signature patterns
+								// Extract the namespace and type from the function text using more precise patterns
+								const match = functionText.match(
+									new RegExp(
+										// Match return type patterns more precisely
+										`\\)\\s*:?\\s*(${namespace}\\.[\\w]+)\\b|` + // Function declaration
+											`=>\\s*:?\\s*(${namespace}\\.[\\w]+)\\b|` + // Arrow function
+											`Promise<\\s*(${namespace}\\.[\\w]+)\\s*>`, // Promise wrapped
+									),
+								)
+								if (match) {
+									const fullType = match[1] || match[2]
+									return fixer.replaceText(node, `${fullType}.create(${sourceCode.getText(node)})`)
+								}
+								// Fallback - we can't determine the exact type, but we know it's from the namespace
+								// Use a namespace-based approach
+								return fixer.replaceText(node, `${namespace}.create(${sourceCode.getText(node)})`)
+							},
+						})
+						return
 					}
 				}
 			},
@@ -450,7 +422,7 @@ module.exports = createRule({
 
 				// For regular function calls with object literals, check if there are protobuf imports
 				// and if the function might expect a protobuf type
-				if (protobufImports.size > 0 && node.parent.callee) {
+				if (node.parent.callee) {
 					// This is a more permissive check to catch cases like processContent({ ... })
 					// which might be passing a protobuf type
 					const sourceCode = context.getSourceCode()
@@ -469,7 +441,11 @@ module.exports = createRule({
 								const param = def.node.params[node.parent.arguments.indexOf(node)]
 								if (param.typeAnnotation) {
 									const typeName = getTypeName(param.typeAnnotation.typeAnnotation)
-									if (typeName && (protobufImports.has(typeName) || isNamespacedProtobufType(typeName))) {
+									if (
+										typeName &&
+										(protobufImports.has(typeName) ||
+											isNamespacedProtobufType(protobufNamespaceImports, typeName))
+									) {
 										const callText = sourceCode.getText(node.parent)
 										context.report({
 											node,
@@ -492,6 +468,21 @@ module.exports = createRule({
 	},
 })
 
+// Helper functions
+function getTypeName(typeAnnotation) {
+	if (!typeAnnotation) return null
+
+	if (typeAnnotation.type === "TSTypeReference") {
+		if (typeAnnotation.typeName.type === "Identifier") {
+			return typeAnnotation.typeName.name
+		} else if (typeAnnotation.typeName.type === "TSQualifiedName") {
+			// Handle namespaced types like proto.MyRequest
+			return `${typeAnnotation.typeName.left.name}.${typeAnnotation.typeName.right.name}`
+		}
+	}
+	return null
+}
+
 function matchesProtobufPackage(packageName, protobufPackages) {
 	return protobufPackages.some((protobufPackage) => {
 		// Remove leading and trailing @ and / from protobufPackage
@@ -504,4 +495,90 @@ function matchesProtobufPackage(packageName, protobufPackages) {
 // Helper function to escape special regex characters
 function escapeRegex(string) {
 	return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+// Helper to extract function return type more reliably
+function getFunctionReturnType(functionNode, sourceCode) {
+	// 1. Check explicit return type annotation
+	if (functionNode.returnType) {
+		return getTypeName(functionNode.returnType.typeAnnotation)
+	}
+
+	// 2. For variable declarations like const foo: (arg: Type) => ReturnType = ...
+	if (functionNode.parent && functionNode.parent.type === "VariableDeclarator") {
+		const declarator = functionNode.parent
+		if (declarator.id && declarator.id.typeAnnotation) {
+			const typeAnnotation = declarator.id.typeAnnotation.typeAnnotation
+
+			// Handle function type annotations
+			if (typeAnnotation.type === "TSFunctionType" && typeAnnotation.typeAnnotation) {
+				return getTypeName(typeAnnotation.typeAnnotation)
+			}
+
+			// Handle type references to function types
+			if (typeAnnotation.type === "TSTypeReference") {
+				// This might be a type like Promise<ReturnType>
+				if (
+					typeAnnotation.typeName.name === "Promise" &&
+					typeAnnotation.typeParameters &&
+					typeAnnotation.typeParameters.params.length > 0
+				) {
+					return getTypeName(typeAnnotation.typeParameters.params[0])
+				}
+			}
+		}
+	}
+
+	// 3. For class methods, check if it's part of an interface implementation
+	if (
+		functionNode.parent &&
+		functionNode.parent.type === "MethodDefinition" &&
+		functionNode.parent.parent &&
+		functionNode.parent.parent.type === "ClassBody"
+	) {
+		const className = getEnclosingClassName(functionNode)
+		const methodName = functionNode.parent.key.name
+
+		if (className && methodName) {
+			// Look for interface declarations in the scope
+			const scope = sourceCode.getScope(functionNode)
+			// This would require more complex scope analysis which is limited in ESLint
+			// For now, we'll return null and rely on other methods
+		}
+	}
+
+	return null
+}
+
+// Helper to get the class name for a method
+function getEnclosingClassName(node) {
+	let current = node.parent
+	while (current) {
+		if (current.type === "ClassDeclaration" && current.id) {
+			return current.id.name
+		}
+		current = current.parent
+	}
+	return null
+}
+function isNamespacedProtobufType(protobufNamespaceImports, typeName) {
+	if (!typeName.includes(".")) return false
+
+	const namespace = typeName.split(".")[0]
+	return protobufNamespaceImports.has(namespace)
+}
+
+function findParentFunction(node) {
+	let current = node.parent
+	while (current) {
+		if (
+			current.type === "FunctionDeclaration" ||
+			current.type === "FunctionExpression" ||
+			current.type === "ArrowFunctionExpression"
+		) {
+			return current
+		}
+		current = current.parent
+	}
+	return null
 }

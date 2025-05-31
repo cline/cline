@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { Controller } from "../index"
 import { EmptyRequest } from "../../../shared/proto/common"
 import { State } from "../../../shared/proto/state"
+import { ExtensionState } from "../../../shared/ExtensionMessage"
 
 /**
  * Get the latest extension state
@@ -17,7 +18,7 @@ export async function getLatestState(controller: Controller, _: EmptyRequest): P
 	const stateJson = JSON.stringify(state)
 
 	// Return the state as a JSON string
-	return State.create({
+	return {
 		stateJson,
-	})
+	}
 }
