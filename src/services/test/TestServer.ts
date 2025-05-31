@@ -617,11 +617,13 @@ async function autoRespondToAsk(webviewProvider: WebviewProvider, askType: Cline
 
 	// Send the response message
 	try {
-		await TaskServiceClient.askResponse(AskResponseRequest.create({
-			responseType,
-			text: responseText,
-			images: responseImages,
-		}))
+		await TaskServiceClient.askResponse(
+			AskResponseRequest.create({
+				responseType,
+				text: responseText,
+				images: responseImages,
+			}),
+		)
 		Logger.log(`Auto-responded to ${askType} with ${responseType}`)
 	} catch (error) {
 		Logger.log(`Error sending askResponse: ${error}`)
