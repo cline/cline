@@ -1,27 +1,29 @@
-import React, { memo, useEffect, useRef, useState } from "react"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import MermaidBlock from "@/components/common/MermaidBlock"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
 import type { ComponentProps } from "react"
+import React, { memo, useEffect, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import rehypeKatex from "rehype-katex"
 import remarkMath from "remark-math"
 import styled from "styled-components"
-import { visit } from "unist-util-visit"
 import type { Node } from "unist"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import MermaidBlock from "@/components/common/MermaidBlock"
-import { StateServiceClient } from "@/services/grpc-client"
-import { PlanActMode } from "@shared/proto/state"
+import { visit } from "unist-util-visit"
 
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => (
 	<span
 		onClick={() => {
-			StateServiceClient.togglePlanActMode({
-				chatSettings: {
-					mode: PlanActMode.ACT,
-				},
-			})
+			StateServiceClient.togglePlanActMode(
+				TogglePlanActModeRequest.create({
+					chatSettings: {
+						mode: PlanActMode.ACT,
+					},
+				}),
+			)
 		}}
 		title="Click to toggle to Act Mode"
 		className="text-[var(--vscode-textLink-foreground)] hover:opacity-90 cursor-pointer inline-flex items-center gap-1">

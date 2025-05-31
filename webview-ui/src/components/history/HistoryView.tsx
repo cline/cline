@@ -1,15 +1,16 @@
-import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
-import { Virtuoso } from "react-virtuoso"
-import { memo, useMemo, useState, useEffect, useCallback } from "react"
-import Fuse, { FuseResult } from "fuse.js"
-import { TaskServiceClient } from "@/services/grpc-client"
-import { formatLargeNumber } from "@/utils/format"
-import { formatSize } from "@/utils/format"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { useEvent } from "react-use"
 import DangerButton from "@/components/common/DangerButton"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { TaskServiceClient } from "@/services/grpc-client"
+import { formatLargeNumber, formatSize } from "@/utils/format"
+import { vscode } from "@/utils/vscode"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/common"
+import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/task"
+import { VSCodeButton, VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import Fuse, { FuseResult } from "fuse.js"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { useEvent } from "react-use"
+import { Virtuoso } from "react-virtuoso"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -66,12 +67,14 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	// Load and refresh task history
 	const loadTaskHistory = useCallback(async () => {
 		try {
-			const response = await TaskServiceClient.getTaskHistory({
-				favoritesOnly: showFavoritesOnly,
-				searchQuery: searchQuery || undefined,
-				sortBy: sortOption,
-				currentWorkspaceOnly: showCurrentWorkspaceOnly,
-			})
+			const response = await TaskServiceClient.getTaskHistory(
+				GetTaskHistoryRequest.create({
+					favoritesOnly: showFavoritesOnly,
+					searchQuery: searchQuery || undefined,
+					sortBy: sortOption,
+					currentWorkspaceOnly: showCurrentWorkspaceOnly,
+				}),
+			)
 			setFilteredTasks(response.tasks || [])
 		} catch (error) {
 			console.error("Error loading task history:", error)
@@ -94,10 +97,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			setPendingFavoriteToggles((prev) => ({ ...prev, [taskId]: !currentValue }))
 
 			try {
-				await TaskServiceClient.toggleTaskFavorite({
-					taskId,
-					isFavorited: !currentValue,
-				})
+				await TaskServiceClient.toggleTaskFavorite(
+					TaskFavoriteRequest.create({
+						taskId,
+						isFavorited: !currentValue,
+					}),
+				)
 
 				// Refresh if either filter is active to ensure proper combined filtering
 				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
@@ -136,7 +141,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const fetchTotalTasksSize = useCallback(async () => {
 		try {
-			const response = await TaskServiceClient.getTotalTasksSize({})
+			const response = await TaskServiceClient.getTotalTasksSize(EmptyRequest.create({}))
 			if (response && typeof response.value === "number") {
 				setTotalTasksSize?.(response.value || 0)
 			}
@@ -161,7 +166,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
 	const handleShowTaskWithId = useCallback((id: string) => {
-		TaskServiceClient.showTaskWithId({ value: id }).catch((error) => console.error("Error showing task:", error))
+		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
+			console.error("Error showing task:", error),
+		)
 	}, [])
 
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {
@@ -176,7 +183,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const handleDeleteHistoryItem = useCallback(
 		(id: string) => {
-			TaskServiceClient.deleteTasksWithIds({ value: [id] })
+			TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [id] }))
 				.then(() => fetchTotalTasksSize())
 				.catch((error) => console.error("Error deleting task:", error))
 		},
@@ -186,7 +193,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const handleDeleteSelectedHistoryItems = useCallback(
 		(ids: string[]) => {
 			if (ids.length > 0) {
-				TaskServiceClient.deleteTasksWithIds({ value: ids })
+				TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: ids }))
 					.then(() => fetchTotalTasksSize())
 					.catch((error) => console.error("Error deleting tasks:", error))
 				setSelectedItems([])
@@ -737,7 +744,9 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 		appearance="icon"
 		onClick={(e) => {
 			e.stopPropagation()
-			TaskServiceClient.exportTaskWithId({ value: itemId }).catch((err) => console.error("Failed to export task:", err))
+			TaskServiceClient.exportTaskWithId(StringRequest.create({ value: itemId })).catch((err) =>
+				console.error("Failed to export task:", err),
+			)
 		}}>
 		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
 	</VSCodeButton>

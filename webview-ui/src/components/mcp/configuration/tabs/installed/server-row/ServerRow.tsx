@@ -1,7 +1,11 @@
-import { McpServer } from "@shared/mcp"
-import { DEFAULT_MCP_TIMEOUT_SECONDS } from "@shared/mcp"
-import { useState, useCallback, useEffect } from "react"
-import { vscode } from "@/utils/vscode"
+import DangerButton from "@/components/common/DangerButton"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServiceClient } from "@/services/grpc-client"
+import { getMcpServerDisplayName } from "@/utils/mcp"
+import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "@shared/mcp"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { StringRequest } from "@shared/proto/common"
+import { McpServers, ToggleMcpServerRequest, ToggleToolAutoApproveRequest, UpdateMcpTimeoutRequest } from "@shared/proto/mcp"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -11,15 +15,9 @@ import {
 	VSCodePanelTab,
 	VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react"
-import { getMcpServerDisplayName } from "@/utils/mcp"
-import DangerButton from "@/components/common/DangerButton"
-import McpToolRow from "./McpToolRow"
+import { useCallback, useState } from "react"
 import McpResourceRow from "./McpResourceRow"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { McpServiceClient } from "@/services/grpc-client"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { McpServers, UpdateMcpTimeoutRequest } from "@shared/proto/mcp"
-import { StringRequest } from "@shared/proto/common"
+import McpToolRow from "./McpToolRow"
 // constant JSX.Elements
 const TimeoutOptions = [
 	{ value: "30", label: "30 seconds" },
@@ -134,11 +132,13 @@ const ServerRow = ({
 	const handleAutoApproveChange = () => {
 		if (!server.name) return
 
-		McpServiceClient.toggleToolAutoApprove({
-			serverName: server.name,
-			toolNames: server.tools?.map((tool) => tool.name) || [],
-			autoApprove: !server.tools?.every((tool) => tool.autoApprove),
-		})
+		McpServiceClient.toggleToolAutoApprove(
+			ToggleToolAutoApproveRequest.create({
+				serverName: server.name,
+				toolNames: server.tools?.map((tool) => tool.name) || [],
+				autoApprove: !server.tools?.every((tool) => tool.autoApprove),
+			}),
+		)
 			.then((response) => {
 				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
 				setMcpServers(mcpServers)
@@ -149,10 +149,12 @@ const ServerRow = ({
 	}
 
 	const handleToggleMcpServer = () => {
-		McpServiceClient.toggleMcpServer({
-			serverName: server.name,
-			disabled: !server.disabled,
-		})
+		McpServiceClient.toggleMcpServer(
+			ToggleMcpServerRequest.create({
+				serverName: server.name,
+				disabled: !server.disabled,
+			}),
+		)
 			.then((response) => {
 				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
 				setMcpServers(mcpServers)

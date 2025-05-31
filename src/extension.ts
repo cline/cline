@@ -636,11 +636,15 @@ const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
+	// Dispose all webview instances
+	await WebviewProvider.disposeAllInstances()
+
 	await telemetryService.sendCollectedEvents()
 
 	// Clean up test mode
 	cleanupTestMode()
 	await posthogClientProvider.shutdown()
+
 	Logger.log("Cline extension deactivated")
 }
 

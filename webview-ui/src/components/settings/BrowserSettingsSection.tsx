@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react"
+import { UpdateBrowserSettingsRequest } from "@shared/proto/browser"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
+import React, { useCallback, useEffect, useState } from "react"
+import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import styled from "styled-components"
 import { BrowserServiceClient } from "../../services/grpc-client"
 
 const ConnectionStatusIndicator = ({
@@ -74,7 +76,7 @@ export const BrowserSettingsSection: React.FC = () => {
 	// Request detected Chrome path on mount
 	useEffect(() => {
 		// Use gRPC for getDetectedChromePath
-		BrowserServiceClient.getDetectedChromePath({})
+		BrowserServiceClient.getDetectedChromePath(EmptyRequest.create({}))
 			.then((result) => {
 				setDetectedChromePath(result.path)
 				setIsBundled(result.isBundled)
@@ -100,7 +102,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				setConnectionStatus(null)
 				if (browserSettings.remoteBrowserHost) {
 					// Use gRPC for testBrowserConnection
-					BrowserServiceClient.testBrowserConnection({ value: browserSettings.remoteBrowserHost })
+					BrowserServiceClient.testBrowserConnection(StringRequest.create({ value: browserSettings.remoteBrowserHost }))
 						.then((result) => {
 							setConnectionStatus(result.success)
 							setIsCheckingConnection(false)
@@ -111,7 +113,7 @@ export const BrowserSettingsSection: React.FC = () => {
 							setIsCheckingConnection(false)
 						})
 				} else {
-					BrowserServiceClient.discoverBrowser({})
+					BrowserServiceClient.discoverBrowser(EmptyRequest.create({}))
 						.then((result) => {
 							setConnectionStatus(result.success)
 							setIsCheckingConnection(false)
@@ -140,17 +142,19 @@ export const BrowserSettingsSection: React.FC = () => {
 		const target = event.target as HTMLSelectElement
 		const selectedSize = BROWSER_VIEWPORT_PRESETS[target.value as keyof typeof BROWSER_VIEWPORT_PRESETS]
 		if (selectedSize) {
-			BrowserServiceClient.updateBrowserSettings({
-				metadata: {},
-				viewport: {
-					width: selectedSize.width,
-					height: selectedSize.height,
-				},
-				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
-				remoteBrowserHost: browserSettings.remoteBrowserHost,
-				chromeExecutablePath: browserSettings.chromeExecutablePath,
-				disableToolUse: browserSettings.disableToolUse,
-			})
+			BrowserServiceClient.updateBrowserSettings(
+				UpdateBrowserSettingsRequest.create({
+					metadata: {},
+					viewport: {
+						width: selectedSize.width,
+						height: selectedSize.height,
+					},
+					remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+					remoteBrowserHost: browserSettings.remoteBrowserHost,
+					chromeExecutablePath: browserSettings.chromeExecutablePath,
+					disableToolUse: browserSettings.disableToolUse,
+				}),
+			)
 				.then((response) => {
 					if (!response.value) {
 						console.error("Failed to update browser settings")
@@ -163,18 +167,20 @@ export const BrowserSettingsSection: React.FC = () => {
 	}
 
 	const updateRemoteBrowserEnabled = (enabled: boolean) => {
-		BrowserServiceClient.updateBrowserSettings({
-			metadata: {},
-			viewport: {
-				width: browserSettings.viewport.width,
-				height: browserSettings.viewport.height,
-			},
-			remoteBrowserEnabled: enabled,
-			// If disabling, also clear the host
-			remoteBrowserHost: enabled ? browserSettings.remoteBrowserHost : undefined,
-			chromeExecutablePath: browserSettings.chromeExecutablePath,
-			disableToolUse: browserSettings.disableToolUse,
-		})
+		BrowserServiceClient.updateBrowserSettings(
+			UpdateBrowserSettingsRequest.create({
+				metadata: {},
+				viewport: {
+					width: browserSettings.viewport.width,
+					height: browserSettings.viewport.height,
+				},
+				remoteBrowserEnabled: enabled,
+				// If disabling, also clear the host
+				remoteBrowserHost: enabled ? browserSettings.remoteBrowserHost : undefined,
+				chromeExecutablePath: browserSettings.chromeExecutablePath,
+				disableToolUse: browserSettings.disableToolUse,
+			}),
+		)
 			.then((response) => {
 				if (!response.value) {
 					console.error("Failed to update browser settings")
@@ -186,17 +192,19 @@ export const BrowserSettingsSection: React.FC = () => {
 	}
 
 	const updateRemoteBrowserHost = (host: string | undefined) => {
-		BrowserServiceClient.updateBrowserSettings({
-			metadata: {},
-			viewport: {
-				width: browserSettings.viewport.width,
-				height: browserSettings.viewport.height,
-			},
-			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
-			remoteBrowserHost: host,
-			chromeExecutablePath: browserSettings.chromeExecutablePath,
-			disableToolUse: browserSettings.disableToolUse,
-		})
+		BrowserServiceClient.updateBrowserSettings(
+			UpdateBrowserSettingsRequest.create({
+				metadata: {},
+				viewport: {
+					width: browserSettings.viewport.width,
+					height: browserSettings.viewport.height,
+				},
+				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: host,
+				chromeExecutablePath: browserSettings.chromeExecutablePath,
+				disableToolUse: browserSettings.disableToolUse,
+			}),
+		)
 			.then((response) => {
 				if (!response.value) {
 					console.error("Failed to update browser settings")
@@ -209,17 +217,19 @@ export const BrowserSettingsSection: React.FC = () => {
 
 	const debouncedUpdateChromePath = useCallback(
 		debounce((newPath: string | undefined) => {
-			BrowserServiceClient.updateBrowserSettings({
-				metadata: {},
-				viewport: {
-					width: browserSettings.viewport.width,
-					height: browserSettings.viewport.height,
-				},
-				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
-				remoteBrowserHost: browserSettings.remoteBrowserHost,
-				chromeExecutablePath: newPath,
-				disableToolUse: browserSettings.disableToolUse,
-			})
+			BrowserServiceClient.updateBrowserSettings(
+				UpdateBrowserSettingsRequest.create({
+					metadata: {},
+					viewport: {
+						width: browserSettings.viewport.width,
+						height: browserSettings.viewport.height,
+					},
+					remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+					remoteBrowserHost: browserSettings.remoteBrowserHost,
+					chromeExecutablePath: newPath,
+					disableToolUse: browserSettings.disableToolUse,
+				}),
+			)
 				.then((response) => {
 					if (!response.value) {
 						console.error("Failed to update browser settings for chromeExecutablePath")
@@ -233,17 +243,19 @@ export const BrowserSettingsSection: React.FC = () => {
 	)
 
 	const updateChromeExecutablePath = (path: string | undefined) => {
-		BrowserServiceClient.updateBrowserSettings({
-			metadata: {},
-			viewport: {
-				width: browserSettings.viewport.width,
-				height: browserSettings.viewport.height,
-			},
-			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
-			remoteBrowserHost: browserSettings.remoteBrowserHost,
-			chromeExecutablePath: path,
-			disableToolUse: browserSettings.disableToolUse,
-		})
+		BrowserServiceClient.updateBrowserSettings(
+			UpdateBrowserSettingsRequest.create({
+				metadata: {},
+				viewport: {
+					width: browserSettings.viewport.width,
+					height: browserSettings.viewport.height,
+				},
+				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				chromeExecutablePath: path,
+				disableToolUse: browserSettings.disableToolUse,
+			}),
+		)
 			.then((response) => {
 				if (!response.value) {
 					console.error("Failed to update browser settings")
@@ -260,7 +272,7 @@ export const BrowserSettingsSection: React.FC = () => {
 		// We'll rely on the response to update the connectionStatus
 		if (browserSettings.remoteBrowserHost) {
 			// Use gRPC for testBrowserConnection
-			BrowserServiceClient.testBrowserConnection({ value: browserSettings.remoteBrowserHost })
+			BrowserServiceClient.testBrowserConnection(StringRequest.create({ value: browserSettings.remoteBrowserHost }))
 				.then((result) => {
 					setConnectionStatus(result.success)
 				})
@@ -269,7 +281,7 @@ export const BrowserSettingsSection: React.FC = () => {
 					setConnectionStatus(false)
 				})
 		} else {
-			BrowserServiceClient.discoverBrowser({})
+			BrowserServiceClient.discoverBrowser(EmptyRequest.create({}))
 				.then((result) => {
 					setConnectionStatus(result.success)
 				})
@@ -302,17 +314,19 @@ export const BrowserSettingsSection: React.FC = () => {
 	}, [browserSettings.remoteBrowserEnabled, checkConnectionOnce])
 
 	const updateDisableToolUse = (disabled: boolean) => {
-		BrowserServiceClient.updateBrowserSettings({
-			metadata: {},
-			viewport: {
-				width: browserSettings.viewport.width,
-				height: browserSettings.viewport.height,
-			},
-			remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
-			remoteBrowserHost: browserSettings.remoteBrowserHost,
-			chromeExecutablePath: browserSettings.chromeExecutablePath,
-			disableToolUse: disabled,
-		})
+		BrowserServiceClient.updateBrowserSettings(
+			UpdateBrowserSettingsRequest.create({
+				metadata: {},
+				viewport: {
+					width: browserSettings.viewport.width,
+					height: browserSettings.viewport.height,
+				},
+				remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				chromeExecutablePath: browserSettings.chromeExecutablePath,
+				disableToolUse: disabled,
+			}),
+		)
 			.then((response) => {
 				if (!response.value) {
 					console.error("Failed to update disableToolUse setting")
@@ -328,7 +342,7 @@ export const BrowserSettingsSection: React.FC = () => {
 		setRelaunchResult(null)
 		// The connection status will be automatically updated by our polling
 
-		BrowserServiceClient.relaunchChromeDebugMode({})
+		BrowserServiceClient.relaunchChromeDebugMode(EmptyRequest.create({}))
 			.then((result) => {
 				setRelaunchResult({
 					success: result.success,
