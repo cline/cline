@@ -512,8 +512,16 @@ export class Controller {
 					)
 					break
 				case "openai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openAiModelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openAiModelInfo)
+					const idx = apiConfiguration.openAiSelectedConfigIndex ?? 0
+					const currentConfig =
+						Array.isArray(apiConfiguration.openAiConfigs) && apiConfiguration.openAiConfigs.length > idx
+							? apiConfiguration.openAiConfigs[idx]
+							: undefined
+
+					if (currentConfig) {
+						await updateGlobalState(this.context, "previousModeModelId", currentConfig.openAiModelId)
+						await updateGlobalState(this.context, "previousModeModelInfo", currentConfig.openAiModelInfo)
+					}
 					break
 				case "ollama":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollamaModelId)
