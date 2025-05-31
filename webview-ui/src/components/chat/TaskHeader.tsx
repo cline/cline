@@ -1,18 +1,17 @@
+import HeroTooltip from "@/components/common/HeroTooltip"
+import Thumbnails from "@/components/common/Thumbnails"
+import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { formatLargeNumber, formatSize } from "@/utils/format"
+import { validateSlashCommand } from "@/utils/slash-commands"
+import { mentionRegexGlobal } from "@shared/context-mentions"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { StringArrayRequest, StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import { mentionRegexGlobal } from "@shared/context-mentions"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { formatLargeNumber } from "@/utils/format"
-import { formatSize } from "@/utils/format"
-import { vscode } from "@/utils/vscode"
-import Thumbnails from "@/components/common/Thumbnails"
-import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
-import { validateSlashCommand } from "@/utils/slash-commands"
 import TaskTimeline from "./TaskTimeline"
-import { TaskServiceClient, FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import HeroTooltip from "@/components/common/HeroTooltip"
 const { IS_DEV } = process.env
 
 interface TaskHeaderProps {
@@ -501,7 +500,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 														// After a short delay, send a message to scroll to settings
 														setTimeout(async () => {
 															try {
-																await UiServiceClient.scrollToSettings({ value: "features" })
+																await UiServiceClient.scrollToSettings(
+																	StringRequest.create({ value: "features" }),
+																)
 															} catch (error) {
 																console.error("Error scrolling to checkpoint settings:", error)
 															}
@@ -610,7 +611,7 @@ export const highlightMentions = (text: string, withShadow = true) => {
 					key={index}
 					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
 					style={{ cursor: "pointer" }}
-					onClick={() => FileServiceClient.openMention({ value: part })}>
+					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}>
 					@{part}
 				</span>
 			)
@@ -709,7 +710,7 @@ const DeleteButton: React.FC<{
 	<HeroTooltip content="Delete Task & Checkpoints">
 		<VSCodeButton
 			appearance="icon"
-			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ value: [taskId] })}
+			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))}
 			style={{ padding: "0px 0px" }}>
 			<div
 				style={{

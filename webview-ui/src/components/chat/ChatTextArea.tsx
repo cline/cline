@@ -1,45 +1,46 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import DynamicTextArea from "react-textarea-autosize"
-import { useClickAway, useEvent, useWindowSize } from "react-use"
-import styled from "styled-components"
-import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { MAX_IMAGES_AND_FILES_PER_MESSAGE } from "@/components/chat/ChatView"
+import ContextMenu from "@/components/chat/ContextMenu"
+import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import Thumbnails from "@/components/common/Thumbnails"
+import Tooltip from "@/components/common/Tooltip"
+import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
 	insertMention,
 	insertMentionDirectly,
 	removeMention,
-	shouldShowContextMenu,
 	SearchResult,
+	shouldShowContextMenu,
 } from "@/utils/context-mentions"
+import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import {
-	SlashCommand,
-	slashCommandDeleteRegex,
-	shouldShowSlashCommandsMenu,
 	getMatchingSlashCommands,
 	insertSlashCommand,
 	removeSlashCommand,
+	shouldShowSlashCommandsMenu,
+	SlashCommand,
+	slashCommandDeleteRegex,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
-import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
-import { EmptyRequest } from "@shared/proto/common"
-import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import Thumbnails from "@/components/common/Thumbnails"
-import Tooltip from "@/components/common/Tooltip"
-import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
-import { MAX_IMAGES_AND_FILES_PER_MESSAGE } from "@/components/chat/ChatView"
-import ContextMenu from "@/components/chat/ContextMenu"
-import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { ChatSettings } from "@shared/ChatSettings"
-import ServersToggleModal from "./ServersToggleModal"
+import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { FileSearchRequest, RelativePathsRequest } from "@shared/proto/file"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import DynamicTextArea from "react-textarea-autosize"
+import { useClickAway, useEvent, useWindowSize } from "react-use"
+import styled from "styled-components"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
-import { PlanActMode } from "@shared/proto/state"
+import ServersToggleModal from "./ServersToggleModal"
 
 const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
@@ -320,7 +321,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
 			if (selectedType === ContextMenuOptionType.Git || /^[a-f0-9]+$/i.test(searchQuery)) {
-				FileServiceClient.searchCommits({ value: searchQuery || "" })
+				FileServiceClient.searchCommits(StringRequest.create({ value: searchQuery || "" }))
 					.then((response) => {
 						if (response.commits) {
 							const commits: GitCommit[] = response.commits.map(
@@ -752,10 +753,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
-							FileServiceClient.searchFiles({
-								query: query,
-								mentionsRequestId: query,
-							})
+							FileServiceClient.searchFiles(
+								FileSearchRequest.create({
+									query: query,
+									mentionsRequestId: query,
+								}),
+							)
 								.then((results) => {
 									setFileSearchResults(results.results || [])
 									setSearchLoading(false)
@@ -998,18 +1001,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 			setTimeout(() => {
 				const newMode = chatSettings.mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				StateServiceClient.togglePlanActMode({
-					chatSettings: {
-						mode: newMode,
-						preferredLanguage: chatSettings.preferredLanguage,
-						openAIReasoningEffort: chatSettings.openAIReasoningEffort,
-					},
-					chatContent: {
-						message: inputValue.trim() ? inputValue : undefined,
-						images: selectedImages.length > 0 ? selectedImages : undefined,
-						files: selectedFiles.length > 0 ? selectedFiles : undefined,
-					},
-				})
+				StateServiceClient.togglePlanActMode(
+					TogglePlanActModeRequest.create({
+						chatSettings: {
+							mode: newMode,
+							preferredLanguage: chatSettings.preferredLanguage,
+							openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+						},
+						chatContent: {
+							message: inputValue.trim() ? inputValue : undefined,
+							images: selectedImages.length > 0 ? selectedImages : undefined,
+							files: selectedFiles.length > 0 ? selectedFiles : undefined,
+						},
+					}),
+				)
 				// Focus the textarea after mode toggle with slight delay
 				setTimeout(() => {
 					textAreaRef.current?.focus()
@@ -1265,7 +1270,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 				setIntendedCursorPosition(initialCursorPos)
 
-				FileServiceClient.getRelativePaths({ uris: validUris })
+				FileServiceClient.getRelativePaths(RelativePathsRequest.create({ uris: validUris }))
 					.then((response) => {
 						if (response.paths.length > 0) {
 							setPendingInsertions((prev) => [...prev, ...response.paths])

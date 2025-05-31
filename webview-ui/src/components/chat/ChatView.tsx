@@ -35,6 +35,8 @@ import rehypeParse from "rehype-parse"
 import HomeHeader from "../welcome/HomeHeader"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 import { SuggestedTasks } from "../welcome/SuggestedTasks"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -206,7 +208,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 					if (textToCopy !== null) {
 						try {
-							FileServiceClient.copyToClipboard({ value: textToCopy }).catch((err) => {
+							FileServiceClient.copyToClipboard(StringRequest.create({ value: textToCopy })).catch((err) => {
 								console.error("Error copying to clipboard:", err)
 							})
 							e.preventDefault()
@@ -461,7 +463,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask({ text: messageToSend, images, files })
+					await TaskServiceClient.newTask(NewTaskRequest.create({ text: messageToSend, images, files }))
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -478,12 +480,14 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "new_task": // user can provide feedback or reject the new task suggestion
 						case "condense":
 						case "report_bug":
-							await TaskServiceClient.askResponse({
-								responseType: "messageResponse",
-								text: messageToSend,
-								images,
-								files,
-							})
+							await TaskServiceClient.askResponse(
+								AskResponseRequest.create({
+									responseType: "messageResponse",
+									text: messageToSend,
+									images,
+									files,
+								}),
+							)
 							break
 						// there is no other case that a textfield should be enabled
 					}
@@ -505,7 +509,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const startNewTask = useCallback(async () => {
 		setActiveQuote(null) // Clear the active quote state
-		await TaskServiceClient.clearTask({})
+		await TaskServiceClient.clearTask(EmptyRequest.create({}))
 	}, [])
 
 	/*
@@ -525,16 +529,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "mistake_limit_reached":
 				case "auto_approval_max_req_reached":
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
-						await TaskServiceClient.askResponse({
-							responseType: "yesButtonClicked",
-							text: trimmedInput,
-							images: images,
-							files: files,
-						})
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
 					} else {
-						await TaskServiceClient.askResponse({
-							responseType: "yesButtonClicked",
-						})
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+							}),
+						)
 					}
 					// Clear input state after sending
 					setInputValue("")
@@ -549,17 +557,23 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					break
 				case "new_task":
 					console.info("new task button clicked!", { lastMessage, messages, clineAsk, text })
-					await TaskServiceClient.newTask({
-						text: lastMessage?.text,
-						images: [],
-						files: [],
-					})
+					await TaskServiceClient.newTask(
+						NewTaskRequest.create({
+							text: lastMessage?.text,
+							images: [],
+							files: [],
+						}),
+					)
 					break
 				case "condense":
-					await SlashServiceClient.condense({ value: lastMessage?.text }).catch((err) => console.error(err))
+					await SlashServiceClient.condense(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
+						console.error(err),
+					)
 					break
 				case "report_bug":
-					await SlashServiceClient.reportBug({ value: lastMessage?.text }).catch((err) => console.error(err))
+					await SlashServiceClient.reportBug(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
+						console.error(err),
+					)
 					break
 			}
 			setSendingDisabled(true)
@@ -576,7 +590,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		async (text?: string, images?: string[], files?: string[]) => {
 			const trimmedInput = text?.trim()
 			if (isStreaming) {
-				await TaskServiceClient.cancelTask({})
+				await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 				setDidClickCancel(true)
 				return
 			}
@@ -592,17 +606,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "browser_action_launch":
 				case "use_mcp_server":
 					if (trimmedInput || (images && images.length > 0) || (files && files.length > 0)) {
-						await TaskServiceClient.askResponse({
-							responseType: "noButtonClicked",
-							text: trimmedInput,
-							images: images,
-							files: files,
-						})
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "noButtonClicked",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
 					} else {
 						// responds to the API with a "This operation failed" and lets it try again
-						await TaskServiceClient.askResponse({
-							responseType: "noButtonClicked",
-						})
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "noButtonClicked",
+							}),
+						)
 					}
 					// Clear input state after sending
 					setInputValue("")
@@ -697,34 +715,31 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Set up addToInput subscription
 	useEffect(() => {
-		const cleanup = UiServiceClient.subscribeToAddToInput(
-			{},
-			{
-				onResponse: (event) => {
-					if (event.value) {
-						setInputValue((prevValue) => {
-							const newText = event.value
-							const newTextWithNewline = newText + "\n"
-							return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
-						})
-						// Add scroll to bottom after state update
-						// Auto focus the input and start the cursor on a new line for easy typing
-						setTimeout(() => {
-							if (textAreaRef.current) {
-								textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
-								textAreaRef.current.focus()
-							}
-						}, 0)
-					}
-				},
-				onError: (error) => {
-					console.error("Error in addToInput subscription:", error)
-				},
-				onComplete: () => {
-					console.log("addToInput subscription completed")
-				},
+		const cleanup = UiServiceClient.subscribeToAddToInput(EmptyRequest.create({}), {
+			onResponse: (event) => {
+				if (event.value) {
+					setInputValue((prevValue) => {
+						const newText = event.value
+						const newTextWithNewline = newText + "\n"
+						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
+					})
+					// Add scroll to bottom after state update
+					// Auto focus the input and start the cursor on a new line for easy typing
+					setTimeout(() => {
+						if (textAreaRef.current) {
+							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
+							textAreaRef.current.focus()
+						}
+					}, 0)
+				}
 			},
-		)
+			onError: (error) => {
+				console.error("Error in addToInput subscription:", error)
+			},
+			onComplete: () => {
+				console.log("addToInput subscription completed")
+			},
+		})
 
 		return cleanup
 	}, [])
