@@ -33,7 +33,7 @@ service FileService {
   rpc selectImages(EmptyRequest) returns (StringArray);
 
   // Select images and other files from the file system and returns as data URLs & paths respectively
-  rpc selectFiles(EmptyRequest) returns (StringArrays);
+  rpc selectFiles(BooleanRequest) returns (StringArrays);
   
   // Convert URIs to workspace-relative paths
   rpc getRelativePaths(RelativePathsRequest) returns (RelativePaths);
