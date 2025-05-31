@@ -1411,17 +1411,7 @@ const ApiOptions = ({
 											?.openAiModelInfo?.supportsImages) ||
 									false
 								}
-								onChange={(e: any) => {
-									const isChecked = e.target.checked === true
-									let modelInfo = apiConfiguration?.openAiModelInfo
-										? apiConfiguration.openAiModelInfo
-										: { ...openAiModelInfoSaneDefaults }
-									modelInfo = { ...modelInfo, supportsImages: isChecked }
-									setApiConfiguration({
-										...apiConfiguration,
-										openAiModelInfo: modelInfo,
-									})
-								}}>
+								onChange={handleOpenAiChange("supportsImages", true)}>
 								Supports browser use
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
