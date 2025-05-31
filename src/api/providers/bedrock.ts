@@ -482,7 +482,9 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Prepares system messages with optional caching support
 	 */
 	private prepareSystemMessages(systemPrompt: string, enableCaching: boolean): any[] | undefined {
-		if (!systemPrompt) return undefined
+		if (!systemPrompt) {
+			return undefined
+		}
 
 		if (enableCaching) {
 			return [{ text: systemPrompt }, { cachePoint: { type: "default" } }]
