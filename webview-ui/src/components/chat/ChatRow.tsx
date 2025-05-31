@@ -41,6 +41,11 @@ interface CopyButtonProps {
 	textToCopy: string | undefined
 }
 
+const normalColor = "var(--vscode-foreground)"
+const errorColor = "var(--vscode-errorForeground)"
+const successColor = "var(--vscode-charts-green)"
+const cancelledColor = "var(--vscode-descriptionForeground)"
+
 const CopyButtonStyled = styled(VSCodeButton)`
 	position: absolute;
 	bottom: 2px;
@@ -153,6 +158,40 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 	)
 })
 
+const RetryMessage = ({ seconds, attempt, retryOperations }: { retryOperations: number; attempt: number; seconds?: number }) => {
+	const [remainingSeconds, setRemainingSeconds] = useState(seconds || 0)
+
+	useEffect(() => {
+		if (seconds && seconds > 0) {
+			setRemainingSeconds(seconds)
+
+			const interval = setInterval(() => {
+				setRemainingSeconds((prev) => {
+					if (prev <= 1) {
+						clearInterval(interval)
+						return 0
+					}
+					return prev - 1
+				})
+			}, 1000)
+
+			return () => clearInterval(interval)
+		}
+	}, [seconds])
+
+	return (
+		<span
+			style={{
+				color: normalColor,
+				fontWeight: "bold",
+			}}>
+			{`API Request (Retrying failed attempt ${attempt}/${retryOperations}`}
+			{remainingSeconds > 0 && ` in ${remainingSeconds} seconds`}
+			)...
+		</span>
+	)
+}
+
 const ChatRow = memo(
 	(props: ChatRowProps) => {
 		const { isLast, onHeightChange, message, lastModifiedMessage, inputValue } = props
@@ -229,11 +268,6 @@ export const ChatRowContent = ({
 	const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
 
 	const type = message.type === "ask" ? message.ask : message.say
-
-	const normalColor = "var(--vscode-foreground)"
-	const errorColor = "var(--vscode-errorForeground)"
-	const successColor = "var(--vscode-charts-green)"
-	const cancelledColor = "var(--vscode-descriptionForeground)"
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -448,11 +482,11 @@ export const ChatRowContent = ({
 						if (retryStatus && cost == null && !apiReqCancelReason) {
 							const retryOperations = retryStatus.maxAttempts > 0 ? retryStatus.maxAttempts - 1 : 0
 							return (
-								<span
-									style={{
-										color: normalColor,
-										fontWeight: "bold",
-									}}>{`API Request (Retrying failed attempt ${retryStatus.attempt}/${retryOperations})...`}</span>
+								<RetryMessage
+									seconds={retryStatus.delaySec}
+									attempt={retryStatus.attempt}
+									retryOperations={retryOperations}
+								/>
 							)
 						}
 
