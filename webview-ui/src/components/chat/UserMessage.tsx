@@ -1,10 +1,11 @@
-import React, { useState, useRef, forwardRef, useCallback } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
-import { highlightText } from "./TaskHeader"
-import DynamicTextArea from "react-textarea-autosize"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { CheckpointRestoreRequest } from "@shared/proto/checkpoints"
+import React, { forwardRef, useRef, useState } from "react"
+import DynamicTextArea from "react-textarea-autosize"
+import { highlightText } from "./TaskHeader"
 
 interface UserMessageProps {
 	text?: string
@@ -46,11 +47,13 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 		}
 
 		try {
-			await CheckpointsServiceClient.checkpointRestore({
-				number: messageTs,
-				restoreType: type,
-				offset: 1,
-			})
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType: type,
+					offset: 1,
+				}),
+			)
 
 			setTimeout(() => {
 				sendMessageFromChatRow?.(editedText, images || [], files || [])
