@@ -10,6 +10,8 @@ import {
 	openRouterDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
+	makehubDefaultModelId,
+	makehubDefaultModelInfo,
 } from "../../../src/shared/api"
 import { findLastIndex } from "@shared/array"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
@@ -26,6 +28,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
+	makehubModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
@@ -184,6 +187,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
+	const [makehubModels, setMakehubModels] = useState<Record<string, ModelInfo>>({
+		[makehubDefaultModelId]: makehubDefaultModelInfo,
+	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -255,6 +261,14 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 				break
 			}
+			case "makehubModels": {
+				const updatedModels = message.makehubModels ?? {}
+				setMakehubModels({
+					[makehubDefaultModelId]: makehubDefaultModelInfo,
+					...updatedModels,
+				})
+				break
+			}
 			case "mcpServers": {
 				setMcpServers(message.mcpServers ?? [])
 				break
@@ -322,6 +336,7 @@ export const ExtensionStateContextProvider: React.FC<{
 											config.asksageApiKey,
 											config.xaiApiKey,
 											config.sambanovaApiKey,
+											config.makehubApiKey,
 										].some((key) => key !== undefined)
 									: false
 
@@ -379,6 +394,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModels,
 		openAiModels,
 		requestyModels,
+		makehubModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		filePaths,

@@ -24,6 +24,7 @@ import { FireworksHandler } from "./providers/fireworks"
 import { AskSageHandler } from "./providers/asksage"
 import { XAIHandler } from "./providers/xai"
 import { SambanovaHandler } from "./providers/sambanova"
+import { MakehubHandler } from "./providers/makehub"
 import { CerebrasHandler } from "./providers/cerebras"
 
 export interface ApiHandler {
@@ -85,8 +86,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new XAIHandler(options)
 		case "sambanova":
 			return new SambanovaHandler(options)
-		case "cerebras":
-			return new CerebrasHandler(options)
+		case "makehub":
+			return new MakehubHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

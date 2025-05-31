@@ -24,6 +24,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "makehub"
 	| "cerebras"
 
 export interface ApiHandlerOptions {
@@ -92,6 +93,10 @@ export interface ApiHandlerOptions {
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
 	requestTimeoutMs?: number
+	makehubApiKey?: string
+	makehubModelId?: string
+	makehubModelInfo?: ModelInfo
+	makehubPerfRatio?: number
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 }
 
@@ -123,6 +128,7 @@ export interface ModelInfo {
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
+	displayName?: string // Display name for the model
 	tiers?: {
 		contextWindow: number
 		inputPrice?: number
@@ -2071,5 +2077,19 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	outputPrice: 15.0,
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
+	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+}
+
+// Makehub
+// https://api.makehub.ai/v1/models
+export const makehubDefaultModelId = "anthropic/claude-3-7-sonnet"
+export const makehubDefaultModelInfo: ModelInfo = {
+	displayName: "Claude 3.7 Sonnet",
+	contextWindow: 200000,
+	maxTokens: 8192,
+	supportsImages: true,
+	supportsPromptCache: false,
+	inputPrice: 3,
+	outputPrice: 15,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
 }
