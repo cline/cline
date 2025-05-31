@@ -14,6 +14,7 @@ import {
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
+import { withRetry } from "../retry"
 
 export class QwenHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -48,6 +49,7 @@ export class QwenHandler implements ApiHandler {
 		}
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		const isDeepseekReasoner = model.id.includes("deepseek-r1")

@@ -4,6 +4,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { withRetry } from "../retry"
 
 export class DoubaoHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -28,6 +29,7 @@ export class DoubaoHandler implements ApiHandler {
 		}
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
