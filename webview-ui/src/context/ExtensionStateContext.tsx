@@ -1,9 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react"
-import { useEvent } from "react-use"
-import { StateServiceClient } from "../services/grpc-client"
-import { EmptyRequest } from "@shared/proto/common"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
+import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
+import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { findLastIndex } from "@shared/array"
+import { EmptyRequest } from "@shared/proto/common"
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { useEvent } from "react-use"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -12,13 +15,10 @@ import {
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
-import { findLastIndex } from "@shared/array"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import { ModelsServiceClient, StateServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
-import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -59,6 +59,10 @@ interface ExtensionStateContextType extends ExtensionState {
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
+	setTotalTasksSize: (value: number | null) => void
+
+	// Refresh functions
+	refreshOpenRouterModels: () => void
 
 	// Navigation state setters
 	setShowMcp: (value: boolean) => void
@@ -156,7 +160,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
-		vscMachineId: "",
+		distinctId: "",
 		planActSeparateModelsSetting: true,
 		enableCheckpointsSetting: true,
 		globalClineRulesToggles: {},
@@ -203,60 +207,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					case "chatButtonClicked":
 						navigateToChat()
 						break
-				}
-				break
-			}
-			case "state": {
-				// Handler for direct state messages
-				if (message.state) {
-					const stateData = message.state as ExtensionState
-					console.log("[Webview Context Test Revert] Received direct 'state' message, updating state.")
-					setState((prevState) => {
-						// Versioning logic for autoApprovalSettings (copied from original onResponse)
-						const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
-						const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-						const shouldUpdateAutoApproval = incomingVersion > currentVersion
-
-						const newState = {
-							...stateData,
-							autoApprovalSettings: shouldUpdateAutoApproval
-								? stateData.autoApprovalSettings
-								: prevState.autoApprovalSettings,
-						}
-
-						// Update welcome screen state based on API configuration (copied from original onResponse)
-						const config = stateData.apiConfiguration
-						const hasKey = config
-							? [
-									config.apiKey,
-									config.openRouterApiKey,
-									config.awsRegion,
-									config.vertexProjectId,
-									config.openAiApiKey,
-									config.ollamaModelId,
-									config.lmStudioModelId,
-									config.liteLlmApiKey,
-									config.geminiApiKey,
-									config.openAiNativeApiKey,
-									config.deepSeekApiKey,
-									config.requestyApiKey,
-									config.togetherApiKey,
-									config.qwenApiKey,
-									config.doubaoApiKey,
-									config.mistralApiKey,
-									config.vsCodeLmModelSelector,
-									config.clineApiKey,
-									config.asksageApiKey,
-									config.xaiApiKey,
-									config.sambanovaApiKey,
-									config.nebiusApiKey,
-								].some((key) => key !== undefined)
-							: false
-
-						setShowWelcome(!hasKey)
-						setDidHydrateState(true)
-						return newState
-					})
 				}
 				break
 			}
@@ -316,10 +266,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				}
 				break
 			}
-			case "totalTasksSize": {
-				setTotalTasksSize(message.totalTasksSize ?? null)
-				break
-			}
 		}
 	}, [])
 
@@ -329,103 +275,98 @@ export const ExtensionStateContextProvider: React.FC<{
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates using the new gRPC streaming API
-	/* // TEST REVERT: Commenting out gRPC state subscription
 	useEffect(() => {
 		// Set up state subscription
-		stateSubscriptionRef.current = StateServiceClient.subscribeToState(
-			{},
-			{
-				onResponse: (response) => {
-					console.log("[DEBUG] got state update via subscription", response);
-					if (response.stateJson) {
-						try {
-							const stateData = JSON.parse(response.stateJson) as ExtensionState;
-							console.log("[DEBUG] parsed state JSON, updating state");
-							setState((prevState) => {
-								// Versioning logic for autoApprovalSettings
-								const incomingVersion = stateData.autoApprovalSettings?.version ?? 1;
-								const currentVersion = prevState.autoApprovalSettings?.version ?? 1;
-								const shouldUpdateAutoApproval = incomingVersion > currentVersion;
+		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
+			onResponse: (response) => {
+				if (response.stateJson) {
+					try {
+						const stateData = JSON.parse(response.stateJson) as ExtensionState
+						console.log("[DEBUG] parsed state JSON, updating state")
+						setState((prevState) => {
+							// Versioning logic for autoApprovalSettings
+							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
-								const newState = {
-									...stateData,
-									autoApprovalSettings: shouldUpdateAutoApproval
-										? stateData.autoApprovalSettings
-										: prevState.autoApprovalSettings,
-								};
+							const newState = {
+								...stateData,
+								autoApprovalSettings: shouldUpdateAutoApproval
+									? stateData.autoApprovalSettings
+									: prevState.autoApprovalSettings,
+							}
 
-								// Update welcome screen state based on API configuration
-								const config = stateData.apiConfiguration;
-								const hasKey = config
-									? [
-											config.apiKey,
-											config.openRouterApiKey,
-											config.awsRegion,
-											config.vertexProjectId,
-											config.openAiApiKey,
-											config.ollamaModelId,
-											config.lmStudioModelId,
-											config.liteLlmApiKey,
-											config.geminiApiKey,
-											config.openAiNativeApiKey,
-											config.deepSeekApiKey,
-											config.requestyApiKey,
-											config.togetherApiKey,
-											config.qwenApiKey,
-											config.doubaoApiKey,
-											config.mistralApiKey,
-											config.vsCodeLmModelSelector,
-											config.clineApiKey,
-											config.asksageApiKey,
-											config.xaiApiKey,
-											config.sambanovaApiKey,
-										].some((key) => key !== undefined)
-									: false;
+							// Update welcome screen state based on API configuration
+							const config = stateData.apiConfiguration
+							const hasKey = config
+								? [
+										config.apiKey,
+										config.openRouterApiKey,
+										config.awsRegion,
+										config.vertexProjectId,
+										config.openAiApiKey,
+										config.ollamaModelId,
+										config.lmStudioModelId,
+										config.liteLlmApiKey,
+										config.geminiApiKey,
+										config.openAiNativeApiKey,
+										config.deepSeekApiKey,
+										config.requestyApiKey,
+										config.togetherApiKey,
+										config.qwenApiKey,
+										config.doubaoApiKey,
+										config.mistralApiKey,
+										config.vsCodeLmModelSelector,
+										config.clineApiKey,
+										config.asksageApiKey,
+										config.xaiApiKey,
+										config.sambanovaApiKey,
+									].some((key) => key !== undefined)
+								: false
 
-								setShowWelcome(!hasKey);
-								setDidHydrateState(true);
+							setShowWelcome(!hasKey)
+							setDidHydrateState(true)
 
-								console.log("[DEBUG] returning new state in ESC");
+							console.log("[DEBUG] returning new state in ESC")
 
-								return newState;
-							});
-						} catch (error) {
-							console.error("Error parsing state JSON:", error);
-							console.log("[DEBUG] ERR getting state", error);
-						}
+							return newState
+						})
+					} catch (error) {
+						console.error("Error parsing state JSON:", error)
+						console.log("[DEBUG] ERR getting state", error)
 					}
-					console.log('[DEBUG] ended "got subscribed state"');
-				},
-				onError: (error) => {
-					console.error("Error in state subscription:", error);
-				},
-				onComplete: () => {
-					console.log("State subscription completed");
-				},
+				}
+				console.log('[DEBUG] ended "got subscribed state"')
 			},
-		);
+			onError: (error) => {
+				console.error("Error in state subscription:", error)
+			},
+			onComplete: () => {
+				console.log("State subscription completed")
+			},
+		})
 
 		// Still send the webviewDidLaunch message for other initialization
-		vscode.postMessage({ type: "webviewDidLaunch" });
+		vscode.postMessage({ type: "webviewDidLaunch" })
 
 		// Clean up subscription when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
-				stateSubscriptionRef.current();
-				stateSubscriptionRef.current = null;
+				stateSubscriptionRef.current()
+				stateSubscriptionRef.current = null
 			}
-		};
-	}, []);
-	*/ // END TEST REVERT
+		}
+	}, [])
 
-	// For the test revert, ensure webviewDidLaunch is still sent if not done by the above useEffect
-	useEffect(() => {
-		// This effect now only sends webviewDidLaunch if the gRPC subscription is commented out.
-		// If the gRPC subscription is active, it sends webviewDidLaunch.
-		// To avoid sending it twice if you uncomment the above, you might add a flag.
-		// For this specific test (gRPC sub commented out), this is fine.
-		console.log("[Webview Context Test Revert] Sending webviewDidLaunch from separate useEffect.")
-		vscode.postMessage({ type: "webviewDidLaunch" })
+	const refreshOpenRouterModels = useCallback(() => {
+		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
+			.then((res) => {
+				setOpenRouterModels({
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					...res.models,
+				})
+			})
+			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
 	}, [])
 
 	const contextValue: ExtensionStateContextType = {
@@ -558,6 +499,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				globalWorkflowToggles: toggles,
 			})),
 		setMcpTab,
+		setTotalTasksSize,
+		refreshOpenRouterModels,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

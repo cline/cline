@@ -37,6 +37,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `File Edit: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "newFileCreated") {
 								return `New File: ${toolData.path || "Unknown file"}`
+							} else if (toolData.tool === "webFetch") {
+								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
 							return `Tool: ${toolData.tool}`
 						} catch (e) {
@@ -81,6 +83,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `File Edit Approval: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "newFileCreated") {
 								return `New File Approval: ${toolData.path || "Unknown file"}`
+							} else if (toolData.tool === "webFetch") {
+								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
 							return `Tool Approval: ${toolData.tool}`
 						} catch (e) {
@@ -173,6 +177,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return COLOR_BEIGE // Beige for file read operations
 							} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 								return COLOR_BLUE // Blue for file edit/create operations
+							} else if (toolData.tool === "webFetch") {
+								return COLOR_PURPLE // Beige for web fetch operations
 							}
 						} catch (e) {
 							// JSON parse error here
@@ -211,6 +217,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return COLOR_BEIGE // Beige for file read operations
 							} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 								return COLOR_BLUE // Blue for file edit/create operations
+							} else if (toolData.tool === "webFetch") {
+								return COLOR_PURPLE // Purple for web fetch operations
 							}
 						} catch (e) {
 							// JSON parse error here

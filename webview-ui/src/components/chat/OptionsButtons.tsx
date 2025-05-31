@@ -1,6 +1,7 @@
-import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { vscode } from "@/utils/vscode"
+import { TaskServiceClient } from "@/services/grpc-client"
+import { AskResponseRequest } from "@shared/proto/task"
+import styled from "styled-components"
 
 const OptionButton = styled.button<{ isSelected?: boolean; isNotSelectable?: boolean }>`
 	padding: 8px 12px;
@@ -56,14 +57,21 @@ export const OptionsButtons = ({
 					key={index}
 					isSelected={option === selected}
 					isNotSelectable={hasSelected || !isActive}
-					onClick={() => {
+					onClick={async () => {
 						if (hasSelected || !isActive) {
 							return
 						}
-						vscode.postMessage({
-							type: "optionsResponse",
-							text: option + (inputValue ? `: ${inputValue?.trim()}` : ""),
-						})
+						try {
+							await TaskServiceClient.askResponse(
+								AskResponseRequest.create({
+									responseType: "messageResponse",
+									text: option + (inputValue ? `: ${inputValue?.trim()}` : ""),
+									images: [],
+								}),
+							)
+						} catch (error) {
+							console.error("Error sending option response:", error)
+						}
 					}}>
 					<span className="ph-no-capture">{option}</span>
 				</OptionButton>
