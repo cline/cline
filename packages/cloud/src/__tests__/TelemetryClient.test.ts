@@ -363,6 +363,13 @@ describe("TelemetryClient", () => {
 			})
 
 			const eventProperties = {
+				appName: "roo-code",
+				appVersion: "1.0.0",
+				vscodeVersion: "1.60.0",
+				platform: "darwin",
+				editorName: "vscode",
+				language: "en",
+				mode: "code",
 				taskId: "test-task-id",
 				message: {
 					ts: 1,

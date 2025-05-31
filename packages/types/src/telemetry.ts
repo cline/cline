@@ -118,6 +118,7 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal(TelemetryEventName.TASK_MESSAGE),
 		properties: z.object({
+			...telemetryPropertiesSchema.shape,
 			taskId: z.string(),
 			message: clineMessageSchema,
 		}),
