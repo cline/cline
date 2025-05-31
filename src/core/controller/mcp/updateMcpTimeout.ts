@@ -15,7 +15,7 @@ export async function updateMcpTimeout(controller: Controller, request: UpdateMc
 			console.log("mcpServers", mcpServers)
 			const convertedMcpServers = convertMcpServersToProtoMcpServers(mcpServers)
 			console.log("convertedMcpServers", convertedMcpServers)
-			return { mcpServers: convertedMcpServers }
+			return McpServers.create({ mcpServers: convertedMcpServers })
 		} else {
 			console.error("Server name and timeout are required")
 			throw new Error("Server name and timeout are required")

@@ -15,7 +15,7 @@ export async function updateTerminalConnectionTimeout(controller: Controller, re
 		if (typeof timeout === "number" && !isNaN(timeout) && timeout > 0) {
 			// Update the global state directly
 			await updateGlobalState(controller.context, "shellIntegrationTimeout", timeout)
-			return { value: timeout }
+			return Int64.create({ value: timeout })
 		} else {
 			console.warn(`Invalid shell integration timeout value received: ${timeout}. Expected a positive number.`)
 			throw new Error("Invalid timeout value. Expected a positive number.")
