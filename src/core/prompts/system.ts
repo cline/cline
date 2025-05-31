@@ -553,6 +553,7 @@ In each user message, the environment_details will specify the current mode. The
 - PLAN MODE: In this special mode, you have access to the plan_mode_respond tool.
  - In PLAN MODE, the goal is to gather information and get context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
  - In PLAN MODE, when you need to converse with the user or present a plan, you should use the plan_mode_respond tool to deliver your response directly, rather than using <thinking> tags to analyze when to respond. Do not talk about using plan_mode_respond - just use it directly to share your thoughts and provide helpful answers.
+ - In PLAN MODE, file editing tools (write_to_file and replace_in_file) cannot be used. If you need to edit a file, please request the user to switch to ACT MODE.
 
 ## What is PLAN MODE?
 
