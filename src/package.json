@@ -11,7 +11,7 @@
 	},
 	"engines": {
 		"vscode": "^1.84.0",
-		"node": "20.18.1"
+		"node": "20.19.2"
 	},
 	"author": {
 		"name": "Roo Code"
