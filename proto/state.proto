@@ -13,6 +13,7 @@ service StateService {
   rpc togglePlanActMode(TogglePlanActModeRequest) returns (Empty);
   rpc updateTerminalConnectionTimeout(Int64Request) returns (Int64);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
+  rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
 }
 
 message State {
@@ -63,4 +64,15 @@ message AutoApprovalSettingsRequest {
   int32 max_requests = 5;
   bool enable_notifications = 6;
   repeated string favorites = 7;
+}
+
+enum TelemetrySettingEnum {
+  UNSET = 0;
+  ENABLED = 1;
+  DISABLED = 2;
+}
+
+message TelemetrySettingRequest {
+  Metadata metadata = 1;
+  TelemetrySettingEnum setting = 2;
 }

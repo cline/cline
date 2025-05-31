@@ -36,6 +36,7 @@ import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { StateServiceClient } from "@/services/grpc-client"
+import { TelemetrySettingEnum } from "@shared/proto/state"
 import FeatureSettingsSection from "./FeatureSettingsSection"
 import BrowserSettingsSection from "./BrowserSettingsSection"
 import TerminalSettingsSection from "./TerminalSettingsSection"
@@ -197,7 +198,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			type: "updateSettings",
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
-			telemetrySetting,
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
 			apiConfiguration: apiConfigurationToSubmit,
@@ -608,9 +608,19 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 											<VSCodeCheckbox
 												className="mb-[5px]"
 												checked={telemetrySetting !== "disabled"}
-												onChange={(e: any) => {
+												onChange={async (e: any) => {
 													const checked = e.target.checked === true
-													setTelemetrySetting(checked ? "enabled" : "disabled")
+													const newSetting = checked ? "enabled" : "disabled"
+													setTelemetrySetting(newSetting)
+													try {
+														await StateServiceClient.updateTelemetrySetting({
+															setting: checked
+																? TelemetrySettingEnum.ENABLED
+																: TelemetrySettingEnum.DISABLED,
+														})
+													} catch (error) {
+														console.error("Error updating telemetry setting:", error)
+													}
 												}}>
 												Allow anonymous error and usage reporting
 											</VSCodeCheckbox>
