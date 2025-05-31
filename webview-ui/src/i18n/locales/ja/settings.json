@@ -189,6 +189,11 @@
 		"awsSessionToken": "AWSセッショントークン",
 		"awsRegion": "AWSリージョン",
 		"awsCrossRegion": "クロスリージョン推論を使用",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "カスタムVPCエンドポイントを使用",
+			"vpcEndpointUrlPlaceholder": "VPCエンドポイントURLを入力（任意）",
+			"examples": "例："
+		},
 		"enablePromptCaching": "プロンプトキャッシュを有効化",
 		"enablePromptCachingTitle": "サポートされているモデルのパフォーマンスを向上させ、コストを削減するためにプロンプトキャッシュを有効化します。",
 		"cacheUsageNote": "注意：キャッシュの使用が表示されない場合は、別のモデルを選択してから希望のモデルを再度選択してみてください。",

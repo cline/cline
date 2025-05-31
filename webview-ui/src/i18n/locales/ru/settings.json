@@ -189,6 +189,11 @@
 		"awsSessionToken": "AWS Session Token",
 		"awsRegion": "Регион AWS",
 		"awsCrossRegion": "Использовать кросс-региональный вывод",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "Использовать пользовательскую конечную точку VPC",
+			"vpcEndpointUrlPlaceholder": "Введите URL конечной точки VPC (опционально)",
+			"examples": "Примеры:"
+		},
 		"enablePromptCaching": "Включить кэширование подсказок",
 		"enablePromptCachingTitle": "Включить кэширование подсказок для повышения производительности и снижения затрат для поддерживаемых моделей.",
 		"cacheUsageNote": "Примечание: если вы не видите использование кэша, попробуйте выбрать другую модель, а затем вернуться к нужной.",

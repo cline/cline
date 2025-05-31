@@ -189,6 +189,11 @@
 		"awsSessionToken": "AWS 会话Token",
 		"awsRegion": "AWS 区域",
 		"awsCrossRegion": "使用跨区域推理",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "使用自定义 VPC 端点",
+			"vpcEndpointUrlPlaceholder": "输入 VPC 端点 URL（可选）",
+			"examples": "示例："
+		},
 		"enablePromptCaching": "启用提示缓存",
 		"enablePromptCachingTitle": "开启提示缓存可提升性能并节省成本",
 		"cacheUsageNote": "提示：若未显示缓存使用情况，请切换模型后重新选择",

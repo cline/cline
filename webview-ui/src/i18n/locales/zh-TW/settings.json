@@ -189,6 +189,11 @@
 		"awsSessionToken": "AWS 工作階段權杖",
 		"awsRegion": "AWS 區域",
 		"awsCrossRegion": "使用跨區域推論",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "使用自訂 VPC 端點",
+			"vpcEndpointUrlPlaceholder": "輸入 VPC 端點 URL（選填）",
+			"examples": "範例："
+		},
 		"enablePromptCaching": "啟用提示快取",
 		"enablePromptCachingTitle": "啟用提示快取以提升支援的模型效能並降低成本。",
 		"cacheUsageNote": "注意：如果您沒有看到快取使用情況，請嘗試選擇其他模型，然後重新選擇您想要的模型。",

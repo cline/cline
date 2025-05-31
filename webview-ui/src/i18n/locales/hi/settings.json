@@ -189,6 +189,11 @@
 		"awsSessionToken": "AWS सत्र टोकन",
 		"awsRegion": "AWS क्षेत्र",
 		"awsCrossRegion": "क्रॉस-क्षेत्र अनुमान का उपयोग करें",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "कस्टम VPC एंडपॉइंट का उपयोग करें",
+			"vpcEndpointUrlPlaceholder": "VPC एंडपॉइंट URL दर्ज करें (वैकल्पिक)",
+			"examples": "उदाहरण:"
+		},
 		"enablePromptCaching": "प्रॉम्प्ट कैशिंग सक्षम करें",
 		"enablePromptCachingTitle": "समर्थित मॉडल के लिए प्रदर्शन में सुधार और लागत को कम करने के लिए प्रॉम्प्ट कैशिंग सक्षम करें।",
 		"cacheUsageNote": "नोट: यदि आप कैश उपयोग नहीं देखते हैं, तो एक अलग मॉडल चुनने का प्रयास करें और फिर अपने वांछित मॉडल को पुनः चुनें।",

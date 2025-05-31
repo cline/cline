@@ -169,6 +169,9 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 		const clientConfig: BedrockRuntimeClientConfig = {
 			region: this.options.awsRegion,
+			// Add the endpoint configuration when specified and enabled
+			...(this.options.awsBedrockEndpoint &&
+				this.options.awsBedrockEndpointEnabled && { endpoint: this.options.awsBedrockEndpoint }),
 		}
 
 		if (this.options.awsUseProfile && this.options.awsProfile) {

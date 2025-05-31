@@ -189,6 +189,11 @@
 		"awsSessionToken": "AWS-sessietoken",
 		"awsRegion": "AWS-regio",
 		"awsCrossRegion": "Gebruik cross-region inference",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "Aangepast VPC-eindpunt gebruiken",
+			"vpcEndpointUrlPlaceholder": "Voer VPC-eindpunt URL in (optioneel)",
+			"examples": "Voorbeelden:"
+		},
 		"enablePromptCaching": "Prompt caching inschakelen",
 		"enablePromptCachingTitle": "Schakel prompt caching in om de prestaties te verbeteren en de kosten te verlagen voor ondersteunde modellen.",
 		"cacheUsageNote": "Let op: als je geen cachegebruik ziet, probeer dan een ander model te selecteren en vervolgens weer je gewenste model.",

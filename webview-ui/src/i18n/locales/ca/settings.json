@@ -189,6 +189,11 @@
 		"awsSessionToken": "Token de sessió d'AWS",
 		"awsRegion": "Regió d'AWS",
 		"awsCrossRegion": "Utilitzar inferència entre regions",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "Utilitzar punt final VPC personalitzat",
+			"vpcEndpointUrlPlaceholder": "Introduïu l'URL del punt final VPC (opcional)",
+			"examples": "Exemples:"
+		},
 		"enablePromptCaching": "Habilitar emmagatzematge en caché de prompts",
 		"enablePromptCachingTitle": "Habilitar l'emmagatzematge en caché de prompts per millorar el rendiment i reduir els costos per als models compatibles.",
 		"cacheUsageNote": "Nota: Si no veieu l'ús de la caché, proveu de seleccionar un model diferent i després tornar a seleccionar el model desitjat.",

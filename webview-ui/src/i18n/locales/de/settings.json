@@ -189,6 +189,11 @@
 		"awsSessionToken": "AWS Sitzungstoken",
 		"awsRegion": "AWS Region",
 		"awsCrossRegion": "Regionsübergreifende Inferenz verwenden",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "Benutzerdefinierten VPC-Endpunkt verwenden",
+			"vpcEndpointUrlPlaceholder": "VPC-Endpunkt-URL eingeben (optional)",
+			"examples": "Beispiele:"
+		},
 		"enablePromptCaching": "Prompt-Caching aktivieren",
 		"enablePromptCachingTitle": "Prompt-Caching aktivieren, um die Leistung zu verbessern und Kosten für unterstützte Modelle zu reduzieren.",
 		"cacheUsageNote": "Hinweis: Wenn Sie keine Cache-Nutzung sehen, versuchen Sie ein anderes Modell auszuwählen und dann Ihr gewünschtes Modell erneut auszuwählen.",

@@ -189,6 +189,11 @@
 		"awsSessionToken": "Token di sessione AWS",
 		"awsRegion": "Regione AWS",
 		"awsCrossRegion": "Usa inferenza cross-regione",
+		"awsBedrockVpc": {
+			"useCustomVpcEndpoint": "Usa endpoint VPC personalizzato",
+			"vpcEndpointUrlPlaceholder": "Inserisci URL endpoint VPC (opzionale)",
+			"examples": "Esempi:"
+		},
 		"enablePromptCaching": "Abilita cache dei prompt",
 		"enablePromptCachingTitle": "Abilita la cache dei prompt per migliorare le prestazioni e ridurre i costi per i modelli supportati.",
 		"cacheUsageNote": "Nota: Se non vedi l'utilizzo della cache, prova a selezionare un modello diverso e poi seleziona nuovamente il modello desiderato.",

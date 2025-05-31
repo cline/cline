@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { Checkbox } from "vscrui"
 import { VSCodeTextField, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 
@@ -17,6 +17,12 @@ type BedrockProps = {
 
 export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedModelInfo }: BedrockProps) => {
 	const { t } = useAppTranslation()
+	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpointEnabled)
+
+	// Update the endpoint enabled state when the configuration changes
+	useEffect(() => {
+		setAwsEndpointSelected(!!apiConfiguration?.awsBedrockEndpointEnabled)
+	}, [apiConfiguration?.awsBedrockEndpointEnabled])
 
 	const handleInputChange = useCallback(
 		<K extends keyof ProviderSettings, E>(
@@ -120,6 +126,31 @@ export const Bedrock = ({ apiConfiguration, setApiConfigurationField, selectedMo
 					{t("settings:providers.cacheUsageNote")}
 				</div>
 			</div>
+			<Checkbox
+				checked={awsEndpointSelected}
+				onChange={(isChecked) => {
+					setAwsEndpointSelected(isChecked)
+					setApiConfigurationField("awsBedrockEndpointEnabled", isChecked)
+				}}>
+				{t("settings:providers.awsBedrockVpc.useCustomVpcEndpoint")}
+			</Checkbox>
+			{awsEndpointSelected && (
+				<>
+					<VSCodeTextField
+						value={apiConfiguration?.awsBedrockEndpoint || ""}
+						style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
+						type="url"
+						onInput={handleInputChange("awsBedrockEndpoint")}
+						placeholder={t("settings:providers.awsBedrockVpc.vpcEndpointUrlPlaceholder")}
+						data-testid="vpc-endpoint-input"
+					/>
+					<div className="text-sm text-vscode-descriptionForeground ml-6 mt-1 mb-3">
+						{t("settings:providers.awsBedrockVpc.examples")}
+						<div className="ml-2">• https://vpce-xxx.bedrock.region.vpce.amazonaws.com/</div>
+						<div className="ml-2">• https://gateway.my-company.com/route/app/bedrock</div>
+					</div>
+				</>
+			)}
 		</>
 	)
 }
