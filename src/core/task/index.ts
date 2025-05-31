@@ -1789,7 +1789,6 @@ export class Task {
 	): Promise<{ shouldBreak: boolean; newContent?: string; error?: string }> {
 		// Calculate the delta - what's new since last time
 		const newJsonChunk = currentFullJson.substring(this.lastProcessedJsonLength)
-		console.log("enterd handleStreamingJsonReplacement")
 		if (block.partial) {
 			// Initialize on first chunk
 			if (!this.streamingJsonReplacer) {
@@ -1801,7 +1800,6 @@ export class Task {
 				const onContentUpdated = (newContent: string, _isFinalItem: boolean, changeLocation?: ChangeLocation) => {
 					// Update diff view incrementally
 					this.diffViewProvider.update(newContent, false, changeLocation)
-					console.log("StreamingJsonReplacer content updated:", changeLocation)
 				}
 
 				const onError = (error: Error) => {
@@ -1853,7 +1851,6 @@ export class Task {
 				const onContentUpdated = (newContent: string, _isFinalItem: boolean, changeLocation?: ChangeLocation) => {
 					// Update diff view incrementally
 					this.diffViewProvider.update(newContent, false, changeLocation)
-					console.log("StreamingJsonReplacer content updated:", changeLocation)
 				}
 
 				const onError = (error: Error) => {

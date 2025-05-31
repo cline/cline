@@ -539,6 +539,7 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 		if (
 			inFunctionCalls &&
 			currentInvokeName === "" &&
+			!currentToolUse && // Don't create a new tool if we already have one
 			currentCharIndex >= isInvokeStart.length - 1 &&
 			assistantMessage.startsWith(isInvokeStart, currentCharIndex - isInvokeStart.length + 1)
 		) {
@@ -876,7 +877,6 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 				contentBlocks.push(currentToolUse)
 				currentToolUse = undefined
 			}
-
 			currentInvokeName = ""
 			continue
 		}
@@ -889,6 +889,12 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 		) {
 			inFunctionCalls = false
 			currentTextContentStart = currentCharIndex + 1
+			// Start a new text content block for any text after function_calls
+			currentTextContent = {
+				type: "text",
+				content: "",
+				partial: true,
+			}
 			continue
 		}
 
