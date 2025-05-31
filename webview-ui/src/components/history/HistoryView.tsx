@@ -727,7 +727,22 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							disabled={deleteAllDisabled || taskHistory.length === 0}
 							onClick={() => {
 								setDeleteAllDisabled(true)
-								vscode.postMessage({ type: "clearAllTaskHistory" })
+
+								// Show a custom dialog
+								const confirmDelete = window.confirm("Are you sure you want to delete all task history?")
+
+								if (confirmDelete) {
+									// Ask if they want to preserve favorites
+									const preserveFavorites = window.confirm(
+										"Would you like to preserve favorited tasks?\n\nClick 'OK' to preserve favorites, or 'Cancel' to delete everything.",
+									)
+
+									TaskServiceClient.deleteAllTaskHistory({ value: preserveFavorites })
+										.catch((error) => console.error("Error deleting task history:", error))
+										.finally(() => setDeleteAllDisabled(false))
+								} else {
+									setDeleteAllDisabled(false)
+								}
 							}}>
 							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 						</DangerButton>
