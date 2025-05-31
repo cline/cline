@@ -5,19 +5,13 @@
 		"ecmaVersion": 6,
 		"sourceType": "module"
 	},
-	"plugins": [
-		"@typescript-eslint",
-		"eslint-rules"
-	],
+	"plugins": ["@typescript-eslint", "eslint-rules"],
 	"rules": {
 		"@typescript-eslint/naming-convention": [
 			"warn",
 			{
 				"selector": "import",
-				"format": [
-					"camelCase",
-					"PascalCase"
-				]
+				"format": ["camelCase", "PascalCase"]
 			}
 		],
 		"@typescript-eslint/semi": "off",
@@ -29,9 +23,5 @@
 		"eslint-rules/no-protobuf-object-literals": "warn",
 		"eslint-rules/no-grpc-client-object-literals": "warn"
 	},
-	"ignorePatterns": [
-		"out",
-		"dist",
-		"**/*.d.ts"
-	]
+	"ignorePatterns": ["out", "dist", "**/*.d.ts"]
 }

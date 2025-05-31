@@ -1,20 +1,12 @@
 {
 	"root": true,
-	"extends": [
-		"eslint:recommended",
-		"plugin:@typescript-eslint/recommended"
-	],
+	"extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
 		"ecmaVersion": 2020,
 		"sourceType": "module"
 	},
-	"plugins": [
-		"@typescript-eslint",
-		"react-hooks",
-		"react-refresh",
-		"eslint-rules"
-	],
+	"plugins": ["@typescript-eslint", "react-hooks", "react-refresh", "eslint-rules"],
 	"env": {
 		"browser": true,
 		"es2020": true
@@ -37,7 +29,5 @@
 		"eslint-rules/no-protobuf-object-literals": "warn",
 		"eslint-rules/no-grpc-client-object-literals": "error"
 	},
-	"ignorePatterns": [
-		"build"
-	]
+	"ignorePatterns": ["build"]
 }
