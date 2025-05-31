@@ -21,6 +21,7 @@ export type SecretKey =
 	| "xaiApiKey"
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
+	| "nebulaBlockApiKey"
 	| "cerebrasApiKey"
 
 export type GlobalStateKey =

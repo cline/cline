@@ -486,6 +486,7 @@ export class Controller {
 				case "qwen":
 				case "deepseek":
 				case "xai":
+				case "nebula-block":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "bedrock":
@@ -554,6 +555,7 @@ export class Controller {
 					case "qwen":
 					case "deepseek":
 					case "xai":
+					case "nebula-block":
 						await updateGlobalState(this.context, "apiModelId", newModelId)
 						break
 					case "bedrock":
