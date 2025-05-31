@@ -285,7 +285,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 				onClick={async () => {
 					try {
 						await WebServiceClient.openInBrowser(
-							StringRequestß.create({
+							StringRequest.create({
 								value: DOMPurify.sanitize(url),
 							}),
 						)
@@ -320,8 +320,8 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 							}}
 							onError={(e) => {
 								console.log(`Image could not be loaded: ${data.image}`)
-								// Hide the broken image
-								;(e.target as HTMLImageElement).style.display = "none"
+									// Hide the broken image
+									; (e.target as HTMLImageElement).style.display = "none"
 							}}
 						/>
 					</div>
