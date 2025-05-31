@@ -16,7 +16,7 @@
 		"@types/mocha": "^10.0.10",
 		"@types/node": "^22.14.1",
 		"@types/vscode": "^1.95.0",
-		"@vscode/test-cli": "^0.0.10",
+		"@vscode/test-cli": "^0.0.11",
 		"@vscode/test-electron": "^2.4.0",
 		"glob": "^11.0.1",
 		"mocha": "^11.1.0",
