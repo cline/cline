@@ -1,12 +1,20 @@
 {
 	"root": true,
-	"extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
+	"extends": [
+		"eslint:recommended",
+		"plugin:@typescript-eslint/recommended"
+	],
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
 		"ecmaVersion": 2020,
 		"sourceType": "module"
 	},
-	"plugins": ["@typescript-eslint", "react-hooks", "react-refresh", "eslint-rules"],
+	"plugins": [
+		"@typescript-eslint",
+		"react-hooks",
+		"react-refresh",
+		"eslint-rules"
+	],
 	"env": {
 		"browser": true,
 		"es2020": true
@@ -28,5 +36,7 @@
 		"no-extra-semi": "off",
 		"eslint-rules/no-grpc-client-object-literals": "warn"
 	},
-	"ignorePatterns": ["build"]
+	"ignorePatterns": [
+		"build"
+	]
 }
