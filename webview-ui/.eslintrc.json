@@ -6,7 +6,7 @@
 		"ecmaVersion": 2020,
 		"sourceType": "module"
 	},
-	"plugins": ["@typescript-eslint", "react-hooks", "react-refresh"],
+	"plugins": ["@typescript-eslint", "react-hooks", "react-refresh", "eslint-rules"],
 	"env": {
 		"browser": true,
 		"es2020": true
@@ -25,7 +25,8 @@
 		"no-case-declarations": "off",
 		"react-hooks/exhaustive-deps": "off",
 		"prefer-const": "off",
-		"no-extra-semi": "off"
+		"no-extra-semi": "off",
+		"eslint-rules/no-grpc-client-object-literals": "warn"
 	},
 	"ignorePatterns": ["build"]
 }
