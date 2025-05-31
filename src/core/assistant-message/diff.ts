@@ -521,7 +521,6 @@ class NewFileContentConstructor {
 			} else {
 				let appendToPendingNonStandardLines = canWritependingNonStandardLines
 				if (appendToPendingNonStandardLines) {
-					console.log("unstandard line:" + line)
 					// 处理非标内容
 					this.pendingNonStandardLines.push(line)
 				}

@@ -20,6 +20,8 @@ service ModelsService {
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Groq models
+  rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
