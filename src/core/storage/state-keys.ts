@@ -92,5 +92,9 @@ export type GlobalStateKey =
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
 	| "isNewUser"
+	| "openAiConfigs"
+	| "openAiSelectedConfigIndex"
+	| "openAiSelectedConfigIndex_act"
+	| "openAiSelectedConfigIndex_plan"
 
 export type LocalStateKey = "localClineRulesToggles"
