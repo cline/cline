@@ -52,6 +52,9 @@ service FileService {
   
   // Refreshes all rule toggles (Cline, External, and Workflows)
   rpc refreshRules(EmptyRequest) returns (RefreshedRules);
+
+  // Opens a task's conversation history file on disk
+  rpc openTaskHistory(StringRequest) returns (Empty);
 }
 
 // Response for refreshRules operation
