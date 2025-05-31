@@ -18,9 +18,16 @@ export const ConcurrentFileReadsExperiment = ({
 	const { t } = useAppTranslation()
 
 	const handleChange = (value: boolean) => {
-		// Set to 1 if disabling to reset the setting
-		if (!value) onMaxConcurrentFileReadsChange(1)
 		onEnabledChange(value)
+		// Set to 1 if disabling to reset the setting
+		if (!value) {
+			onMaxConcurrentFileReadsChange(1)
+		} else {
+			// When enabling, ensure we have a valid value > 1
+			if (!maxConcurrentFileReads || maxConcurrentFileReads <= 1) {
+				onMaxConcurrentFileReadsChange(15)
+			}
+		}
 	}
 
 	return (
@@ -48,15 +55,11 @@ export const ConcurrentFileReadsExperiment = ({
 								min={2}
 								max={100}
 								step={1}
-								value={[
-									maxConcurrentFileReads && maxConcurrentFileReads > 1 ? maxConcurrentFileReads : 15,
-								]}
+								value={[Math.max(2, maxConcurrentFileReads)]}
 								onValueChange={([value]) => onMaxConcurrentFileReadsChange(value)}
 								data-testid="max-concurrent-file-reads-slider"
 							/>
-							<span className="w-10 text-sm">
-								{maxConcurrentFileReads && maxConcurrentFileReads > 1 ? maxConcurrentFileReads : 15}
-							</span>
+							<span className="w-10 text-sm">{Math.max(2, maxConcurrentFileReads)}</span>
 						</div>
 					</div>
 				</div>
