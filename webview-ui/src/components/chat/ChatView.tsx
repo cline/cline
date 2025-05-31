@@ -35,7 +35,7 @@ import rehypeParse from "rehype-parse"
 import HomeHeader from "../welcome/HomeHeader"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 import { SuggestedTasks } from "../welcome/SuggestedTasks"
-import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/task"
 
 interface ChatViewProps {
@@ -653,9 +653,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const selectFilesAndImages = useCallback(async () => {
 		try {
-			const response = await FileServiceClient.selectFiles({
-				value: selectedModelInfo.supportsImages,
-			})
+			const response = await FileServiceClient.selectFiles(
+				BooleanRequest.create({
+					value: selectedModelInfo.supportsImages,
+				}),
+			)
 			if (
 				response &&
 				response.values1 &&
