@@ -47,12 +47,7 @@ import {
 	vertexModels,
 	xaiDefaultModelId,
 	xaiModels,
-	sambanovaModels,
-	sambanovaDefaultModelId,
-	doubaoModels,
-	doubaoDefaultModelId,
 	openAiCompatibleDefaultConfig,
-	liteLlmModelInfoSaneDefaults,
 } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { OpenAiModelsRequest } from "@shared/proto/models"
