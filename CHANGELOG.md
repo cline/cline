@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   ceb0900: Update `xaiModels` object and `xaiDefaultModelId` in `src/shared/api.ts`
+-   f1fef24: add suppport for parsing csv and xlsx
+-   cc9fc9b: update chat box ui
+-   5c3e7a3: scroll to task timeline
+
+### Patch Changes
+
+-   fb3012f: add models to vertex ai
+-   6626124: fix(bedrock): Use ignoreCache for profile-based AWS credential loading
+
+    Ensures that AWS Bedrock provider always fetches fresh credentials when using IAM profiles by setting `ignoreCache: true` for `fromNodeProviderChain`. This resolves issues where externally updated credentials (e.g., by AWS Identity Manager) were not detected by Cline, requiring an extension restart. Manual credential handling remains unchanged.
+
+-   ec06442: bug fix for ollama
+-   da12437: update the openrouter model list when refreshing
+-   dcf59bc: Fix Title for windows in cline
+-   8f72bf1: optionsResponse protobus migration
+-   c1e38e6: change proto type
+
 ## [3.17.8]
 
 -   Fix bug where terminal would get stuck and output "capture failure"
