@@ -55,30 +55,23 @@ const BaseConfigSchema = z.object({
 })
 
 const SseConfigSchema = BaseConfigSchema.extend({
+	transportType: z.literal("sse"),
 	url: z.string().url(),
-}).transform((config) => ({
-	...config,
-	transportType: "sse" as const,
-}))
+})
 
 const StdioConfigSchema = BaseConfigSchema.extend({
+	transportType: z.literal("stdio"),
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
-}).transform((config) => ({
-	...config,
-	transportType: "stdio" as const,
-}))
+})
 
 const StreamableHTTPConfigSchema = BaseConfigSchema.extend({
 	transportType: z.literal("http"),
 	url: z.string().url(),
-}).transform((config) => ({
-	...config,
-	transportType: "http" as const,
-}))
+})
 
-const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
+const ServerConfigSchema = z.discriminatedUnion("transportType", [StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
 
 const McpSettingsSchema = z.object({
 	mcpServers: z.record(ServerConfigSchema),
@@ -147,6 +140,16 @@ export class McpHub {
 					"Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
 				)
 				return undefined
+			}
+
+			// Backward compatibility: default transportType to "stdio" if missing
+			if (config && config.mcpServers) {
+				for (const [name, server] of Object.entries(config.mcpServers)) {
+					const srv = server as Record<string, any>
+					if (!srv.transportType) {
+						srv.transportType = "stdio"
+					}
+				}
 			}
 
 			// Validate against schema
