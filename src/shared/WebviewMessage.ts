@@ -1,5 +1,4 @@
 import { ApiConfiguration } from "./api"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
@@ -13,74 +12,29 @@ export interface WebviewMessage {
 		| "webviewDidLaunch"
 		| "newTask"
 		| "condense"
-		| "askResponse"
-		| "didShowAnnouncement"
-		| "selectImages"
-		| "exportCurrentTask"
-		| "showTaskWithId"
-		| "exportTaskWithId"
-		| "resetState"
-		| "requestOllamaModels"
-		| "requestLmStudioModels"
-		| "openInBrowser"
-		| "openMention"
-		| "showChatView"
-		| "refreshOpenRouterModels"
-		| "refreshRequestyModels"
-		| "refreshOpenAiModels"
-		| "refreshClineRules"
-		| "openMcpSettings"
-		| "restartMcpServer"
-		| "deleteMcpServer"
-		| "autoApprovalSettings"
-		| "browserRelaunchResult"
-		| "togglePlanActMode"
-		| "taskCompletionViewChanges"
-		| "openExtensionSettings"
+		| "reportBug"
 		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
-		| "getLatestState"
-		| "accountLogoutClicked"
-		| "showAccountViewClicked"
 		| "authStateChanged"
-		| "authCallback"
 		| "fetchMcpMarketplace"
-		| "downloadMcp"
-		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "openSettings"
-		| "fetchOpenGraphData"
-		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
-		| "optionsResponse"
-		| "requestTotalTasksSize"
-		| "relaunchChromeDebugMode"
-		| "taskFeedback"
-		| "scrollToSettings"
 		| "searchFiles"
-		| "toggleFavoriteModel"
 		| "grpc_request"
-		| "toggleClineRule"
-		| "toggleCursorRule"
-		| "toggleWindsurfRule"
-		| "deleteClineRule"
-		| "copyToClipboard"
-		| "updateTerminalConnectionTimeout"
-		| "setActiveQuote"
+		| "grpc_request_cancel"
+		| "toggleWorkflow"
+		| "executeQuickWin"
 
-	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
-	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
+	files?: string[]
 	bool?: boolean
 	number?: number
-	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
@@ -96,13 +50,11 @@ export interface WebviewMessage {
 	// For auth
 	user?: UserInfo | null
 	customToken?: string
-	// For openInBrowser
-	url?: string
 	planActSeparateModelsSetting?: boolean
+	enableCheckpointsSetting?: boolean
+	mcpMarketplaceEnabled?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
-	// For task feedback
-	feedbackType?: TaskFeedbackType
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel
@@ -112,12 +64,19 @@ export interface WebviewMessage {
 		method: string
 		message: any // JSON serialized protobuf message
 		request_id: string // For correlating requests and responses
+		is_streaming?: boolean // Whether this is a streaming request
 	}
-	// For cline rules
+	grpc_request_cancel?: {
+		request_id: string // ID of the request to cancel
+	}
+	// For cline rules and workflows
 	isGlobal?: boolean
 	rulePath?: string
+	workflowPath?: string
 	enabled?: boolean
 	filename?: string
+
+	payload?: { command: string; title: string }
 
 	offset?: number
 	shellIntegrationTimeout?: number

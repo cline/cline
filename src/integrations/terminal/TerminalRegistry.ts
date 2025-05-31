@@ -5,6 +5,11 @@ export interface TerminalInfo {
 	busy: boolean
 	lastCommand: string
 	id: number
+	pendingCwdChange?: string
+	cwdResolved?: {
+		resolve: () => void
+		reject: (error: Error) => void
+	}
 }
 
 // Although vscode.window.terminals provides a list of all open terminals, there's no way to know whether they're busy or not (exitStatus does not provide useful information for most commands). In order to prevent creating too many terminals, we need to keep track of terminals through the life of the extension, as well as session specific terminals for the life of a task (to get latest unretrieved output).

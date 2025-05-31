@@ -36,7 +36,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	return (
 		<div style={containerStyle}>
-			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={closeIconStyle}>
+			<VSCodeButton data-testid="close-button" appearance="icon" onClick={hideAnnouncement} style={closeIconStyle}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h3 style={h3TitleStyle}>
@@ -44,22 +44,16 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price tracking for
-					Gemini models.
+					<b>Claude 4 Models:</b> Now with support for Anthropic Claude Sonnet 4 and Claude Opus 4 in both Anthropic and
+					Vertex providers.
 				</li>
 				<li>
-					<b>Copy Buttons:</b> Buttons were added to Markdown and Code blocks that allow you to copy their contents
-					easily.
+					<b>New Settings Page:</b> Redesigned settings, now split into tabs for easier navigation and a cleaner
+					experience.
 				</li>
 				<li>
-					<b>/newrule command:</b> New slash command to have cline write your .clinerules for you based on your
-					workflow.
+					<b>Nebius AI Studio:</b> Added Nebius AI Studio as a new provider. (Thanks @Aktsvigun!)
 				</li>
-				<li>
-					<b>Drag and drop improvements:</b> Don't forget to hold shift while dragging files!
-				</li>
-				<li>Added more checkpoints across the task, allowing you to restore from more than just file changes.</li>
-				<li>Added support for rendering LaTeX in message responses. (Try asking Cline to show the quadratic formula)</li>
 			</ul>
 			<Accordion isCompact className="pl-0">
 				<AccordionItem
@@ -74,74 +68,43 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					}}>
 					<ul style={ulStyle}>
 						<li>
-							<b>Global Cline Rules:</b> store multiple rules files in Documents/Cline/Rules to share between
+							<b>Workflows:</b> Create and manage workflow files that can be injected into conversations via slash
+							commands, making it easy to automate repetitive tasks.
+						</li>
+						<li>
+							<b>Collapsible Task List:</b> Hide your recent tasks when sharing your screen to keep your prompts
+							private.
+						</li>
+						<li>
+							<b>Global Endpoint for Vertex AI:</b> Improved availability and reduced rate limiting errors for
+							Vertex AI users.
+						</li>
+						<li>
+							<b>New User Experience:</b> Special components and guidance for new users to help them get started
+							with Cline.
+						</li>
+						<li>
+							<b>UI Improvements:</b> Fixed loading states and improved settings organization for a smoother
+							experience.
+						</li>
+						<li>
+							<b>Task Timeline:</b> See the history of your coding journey with a visual timeline of checkpoints.
+						</li>
+						<li>
+							<b>UX Improvements:</b> Type while Cline works, smarter auto-scrolling, and copy buttons for task
+							headers and messages.
+						</li>
+						<li>
+							<b>Gemini prompt caching:</b> Gemini and Vertex providers now support prompt caching and price
+							tracking.
+						</li>
+						<li>
+							<b>Global Cline Rules:</b> Store multiple rules files in Documents/Cline/Rules to share between
 							projects.
-						</li>
-						<li>
-							<b>Cline Rules Popup:</b> New button in the chat area to view workspace and global cline rules files
-							to plug and play specific rules for the task
-						</li>
-						<li>
-							<b>Slash Commands:</b> Type <code>/</code> in chat to see the list of quick actions, like starting a
-							new task (more coming soon!)
-						</li>
-						<li>
-							<b>Edit Messages:</b> You can now edit a message you sent previously by clicking on it. Optionally
-							restore your project when the message was sent!
 						</li>
 					</ul>
 				</AccordionItem>
 			</Accordion>
-
-			{/*
-			// Leave this here for an example of how to structure the announcement
-			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
-				 <li>
-					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
-					so I recommend trying them out.
-					<br />
-					{!apiConfiguration?.openRouterApiKey && (
-						<VSCodeButtonLink
-							href={getOpenRouterAuthUrl(vscodeUriScheme)}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Get OpenRouter API Key
-						</VSCodeButtonLink>
-					)}
-					{apiConfiguration?.openRouterApiKey && apiConfiguration?.apiProvider !== "openrouter" && (
-						<VSCodeButton
-							onClick={() => {
-								vscode.postMessage({
-									type: "apiConfiguration",
-									apiConfiguration: { ...apiConfiguration, apiProvider: "openrouter" },
-								})
-							}}
-							style={{
-								transform: "scale(0.85)",
-								transformOrigin: "left center",
-								margin: "4px -30px 2px 0",
-							}}>
-							Switch to OpenRouter
-						</VSCodeButton>
-					)}
-				</li>
-				<li>
-					<b>Edit Cline's changes before accepting!</b> When he creates or edits a file, you can modify his
-					changes directly in the right side of the diff view (+ hover over the 'Revert Block' arrow button in
-					the center to undo "<code>{"// rest of code here"}</code>" shenanigans)
-				</li>
-				<li>
-					New <code>search_files</code> tool that lets Cline perform regex searches in your project, letting
-					him refactor code, address TODOs and FIXMEs, remove dead code, and more!
-				</li>
-				<li>
-					When Cline runs commands, you can now type directly in the terminal (+ support for Python
-					environments)
-				</li>
-			</ul>*/}
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}

@@ -1,3 +1,61 @@
+import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { vscode } from "@/utils/vscode"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import {
+	anthropicDefaultModelId,
+	anthropicModels,
+	ApiConfiguration,
+	ApiProvider,
+	askSageDefaultModelId,
+	askSageDefaultURL,
+	askSageModels,
+	azureOpenAiDefaultApiVersion,
+	bedrockDefaultModelId,
+	bedrockModels,
+	cerebrasDefaultModelId,
+	cerebrasModels,
+	deepSeekDefaultModelId,
+	deepSeekModels,
+	doubaoDefaultModelId,
+	doubaoModels,
+	geminiDefaultModelId,
+	geminiModels,
+	internationalQwenDefaultModelId,
+	internationalQwenModels,
+	liteLlmModelInfoSaneDefaults,
+	mainlandQwenDefaultModelId,
+	mainlandQwenModels,
+	mistralDefaultModelId,
+	mistralModels,
+	ModelInfo,
+	nebiusDefaultModelId,
+	nebiusModels,
+	OpenAiCompatibleModelInfo,
+	openAiModelInfoSaneDefaults,
+	openAiNativeDefaultModelId,
+	openAiNativeModels,
+	openRouterDefaultModelId,
+	openRouterDefaultModelInfo,
+	requestyDefaultModelId,
+	requestyDefaultModelInfo,
+	sambanovaDefaultModelId,
+	sambanovaModels,
+	vertexDefaultModelId,
+	vertexGlobalModels,
+	vertexModels,
+	xaiDefaultModelId,
+	xaiModels,
+	sambanovaModels,
+	sambanovaDefaultModelId,
+	doubaoModels,
+	doubaoDefaultModelId,
+	openAiCompatibleDefaultConfig,
+	liteLlmModelInfoSaneDefaults,
+} from "@shared/api"
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
+import { OpenAiModelsRequest } from "@shared/proto/models"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -8,61 +66,15 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { useEvent, useInterval } from "react-use"
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useInterval } from "react-use"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
-import {
-	anthropicDefaultModelId,
-	anthropicModels,
-	ApiConfiguration,
-	ApiProvider,
-	azureOpenAiDefaultApiVersion,
-	bedrockDefaultModelId,
-	bedrockModels,
-	deepSeekDefaultModelId,
-	deepSeekModels,
-	geminiDefaultModelId,
-	geminiModels,
-	mistralDefaultModelId,
-	mistralModels,
-	ModelInfo,
-	OpenAiCompatibleModelInfo,
-	openAiModelInfoSaneDefaults,
-	openAiNativeDefaultModelId,
-	openAiNativeModels,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-	requestyDefaultModelId,
-	requestyDefaultModelInfo,
-	mainlandQwenModels,
-	internationalQwenModels,
-	mainlandQwenDefaultModelId,
-	internationalQwenDefaultModelId,
-	vertexDefaultModelId,
-	vertexModels,
-	askSageModels,
-	askSageDefaultModelId,
-	askSageDefaultURL,
-	xaiDefaultModelId,
-	xaiModels,
-	sambanovaModels,
-	sambanovaDefaultModelId,
-	doubaoModels,
-	doubaoDefaultModelId,
-	openAiCompatibleDefaultConfig,
-	liteLlmModelInfoSaneDefaults,
-} from "@shared/api"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
-import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
-import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
-import RequestyModelPicker from "./RequestyModelPicker"
 import { useOpenRouterKeyInfo } from "../ui/hooks/useOpenRouterKeyInfo"
+import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import RequestyModelPicker from "./RequestyModelPicker"
+import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -293,19 +305,45 @@ const ApiOptions = ({
 	}, [apiConfiguration])
 
 	// Poll ollama/lmstudio models
-	const requestLocalModels = useCallback(() => {
+	const requestLocalModels = useCallback(async () => {
 		if (selectedProvider === "ollama") {
-			vscode.postMessage({
-				type: "requestOllamaModels",
-				text: apiConfiguration?.ollamaBaseUrl,
-			})
+			try {
+				const response = await ModelsServiceClient.getOllamaModels(
+					StringRequest.create({
+						value: apiConfiguration?.ollamaBaseUrl || "",
+					}),
+				)
+				if (response && response.values) {
+					setOllamaModels(response.values)
+				}
+			} catch (error) {
+				console.error("Failed to fetch Ollama models:", error)
+				setOllamaModels([])
+			}
 		} else if (selectedProvider === "lmstudio") {
-			vscode.postMessage({
-				type: "requestLmStudioModels",
-				text: apiConfiguration?.lmStudioBaseUrl,
-			})
+			try {
+				const response = await ModelsServiceClient.getLmStudioModels(
+					StringRequest.create({
+						value: apiConfiguration?.lmStudioBaseUrl || "",
+					}),
+				)
+				if (response && response.values) {
+					setLmStudioModels(response.values)
+				}
+			} catch (error) {
+				console.error("Failed to fetch LM Studio models:", error)
+				setLmStudioModels([])
+			}
 		} else if (selectedProvider === "vscode-lm") {
-			vscode.postMessage({ type: "requestVsCodeLmModels" })
+			try {
+				const response = await ModelsServiceClient.getVsCodeLmModels(EmptyRequest.create({}))
+				if (response && response.models) {
+					setVsCodeLmModels(response.models)
+				}
+			} catch (error) {
+				console.error("Failed to fetch VS Code LM models:", error)
+				setVsCodeLmModels([])
+			}
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
@@ -317,18 +355,6 @@ const ApiOptions = ({
 		requestLocalModels,
 		selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm" ? 2000 : null,
 	)
-
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message: ExtensionMessage = event.data
-		if (message.type === "ollamaModels" && message.ollamaModels) {
-			setOllamaModels(message.ollamaModels)
-		} else if (message.type === "lmStudioModels" && message.lmStudioModels) {
-			setLmStudioModels(message.lmStudioModels)
-		} else if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
-			setVsCodeLmModels(message.vsCodeLmModels)
-		}
-	}, [])
-	useEvent("message", handleMessage)
 
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
@@ -362,6 +388,36 @@ const ApiOptions = ({
 		)
 	}
 
+	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
+	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+	useEffect(() => {
+		return () => {
+			if (debounceTimerRef.current) {
+				clearTimeout(debounceTimerRef.current)
+			}
+		}
+	}, [])
+
+	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current)
+		}
+
+		if (baseUrl && apiKey) {
+			debounceTimerRef.current = setTimeout(() => {
+				ModelsServiceClient.refreshOpenAiModels(
+					OpenAiModelsRequest.create({
+						baseUrl,
+						apiKey,
+					}),
+				).catch((error) => {
+					console.error("Failed to refresh OpenAI models:", error)
+				})
+			}, 500)
+		}
+	}, [])
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
 			<DropdownContainer className="dropdown-container">
@@ -388,15 +444,18 @@ const ApiOptions = ({
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
+					<VSCodeOption value="fireworks">Fireworks</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">xAI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
+					<VSCodeOption value="cerebras">Cerebras</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -922,10 +981,7 @@ const ApiOptions = ({
 									color: "var(--vscode-descriptionForeground)",
 								}}>
 								Select "Custom" when using the Application Inference Profile in Bedrock. Enter the Application
-								Inference Profile ID in the Model ID field. However, be sure to encode the / in the ARN as %2F.
-								<br />
-								Example: arn:aws:bedrock:us-west-2:&lt;AWS Account
-								ID&gt;:application-inference-profile%2Fxxxxxxxxxxxx
+								Inference Profile ARN in the Model ID field.
 							</p>
 							<label htmlFor="bedrock-model-input">
 								<span style={{ fontWeight: 500 }}>Model ID</span>
@@ -964,8 +1020,14 @@ const ApiOptions = ({
 						</div>
 					)}
 					{(selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0" ||
+						selectedModelId === "anthropic.claude-sonnet-4-20250514-v1:0" ||
+						selectedModelId === "anthropic.claude-opus-4-20250514-v1:0" ||
 						(apiConfiguration?.awsBedrockCustomSelected &&
-							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-3-7-sonnet-20250219-v1:0")) && (
+							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+						(apiConfiguration?.awsBedrockCustomSelected &&
+							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-20250514-v1:0") ||
+						(apiConfiguration?.awsBedrockCustomSelected &&
+							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-opus-4-20250514-v1:0")) && (
 						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 					)}
 					<ModelInfoView
@@ -1007,6 +1069,7 @@ const ApiOptions = ({
 							<VSCodeOption value="europe-west1">europe-west1</VSCodeOption>
 							<VSCodeOption value="europe-west4">europe-west4</VSCodeOption>
 							<VSCodeOption value="asia-southeast1">asia-southeast1</VSCodeOption>
+							<VSCodeOption value="global">global</VSCodeOption>
 						</VSCodeDropdown>
 					</DropdownContainer>
 					<p
@@ -1174,7 +1237,12 @@ const ApiOptions = ({
 						}
 						style={{ width: "100%", marginBottom: 10 }}
 						type="url"
-						onInput={handleOpenAiChange("openAiBaseUrl")}
+						onInput={(e: any) => {
+							const baseUrl = e.target.value
+							handleInputChange("openAiBaseUrl")({ target: { value: baseUrl } })
+
+							debouncedRefreshOpenAiModels(baseUrl, apiConfiguration?.openAiApiKey)
+						}}
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
@@ -1186,7 +1254,12 @@ const ApiOptions = ({
 						}
 						style={{ width: "100%", marginBottom: 10 }}
 						type="password"
-						onInput={handleOpenAiChange("openAiApiKey")}
+						onInput={(e: any) => {
+							const apiKey = e.target.value
+							handleInputChange("openAiApiKey")({ target: { value: apiKey } })
+
+							debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, apiKey)
+						}}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
@@ -1461,6 +1534,97 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "fireworks" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("fireworksApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Fireworks API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.fireworksApiKey && (
+							<VSCodeLink
+								href="https://fireworks.ai/settings/users/api-keys"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Fireworks API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("fireworksModelId")}
+						placeholder={"Enter Model ID..."}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelMaxCompletionTokens?.toString() || ""}
+						style={{ width: "100%", marginBottom: 8 }}
+						onInput={(e) => {
+							const value = (e.target as HTMLInputElement).value
+							if (!value) {
+								return
+							}
+							const num = parseInt(value, 10)
+							if (isNaN(num)) {
+								return
+							}
+							handleInputChange("fireworksModelMaxCompletionTokens")({
+								target: {
+									value: num,
+								},
+							})
+						}}
+						placeholder={"2000"}>
+						<span style={{ fontWeight: 500 }}>Max Completion Tokens</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelMaxTokens?.toString() || ""}
+						style={{ width: "100%", marginBottom: 8 }}
+						onInput={(e) => {
+							const value = (e.target as HTMLInputElement).value
+							if (!value) {
+								return
+							}
+							const num = parseInt(value)
+							if (isNaN(num)) {
+								return
+							}
+							handleInputChange("fireworksModelMaxTokens")({
+								target: {
+									value: num,
+								},
+							})
+						}}
+						placeholder={"4000"}>
+						<span style={{ fontWeight: 500 }}>Max Context Tokens</span>
+					</VSCodeTextField>
+				</div>
+			)}
+
 			{selectedProvider === "together" && (
 				<div>
 					<VSCodeTextField
@@ -1623,14 +1787,6 @@ const ApiOptions = ({
 			{selectedProvider === "litellm" && (
 				<div>
 					<VSCodeTextField
-						value={apiConfiguration?.liteLlmApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("liteLlmApiKey")}
-						placeholder="Default: noop">
-						<span style={{ fontWeight: 500 }}>API Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
 						value={apiConfiguration?.liteLlmBaseUrl || ""}
 						style={{ width: "100%" }}
 						type="url"
@@ -1639,10 +1795,18 @@ const ApiOptions = ({
 						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 					</VSCodeTextField>
 					<VSCodeTextField
+						value={apiConfiguration?.liteLlmApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("liteLlmApiKey")}
+						placeholder="Default: noop">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					<VSCodeTextField
 						value={apiConfiguration?.liteLlmModelId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("liteLlmModelId")}
-						placeholder={"e.g. gpt-4"}>
+						placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 
@@ -1676,7 +1840,7 @@ const ApiOptions = ({
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							Extended thinking is available for models as Sonnet-3-7, o3-mini, Deepseek R1, etc. More info on{" "}
+							Extended thinking is available for models such as Sonnet-4, o3-mini, Deepseek R1, etc. More info on{" "}
 							<VSCodeLink
 								href="https://docs.litellm.ai/docs/reasoning_content"
 								style={{ display: "inline", fontSize: "inherit" }}>
@@ -1685,6 +1849,119 @@ const ApiOptions = ({
 						</p>
 					</>
 
+					<div
+						style={{
+							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+							display: "flex",
+							margin: "10px 0",
+							cursor: "pointer",
+							alignItems: "center",
+						}}
+						onClick={() => setModelConfigurationSelected((val) => !val)}>
+						<span
+							className={`codicon ${modelConfigurationSelected ? "codicon-chevron-down" : "codicon-chevron-right"}`}
+							style={{
+								marginRight: "4px",
+							}}></span>
+						<span
+							style={{
+								fontWeight: 700,
+								textTransform: "uppercase",
+							}}>
+							Model Configuration
+						</span>
+					</div>
+					{modelConfigurationSelected && (
+						<>
+							<VSCodeCheckbox
+								checked={!!apiConfiguration?.liteLlmModelInfo?.supportsImages}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
+									const modelInfo = apiConfiguration?.liteLlmModelInfo
+										? apiConfiguration.liteLlmModelInfo
+										: { ...liteLlmModelInfoSaneDefaults }
+									modelInfo.supportsImages = isChecked
+									setApiConfiguration({
+										...apiConfiguration,
+										liteLlmModelInfo: modelInfo,
+									})
+								}}>
+								Supports Images
+							</VSCodeCheckbox>
+							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.liteLlmModelInfo?.contextWindow
+											? apiConfiguration.liteLlmModelInfo.contextWindow.toString()
+											: liteLlmModelInfoSaneDefaults.contextWindow?.toString()
+									}
+									style={{ flex: 1 }}
+									onInput={(input: any) => {
+										const modelInfo = apiConfiguration?.liteLlmModelInfo
+											? apiConfiguration.liteLlmModelInfo
+											: { ...liteLlmModelInfoSaneDefaults }
+										modelInfo.contextWindow = Number(input.target.value)
+										setApiConfiguration({
+											...apiConfiguration,
+											liteLlmModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Context Window Size</span>
+								</VSCodeTextField>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.liteLlmModelInfo?.maxTokens
+											? apiConfiguration.liteLlmModelInfo.maxTokens.toString()
+											: liteLlmModelInfoSaneDefaults.maxTokens?.toString()
+									}
+									style={{ flex: 1 }}
+									onInput={(input: any) => {
+										const modelInfo = apiConfiguration?.liteLlmModelInfo
+											? apiConfiguration.liteLlmModelInfo
+											: { ...liteLlmModelInfoSaneDefaults }
+										modelInfo.maxTokens = input.target.value
+										setApiConfiguration({
+											...apiConfiguration,
+											liteLlmModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
+								</VSCodeTextField>
+							</div>
+							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.liteLlmModelInfo?.temperature !== undefined
+											? apiConfiguration.liteLlmModelInfo.temperature.toString()
+											: liteLlmModelInfoSaneDefaults.temperature?.toString()
+									}
+									onInput={(input: any) => {
+										const modelInfo = apiConfiguration?.liteLlmModelInfo
+											? apiConfiguration.liteLlmModelInfo
+											: { ...liteLlmModelInfoSaneDefaults }
+
+										// Check if the input ends with a decimal point or has trailing zeros after decimal
+										const value = input.target.value
+										const shouldPreserveFormat =
+											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+										modelInfo.temperature =
+											value === ""
+												? liteLlmModelInfoSaneDefaults.temperature
+												: shouldPreserveFormat
+													? value // Keep as string to preserve decimal format
+													: parseFloat(value)
+
+										setApiConfiguration({
+											...apiConfiguration,
+											liteLlmModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Temperature</span>
+								</VSCodeTextField>
+							</div>
+						</>
+					)}
 					<p
 						style={{
 							fontSize: "12px",
@@ -1768,6 +2045,52 @@ const ApiOptions = ({
 				</div>
 			)}
 
+			{selectedProvider === "nebius" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.nebiusApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("nebiusApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Nebius API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.{" "}
+						{!apiConfiguration?.nebiusApiKey && (
+							<VSCodeLink
+								href="https://studio.nebius.com/settings/api-keys"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Nebius API key by signing up here.{" "}
+							</VSCodeLink>
+						)}
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
+			{apiErrorMessage && (
+				<p
+					style={{
+						margin: "-10px 0 4px 0",
+						fontSize: 12,
+						color: "var(--vscode-errorForeground)",
+					}}>
+					{apiErrorMessage}
+				</p>
+			)}
+
 			{selectedProvider === "xai" && (
 				<div>
 					<VSCodeTextField
@@ -1784,6 +2107,10 @@ const ApiOptions = ({
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.xaiApiKey && (
 							<VSCodeLink href="https://x.ai" style={{ display: "inline", fontSize: "inherit" }}>
@@ -1833,6 +2160,37 @@ const ApiOptions = ({
 									fontSize: "inherit",
 								}}>
 								You can get a SambaNova API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "cerebras" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.cerebrasApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("cerebrasApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Cerebras API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.cerebrasApiKey && (
+							<VSCodeLink
+								href="https://cloud.cerebras.ai/"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Cerebras API key by signing up here.
 							</VSCodeLink>
 						)}
 					</p>
@@ -1942,7 +2300,8 @@ const ApiOptions = ({
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
 							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
-							{selectedProvider === "vertex" && createDropdown(vertexModels)}
+							{selectedProvider === "vertex" &&
+								createDropdown(apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
@@ -1955,12 +2314,29 @@ const ApiOptions = ({
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
+							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
+							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
 						</DropdownContainer>
 
-						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
-							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
-							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-						)}
+						{selectedProvider === "anthropic" &&
+							(selectedModelId === "claude-3-7-sonnet-20250219" ||
+								selectedModelId === "claude-sonnet-4-20250514" ||
+								selectedModelId === "claude-opus-4-20250514") && (
+								<ThinkingBudgetSlider
+									apiConfiguration={apiConfiguration}
+									setApiConfiguration={setApiConfiguration}
+								/>
+							)}
+
+						{selectedProvider === "vertex" &&
+							(selectedModelId === "claude-3-7-sonnet@20250219" ||
+								selectedModelId === "claude-sonnet-4@20250514" ||
+								selectedModelId === "claude-opus-4@20250514") && (
+								<ThinkingBudgetSlider
+									apiConfiguration={apiConfiguration}
+									setApiConfiguration={setApiConfiguration}
+								/>
+							)}
 
 						{selectedProvider === "xai" && selectedModelId.includes("3-mini") && (
 							<>
@@ -2013,7 +2389,6 @@ const ApiOptions = ({
 								)}
 							</>
 						)}
-
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
@@ -2370,12 +2745,16 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.liteLlmModelId || "",
-				selectedModelInfo: liteLlmModelInfoSaneDefaults,
+				selectedModelInfo: apiConfiguration?.liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "nebius":
+			return getProviderData(nebiusModels, nebiusDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
+		case "cerebras":
+			return getProviderData(cerebrasModels, cerebrasDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

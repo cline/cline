@@ -1,15 +1,16 @@
-import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
-import { Virtuoso } from "react-virtuoso"
-import { memo, useMemo, useState, useEffect, useCallback } from "react"
-import Fuse, { FuseResult } from "fuse.js"
-import { TaskServiceClient } from "@/services/grpc-client"
-import { formatLargeNumber } from "@/utils/format"
-import { formatSize } from "@/utils/format"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { useEvent } from "react-use"
 import DangerButton from "@/components/common/DangerButton"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { TaskServiceClient } from "@/services/grpc-client"
+import { formatLargeNumber, formatSize } from "@/utils/format"
+import { vscode } from "@/utils/vscode"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/common"
+import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/task"
+import { VSCodeButton, VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import Fuse, { FuseResult } from "fuse.js"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { useEvent } from "react-use"
+import { Virtuoso } from "react-virtuoso"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -17,13 +18,117 @@ type HistoryViewProps = {
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
+// Tailwind-styled radio with custom icon support - works independently of VSCodeRadioGroup but looks the same
+// Used for workspace and favorites filters
+
+interface CustomFilterRadioProps {
+	checked: boolean
+	onChange: () => void
+	icon: string
+	label: string
+}
+
+const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadioProps) => {
+	return (
+		<div
+			onClick={onChange}
+			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-[var(--vscode-font-size)] select-none">
+			<div
+				className={`w-[14px] h-[14px] rounded-full border border-[var(--vscode-checkbox-border)] relative flex justify-center items-center mr-[6px] ${
+					checked ? "bg-[var(--vscode-checkbox-background)]" : "bg-transparent"
+				}`}>
+				{checked && <div className="w-[6px] h-[6px] rounded-full bg-[var(--vscode-checkbox-foreground)]" />}
+			</div>
+			<span className="flex items-center gap-[3px]">
+				<div className={`codicon codicon-${icon} text-[var(--vscode-button-background)] text-base`} />
+				{label}
+			</span>
+		</div>
+	)
+}
+
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { taskHistory, totalTasksSize } = useExtensionState()
+	const extensionStateContext = useExtensionState()
+	const { taskHistory, filePaths } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
+	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(false)
+
+	// Keep track of pending favorite toggle operations
+	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
+
+	// Load filtered task history with gRPC
+	const [filteredTasks, setFilteredTasks] = useState<any[]>([])
+
+	// Load and refresh task history
+	const loadTaskHistory = useCallback(async () => {
+		try {
+			const response = await TaskServiceClient.getTaskHistory(
+				GetTaskHistoryRequest.create({
+					favoritesOnly: showFavoritesOnly,
+					searchQuery: searchQuery || undefined,
+					sortBy: sortOption,
+					currentWorkspaceOnly: showCurrentWorkspaceOnly,
+				}),
+			)
+			setFilteredTasks(response.tasks || [])
+		} catch (error) {
+			console.error("Error loading task history:", error)
+		}
+	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption, taskHistory])
+
+	// Load when filters change
+	useEffect(() => {
+		// Force a complete refresh when both filters are active
+		// to ensure proper combined filtering
+		if (showFavoritesOnly && showCurrentWorkspaceOnly) {
+			setFilteredTasks([])
+		}
+		loadTaskHistory()
+	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly])
+
+	const toggleFavorite = useCallback(
+		async (taskId: string, currentValue: boolean) => {
+			// Optimistic UI update
+			setPendingFavoriteToggles((prev) => ({ ...prev, [taskId]: !currentValue }))
+
+			try {
+				await TaskServiceClient.toggleTaskFavorite(
+					TaskFavoriteRequest.create({
+						taskId,
+						isFavorited: !currentValue,
+					}),
+				)
+
+				// Refresh if either filter is active to ensure proper combined filtering
+				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
+					loadTaskHistory()
+				}
+			} catch (err) {
+				console.error(`[FAVORITE_TOGGLE_UI] Error for task ${taskId}:`, err)
+				// Revert optimistic update
+				setPendingFavoriteToggles((prev) => {
+					const updated = { ...prev }
+					delete updated[taskId]
+					return updated
+				})
+			} finally {
+				// Clean up pending state after 1 second
+				setTimeout(() => {
+					setPendingFavoriteToggles((prev) => {
+						const updated = { ...prev }
+						delete updated[taskId]
+						return updated
+					})
+				}, 1000)
+			}
+		},
+		[showFavoritesOnly, loadTaskHistory],
+	)
 
 	const handleMessage = useCallback((event: MessageEvent<ExtensionMessage>) => {
 		if (event.data.type === "relinquishControl") {
@@ -32,10 +137,23 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [])
 	useEvent("message", handleMessage)
 
+	const { totalTasksSize, setTotalTasksSize } = extensionStateContext
+
+	const fetchTotalTasksSize = useCallback(async () => {
+		try {
+			const response = await TaskServiceClient.getTotalTasksSize(EmptyRequest.create({}))
+			if (response && typeof response.value === "number") {
+				setTotalTasksSize?.(response.value || 0)
+			}
+		} catch (error) {
+			console.error("Error getting total tasks size:", error)
+		}
+	}, [setTotalTasksSize])
+
 	// Request total tasks size when component mounts
 	useEffect(() => {
-		vscode.postMessage({ type: "requestTotalTasksSize" })
-	}, [])
+		fetchTotalTasksSize()
+	}, [fetchTotalTasksSize])
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -48,7 +166,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
 	const handleShowTaskWithId = useCallback((id: string) => {
-		vscode.postMessage({ type: "showTaskWithId", text: id })
+		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
+			console.error("Error showing task:", error),
+		)
 	}, [])
 
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {
@@ -61,16 +181,26 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 	}, [])
 
-	const handleDeleteHistoryItem = useCallback((id: string) => {
-		TaskServiceClient.deleteTasksWithIds({ value: [id] })
-	}, [])
+	const handleDeleteHistoryItem = useCallback(
+		(id: string) => {
+			TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [id] }))
+				.then(() => fetchTotalTasksSize())
+				.catch((error) => console.error("Error deleting task:", error))
+		},
+		[fetchTotalTasksSize],
+	)
 
-	const handleDeleteSelectedHistoryItems = useCallback((ids: string[]) => {
-		if (ids.length > 0) {
-			TaskServiceClient.deleteTasksWithIds({ value: ids })
-			setSelectedItems([])
-		}
-	}, [])
+	const handleDeleteSelectedHistoryItems = useCallback(
+		(ids: string[]) => {
+			if (ids.length > 0) {
+				TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: ids }))
+					.then(() => fetchTotalTasksSize())
+					.catch((error) => console.error("Error deleting tasks:", error))
+				setSelectedItems([])
+			}
+		},
+		[fetchTotalTasksSize],
+	)
 
 	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
@@ -87,9 +217,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			.toUpperCase()
 	}, [])
 
-	const presentableTasks = useMemo(() => {
-		return taskHistory.filter((item) => item.ts && item.task)
-	}, [taskHistory])
+	const presentableTasks = useMemo(() => filteredTasks, [filteredTasks])
 
 	const fuse = useMemo(() => {
 		return new Fuse(presentableTasks, {
@@ -252,7 +380,20 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							<VSCodeRadio value="mostRelevant" disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }}>
 								Most Relevant
 							</VSCodeRadio>
+							<CustomFilterRadio
+								checked={showCurrentWorkspaceOnly}
+								onChange={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}
+								icon="workspace"
+								label="Workspace"
+							/>
+							<CustomFilterRadio
+								checked={showFavoritesOnly}
+								onChange={() => setShowFavoritesOnly(!showFavoritesOnly)}
+								icon="star-full"
+								label="Favorites"
+							/>
 						</VSCodeRadioGroup>
+
 						<div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
 							<VSCodeButton
 								onClick={() => {
@@ -337,43 +478,83 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											}}>
 											{formatDate(item.ts)}
 										</span>
-										<VSCodeButton
-											appearance="icon"
-											onClick={(e) => {
-												e.stopPropagation()
-												handleDeleteHistoryItem(item.id)
-											}}
-											className="delete-button"
-											style={{ padding: "0px 0px" }}>
-											<div
-												style={{
-													display: "flex",
-													alignItems: "center",
-													gap: "3px",
-													fontSize: "11px",
-													// fontWeight: "bold",
-												}}>
-												<span className="codicon codicon-trash"></span>
-												{formatSize(item.size)}
-											</div>
-										</VSCodeButton>
+										<div style={{ display: "flex", gap: "4px" }}>
+											{/* only show delete button if task not favorited */}
+											{!(pendingFavoriteToggles[item.id] ?? item.isFavorited) && (
+												<VSCodeButton
+													appearance="icon"
+													onClick={(e) => {
+														e.stopPropagation()
+														handleDeleteHistoryItem(item.id)
+													}}
+													className="delete-button"
+													style={{ padding: "0px 0px" }}>
+													<div
+														style={{
+															display: "flex",
+															alignItems: "center",
+															gap: "3px",
+															fontSize: "11px",
+														}}>
+														<span className="codicon codicon-trash"></span>
+														{formatSize(item.size)}
+													</div>
+												</VSCodeButton>
+											)}
+											<VSCodeButton
+												appearance="icon"
+												onClick={(e) => {
+													e.stopPropagation()
+													toggleFavorite(item.id, item.isFavorited || false)
+												}}
+												style={{ padding: "0px" }}>
+												<div
+													className={`codicon ${
+														pendingFavoriteToggles[item.id] !== undefined
+															? pendingFavoriteToggles[item.id]
+																? "codicon-star-full"
+																: "codicon-star-empty"
+															: item.isFavorited
+																? "codicon-star-full"
+																: "codicon-star-empty"
+													}`}
+													style={{
+														color:
+															(pendingFavoriteToggles[item.id] ?? item.isFavorited)
+																? "var(--vscode-button-background)"
+																: "inherit",
+														opacity: (pendingFavoriteToggles[item.id] ?? item.isFavorited) ? 1 : 0.7,
+														display:
+															(pendingFavoriteToggles[item.id] ?? item.isFavorited)
+																? "block"
+																: undefined,
+													}}
+												/>
+											</VSCodeButton>
+										</div>
 									</div>
-									<div
-										style={{
-											fontSize: "var(--vscode-font-size)",
-											color: "var(--vscode-foreground)",
-											display: "-webkit-box",
-											WebkitLineClamp: 3,
-											WebkitBoxOrient: "vertical",
-											overflow: "hidden",
-											whiteSpace: "pre-wrap",
-											wordBreak: "break-word",
-											overflowWrap: "anywhere",
-										}}
-										dangerouslySetInnerHTML={{
-											__html: item.task,
-										}}
-									/>
+
+									<div style={{ marginBottom: "8px", position: "relative" }}>
+										<div
+											style={{
+												fontSize: "var(--vscode-font-size)",
+												color: "var(--vscode-foreground)",
+												display: "-webkit-box",
+												WebkitLineClamp: 3,
+												WebkitBoxOrient: "vertical",
+												overflow: "hidden",
+												whiteSpace: "pre-wrap",
+												wordBreak: "break-word",
+												overflowWrap: "anywhere",
+											}}>
+											<span
+												className="ph-no-capture"
+												dangerouslySetInnerHTML={{
+													__html: item.task,
+												}}
+											/>
+										</div>
+									</div>
 									<div
 										style={{
 											display: "flex",
@@ -563,7 +744,9 @@ const ExportButton = ({ itemId }: { itemId: string }) => (
 		appearance="icon"
 		onClick={(e) => {
 			e.stopPropagation()
-			vscode.postMessage({ type: "exportTaskWithId", text: itemId })
+			TaskServiceClient.exportTaskWithId(StringRequest.create({ value: itemId })).catch((err) =>
+				console.error("Failed to export task:", err),
+			)
 		}}>
 		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
 	</VSCodeButton>

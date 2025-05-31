@@ -35,10 +35,19 @@ describe("Chat Integration Tests", () => {
                                         }
                                     });
                                     break;
-                                case 'invoke':
-                                    if (message.invoke === 'primaryButtonClick') {
-                                        vscode.postMessage({ type: 'askResponse', askResponse: 'yesButtonClicked' });
-                                    }
+                                case 'primaryButtonClick':
+                                    vscode.postMessage({ 
+                                        type: 'grpc_request',
+                                        grpc_request: {
+                                            service: 'cline.TaskService',
+                                            method: 'askResponse',
+                                            message: {
+                                                responseType: 'yesButtonClicked'
+                                            },
+                                            request_id: 'test-request-id',
+                                            is_streaming: false
+                                        }
+                                    });
                                     break;
                             }
                         });
@@ -117,10 +126,14 @@ describe("Chat Integration Tests", () => {
 	})
 
 	it("should handle tool approval flow", async () => {
-		// Set up approval listener
+		// Set up approval listener for gRPC request
 		const approvalPromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "askResponse") {
+				if (
+					message.type === "grpc_request" &&
+					message.grpc_request?.service === "cline.TaskService" &&
+					message.grpc_request?.method === "askResponse"
+				) {
 					resolve(message)
 				}
 			})
@@ -128,13 +141,14 @@ describe("Chat Integration Tests", () => {
 
 		// Trigger tool approval
 		await panel.webview.postMessage({
-			type: "invoke",
-			invoke: "primaryButtonClick",
+			type: "primaryButtonClick",
 		})
 
-		// Verify approval was sent
+		// Verify gRPC request was sent with correct parameters
 		const response = await approvalPromise
-		assert.equal(response.type, "askResponse")
-		assert.equal(response.askResponse, "yesButtonClicked")
+		assert.equal(response.type, "grpc_request")
+		assert.equal(response.grpc_request.service, "cline.TaskService")
+		assert.equal(response.grpc_request.method, "askResponse")
+		assert.equal(response.grpc_request.message.responseType, "yesButtonClicked")
 	})
 })

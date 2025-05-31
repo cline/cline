@@ -15,7 +15,15 @@ permissions:
 
 jobs:
     test:
-        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
+        name: ${{ matrix.os == 'ubuntu-latest' && 'test' || format('test ({0})', matrix.os) }}
+        defaults:
+            run:
+                shell: bash
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -60,6 +68,11 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
+            - name: Set up NPM on Windows
+              if: runner.os == 'Windows'
+              run: |
+                  npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
+
             - name: Type Check
               run: npm run check-types
 
@@ -81,8 +94,9 @@ jobs:
               id: extension_coverage
               continue-on-error: true
               run: |
-                  xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1
-                  PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
+                  node ./scripts/test-ci.js > extension_coverage.txt 2>&1
+                  # Default the encoding to UTF-8 - It's not the default on Windows
+                  PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
             # Run webview tests with coverage
             - name: Webview Tests with Coverage
@@ -92,13 +106,16 @@ jobs:
                   cd webview-ui
                   # Ensure coverage dependency is installed
                   npm install --no-save @vitest/coverage-v8
-                  npm run test:coverage > webview_coverage.txt 2>&1 || true
+                  npm run test:coverage > webview_coverage.txt 2>&1
                   cd ..
-                  PYTHONPATH=.github/scripts python -m coverage_check extract-coverage webview-ui/webview_coverage.txt --type=webview --github-output --verbose
+                  # Default the encoding to UTF-8 - It's not the default on Windows
+                  PYTHONUTF8=1 PYTHONPATH=.github/scripts python -m coverage_check extract-coverage webview-ui/webview_coverage.txt --type=webview --github-output --verbose
 
             # Save coverage reports as artifacts (workflow-scoped)
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
+              # Only upload artifacts on Linux - We only need coverage from one OS
+              if: runner.os == 'Linux'
               with:
                   name: pr-coverage-reports
                   path: |
@@ -107,14 +124,18 @@ jobs:
                   retention-period: workflow # Artifacts are automatically deleted when the workflow completes
 
             # Set the check as failed if any of the tests failed
-            - name: Check for test failures
+            - name: Print test results and check for failures
               run: |
+                  echo "Extension Tests Result: ${{ steps.extension_coverage.outcome }}"
+                  cat extension_coverage.txt
+
+                  echo "Webview Tests Result: ${{ steps.webview_coverage.outcome }}"
+                  cat webview-ui/webview_coverage.txt
+
                   # Check if any of the test steps failed
                   # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#steps-context
                   if [ "${{ steps.extension_coverage.outcome }}" != "success" ] || [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
                       echo "Tests failed."
-                      cat extension_coverage.txt
-                      cat webview-ui/webview_coverage.txt
                       exit 1
                   fi
 

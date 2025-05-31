@@ -59,6 +59,13 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		return Array.from(this.activeInstances).filter((instance) => instance.view && "onDidChangeViewState" in instance.view)
 	}
 
+	public static async disposeAllInstances() {
+		const instances = Array.from(this.activeInstances)
+		for (const instance of instances) {
+			await instance.dispose()
+		}
+	}
+
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.view = webviewView
 
@@ -149,6 +156,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			this.controller.clearTask()
 
 			this.outputChannel.appendLine("Webview view resolved")
+
+			// Title setting logic removed to allow VSCode to use the container title primarily.
 		}
 	}
 
@@ -328,6 +337,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			<!DOCTYPE html>
 			<html lang="en">
 				<head>
+					<script src="http://localhost:8097"></script> 
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
