@@ -1,5 +1,5 @@
 import type { Controller } from "../index"
-import type { McpServers } from "../../../shared/proto/mcp"
+import { McpServers } from "../../../shared/proto/mcp"
 import { convertMcpServersToProtoMcpServers } from "../../../shared/proto-conversions/mcp/mcp-server-conversion"
 import { StringRequest } from "@/shared/proto/common"
 
@@ -17,7 +17,7 @@ export async function deleteMcpServer(controller: Controller, request: StringReq
 		// Convert application types to protobuf types
 		const protoServers = convertMcpServersToProtoMcpServers(mcpServers)
 
-		return { mcpServers: protoServers }
+		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
 		console.error(`Failed to delete MCP server: ${error}`)
 		throw error
