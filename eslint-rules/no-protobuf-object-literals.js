@@ -10,6 +10,7 @@ module.exports = createRule({
 			description: "Enforce using .create() or .fromPartial() for protobuf objects instead of object literals",
 			recommended: "error",
 		},
+		fixable: "code",
 		messages: {
 			useProtobufMethod:
 				"Use {{typeName}}.create() or {{typeName}}.fromPartial() instead of " +
@@ -79,13 +80,6 @@ module.exports = createRule({
 			return null
 		}
 
-		function hasProtobufReturnType(functionNode) {
-			if (!functionNode.returnType) return false
-
-			const returnTypeName = getTypeName(functionNode.returnType.typeAnnotation)
-			return returnTypeName && protobufImports.has(returnTypeName)
-		}
-
 		return {
 			// Skip object literals inside create() or fromPartial() method calls
 			CallExpression(node) {
@@ -138,8 +132,8 @@ module.exports = createRule({
 						if (protobufImports.has(typeName)) {
 							//console.log('🚨 VIOLATION: Using object literal for protobuf type:', typeName);
 							const sourceCode = context.getSourceCode()
-							const declaratorText = sourceCode.getText(declarator).trim()
-							const objectText = sourceCode.getText(node).trim()
+							const declaratorText = sourceCode.getText(declarator)
+							const objectText = sourceCode.getText(node)
 
 							context.report({
 								node,
@@ -149,6 +143,10 @@ module.exports = createRule({
 									code: declaratorText,
 									objectContent: objectText,
 								},
+								fix(fixer) {
+									// Replace the object literal with Type.create() call
+									return fixer.replaceText(node, `${typeName}.create(${objectText})`)
+								},
 							})
 							return
 						}
@@ -157,11 +155,15 @@ module.exports = createRule({
 						if (isNamespacedProtobufType(typeName)) {
 							//console.log('🚨 VIOLATION: Using object literal for namespaced protobuf type:', typeName);
 							const sourceCode = context.getSourceCode()
-							const declaratorText = sourceCode.getText(declarator).trim()
+							const declaratorText = sourceCode.getText(declarator)
 							context.report({
 								node,
 								messageId: "useProtobufMethodGeneric",
 								data: { code: declaratorText },
+								fix(fixer) {
+									// For namespaced types, use the full type name to call create()
+									return fixer.replaceText(node, `${typeName}.create(${sourceCode.getText(node)})`)
+								},
 							})
 						}
 					}
@@ -203,8 +205,8 @@ module.exports = createRule({
 					if (typeName && protobufImports.has(typeName)) {
 						//console.log('🚨 VIOLATION: Using object literal in assignment for protobuf type:', typeName);
 						const sourceCode = context.getSourceCode()
-						const assignmentText = sourceCode.getText(assignment.left).trim() + " = "
-						const objectText = sourceCode.getText(node).trim()
+						const assignmentText = sourceCode.getText(assignment.left) + " = "
+						const objectText = sourceCode.getText(node)
 
 						context.report({
 							node,
@@ -213,6 +215,10 @@ module.exports = createRule({
 								typeName,
 								code: assignmentText + "{",
 								objectContent: objectText,
+							},
+							fix(fixer) {
+								// Replace the object literal with Type.create() call in assignments
+								return fixer.replaceText(node, `${typeName}.create(${objectText})`)
 							},
 						})
 					}
@@ -249,21 +255,25 @@ module.exports = createRule({
 
 				// For async functions with Promise<Type> return type, extract the inner type
 				if (returnTypeName && returnTypeName.startsWith("Promise<") && returnTypeName.endsWith(">")) {
-					returnTypeName = returnTypeName.slice(8, -1).trim()
+					returnTypeName = returnTypeName.slice(8, -1)
 				}
 
 				// Check if the return type is a protobuf type
 				if (returnTypeName) {
 					if (protobufImports.has(returnTypeName)) {
 						const sourceCode = context.getSourceCode()
-						const returnText = sourceCode.getText(node.parent).trim()
+						const returnText = sourceCode.getText(node.parent)
 						context.report({
 							node,
 							messageId: "useProtobufMethod",
 							data: {
 								typeName: returnTypeName,
 								code: returnText,
-								objectContent: sourceCode.getText(node).trim(),
+								objectContent: sourceCode.getText(node),
+							},
+							fix(fixer) {
+								// Replace the object literal with Type.create() call in return statements
+								return fixer.replaceText(node, `${returnTypeName}.create(${sourceCode.getText(node)})`)
 							},
 						})
 						return
@@ -272,11 +282,17 @@ module.exports = createRule({
 					// Check if it's a namespaced protobuf type
 					if (isNamespacedProtobufType(returnTypeName)) {
 						const sourceCode = context.getSourceCode()
-						const returnText = sourceCode.getText(node.parent).trim()
+						const returnText = sourceCode.getText(node.parent)
 						context.report({
 							node,
 							messageId: "useProtobufMethodGeneric",
 							data: { code: returnText },
+							fix(fixer) {
+								// For namespaced types in return statements, we need to extract the full type name
+								const objectCode = sourceCode.getText(node)
+								// Since we may not know the exact type, we'll use the more generic namespaced type
+								return fixer.replaceText(node, `${returnTypeName}.create(${objectCode})`)
+							},
 						})
 						return
 					}
@@ -293,14 +309,19 @@ module.exports = createRule({
 							functionName.endsWith(protoType)
 						) {
 							const sourceCode = context.getSourceCode()
-							const returnText = sourceCode.getText(node.parent).trim()
+							const returnText = sourceCode.getText(node.parent)
 							context.report({
 								node,
 								messageId: "useProtobufMethod",
 								data: {
 									typeName: protoType,
 									code: returnText,
-									objectContent: sourceCode.getText(node).trim(),
+									objectContent: sourceCode.getText(node),
+								},
+								fix(fixer) {
+									// Replace the object literal with Type.create() call in return statements
+									// based on function name pattern
+									return fixer.replaceText(node, `${protoType}.create(${sourceCode.getText(node)})`)
 								},
 							})
 							return
@@ -322,14 +343,18 @@ module.exports = createRule({
 							functionText.includes(`: ${protoType}`) ||
 							functionText.includes(`:${protoType}`)
 						) {
-							const returnText = sourceCode.getText(node.parent).trim()
+							const returnText = sourceCode.getText(node.parent)
 							context.report({
 								node,
 								messageId: "useProtobufMethod",
 								data: {
 									typeName: protoType,
 									code: returnText,
-									objectContent: sourceCode.getText(node).trim(),
+									objectContent: sourceCode.getText(node),
+								},
+								fix(fixer) {
+									// Replace the object literal with Type.create() call
+									return fixer.replaceText(node, `${protoType}.create(${sourceCode.getText(node)})`)
 								},
 							})
 							return
@@ -343,11 +368,25 @@ module.exports = createRule({
 							functionText.includes(`: ${namespace}.`) ||
 							functionText.includes(`:${namespace}.`)
 						) {
-							const returnText = sourceCode.getText(node.parent).trim()
+							const returnText = sourceCode.getText(node.parent)
 							context.report({
 								node,
 								messageId: "useProtobufMethodGeneric",
 								data: { code: returnText },
+								fix(fixer) {
+									// For namespaced types based on function signature patterns
+									// Extract the namespace and type from the function text
+									const match = functionText.match(
+										new RegExp(`Promise<(${namespace}\\.[\\w]+)>|: (${namespace}\\.[\\w]+)`),
+									)
+									if (match) {
+										const fullType = match[1] || match[2]
+										return fixer.replaceText(node, `${fullType}.create(${sourceCode.getText(node)})`)
+									}
+									// Fallback - we can't determine the exact type, but we know it's from the namespace
+									// Use a namespace-based approach
+									return fixer.replaceText(node, `${namespace}.create(${sourceCode.getText(node)})`)
+								},
 							})
 							return
 						}
@@ -377,12 +416,33 @@ module.exports = createRule({
 					const namespace = node.parent.callee.object.name
 					if (protobufNamespaceImports.has(namespace)) {
 						const sourceCode = context.getSourceCode()
-						const callText = sourceCode.getText(node.parent).trim()
+						const callText = sourceCode.getText(node.parent)
 
 						context.report({
 							node,
 							messageId: "useProtobufMethodGeneric",
 							data: { code: callText },
+							fix(fixer) {
+								// For calls on a protobuf namespace
+								const memberExpr = node.parent.callee
+								// Try to determine if this is calling a method that expects a specific type
+								const methodName = memberExpr.property.name
+
+								// If method name looks like 'create' + Type, we can infer the type
+								const possibleTypeName = methodName.replace(/^create/, "")
+
+								// Check if namespace has a type with this name
+								// Since we can't directly check at lint time, we'll use the namespace + inferred type
+								if (possibleTypeName && possibleTypeName !== methodName) {
+									return fixer.replaceText(
+										node,
+										`${namespace}.${possibleTypeName}.create(${sourceCode.getText(node)})`,
+									)
+								}
+
+								// Fallback - use a more generic approach with namespace
+								return fixer.replaceText(node, `${namespace}.create(${sourceCode.getText(node)})`)
+							},
 						})
 						return
 					}
@@ -410,11 +470,15 @@ module.exports = createRule({
 								if (param.typeAnnotation) {
 									const typeName = getTypeName(param.typeAnnotation.typeAnnotation)
 									if (typeName && (protobufImports.has(typeName) || isNamespacedProtobufType(typeName))) {
-										const callText = sourceCode.getText(node.parent).trim()
+										const callText = sourceCode.getText(node.parent)
 										context.report({
 											node,
 											messageId: "useProtobufMethodGeneric",
 											data: { code: callText },
+											fix(fixer) {
+												// For function calls with protobuf type parameters
+												return fixer.replaceText(node, `${typeName}.create(${sourceCode.getText(node)})`)
+											},
 										})
 										return
 									}
