@@ -171,6 +171,7 @@
 		"groqApiKey": "Groq API कुंजी",
 		"getGeminiApiKey": "Gemini API कुंजी प्राप्त करें",
 		"openAiApiKey": "OpenAI API कुंजी",
+		"apiKey": "API कुंजी",
 		"openAiBaseUrl": "बेस URL",
 		"getOpenAiApiKey": "OpenAI API कुंजी प्राप्त करें",
 		"mistralApiKey": "Mistral API कुंजी",

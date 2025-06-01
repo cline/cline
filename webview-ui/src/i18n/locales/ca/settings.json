@@ -171,6 +171,7 @@
 		"groqApiKey": "Clau API de Groq",
 		"getGeminiApiKey": "Obtenir clau API de Gemini",
 		"openAiApiKey": "Clau API d'OpenAI",
+		"apiKey": "Clau API",
 		"openAiBaseUrl": "URL base",
 		"getOpenAiApiKey": "Obtenir clau API d'OpenAI",
 		"mistralApiKey": "Clau API de Mistral",

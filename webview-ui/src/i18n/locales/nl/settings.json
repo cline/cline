@@ -170,6 +170,7 @@
 		"getGroqApiKey": "Groq API-sleutel ophalen",
 		"groqApiKey": "Groq API-sleutel",
 		"getGeminiApiKey": "Gemini API-sleutel ophalen",
+		"apiKey": "API-sleutel",
 		"openAiApiKey": "OpenAI API-sleutel",
 		"openAiBaseUrl": "Basis-URL",
 		"getOpenAiApiKey": "OpenAI API-sleutel ophalen",

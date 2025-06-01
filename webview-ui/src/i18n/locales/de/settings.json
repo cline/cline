@@ -171,6 +171,7 @@
 		"groqApiKey": "Groq API-Schlüssel",
 		"getGeminiApiKey": "Gemini API-Schlüssel erhalten",
 		"openAiApiKey": "OpenAI API-Schlüssel",
+		"apiKey": "API-Schlüssel",
 		"openAiBaseUrl": "Basis-URL",
 		"getOpenAiApiKey": "OpenAI API-Schlüssel erhalten",
 		"mistralApiKey": "Mistral API-Schlüssel",

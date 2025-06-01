@@ -171,6 +171,7 @@
 		"groqApiKey": "Khóa API Groq",
 		"getGeminiApiKey": "Lấy khóa API Gemini",
 		"openAiApiKey": "Khóa API OpenAI",
+		"apiKey": "Khóa API",
 		"openAiBaseUrl": "URL cơ sở",
 		"getOpenAiApiKey": "Lấy khóa API OpenAI",
 		"mistralApiKey": "Khóa API Mistral",

@@ -170,6 +170,7 @@
 		"getGroqApiKey": "Получить Groq API-ключ",
 		"groqApiKey": "Groq API-ключ",
 		"getGeminiApiKey": "Получить Gemini API-ключ",
+		"apiKey": "API-ключ",
 		"openAiApiKey": "OpenAI API-ключ",
 		"openAiBaseUrl": "Базовый URL",
 		"getOpenAiApiKey": "Получить OpenAI API-ключ",

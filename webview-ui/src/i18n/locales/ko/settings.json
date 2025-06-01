@@ -170,6 +170,7 @@
 		"getGroqApiKey": "Groq API 키 받기",
 		"groqApiKey": "Groq API 키",
 		"getGeminiApiKey": "Gemini API 키 받기",
+		"apiKey": "API 키",
 		"openAiApiKey": "OpenAI API 키",
 		"openAiBaseUrl": "기본 URL",
 		"getOpenAiApiKey": "OpenAI API 키 받기",

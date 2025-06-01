@@ -171,6 +171,7 @@
 		"groqApiKey": "Groq APIキー",
 		"getGeminiApiKey": "Gemini APIキーを取得",
 		"openAiApiKey": "OpenAI APIキー",
+		"apiKey": "APIキー",
 		"openAiBaseUrl": "ベースURL",
 		"getOpenAiApiKey": "OpenAI APIキーを取得",
 		"mistralApiKey": "Mistral APIキー",

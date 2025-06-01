@@ -133,7 +133,7 @@ export const OpenAICompatible = ({
 				onInput={handleInputChange("openAiApiKey")}
 				placeholder={t("settings:placeholders.apiKey")}
 				className="w-full">
-				<label className="block font-medium mb-1">{t("settings:providers.openAiApiKey")}</label>
+				<label className="block font-medium mb-1">{t("settings:providers.apiKey")}</label>
 			</VSCodeTextField>
 			<ModelPicker
 				apiConfiguration={apiConfiguration}

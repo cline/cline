@@ -171,6 +171,7 @@
 		"groqApiKey": "Groq API 金鑰",
 		"getGeminiApiKey": "取得 Gemini API 金鑰",
 		"openAiApiKey": "OpenAI API 金鑰",
+		"apiKey": "API 金鑰",
 		"openAiBaseUrl": "基礎 URL",
 		"getOpenAiApiKey": "取得 OpenAI API 金鑰",
 		"mistralApiKey": "Mistral API 金鑰",

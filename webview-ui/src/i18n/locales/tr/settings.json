@@ -171,6 +171,7 @@
 		"groqApiKey": "Groq API Anahtarı",
 		"getGeminiApiKey": "Gemini API Anahtarı Al",
 		"openAiApiKey": "OpenAI API Anahtarı",
+		"apiKey": "API Anahtarı",
 		"openAiBaseUrl": "Temel URL",
 		"getOpenAiApiKey": "OpenAI API Anahtarı Al",
 		"mistralApiKey": "Mistral API Anahtarı",

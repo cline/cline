@@ -171,6 +171,7 @@
 		"groqApiKey": "Chiave API Groq",
 		"getGeminiApiKey": "Ottieni chiave API Gemini",
 		"openAiApiKey": "Chiave API OpenAI",
+		"apiKey": "Chiave API",
 		"openAiBaseUrl": "URL base",
 		"getOpenAiApiKey": "Ottieni chiave API OpenAI",
 		"mistralApiKey": "Chiave API Mistral",

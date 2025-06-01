@@ -170,6 +170,7 @@
 		"getGroqApiKey": "Obter chave de API Groq",
 		"groqApiKey": "Chave de API Groq",
 		"getGeminiApiKey": "Obter chave de API Gemini",
+		"apiKey": "Chave de API",
 		"openAiApiKey": "Chave de API OpenAI",
 		"openAiBaseUrl": "URL Base",
 		"getOpenAiApiKey": "Obter chave de API OpenAI",
