@@ -3,6 +3,8 @@ import { Anthropic } from "@anthropic-ai/sdk" // Keep for type usage only
 
 import { litellmDefaultModelId, litellmDefaultModelInfo } from "@roo-code/types"
 
+import { calculateApiCostOpenAI } from "../../shared/cost"
+
 import { ApiHandlerOptions } from "../../shared/api"
 
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -66,7 +68,7 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 
 			for await (const chunk of completion) {
 				const delta = chunk.choices[0]?.delta
-				const usage = chunk.usage as OpenAI.CompletionUsage
+				const usage = chunk.usage as LiteLLMUsage
 
 				if (delta?.content) {
 					yield { type: "text", text: delta.content }
@@ -82,7 +84,11 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 					type: "usage",
 					inputTokens: lastUsage.prompt_tokens || 0,
 					outputTokens: lastUsage.completion_tokens || 0,
+					cacheWriteTokens: lastUsage.cache_creation_input_tokens || 0,
+					cacheReadTokens: lastUsage.prompt_tokens_details?.cached_tokens || 0,
 				}
+
+				usageData.totalCost = calculateApiCostOpenAI(info, usageData.inputTokens, usageData.outputTokens, usageData.cacheWriteTokens, usageData.cacheReadTokens)
 
 				yield usageData
 			}
@@ -118,4 +124,9 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 			throw error
 		}
 	}
+}
+
+// LiteLLM usage may include an extra field for Anthropic use cases.
+interface LiteLLMUsage extends OpenAI.CompletionUsage {
+	cache_creation_input_tokens?: number
 }

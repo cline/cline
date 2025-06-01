@@ -58,6 +58,8 @@ export async function getLiteLLMModels(apiKey: string, baseUrl: string): Promise
 					outputPrice: modelInfo.output_cost_per_token
 						? modelInfo.output_cost_per_token * 1000000
 						: undefined,
+					cacheWritesPrice: modelInfo.cache_creation_input_token_cost ? modelInfo.cache_creation_input_token_cost * 1000000 : undefined,
+					cacheReadsPrice: modelInfo.cache_read_input_token_cost ? modelInfo.cache_read_input_token_cost * 1000000 : undefined,
 					description: `${modelName} via LiteLLM proxy`,
 				}
 			}
