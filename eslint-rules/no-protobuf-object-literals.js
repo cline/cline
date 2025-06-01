@@ -14,7 +14,7 @@ module.exports = createRule({
 		messages: {
 			useProtobufMethod:
 				"Use {{typeName}}.create() or {{typeName}}.fromPartial() instead of " +
-				"object literal for protobuf type\n" +
+				"object literal for protobuf type from @shared/proto\n" +
 				"Found: {{code}}\n  Suggestion: " +
 				"{{typeName}}.create({{objectContent}})",
 			useProtobufMethodGeneric:
@@ -67,13 +67,10 @@ module.exports = createRule({
 					node.specifiers.forEach((spec) => {
 						if (spec.type === "ImportSpecifier") {
 							// import { MyRequest } from '@shared/proto'
-							console.log("Registered protobuf import:", context.getFilename(), "__", spec.imported.name)
 							protobufImports.add(spec.imported.name)
 							//console.log('📝 Registered protobuf type:', spec.imported.name);
 						} else if (spec.type === "ImportNamespaceSpecifier") {
 							// import * as proto from '@shared/proto'
-							console.log("Registered protobuf import:", context.getFilename(), "__", spec.local.name)
-
 							protobufNamespaceImports.add(spec.local.name)
 							//console.log('📝 Registered namespace:', spec.local.name);
 						}
@@ -200,7 +197,9 @@ module.exports = createRule({
 
 				// Find the parent function to get its return type
 				const functionNode = findParentFunction(node)
-				if (!functionNode) return
+				if (!functionNode) {
+					return
+				}
 
 				// Try to get the return type using our enhanced helper
 				const sourceCode = context.getSourceCode()
@@ -214,8 +213,6 @@ module.exports = createRule({
 				// Check if the return type is a protobuf type
 				if (returnTypeName) {
 					if (protobufImports.has(returnTypeName)) {
-						console.log("Return type: ", context.getFilename(), "___", returnTypeName)
-
 						const sourceCode = context.getSourceCode()
 						const returnText = sourceCode.getText(node.parent)
 						context.report({
@@ -241,7 +238,7 @@ module.exports = createRule({
 						context.report({
 							node,
 							messageId: "useProtobufMethodGeneric",
-							data: { code: returnText + "111111111" },
+							data: { code: returnText },
 							fix(fixer) {
 								// For namespaced types in return statements, we need to extract the full type name
 								const objectCode = sourceCode.getText(node)
@@ -250,37 +247,6 @@ module.exports = createRule({
 							},
 						})
 						return
-					}
-				}
-
-				// If we couldn't determine the type directly, check if the function name suggests it returns a protobuf type
-				if (functionNode.id && functionNode.id.name) {
-					const functionName = functionNode.id.name
-					// Check if the function name is in form of "get<ProtobufType>" or "create<ProtobufType>"
-					for (const protoType of protobufImports) {
-						if (
-							functionName === `get${protoType}` ||
-							functionName === `create${protoType}` ||
-							functionName.endsWith(protoType)
-						) {
-							const sourceCode = context.getSourceCode()
-							const returnText = sourceCode.getText(node.parent)
-							context.report({
-								node,
-								messageId: "useProtobufMethod",
-								data: {
-									typeName: protoType,
-									code: returnText + "222222222",
-									objectContent: sourceCode.getText(node),
-								},
-								fix(fixer) {
-									// Replace the object literal with Type.create() call in return statements
-									// based on function name pattern
-									return fixer.replaceText(node, `${protoType}.create(${sourceCode.getText(node)})`)
-								},
-							})
-							return
-						}
 					}
 				}
 
@@ -322,7 +288,7 @@ module.exports = createRule({
 				}
 
 				// Check for namespace imports too
-				for (const namespace of protobufNamespaceImports) {
+				for (const namespace of `protobufNamespaceImports`) {
 					// Similar to above, but for namespaced types
 					const namespaceReturnTypeRegex = new RegExp(
 						// Match arrow function return type
@@ -470,7 +436,9 @@ module.exports = createRule({
 
 // Helper functions
 function getTypeName(typeAnnotation) {
-	if (!typeAnnotation) return null
+	if (!typeAnnotation) {
+		return null
+	}
 
 	if (typeAnnotation.type === "TSTypeReference") {
 		if (typeAnnotation.typeName.type === "Identifier") {
@@ -562,7 +530,9 @@ function getEnclosingClassName(node) {
 	return null
 }
 function isNamespacedProtobufType(protobufNamespaceImports, typeName) {
-	if (!typeName.includes(".")) return false
+	if (!typeName.includes(".")) {
+		return false
+	}
 
 	const namespace = typeName.split(".")[0]
 	return protobufNamespaceImports.has(namespace)
