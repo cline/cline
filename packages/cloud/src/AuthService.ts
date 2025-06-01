@@ -3,6 +3,7 @@ import EventEmitter from "events"
 
 import axios from "axios"
 import * as vscode from "vscode"
+import { z } from "zod"
 
 import type { CloudUserInfo } from "@roo-code/types"
 
@@ -15,8 +16,14 @@ export interface AuthServiceEvents {
 	"user-info": [data: { userInfo: CloudUserInfo }]
 }
 
-const CLIENT_TOKEN_KEY = "clerk-client-token"
-const SESSION_ID_KEY = "clerk-session-id"
+const authCredentialsSchema = z.object({
+	clientToken: z.string().min(1, "Client token cannot be empty"),
+	sessionId: z.string().min(1, "Session ID cannot be empty"),
+})
+
+type AuthCredentials = z.infer<typeof authCredentialsSchema>
+
+const AUTH_CREDENTIALS_KEY = "clerk-auth-credentials"
 const AUTH_STATE_KEY = "clerk-auth-state"
 
 type AuthState = "initializing" | "logged-out" | "active-session" | "inactive-session"
@@ -26,9 +33,8 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	private timer: RefreshTimer
 	private state: AuthState = "initializing"
 
-	private clientToken: string | null = null
+	private credentials: AuthCredentials | null = null
 	private sessionToken: string | null = null
-	private sessionId: string | null = null
 	private userInfo: CloudUserInfo | null = null
 
 	constructor(context: vscode.ExtensionContext) {
@@ -47,6 +53,55 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		})
 	}
 
+	private async handleCredentialsChange(): Promise<void> {
+		try {
+			const credentials = await this.loadCredentials()
+
+			if (credentials) {
+				if (
+					this.credentials === null ||
+					this.credentials.clientToken !== credentials.clientToken ||
+					this.credentials.sessionId !== credentials.sessionId
+				) {
+					this.transitionToInactiveSession(credentials)
+				}
+			} else {
+				if (this.state !== "logged-out") {
+					this.transitionToLoggedOut()
+				}
+			}
+		} catch (error) {
+			console.error("[auth] Error handling credentials change:", error)
+		}
+	}
+
+	private transitionToLoggedOut(): void {
+		this.timer.stop()
+
+		const previousState = this.state
+
+		this.credentials = null
+		this.sessionToken = null
+		this.userInfo = null
+		this.state = "logged-out"
+
+		this.emit("logged-out", { previousState })
+
+		console.log("[auth] Transitioned to logged-out state")
+	}
+
+	private transitionToInactiveSession(credentials: AuthCredentials): void {
+		this.credentials = credentials
+		this.state = "inactive-session"
+
+		this.sessionToken = null
+		this.userInfo = null
+
+		this.timer.start()
+
+		console.log("[auth] Transitioned to inactive-session state")
+	}
+
 	/**
 	 * Initialize the auth state
 	 *
@@ -59,27 +114,40 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			return
 		}
 
+		await this.handleCredentialsChange()
+
+		this.context.subscriptions.push(
+			this.context.secrets.onDidChange((e) => {
+				if (e.key === AUTH_CREDENTIALS_KEY) {
+					this.handleCredentialsChange()
+				}
+			}),
+		)
+	}
+
+	private async storeCredentials(credentials: AuthCredentials): Promise<void> {
+		await this.context.secrets.store(AUTH_CREDENTIALS_KEY, JSON.stringify(credentials))
+	}
+
+	private async loadCredentials(): Promise<AuthCredentials | null> {
+		const credentialsJson = await this.context.secrets.get(AUTH_CREDENTIALS_KEY)
+		if (!credentialsJson) return null
+
 		try {
-			this.clientToken = (await this.context.secrets.get(CLIENT_TOKEN_KEY)) || null
-			this.sessionId = this.context.globalState.get<string>(SESSION_ID_KEY) || null
-
-			// Determine initial state.
-			if (!this.clientToken || !this.sessionId) {
-				// TODO: it may be possible to get a new session with the client,
-				// but the obvious Clerk endpoints don't support that.
-				const previousState = this.state
-				this.state = "logged-out"
-				this.emit("logged-out", { previousState })
-			} else {
-				this.state = "inactive-session"
-				this.timer.start()
-			}
-
-			console.log(`[auth] Initialized with state: ${this.state}`)
+			const parsedJson = JSON.parse(credentialsJson)
+			return authCredentialsSchema.parse(parsedJson)
 		} catch (error) {
-			console.error(`[auth] Error initializing AuthService: ${error}`)
-			this.state = "logged-out"
+			if (error instanceof z.ZodError) {
+				console.error("[auth] Invalid credentials format:", error.errors)
+			} else {
+				console.error("[auth] Failed to parse stored credentials:", error)
+			}
+			return null
 		}
+	}
+
+	private async clearCredentials(): Promise<void> {
+		await this.context.secrets.delete(AUTH_CREDENTIALS_KEY)
 	}
 
 	/**
@@ -132,21 +200,9 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 				throw new Error("Invalid state parameter. Authentication request may have been tampered with.")
 			}
 
-			const { clientToken, sessionToken, sessionId } = await this.clerkSignIn(code)
+			const { credentials } = await this.clerkSignIn(code)
 
-			await this.context.secrets.store(CLIENT_TOKEN_KEY, clientToken)
-			await this.context.globalState.update(SESSION_ID_KEY, sessionId)
-
-			this.clientToken = clientToken
-			this.sessionId = sessionId
-			this.sessionToken = sessionToken
-
-			const previousState = this.state
-			this.state = "active-session"
-			this.emit("active-session", { previousState })
-			this.timer.start()
-
-			this.fetchUserInfo()
+			await this.storeCredentials(credentials)
 
 			vscode.window.showInformationMessage("Successfully authenticated with Roo Code Cloud")
 			console.log("[auth] Successfully authenticated with Roo Code Cloud")
@@ -165,29 +221,20 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	 * This method removes all stored tokens and stops the refresh timer.
 	 */
 	public async logout(): Promise<void> {
-		try {
-			this.timer.stop()
+		const oldCredentials = this.credentials
 
-			await this.context.secrets.delete(CLIENT_TOKEN_KEY)
-			await this.context.globalState.update(SESSION_ID_KEY, undefined)
+		try {
+			// Clear credentials from storage - onDidChange will handle state transitions
+			await this.clearCredentials()
 			await this.context.globalState.update(AUTH_STATE_KEY, undefined)
 
-			const oldClientToken = this.clientToken
-			const oldSessionId = this.sessionId
-
-			this.clientToken = null
-			this.sessionToken = null
-			this.sessionId = null
-			this.userInfo = null
-			const previousState = this.state
-			this.state = "logged-out"
-			this.emit("logged-out", { previousState })
-
-			if (oldClientToken && oldSessionId) {
-				await this.clerkLogout(oldClientToken, oldSessionId)
+			if (oldCredentials) {
+				try {
+					await this.clerkLogout(oldCredentials)
+				} catch (error) {
+					console.error("[auth] Error calling clerkLogout:", error)
+				}
 			}
-
-			this.fetchUserInfo()
 
 			vscode.window.showInformationMessage("Logged out from Roo Code Cloud")
 			console.log("[auth] Logged out from Roo Code Cloud")
@@ -228,8 +275,8 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	 * This method refreshes the session token using the client token.
 	 */
 	private async refreshSession(): Promise<void> {
-		if (!this.sessionId || !this.clientToken) {
-			console.log("[auth] Cannot refresh session: missing session ID or token")
+		if (!this.credentials) {
+			console.log("[auth] Cannot refresh session: missing credentials")
 			this.state = "inactive-session"
 			return
 		}
@@ -239,13 +286,14 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		this.state = "active-session"
 
 		if (previousState !== "active-session") {
+			console.log("[auth] Transitioned to active-session state")
 			this.emit("active-session", { previousState })
 			this.fetchUserInfo()
 		}
 	}
 
 	private async fetchUserInfo(): Promise<void> {
-		if (!this.clientToken) {
+		if (!this.credentials) {
 			return
 		}
 
@@ -262,9 +310,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		return this.userInfo
 	}
 
-	private async clerkSignIn(
-		ticket: string,
-	): Promise<{ clientToken: string; sessionToken: string; sessionId: string }> {
+	private async clerkSignIn(ticket: string): Promise<{ credentials: AuthCredentials; sessionToken: string }> {
 		const formData = new URLSearchParams()
 		formData.append("strategy", "ticket")
 		formData.append("ticket", ticket)
@@ -284,14 +330,14 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		}
 
 		// 4. Find the session using created_session_id and extract the JWT.
-		const createdSessionId = response.data?.response?.created_session_id
+		const sessionId = response.data?.response?.created_session_id
 
-		if (!createdSessionId) {
+		if (!sessionId) {
 			throw new Error("No session ID found in the response")
 		}
 
 		// Find the session in the client sessions array.
-		const session = response.data?.client?.sessions?.find((s: { id: string }) => s.id === createdSessionId)
+		const session = response.data?.client?.sessions?.find((s: { id: string }) => s.id === sessionId)
 
 		if (!session) {
 			throw new Error("Session not found in the response")
@@ -304,7 +350,9 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			throw new Error("Session does not have a token")
 		}
 
-		return { clientToken, sessionToken, sessionId: session.id }
+		const credentials = authCredentialsSchema.parse({ clientToken, sessionId })
+
+		return { credentials, sessionToken }
 	}
 
 	private async clerkCreateSessionToken(): Promise<string> {
@@ -312,12 +360,12 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		formData.append("_is_native", "1")
 
 		const response = await axios.post(
-			`${getClerkBaseUrl()}/v1/client/sessions/${this.sessionId}/tokens`,
+			`${getClerkBaseUrl()}/v1/client/sessions/${this.credentials!.sessionId}/tokens`,
 			formData,
 			{
 				headers: {
 					"Content-Type": "application/x-www-form-urlencoded",
-					Authorization: `Bearer ${this.clientToken}`,
+					Authorization: `Bearer ${this.credentials!.clientToken}`,
 					"User-Agent": this.userAgent(),
 				},
 			},
@@ -335,7 +383,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	private async clerkMe(): Promise<CloudUserInfo> {
 		const response = await axios.get(`${getClerkBaseUrl()}/v1/me`, {
 			headers: {
-				Authorization: `Bearer ${this.clientToken}`,
+				Authorization: `Bearer ${this.credentials!.clientToken}`,
 				"User-Agent": this.userAgent(),
 			},
 		})
@@ -362,13 +410,13 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		return userInfo
 	}
 
-	private async clerkLogout(clientToken: string, sessionId: string): Promise<void> {
+	private async clerkLogout(credentials: AuthCredentials): Promise<void> {
 		const formData = new URLSearchParams()
 		formData.append("_is_native", "1")
 
-		await axios.post(`${getClerkBaseUrl()}/v1/client/sessions/${sessionId}/remove`, formData, {
+		await axios.post(`${getClerkBaseUrl()}/v1/client/sessions/${credentials.sessionId}/remove`, formData, {
 			headers: {
-				Authorization: `Bearer ${clientToken}`,
+				Authorization: `Bearer ${credentials.clientToken}`,
 				"User-Agent": this.userAgent(),
 			},
 		})

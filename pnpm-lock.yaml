@@ -129,6 +129,9 @@ importers:
       axios:
         specifier: ^1.7.4
         version: 1.9.0
+      zod:
+        specifier: ^3.24.2
+        version: 3.24.4
     devDependencies:
       '@roo-code/config-eslint':
         specifier: workspace:^
