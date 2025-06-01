@@ -1,5 +1,6 @@
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
-import type { AddRemoteMcpServerRequest, McpServers } from "../../../shared/proto/mcp"
+import type { AddRemoteMcpServerRequest } from "../../../shared/proto/mcp"
+import { McpServers } from "../../../shared/proto/mcp"
 import type { Controller } from "../index"
 
 /**
@@ -23,7 +24,7 @@ export async function addRemoteMcpServer(controller: Controller, request: AddRem
 
 		const protoServers = convertMcpServersToProtoMcpServers(servers)
 
-		return { mcpServers: protoServers }
+		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
 		console.error(`Failed to add remote MCP server ${request.serverName}:`, error)
 

@@ -141,10 +141,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	}, [apiConfiguration?.apiProvider, apiConfiguration?.openAiModelInfo])
 
 	const shouldShowPromptCacheInfo = () => {
-		return (
-			doesModelSupportPromptCache &&
-			((cacheReads !== undefined && cacheReads > 0) || (cacheWrites !== undefined && cacheWrites > 0))
-		)
+		// Hybrid logic: Show cache info if we have actual cache data,
+		// regardless of whether the model explicitly supports prompt cache.
+		// This allows OpenAI-compatible providers to show cache tokens.
+		return (cacheReads !== undefined && cacheReads > 0) || (cacheWrites !== undefined && cacheWrites > 0)
 	}
 
 	console.log("IS_DEV", { IS_DEV, isItTrue: IS_DEV === '"true"' })

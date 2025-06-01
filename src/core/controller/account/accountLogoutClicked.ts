@@ -1,4 +1,4 @@
-import type { Empty } from "../../../shared/proto/common"
+import { Empty } from "../../../shared/proto/common"
 import type { EmptyRequest } from "../../../shared/proto/common"
 import type { Controller } from "../index"
 
@@ -10,5 +10,5 @@ import type { Controller } from "../index"
  */
 export async function accountLogoutClicked(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	await controller.handleSignOut()
-	return {}
+	return Empty.create({})
 }

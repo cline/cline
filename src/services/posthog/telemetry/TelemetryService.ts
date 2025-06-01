@@ -383,7 +383,14 @@ class TelemetryService {
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 */
-	public captureToolUsage(taskId: string, tool: string, autoApproved: boolean, success: boolean, collect: boolean = false) {
+	public captureToolUsage(
+		taskId: string,
+		tool: string,
+		modelId: string,
+		autoApproved: boolean,
+		success: boolean,
+		collect: boolean = false,
+	) {
 		this.capture(
 			{
 				event: TelemetryService.EVENTS.TASK.TOOL_USED,
@@ -392,6 +399,7 @@ class TelemetryService {
 					tool,
 					autoApproved,
 					success,
+					modelId,
 				},
 			},
 			collect,

@@ -109,9 +109,7 @@ export class Controller {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
-		this.outputChannel.appendLine("Disposing ClineProvider...")
 		await this.clearTask()
-		this.outputChannel.appendLine("Cleared task")
 		while (this.disposables.length) {
 			const x = this.disposables.pop()
 			if (x) {
@@ -120,7 +118,6 @@ export class Controller {
 		}
 		this.workspaceTracker.dispose()
 		this.mcpHub.dispose()
-		this.outputChannel.appendLine("Disposed all disposables")
 
 		console.error("Controller disposed")
 	}

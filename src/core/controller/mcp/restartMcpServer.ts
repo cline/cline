@@ -1,4 +1,4 @@
-import type { McpServers } from "@shared/proto/mcp"
+import { McpServers } from "@shared/proto/mcp"
 import type { Controller } from "../index"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { StringRequest } from "@/shared/proto/common"
@@ -16,7 +16,7 @@ export async function restartMcpServer(controller: Controller, request: StringRe
 		// Convert from McpServer[] to ProtoMcpServer[] ensuring all required fields are set
 		const protoServers = convertMcpServersToProtoMcpServers(mcpServers)
 
-		return { mcpServers: protoServers }
+		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
 		console.error(`Failed to restart MCP server ${request.value}:`, error)
 		throw error

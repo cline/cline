@@ -539,6 +539,7 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 		if (
 			inFunctionCalls &&
 			currentInvokeName === "" &&
+			!currentToolUse && // Don't create a new tool if we already have one
 			currentCharIndex >= isInvokeStart.length - 1 &&
 			assistantMessage.startsWith(isInvokeStart, currentCharIndex - isInvokeStart.length + 1)
 		) {
@@ -686,6 +687,16 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					}
 				}
 
+				// If this is a MultiEdit invoke, create a replace_in_file tool
+				if (currentInvokeName === "MultiEdit") {
+					currentToolUse = {
+						type: "tool_use",
+						name: "replace_in_file",
+						params: {},
+						partial: true,
+					}
+				}
+
 				continue
 			}
 		}
@@ -821,6 +832,16 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 				}
 			}
 
+			// Map parameter to tool params for MultiEdit
+			if (currentToolUse && currentInvokeName === "MultiEdit") {
+				if (currentParameterName === "file_path") {
+					currentToolUse.params["path"] = value
+				} else if (currentParameterName === "edits") {
+					// Save the value to the diff parameter for replace_in_file
+					currentToolUse.params["diff"] = value
+				}
+			}
+
 			currentParameterName = ""
 			continue
 		}
@@ -849,13 +870,13 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 					currentInvokeName === "LoadMcpDocumentation" ||
 					currentInvokeName === "AttemptCompletion" ||
 					currentInvokeName === "BrowserAction" ||
-					currentInvokeName === "NewTask")
+					currentInvokeName === "NewTask" ||
+					currentInvokeName === "MultiEdit")
 			) {
 				currentToolUse.partial = false
 				contentBlocks.push(currentToolUse)
 				currentToolUse = undefined
 			}
-
 			currentInvokeName = ""
 			continue
 		}
@@ -868,6 +889,12 @@ export function parseAssistantMessageV3(assistantMessage: string): AssistantMess
 		) {
 			inFunctionCalls = false
 			currentTextContentStart = currentCharIndex + 1
+			// Start a new text content block for any text after function_calls
+			currentTextContent = {
+				type: "text",
+				content: "",
+				partial: true,
+			}
 			continue
 		}
 

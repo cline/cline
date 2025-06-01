@@ -1,4 +1,5 @@
-import type { ToggleClineRuleRequest, ClineRulesToggles, ToggleClineRules } from "../../../shared/proto/file"
+import { ToggleClineRules } from "../../../shared/proto/file"
+import type { ToggleClineRuleRequest } from "../../../shared/proto/file"
 import type { Controller } from "../index"
 import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../../../core/storage/state"
 import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
@@ -36,8 +37,8 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 	const globalToggles = ((await getGlobalState(controller.context, "globalClineRulesToggles")) as AppClineRulesToggles) || {}
 	const localToggles = ((await getWorkspaceState(controller.context, "localClineRulesToggles")) as AppClineRulesToggles) || {}
 
-	return {
+	return ToggleClineRules.create({
 		globalClineRulesToggles: { toggles: globalToggles },
 		localClineRulesToggles: { toggles: localToggles },
-	}
+	})
 }

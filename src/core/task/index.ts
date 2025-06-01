@@ -60,7 +60,13 @@ import { fileExistsAtPath } from "@utils/fs"
 import { createAndOpenGitHubIssue } from "@utils/github-url-utils"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
-import { AssistantMessageContent, parseAssistantMessageV2, ToolParamName, ToolUseName } from "@core/assistant-message"
+import {
+	AssistantMessageContent,
+	parseAssistantMessageV2,
+	parseAssistantMessageV3,
+	ToolParamName,
+	ToolUseName,
+} from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
@@ -1786,7 +1792,6 @@ export class Task {
 	): Promise<{ shouldBreak: boolean; newContent?: string; error?: string }> {
 		// Calculate the delta - what's new since last time
 		const newJsonChunk = currentFullJson.substring(this.lastProcessedJsonLength)
-
 		if (block.partial) {
 			// Initialize on first chunk
 			if (!this.streamingJsonReplacer) {
@@ -1802,6 +1807,7 @@ export class Task {
 
 				const onError = (error: Error) => {
 					console.error("StreamingJsonReplacer error:", error)
+					console.log("Failed StreamingJsonReplacer update:")
 					// Handle error: push tool result, cleanup
 					this.userMessageContent.push({
 						type: "text",
@@ -1843,9 +1849,45 @@ export class Task {
 				if (!this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.open(relPath)
 				}
-				// Would need to initialize StreamingJsonReplacer here for non-streaming case
+
+				// Initialize StreamingJsonReplacer for non-streaming case
+				const onContentUpdated = (newContent: string, _isFinalItem: boolean, changeLocation?: ChangeLocation) => {
+					// Update diff view incrementally
+					this.diffViewProvider.update(newContent, false, changeLocation)
+				}
+
+				const onError = (error: Error) => {
+					console.error("StreamingJsonReplacer error:", error)
+					// Handle error
+					this.userMessageContent.push({
+						type: "text",
+						text: formatResponse.toolError(`JSON replacement error: ${error.message}`),
+					})
+					this.didAlreadyUseTool = true
+					this.userMessageContentReady = true
+					throw error
+				}
+
+				this.streamingJsonReplacer = new StreamingJsonReplacer(
+					this.diffViewProvider.originalContent || "",
+					onContentUpdated,
+					onError,
+				)
+
+				// Write the entire JSON at once
+				this.streamingJsonReplacer.write(currentFullJson)
+
+				// Get the final content
+				const newContent = this.streamingJsonReplacer.getCurrentContent()
+
+				// Cleanup
+				this.streamingJsonReplacer = undefined
 				this.lastProcessedJsonLength = 0
-				return { shouldBreak: true }
+
+				// Update diff view with final content
+				await this.diffViewProvider.update(newContent, true)
+
+				return { shouldBreak: false, newContent }
 			}
 
 			// Feed final delta
@@ -2205,9 +2247,10 @@ export class Task {
 								const currentFullJson = block.params.diff
 								// Check if we should use streaming (e.g., for specific models)
 								const isClaude4ModelFamily = await this.isClaude4ModelFamily()
-
+								console.log("[EDIT] currentFullJson " + currentFullJson)
 								// Going through claude family of models
 								if (isClaude4ModelFamily && currentFullJson) {
+									console.log("[EDIT] Streaming JSON replacement")
 									const streamingResult = await this.handleStreamingJsonReplacement(
 										block,
 										relPath,
@@ -2374,7 +2417,7 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
-									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+									telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 
 									// we need an artificial delay to let the diagnostics catch up to the changes
 									await setTimeoutPromise(3_500)
@@ -2412,7 +2455,13 @@ export class Task {
 										}
 										this.didRejectTool = true
 										didApprove = false
-										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										telemetryService.captureToolUsage(
+											this.taskId,
+											block.name,
+											this.api.getModel().id,
+											false,
+											false,
+										)
 									} else {
 										// User hit the approve button, and may have provided feedback
 										if (text || (images && images.length > 0) || (askFiles && askFiles.length > 0)) {
@@ -2425,7 +2474,13 @@ export class Task {
 											await this.say("user_feedback", text, images, askFiles)
 											await this.saveCheckpoint()
 										}
-										telemetryService.captureToolUsage(this.taskId, block.name, false, true)
+										telemetryService.captureToolUsage(
+											this.taskId,
+											block.name,
+											this.api.getModel().id,
+											false,
+											true,
+										)
 									}
 
 									if (!didApprove) {
@@ -2543,7 +2598,7 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
 									this.consecutiveAutoApprovedRequestsCount++
-									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+									telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to read ${path.basename(absolutePath)}`,
@@ -2552,10 +2607,22 @@ export class Task {
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
 										await this.saveCheckpoint()
-										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										telemetryService.captureToolUsage(
+											this.taskId,
+											block.name,
+											this.api.getModel().id,
+											false,
+											false,
+										)
 										break
 									}
-									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
+									telemetryService.captureToolUsage(
+										this.taskId,
+										block.name,
+										this.api.getModel().id,
+										false,
+										true,
+									)
 								}
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath)
@@ -2628,7 +2695,7 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
-									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+									telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to view directory ${path.basename(absolutePath)}/`,
@@ -2636,11 +2703,23 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
-										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										telemetryService.captureToolUsage(
+											this.taskId,
+											block.name,
+											this.api.getModel().id,
+											false,
+											false,
+										)
 										await this.saveCheckpoint()
 										break
 									}
-									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
+									telemetryService.captureToolUsage(
+										this.taskId,
+										block.name,
+										this.api.getModel().id,
+										false,
+										true,
+									)
 								}
 								pushToolResult(result, isClaude4ModelFamily)
 								await this.saveCheckpoint()
@@ -2698,7 +2777,7 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
-									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+									telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
@@ -2706,11 +2785,23 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
-										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										telemetryService.captureToolUsage(
+											this.taskId,
+											block.name,
+											this.api.getModel().id,
+											false,
+											false,
+										)
 										await this.saveCheckpoint()
 										break
 									}
-									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
+									telemetryService.captureToolUsage(
+										this.taskId,
+										block.name,
+										this.api.getModel().id,
+										false,
+										true,
+									)
 								}
 								pushToolResult(result)
 								await this.saveCheckpoint()
@@ -2787,7 +2878,7 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
-									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+									telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to search files in ${path.basename(absolutePath)}/`,
@@ -2795,11 +2886,23 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
-										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+										telemetryService.captureToolUsage(
+											this.taskId,
+											block.name,
+											this.api.getModel().id,
+											false,
+											false,
+										)
 										await this.saveCheckpoint()
 										break
 									}
-									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
+									telemetryService.captureToolUsage(
+										this.taskId,
+										block.name,
+										this.api.getModel().id,
+										false,
+										true,
+									)
 								}
 								pushToolResult(results, isClaude4ModelFamily)
 								await this.saveCheckpoint()
@@ -3704,20 +3807,38 @@ export class Task {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
-									telemetryService.captureToolUsage(this.taskId, "web_fetch" as ToolUseName, true, true)
+									telemetryService.captureToolUsage(
+										this.taskId,
+										"web_fetch" as ToolUseName,
+										this.api.getModel().id,
+										true,
+										true,
+									)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(`Cline wants to fetch content from ${url}`)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
-										telemetryService.captureToolUsage(this.taskId, "web_fetch" as ToolUseName, false, false)
+										telemetryService.captureToolUsage(
+											this.taskId,
+											"web_fetch" as ToolUseName,
+											this.api.getModel().id,
+											false,
+											false,
+										)
 										await this.saveCheckpoint()
 										break
 									}
-									telemetryService.captureToolUsage(this.taskId, "web_fetch" as ToolUseName, false, true)
+									telemetryService.captureToolUsage(
+										this.taskId,
+										"web_fetch" as ToolUseName,
+										this.api.getModel().id,
+										false,
+										true,
+									)
 								}
 
-								// Fetch Markdown content
+								// Fetch Markdown contentcc
 								await this.urlContentFetcher.launchBrowser()
 								const markdownContent = await this.urlContentFetcher.urlToMarkdown(url)
 								await this.urlContentFetcher.closeBrowser()

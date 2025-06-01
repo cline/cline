@@ -56,6 +56,7 @@ const BaseConfigSchema = z.object({
 
 const SseConfigSchema = BaseConfigSchema.extend({
 	url: z.string().url(),
+	headers: z.record(z.string()).optional(), // headers of POST requests to the sse server
 }).transform((config) => ({
 	...config,
 	transportType: "sse" as const,
@@ -328,7 +329,14 @@ export class McpHub {
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			if (config.transportType === "sse") {
-				transport = new SSEClientTransport(new URL(config.url), {})
+				// Set headers of POST requests to the sse server
+				const postRequestInit = {
+					headers: config.headers,
+				}
+
+				transport = new SSEClientTransport(new URL(config.url), {
+					requestInit: postRequestInit,
+				})
 			} else if (config.transportType === "http") {
 				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {

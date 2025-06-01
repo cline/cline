@@ -59,6 +59,13 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		return Array.from(this.activeInstances).filter((instance) => instance.view && "onDidChangeViewState" in instance.view)
 	}
 
+	public static async disposeAllInstances() {
+		const instances = Array.from(this.activeInstances)
+		for (const instance of instances) {
+			await instance.dispose()
+		}
+	}
+
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.view = webviewView
 

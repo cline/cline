@@ -181,6 +181,9 @@ export async function regexSearchFiles(
 	return formatResults(filteredResults, cwd)
 }
 
+const MAX_RIPGREP_MB = 0.25
+const MAX_BYTE_SIZE = MAX_RIPGREP_MB * 1024 * 1024 // 0./25MB in bytes
+
 function formatResults(results: SearchResult[], cwd: string): string {
 	const groupedResults: { [key: string]: SearchResult[] } = {}
 
@@ -200,21 +203,102 @@ function formatResults(results: SearchResult[], cwd: string): string {
 		groupedResults[relativeFilePath].push(result)
 	})
 
+	// Track byte size
+	let byteSize = Buffer.byteLength(output, "utf8")
+	let wasLimitReached = false
+
 	for (const [filePath, fileResults] of Object.entries(groupedResults)) {
-		output += `${filePath.toPosix()}\n│----\n`
+		// Check if adding this file's path would exceed the byte limit
+		const filePathString = `${filePath.toPosix()}\n│----\n`
+		const filePathBytes = Buffer.byteLength(filePathString, "utf8")
 
-		fileResults.forEach((result, index) => {
+		if (byteSize + filePathBytes >= MAX_BYTE_SIZE) {
+			wasLimitReached = true
+			break
+		}
+
+		output += filePathString
+		byteSize += filePathBytes
+
+		for (let resultIndex = 0; resultIndex < fileResults.length; resultIndex++) {
+			const result = fileResults[resultIndex]
 			const allLines = [...result.beforeContext, result.match, ...result.afterContext]
-			allLines.forEach((line) => {
-				output += `│${line?.trimEnd() ?? ""}\n`
-			})
 
-			if (index < fileResults.length - 1) {
-				output += "│----\n"
+			// Calculate bytes in all lines for this result
+			let resultBytes = 0
+			const resultLines: string[] = []
+
+			for (const line of allLines) {
+				const trimmedLine = line?.trimEnd() ?? ""
+				const lineString = `│${trimmedLine}\n`
+				const lineBytes = Buffer.byteLength(lineString, "utf8")
+
+				// Check if adding this line would exceed the byte limit
+				if (byteSize + resultBytes + lineBytes >= MAX_BYTE_SIZE) {
+					wasLimitReached = true
+					break
+				}
+
+				resultLines.push(lineString)
+				resultBytes += lineBytes
 			}
-		})
 
-		output += "│----\n\n"
+			// If we hit the limit in the middle of processing lines, break out of the result loop
+			if (wasLimitReached) {
+				break
+			}
+
+			// Add all lines for this result to the output
+			resultLines.forEach((line) => {
+				output += line
+			})
+			byteSize += resultBytes
+
+			// Add separator between results if needed
+			if (resultIndex < fileResults.length - 1) {
+				const separatorString = "│----\n"
+				const separatorBytes = Buffer.byteLength(separatorString, "utf8")
+
+				if (byteSize + separatorBytes >= MAX_BYTE_SIZE) {
+					wasLimitReached = true
+					break
+				}
+
+				output += separatorString
+				byteSize += separatorBytes
+			}
+
+			// Check if we've hit the byte limit
+			if (byteSize >= MAX_BYTE_SIZE) {
+				wasLimitReached = true
+				break
+			}
+		}
+
+		// If we hit the limit, break out of the file loop
+		if (wasLimitReached) {
+			break
+		}
+
+		const closingString = "│----\n\n"
+		const closingBytes = Buffer.byteLength(closingString, "utf8")
+
+		if (byteSize + closingBytes >= MAX_BYTE_SIZE) {
+			wasLimitReached = true
+			break
+		}
+
+		output += closingString
+		byteSize += closingBytes
+	}
+
+	// Add a message if we hit the byte limit
+	if (wasLimitReached) {
+		const truncationMessage = `\n[Results truncated due to exceeding the ${MAX_RIPGREP_MB}MB size limit. Please use a more specific search pattern.]`
+		// Only add the message if it fits within the limit
+		if (byteSize + Buffer.byteLength(truncationMessage, "utf8") < MAX_BYTE_SIZE) {
+			output += truncationMessage
+		}
 	}
 
 	return output.trim()

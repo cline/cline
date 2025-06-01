@@ -12,7 +12,7 @@ import { EmptyRequest, String } from "../../../shared/proto/common"
  * @param controller The controller instance.
  * @returns The login URL as a string.
  */
-export async function accountLoginClicked(controller: Controller, unused: EmptyRequest): Promise<String> {
+export async function accountLoginClicked(controller: Controller, _: EmptyRequest): Promise<String> {
 	// Generate nonce for state validation
 	const nonce = crypto.randomBytes(32).toString("hex")
 	await storeSecret(controller.context, "authNonce", nonce)
@@ -27,7 +27,7 @@ export async function accountLoginClicked(controller: Controller, unused: EmptyR
 		`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
 	)
 	await vscode.env.openExternal(authUrl)
-	return {
+	return String.create({
 		value: authUrl.toString(),
-	}
+	})
 }

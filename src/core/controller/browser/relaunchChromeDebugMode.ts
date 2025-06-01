@@ -8,7 +8,7 @@ import { BrowserSession } from "../../../services/browser/BrowserSession"
  * @param request The empty request message
  * @returns The browser relaunch result as a string message
  */
-export async function relaunchChromeDebugMode(controller: Controller, request: EmptyRequest): Promise<StringMessage> {
+export async function relaunchChromeDebugMode(controller: Controller, _: EmptyRequest): Promise<StringMessage> {
 	try {
 		const { browserSettings } = await controller.getStateToPostToWebview()
 		const browserSession = new BrowserSession(controller.context, browserSettings)
@@ -18,9 +18,9 @@ export async function relaunchChromeDebugMode(controller: Controller, request: E
 
 		// The actual result will be sent via postMessageToWebview in the BrowserSession.relaunchChromeDebugMode method
 		// Here we just return a message as a placeholder
-		return {
+		return StringMessage.create({
 			value: "Chrome relaunch initiated",
-		}
+		})
 	} catch (error) {
 		throw new Error(`Error relaunching Chrome: ${error instanceof Error ? error.message : globalThis.String(error)}`)
 	}
