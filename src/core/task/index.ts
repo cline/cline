@@ -60,7 +60,13 @@ import { fileExistsAtPath } from "@utils/fs"
 import { createAndOpenGitHubIssue } from "@utils/github-url-utils"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
-import { AssistantMessageContent, parseAssistantMessageV2, ToolParamName, ToolUseName } from "@core/assistant-message"
+import {
+	AssistantMessageContent,
+	parseAssistantMessageV2,
+	parseAssistantMessageV3,
+	ToolParamName,
+	ToolUseName,
+} from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
@@ -104,7 +110,6 @@ import { isInTestMode } from "../../services/test/TestMode"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
-import { parseAssistantMessageV3 } from "../assistant-message/parse-assistant-message"
 
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1784,7 +1789,6 @@ export class Task {
 	): Promise<{ shouldBreak: boolean; newContent?: string; error?: string }> {
 		// Calculate the delta - what's new since last time
 		const newJsonChunk = currentFullJson.substring(this.lastProcessedJsonLength)
-
 		if (block.partial) {
 			// Initialize on first chunk
 			if (!this.streamingJsonReplacer) {
@@ -1800,6 +1804,7 @@ export class Task {
 
 				const onError = (error: Error) => {
 					console.error("StreamingJsonReplacer error:", error)
+					console.log("Failed StreamingJsonReplacer update:")
 					// Handle error: push tool result, cleanup
 					this.userMessageContent.push({
 						type: "text",
@@ -1841,9 +1846,45 @@ export class Task {
 				if (!this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.open(relPath)
 				}
-				// Would need to initialize StreamingJsonReplacer here for non-streaming case
+
+				// Initialize StreamingJsonReplacer for non-streaming case
+				const onContentUpdated = (newContent: string, _isFinalItem: boolean, changeLocation?: ChangeLocation) => {
+					// Update diff view incrementally
+					this.diffViewProvider.update(newContent, false, changeLocation)
+				}
+
+				const onError = (error: Error) => {
+					console.error("StreamingJsonReplacer error:", error)
+					// Handle error
+					this.userMessageContent.push({
+						type: "text",
+						text: formatResponse.toolError(`JSON replacement error: ${error.message}`),
+					})
+					this.didAlreadyUseTool = true
+					this.userMessageContentReady = true
+					throw error
+				}
+
+				this.streamingJsonReplacer = new StreamingJsonReplacer(
+					this.diffViewProvider.originalContent || "",
+					onContentUpdated,
+					onError,
+				)
+
+				// Write the entire JSON at once
+				this.streamingJsonReplacer.write(currentFullJson)
+
+				// Get the final content
+				const newContent = this.streamingJsonReplacer.getCurrentContent()
+
+				// Cleanup
+				this.streamingJsonReplacer = undefined
 				this.lastProcessedJsonLength = 0
-				return { shouldBreak: true }
+
+				// Update diff view with final content
+				await this.diffViewProvider.update(newContent, true)
+
+				return { shouldBreak: false, newContent }
 			}
 
 			// Feed final delta
@@ -2201,9 +2242,10 @@ export class Task {
 								const currentFullJson = block.params.diff
 								// Check if we should use streaming (e.g., for specific models)
 								const isClaude4ModelFamily = await this.isClaude4ModelFamily()
-
+								console.log("[EDIT] currentFullJson " + currentFullJson)
 								// Going through claude family of models
 								if (isClaude4ModelFamily && currentFullJson) {
+									console.log("[EDIT] Streaming JSON replacement")
 									const streamingResult = await this.handleStreamingJsonReplacement(
 										block,
 										relPath,
