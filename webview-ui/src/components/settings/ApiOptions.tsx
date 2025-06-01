@@ -1234,9 +1234,11 @@ const ApiOptions = ({
 						type="url"
 						onInput={(e: any) => {
 							const baseUrl = e.target.value
-							handleInputChange("openAiBaseUrl")({ target: { value: baseUrl } })
-
-							debouncedRefreshOpenAiModels(baseUrl, apiConfiguration?.openAiApiKey)
+							handleOpenAiChange("openAiBaseUrl")(e)
+							debouncedRefreshOpenAiModels(
+								baseUrl,
+								apiConfiguration?.openAiConfigs?.[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.openAiApiKey,
+							)
 						}}
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
@@ -1251,9 +1253,11 @@ const ApiOptions = ({
 						type="password"
 						onInput={(e: any) => {
 							const apiKey = e.target.value
-							handleInputChange("openAiApiKey")({ target: { value: apiKey } })
-
-							debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, apiKey)
+							handleOpenAiChange("openAiApiKey")(e)
+							debouncedRefreshOpenAiModels(
+								apiConfiguration?.openAiConfigs?.[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.openAiBaseUrl,
+								apiKey,
+							)
 						}}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
