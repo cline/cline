@@ -176,8 +176,8 @@ for i in "${!options[@]}"; do
   case "${plugin}" in
   "nodejs")
     if ! command -v node &>/dev/null; then
-      asdf install nodejs 20.18.1 || exit 1
-      asdf set nodejs 20.18.1 || exit 1
+      asdf install nodejs 20.19.2 || exit 1
+      asdf set nodejs 20.19.2 || exit 1
       NODE_VERSION=$(node --version)
       echo "✅ Node.js is installed ($NODE_VERSION)"
     else
@@ -185,7 +185,7 @@ for i in "${!options[@]}"; do
       echo "✅ Node.js is installed ($NODE_VERSION)"
     fi
 
-    if [[ $(node --version) != "v20.18.1" ]]; then
+    if [[ $(node --version) != "v20.19.2" ]]; then
       NODE_VERSION=$(node --version)
       echo "🚨 You have the wrong version of node installed ($NODE_VERSION)."
       echo "💡 If you are using nvm then run 'nvm install' to install the version specified by the repo's .nvmrc."

@@ -9,7 +9,7 @@ on:
 env:
   REPO_PATH: ${{ github.repository }}
   GIT_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
-  NODE_VERSION: 20.18.1
+  NODE_VERSION: 20.19.2
   PNPM_VERSION: 10.8.1
 
 jobs:
