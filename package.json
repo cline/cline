@@ -343,7 +343,7 @@
 		"@anthropic-ai/bedrock-sdk": "^0.12.4",
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
-		"@aws-sdk/client-bedrock-runtime": "^3.758.0",
+		"@aws-sdk/client-bedrock-runtime": "^3.821.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
