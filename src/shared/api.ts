@@ -1701,7 +1701,7 @@ export const nebiusModels = {
 		outputPrice: 6,
 	},
 	"deepseek-ai/DeepSeek-R1-0528": {
-		maxTokens: 163_840,
+		maxTokens: 128_000,
 		contextWindow: 163_840,
 		supportsImages: false,
 		supportsPromptCache: false,
