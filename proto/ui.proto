@@ -13,4 +13,7 @@ service UiService {
   
   // Marks the current announcement as shown and returns whether an announcement should still be shown
   rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);
+
+  // Subscribe to MCP button clicked events
+  rpc subscribeToMcpButtonClicked(EmptyRequest) returns (stream Empty);
 }

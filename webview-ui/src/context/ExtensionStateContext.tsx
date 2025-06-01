@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient } from "../services/grpc-client"
+import { StateServiceClient, UiServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "@shared/ExtensionMessage"
@@ -189,9 +189,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		switch (message.type) {
 			case "action": {
 				switch (message.action!) {
-					case "mcpButtonClicked":
-						navigateToMcp(message.tab)
-						break
 					case "settingsButtonClicked":
 						navigateToSettings()
 						break
@@ -268,10 +265,11 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	useEvent("message", handleMessage)
 
-	// Reference to store the state subscription cancellation function
+	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 
-	// Subscribe to state updates using the new gRPC streaming API
+	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(
@@ -346,14 +344,34 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
+		// Subscribe to MCP button clicked events
+		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
+			{},
+			{
+				onResponse: () => {
+					// When MCP button is clicked, navigate to MCP view
+					console.log("[DEBUG] Received MCP button clicked event from gRPC stream")
+					navigateToMcp()
+				},
+				onError: (error) => {
+					console.error("Error in MCP button subscription:", error)
+				},
+				onComplete: () => {},
+			},
+		)
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
-		// Clean up subscription when component unmounts
+		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
 				stateSubscriptionRef.current()
 				stateSubscriptionRef.current = null
+			}
+			if (mcpButtonUnsubscribeRef.current) {
+				mcpButtonUnsubscribeRef.current()
+				mcpButtonUnsubscribeRef.current = null
 			}
 		}
 	}, [])
