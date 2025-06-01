@@ -4,7 +4,7 @@ import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
-import { EmptyRequest } from "@shared/proto/common"
+import { EmptyRequest, Empty } from "@shared/proto/common"
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import {
@@ -16,7 +16,7 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { ModelsServiceClient, StateServiceClient } from "../services/grpc-client"
+import { ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 
@@ -198,9 +198,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					case "settingsButtonClicked":
 						navigateToSettings()
 						break
-					case "historyButtonClicked":
-						navigateToHistory()
-						break
 					case "accountButtonClicked":
 						navigateToAccount()
 						break
@@ -271,8 +268,9 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	useEvent("message", handleMessage)
 
-	// Reference to store the state subscription cancellation function
+	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates using the new gRPC streaming API
 	useEffect(() => {
@@ -354,6 +352,32 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (stateSubscriptionRef.current) {
 				stateSubscriptionRef.current()
 				stateSubscriptionRef.current = null
+			}
+		}
+	}, [])
+
+	// Subscribe to history button click events
+	useEffect(() => {
+		// Set up history button clicked subscription
+		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When history button is clicked, navigate to history view
+				console.log("[DEBUG] Received history button clicked event from gRPC stream")
+				navigateToHistory()
+			},
+			onError: (error) => {
+				console.error("Error in history button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("History button clicked subscription completed")
+			},
+		})
+
+		// Clean up subscription when component unmounts
+		return () => {
+			if (historyButtonClickedSubscriptionRef.current) {
+				historyButtonClickedSubscriptionRef.current()
+				historyButtonClickedSubscriptionRef.current = null
 			}
 		}
 	}, [])

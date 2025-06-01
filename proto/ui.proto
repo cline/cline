@@ -16,4 +16,7 @@ service UiService {
   
   // Subscribe to addToInput events (when user adds content via context menu)
   rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
+  
+  // Subscribe to history button click events
+  rpc subscribeToHistoryButtonClicked(EmptyRequest) returns (stream Empty);
 }
