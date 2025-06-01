@@ -219,8 +219,7 @@ export async function searchAndReplaceTool(
 			return
 		}
 
-		// Call saveChanges to update the DiffViewProvider properties
-		await cline.diffViewProvider.saveChanges()
+		const { newProblemsMessage, userEdits, finalContent } = await cline.diffViewProvider.saveChanges()
 
 		// Track file edit operation
 		if (relPath) {
@@ -229,14 +228,34 @@ export async function searchAndReplaceTool(
 
 		cline.didEditFile = true
 
-		// Get the formatted response message
-		const message = await cline.diffViewProvider.pushToolWriteResult(
-			cline,
-			cline.cwd,
-			false, // Always false for search_and_replace
+		if (!userEdits) {
+			pushToolResult(`The content was successfully replaced in ${relPath}.${newProblemsMessage}`)
+			await cline.diffViewProvider.reset()
+			return
+		}
+
+		await cline.say(
+			"user_feedback_diff",
+			JSON.stringify({
+				tool: "appliedDiff",
+				path: getReadablePath(cline.cwd, relPath),
+				diff: userEdits,
+			} satisfies ClineSayTool),
 		)
 
-		pushToolResult(message)
+		// Format and send response with user's updates
+		const resultMessage = [
+			`The user made the following updates to your content:\n\n${userEdits}\n\n`,
+			`The updated content has been successfully saved to ${validRelPath.toPosix()}. Here is the full, updated content of the file:\n\n`,
+			`<final_file_content path="${validRelPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n`,
+			`Please note:\n`,
+			`1. You do not need to re-write the file with these changes, as they have already been applied.\n`,
+			`2. Proceed with the task using the updated file content as the new baseline.\n`,
+			`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.`,
+			newProblemsMessage,
+		].join("")
+
+		pushToolResult(resultMessage)
 
 		// Record successful tool usage and cleanup
 		cline.recordToolUsage("search_and_replace")

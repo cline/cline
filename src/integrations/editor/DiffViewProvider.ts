@@ -3,14 +3,11 @@ import * as path from "path"
 import * as fs from "fs/promises"
 import * as diff from "diff"
 import stripBom from "strip-bom"
-import { XMLBuilder } from "fast-xml-parser"
 
 import { createDirectoriesForFile } from "../../utils/fs"
-import { arePathsEqual, getReadablePath } from "../../utils/path"
+import { arePathsEqual } from "../../utils/path"
 import { formatResponse } from "../../core/prompts/responses"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
-import { ClineSayTool } from "../../shared/ExtensionMessage"
-import { Task } from "../../core/task/Task"
 
 import { DecorationController } from "./DecorationController"
 
@@ -18,9 +15,6 @@ export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
 // TODO: https://github.com/cline/cline/pull/3354
 export class DiffViewProvider {
-	// Properties to store the results of saveChanges
-	newProblemsMessage?: string
-	userEdits?: string
 	editType?: "create" | "modify"
 	isEditing = false
 	originalContent: string | undefined
@@ -244,89 +238,11 @@ export class DiffViewProvider {
 				normalizedEditedContent,
 			)
 
-			// Store the results as class properties for formatFileWriteResponse to use
-			this.newProblemsMessage = newProblemsMessage
-			this.userEdits = userEdits
-
 			return { newProblemsMessage, userEdits, finalContent: normalizedEditedContent }
 		} else {
 			// No changes to Roo's edits.
-			// Store the results as class properties for formatFileWriteResponse to use
-			this.newProblemsMessage = newProblemsMessage
-			this.userEdits = undefined
-
 			return { newProblemsMessage, userEdits: undefined, finalContent: normalizedEditedContent }
 		}
-	}
-
-	/**
-	 * Formats a standardized XML response for file write operations
-	 *
-	 * @param cwd Current working directory for path resolution
-	 * @param isNewFile Whether this is a new file or an existing file being modified
-	 * @returns Formatted message and say object for UI feedback
-	 */
-	async pushToolWriteResult(task: Task, cwd: string, isNewFile: boolean): Promise<string> {
-		if (!this.relPath) {
-			throw new Error("No file path available in DiffViewProvider")
-		}
-
-		// Only send user_feedback_diff if userEdits exists
-		if (this.userEdits) {
-			// Create say object for UI feedback
-			const say: ClineSayTool = {
-				tool: isNewFile ? "newFileCreated" : "editedExistingFile",
-				path: getReadablePath(cwd, this.relPath),
-				diff: this.userEdits,
-			}
-
-			// Send the user feedback
-			await task.say("user_feedback_diff", JSON.stringify(say))
-		}
-
-		// Build XML response
-		const xmlObj = {
-			file_write_result: {
-				path: this.relPath,
-				operation: isNewFile ? "created" : "modified",
-				user_edits: this.userEdits ? this.userEdits : undefined,
-				problems: this.newProblemsMessage || undefined,
-				notice: {
-					i: [
-						"You do not need to re-read the file, as you have seen all changes",
-						"Proceed with the task using these changes as the new baseline.",
-						...(this.userEdits
-							? [
-									"If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.",
-								]
-							: []),
-					],
-				},
-			},
-		}
-
-		const builder = new XMLBuilder({
-			format: true,
-			indentBy: "",
-			suppressEmptyNode: true,
-			processEntities: false,
-			tagValueProcessor: (name, value) => {
-				if (typeof value === "string") {
-					// Only escape <, >, and & characters
-					return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-				}
-				return value
-			},
-			attributeValueProcessor: (name, value) => {
-				if (typeof value === "string") {
-					// Only escape <, >, and & characters
-					return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-				}
-				return value
-			},
-		})
-
-		return builder.build(xmlObj)
 	}
 
 	async revertChanges(): Promise<void> {
