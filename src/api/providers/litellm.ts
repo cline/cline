@@ -109,8 +109,8 @@ export class LiteLlmHandler implements ApiHandler {
 			stream_options: { include_usage: true },
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
 			...(this.options.taskId && {
-				metadata: { cline_task_id: this.options.taskId }
-			})
+				metadata: { cline_task_id: this.options.taskId },
+			}),
 		}
 
 		const stream = await this.client.chat.completions.create(requestPayload)
