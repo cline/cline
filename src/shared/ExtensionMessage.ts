@@ -41,7 +41,6 @@ export interface ExtensionMessage {
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"
-		| "settingsButtonClicked"
 		| "historyButtonClicked"
 		| "didBecomeVisible"
 		| "accountLogoutClicked"

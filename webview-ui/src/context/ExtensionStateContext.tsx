@@ -16,7 +16,7 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { ModelsServiceClient, StateServiceClient } from "../services/grpc-client"
+import { ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 
@@ -195,9 +195,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					case "mcpButtonClicked":
 						navigateToMcp(message.tab)
 						break
-					case "settingsButtonClicked":
-						navigateToSettings()
-						break
 					case "historyButtonClicked":
 						navigateToHistory()
 						break
@@ -271,8 +268,9 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	useEvent("message", handleMessage)
 
-	// Reference to store the state subscription cancellation function
+	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates using the new gRPC streaming API
 	useEffect(() => {
@@ -354,6 +352,31 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (stateSubscriptionRef.current) {
 				stateSubscriptionRef.current()
 				stateSubscriptionRef.current = null
+			}
+		}
+	}, [])
+
+	// Subscribe to settings button clicked events
+	useEffect(() => {
+		// Set up settings button clicked subscription
+		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When settings button is clicked, navigate to settings
+				navigateToSettings()
+			},
+			onError: (error) => {
+				console.error("Error in settings button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Settings button clicked subscription completed")
+			},
+		})
+
+		// Clean up subscription when component unmounts
+		return () => {
+			if (settingsButtonClickedSubscriptionRef.current) {
+				settingsButtonClickedSubscriptionRef.current()
+				settingsButtonClickedSubscriptionRef.current = null
 			}
 		}
 	}, [])
