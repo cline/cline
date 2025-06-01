@@ -1,5 +1,4 @@
 import { ApiConfiguration } from "./api"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
@@ -9,91 +8,33 @@ import { McpViewTab } from "./mcp"
 
 export interface WebviewMessage {
 	type:
-		| "addRemoteServer"
 		| "apiConfiguration"
 		| "webviewDidLaunch"
 		| "newTask"
-		| "askResponse"
-		| "clearTask"
-		| "didShowAnnouncement"
-		| "selectImages"
-		| "exportCurrentTask"
-		| "showTaskWithId"
-		| "deleteTaskWithId"
-		| "exportTaskWithId"
-		| "resetState"
-		| "requestOllamaModels"
-		| "requestLmStudioModels"
-		| "openImage"
-		| "openInBrowser"
-		| "openFile"
-		| "openMention"
-		| "cancelTask"
-		| "showChatView"
-		| "refreshOpenRouterModels"
-		| "refreshRequestyModels"
-		| "refreshOpenAiModels"
-		| "refreshClineRules"
-		| "openMcpSettings"
-		| "restartMcpServer"
-		| "deleteMcpServer"
-		| "autoApprovalSettings"
-		| "browserSettings"
-		| "discoverBrowser"
-		| "browserRelaunchResult"
-		| "togglePlanActMode"
-		| "checkpointDiff"
-		| "checkpointRestore"
-		| "taskCompletionViewChanges"
-		| "openExtensionSettings"
+		| "condense"
+		| "reportBug"
 		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
-		| "toggleMcpServer"
-		| "getLatestState"
-		| "accountLoginClicked"
-		| "accountLogoutClicked"
-		| "showAccountViewClicked"
 		| "authStateChanged"
-		| "authCallback"
 		| "fetchMcpMarketplace"
-		| "downloadMcp"
-		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
-		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "openSettings"
-		| "updateMcpTimeout"
-		| "fetchOpenGraphData"
-		| "checkIsImageUrl"
-		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
-		| "optionsResponse"
-		| "requestTotalTasksSize"
-		| "relaunchChromeDebugMode"
-		| "taskFeedback"
-		| "getDetectedChromePath"
-		| "detectedChromePath"
-		| "scrollToSettings"
-		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
-		| "toggleFavoriteModel"
 		| "grpc_request"
-		| "toggleClineRule"
-		| "deleteClineRule"
+		| "grpc_request_cancel"
+		| "toggleWorkflow"
+		| "executeQuickWin"
 
-	// | "relaunchChromeDebugMode"
 	text?: string
-	uris?: string[] // Used for getRelativePaths
 	disabled?: boolean
-	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
+	files?: string[]
 	bool?: boolean
 	number?: number
-	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
@@ -109,13 +50,11 @@ export interface WebviewMessage {
 	// For auth
 	user?: UserInfo | null
 	customToken?: string
-	// For openInBrowser
-	url?: string
 	planActSeparateModelsSetting?: boolean
+	enableCheckpointsSetting?: boolean
+	mcpMarketplaceEnabled?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
-	// For task feedback
-	feedbackType?: TaskFeedbackType
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel
@@ -125,12 +64,22 @@ export interface WebviewMessage {
 		method: string
 		message: any // JSON serialized protobuf message
 		request_id: string // For correlating requests and responses
+		is_streaming?: boolean // Whether this is a streaming request
 	}
-	// For toggleClineRule
+	grpc_request_cancel?: {
+		request_id: string // ID of the request to cancel
+	}
+	// For cline rules and workflows
 	isGlobal?: boolean
 	rulePath?: string
+	workflowPath?: string
 	enabled?: boolean
+	filename?: string
+
+	payload?: { command: string; title: string }
+
 	offset?: number
+	shellIntegrationTimeout?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

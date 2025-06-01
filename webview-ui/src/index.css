@@ -3,6 +3,9 @@
 /* Disable Tailwind's CSS reset to preserve existing styles */
 /* @import "tailwindcss/preflight.css" layer(base); */
 @import "tailwindcss/utilities.css" layer(utilities);
+@import "katex/dist/katex.min.css";
+
+@config "../tailwind.config.js";
 
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
@@ -19,8 +22,6 @@ https://github.com/gitkraken/vscode-gitlens/blob/b1d71d4844523e8b2ef16f9e007068e
 
 html {
 	height: 100%;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -172,4 +173,11 @@ vscode-dropdown::part(listbox) {
 	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 	border-radius: 3px;
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
+}
+
+.slash-command-match-textarea-highlight {
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
+	border-radius: 3px;
+	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
+	color: transparent;
 }

@@ -7,7 +7,7 @@ import {
 	askSageModels,
 	askSageDefaultModelId,
 	askSageDefaultURL,
-} from "../../shared/api"
+} from "@shared/api"
 import { ApiStream } from "../transform/stream"
 
 type AskSageRequest = {

@@ -1,12 +1,14 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
-import { createDirectoriesForFile } from "../../utils/fs"
-import { arePathsEqual } from "../../utils/path"
-import { formatResponse } from "../../core/prompts/responses"
+import { createDirectoriesForFile } from "@utils/fs"
+import { arePathsEqual } from "@utils/path"
+import { formatResponse } from "@core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import { detectEncoding } from "../misc/extract-text"
+import * as iconv from "iconv-lite"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -23,6 +25,10 @@ export class DiffViewProvider {
 	private activeLineController?: DecorationController
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+	private fileEncoding: string = "utf8"
+	private lastFirstVisibleLine: number = 0
+	private shouldAutoScroll: boolean = true
+	private scrollListener?: vscode.Disposable
 
 	constructor(private cwd: string) {}
 
@@ -31,6 +37,8 @@ export class DiffViewProvider {
 		const fileExists = this.editType === "modify"
 		const absolutePath = path.resolve(this.cwd, relPath)
 		this.isEditing = true
+		this.shouldAutoScroll = true
+		this.lastFirstVisibleLine = 0
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
 			const existingDocument = vscode.workspace.textDocuments.find((doc) => arePathsEqual(doc.uri.fsPath, absolutePath))
@@ -43,9 +51,12 @@ export class DiffViewProvider {
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		if (fileExists) {
-			this.originalContent = await fs.readFile(absolutePath, "utf-8")
+			const fileBuffer = await fs.readFile(absolutePath)
+			this.fileEncoding = await detectEncoding(fileBuffer)
+			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
 		} else {
 			this.originalContent = ""
+			this.fileEncoding = "utf8"
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
 		this.createdDirs = await createDirectoriesForFile(absolutePath)
@@ -73,9 +84,28 @@ export class DiffViewProvider {
 		this.fadedOverlayController.addLines(0, this.activeDiffEditor.document.lineCount)
 		this.scrollEditorToLine(0) // will this crash for new files?
 		this.streamedLines = []
+
+		// Add scroll detection to disable auto-scrolling when user scrolls up
+		this.scrollListener = vscode.window.onDidChangeTextEditorVisibleRanges((e: vscode.TextEditorVisibleRangesChangeEvent) => {
+			if (e.textEditor === this.activeDiffEditor) {
+				const currentFirstVisibleLine = e.visibleRanges[0]?.start.line || 0
+
+				// If the first visible line moved upward, user scrolled up
+				// if (currentFirstVisibleLine < this.lastFirstVisibleLine) {
+				// 	this.shouldAutoScroll = false
+				// }
+
+				// Always update our tracking variable
+				this.lastFirstVisibleLine = currentFirstVisibleLine
+			}
+		})
 	}
 
-	async update(accumulatedContent: string, isFinal: boolean) {
+	async update(
+		accumulatedContent: string,
+		isFinal: boolean,
+		changeLocation?: { startLine: number; endLine: number; startChar: number; endChar: number },
+	) {
 		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
 			throw new Error("Required values not set")
 		}
@@ -122,25 +152,37 @@ export class DiffViewProvider {
 			this.activeLineController.setActiveLine(currentLine)
 			this.fadedOverlayController.updateOverlayAfterLine(currentLine, document.lineCount)
 
-			// Scroll to the last changed line
-			if (diffLines.length <= 5) {
-				// For small changes, just jump directly to the line
-				this.scrollEditorToLine(currentLine)
-			} else {
-				// For larger changes, create a quick scrolling animation
-				const startLine = this.streamedLines.length
-				const endLine = currentLine
-				const totalLines = endLine - startLine
-				const numSteps = 10 // Adjust this number to control animation speed
-				const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
+			// Scroll to the actual change location if provided, otherwise use the old logic
+			if (this.shouldAutoScroll) {
+				if (changeLocation) {
+					// We have the actual location of the change, scroll to it
+					const targetLine = changeLocation.startLine
+					this.scrollEditorToLine(targetLine)
+				} else {
+					// Fallback to the old logic for non-replacement updates
+					if (diffLines.length <= 5) {
+						// For small changes, just jump directly to the line
+						this.scrollEditorToLine(currentLine)
+					} else {
+						// For larger changes, create a quick scrolling animation
+						const startLine = this.streamedLines.length
+						const endLine = currentLine
+						const totalLines = endLine - startLine
+						const numSteps = 10 // Adjust this number to control animation speed
+						const stepSize = Math.max(1, Math.floor(totalLines / numSteps))
 
-				// Create and await the smooth scrolling animation
-				for (let line = startLine; line <= endLine; line += stepSize) {
-					this.activeDiffEditor?.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.InCenter)
-					await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
+						// Create and await the smooth scrolling animation
+						for (let line = startLine; line <= endLine; line += stepSize) {
+							this.activeDiffEditor?.revealRange(
+								new vscode.Range(line, 0, line, 0),
+								vscode.TextEditorRevealType.InCenter,
+							)
+							await new Promise((resolve) => setTimeout(resolve, 16)) // ~60fps
+						}
+						// Ensure we end at the final line
+						this.scrollEditorToLine(currentLine)
+					}
 				}
-				// Ensure we end at the final line
-				this.scrollEditorToLine(currentLine)
 			}
 		}
 
@@ -196,6 +238,7 @@ export class DiffViewProvider {
 
 		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
 			preview: false,
+			preserveFocus: true,
 		})
 		await this.closeAllDiffViews()
 
@@ -296,6 +339,7 @@ export class DiffViewProvider {
 			if (this.documentWasOpen) {
 				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
 					preview: false,
+					preserveFocus: true,
 				})
 			}
 			await this.closeAllDiffViews()
@@ -332,7 +376,9 @@ export class DiffViewProvider {
 					arePathsEqual(tab.input.modified.fsPath, uri.fsPath),
 			)
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
-			const editor = await vscode.window.showTextDocument(diffTab.input.modified)
+			const editor = await vscode.window.showTextDocument(diffTab.input.modified, {
+				preserveFocus: true,
+			})
 			return editor
 		}
 		// Open new diff editor
@@ -352,6 +398,9 @@ export class DiffViewProvider {
 				}),
 				uri,
 				`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
+				{
+					preserveFocus: true,
+				},
 			)
 			// This may happen on very slow machines ie project idx
 			setTimeout(() => {
@@ -405,5 +454,15 @@ export class DiffViewProvider {
 		this.activeLineController = undefined
 		this.streamedLines = []
 		this.preDiagnostics = []
+
+		// Clean up the scroll listener
+		if (this.scrollListener) {
+			this.scrollListener.dispose()
+			this.scrollListener = undefined
+		}
+
+		// Reset auto-scroll state
+		this.shouldAutoScroll = true
+		this.lastFirstVisibleLine = 0
 	}
 }

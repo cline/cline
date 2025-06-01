@@ -1,12 +1,15 @@
-import { useCallback, useRef, useState, useEffect } from "react"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
+import { flip, offset, shift, useFloating } from "@floating-ui/react"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { CheckpointRestoreRequest } from "@shared/proto/checkpoints"
+import { Int64Request } from "@shared/proto/common"
+import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useEvent } from "react-use"
 import styled from "styled-components"
-import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { vscode } from "@/utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { createPortal } from "react-dom"
-import { useFloating, offset, flip, shift } from "@floating-ui/react"
 
 interface CheckmarkControlProps {
 	messageTs?: number
@@ -59,31 +62,52 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 		}
 	}, [])
 
-	const handleRestoreTask = () => {
+	const handleRestoreTask = async () => {
 		setRestoreTaskDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "task",
-		})
+		try {
+			const restoreType: ClineCheckpointRestore = "task"
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType,
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore task error:", err)
+			setRestoreTaskDisabled(false)
+		}
 	}
 
-	const handleRestoreWorkspace = () => {
+	const handleRestoreWorkspace = async () => {
 		setRestoreWorkspaceDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "workspace",
-		})
+		try {
+			const restoreType: ClineCheckpointRestore = "workspace"
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType,
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore workspace error:", err)
+			setRestoreWorkspaceDisabled(false)
+		}
 	}
 
-	const handleRestoreBoth = () => {
+	const handleRestoreBoth = async () => {
 		setRestoreBothDisabled(true)
-		vscode.postMessage({
-			type: "checkpointRestore",
-			number: messageTs,
-			text: "taskAndWorkspace",
-		})
+		try {
+			const restoreType: ClineCheckpointRestore = "taskAndWorkspace"
+			await CheckpointsServiceClient.checkpointRestore(
+				CheckpointRestoreRequest.create({
+					number: messageTs,
+					restoreType,
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint restore both error:", err)
+			setRestoreBothDisabled(false)
+		}
 	}
 
 	const handleMouseEnter = () => {
@@ -138,12 +162,19 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					$isCheckedOut={isCheckpointCheckedOut}
 					disabled={compareDisabled}
 					style={{ cursor: compareDisabled ? "wait" : "pointer" }}
-					onClick={() => {
+					onClick={async () => {
 						setCompareDisabled(true)
-						vscode.postMessage({
-							type: "checkpointDiff",
-							number: messageTs,
-						})
+						try {
+							await CheckpointsServiceClient.checkpointDiff(
+								Int64Request.create({
+									value: messageTs,
+								}),
+							)
+						} catch (err) {
+							console.error("CheckpointDiff error:", err)
+						} finally {
+							setCompareDisabled(false)
+						}
 					}}>
 					Compare
 				</CustomButton>

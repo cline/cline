@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "../../shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import { ApiHandlerOptions, XAIModelId, ModelInfo, xaiDefaultModelId, xaiModels } from "@shared/api"
+import { convertToOpenAiMessages } from "@api/transform/openai-format"
+import { ApiStream } from "@api/transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
 export class XAIHandler implements ApiHandler {
@@ -58,10 +58,10 @@ export class XAIHandler implements ApiHandler {
 			if (chunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: 0,
+					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-ignore-next-line
-					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
+					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					// @ts-ignore-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}

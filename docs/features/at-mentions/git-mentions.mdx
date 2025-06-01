@@ -1,0 +1,84 @@
+---
+title: "Git Mentions"
+sidebarTitle: "Git Mentions"
+---
+
+Git mentions let you bring your repository's history and changes directly into your conversation with Cline. You can reference uncommitted changes with `@git-changes` or specific commits with `@[commit-hash]`.
+
+When you type `@` in chat, you can select "Git Changes" from the menu or type `@git-changes` directly. For specific commits, type `@` followed by the commit hash (at least 7 characters). Cline will immediately see the git status, diffs, commit messages, and other relevant information.
+
+I use git mentions constantly when I'm trying to understand code changes or troubleshoot issues introduced by recent commits. Instead of trying to copy and paste diffs or commit logs, I just ask:
+
+```
+I think this commit broke our authentication flow: @a1b2c3d
+
+Can you explain what changed and why it might be causing the issue?
+```
+
+This gives Cline the complete commit information, including the commit message, author, date, and the full diff. Cline can then analyze exactly what changed and how it might affect other parts of the codebase.
+
+The `@git-changes` mention is perfect when you're working on changes and want feedback before committing:
+
+```
+Here are my current changes: @git-changes
+
+I'm trying to implement a new feature for user profiles. Does my approach make sense?
+Are there any potential issues or improvements you'd suggest?
+```
+
+This shows Cline all your uncommitted changes, including new files, modified files, and their diffs. Cline can then review your changes and provide feedback on your implementation.
+
+Git mentions are especially powerful when combined with file mentions. When I'm investigating a bug, I'll often reference both:
+
+```
+I think this commit introduced a bug: @a1b2c3d
+
+Here's the current implementation: @/src/components/Auth.jsx
+
+How can I fix the issue while preserving the intended functionality?
+```
+
+Next time you're working with code changes or investigating issues, try using git mentions instead of manually describing or copying changes. You'll get more accurate help because Cline can see exactly what changed and in what context.
+
+## How It Works Under the Hood
+
+When you use git mentions in your message, here's what happens behind the scenes:
+
+### For Git Changes (`@git-changes`)
+
+1. When you send your message, Cline detects the `@git-changes` pattern in your text
+2. The extension runs git commands to get the current working state of your repository
+3. It captures the output of `git status` and `git diff` to see all uncommitted changes
+4. This information is appended to your message in a structured format:
+
+    ```
+    <git_working_state>
+    On branch main
+    Changes not staged for commit:
+      modified: src/components/Button.jsx
+      modified: src/styles/main.css
+
+    [Complete diff output with all changes]
+    </git_working_state>
+    ```
+
+### For Specific Commits (`@[commit-hash]`)
+
+1. When you send your message, Cline detects the `@` followed by a commit hash pattern
+2. The extension runs `git show` and related commands to get information about that commit
+3. It retrieves the commit message, author, date, and the complete diff
+4. This information is appended to your message in a structured format:
+
+    ```
+    <git_commit hash="a1b2c3d">
+    commit a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t
+    Author: Developer Name <dev@example.com>
+    Date: Mon May 20 14:30:45 2025 -0700
+
+    Fix authentication bug in login form
+
+    [Complete diff output showing all changes in the commit]
+    </git_commit>
+    ```
+
+This process happens automatically whenever you use git mentions, giving the AI complete visibility into your code changes without you having to copy and paste diffs or commit logs.

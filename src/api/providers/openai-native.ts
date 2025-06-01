@@ -2,13 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import {
-	ApiHandlerOptions,
-	ModelInfo,
-	openAiNativeDefaultModelId,
-	OpenAiNativeModelId,
-	openAiNativeModels,
-} from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openAiNativeDefaultModelId, OpenAiNativeModelId, openAiNativeModels } from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
@@ -72,8 +66,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
-					reasoning_effort: (this.options.o3MiniReasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
 				})
+
 				for await (const chunk of stream) {
 					const delta = chunk.choices[0]?.delta
 					if (delta?.content) {

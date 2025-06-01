@@ -1,12 +1,12 @@
 import { getContextWindowInfo } from "./context-window-utils"
-import { formatResponse } from "../../prompts/responses"
-import { GlobalFileNames } from "../../storage/disk"
-import { fileExistsAtPath } from "../../../utils/fs"
+import { formatResponse } from "@core/prompts/responses"
+import { GlobalFileNames } from "@core/storage/disk"
+import { fileExistsAtPath } from "@utils/fs"
 import * as path from "path"
 import fs from "fs/promises"
 import cloneDeep from "clone-deep"
-import { ClineApiReqInfo, ClineMessage } from "../../../shared/ExtensionMessage"
-import { ApiHandler } from "../../../api"
+import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
+import { ApiHandler } from "@api/index"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 enum EditType {
@@ -193,14 +193,20 @@ export class ContextManager {
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		currentDeletedRange: [number, number] | undefined,
-		keep: "half" | "quarter",
+		keep: "none" | "lastTwo" | "half" | "quarter",
 	): [number, number] {
 		// We always keep the first user-assistant pairing, and truncate an even number of messages from there
 		const rangeStartIndex = 2 // index 0 and 1 are kept
 		const startOfRest = currentDeletedRange ? currentDeletedRange[1] + 1 : 2 // inclusive starting index
 
 		let messagesToRemove: number
-		if (keep === "half") {
+		if (keep === "none") {
+			// Removes all messages beyond the first core user/assistant message pair
+			messagesToRemove = Math.max(apiMessages.length - startOfRest, 0)
+		} else if (keep === "lastTwo") {
+			// Keep the last user-assistant pair in addition to the first core user/assistant message pair
+			messagesToRemove = Math.max(apiMessages.length - startOfRest - 2, 0)
+		} else if (keep === "half") {
 			// Remove half of remaining user-assistant pairs
 			// We first calculate half of the messages then divide by 2 to get the number of pairs.
 			// After flooring, we multiply by 2 to get the number of messages.
@@ -380,6 +386,17 @@ export class ContextManager {
 		const contextHistoryUpdated = fileReadUpdatesBool
 
 		return [contextHistoryUpdated, uniqueFileReadIndices]
+	}
+
+	/**
+	 * Public function for triggering potentially setting the truncation message
+	 * If the truncation message already exists, does nothing, otherwise adds the message
+	 */
+	async triggerApplyStandardContextTruncationNoticeChange(timestamp: number, taskDirectory: string) {
+		const updated = this.applyStandardContextTruncationNoticeChange(timestamp)
+		if (updated) {
+			await this.saveContextHistory(taskDirectory)
+		}
 	}
 
 	/**

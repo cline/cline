@@ -1,15 +1,22 @@
+import NewRuleRow from "./NewRuleRow"
 import RuleRow from "./RuleRow"
 
 const RulesToggleList = ({
 	rules,
 	toggleRule,
-	isGlobal,
 	listGap = "medium",
+	isGlobal,
+	ruleType,
+	showNewRule,
+	showNoRules,
 }: {
 	rules: [string, boolean][]
 	toggleRule: (rulePath: string, enabled: boolean) => void
-	isGlobal: boolean
 	listGap?: "small" | "medium" | "large"
+	isGlobal: boolean
+	ruleType: string
+	showNewRule: boolean
+	showNoRules: boolean
 }) => {
 	const gapClasses = {
 		small: "gap-0",
@@ -19,14 +26,33 @@ const RulesToggleList = ({
 
 	const gapClass = gapClasses[listGap]
 
-	return rules.length > 0 ? (
+	return (
 		<div className={`flex flex-col ${gapClass}`}>
-			{rules.map(([rulePath, enabled]) => (
-				<RuleRow key={rulePath} rulePath={rulePath} enabled={enabled} isGlobal={isGlobal} toggleRule={toggleRule} />
-			))}
+			{rules.length > 0 ? (
+				<>
+					{rules.map(([rulePath, enabled]) => (
+						<RuleRow
+							key={rulePath}
+							rulePath={rulePath}
+							enabled={enabled}
+							isGlobal={isGlobal}
+							toggleRule={toggleRule}
+							ruleType={ruleType}
+						/>
+					))}
+					{showNewRule && <NewRuleRow isGlobal={isGlobal} ruleType={ruleType} />}
+				</>
+			) : (
+				<>
+					{showNoRules && (
+						<div className="flex flex-col items-center gap-3 my-3 text-[var(--vscode-descriptionForeground)]">
+							{ruleType === "workflow" ? "No workflows found" : "No rules found"}
+						</div>
+					)}
+					{showNewRule && <NewRuleRow isGlobal={isGlobal} ruleType={ruleType} />}
+				</>
+			)}
 		</div>
-	) : (
-		<div className="flex flex-col items-center gap-3 my-5 text-[var(--vscode-descriptionForeground)]">No rules found</div>
 	)
 }
 

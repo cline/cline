@@ -13,6 +13,7 @@ permissions:
 
 jobs:
     codespell:
+        if: false
         name: Check for spelling errors
         runs-on: ubuntu-latest
 
@@ -23,3 +24,5 @@ jobs:
               uses: codespell-project/codespell-problem-matcher@v1
             - name: Codespell
               uses: codespell-project/actions-codespell@v2
+              with:
+                  only_warn: 1

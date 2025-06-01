@@ -1,4 +1,4 @@
-import { anthropicModels } from "../shared/api"
+import { anthropicModels } from "@shared/api"
 
 /**
  * Validates the thinking budget token value according to the specified rules:

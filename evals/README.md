@@ -60,6 +60,17 @@ cline-repo/
 - VSCode with Cline extension installed
 - Git
 
+### Activation Mechanism
+
+The evaluation system uses an `evals.env` file approach to activate test mode in the Cline extension. When an evaluation is run:
+
+1. The CLI creates an `evals.env` file in the workspace directory
+2. The Cline extension activates due to the `workspaceContains:evals.env` activation event
+3. The extension detects this file and automatically enters test mode
+4. After evaluation completes, the file is automatically removed
+
+This approach eliminates the need for environment variables during the build process and allows for targeted activation only when needed for evaluations. The extension remains dormant during normal use, only activating when an evals.env file is present. For more details, see [Evals Env Activation](./docs/evals-env-activation.md).
+
 ### Installation
 
 1. Build the CLI tool:
@@ -105,6 +116,19 @@ node dist/index.js report
 Options:
 - `--format`: Report format (json, markdown) (default: markdown)
 - `--output`: Output path for the report
+
+#### Managing Test Mode Activation
+
+The CLI provides a command to manually manage the evals.env file for test mode activation:
+
+```bash
+node dist/index.js evals-env create  # Create evals.env file in current directory
+node dist/index.js evals-env remove  # Remove evals.env file from current directory
+node dist/index.js evals-env check   # Check if evals.env file exists in current directory
+```
+
+Options:
+- `--directory`: Specify a directory other than the current one
 
 ## Benchmarks
 

@@ -162,7 +162,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			try {
 				const text = responseText || ""
 				const matches: UrlMatch[] = []
-				const urlRegex = /https?:\/\/[^\s<>"']+/g
+				const urlRegex = /(?:https?:\/\/|data:image)[^\s<>"']+/g
 				let urlMatch: RegExpExecArray | null
 				let urlCount = 0
 

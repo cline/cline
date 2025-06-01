@@ -10,6 +10,9 @@ export const formatResponse = {
 	contextTruncationNotice: () =>
 		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task and the most recent exchanges have been retained for continuity, while intermediate conversation history has been removed. Please keep this in mind as you continue assisting the user.`,
 
+	condense: () =>
+		`The user has accepted the condensed conversation summary you generated. This summary covers important details of the historical conversation with the user which has been truncated.\n<explicit_instructions type="condense_response">It's crucial that you respond by ONLY asking the user what you should work on next. You should NOT take any initiative or make any assumptions about continuing with work. For example you should NOT suggest file changes or attempt to read any files.\nWhen asking the user what you should work on next, you can reference information in the summary which was just generated. However, you should NOT reference information outside of what's contained in the summary for this response. Keep this response CONCISE.</explicit_instructions>`,
+
 	toolDenied: () => `The user denied this operation.`,
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
@@ -38,15 +41,31 @@ Otherwise, if you have not completed the task and do not need additional informa
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
 		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,
 
-	toolResult: (text: string, images?: string[]): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
-		if (images && images.length > 0) {
-			const textBlock: Anthropic.TextBlockParam = { type: "text", text }
-			const imageBlocks: Anthropic.ImageBlockParam[] = formatImagesIntoBlocks(images)
-			// Placing images after text leads to better results
-			return [textBlock, ...imageBlocks]
-		} else {
+	toolResult: (
+		text: string,
+		images?: string[],
+		fileString?: string,
+	): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
+		let toolResultOutput = []
+
+		if (!(images && images.length > 0) && !fileString) {
 			return text
 		}
+
+		const textBlock: Anthropic.TextBlockParam = { type: "text", text }
+		toolResultOutput.push(textBlock)
+
+		if (images && images.length > 0) {
+			const imageBlocks: Anthropic.ImageBlockParam[] = formatImagesIntoBlocks(images)
+			toolResultOutput.push(...imageBlocks)
+		}
+
+		if (fileString) {
+			const fileBlock: Anthropic.TextBlockParam = { type: "text", text: fileString }
+			toolResultOutput.push(fileBlock)
+		}
+
+		return toolResultOutput
 	},
 
 	imageBlocks: (images?: string[]): Anthropic.ImageBlockParam[] => {
@@ -193,7 +212,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		`${newProblemsMessage}`,
 
 	diffError: (relPath: string, originalContent: string | undefined) =>
-		`This is likely because the SEARCH block content doesn't match exactly with what's in the file, or if you used multiple SEARCH/REPLACE blocks they may not have been in the order they appear in the file.\n\n` +
+		`This is likely because the SEARCH block content doesn't match exactly with what's in the file, or if you used multiple SEARCH/REPLACE blocks they may not have been in the order they appear in the file. (Please also ensure that when using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., <<<<<<< SEARCH> is INVALID). Do NOT forget to use the closing >>>>>>> REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.)\n\n` +
 		`The file was reverted to its original state:\n\n` +
 		`<file_content path="${relPath.toPosix()}">\n${originalContent}\n</file_content>\n\n` +
 		`Now that you have the latest state of the file, try the operation again with fewer, more precise SEARCH blocks. For large files especially, it may be prudent to try to limit yourself to <5 SEARCH/REPLACE blocks at a time, then wait for the user to respond with the result of the operation before following up with another replace_in_file call to make additional edits.\n(If you run into this error 3 times in a row, you may use the write_to_file tool as a fallback.)`,
@@ -212,6 +231,15 @@ Otherwise, if you have not completed the task and do not need additional informa
 
 	clineRulesLocalFileInstructions: (cwd: string, content: string) =>
 		`# .clinerules\n\nThe following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
+
+	windsurfRulesLocalFileInstructions: (cwd: string, content: string) =>
+		`# .windsurfrules\n\nThe following is provided by a root-level .windsurfrules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
+
+	cursorRulesLocalFileInstructions: (cwd: string, content: string) =>
+		`# .cursorrules\n\nThe following is provided by a root-level .cursorrules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
+
+	cursorRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
+		`# .cursor/rules\n\nThe following is provided by a root-level .cursor/rules directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 }
 
 // to avoid circular dependency

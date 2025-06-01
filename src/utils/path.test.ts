@@ -34,20 +34,20 @@ describe("Path Utilities", () => {
 		})
 
 		it("should show relative paths within cwd", () => {
-			const cwd = "/home/user/project"
-			const filePath = "/home/user/project/src/file.txt"
+			const cwd = path.resolve("/home/user/project")
+			const filePath = path.resolve("/home/user/project/src/file.txt")
 			getReadablePath(cwd, filePath).should.equal("src/file.txt")
 		})
 
 		it("should show basename when path equals cwd", () => {
-			const cwd = "/home/user/project"
+			const cwd = path.resolve("/home/user/project")
 			getReadablePath(cwd, cwd).should.equal("project")
 		})
 
 		it("should show absolute path when outside cwd", () => {
-			const cwd = "/home/user/project"
-			const filePath = "/home/user/other/file.txt"
-			getReadablePath(cwd, filePath).should.equal(filePath)
+			const cwd = path.resolve("/home/user/project")
+			const filePath = path.resolve("/home/user/other/file.txt")
+			getReadablePath(cwd, filePath).should.equal(filePath.toPosix())
 		})
 	})
 })
