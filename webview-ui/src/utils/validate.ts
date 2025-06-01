@@ -143,20 +143,6 @@ export function validateModelId(
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
-			case "openai": {
-				if (!Array.isArray(apiConfiguration.openAiConfigs) || apiConfiguration.openAiConfigs.length === 0) {
-					return "Please create at least one OpenAI configuration (profile)."
-				}
-				const idx = apiConfiguration.openAiSelectedConfigIndex
-				if (idx === undefined || idx < 0 || idx >= apiConfiguration.openAiConfigs.length) {
-					return "The index of the OpenAI configuration to use is invalid."
-				}
-				const selected = apiConfiguration.openAiConfigs[idx]
-				if (!selected.openAiModelId) {
-					return "The selected OpenAI configuration must include a model ID."
-				}
-				break
-			}
 		}
 	}
 	return undefined
