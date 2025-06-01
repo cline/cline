@@ -1,18 +1,18 @@
+import HeroTooltip from "@/components/common/HeroTooltip"
+import Thumbnails from "@/components/common/Thumbnails"
+import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { formatLargeNumber, formatSize } from "@/utils/format"
+import { validateSlashCommand } from "@/utils/slash-commands"
+import { mentionRegexGlobal } from "@shared/context-mentions"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { StringArrayRequest, StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
-import { mentionRegexGlobal } from "@shared/context-mentions"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { formatLargeNumber } from "@/utils/format"
-import { formatSize } from "@/utils/format"
-import { vscode } from "@/utils/vscode"
-import Thumbnails from "@/components/common/Thumbnails"
-import { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
-import { validateSlashCommand } from "@/utils/slash-commands"
 import TaskTimeline from "./TaskTimeline"
-import { TaskServiceClient, FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import HeroTooltip from "@/components/common/HeroTooltip"
+const { IS_DEV } = process.env
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -24,6 +24,7 @@ interface TaskHeaderProps {
 	totalCost: number
 	lastApiReqTotalTokens?: number
 	onClose: () => void
+	onScrollToMessage?: (messageIndex: number) => void
 }
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({
@@ -36,6 +37,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	lastApiReqTotalTokens,
 	onClose,
+	onScrollToMessage,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, clineMessages, navigateToSettings } =
 		useExtensionState()
@@ -139,11 +141,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	}, [apiConfiguration?.apiProvider, apiConfiguration?.openAiModelInfo])
 
 	const shouldShowPromptCacheInfo = () => {
-		return (
-			doesModelSupportPromptCache &&
-			((cacheReads !== undefined && cacheReads > 0) || (cacheWrites !== undefined && cacheWrites > 0))
-		)
+		// Hybrid logic: Show cache info if we have actual cache data,
+		// regardless of whether the model explicitly supports prompt cache.
+		// This allows OpenAI-compatible providers to show cache tokens.
+		return (cacheReads !== undefined && cacheReads > 0) || (cacheWrites !== undefined && cacheWrites > 0)
 	}
+
+	console.log("IS_DEV", { IS_DEV, isItTrue: IS_DEV === '"true"' })
 
 	const ContextWindowComponent = (
 		<>
@@ -352,7 +356,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								See less
 							</div>
 						)}
-						{task.images && task.images.length > 0 && <Thumbnails images={task.images} />}
+						{((task.images && task.images.length > 0) || (task.files && task.files.length > 0)) && (
+							<Thumbnails images={task.images ?? []} files={task.files ?? []} />
+						)}
 
 						<div
 							style={{
@@ -407,6 +413,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								{!shouldShowPromptCacheInfo() && (
 									<div className="flex items-center flex-wrap">
 										<CopyButton taskText={task.text} />
+										{IS_DEV === '"true"' && <TaskFolderButton taskId={currentTaskItem?.id} />}
 										<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 									</div>
 								)}
@@ -462,12 +469,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									</div>
 									<div className="flex items-center flex-wrap">
 										<CopyButton taskText={task.text} />
+										{IS_DEV === '"true"' && <TaskFolderButton taskId={currentTaskItem?.id} />}
 										<DeleteButton taskSize={formatSize(currentTaskItem?.size)} taskId={currentTaskItem?.id} />
 									</div>
 								</div>
 							)}
 							<div className="flex flex-col">
-								<TaskTimeline messages={clineMessages} />
+								<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
 								{ContextWindowComponent}
 							</div>
 							{checkpointTrackerErrorMessage && (
@@ -492,7 +500,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 														// After a short delay, send a message to scroll to settings
 														setTimeout(async () => {
 															try {
-																await UiServiceClient.scrollToSettings({ value: "features" })
+																await UiServiceClient.scrollToSettings(
+																	StringRequest.create({ value: "features" }),
+																)
 															} catch (error) {
 																console.error("Error scrolling to checkpoint settings:", error)
 															}
@@ -601,7 +611,7 @@ export const highlightMentions = (text: string, withShadow = true) => {
 					key={index}
 					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
 					style={{ cursor: "pointer" }}
-					onClick={() => FileServiceClient.openMention({ value: part })}>
+					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}>
 					@{part}
 				</span>
 			)
@@ -663,6 +673,36 @@ const CopyButton: React.FC<{
 	)
 }
 
+const TaskFolderButton: React.FC<{
+	taskId?: string
+}> = ({ taskId }) => {
+	const [copied, setCopied] = useState(false)
+
+	const handleCopy = () => {
+		if (!taskId) return
+
+		navigator.clipboard.writeText(taskId).then(() => {
+			setCopied(true)
+			setTimeout(() => setCopied(false), 1500)
+		})
+	}
+
+	return (
+		<HeroTooltip content="Copy Task ID">
+			<VSCodeButton
+				appearance="icon"
+				onClick={handleCopy}
+				style={{ padding: "0px 0px" }}
+				className="p-0"
+				aria-label="Copy Task ID">
+				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
+					<i className={`codicon codicon-${copied ? "check" : "folder"}`} />
+				</div>
+			</VSCodeButton>
+		</HeroTooltip>
+	)
+}
+
 const DeleteButton: React.FC<{
 	taskSize: string
 	taskId?: string
@@ -670,7 +710,7 @@ const DeleteButton: React.FC<{
 	<HeroTooltip content="Delete Task & Checkpoints">
 		<VSCodeButton
 			appearance="icon"
-			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds({ value: [taskId] })}
+			onClick={() => taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))}
 			style={{ padding: "0px 0px" }}>
 			<div
 				style={{

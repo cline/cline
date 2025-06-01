@@ -21,7 +21,6 @@ export interface ExtensionMessage {
 		| "lmStudioModels"
 		| "theme"
 		| "workspaceUpdated"
-		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
 		| "openAiModels"
@@ -36,8 +35,6 @@ export interface ExtensionMessage {
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
-		| "addToInput"
-		| "browserConnectionResult"
 		| "fileSearchResults"
 		| "grpc_response" // New type for gRPC responses
 	text?: string
@@ -49,9 +46,9 @@ export interface ExtensionMessage {
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
 		| "focusChatInput"
-	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
+	files?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
@@ -101,8 +98,6 @@ export interface ExtensionMessage {
 	}
 }
 
-export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
-
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
 
 export const DEFAULT_PLATFORM = "unknown"
@@ -150,6 +145,7 @@ export interface ClineMessage {
 	text?: string
 	reasoning?: string
 	images?: string[]
+	files?: string[]
 	partial?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
@@ -213,6 +209,7 @@ export interface ClineSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "webFetch"
 	path?: string
 	diff?: string
 	content?: string

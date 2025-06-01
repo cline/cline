@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-add back missing function
+bug fix for ollama

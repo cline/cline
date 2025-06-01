@@ -1,48 +1,26 @@
-import {
-	VSCodeButton,
-	VSCodeCheckbox,
-	VSCodeDropdown,
-	VSCodeLink,
-	VSCodeOption,
-	VSCodeTextArea,
-} from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useState, useRef } from "react"
-import {
-	Settings,
-	Webhook,
-	CheckCheck,
-	SquareMousePointer,
-	GitBranch,
-	Bell,
-	Database,
-	SquareTerminal,
-	FlaskConical,
-	Globe,
-	Info,
-	LucideIcon,
-} from "lucide-react"
-import HeroTooltip from "@/components/common/HeroTooltip"
 import { UnsavedChangesDialog } from "@/components/common/AlertDialog"
-import SectionHeader from "./SectionHeader"
-import Section from "./Section"
-import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
-import { OpenAIReasoningEffort } from "@shared/ChatSettings"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
+import { cn } from "@/utils/cn"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
-import SettingsButton from "@/components/common/SettingsButton"
-import ApiOptions from "./ApiOptions"
-import { TabButton } from "../mcp/configuration/McpConfigurationView"
-import { useEvent } from "react-use"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-import { StateServiceClient } from "@/services/grpc-client"
-import FeatureSettingsSection from "./FeatureSettingsSection"
-import BrowserSettingsSection from "./BrowserSettingsSection"
-import TerminalSettingsSection from "./TerminalSettingsSection"
-import { FEATURE_FLAGS } from "@shared/services/feature-flags/feature-flags"
+import { EmptyRequest } from "@shared/proto/common"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
-import { cn } from "@/utils/cn"
-import { PlanActMode } from "@shared/proto/state"
+import { TabButton } from "../mcp/configuration/McpConfigurationView"
+import ApiOptions from "./ApiOptions"
+import BrowserSettingsSection from "./BrowserSettingsSection"
+import FeatureSettingsSection from "./FeatureSettingsSection"
+import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
+import Section from "./Section"
+import SectionHeader from "./SectionHeader"
+import TerminalSettingsSection from "./TerminalSettingsSection"
 const { IS_DEV } = process.env
 
 // Styles for the tab system
@@ -315,13 +293,15 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			switch (message.type) {
 				case "didUpdateSettings":
 					if (pendingTabChange) {
-						StateServiceClient.togglePlanActMode({
-							chatSettings: {
-								mode: pendingTabChange === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-								preferredLanguage: chatSettings.preferredLanguage,
-								openAIReasoningEffort: chatSettings.openAIReasoningEffort,
-							},
-						})
+						StateServiceClient.togglePlanActMode(
+							TogglePlanActModeRequest.create({
+								chatSettings: {
+									mode: pendingTabChange === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
+									preferredLanguage: chatSettings.preferredLanguage,
+									openAiReasoningEffort: chatSettings.openAIReasoningEffort,
+								},
+							}),
+						)
 						setPendingTabChange(null)
 					}
 					break
@@ -365,7 +345,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 	const handleResetState = async () => {
 		try {
-			await StateServiceClient.resetState({})
+			await StateServiceClient.resetState(EmptyRequest.create({}))
 		} catch (error) {
 			console.error("Failed to reset state:", error)
 		}

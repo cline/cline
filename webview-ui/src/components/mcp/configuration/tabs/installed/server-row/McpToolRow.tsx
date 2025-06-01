@@ -1,8 +1,9 @@
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { McpTool } from "@shared/mcp"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
+import { McpTool } from "@shared/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { ToggleToolAutoApproveRequest } from "@shared/proto/mcp"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -20,11 +21,13 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 			return
 		}
 
-		McpServiceClient.toggleToolAutoApprove({
-			serverName,
-			toolNames: [tool.name],
-			autoApprove: !tool.autoApprove,
-		})
+		McpServiceClient.toggleToolAutoApprove(
+			ToggleToolAutoApproveRequest.create({
+				serverName,
+				toolNames: [tool.name],
+				autoApprove: !tool.autoApprove,
+			}),
+		)
 			.then((response) => {
 				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
 				setMcpServers(mcpServers)

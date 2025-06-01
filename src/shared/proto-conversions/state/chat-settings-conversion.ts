@@ -6,11 +6,11 @@ import { ChatContent as ProtoChatContent, ChatSettings as ProtoChatSettings, Pla
  * Converts domain ChatSettings objects to proto ChatSettings objects
  */
 export function convertChatSettingsToProtoChatSettings(chatSettings: ChatSettings): ProtoChatSettings {
-	return {
+	return ProtoChatSettings.create({
 		mode: chatSettings.mode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
 		preferredLanguage: chatSettings.preferredLanguage,
 		openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-	}
+	})
 }
 
 /**
@@ -35,6 +35,7 @@ export function convertChatContentToProtoChatContent(chatContent?: ChatContent):
 	return {
 		message: chatContent.message,
 		images: chatContent.images || [],
+		files: chatContent.files || [],
 	}
 }
 
@@ -49,5 +50,6 @@ export function convertProtoChatContentToChatContent(protoChatContent?: ProtoCha
 	return {
 		message: protoChatContent.message,
 		images: protoChatContent.images || [],
+		files: protoChatContent.files || [],
 	}
 }
