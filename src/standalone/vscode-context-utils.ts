@@ -37,9 +37,9 @@ export class EventEmitter<T> {
 	}
 }
 
-export class JsonKeyValueStore {
+export class JsonKeyValueStore<T> {
 	// A simple key-value store for secrets backed by a JSON file. This is not secure, and it is not thread-safe.
-	private data = new Map<string, string>()
+	private data = new Map<string, T>()
 	private filePath: string
 
 	constructor(dir: string, fileName: string) {
@@ -47,11 +47,11 @@ export class JsonKeyValueStore {
 		this.load()
 	}
 
-	get(key: string): string | undefined {
+	get(key: string): T | undefined {
 		return this.data.get(key)
 	}
 
-	put(key: string, value: string): void {
+	put(key: string, value: T): void {
 		this.data.set(key, value)
 		this.save()
 	}
@@ -67,9 +67,7 @@ export class JsonKeyValueStore {
 		if (fs.existsSync(this.filePath)) {
 			const data = JSON.parse(fs.readFileSync(this.filePath, "utf-8"))
 			Object.entries(data).forEach(([k, v]) => {
-				if (typeof v === "string") {
-					this.data.set(k, v)
-				}
+				this.data.set(k, v as T)
 			})
 		}
 	}

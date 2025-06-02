@@ -6,7 +6,7 @@ import { extensionContext, outputChannel, postMessage } from "./vscode-context-s
 const DATA_DIR = process.env.DATA_DIR ?? "."
 
 class SecretStore implements vscode.SecretStorage {
-	private data = new JsonKeyValueStore(DATA_DIR, "secrets.json")
+	private data = new JsonKeyValueStore<string>(DATA_DIR, "secrets.json")
 	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
 
 	// Required by vscode.SecretStorage interface
@@ -31,7 +31,7 @@ class SecretStore implements vscode.SecretStorage {
 
 // Create a class that implements Memento interface with the required setKeysForSync method
 class MementoStore implements vscode.Memento {
-	private data: JsonKeyValueStore
+	private data: JsonKeyValueStore<any>
 
 	constructor(filename: string) {
 		this.data = new JsonKeyValueStore(DATA_DIR, filename)
