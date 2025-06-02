@@ -1,8 +1,10 @@
-import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as fsSync from "fs"
 import { SubscribeToFileRequest, FileChangeEvent, FileChangeEvent_ChangeType } from "../../../src/shared/proto/host/watch"
 import { StreamingResponseHandler, getRequestRegistry } from "../host-grpc-handler"
+
+// Debounce configuration
+const DEBOUNCE_DELAY = 100 // ms
 
 // Keep track of active file watchers
 const fileWatchers = new Map<
@@ -10,6 +12,7 @@ const fileWatchers = new Map<
 	{
 		watcher: fsSync.FSWatcher
 		subscribers: Set<StreamingResponseHandler>
+		lastEventTime: Map<FileChangeEvent_ChangeType, number> // Track last event time by event type
 	}
 >()
 
@@ -36,8 +39,6 @@ export async function subscribeToFile(
 			// Create a new watcher for this file using Node.js fs.watch API
 			// This is more reliable than the VSCode FileSystemWatcher for detecting file saves
 			const watcher = fsSync.watch(filePath, { persistent: true }, async (eventType, filename) => {
-				console.log(`[DEBUG] File event: ${eventType} for ${filePath}`)
-
 				if (eventType === "change") {
 					try {
 						const content = await fs.readFile(filePath, "utf8")
@@ -46,12 +47,27 @@ export async function subscribeToFile(
 						// Get the watcher info
 						const watcherInfo = fileWatchers.get(filePath)
 						if (watcherInfo) {
+							// Check if this event should be debounced
+							const eventType = FileChangeEvent_ChangeType.CHANGED
+							const now = Date.now()
+							const lastTime = watcherInfo.lastEventTime.get(eventType) || 0
+
+							if (now - lastTime < DEBOUNCE_DELAY) {
+								console.log(
+									`[DEBUG] Debouncing change event for ${filePath} (${now - lastTime}ms since last event)`,
+								)
+								return // Skip this event due to debounce
+							}
+
+							// Update the last event time
+							watcherInfo.lastEventTime.set(eventType, now)
+
 							// Notify all subscribers
 							for (const subscriber of watcherInfo.subscribers) {
 								try {
 									await subscriber({
 										path: filePath,
-										type: FileChangeEvent_ChangeType.CHANGED,
+										type: eventType,
 										content,
 									})
 								} catch (error) {
@@ -75,12 +91,27 @@ export async function subscribeToFile(
 						// Get the watcher info
 						const watcherInfo = fileWatchers.get(filePath)
 						if (watcherInfo) {
+							// Check if this event should be debounced
+							const eventType = FileChangeEvent_ChangeType.CREATED
+							const now = Date.now()
+							const lastTime = watcherInfo.lastEventTime.get(eventType) || 0
+
+							if (now - lastTime < DEBOUNCE_DELAY) {
+								console.log(
+									`[DEBUG] Debouncing creation event for ${filePath} (${now - lastTime}ms since last event)`,
+								)
+								return // Skip this event due to debounce
+							}
+
+							// Update the last event time
+							watcherInfo.lastEventTime.set(eventType, now)
+
 							// Notify all subscribers
 							for (const subscriber of watcherInfo.subscribers) {
 								try {
 									await subscriber({
 										path: filePath,
-										type: FileChangeEvent_ChangeType.CREATED,
+										type: eventType,
 										content,
 									})
 								} catch (error) {
@@ -96,12 +127,27 @@ export async function subscribeToFile(
 						// Get the watcher info
 						const watcherInfo = fileWatchers.get(filePath)
 						if (watcherInfo) {
+							// Check if this event should be debounced
+							const eventType = FileChangeEvent_ChangeType.DELETED
+							const now = Date.now()
+							const lastTime = watcherInfo.lastEventTime.get(eventType) || 0
+
+							if (now - lastTime < DEBOUNCE_DELAY) {
+								console.log(
+									`[DEBUG] Debouncing deletion event for ${filePath} (${now - lastTime}ms since last event)`,
+								)
+								return // Skip this event due to debounce
+							}
+
+							// Update the last event time
+							watcherInfo.lastEventTime.set(eventType, now)
+
 							// Notify all subscribers
 							for (const subscriber of watcherInfo.subscribers) {
 								try {
 									await subscriber({
 										path: filePath,
-										type: FileChangeEvent_ChangeType.DELETED,
+										type: eventType,
 										content: "",
 									})
 								} catch (error) {
@@ -121,6 +167,7 @@ export async function subscribeToFile(
 			const watcherInfo = {
 				watcher,
 				subscribers: new Set<StreamingResponseHandler>(),
+				lastEventTime: new Map<FileChangeEvent_ChangeType, number>(),
 			}
 
 			fileWatchers.set(filePath, watcherInfo)
