@@ -16,4 +16,7 @@ service UiService {
   
   // Subscribe to addToInput events (when user adds content via context menu)
   rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
+  
+  // Subscribe to focus chat input events with client ID
+  rpc subscribeToFocusChatInput(StringRequest) returns (stream Empty);
 }
