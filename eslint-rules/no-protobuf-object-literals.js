@@ -68,11 +68,9 @@ module.exports = createRule({
 						if (spec.type === "ImportSpecifier") {
 							// import { MyRequest } from '@shared/proto'
 							protobufImports.add(spec.imported.name)
-							//console.log('📝 Registered protobuf type:', spec.imported.name);
 						} else if (spec.type === "ImportNamespaceSpecifier") {
 							// import * as proto from '@shared/proto'
 							protobufNamespaceImports.add(spec.local.name)
-							//console.log('📝 Registered namespace:', spec.local.name);
 						}
 					})
 				}
@@ -213,6 +211,7 @@ module.exports = createRule({
 				// Check if the return type is a protobuf type
 				if (returnTypeName) {
 					if (protobufImports.has(returnTypeName)) {
+						//console.log('🚨 VIOLATION: Return type is a protobuf type:', returnTypeName);
 						const sourceCode = context.getSourceCode()
 						const returnText = sourceCode.getText(node.parent)
 						context.report({
@@ -235,6 +234,7 @@ module.exports = createRule({
 					if (isNamespacedProtobufType(protobufNamespaceImports, returnTypeName)) {
 						const sourceCode = context.getSourceCode()
 						const returnText = sourceCode.getText(node.parent)
+						//console.log('🚨 VIOLATION: Return type is a namespaced protobuf type:', returnTypeName);
 						context.report({
 							node,
 							messageId: "useProtobufMethodGeneric",
@@ -270,6 +270,7 @@ module.exports = createRule({
 
 					if (returnTypeRegex.test(functionText)) {
 						const returnText = sourceCode.getText(node.parent)
+						//console.log('🚨 VIOLATION: regex matched protobuf type:', functionText);
 						context.report({
 							node,
 							messageId: "useProtobufMethod",
@@ -286,9 +287,8 @@ module.exports = createRule({
 						return
 					}
 				}
-
 				// Check for namespace imports too
-				for (const namespace of `protobufNamespaceImports`) {
+				for (const namespace of protobufNamespaceImports) {
 					// Similar to above, but for namespaced types
 					const namespaceReturnTypeRegex = new RegExp(
 						// Match arrow function return type
@@ -303,6 +303,7 @@ module.exports = createRule({
 
 					if (namespaceReturnTypeRegex.test(functionText)) {
 						const returnText = sourceCode.getText(node.parent)
+						//console.log('🚨 VIOLATION: regex matched namespaced protobuf type:', functionText, "namespace:", namespace);
 						context.report({
 							node,
 							messageId: "useProtobufMethodGeneric",
@@ -355,7 +356,7 @@ module.exports = createRule({
 					if (protobufNamespaceImports.has(namespace)) {
 						const sourceCode = context.getSourceCode()
 						const callText = sourceCode.getText(node.parent)
-
+						//console.log('🚨 VIOLATION: Check function call arguments object literal:', callText);
 						context.report({
 							node,
 							messageId: "useProtobufMethodGeneric",
@@ -413,6 +414,7 @@ module.exports = createRule({
 											isNamespacedProtobufType(protobufNamespaceImports, typeName))
 									) {
 										const callText = sourceCode.getText(node.parent)
+										//console.log('🚨 VIOLATION: Function call arguments object literal:', callText);
 										context.report({
 											node,
 											messageId: "useProtobufMethodGeneric",
