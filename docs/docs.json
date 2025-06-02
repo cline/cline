@@ -155,18 +155,18 @@
 			{
 				"group": "Provider Configuration",
 				"pages": [
-					"custom-model-configs/anthropic",
-					"custom-model-configs/aws-bedrock-with-credentials-authentication",
-					"custom-model-configs/aws-bedrock-with-profile-authentication",
-					"custom-model-configs/gcp-vertex-ai",
-					"custom-model-configs/litellm-and-cline-using-codestral",
-					"custom-model-configs/vscode-language-model-api",
-					"custom-model-configs/xai-grok",
-					"custom-model-configs/mistral-ai",
-					"custom-model-configs/deepseek",
-					"custom-model-configs/ollama",
-					"custom-model-configs/openai",
-					"custom-model-configs/openai-compatible"
+					"provider-config/anthropic",
+					"provider-config/aws-bedrock-with-credentials-authentication",
+					"provider-config/aws-bedrock-with-profile-authentication",
+					"provider-config/gcp-vertex-ai",
+					"provider-config/litellm-and-cline-using-codestral",
+					"provider-config/vscode-language-model-api",
+					"provider-config/xai-grok",
+					"provider-config/mistral-ai",
+					"provider-config/deepseek",
+					"provider-config/ollama",
+					"provider-config/openai",
+					"provider-config/openai-compatible"
 				]
 			},
 			{
