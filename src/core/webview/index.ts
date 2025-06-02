@@ -396,7 +396,6 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(
 			async (message) => {
-				// Added async here as your logic uses await
 				if (message.type === "requestSapAiCoreDeployments") {
 					try {
 						const deployments = await this.handleSapAiCoreDeploymentsRequest()
@@ -412,7 +411,6 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 						})
 					}
 				} else {
-					// This was the original line from the upstream version
 					this.controller.handleWebviewMessage(message)
 				}
 			},
