@@ -33,13 +33,6 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	openAiModels?: string[]
-	sapAiCoreConfig?: {
-		clientId: string
-		clientSecret: string
-		baseUrl: string
-		tokenUrl: string
-		resourceGroup: string
-	}
 	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 	customToken?: string

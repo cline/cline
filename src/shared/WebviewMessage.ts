@@ -47,13 +47,6 @@ export interface WebviewMessage {
 	mcpResponsesCollapsed?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
-	sapAiCoreConfig?: {
-		clientId: string
-		clientSecret: string
-		baseUrl: string
-		tokenUrl: string
-		resourceGroup: string
-	}
 	mentionsRequestId?: string
 	query?: string
 	// For toggleFavoriteModel
