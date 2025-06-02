@@ -1,9 +1,6 @@
 // @ts-nocheck
 import * as vscode from "vscode"
-import * as fs from "fs"
-import * as path from "path"
 
-import open from "open"
 import { log } from "./utils"
 
 function stubUri(path: string): vscode.Uri {
