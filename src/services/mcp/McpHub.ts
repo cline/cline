@@ -32,7 +32,6 @@ import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual } from "@utils/path"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
-// import { injectEnv } from "../../utils/config" // Commented out as injectEnv is not found
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
@@ -52,7 +51,6 @@ export type McpServerConfig = z.infer<typeof ServerConfigSchema>
 
 const AutoApproveSchema = z.array(z.string()).default([])
 
-// Base configuration schema for common settings
 const BaseConfigSchema = z.object({
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
