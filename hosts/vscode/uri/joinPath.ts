@@ -17,12 +17,12 @@ export async function joinPath(request: JoinPathRequest): Promise<Uri> {
 	const result = vscode.Uri.joinPath(baseUri, ...request.pathSegments)
 
 	// Convert back to proto Uri
-	return {
+	return Uri.create({
 		scheme: result.scheme,
 		authority: result.authority,
 		path: result.path,
 		query: result.query,
 		fragment: result.fragment,
 		fsPath: result.fsPath,
-	}
+	})
 }

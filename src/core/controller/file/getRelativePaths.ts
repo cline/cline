@@ -4,8 +4,7 @@ import { FileMethodHandler } from "./index"
 import * as vscode from "vscode"
 import * as path from "path"
 import { UriServiceClient } from "../../../standalone/services/host-grpc-client"
-import { Metadata } from "@shared/proto/common"
-import { ParseRequest } from "@shared/proto/host/uri"
+import { Metadata, StringRequest } from "@shared/proto/common"
 
 /**
  * Converts a list of URIs to workspace-relative paths
@@ -22,9 +21,9 @@ export const getRelativePaths: FileMethodHandler = async (
 			try {
 				// Use the host URI service client instead of directly using vscode.Uri.parse
 				const parseResponse = await UriServiceClient.parse(
-					ParseRequest.create({
+					StringRequest.create({
 						metadata: Metadata.create({}),
-						uri: uriString,
+						value: uriString,
 					}),
 				)
 				const fileUri = vscode.Uri.parse(`${parseResponse.scheme}://${parseResponse.authority}${parseResponse.path}`)
