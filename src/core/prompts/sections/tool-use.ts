@@ -15,7 +15,7 @@ Tool uses are formatted using XML-style tags. The tool name itself becomes the X
 ...
 </actual_tool_name>
 
-For example, to use the read_file tool:
+For example, to use the new_task tool:
 
 <new_task>
 <mode>code</mode>
