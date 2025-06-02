@@ -135,7 +135,7 @@ describe("CloudService", () => {
 			const cloudService = await CloudService.createInstance(mockContext, callbacks)
 
 			expect(cloudService).toBeInstanceOf(CloudService)
-			expect(AuthService.createInstance).toHaveBeenCalledWith(mockContext)
+			expect(AuthService.createInstance).toHaveBeenCalledWith(mockContext, expect.any(Function))
 			expect(SettingsService.createInstance).toHaveBeenCalledWith(mockContext, expect.any(Function))
 		})
 

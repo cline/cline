@@ -18,10 +18,12 @@ export class CloudService {
 	private settingsService: SettingsService | null = null
 	private telemetryClient: TelemetryClient | null = null
 	private isInitialized = false
+	private log: (...args: unknown[]) => void
 
 	private constructor(context: vscode.ExtensionContext, callbacks: CloudServiceCallbacks) {
 		this.context = context
 		this.callbacks = callbacks
+		this.log = callbacks.log || console.log
 		this.authListener = () => {
 			this.callbacks.stateChanged?.()
 		}
@@ -33,7 +35,7 @@ export class CloudService {
 		}
 
 		try {
-			this.authService = await AuthService.createInstance(this.context)
+			this.authService = await AuthService.createInstance(this.context, this.log)
 
 			this.authService.on("inactive-session", this.authListener)
 			this.authService.on("active-session", this.authListener)
@@ -49,12 +51,12 @@ export class CloudService {
 			try {
 				TelemetryService.instance.register(this.telemetryClient)
 			} catch (error) {
-				console.warn("[CloudService] Failed to register TelemetryClient:", error)
+				this.log("[CloudService] Failed to register TelemetryClient:", error)
 			}
 
 			this.isInitialized = true
 		} catch (error) {
-			console.error("[CloudService] Failed to initialize:", error)
+			this.log("[CloudService] Failed to initialize:", error)
 			throw new Error(`Failed to initialize CloudService: ${error}`)
 		}
 	}

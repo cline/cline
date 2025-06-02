@@ -33,15 +33,17 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	private context: vscode.ExtensionContext
 	private timer: RefreshTimer
 	private state: AuthState = "initializing"
+	private log: (...args: unknown[]) => void
 
 	private credentials: AuthCredentials | null = null
 	private sessionToken: string | null = null
 	private userInfo: CloudUserInfo | null = null
 
-	constructor(context: vscode.ExtensionContext) {
+	constructor(context: vscode.ExtensionContext, log?: (...args: unknown[]) => void) {
 		super()
 
 		this.context = context
+		this.log = log || console.log
 
 		this.timer = new RefreshTimer({
 			callback: async () => {
@@ -72,7 +74,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 				}
 			}
 		} catch (error) {
-			console.error("[auth] Error handling credentials change:", error)
+			this.log("[auth] Error handling credentials change:", error)
 		}
 	}
 
@@ -88,7 +90,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 
 		this.emit("logged-out", { previousState })
 
-		console.log("[auth] Transitioned to logged-out state")
+		this.log("[auth] Transitioned to logged-out state")
 	}
 
 	private transitionToInactiveSession(credentials: AuthCredentials): void {
@@ -104,7 +106,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 
 		this.timer.start()
 
-		console.log("[auth] Transitioned to inactive-session state")
+		this.log("[auth] Transitioned to inactive-session state")
 	}
 
 	/**
@@ -115,7 +117,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	 */
 	public async initialize(): Promise<void> {
 		if (this.state !== "initializing") {
-			console.log("[auth] initialize() called after already initialized")
+			this.log("[auth] initialize() called after already initialized")
 			return
 		}
 
@@ -143,9 +145,9 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			return authCredentialsSchema.parse(parsedJson)
 		} catch (error) {
 			if (error instanceof z.ZodError) {
-				console.error("[auth] Invalid credentials format:", error.errors)
+				this.log("[auth] Invalid credentials format:", error.errors)
 			} else {
-				console.error("[auth] Failed to parse stored credentials:", error)
+				this.log("[auth] Failed to parse stored credentials:", error)
 			}
 			return null
 		}
@@ -176,7 +178,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			const url = `${getRooCodeApiUrl()}/extension/sign-in?${params.toString()}`
 			await vscode.env.openExternal(vscode.Uri.parse(url))
 		} catch (error) {
-			console.error(`[auth] Error initiating Roo Code Cloud auth: ${error}`)
+			this.log(`[auth] Error initiating Roo Code Cloud auth: ${error}`)
 			throw new Error(`Failed to initiate Roo Code Cloud authentication: ${error}`)
 		}
 	}
@@ -201,7 +203,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			const storedState = this.context.globalState.get(AUTH_STATE_KEY)
 
 			if (state !== storedState) {
-				console.log("[auth] State mismatch in callback")
+				this.log("[auth] State mismatch in callback")
 				throw new Error("Invalid state parameter. Authentication request may have been tampered with.")
 			}
 
@@ -210,9 +212,9 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			await this.storeCredentials(credentials)
 
 			vscode.window.showInformationMessage("Successfully authenticated with Roo Code Cloud")
-			console.log("[auth] Successfully authenticated with Roo Code Cloud")
+			this.log("[auth] Successfully authenticated with Roo Code Cloud")
 		} catch (error) {
-			console.log(`[auth] Error handling Roo Code Cloud callback: ${error}`)
+			this.log(`[auth] Error handling Roo Code Cloud callback: ${error}`)
 			const previousState = this.state
 			this.state = "logged-out"
 			this.emit("logged-out", { previousState })
@@ -237,14 +239,14 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 				try {
 					await this.clerkLogout(oldCredentials)
 				} catch (error) {
-					console.error("[auth] Error calling clerkLogout:", error)
+					this.log("[auth] Error calling clerkLogout:", error)
 				}
 			}
 
 			vscode.window.showInformationMessage("Logged out from Roo Code Cloud")
-			console.log("[auth] Logged out from Roo Code Cloud")
+			this.log("[auth] Logged out from Roo Code Cloud")
 		} catch (error) {
-			console.log(`[auth] Error logging out from Roo Code Cloud: ${error}`)
+			this.log(`[auth] Error logging out from Roo Code Cloud: ${error}`)
 			throw new Error(`Failed to log out from Roo Code Cloud: ${error}`)
 		}
 	}
@@ -281,7 +283,7 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 	 */
 	private async refreshSession(): Promise<void> {
 		if (!this.credentials) {
-			console.log("[auth] Cannot refresh session: missing credentials")
+			this.log("[auth] Cannot refresh session: missing credentials")
 			this.state = "inactive-session"
 			return
 		}
@@ -292,12 +294,12 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 			this.state = "active-session"
 
 			if (previousState !== "active-session") {
-				console.log("[auth] Transitioned to active-session state")
+				this.log("[auth] Transitioned to active-session state")
 				this.emit("active-session", { previousState })
 				this.fetchUserInfo()
 			}
 		} catch (error) {
-			console.error("[auth] Failed to refresh session", error)
+			this.log("[auth] Failed to refresh session", error)
 			throw error
 		}
 	}
@@ -446,12 +448,12 @@ export class AuthService extends EventEmitter<AuthServiceEvents> {
 		return this._instance
 	}
 
-	static async createInstance(context: vscode.ExtensionContext) {
+	static async createInstance(context: vscode.ExtensionContext, log?: (...args: unknown[]) => void) {
 		if (this._instance) {
 			throw new Error("AuthService instance already created")
 		}
 
-		this._instance = new AuthService(context)
+		this._instance = new AuthService(context, log)
 		await this._instance.initialize()
 		return this._instance
 	}
