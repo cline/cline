@@ -173,20 +173,6 @@ const ApiOptions = ({
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
-
-	const [sapAiCoreDeployments, setSapAiCoreDeployments] = useState<Record<string, ModelInfo>>({})
-
-	useEvent("message", (event: MessageEvent<ExtensionMessage>) => {
-		if (event.data.type === "sapAiCoreDeployments") {
-			if (event.data.sapAiCoreDeployments) {
-				console.log("Received SAP AI Core deployments:", event.data.sapAiCoreDeployments)
-				setSapAiCoreDeployments(event.data.sapAiCoreDeployments)
-			} else if (event.data.error) {
-				console.error("Error fetching SAP AI Core deployments:", event.data.error)
-			}
-		}
-	})
-
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [geminiBaseUrlSelected, setGeminiBaseUrlSelected] = useState(!!apiConfiguration?.geminiBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
@@ -222,12 +208,6 @@ const ApiOptions = ({
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
-
-	useEffect(() => {
-		if (selectedProvider === "sapaicore") {
-			vscode.postMessage({ type: "requestSapAiCoreDeployments" })
-		}
-	}, [selectedProvider])
 
 	// Poll ollama/lmstudio models
 	const requestLocalModels = useCallback(async () => {
@@ -272,12 +252,7 @@ const ApiOptions = ({
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	useEffect(() => {
-		if (
-			selectedProvider === "ollama" ||
-			selectedProvider === "lmstudio" ||
-			selectedProvider === "vscode-lm" ||
-			selectedProvider === "sapaicore"
-		) {
+		if (selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm") {
 			requestLocalModels()
 		}
 	}, [selectedProvider, requestLocalModels])
@@ -2287,21 +2262,7 @@ const ApiOptions = ({
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
 							{selectedProvider === "cerebras" && createDropdown(cerebrasModels)}
 							{selectedProvider === "nebius" && createDropdown(nebiusModels)}
-							{selectedProvider === "sapaicore" &&
-								createDropdown(
-									Object.keys(sapAiCoreDeployments).length > 0
-										? Object.keys(sapAiCoreDeployments)
-												.filter((key) => key in sapAiCoreModels)
-												.sort()
-												.reduce(
-													(filtered, key) => {
-														filtered[key] = sapAiCoreDeployments[key]
-														return filtered
-													},
-													{} as Record<string, ModelInfo>,
-												)
-										: sapAiCoreModels,
-								)}
+							{selectedProvider === "sapaicore" && createDropdown(sapAiCoreModels)}
 						</DropdownContainer>
 
 						{SUPPORTED_THINKING_MODELS[selectedProvider]?.includes(selectedModelId) && (
