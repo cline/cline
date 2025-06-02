@@ -213,7 +213,14 @@ export class McpHub {
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			if (config.transportType === "sse") {
-				transport = new SSEClientTransport(new URL(config.url), {})
+				// Set headers of POST requests to the sse server
+				const postRequestInit = {
+					headers: config.headers,
+				}
+
+				transport = new SSEClientTransport(new URL(config.url), {
+					requestInit: postRequestInit,
+				})
 			} else if (config.transportType === "http") {
 				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {
