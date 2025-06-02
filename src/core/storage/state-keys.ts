@@ -22,6 +22,8 @@ export type SecretKey =
 	| "nebiusApiKey"
 	| "sambanovaApiKey"
 	| "cerebrasApiKey"
+	| "sapAiCoreClientId"
+	| "sapAiCoreClientSecret"
 
 export type GlobalStateKey =
 	| "apiProvider"
@@ -94,5 +96,17 @@ export type GlobalStateKey =
 	| "mcpResponsesCollapsed"
 	| "terminalReuseEnabled"
 	| "isNewUser"
+	| "previousModeSapAiCoreClientId"
+	| "previousModeSapAiCoreClientSecret"
+	| "previousModeSapAiCoreBaseUrl"
+	| "previousModeSapAiCoreTokenUrl"
+	| "previousModeSapAiResourceGroup"
+	| "previousModeSapAiCoreModelId"
+	| "sapAiCoreTokenUrl"
+	| "sapAiCoreBaseUrl"
+	| "sapAiResourceGroup"
+	| "sapAiCoreClientId"
+	| "sapAiCoreClientSecret"
+	| "sapAiCoreModelId"
 
 export type LocalStateKey = "localClineRulesToggles"

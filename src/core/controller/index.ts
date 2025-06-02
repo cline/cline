@@ -290,6 +290,12 @@ export class Controller {
 			previousModeReasoningEffort: newReasoningEffort,
 			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
 			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
+			previousModeSapAiCoreClientId: newSapAiCoreClientId,
+			previousModeSapAiCoreClientSecret: newSapAiCoreClientSecret,
+			previousModeSapAiCoreBaseUrl: newSapAiCoreBaseUrl,
+			previousModeSapAiCoreTokenUrl: newSapAiCoreTokenUrl,
+			previousModeSapAiResourceGroup: newSapAiResourceGroup,
+			previousModeSapAiCoreModelId: newSapAiCoreModelId,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -355,6 +361,19 @@ export class Controller {
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
 					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
+				case "sapaicore":
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateGlobalState(this.context, "previousModeSapAiCoreClientId", apiConfiguration.sapAiCoreClientId)
+					await updateGlobalState(
+						this.context,
+						"previousModeSapAiCoreClientSecret",
+						apiConfiguration.sapAiCoreClientSecret,
+					)
+					await updateGlobalState(this.context, "previousModeSapAiCoreBaseUrl", apiConfiguration.sapAiCoreBaseUrl)
+					await updateGlobalState(this.context, "previousModeSapAiCoreTokenUrl", apiConfiguration.sapAiCoreTokenUrl)
+					await updateGlobalState(this.context, "previousModeSapAiResourceGroup", apiConfiguration.sapAiResourceGroup)
+					await updateGlobalState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
+					break
 			}
 
 			// Restore the model used in previous mode
@@ -409,6 +428,9 @@ export class Controller {
 					case "requesty":
 						await updateGlobalState(this.context, "requestyModelId", newModelId)
 						await updateGlobalState(this.context, "requestyModelInfo", newModelInfo)
+						break
+					case "sapaicore":
+						await updateGlobalState(this.context, "apiModelId", newModelId)
 						break
 				}
 

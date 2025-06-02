@@ -24,6 +24,8 @@ export interface ExtensionMessage {
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "grpc_response" // New type for gRPC responses
+		| "requestSapAiCoreDeployments"
+		| "sapAiCoreDeployments"
 	text?: string
 	action?: "didBecomeVisible" | "accountLogoutClicked" | "focusChatInput"
 	state?: ExtensionState
@@ -33,6 +35,14 @@ export interface ExtensionMessage {
 	lmStudioModels?: string[]
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	openAiModels?: string[]
+	sapAiCoreDeployments?: Record<string, ModelInfo>
+	sapAiCoreConfig?: {
+		clientId: string
+		clientSecret: string
+		baseUrl: string
+		tokenUrl: string
+		resourceGroup: string
+	}
 	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 	customToken?: string

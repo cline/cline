@@ -7,8 +7,10 @@ import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
+import { SapAiCoreHandler } from "@api/providers/sapaicore"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
+import { ModelInfo } from "@shared/api"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -18,6 +20,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 export class WebviewProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
+	private sapAiCoreHandler?: SapAiCoreHandler
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	public view?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
@@ -392,11 +395,106 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	 */
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(
-			(message) => {
-				this.controller.handleWebviewMessage(message)
+			async (message) => {
+				// Added async here as your logic uses await
+				if (message.type === "requestSapAiCoreDeployments") {
+					try {
+						const deployments = await this.handleSapAiCoreDeploymentsRequest()
+						await this.controller.postMessageToWebview({
+							type: "sapAiCoreDeployments",
+							sapAiCoreDeployments: deployments,
+						})
+					} catch (error) {
+						console.error("Error handling SAP AI Core deployments request:", error)
+						await this.controller.postMessageToWebview({
+							type: "sapAiCoreDeployments",
+							error: "Failed to fetch SAP AI Core deployments",
+						})
+					}
+				} else {
+					// This was the original line from the upstream version
+					this.controller.handleWebviewMessage(message)
+				}
 			},
 			null,
 			this.disposables,
 		)
+	}
+
+	private async postMessageToWebview(message: any) {
+		if (this.view?.webview) {
+			await this.view.webview.postMessage(message)
+		}
+	}
+
+	private async handleSapAiCoreDeploymentsRequest() {
+		try {
+			const { apiConfiguration } = await this.controller.getStateToPostToWebview()
+			if (!apiConfiguration || apiConfiguration.apiProvider !== "sapaicore") {
+				throw new Error("SAP AI Core configuration is not available or not selected")
+			}
+			this.sapAiCoreHandler = new SapAiCoreHandler({
+				sapAiCoreClientId: apiConfiguration.sapAiCoreClientId,
+				sapAiCoreClientSecret: apiConfiguration.sapAiCoreClientSecret,
+				sapAiCoreBaseUrl: apiConfiguration.sapAiCoreBaseUrl,
+				sapAiCoreTokenUrl: apiConfiguration.sapAiCoreTokenUrl,
+				sapAiResourceGroup: apiConfiguration.sapAiResourceGroup,
+			})
+
+			const getAiCoreDeployments = (this.sapAiCoreHandler as any).getAiCoreDeployments.bind(this.sapAiCoreHandler)
+			const deployments = await getAiCoreDeployments()
+
+			if (!Array.isArray(deployments)) {
+				throw new Error("Invalid deployment data returned from SAP AI Core")
+			}
+
+			// Convert deployments to ModelInfo format
+			const deploymentModels: Record<string, ModelInfo> = {}
+
+			for (const deployment of deployments) {
+				if (typeof deployment !== "object" || deployment === null || !("name" in deployment)) {
+					console.warn("Invalid deployment object:", deployment)
+					continue
+				}
+
+				const modelName = deployment.name.split(":")[0]
+				const { sapAiCoreModels } = await import("@shared/api")
+
+				const matchingModelKey = Object.keys(sapAiCoreModels).find((key) =>
+					modelName.toLowerCase().includes(key.toLowerCase()),
+				)
+
+				if (matchingModelKey) {
+					deploymentModels[modelName] = {
+						...sapAiCoreModels[matchingModelKey as keyof typeof sapAiCoreModels],
+					}
+				} else {
+					deploymentModels[modelName] = {
+						maxTokens: 4096,
+						contextWindow: 200_000,
+						supportsImages: true,
+						supportsPromptCache: false,
+						inputPrice: 3.0,
+						outputPrice: 15.0,
+					}
+				}
+			}
+
+			// Send the deployments to the webview
+			await this.controller.postMessageToWebview({
+				type: "sapAiCoreDeployments",
+				sapAiCoreDeployments: deploymentModels,
+			})
+
+			return deploymentModels
+		} catch (error) {
+			console.error("Error fetching SAP AI Core deployments:", error)
+			const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+			await this.controller.postMessageToWebview({
+				type: "sapAiCoreDeployments",
+				error: `Failed to fetch SAP AI Core deployments: ${errorMessage}`,
+			})
+			return {}
+		}
 	}
 }
