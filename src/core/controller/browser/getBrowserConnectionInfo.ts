@@ -23,25 +23,25 @@ export async function getBrowserConnectionInfo(controller: Controller, _: EmptyR
 			const connectionInfo = browserSession.getConnectionInfo()
 
 			// Convert from BrowserSession.BrowserConnectionInfo to proto.BrowserConnectionInfo
-			return {
+			return BrowserConnectionInfo.create({
 				isConnected: connectionInfo.isConnected,
 				isRemote: connectionInfo.isRemote,
 				host: connectionInfo.host || "", // Ensure host is never undefined
-			}
+			})
 		}
 
 		// Fallback to browser settings if no active browser session
-		return {
+		return BrowserConnectionInfo.create({
 			isConnected: false,
 			isRemote: !!browserSettings.remoteBrowserEnabled,
 			host: browserSettings.remoteBrowserHost || "",
-		}
+		})
 	} catch (error: unknown) {
 		console.error("Error getting browser connection info:", error)
-		return {
+		return BrowserConnectionInfo.create({
 			isConnected: false,
 			isRemote: false,
 			host: "",
-		}
+		})
 	}
 }

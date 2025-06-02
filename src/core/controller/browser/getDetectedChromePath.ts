@@ -16,15 +16,15 @@ export async function getDetectedChromePath(controller: Controller, request: Emp
 		const browserSession = new BrowserSession(controller.context, browserSettings)
 		const result = await browserSession.getDetectedChromePath()
 
-		return {
+		return ChromePath.create({
 			path: result.path,
 			isBundled: result.isBundled,
-		}
+		})
 	} catch (error) {
 		console.error("Error getting detected Chrome path:", error)
-		return {
+		return ChromePath.create({
 			path: "",
 			isBundled: false,
-		}
+		})
 	}
 }

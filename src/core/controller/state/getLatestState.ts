@@ -18,7 +18,7 @@ export async function getLatestState(controller: Controller, _: EmptyRequest): P
 	const stateJson = JSON.stringify(state)
 
 	// Return the state as a JSON string
-	return {
+	return State.create({
 		stateJson,
-	}
+	})
 }

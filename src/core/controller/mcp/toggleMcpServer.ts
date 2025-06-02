@@ -16,7 +16,7 @@ export async function toggleMcpServer(controller: Controller, request: ToggleMcp
 		// Convert from McpServer[] to ProtoMcpServer[] ensuring all required fields are set
 		const protoServers = convertMcpServersToProtoMcpServers(mcpServers)
 
-		return { mcpServers: protoServers }
+		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
 		console.error(`Failed to toggle MCP server ${request.serverName}:`, error)
 		throw error

@@ -28,7 +28,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			})
 
 			// Return task data for gRPC response
-			return {
+			return TaskResponse.create({
 				id: historyItem.id,
 				task: historyItem.task || "",
 				ts: historyItem.ts || 0,
@@ -39,7 +39,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 				tokensOut: historyItem.tokensOut || 0,
 				cacheWrites: historyItem.cacheWrites || 0,
 				cacheReads: historyItem.cacheReads || 0,
-			}
+			})
 		}
 
 		// If not in global state, fetch from storage
@@ -54,7 +54,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			action: "chatButtonClicked",
 		})
 
-		return {
+		return TaskResponse.create({
 			id: fetchedItem.id,
 			task: fetchedItem.task || "",
 			ts: fetchedItem.ts || 0,
@@ -65,7 +65,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			tokensOut: fetchedItem.tokensOut || 0,
 			cacheWrites: fetchedItem.cacheWrites || 0,
 			cacheReads: fetchedItem.cacheReads || 0,
-		}
+		})
 	} catch (error) {
 		console.error("Error in showTaskWithId:", error)
 		throw error

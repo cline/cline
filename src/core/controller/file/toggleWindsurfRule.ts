@@ -27,5 +27,5 @@ export async function toggleWindsurfRule(controller: Controller, request: Toggle
 	await updateWorkspaceState(controller.context, "localWindsurfRulesToggles", toggles)
 
 	// Return the toggles directly
-	return { toggles: toggles }
+	return ClineRulesToggles.create({ toggles: toggles })
 }

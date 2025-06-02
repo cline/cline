@@ -15,15 +15,15 @@ export async function checkIsImageUrl(controller: Controller, request: StringReq
 		// Check if the URL is an image
 		const isImage = await detectImageUrl(url)
 
-		return {
+		return IsImageUrl.create({
 			isImage,
 			url,
-		}
+		})
 	} catch (error) {
 		console.error(`Error checking if URL is an image: ${request.value}`, error)
-		return {
+		return IsImageUrl.create({
 			isImage: false,
 			url: request.value || "",
-		}
+		})
 	}
 }

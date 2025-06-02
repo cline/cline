@@ -17,7 +17,7 @@ export async function deleteMcpServer(controller: Controller, request: StringReq
 		// Convert application types to protobuf types
 		const protoServers = convertMcpServersToProtoMcpServers(mcpServers)
 
-		return { mcpServers: protoServers }
+		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
 		console.error(`Failed to delete MCP server: ${error}`)
 		throw error
