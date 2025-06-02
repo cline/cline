@@ -54,7 +54,7 @@ ruleTester.run("no-protobuf-object-literals", rule, {
 		{
 			code: `
         import { SomeType } from '@some/other/package';
-        
+
         const obj: SomeType = {
           id: 123,
           name: 'test'
@@ -65,7 +65,7 @@ ruleTester.run("no-protobuf-object-literals", rule, {
 		{
 			code: `
         import { State } from '@shared/proto/state';
-        
+
         // This should not be flagged because it's a regular function call
         // not directly tied to a protobuf type
         process({
@@ -81,10 +81,17 @@ ruleTester.run("no-protobuf-object-literals", rule, {
 		{
 			code: `
         import { State } from '@shared/proto/state';
-        
+
         const state: State = {
           stateJson: '{"apiConfig":{"provider":"anthropic","model":"claude-3-haiku"}}'
         };
+      `,
+			output: `
+        import { State } from '@shared/proto/state';
+
+        const state: State = State.create({
+          stateJson: '{"apiConfig":{"provider":"anthropic","model":"claude-3-haiku"}}'
+        });
       `,
 			errors: [{ messageId: "useProtobufMethod" }],
 		},
@@ -92,10 +99,17 @@ ruleTester.run("no-protobuf-object-literals", rule, {
 		{
 			code: `
         import * as stateProto from '@shared/proto/state';
-        
+
         const state: stateProto.State = {
           stateJson: '{"apiConfig":{"provider":"anthropic","model":"claude-3-haiku"}}'
         };
+      `,
+			output: `
+        import * as stateProto from '@shared/proto/state';
+
+        const state: stateProto.State = stateProto.State.create({
+          stateJson: '{"apiConfig":{"provider":"anthropic","model":"claude-3-haiku"}}'
+        });
       `,
 			errors: [{ messageId: "useProtobufMethodGeneric" }],
 		},
@@ -103,7 +117,7 @@ ruleTester.run("no-protobuf-object-literals", rule, {
 		{
 			code: `
         import { ChatSettings } from '@shared/proto/state';
-        
+
         function createSettings(): ChatSettings {
           return {
             mode: 0,
@@ -112,22 +126,46 @@ ruleTester.run("no-protobuf-object-literals", rule, {
           };
         }
       `,
+			output: `
+        import { ChatSettings } from '@shared/proto/state';
+
+        function createSettings(): ChatSettings {
+          return ChatSettings.create({
+            mode: 0,
+            preferredLanguage: 'en',
+            openAiReasoningEffort: 'thorough'
+          });
+        }
+      `,
 			errors: [{ messageId: "useProtobufMethod" }],
 		},
 		// Invalid case: Using object literal in a function parameter (with protobuf types imported)
 		{
 			code: `
         import { ChatContent } from '@shared/proto/state';
-        
+
         function processContent(content: ChatContent) {
           // process the content
         }
-        
+
         processContent({
           message: 'Hello, this is a test message',
           images: ['image1.png', 'image2.jpg'],
           files: ['file1.txt', 'file2.pdf']
         });
+      `,
+			output: `
+        import { ChatContent } from '@shared/proto/state';
+
+        function processContent(content: ChatContent) {
+          // process the content
+        }
+
+        processContent(ChatContent.create({
+          message: 'Hello, this is a test message',
+          images: ['image1.png', 'image2.jpg'],
+          files: ['file1.txt', 'file2.pdf']
+        }));
       `,
 			errors: [{ messageId: "useProtobufMethodGeneric" }],
 		},
@@ -135,11 +173,19 @@ ruleTester.run("no-protobuf-object-literals", rule, {
 		{
 			code: `
         import { State } from '@shared/proto/state';
-        
+
         let state: State;
         state = {
           stateJson: '{"apiConfig":{"provider":"anthropic","model":"claude-3-haiku"}}'
         };
+      `,
+			output: `
+        import { State } from '@shared/proto/state';
+
+        let state: State;
+        state = State.create({
+          stateJson: '{"apiConfig":{"provider":"anthropic","model":"claude-3-haiku"}}'
+        });
       `,
 			errors: [{ messageId: "useProtobufMethod" }],
 		},
@@ -147,11 +193,19 @@ ruleTester.run("no-protobuf-object-literals", rule, {
 		{
 			code: `
         import { CustomProto } from 'custom/proto/package';
-        
+
         const obj: CustomProto = {
           field1: 'value',
           field2: 123
         };
+      `,
+			output: `
+        import { CustomProto } from 'custom/proto/package';
+
+        const obj: CustomProto = CustomProto.create({
+          field1: 'value',
+          field2: 123
+        });
       `,
 			options: [{ protobufPackages: ["custom/proto"] }],
 			errors: [{ messageId: "useProtobufMethod" }],
