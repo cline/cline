@@ -35,6 +35,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	filePaths: string[]
 	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
 	organizationAllowList: OrganizationAllowList
+	cloudIsAuthenticated: boolean
 	maxConcurrentFileReads?: number
 	condensingApiConfigId?: string
 	setCondensingApiConfigId: (value: string) => void
@@ -199,6 +200,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		terminalCompressProgressBar: true, // Default to compress progress bar output
 		historyPreviewCollapsed: false, // Initialize the new state (default to expanded)
 		cloudUserInfo: null,
+		cloudIsAuthenticated: false,
 		organizationAllowList: ORGANIZATION_ALLOW_ALL,
 		autoCondenseContext: true,
 		autoCondenseContextPercent: 100,
@@ -317,6 +319,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		writeDelayMs: state.writeDelayMs,
 		screenshotQuality: state.screenshotQuality,
 		routerModels: extensionRouterModels,
+		cloudIsAuthenticated: state.cloudIsAuthenticated ?? false,
 		setExperimentEnabled: (id, enabled) =>
 			setState((prevState) => ({ ...prevState, experiments: { ...prevState.experiments, [id]: enabled } })),
 		setApiConfiguration,

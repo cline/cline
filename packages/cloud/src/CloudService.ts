@@ -35,6 +35,7 @@ export class CloudService {
 		try {
 			this.authService = await AuthService.createInstance(this.context)
 
+			this.authService.on("inactive-session", this.authListener)
 			this.authService.on("active-session", this.authListener)
 			this.authService.on("logged-out", this.authListener)
 			this.authService.on("user-info", this.authListener)

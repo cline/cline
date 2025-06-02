@@ -37,6 +37,7 @@ const App = () => {
 		telemetryKey,
 		machineId,
 		cloudUserInfo,
+		cloudIsAuthenticated,
 	} = useExtensionState()
 
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
@@ -127,7 +128,13 @@ const App = () => {
 			{tab === "settings" && (
 				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
 			)}
-			{tab === "account" && <AccountView userInfo={cloudUserInfo} onDone={() => switchTab("chat")} />}
+			{tab === "account" && (
+				<AccountView
+					userInfo={cloudUserInfo}
+					isAuthenticated={cloudIsAuthenticated}
+					onDone={() => switchTab("chat")}
+				/>
+			)}
 			<ChatView
 				ref={chatViewRef}
 				isHidden={tab !== "chat"}

@@ -219,6 +219,7 @@ export type ExtensionState = Pick<
 	historyPreviewCollapsed?: boolean
 
 	cloudUserInfo: CloudUserInfo | null
+	cloudIsAuthenticated: boolean
 	organizationAllowList: OrganizationAllowList
 
 	autoCondenseContext: boolean
