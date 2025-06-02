@@ -46,7 +46,6 @@ export interface ExtensionMessage {
 		| "didBecomeVisible"
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
-		| "focusChatInput"
 	state?: ExtensionState
 	images?: string[]
 	files?: string[]
