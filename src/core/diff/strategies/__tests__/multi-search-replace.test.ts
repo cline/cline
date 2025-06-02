@@ -1510,6 +1510,121 @@ function five() {
 					expect(result.success).toBe(false)
 					expect(result.error).toContain("'=======' found in your diff content")
 				})
+
+				describe("command line processing", () => {
+					let strategy: MultiSearchReplaceDiffStrategy
+					beforeEach(() => {
+						strategy = new MultiSearchReplaceDiffStrategy()
+					})
+
+					it("should process diff from command line arguments", async () => {
+						// This test is designed to be run from the command line with file arguments
+						// Example: npx jest src/core/diff/strategies/__tests__/multi-search-replace.test.ts -t "should process diff" -- file.ts diff.diff
+
+						// Get command line arguments
+						const args = process.argv.slice(2)
+
+						// Skip test if not run with arguments
+						// Parse command line arguments for --source and --diff flags
+						let sourceFile: string | undefined
+						let diffFile: string | undefined
+
+						for (let i = 0; i < args.length; i++) {
+							if (args[i] === "--source" && i + 1 < args.length) {
+								sourceFile = args[i + 1]
+								i++ // Skip the next argument as it's the value
+							} else if (args[i] === "--diff" && i + 1 < args.length) {
+								diffFile = args[i + 1]
+								i++ // Skip the next argument as it's the value
+							}
+						}
+
+						if (!sourceFile || !diffFile) {
+							console.debug(
+								`Optional debug usage: npx jest multi-search-replace.test.ts -- --source <file.ts> --diff <diff.diff>\n`,
+							)
+							// console.debug('All args:', args);
+							return
+						}
+
+						try {
+							// Read files
+							const fs = require("fs")
+							const sourceContent = fs.readFileSync(sourceFile, "utf8")
+							let diffContent = fs.readFileSync(diffFile, "utf8")
+
+							// Show first 50 lines of source content
+							process.stdout.write(
+								`\n\n====================================================================\n`,
+							)
+							process.stdout.write(`== ${sourceFile} first 50 lines ==\n`)
+							process.stdout.write(
+								`====================================================================\n`,
+							)
+							sourceContent
+								.split("\n")
+								.slice(0, 50)
+								.forEach((line: string) => {
+									process.stdout.write(`${line}\n`)
+								})
+							process.stdout.write(
+								`=============================== END ================================\n`,
+							)
+
+							process.stdout.write(
+								`\n\n====================================================================\n`,
+							)
+							process.stdout.write(`== ${diffFile} first 50 lines ==\n`)
+							process.stdout.write(
+								`====================================================================\n`,
+							)
+
+							// Show first 50 lines of diff content
+							diffContent
+								.split("\n")
+								.slice(0, 50)
+								.forEach((line: string) => {
+									process.stdout.write(`${line}\n`)
+								})
+							process.stdout.write(
+								`=============================== END ================================\n`,
+							)
+
+							// Apply the diff
+							const result = await strategy.applyDiff(sourceContent, diffContent)
+
+							if (result.success) {
+								process.stdout.write(
+									`\n\n====================================================================\n`,
+								)
+								process.stdout.write(`== Diff applied successfully ==\n`)
+								process.stdout.write(
+									`====================================================================\n`,
+								)
+								process.stdout.write(result.content + "\n")
+								process.stdout.write(
+									`=============================== END ================================\n`,
+								)
+								expect(result.success).toBe(true)
+							} else {
+								process.stdout.write(
+									`\n\n====================================================================\n`,
+								)
+								process.stdout.write(`== Failed to apply diff ==\n`)
+								process.stdout.write(
+									`====================================================================\n\n\n`,
+								)
+								console.error(result)
+								process.stdout.write(
+									`=============================== END ================================\n\n\n`,
+								)
+							}
+						} catch (err) {
+							console.error("Error processing files:", err.message)
+							console.error("Stack trace:", err.stack)
+						}
+					})
+				})
 			})
 
 			it("should not strip content that starts with pipe but no line number", async () => {
