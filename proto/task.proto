@@ -40,6 +40,7 @@ message NewTaskRequest {
   Metadata metadata = 1;
   string text = 2;
   repeated string images = 3;
+  repeated string files = 4;
 }
 
 // Request message for toggling task favorite status
@@ -104,4 +105,5 @@ message AskResponseRequest {
   string response_type = 2; 
   string text = 3;
   repeated string images = 4;
+  repeated string files = 5;
 }

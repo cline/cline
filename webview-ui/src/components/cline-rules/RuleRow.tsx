@@ -1,6 +1,7 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { FileServiceClient } from "@/services/grpc-client"
 import { DeleteRuleFileRequest } from "@shared/proto-conversions/file/rule-files-conversion"
+import { StringRequest } from "@shared/proto/common"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 
 const RuleRow: React.FC<{
 	rulePath: string
@@ -56,7 +57,9 @@ const RuleRow: React.FC<{
 	}
 
 	const handleEditClick = () => {
-		FileServiceClient.openFile({ value: rulePath }).catch((err) => console.error("Failed to open file:", err))
+		FileServiceClient.openFile(StringRequest.create({ value: rulePath })).catch((err) =>
+			console.error("Failed to open file:", err),
+		)
 	}
 
 	const handleDeleteClick = () => {

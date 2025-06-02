@@ -41,15 +41,31 @@ Otherwise, if you have not completed the task and do not need additional informa
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
 		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,
 
-	toolResult: (text: string, images?: string[]): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
-		if (images && images.length > 0) {
-			const textBlock: Anthropic.TextBlockParam = { type: "text", text }
-			const imageBlocks: Anthropic.ImageBlockParam[] = formatImagesIntoBlocks(images)
-			// Placing images after text leads to better results
-			return [textBlock, ...imageBlocks]
-		} else {
+	toolResult: (
+		text: string,
+		images?: string[],
+		fileString?: string,
+	): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
+		let toolResultOutput = []
+
+		if (!(images && images.length > 0) && !fileString) {
 			return text
 		}
+
+		const textBlock: Anthropic.TextBlockParam = { type: "text", text }
+		toolResultOutput.push(textBlock)
+
+		if (images && images.length > 0) {
+			const imageBlocks: Anthropic.ImageBlockParam[] = formatImagesIntoBlocks(images)
+			toolResultOutput.push(...imageBlocks)
+		}
+
+		if (fileString) {
+			const fileBlock: Anthropic.TextBlockParam = { type: "text", text: fileString }
+			toolResultOutput.push(fileBlock)
+		}
+
+		return toolResultOutput
 	},
 
 	imageBlocks: (images?: string[]): Anthropic.ImageBlockParam[] => {

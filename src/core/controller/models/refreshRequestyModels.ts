@@ -10,10 +10,7 @@ import { getSecret } from "@core/storage/state"
  * @param request Empty request object
  * @returns Response containing the Requesty models
  */
-export async function refreshRequestyModels(
-	controller: Controller,
-	request: EmptyRequest,
-): Promise<OpenRouterCompatibleModelInfo> {
+export async function refreshRequestyModels(controller: Controller, _: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const parsePrice = (price: any) => {
 		if (price) {
 			return parseFloat(price) * 1_000_000
@@ -30,7 +27,7 @@ export async function refreshRequestyModels(
 		const response = await axios.get("https://router.requesty.ai/v1/models", { headers })
 		if (response.data?.data) {
 			for (const model of response.data.data) {
-				const modelInfo: OpenRouterModelInfo = {
+				const modelInfo: OpenRouterModelInfo = OpenRouterModelInfo.create({
 					maxTokens: model.max_output_tokens || undefined,
 					contextWindow: model.context_window,
 					supportsImages: model.supports_vision || undefined,
@@ -40,7 +37,7 @@ export async function refreshRequestyModels(
 					cacheWritesPrice: parsePrice(model.caching_price) || 0,
 					cacheReadsPrice: parsePrice(model.cached_price) || 0,
 					description: model.description,
-				}
+				})
 				models[model.id] = modelInfo
 			}
 			console.log("Requesty models fetched", models)

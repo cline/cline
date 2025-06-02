@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react"
-import mermaid from "mermaid"
-import { useDebounceEffect } from "@/utils/useDebounceEffect"
-import styled from "styled-components"
 import { FileServiceClient } from "@/services/grpc-client"
+import { useDebounceEffect } from "@/utils/useDebounceEffect"
+import { StringRequest } from "@shared/proto/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import mermaid from "mermaid"
+import { useEffect, useRef, useState } from "react"
+import styled from "styled-components"
 
 const MERMAID_THEME = {
 	background: "#1e1e1e", // VS Code dark theme background
@@ -131,7 +132,9 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 
 		try {
 			const pngDataUrl = await svgToPng(svgEl)
-			FileServiceClient.openImage({ value: pngDataUrl }).catch((err) => console.error("Failed to open image:", err))
+			FileServiceClient.openImage(StringRequest.create({ value: pngDataUrl })).catch((err) =>
+				console.error("Failed to open image:", err),
+			)
 		} catch (err) {
 			console.error("Error converting SVG to PNG:", err)
 		}

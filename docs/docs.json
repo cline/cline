@@ -148,7 +148,8 @@
 					"custom-model-configs/aws-bedrock-with-credentials-authentication",
 					"custom-model-configs/aws-bedrock-with-profile-authentication",
 					"custom-model-configs/gcp-vertex-ai",
-					"custom-model-configs/litellm-and-cline-using-codestral"
+					"custom-model-configs/litellm-and-cline-using-codestral",
+					"custom-model-configs/vscode-language-model-api"
 				]
 			},
 			{
