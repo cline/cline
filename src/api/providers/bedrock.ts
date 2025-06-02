@@ -19,6 +19,7 @@ import {
 	bedrockDefaultPromptRouterModelId,
 	BEDROCK_DEFAULT_TEMPERATURE,
 	BEDROCK_MAX_TOKENS,
+	BEDROCK_DEFAULT_CONTEXT,
 	BEDROCK_REGION_INFO,
 } from "@roo-code/types"
 
@@ -190,6 +191,65 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		}
 
 		this.client = new BedrockRuntimeClient(clientConfig)
+	}
+
+	// Helper to guess model info from custom modelId string if not in bedrockModels
+	private guessModelInfoFromId(modelId: string): Partial<ModelInfo> {
+		// Define a mapping for model ID patterns and their configurations
+		const modelConfigMap: Record<string, Partial<ModelInfo>> = {
+			"claude-4": {
+				maxTokens: 8192,
+				contextWindow: 200_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+			},
+			"claude-3-7": {
+				maxTokens: 8192,
+				contextWindow: 200_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+			},
+			"claude-3-5": {
+				maxTokens: 8192,
+				contextWindow: 200_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+			},
+			"claude-4-opus": {
+				maxTokens: 4096,
+				contextWindow: 200_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+			},
+			"claude-3-opus": {
+				maxTokens: 4096,
+				contextWindow: 200_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+			},
+			"claude-3-haiku": {
+				maxTokens: 4096,
+				contextWindow: 200_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+			},
+		}
+
+		// Match the model ID to a configuration
+		const id = modelId.toLowerCase()
+		for (const [pattern, config] of Object.entries(modelConfigMap)) {
+			if (id.includes(pattern)) {
+				return config
+			}
+		}
+
+		// Default fallback
+		return {
+			maxTokens: BEDROCK_MAX_TOKENS,
+			contextWindow: BEDROCK_DEFAULT_CONTEXT,
+			supportsImages: false,
+			supportsPromptCache: false,
+		}
 	}
 
 	override async *createMessage(
@@ -640,15 +700,23 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 				info: JSON.parse(JSON.stringify(bedrockModels[bedrockDefaultPromptRouterModelId])),
 			}
 		} else {
+			// Use heuristics for model info, then allow overrides from ProviderSettings
+			const guessed = this.guessModelInfoFromId(modelId)
 			model = {
 				id: bedrockDefaultModelId,
-				info: JSON.parse(JSON.stringify(bedrockModels[bedrockDefaultModelId])),
+				info: {
+					...JSON.parse(JSON.stringify(bedrockModels[bedrockDefaultModelId])),
+					...guessed,
+				},
 			}
 		}
 
-		// If modelMaxTokens is explicitly set in options, override the default
+		// Always allow user to override detected/guessed maxTokens and contextWindow
 		if (this.options.modelMaxTokens && this.options.modelMaxTokens > 0) {
 			model.info.maxTokens = this.options.modelMaxTokens
+		}
+		if (this.options.awsModelContextWindow && this.options.awsModelContextWindow > 0) {
+			model.info.contextWindow = this.options.awsModelContextWindow
 		}
 
 		return model
@@ -684,8 +752,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			}
 		}
 
-		modelConfig.info.maxTokens = modelConfig.info.maxTokens || BEDROCK_MAX_TOKENS
-
+		// Don't override maxTokens/contextWindow here; handled in getModelById (and includes user overrides)
 		return modelConfig as { id: BedrockModelId | string; info: ModelInfo }
 	}
 

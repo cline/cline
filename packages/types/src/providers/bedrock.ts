@@ -355,6 +355,8 @@ export const BEDROCK_DEFAULT_TEMPERATURE = 0.3
 
 export const BEDROCK_MAX_TOKENS = 4096
 
+export const BEDROCK_DEFAULT_CONTEXT = 128_000
+
 export const BEDROCK_REGION_INFO: Record<
 	string,
 	{
