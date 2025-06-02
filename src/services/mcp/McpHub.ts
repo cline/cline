@@ -1,5 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import ReconnectingEventSource from "reconnecting-eventsource"
 import {
 	CallToolResultSchema,
 	ListResourcesResultSchema,
@@ -29,17 +32,18 @@ import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual } from "@utils/path"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+// import { injectEnv } from "../../utils/config" // Commented out as injectEnv is not found
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000
 
+type Transport = StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
+
 export type McpConnection = {
 	server: McpServer
 	client: Client
-	transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
+	transport: Transport
 }
 
 export type McpTransportType = "stdio" | "sse" | "http"
@@ -48,6 +52,7 @@ export type McpServerConfig = z.infer<typeof ServerConfigSchema>
 
 const AutoApproveSchema = z.array(z.string()).default([])
 
+// Base configuration schema for common settings
 const BaseConfigSchema = z.object({
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
@@ -61,25 +66,84 @@ const SseConfigSchema = BaseConfigSchema.extend({
 	...config,
 	transportType: "sse" as const,
 }))
+// Custom error messages for better user feedback
+const typeErrorMessage = "Server type must be one of: 'stdio', 'sse', or 'streamableHttp'"
+const stdioFieldsErrorMessage =
+	"For 'stdio' type servers, you must provide a 'command' field and can optionally include 'args' and 'env'"
+const urlFieldsErrorMessage = "For url based type servers, you must provide a 'url' field and can optionally include 'headers'"
+const mixedFieldsErrorMessage =
+	"Cannot mix 'stdio' and 'sse' fields. For 'stdio' use 'command', 'args', and 'env'. For 'sse' use 'url' and 'headers'"
+const missingFieldsErrorMessage = "Server configuration must include either 'command' (for stdio) or 'url' (for sse)"
 
-const StdioConfigSchema = BaseConfigSchema.extend({
-	command: z.string(),
-	args: z.array(z.string()).optional(),
-	env: z.record(z.string()).optional(),
-}).transform((config) => ({
-	...config,
-	transportType: "stdio" as const,
-}))
+function inferUrlBasedType(config: any): "sse" | "streamableHttp" | null {
+	if (!config.headers || typeof config.headers !== "object") {
+		return "streamableHttp"
+	}
 
-const StreamableHTTPConfigSchema = BaseConfigSchema.extend({
-	transportType: z.literal("http"),
-	url: z.string().url(),
-}).transform((config) => ({
-	...config,
-	transportType: "http" as const,
-}))
+	const headers = Object.fromEntries(Object.entries(config.headers).map(([k, v]) => [k.toLowerCase(), v]))
 
-const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema, StreamableHTTPConfigSchema])
+	if (typeof headers["accept"] === "string" && headers["accept"].includes("text/event-stream")) {
+		return "sse"
+	}
+
+	return "streamableHttp"
+}
+
+// Helper function to create a refined schema with better error messages
+const createServerTypeSchema = () => {
+	return z.union([
+		// Stdio config (has command field)
+		BaseConfigSchema.extend({
+			type: z.literal("stdio").optional(),
+			command: z.string(),
+			args: z.array(z.string()).optional(),
+			cwd: z.string().optional(),
+			env: z.record(z.string()).optional(),
+			// Explicitly disallow other types' fields
+			url: z.undefined().optional(),
+			headers: z.undefined().optional(),
+		})
+			.transform((data) => ({
+				...data,
+				type: "stdio" as const,
+			}))
+			.refine((data) => data.type === undefined || data.type === "stdio", { message: typeErrorMessage }),
+		// SSE config (has url field)
+		BaseConfigSchema.extend({
+			type: z.literal("sse").optional(),
+			url: z.string().url("URL must be a valid URL format"),
+			headers: z.record(z.string()).optional(),
+			// Explicitly disallow other types' fields
+			command: z.undefined().optional(),
+			args: z.undefined().optional(),
+			env: z.undefined().optional(),
+		})
+			.transform((data) => ({
+				...data,
+				type: "sse" as const,
+			}))
+			.refine((data) => data.type === undefined || data.type === "sse", { message: typeErrorMessage }),
+		// Streamable HTTP config (has url field)
+		BaseConfigSchema.extend({
+			type: z.literal("streamableHttp").optional(),
+			url: z.string().url("URL must be a valid URL format"),
+			headers: z.record(z.string()).optional(),
+			// Explicitly disallow other types' fields
+			command: z.undefined().optional(),
+			args: z.undefined().optional(),
+			env: z.undefined().optional(),
+		})
+			.transform((data) => ({
+				...data,
+				type: "streamableHttp" as const,
+			}))
+			.refine((data) => data.type === undefined || data.type === "streamableHttp", {
+				message: typeErrorMessage,
+			}),
+	])
+}
+
+const ServerConfigSchema = createServerTypeSchema()
 
 const McpSettingsSchema = z.object({
 	mcpServers: z.record(ServerConfigSchema),
@@ -191,125 +255,14 @@ export class McpHub {
 		}
 	}
 
-	private async connectToServerRPC(
-		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
-	): Promise<void> {
-		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
-		this.connections = this.connections.filter((conn) => conn.server.name !== name)
-
-		try {
-			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
-			const client = new Client(
-				{
-					name: "Cline",
-					version: this.clientVersion,
-				},
-				{
-					capabilities: {},
-				},
-			)
-
-			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
-
-			if (config.transportType === "sse") {
-				transport = new SSEClientTransport(new URL(config.url), {})
-			} else if (config.transportType === "http") {
-				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
-			} else {
-				transport = new StdioClientTransport({
-					command: config.command,
-					args: config.args,
-					env: {
-						...config.env,
-						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
-					},
-					stderr: "pipe", // necessary for stderr to be available
-				})
-			}
-
-			transport.onerror = async (error) => {
-				console.error(`Transport error for "${name}":`, error)
-				const connection = this.connections.find((conn) => conn.server.name === name)
-				if (connection) {
-					connection.server.status = "disconnected"
-					this.appendErrorMessage(connection, error.message)
-				}
-			}
-
-			transport.onclose = async () => {
-				const connection = this.connections.find((conn) => conn.server.name === name)
-				if (connection) {
-					connection.server.status = "disconnected"
-				}
-			}
-
-			const connection: McpConnection = {
-				server: {
-					name,
-					config: JSON.stringify(config),
-					status: "connecting",
-					disabled: config.disabled,
-				},
-				client,
-				transport,
-			}
-			this.connections.push(connection)
-
-			if (config.transportType === "stdio") {
-				// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
-				// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
-				await transport.start()
-				const stderrStream = (transport as StdioClientTransport).stderr
-				if (stderrStream) {
-					stderrStream.on("data", async (data: Buffer) => {
-						const output = data.toString()
-						// Check if output contains INFO level log
-						const isInfoLog = !/\berror\b/i.test(output)
-
-						if (isInfoLog) {
-							// Log normal informational messages
-							console.info(`Server "${name}" info:`, output)
-						} else {
-							// Treat as error log
-							console.error(`Server "${name}" stderr:`, output)
-							const connection = this.connections.find((conn) => conn.server.name === name)
-							if (connection) {
-								this.appendErrorMessage(connection, output)
-							}
-						}
-					})
-				} else {
-					console.error(`No stderr stream for ${name}`)
-				}
-				transport.start = async () => {} // No-op now, .connect() won't fail
-			}
-
-			// Connect
-			await client.connect(transport)
-
-			connection.server.status = "connected"
-			connection.server.error = ""
-
-			// Initial fetch of tools and resources
-			connection.server.tools = await this.fetchToolsList(name)
-			connection.server.resources = await this.fetchResourcesList(name)
-			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
-		} catch (error) {
-			// Update status with error
-			const connection = this.connections.find((conn) => conn.server.name === name)
-			if (connection) {
-				connection.server.status = "disconnected"
-				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
-			}
-			throw error
-		}
+	private findConnection(name: string, source: "rpc" | "internal"): McpConnection | undefined {
+		return this.connections.find((conn) => conn.server.name === name)
 	}
 
 	private async connectToServer(
 		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
+		config: z.infer<typeof ServerConfigSchema>,
+		source: "rpc" | "internal",
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -328,46 +281,110 @@ export class McpHub {
 
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
-			if (config.transportType === "sse") {
-				// Set headers of POST requests to the sse server
-				const postRequestInit = {
-					headers: config.headers,
-				}
+			switch (config.type) {
+				case "stdio": {
+					transport = new StdioClientTransport({
+						command: config.command,
+						args: config.args,
+						cwd: config.cwd,
+						env: {
+							// ...(config.env ? await injectEnv(config.env) : {}), // Commented out as injectEnv is not found
+							...(config.env || {}), // Use config.env directly or an empty object
+							...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+						},
+						stderr: "pipe",
+					})
 
-				transport = new SSEClientTransport(new URL(config.url), {
-					requestInit: postRequestInit,
-				})
-			} else if (config.transportType === "http") {
-				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
-			} else {
-				transport = new StdioClientTransport({
-					command: config.command,
-					args: config.args,
-					env: {
-						...config.env,
-						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
-					},
-					stderr: "pipe", // necessary for stderr to be available
-				})
-			}
+					transport.onerror = async (error) => {
+						console.error(`Transport error for "${name}":`, error)
+						const connection = this.findConnection(name, source)
+						if (connection) {
+							connection.server.status = "disconnected"
+							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+						}
+						await this.notifyWebviewOfServerChanges()
+					}
 
-			transport.onerror = async (error) => {
-				console.error(`Transport error for "${name}":`, error)
-				const connection = this.connections.find((conn) => conn.server.name === name)
-				if (connection) {
-					connection.server.status = "disconnected"
-					this.appendErrorMessage(connection, error.message)
-				}
-				await this.notifyWebviewOfServerChanges()
-			}
+					transport.onclose = async () => {
+						const connection = this.findConnection(name, source)
+						if (connection) {
+							connection.server.status = "disconnected"
+						}
+						await this.notifyWebviewOfServerChanges()
+					}
 
-			transport.onclose = async () => {
-				const connection = this.connections.find((conn) => conn.server.name === name)
-				if (connection) {
-					connection.server.status = "disconnected"
+					await transport.start()
+					const stderrStream = transport.stderr
+					if (stderrStream) {
+						stderrStream.on("data", async (data: Buffer) => {
+							const output = data.toString()
+							const isInfoLog = /INFO/i.test(output)
+
+							if (isInfoLog) {
+								console.log(`Server "${name}" info:`, output)
+							} else {
+								console.error(`Server "${name}" stderr:`, output)
+								const connection = this.findConnection(name, source)
+								if (connection) {
+									this.appendErrorMessage(connection, output)
+									if (connection.server.status === "disconnected") {
+										await this.notifyWebviewOfServerChanges()
+									}
+								}
+							}
+						})
+					} else {
+						console.error(`No stderr stream for ${name}`)
+					}
+					transport.start = async () => {}
+					break
 				}
-				await this.notifyWebviewOfServerChanges()
+				case "sse": {
+					const sseOptions = {
+						requestInit: {
+							headers: config.headers,
+						},
+					}
+					const reconnectingEventSourceOptions = {
+						max_retry_time: 5000,
+						withCredentials: config.headers?.["Authorization"] ? true : false,
+					}
+					global.EventSource = ReconnectingEventSource
+					transport = new SSEClientTransport(new URL(config.url), {
+						...sseOptions,
+						eventSourceInit: reconnectingEventSourceOptions,
+					})
+
+					transport.onerror = async (error) => {
+						console.error(`Transport error for "${name}":`, error)
+						const connection = this.findConnection(name, source)
+						if (connection) {
+							connection.server.status = "disconnected"
+							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+						}
+						await this.notifyWebviewOfServerChanges()
+					}
+					break
+				}
+				case "streamableHttp": {
+					transport = new StreamableHTTPClientTransport(new URL(config.url), {
+						requestInit: {
+							headers: config.headers,
+						},
+					})
+					transport.onerror = async (error) => {
+						console.error(`Transport error for "${name}":`, error)
+						const connection = this.findConnection(name, source)
+						if (connection) {
+							connection.server.status = "disconnected"
+							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+						}
+						await this.notifyWebviewOfServerChanges()
+					}
+					break
+				}
+				default:
+					throw new Error(`Unknown transport type: ${(config as any).type}`)
 			}
 
 			const connection: McpConnection = {
@@ -382,39 +399,6 @@ export class McpHub {
 			}
 			this.connections.push(connection)
 
-			if (config.transportType === "stdio") {
-				// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
-				// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
-				await transport.start()
-				const stderrStream = (transport as StdioClientTransport).stderr
-				if (stderrStream) {
-					stderrStream.on("data", async (data: Buffer) => {
-						const output = data.toString()
-						// Check if output contains INFO level log
-						const isInfoLog = !/\berror\b/i.test(output)
-
-						if (isInfoLog) {
-							// Log normal informational messages
-							console.info(`Server "${name}" info:`, output)
-						} else {
-							// Treat as error log
-							console.error(`Server "${name}" stderr:`, output)
-							const connection = this.connections.find((conn) => conn.server.name === name)
-							if (connection) {
-								this.appendErrorMessage(connection, output)
-								// Only notify webview if server is already disconnected
-								if (connection.server.status === "disconnected") {
-									await this.notifyWebviewOfServerChanges()
-								}
-							}
-						}
-					})
-				} else {
-					console.error(`No stderr stream for ${name}`)
-				}
-				transport.start = async () => {} // No-op now, .connect() won't fail
-			}
-
 			// Connect
 			await client.connect(transport)
 
@@ -427,7 +411,7 @@ export class McpHub {
 			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
 		} catch (error) {
 			// Update status with error
-			const connection = this.connections.find((conn) => conn.server.name === name)
+			const connection = this.findConnection(name, source)
 			if (connection) {
 				connection.server.status = "disconnected"
 				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
@@ -533,21 +517,21 @@ export class McpHub {
 			if (!currentConnection) {
 				// New server
 				try {
-					if (config.transportType === "stdio") {
+					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
-					await this.connectToServer(name, config)
+					await this.connectToServer(name, config, "rpc")
 				} catch (error) {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed config
 				try {
-					if (config.transportType === "stdio") {
+					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
 					await this.deleteConnection(name)
-					await this.connectToServer(name, config)
+					await this.connectToServer(name, config, "rpc")
 					console.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
@@ -580,21 +564,21 @@ export class McpHub {
 			if (!currentConnection) {
 				// New server
 				try {
-					if (config.transportType === "stdio") {
+					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
-					await this.connectToServer(name, config)
+					await this.connectToServer(name, config, "internal")
 				} catch (error) {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed config
 				try {
-					if (config.transportType === "stdio") {
+					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
 					await this.deleteConnection(name)
-					await this.connectToServer(name, config)
+					await this.connectToServer(name, config, "internal")
 					console.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
@@ -606,7 +590,7 @@ export class McpHub {
 		this.isConnecting = false
 	}
 
-	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { transportType: "stdio" }>) {
+	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
 		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
 		if (filePath) {
 			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
@@ -643,7 +627,7 @@ export class McpHub {
 			try {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
-				await this.connectToServerRPC(serverName, JSON.parse(inMemoryConfig))
+				await this.connectToServer(serverName, JSON.parse(inMemoryConfig), "rpc")
 			} catch (error) {
 				console.error(`Failed to restart connection for ${serverName}:`, error)
 			}
@@ -675,7 +659,7 @@ export class McpHub {
 			try {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
-				await this.connectToServer(serverName, JSON.parse(config))
+				await this.connectToServer(serverName, JSON.parse(config), "internal")
 				vscode.window.showInformationMessage(`${serverName} MCP server connected`)
 			} catch (error) {
 				console.error(`Failed to restart connection for ${serverName}:`, error)

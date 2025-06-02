@@ -395,6 +395,7 @@
 		"posthog-node": "^4.8.1",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
+		"reconnecting-eventsource": "^1.6.4",
 		"serialize-error": "^11.0.3",
 		"simple-git": "^3.27.0",
 		"strip-ansi": "^7.1.0",
