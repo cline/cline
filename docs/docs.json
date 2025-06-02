@@ -68,16 +68,6 @@
 				]
 			},
 			{
-				"group": "Get to know the models",
-				"pages": [
-					"get-to-know-the-models/models-overview",
-					"get-to-know-the-models/claude-models",
-					"get-to-know-the-models/gemini-models",
-					"get-to-know-the-models/openai-models",
-					"get-to-know-the-models/xai-models"
-				]
-			},
-			{
 				"group": "Improving Your Prompting Skills",
 				"pages": ["prompting/prompt-engineering-guide", "prompting/cline-memory-bank"]
 			},
