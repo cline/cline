@@ -6,6 +6,18 @@ option java_multiple_files = true;
 
 import "common.proto";
 
+// Enum for webview provider types
+enum WebviewProviderType {
+  SIDEBAR = 0;
+  TAB = 1;
+}
+
+// Define a new message type for webview provider info
+message WebviewProviderTypeRequest {
+  Metadata metadata = 1;
+  WebviewProviderType providerType = 2;
+}
+
 // UiService provides methods for managing UI interactions
 service UiService {
   // Scrolls to a specific settings section in the settings view
@@ -16,4 +28,7 @@ service UiService {
   
   // Subscribe to addToInput events (when user adds content via context menu)
   rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
+  
+  // Subscribe to MCP button clicked events
+  rpc subscribeToMcpButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
 }

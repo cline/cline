@@ -11,10 +11,12 @@ import assert from "node:assert"
 import { posthogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { WebviewProvider } from "./core/webview"
 import { Controller } from "./core/controller"
+import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
 import { v4 as uuidv4 } from "uuid"
+import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
 import { WebviewProviderType } from "./shared/webview/types"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -107,17 +109,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", (webview: any) => {
-			const openMcp = (instance?: WebviewProvider) =>
-				instance?.controller.postMessageToWebview({
-					type: "action",
-					action: "mcpButtonClicked",
-				})
+			console.log("[DEBUG] mcpButtonClicked", webview)
+			// Pass the webview type to the event sender
 			const isSidebar = !webview
-			if (isSidebar) {
-				openMcp(WebviewProvider.getSidebarInstance())
-			} else {
-				WebviewProvider.getTabInstances().forEach(openMcp)
-			}
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
+			// Will send to appropriate subscribers based on the source webview type
+			sendMcpButtonClickedEvent(webviewType)
 		}),
 	)
 
