@@ -7,10 +7,8 @@ import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
-import { SapAiCoreHandler } from "@api/providers/sapaicore"
 import { WebviewProviderType } from "@/shared/webview/types"
 import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
-import { ModelInfo } from "@shared/api"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -20,7 +18,6 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 export class WebviewProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
-	private sapAiCoreHandler?: SapAiCoreHandler
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	public view?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
@@ -395,7 +392,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	 */
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(
-			async (message) => {
+			(message) => {
 				this.controller.handleWebviewMessage(message)
 			},
 			null,
