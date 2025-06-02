@@ -4,7 +4,16 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
-import { COLOR_WHITE, COLOR_GRAY, COLOR_DARK_GRAY, COLOR_BEIGE, COLOR_BLUE, COLOR_RED, COLOR_PURPLE, COLOR_GREEN } from "./colors"
+import {
+	COLOR_WHITE,
+	COLOR_GRAY,
+	COLOR_DARK_GRAY,
+	COLOR_BEIGE,
+	COLOR_BLUE,
+	COLOR_RED,
+	COLOR_PURPLE,
+	COLOR_GREEN,
+} from "../colors"
 
 // Timeline dimensions and spacing
 const TIMELINE_HEIGHT = "18px"
@@ -14,6 +23,7 @@ const TOOLTIP_MARGIN = 32 // 32px margin on each side
 
 interface TaskTimelineProps {
 	messages: ClineMessage[]
+	onBlockClick?: (messageIndex: number) => void
 }
 
 const getBlockColor = (message: ClineMessage): string => {
@@ -39,6 +49,8 @@ const getBlockColor = (message: ClineMessage): string => {
 							return COLOR_BEIGE // Beige for file read operations
 						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 							return COLOR_BLUE // Blue for file edit/create operations
+						} else if (toolData.tool === "webFetch") {
+							return COLOR_PURPLE // Purple for web fetch operations
 						}
 					} catch (e) {
 						// JSON parse error here
@@ -77,6 +89,8 @@ const getBlockColor = (message: ClineMessage): string => {
 							return COLOR_BEIGE // Beige for file read operations
 						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 							return COLOR_BLUE // Blue for file edit/create operations
+						} else if (toolData.tool === "webFetch") {
+							return COLOR_PURPLE // Purple for web fetch operations
 						}
 					} catch (e) {
 						// JSON parse error here
@@ -94,16 +108,19 @@ const getBlockColor = (message: ClineMessage): string => {
 	return COLOR_WHITE // Default color
 }
 
-const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
+const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) => {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const scrollableRef = useRef<HTMLDivElement>(null)
 
-	const taskTimelinePropsMessages = useMemo(() => {
-		if (messages.length <= 1) return []
+	const { taskTimelinePropsMessages, messageIndexMap } = useMemo(() => {
+		if (messages.length <= 1) return { taskTimelinePropsMessages: [], messageIndexMap: [] }
 
 		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
+		const indexMap: number[] = []
 
-		return processed.filter((msg) => {
+		const filtered = processed.filter((msg, processedIndex) => {
+			const originalIndex = messages.findIndex((originalMsg, idx) => idx > 0 && originalMsg.ts === msg.ts)
+
 			// Filter out standard "say" events we don't want to show
 			if (
 				msg.type === "say" &&
@@ -124,9 +141,13 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 			) {
 				return false
 			}
+			if (originalIndex !== -1) {
+				indexMap.push(originalIndex)
+			}
 
 			return true
 		})
+		return { taskTimelinePropsMessages: filtered, messageIndexMap: indexMap }
 	}, [messages])
 
 	useEffect(() => {
@@ -145,9 +166,18 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 	const TimelineBlock = useCallback(
 		(index: number) => {
 			const message = taskTimelinePropsMessages[index]
+			const originalMessageIndex = messageIndexMap[index]
+
+			const handleClick = () => {
+				if (onBlockClick && originalMessageIndex !== undefined) {
+					onBlockClick(originalMessageIndex)
+				}
+			}
+
 			return (
 				<TaskTimelineTooltip message={message}>
 					<div
+						onClick={handleClick}
 						style={{
 							width: BLOCK_WIDTH,
 							height: "100%",
@@ -160,7 +190,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages }) => {
 				</TaskTimelineTooltip>
 			)
 		},
-		[taskTimelinePropsMessages],
+		[taskTimelinePropsMessages, messageIndexMap, onBlockClick],
 	)
 
 	// Scroll to the end when messages change

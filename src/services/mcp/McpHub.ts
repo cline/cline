@@ -15,7 +15,8 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
 import { WatchServiceClient } from "../../standalone/services/host-grpc-client"
-import { FileChangeEvent_ChangeType } from "../../shared/proto/host/watch"
+import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
+import { Metadata } from "../../shared/proto/common"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
@@ -58,6 +59,7 @@ const BaseConfigSchema = z.object({
 
 const SseConfigSchema = BaseConfigSchema.extend({
 	url: z.string().url(),
+	headers: z.record(z.string()).optional(), // headers of POST requests to the sse server
 }).transform((config) => ({
 	...config,
 	transportType: "sse" as const,
@@ -171,7 +173,10 @@ export class McpHub {
 		// Subscribe to file changes using the gRPC WatchService
 		console.log("[DEBUG] subscribing to mcp file changes")
 		const cancelSubscription = WatchServiceClient.subscribeToFile(
-			{ path: settingsPath },
+			SubscribeToFileRequest.create({
+				metadata: Metadata.create({}),
+				path: settingsPath,
+			}),
 			{
 				onResponse: async (response) => {
 					// TODO we are getting a double fire on mcp change
@@ -351,7 +356,14 @@ export class McpHub {
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			if (config.transportType === "sse") {
-				transport = new SSEClientTransport(new URL(config.url), {})
+				// Set headers of POST requests to the sse server
+				const postRequestInit = {
+					headers: config.headers,
+				}
+
+				transport = new SSEClientTransport(new URL(config.url), {
+					requestInit: postRequestInit,
+				})
 			} else if (config.transportType === "http") {
 				transport = new StreamableHTTPClientTransport(new URL(config.url), {})
 			} else {

@@ -16,4 +16,7 @@ service AccountService {
     // Handles the user clicking the logout button in the UI.
     // Clears API keys and user state.
     rpc accountLogoutClicked(EmptyRequest) returns (Empty);
+
+    // Subscribe to auth callback events (when authentication tokens are received)
+    rpc subscribeToAuthCallback(EmptyRequest) returns (stream String);
 }

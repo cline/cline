@@ -1,9 +1,9 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
-import { UiServiceClient } from "@/services/grpc-client"
+import { McpServiceClient, UiServiceClient } from "@/services/grpc-client"
 
+import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import ServersToggleList from "./ServersToggleList"
 const InstalledServersView = () => {
 	const { mcpServers: servers, navigateToSettings } = useExtensionState()
@@ -40,7 +40,9 @@ const InstalledServersView = () => {
 					appearance="secondary"
 					style={{ width: "100%", marginBottom: "5px" }}
 					onClick={() => {
-						vscode.postMessage({ type: "openMcpSettings" })
+						McpServiceClient.openMcpSettings(EmptyRequest.create({})).catch((error) => {
+							console.error("Error opening MCP settings:", error)
+						})
 					}}>
 					<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
 					Configure MCP Servers
@@ -55,7 +57,7 @@ const InstalledServersView = () => {
 							// After a short delay, send a message to scroll to browser settings
 							setTimeout(async () => {
 								try {
-									await UiServiceClient.scrollToSettings({ value: "features" })
+									await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
 								} catch (error) {
 									console.error("Error scrolling to mcp settings:", error)
 								}

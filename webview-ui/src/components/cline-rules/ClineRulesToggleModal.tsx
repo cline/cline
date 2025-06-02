@@ -1,15 +1,21 @@
-import React, { useRef, useState, useEffect } from "react"
-import { useClickAway, useWindowSize } from "react-use"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { vscode } from "@/utils/vscode"
-import { FileServiceClient } from "@/services/grpc-client"
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import RulesToggleList from "./RulesToggleList"
 import Tooltip from "@/components/common/Tooltip"
-import styled from "styled-components"
-import { ClineRulesToggles, RefreshedRules, ToggleWindsurfRuleRequest } from "@shared/proto/file"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient } from "@/services/grpc-client"
+import { vscode } from "@/utils/vscode"
 import { EmptyRequest } from "@shared/proto/common"
+import {
+	ClineRulesToggles,
+	RefreshedRules,
+	ToggleClineRuleRequest,
+	ToggleCursorRuleRequest,
+	ToggleWindsurfRuleRequest,
+} from "@shared/proto/file"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import React, { useEffect, useRef, useState } from "react"
+import { useClickAway, useWindowSize } from "react-use"
+import styled from "styled-components"
+import RulesToggleList from "./RulesToggleList"
 
 const ClineRulesToggleModal: React.FC = () => {
 	const {
@@ -17,12 +23,14 @@ const ClineRulesToggleModal: React.FC = () => {
 		localClineRulesToggles = {},
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
-		workflowToggles = {},
+		localWorkflowToggles = {},
+		globalWorkflowToggles = {},
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
-		setWorkflowToggles,
+		setLocalWorkflowToggles,
+		setGlobalWorkflowToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -49,8 +57,11 @@ const ClineRulesToggleModal: React.FC = () => {
 					if (response.localWindsurfRulesToggles?.toggles) {
 						setLocalWindsurfRulesToggles(response.localWindsurfRulesToggles.toggles)
 					}
-					if (response.workflowToggles?.toggles) {
-						setWorkflowToggles(response.workflowToggles.toggles)
+					if (response.localWorkflowToggles?.toggles) {
+						setLocalWorkflowToggles(response.localWorkflowToggles.toggles)
+					}
+					if (response.globalWorkflowToggles?.toggles) {
+						setGlobalWorkflowToggles(response.globalWorkflowToggles.toggles)
 					}
 				})
 				.catch((error) => {
@@ -77,17 +88,23 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
-	const workflows = Object.entries(workflowToggles || {})
+	const localWorkflows = Object.entries(localWorkflowToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	const globalWorkflows = Object.entries(globalWorkflowToggles || {})
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
 	// Handle toggle rule using gRPC
 	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
-		FileServiceClient.toggleClineRule({
-			isGlobal,
-			rulePath,
-			enabled,
-		})
+		FileServiceClient.toggleClineRule(
+			ToggleClineRuleRequest.create({
+				isGlobal,
+				rulePath,
+				enabled,
+			}),
+		)
 			.then((response) => {
 				// Update the local state with the response
 				if (response.globalClineRulesToggles?.toggles) {
@@ -103,10 +120,12 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	const toggleCursorRule = (rulePath: string, enabled: boolean) => {
-		FileServiceClient.toggleCursorRule({
-			rulePath,
-			enabled,
-		})
+		FileServiceClient.toggleCursorRule(
+			ToggleCursorRuleRequest.create({
+				rulePath,
+				enabled,
+			}),
+		)
 			.then((response) => {
 				// Update the local state with the response
 				if (response.toggles) {
@@ -133,11 +152,12 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 	}
 
-	const toggleWorkflow = (workflowPath: string, enabled: boolean) => {
+	const toggleWorkflow = (isGlobal: boolean, workflowPath: string, enabled: boolean) => {
 		vscode.postMessage({
 			type: "toggleWorkflow",
 			workflowPath,
 			enabled,
+			isGlobal,
 		})
 	}
 
@@ -299,19 +319,35 @@ const ClineRulesToggleModal: React.FC = () => {
 							</div>
 						</>
 					) : (
-						/* Workflows section */
-						<div style={{ marginBottom: -10 }}>
-							<div className="text-sm font-normal mb-2">Workspace Workflows</div>
-							<RulesToggleList
-								rules={workflows}
-								toggleRule={toggleWorkflow}
-								listGap="small"
-								isGlobal={false}
-								ruleType={"workflow"}
-								showNewRule={true}
-								showNoRules={false}
-							/>
-						</div>
+						<>
+							{/* Global Workflows Section */}
+							<div className="mb-3">
+								<div className="text-sm font-normal mb-2">Global Workflows</div>
+								<RulesToggleList
+									rules={globalWorkflows}
+									toggleRule={(rulePath, enabled) => toggleWorkflow(true, rulePath, enabled)}
+									listGap="small"
+									isGlobal={true}
+									ruleType={"workflow"}
+									showNewRule={true}
+									showNoRules={false}
+								/>
+							</div>
+
+							{/* Local Workflows Section */}
+							<div style={{ marginBottom: -10 }}>
+								<div className="text-sm font-normal mb-2">Workspace Workflows</div>
+								<RulesToggleList
+									rules={localWorkflows}
+									toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
+									listGap="small"
+									isGlobal={false}
+									ruleType={"workflow"}
+									showNewRule={true}
+									showNoRules={false}
+								/>
+							</div>
+						</>
 					)}
 				</div>
 			)}

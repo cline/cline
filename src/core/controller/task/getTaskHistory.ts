@@ -106,10 +106,10 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			cacheReads: item.cacheReads || 0,
 		}))
 
-		return {
+		return TaskHistoryArray.create({
 			tasks,
 			totalCount,
-		}
+		})
 	} catch (error) {
 		console.error("Error in getTaskHistory:", error)
 		throw error

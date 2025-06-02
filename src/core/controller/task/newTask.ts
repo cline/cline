@@ -10,7 +10,7 @@ import { handleFileServiceRequest } from "../file"
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
-	await controller.initTask(request.text, request.images)
+	await controller.initTask(request.text, request.images, request.files)
 	// TODO remove this host bridge test
 	try {
 		console.log("[DEBUG] DOING getRelativePaths TASK")
