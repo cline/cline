@@ -88,7 +88,13 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 					cacheReadTokens: lastUsage.prompt_tokens_details?.cached_tokens || 0,
 				}
 
-				usageData.totalCost = calculateApiCostOpenAI(info, usageData.inputTokens, usageData.outputTokens, usageData.cacheWriteTokens, usageData.cacheReadTokens)
+				usageData.totalCost = calculateApiCostOpenAI(
+					info,
+					usageData.inputTokens,
+					usageData.outputTokens,
+					usageData.cacheWriteTokens,
+					usageData.cacheReadTokens,
+				)
 
 				yield usageData
 			}

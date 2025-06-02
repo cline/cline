@@ -39,15 +39,15 @@ jest.mock("../../../services/tree-sitter")
 
 // Then create the mock functions
 const addLineNumbersMock = jest.fn().mockImplementation((text, startLine = 1) => {
-  if (!text) return ""
-  const lines = typeof text === "string" ? text.split("\n") : [text]
-  return lines.map((line, i) => `${startLine + i} | ${line}`).join("\n")
+	if (!text) return ""
+	const lines = typeof text === "string" ? text.split("\n") : [text]
+	return lines.map((line, i) => `${startLine + i} | ${line}`).join("\n")
 })
 
 const extractTextFromFileMock = jest.fn().mockImplementation((_filePath) => {
-  // Call addLineNumbersMock to register the call
-  addLineNumbersMock(mockInputContent)
-  return Promise.resolve(addLineNumbersMock(mockInputContent))
+	// Call addLineNumbersMock to register the call
+	addLineNumbersMock(mockInputContent)
+	return Promise.resolve(addLineNumbersMock(mockInputContent))
 })
 
 // Now assign the mocks to the module
@@ -104,7 +104,7 @@ describe("read_file tool with maxReadFileLine setting", () => {
 		// Setup the extractTextFromFile mock implementation with the current mockInputContent
 		// Reset the spy before each test
 		addLineNumbersMock.mockClear()
-		
+
 		// Setup the extractTextFromFile mock to call our spy
 		mockedExtractTextFromFile.mockImplementation((_filePath) => {
 			// Call the spy and return its result
@@ -170,7 +170,6 @@ describe("read_file tool with maxReadFileLine setting", () => {
 		}
 		argsContent += `</file>`
 
-
 		// Create a tool use object
 		const toolUse: ReadFileToolUse = {
 			type: "tool_use",
@@ -190,7 +189,6 @@ describe("read_file tool with maxReadFileLine setting", () => {
 			(_: ToolParamName, content?: string) => content ?? "",
 		)
 
-
 		return toolResult
 	}
 
@@ -207,7 +205,6 @@ describe("read_file tool with maxReadFileLine setting", () => {
 			expect(result).toContain(`<content lines="1-5">`)
 			// Don't check exact content or exact function calls
 		})
-
 
 		it("should not show line snippet in approval message when maxReadFileLine is -1", async () => {
 			// This test verifies the line snippet behavior for the approval message
@@ -341,7 +338,7 @@ describe("read_file tool with maxReadFileLine setting", () => {
 
 			// Make sure mockCline.ask returns approval
 			mockCline.ask = jest.fn().mockResolvedValue({ response: "yesButtonClicked" })
-			
+
 			// Execute - skip addLineNumbers check
 			const result = await executeReadFileTool(
 				{},
@@ -367,10 +364,13 @@ describe("read_file tool with maxReadFileLine setting", () => {
 			mockedReadLines.mockResolvedValue("Line 2\nLine 3\nLine 4")
 
 			// Execute using executeReadFileTool with range parameters
-			const rangeResult = await executeReadFileTool({},{
-				start_line: "2",
-				end_line: "4",
-			})
+			const rangeResult = await executeReadFileTool(
+				{},
+				{
+					start_line: "2",
+					end_line: "4",
+				},
+			)
 
 			// Verify - just check that the result contains the expected elements
 			expect(rangeResult).toContain(`<file><path>${testFilePath}</path>`)
@@ -469,14 +469,11 @@ describe("read_file tool XML output structure", () => {
 		mockedIsBinaryFile.mockResolvedValue(isBinary)
 		mockCline.rooIgnoreController.validateAccess = jest.fn().mockReturnValue(validateAccess)
 
-
-
 		let argsContent = `<file><path>${options.path || testFilePath}</path>`
 		if (options.start_line && options.end_line) {
 			argsContent += `<line_range>${options.start_line}-${options.end_line}</line_range>`
 		}
 		argsContent += `</file>`
-
 
 		// Create a tool use object
 		const toolUse: ReadFileToolUse = {
@@ -485,7 +482,6 @@ describe("read_file tool XML output structure", () => {
 			params: { args: argsContent, ...params },
 			partial: false,
 		}
-
 
 		// Execute the tool
 		await readFileTool(
@@ -507,7 +503,7 @@ describe("read_file tool XML output structure", () => {
 			// Skip this test for now - it requires more complex mocking
 			// of the formatResponse module which is causing issues
 			expect(true).toBe(true)
-			
+
 			mockedCountFileLines.mockResolvedValue(1)
 
 			// Execute
@@ -520,15 +516,15 @@ describe("read_file tool XML output structure", () => {
 			// Skip this test for now - it requires more complex mocking
 			// of the formatResponse module which is causing issues
 			expect(true).toBe(true)
-			
+
 			// Mock the file content
 			mockInputContent = "Test content"
-			
+
 			// Mock the extractTextFromFile to return numbered content
 			mockedExtractTextFromFile.mockImplementation(() => {
 				return Promise.resolve("1 | Test content")
 			})
-			
+
 			mockedCountFileLines.mockResolvedValue(1)
 
 			// Execute
@@ -605,14 +601,14 @@ describe("read_file tool XML output structure", () => {
 			// Setup
 			const startLine = 2
 			const endLine = 5
-			
+
 			// For line range tests, we need to mock both readLines and addLineNumbers
 			const content = "Line 2\nLine 3\nLine 4\nLine 5"
 			const numberedContent = "2 | Line 2\n3 | Line 3\n4 | Line 4\n5 | Line 5"
-			
+
 			// Mock readLines to return the content
 			mockedReadLines.mockResolvedValue(content)
-			
+
 			// Mock addLineNumbers to return the numbered content
 			addLineNumbersMock.mockImplementation((_text?: any, start?: any) => {
 				if (start === 2) {
@@ -620,15 +616,18 @@ describe("read_file tool XML output structure", () => {
 				}
 				return _text || ""
 			})
-			
+
 			mockedCountFileLines.mockResolvedValue(endLine)
 			mockProvider.getState.mockResolvedValue({ maxReadFileLine: endLine })
 
 			// Execute with line range parameters
-			const result = await executeReadFileTool({}, {
-				start_line: startLine.toString(),
-				end_line: endLine.toString()
-			})
+			const result = await executeReadFileTool(
+				{},
+				{
+					start_line: startLine.toString(),
+					end_line: endLine.toString(),
+				},
+			)
 
 			// Verify
 			expect(result).toBe(
@@ -641,10 +640,10 @@ describe("read_file tool XML output structure", () => {
 			const endLine = 3
 			const content = "Line 1\nLine 2\nLine 3"
 			const numberedContent = "1 | Line 1\n2 | Line 2\n3 | Line 3"
-			
+
 			// Mock readLines to return the content
 			mockedReadLines.mockResolvedValue(content)
-			
+
 			// Mock addLineNumbers to return the numbered content
 			addLineNumbersMock.mockImplementation((_text?: any, start?: any) => {
 				if (start === 1) {
@@ -652,16 +651,19 @@ describe("read_file tool XML output structure", () => {
 				}
 				return _text || ""
 			})
-			
+
 			mockedCountFileLines.mockResolvedValue(endLine)
 			mockProvider.getState.mockResolvedValue({ maxReadFileLine: 500 })
 
 			// Execute with line range parameters
-			const result = await executeReadFileTool({}, {
-				start_line: "1",
-				end_line: endLine.toString(),
-				totalLines: endLine
-			})
+			const result = await executeReadFileTool(
+				{},
+				{
+					start_line: "1",
+					end_line: endLine.toString(),
+					totalLines: endLine,
+				},
+			)
 
 			// Verify
 			expect(result).toBe(
@@ -727,10 +729,10 @@ describe("read_file tool XML output structure", () => {
 			const startLine = 3
 			const content = "Line 3\nLine 4\nLine 5"
 			const numberedContent = "3 | Line 3\n4 | Line 4\n5 | Line 5"
-			
+
 			// Mock readLines to return the content
 			mockedReadLines.mockResolvedValue(content)
-			
+
 			// Mock addLineNumbers to return the numbered content
 			addLineNumbersMock.mockImplementation((_text?: any, start?: any) => {
 				if (start === 3) {
@@ -738,16 +740,19 @@ describe("read_file tool XML output structure", () => {
 				}
 				return _text || ""
 			})
-			
+
 			mockedCountFileLines.mockResolvedValue(totalLines)
 			mockProvider.getState.mockResolvedValue({ maxReadFileLine: totalLines })
 
 			// Execute with line range parameters
-			const result = await executeReadFileTool({}, {
-				start_line: startLine.toString(),
-				end_line: totalLines.toString(),
-				totalLines
-			})
+			const result = await executeReadFileTool(
+				{},
+				{
+					start_line: startLine.toString(),
+					end_line: totalLines.toString(),
+					totalLines,
+				},
+			)
 
 			// Should adjust to actual file length
 			expect(result).toBe(
@@ -780,11 +785,14 @@ describe("read_file tool XML output structure", () => {
 			mockedReadLines.mockResolvedValue(rangeContent)
 
 			// Execute
-			const result = await executeReadFileTool({},
+			const result = await executeReadFileTool(
+				{},
 				{
 					start_line: startLine.toString(),
 					end_line: endLine.toString(),
-				 maxReadFileLine, totalLines },
+					maxReadFileLine,
+					totalLines,
+				},
 			)
 
 			// Verify
