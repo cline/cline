@@ -33,5 +33,5 @@ service UiService {
   rpc subscribeToMcpButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
   
   // Subscribe to settings button clicked events
-  rpc subscribeToSettingsButtonClicked(EmptyRequest) returns (stream Empty);
+  rpc subscribeToSettingsButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
 }
