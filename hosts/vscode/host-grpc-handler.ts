@@ -156,20 +156,14 @@ export async function handleGrpcRequest(request: {
 			request_id: string
 		}
 
-		// Send the response back to the webview
-		// await controller.postMessageToWebview({
-		// 	type: "grpc_response",
-		// 	grpc_response: response,
-		// })
+		// Return the response directly to the caller
+		return response
 	} catch (error) {
-		// Send error response
-		// await controller.postMessageToWebview({
-		// 	type: "grpc_response",
-		// 	grpc_response: {
-		// 		error: error instanceof Error ? error.message : String(error),
-		// 		request_id: request.request_id,
-		// 	},
-		// })
+		// Return error response directly to the caller
+		return {
+			error: error instanceof Error ? error.message : String(error),
+			request_id: request.request_id,
+		}
 	}
 }
 
@@ -181,15 +175,19 @@ export async function handleGrpcRequestCancel(request: { request_id: string }) {
 	const cancelled = requestRegistry.cancelRequest(request.request_id)
 
 	if (cancelled) {
-		// Send a cancellation confirmation
-		// await controller.postMessageToWebview({
-		// 	type: "grpc_response",
-		// 	grpc_response: {
-		// 		message: { cancelled: true },
-		// 		request_id: request.request_id,
-		// 		is_streaming: false,
-		// 	},
-		// })
+		// Get the registered response handler from the registry
+		const requestInfo = requestRegistry.getRequestInfo(request.request_id)
+		if (requestInfo && requestInfo.responseStream) {
+			try {
+				// Send cancellation confirmation using the registered response handler
+				await requestInfo.responseStream(
+					{ cancelled: true },
+					true, // Mark as last message
+				)
+			} catch (e) {
+				console.error(`Error sending cancellation response for ${request.request_id}:`, e)
+			}
+		}
 	} else {
 		console.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
 	}
