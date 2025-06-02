@@ -9,9 +9,6 @@ import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
-import { EmptyRequest, Empty } from "@shared/proto/common"
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import { useEvent } from "react-use"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -21,7 +18,6 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 
@@ -277,6 +273,10 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
+		// Determine the webview provider type
+		const webviewType =
+			window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response) => {
@@ -350,8 +350,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Subscribe to MCP button clicked events with webview type
 		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
 			WebviewProviderTypeRequest.create({
-				providerType:
-					window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB,
+				providerType: webviewType,
 			}),
 			{
 				onResponse: () => {
@@ -367,20 +366,25 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
-		// Set up history button clicked subscription
-		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(EmptyRequest.create({}), {
-			onResponse: () => {
-				// When history button is clicked, navigate to history view
-				console.log("[DEBUG] Received history button clicked event from gRPC stream")
-				navigateToHistory()
+		// Set up history button clicked subscription with webview type
+		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType: webviewType,
+			}),
+			{
+				onResponse: () => {
+					// When history button is clicked, navigate to history view
+					console.log("[DEBUG] Received history button clicked event from gRPC stream")
+					navigateToHistory()
+				},
+				onError: (error) => {
+					console.error("Error in history button clicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("History button clicked subscription completed")
+				},
 			},
-			onError: (error) => {
-				console.error("Error in history button clicked subscription:", error)
-			},
-			onComplete: () => {
-				console.log("History button clicked subscription completed")
-			},
-		})
+		)
 
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })

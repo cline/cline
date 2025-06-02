@@ -177,9 +177,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.historyButtonClicked", async (_webview: any) => {
+		vscode.commands.registerCommand("cline.historyButtonClicked", async (webview: any) => {
+			console.log("[DEBUG] historyButtonClicked", webview)
+			// Pass the webview type to the event sender
+			const isSidebar = !webview
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
 			// Send event to all subscribers using the gRPC streaming method
-			await sendHistoryButtonClickedEvent()
+			await sendHistoryButtonClickedEvent(webviewType)
 		}),
 	)
 
