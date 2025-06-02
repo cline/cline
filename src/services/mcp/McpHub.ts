@@ -57,35 +57,8 @@ const BaseConfigSchema = z.object({
 	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
 })
 
-const SseConfigSchema = BaseConfigSchema.extend({
-	url: z.string().url(),
-	headers: z.record(z.string()).optional(), // headers of POST requests to the sse server
-}).transform((config) => ({
-	...config,
-	transportType: "sse" as const,
-}))
 // Custom error messages for better user feedback
 const typeErrorMessage = "Server type must be one of: 'stdio', 'sse', or 'streamableHttp'"
-const stdioFieldsErrorMessage =
-	"For 'stdio' type servers, you must provide a 'command' field and can optionally include 'args' and 'env'"
-const urlFieldsErrorMessage = "For url based type servers, you must provide a 'url' field and can optionally include 'headers'"
-const mixedFieldsErrorMessage =
-	"Cannot mix 'stdio' and 'sse' fields. For 'stdio' use 'command', 'args', and 'env'. For 'sse' use 'url' and 'headers'"
-const missingFieldsErrorMessage = "Server configuration must include either 'command' (for stdio) or 'url' (for sse)"
-
-function inferUrlBasedType(config: any): "sse" | "streamableHttp" | null {
-	if (!config.headers || typeof config.headers !== "object") {
-		return "streamableHttp"
-	}
-
-	const headers = Object.fromEntries(Object.entries(config.headers).map(([k, v]) => [k.toLowerCase(), v]))
-
-	if (typeof headers["accept"] === "string" && headers["accept"].includes("text/event-stream")) {
-		return "sse"
-	}
-
-	return "streamableHttp"
-}
 
 // Helper function to create a refined schema with better error messages
 const createServerTypeSchema = () => {
