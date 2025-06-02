@@ -3,7 +3,6 @@ import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, sapAiCoreDefaultModelId, SapAiCoreModelId, sapAiCoreModels } from "../../shared/api"
-import { convertAnthropicMessagesToBedrock } from "../transform/bedrock-format"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -144,7 +143,7 @@ export class SapAiCoreHandler implements ApiHandler {
 						temperature: 0.0,
 					},
 					system: systemPrompt ? [{ text: systemPrompt }] : undefined,
-					messages: convertAnthropicMessagesToBedrock(messages),
+					messages: this.formatAnthropicMessages(messages),
 				}
 			} else {
 				payload = {
@@ -473,5 +472,68 @@ export class SapAiCoreHandler implements ApiHandler {
 			return { id, info: sapAiCoreModels[id] }
 		}
 		return { id: sapAiCoreDefaultModelId, info: sapAiCoreModels[sapAiCoreDefaultModelId] }
+	}
+
+	private getValidImageFormat(mediaType: string): string {
+		const format = mediaType.split("/")[1]?.toLowerCase()
+		const validFormats = ["png", "jpeg", "gif", "webp"]
+
+		if (validFormats.includes(format)) {
+			return format
+		}
+		throw new Error(`Unsupported image format: ${format}`)
+	}
+
+	private formatAnthropicMessages(messages: Anthropic.Messages.MessageParam[]): any[] {
+		return messages.map((m) => {
+			const contentBlocks: any[] = []
+
+			if (typeof m.content === "string") {
+				contentBlocks.push({ text: m.content })
+			} else if (Array.isArray(m.content)) {
+				for (const block of m.content) {
+					if (block.type === "text") {
+						if (!block.text) {
+							throw new Error('Text block is missing the "text" field.')
+						}
+						contentBlocks.push({ text: block.text })
+					} else if (block.type === "image") {
+						if (!block.source) {
+							throw new Error('Image block is missing the "source" field.')
+						}
+
+						const { type, media_type, data } = block.source
+
+						if (!type || !media_type || !data) {
+							throw new Error('Image source must have "type", "media_type", and "data" fields.')
+						}
+
+						if (type !== "base64") {
+							throw new Error(`Unsupported image source type: ${type}. Only "base64" is supported.`)
+						}
+
+						const format = this.getValidImageFormat(media_type)
+
+						contentBlocks.push({
+							image: {
+								format,
+								source: {
+									bytes: data,
+								},
+							},
+						})
+					} else {
+						throw new Error(`Unsupported content block type: ${block.type}`)
+					}
+				}
+			} else {
+				throw new Error("Unsupported content format.")
+			}
+
+			return {
+				role: m.role,
+				content: contentBlocks,
+			}
+		})
 	}
 }

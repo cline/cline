@@ -396,103 +396,10 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(
 			async (message) => {
-				if (message.type === "requestSapAiCoreDeployments") {
-					try {
-						const deployments = await this.handleSapAiCoreDeploymentsRequest()
-						await this.controller.postMessageToWebview({
-							type: "sapAiCoreDeployments",
-							sapAiCoreDeployments: deployments,
-						})
-					} catch (error) {
-						console.error("Error handling SAP AI Core deployments request:", error)
-						await this.controller.postMessageToWebview({
-							type: "sapAiCoreDeployments",
-							error: "Failed to fetch SAP AI Core deployments",
-						})
-					}
-				} else {
-					this.controller.handleWebviewMessage(message)
-				}
+				this.controller.handleWebviewMessage(message)
 			},
 			null,
 			this.disposables,
 		)
-	}
-
-	private async postMessageToWebview(message: any) {
-		if (this.view?.webview) {
-			await this.view.webview.postMessage(message)
-		}
-	}
-
-	private async handleSapAiCoreDeploymentsRequest() {
-		try {
-			const { apiConfiguration } = await this.controller.getStateToPostToWebview()
-			if (!apiConfiguration || apiConfiguration.apiProvider !== "sapaicore") {
-				throw new Error("SAP AI Core configuration is not available or not selected")
-			}
-			this.sapAiCoreHandler = new SapAiCoreHandler({
-				sapAiCoreClientId: apiConfiguration.sapAiCoreClientId,
-				sapAiCoreClientSecret: apiConfiguration.sapAiCoreClientSecret,
-				sapAiCoreBaseUrl: apiConfiguration.sapAiCoreBaseUrl,
-				sapAiCoreTokenUrl: apiConfiguration.sapAiCoreTokenUrl,
-				sapAiResourceGroup: apiConfiguration.sapAiResourceGroup,
-			})
-
-			const getAiCoreDeployments = (this.sapAiCoreHandler as any).getAiCoreDeployments.bind(this.sapAiCoreHandler)
-			const deployments = await getAiCoreDeployments()
-
-			if (!Array.isArray(deployments)) {
-				throw new Error("Invalid deployment data returned from SAP AI Core")
-			}
-
-			// Convert deployments to ModelInfo format
-			const deploymentModels: Record<string, ModelInfo> = {}
-
-			for (const deployment of deployments) {
-				if (typeof deployment !== "object" || deployment === null || !("name" in deployment)) {
-					console.warn("Invalid deployment object:", deployment)
-					continue
-				}
-
-				const modelName = deployment.name.split(":")[0]
-				const { sapAiCoreModels } = await import("@shared/api")
-
-				const matchingModelKey = Object.keys(sapAiCoreModels).find((key) =>
-					modelName.toLowerCase().includes(key.toLowerCase()),
-				)
-
-				if (matchingModelKey) {
-					deploymentModels[modelName] = {
-						...sapAiCoreModels[matchingModelKey as keyof typeof sapAiCoreModels],
-					}
-				} else {
-					deploymentModels[modelName] = {
-						maxTokens: 4096,
-						contextWindow: 200_000,
-						supportsImages: true,
-						supportsPromptCache: false,
-						inputPrice: 3.0,
-						outputPrice: 15.0,
-					}
-				}
-			}
-
-			// Send the deployments to the webview
-			await this.controller.postMessageToWebview({
-				type: "sapAiCoreDeployments",
-				sapAiCoreDeployments: deploymentModels,
-			})
-
-			return deploymentModels
-		} catch (error) {
-			console.error("Error fetching SAP AI Core deployments:", error)
-			const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
-			await this.controller.postMessageToWebview({
-				type: "sapAiCoreDeployments",
-				error: `Failed to fetch SAP AI Core deployments: ${errorMessage}`,
-			})
-			return {}
-		}
 	}
 }
