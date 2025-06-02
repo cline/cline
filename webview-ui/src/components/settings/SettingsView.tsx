@@ -7,7 +7,7 @@ import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { vscode } from "@/utils/vscode"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/common"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/state"
+import { PlanActMode, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
@@ -174,29 +174,33 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			console.log("API configuration is invalid:", { apiConfiguration })
 		}
 
-		// Use the centralized conversion functions instead of manual mapping
+		// Use the centralized conversion functions with proper protobuf object creation
 
-		StateServiceClient.updateSettings({
-			planActSeparateModelsSetting,
-			customInstructionsSetting: customInstructions,
-			telemetrySetting: convertDomainTelemetrySettingToProtoTelemetrySetting(telemetrySetting),
-			enableCheckpointsSetting,
-			mcpMarketplaceEnabled,
-			apiConfiguration: apiConfigurationToSubmit
-				? convertDomainApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
-				: undefined,
-			chatSettings: chatSettings ? convertDomainChatSettingsToProtoChatSettings(chatSettings) : undefined,
-		})
+		StateServiceClient.updateSettings(
+			UpdateSettingsRequest.create({
+				planActSeparateModelsSetting,
+				customInstructionsSetting: customInstructions,
+				telemetrySetting: convertDomainTelemetrySettingToProtoTelemetrySetting(telemetrySetting),
+				enableCheckpointsSetting,
+				mcpMarketplaceEnabled,
+				apiConfiguration: apiConfigurationToSubmit
+					? convertDomainApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
+					: undefined,
+				chatSettings: chatSettings ? convertDomainChatSettingsToProtoChatSettings(chatSettings) : undefined,
+			}),
+		)
 			.then(() => {
 				// If there's a pendingTabChange, execute it now that settings are saved
 				if (pendingTabChange) {
 					// Call togglePlanActMode directly instead of waiting for didUpdateSettings message
-					StateServiceClient.togglePlanActMode({
-						chatSettings: convertDomainChatSettingsToProtoChatSettings({
-							...chatSettings,
-							mode: pendingTabChange,
+					StateServiceClient.togglePlanActMode(
+						TogglePlanActModeRequest.create({
+							chatSettings: convertDomainChatSettingsToProtoChatSettings({
+								...chatSettings,
+								mode: pendingTabChange,
+							}),
 						}),
-					})
+					)
 						.catch((error) => {
 							console.error("Failed to toggle plan/act mode:", error)
 						})
@@ -315,32 +319,32 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
 	*/
 
-	const handleMessage = useCallback(
-		(event: MessageEvent) => {
-			const message: ExtensionMessage = event.data
-			switch (message.type) {
-				case "didUpdateSettings":
-					if (pendingTabChange) {
-						StateServiceClient.togglePlanActMode(
-							TogglePlanActModeRequest.create({
-								chatSettings: {
-									mode: pendingTabChange === "plan" ? PlanActMode.PLAN : PlanActMode.ACT,
-									preferredLanguage: chatSettings.preferredLanguage,
-									openAiReasoningEffort: chatSettings.openAIReasoningEffort,
-								},
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message: ExtensionMessage = event.data
+		switch (message.type) {
+			case "didUpdateSettings":
+				if (pendingTabChange) {
+					StateServiceClient.togglePlanActMode(
+						TogglePlanActModeRequest.create({
+							chatSettings: convertDomainChatSettingsToProtoChatSettings({
+								...chatSettings,
+								mode: pendingTabChange,
+								preferredLanguage: chatSettings.preferredLanguage,
+								openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 							}),
-						)
-						setPendingTabChange(null)
-					}
-					break
-				// Handle tab navigation through targetSection prop instead
-				case "grpc_response":
-					if (message.grpc_response?.message?.action === "scrollToSettings") {
-						const tabId = message.grpc_response?.message?.value
-						if (tabId) {
-							console.log("Opening settings tab from GRPC response:", tabId)
-							// Check if the value corresponds to a valid tab ID
-							const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
+						}),
+					)
+					setPendingTabChange(null)
+				}
+				break
+			// Handle tab navigation through targetSection prop instead
+			case "grpc_response":
+				if (message.grpc_response?.message?.action === "scrollToSettings") {
+					const tabId = message.grpc_response?.message?.value
+					if (tabId) {
+						console.log("Opening settings tab from GRPC response:", tabId)
+						// Check if the value corresponds to a valid tab ID
+						const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
 
 						if (isValidTabId) {
 							// Set the active tab directly

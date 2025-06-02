@@ -8,7 +8,12 @@ import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { findLastIndex } from "@shared/array"
+import { UpdateSettingsRequest } from "@shared/proto/state"
+import {
+	convertDomainApiConfigurationToProtoApiConfiguration,
+	convertDomainChatSettingsToProtoChatSettings,
+	convertDomainTelemetrySettingToProtoTelemetrySetting,
+} from "@shared/proto-conversions/state/settings-conversion"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -295,33 +300,33 @@ export const ExtensionStateContextProvider: React.FC<{
 									: prevState.autoApprovalSettings,
 							}
 
-								// Update welcome screen state based on API configuration
-								const config = stateData.apiConfiguration
-								const hasKey = config
-									? [
-											config.anthropic?.apiKey,
-											config.openrouter?.apiKey,
-											config.aws?.region,
-											config.vertex?.projectId,
-											config.openai?.apiKey,
-											config.ollama?.modelId,
-											config.lmstudio?.modelId,
-											config.litellm?.apiKey,
-											config.gemini?.apiKey,
-											config.openaiNative?.apiKey,
-											config.deepseek?.apiKey,
-											config.requesty?.apiKey,
-											config.together?.apiKey,
-											config.qwen?.apiKey,
-											config.doubao?.apiKey,
-											config.mistral?.apiKey,
-											config.vscode?.modelSelector,
-											config.cline?.apiKey,
-											config.asksage?.apiKey,
-											config.xai?.apiKey,
-											config.sambanova?.apiKey,
-										].some((key) => key !== undefined)
-									: false
+							// Update welcome screen state based on API configuration
+							const config = stateData.apiConfiguration
+							const hasKey = config
+								? [
+										config.anthropic?.apiKey,
+										config.openrouter?.apiKey,
+										config.aws?.region,
+										config.vertex?.projectId,
+										config.openai?.apiKey,
+										config.ollama?.modelId,
+										config.lmstudio?.modelId,
+										config.litellm?.apiKey,
+										config.gemini?.apiKey,
+										config.openaiNative?.apiKey,
+										config.deepseek?.apiKey,
+										config.requesty?.apiKey,
+										config.together?.apiKey,
+										config.qwen?.apiKey,
+										config.doubao?.apiKey,
+										config.mistral?.apiKey,
+										config.vscode?.modelSelector,
+										config.cline?.apiKey,
+										config.asksage?.apiKey,
+										config.xai?.apiKey,
+										config.sambanova?.apiKey,
+									].some((key) => key !== undefined)
+								: false
 
 							setShowWelcome(!hasKey)
 							setDidHydrateState(true)
@@ -522,17 +527,19 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				chatSettings: value,
 			}))
-			StateServiceClient.updateSettings({
-				chatSettings: convertDomainChatSettingsToProtoChatSettings(value),
-				apiConfiguration: state.apiConfiguration
-					? convertDomainApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
-					: undefined,
-				customInstructionsSetting: state.customInstructions,
-				telemetrySetting: convertDomainTelemetrySettingToProtoTelemetrySetting(state.telemetrySetting),
-				planActSeparateModelsSetting: state.planActSeparateModelsSetting,
-				enableCheckpointsSetting: state.enableCheckpointsSetting,
-				mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
-			}).catch((error) => {
+			StateServiceClient.updateSettings(
+				UpdateSettingsRequest.create({
+					chatSettings: convertDomainChatSettingsToProtoChatSettings(value),
+					apiConfiguration: state.apiConfiguration
+						? convertDomainApiConfigurationToProtoApiConfiguration(state.apiConfiguration)
+						: undefined,
+					customInstructionsSetting: state.customInstructions,
+					telemetrySetting: convertDomainTelemetrySettingToProtoTelemetrySetting(state.telemetrySetting),
+					planActSeparateModelsSetting: state.planActSeparateModelsSetting,
+					enableCheckpointsSetting: state.enableCheckpointsSetting,
+					mcpMarketplaceEnabled: state.mcpMarketplaceEnabled,
+				}),
+			).catch((error) => {
 				console.error("Error updating settings:", error)
 			})
 		},
