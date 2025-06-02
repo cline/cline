@@ -393,6 +393,12 @@ export class AwsBedrockHandler implements ApiHandler {
 			const response = await client.send(command)
 
 			if (response.stream) {
+				// Buffer content by contentBlockIndex to handle multi-block responses correctly
+				const contentBuffers: Record<number, string> = {}
+				const blockTypes = new Map<number, "reasoning" | "text">()
+				let isStreamingThinking = false
+				let currentThinkingContent = ""
+
 				for await (const chunk of response.stream) {
 					// Handle metadata events with token usage information
 					if (chunk.metadata?.usage) {
@@ -417,19 +423,124 @@ export class AwsBedrockHandler implements ApiHandler {
 						}
 					}
 
-					// Handle content delta (text generation)
-					if (chunk.contentBlockDelta?.delta?.text) {
-						yield {
-							type: "text",
-							text: chunk.contentBlockDelta.delta.text,
+					// Handle content block delta - accumulate content by block index
+					if (chunk.contentBlockDelta) {
+						const blockIndex = chunk.contentBlockDelta.contentBlockIndex
+
+						if (blockIndex !== undefined) {
+							// Initialize buffer for this block if it doesn't exist
+							if (!(blockIndex in contentBuffers)) {
+								contentBuffers[blockIndex] = ""
+							}
+
+							// Accumulate content in buffer based on type
+							if (chunk.contentBlockDelta.delta?.reasoningContent) {
+								// Mark this block as reasoning regardless of whether it contains text or signature
+								blockTypes.set(blockIndex, "reasoning")
+
+								// If it contains text, append it to the buffer and stream it immediately
+								if (chunk.contentBlockDelta.delta.reasoningContent.text) {
+									const reasoningText = chunk.contentBlockDelta.delta.reasoningContent.text
+									contentBuffers[blockIndex] += reasoningText
+
+									// Stream thinking content immediately
+									yield {
+										type: "reasoning",
+										reasoning: reasoningText,
+									}
+								}
+
+								// If it contains signature, we don't need to add it to the text content
+								// but we should make sure the block is still identified as reasoning
+								if (chunk.contentBlockDelta.delta.reasoningContent.signature) {
+									console.debug(`Received reasoning signature for block ${blockIndex}`)
+								}
+							} else if (chunk.contentBlockDelta.delta?.text) {
+								const textContent = chunk.contentBlockDelta.delta.text
+
+								// Check if this text contains thinking tags
+								if (textContent.includes("<thinking>") || isStreamingThinking) {
+									// Start streaming thinking content
+									if (textContent.includes("<thinking>")) {
+										isStreamingThinking = true
+										const startIndex = textContent.indexOf("<thinking>")
+										const beforeThinking = textContent.substring(0, startIndex)
+
+										// Emit any text before <thinking>
+										if (beforeThinking.trim()) {
+											contentBuffers[blockIndex] += beforeThinking
+											yield {
+												type: "text",
+												text: beforeThinking,
+											}
+										}
+
+										currentThinkingContent = textContent.substring(startIndex + "<thinking>".length)
+									} else {
+										currentThinkingContent += textContent
+									}
+
+									// Check if thinking ends in this chunk
+									if (currentThinkingContent.includes("</thinking>")) {
+										const endIndex = currentThinkingContent.indexOf("</thinking>")
+										const thinkingContent = currentThinkingContent.substring(0, endIndex)
+										const afterThinking = currentThinkingContent.substring(endIndex + "</thinking>".length)
+
+										// Stream the remaining thinking content
+										if (thinkingContent) {
+											yield {
+												type: "reasoning",
+												reasoning: thinkingContent,
+											}
+										}
+
+										// Reset thinking state
+										isStreamingThinking = false
+										currentThinkingContent = ""
+
+										// Handle any remaining text after </thinking>
+										if (afterThinking) {
+											contentBuffers[blockIndex] += afterThinking
+											yield {
+												type: "text",
+												text: afterThinking,
+											}
+										}
+									} else {
+										// Still inside thinking, stream it
+										yield {
+											type: "reasoning",
+											reasoning: textContent,
+										}
+									}
+								} else {
+									// Regular text content
+									contentBuffers[blockIndex] += textContent
+
+									// Don't determine block type yet - wait until we have the complete block
+									if (!blockTypes.has(blockIndex)) {
+										// Temporarily mark as unknown
+										blockTypes.set(blockIndex, "text")
+									}
+
+									// Stream text immediately if not in thinking mode
+									yield {
+										type: "text",
+										text: textContent,
+									}
+								}
+							}
 						}
 					}
 
-					// Handle reasoning content if present (thinking)
-					if (chunk.contentBlockDelta?.delta?.reasoningContent?.text) {
-						yield {
-							type: "reasoning",
-							reasoning: chunk.contentBlockDelta.delta.reasoningContent.text,
+					// Handle content block stop - clean up buffers
+					if (chunk.contentBlockStop) {
+						const blockIndex = chunk.contentBlockStop.contentBlockIndex
+
+						if (blockIndex !== undefined) {
+							// Clean up buffers and tracking for this block
+							delete contentBuffers[blockIndex]
+							blockTypes.delete(blockIndex)
 						}
 					}
 
@@ -602,8 +713,6 @@ export class AwsBedrockHandler implements ApiHandler {
 							return this.processImageContent(item)
 						}
 
-						// Log unsupported content types for debugging
-						console.warn(`Unsupported content type: ${(item as any).type}`)
 						return null
 					})
 					.filter((item): item is ContentBlock => item !== null)
