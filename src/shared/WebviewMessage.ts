@@ -14,7 +14,6 @@ export interface WebviewMessage {
 		| "condense"
 		| "reportBug"
 		| "requestVsCodeLmModels"
-		| "requestSapAiCoreDeployments"
 		| "authStateChanged"
 		| "fetchMcpMarketplace"
 		| "searchCommits"
