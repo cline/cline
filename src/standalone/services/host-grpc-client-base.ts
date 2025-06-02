@@ -71,14 +71,18 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 			// Unary method implementation
 			const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
 			client[methodKey as keyof GrpcClientType<T>] = ((request: any) => {
-				return new Promise((resolve, reject) => {
+				return new Promise(async (resolve, reject) => {
 					const requestId = uuidv4()
 					console.log(`[DEBUG] gRPC host call to ${service.fullName}.${methodKey} req:${requestId}`)
 					try {
-						const response = grpcHandler.handleRequest(service.fullName, methodKey, request, requestId, false)
+						const response = await grpcHandler.handleRequest(service.fullName, methodKey, request, requestId, false)
 						console.log(`[DEBUG] gRPC host resp to ${service.fullName}.${methodKey} req:${requestId}`, response)
 						console.log("[DEBUG] TODO remove response")
-						resolve(response)
+						if (response && response.message) {
+							resolve(response.message)
+						} else {
+							throw new Error("gRPC response didn't have a message")
+						}
 					} catch (e) {
 						console.log(`[DEBUG] gRPC host ERR to ${service.fullName}.${methodKey} req:${requestId} err:${e}`)
 						reject(e)
