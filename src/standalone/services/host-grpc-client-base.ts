@@ -107,8 +107,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 					console.log(`[DEBUG] gRPC host call to ${service.fullName}.${methodKey} req:${requestId}`)
 					try {
 						const response = await grpcHandler.handleRequest(service.fullName, methodKey, request, requestId, false)
-						console.log(`[DEBUG] gRPC host resp to ${service.fullName}.${methodKey} req:${requestId}`, response)
-						console.log("[DEBUG] TODO remove response")
+						console.log(`[DEBUG] gRPC host resp to ${service.fullName}.${methodKey} req:${requestId}`)
 						if (response && response.message) {
 							resolve(response.message)
 						} else {
