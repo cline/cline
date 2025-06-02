@@ -5,7 +5,7 @@ import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { CheckpointRestoreRequest } from "@shared/proto/checkpoints"
 import React, { forwardRef, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { highlightText } from "./TaskHeader"
+import { highlightText } from "./task-header/TaskHeader"
 
 interface UserMessageProps {
 	text?: string

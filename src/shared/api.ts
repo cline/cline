@@ -1700,6 +1700,14 @@ export const nebiusModels = {
 		inputPrice: 2,
 		outputPrice: 6,
 	},
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 128_000,
+		contextWindow: 163_840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 2.4,
+	},
 	"meta-llama/Llama-3.3-70B-Instruct-fast": {
 		maxTokens: 32_000,
 		contextWindow: 96_000,
