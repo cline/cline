@@ -9,7 +9,7 @@ import { detectImageUrl } from "@integrations/misc/link-preview"
  * @param request The request containing the URL to check
  * @returns A result indicating if the URL is an image and the URL that was checked
  */
-export async function checkIsImageUrl(controller: Controller, request: StringRequest): Promise<IsImageUrl> {
+export async function checkIsImageUrl(_: Controller, request: StringRequest): Promise<IsImageUrl> {
 	try {
 		const url = request.value || ""
 		// Check if the URL is an image

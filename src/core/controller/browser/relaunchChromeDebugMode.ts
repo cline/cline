@@ -18,9 +18,9 @@ export async function relaunchChromeDebugMode(controller: Controller, _: EmptyRe
 
 		// The actual result will be sent via postMessageToWebview in the BrowserSession.relaunchChromeDebugMode method
 		// Here we just return a message as a placeholder
-		return {
+		return StringMessage.create({
 			value: "Chrome relaunch initiated",
-		}
+		})
 	} catch (error) {
 		throw new Error(`Error relaunching Chrome: ${error instanceof Error ? error.message : globalThis.String(error)}`)
 	}

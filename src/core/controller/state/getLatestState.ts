@@ -2,7 +2,6 @@ import * as vscode from "vscode"
 import { Controller } from "../index"
 import { EmptyRequest } from "../../../shared/proto/common"
 import { State } from "../../../shared/proto/state"
-import { ExtensionState } from "../../../shared/ExtensionMessage"
 
 /**
  * Get the latest extension state

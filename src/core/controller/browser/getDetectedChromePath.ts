@@ -10,7 +10,7 @@ import { BrowserSession } from "../../../services/browser/BrowserSession"
  * @param request The empty request message
  * @returns The detected Chrome path and whether it's bundled
  */
-export async function getDetectedChromePath(controller: Controller, request: EmptyRequest): Promise<ChromePath> {
+export async function getDetectedChromePath(controller: Controller, _: EmptyRequest): Promise<ChromePath> {
 	try {
 		const { browserSettings } = await getAllExtensionState(controller.context)
 		const browserSession = new BrowserSession(controller.context, browserSettings)
