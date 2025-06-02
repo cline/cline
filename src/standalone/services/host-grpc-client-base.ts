@@ -26,7 +26,7 @@ export type GrpcClientType<T extends ProtoService> = {
 					onResponse: (response: InstanceType<T["methods"][K]["responseType"]>) => void
 					onError?: (error: Error) => void
 					onComplete?: () => void
-				}
+				},
 			) => () => void // Returns a cancel function
 		: (request: InstanceType<T["methods"][K]["requestType"]>) => Promise<InstanceType<T["methods"][K]["responseType"]>>
 }
@@ -47,7 +47,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 					onResponse: (response: any) => void
 					onError?: (error: Error) => void
 					onComplete?: () => void
-				}
+				},
 			) => {
 				const requestId = uuidv4()
 

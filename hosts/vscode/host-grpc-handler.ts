@@ -26,7 +26,7 @@ export class GrpcHandler {
 		method: string,
 		message: any,
 		requestId: string,
-		isStreaming: boolean = false
+		isStreaming: boolean = false,
 	): Promise<{
 		message?: any
 		error?: string
@@ -70,7 +70,7 @@ export class GrpcHandler {
 		const responseStream: StreamingResponseHandler = async (
 			response: any,
 			isLast: boolean = false,
-			sequenceNumber?: number
+			sequenceNumber?: number,
 		) => {
 			// await this.controller.postMessageToWebview({
 			// 	type: "grpc_response",
@@ -148,7 +148,7 @@ export async function handleGrpcRequest(request: {
 			request.method,
 			request.message,
 			request.request_id,
-			false
+			false,
 		)) as {
 			message?: any
 			error?: string

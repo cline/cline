@@ -275,8 +275,8 @@ async function generateMethodRegistrations() {
 		// Get all TypeScript files in the service directory
 		const files = await globby("*.ts", { cwd: serviceDir })
 
-		// Filter out index.ts, methods.ts, and adapter.ts
-		const implementationFiles = files.filter((file) => file !== "index.ts" && file !== "methods.ts" && file !== "adapter.ts")
+		// Filter out index.ts and methods.ts
+		const implementationFiles = files.filter((file) => file !== "index.ts" && file !== "methods.ts")
 
 		// Create the methods.ts file with header
 		let methodsContent = `// AUTO-GENERATED FILE - DO NOT MODIFY DIRECTLY
@@ -285,21 +285,10 @@ async function generateMethodRegistrations() {
 // Import all method implementations
 import { registerMethod } from "./index"\n`
 
-		// For host services, use the adapter pattern
-		if (hostServiceDirs.some((dir) => serviceDir.includes(dir.split(path.sep).pop()))) {
-			// Import adapters instead of direct implementations
-			methodsContent += `import { ${implementationFiles
-				.map((file) => {
-					const baseName = path.basename(file, ".ts")
-					return `${baseName}Adapter`
-				})
-				.join(", ")} } from "./adapter"\n`
-		} else {
-			// Regular services use direct imports
-			for (const file of implementationFiles) {
-				const baseName = path.basename(file, ".ts")
-				methodsContent += `import { ${baseName} } from "./${baseName}"\n`
-			}
+		// Import implementations directly
+		for (const file of implementationFiles) {
+			const baseName = path.basename(file, ".ts")
+			methodsContent += `import { ${baseName} } from "./${baseName}"\n`
 		}
 
 		// Add streaming methods information
@@ -322,14 +311,10 @@ export function registerAllMethods(): void {
 			const baseName = path.basename(file, ".ts")
 			const isStreaming = streamingMethods.some((m) => m.name === baseName)
 
-			// Only use adapter suffix for host services
-			const isHostService = hostServiceDirs.some((dir) => serviceDir.includes(dir.split(path.sep).pop()))
-			const adapterSuffix = isHostService ? "Adapter" : ""
-
 			if (isStreaming) {
-				methodsContent += `\tregisterMethod("${baseName}", ${baseName}${adapterSuffix}, { isStreaming: true })\n`
+				methodsContent += `\tregisterMethod("${baseName}", ${baseName}, { isStreaming: true })\n`
 			} else {
-				methodsContent += `\tregisterMethod("${baseName}", ${baseName}${adapterSuffix})\n`
+				methodsContent += `\tregisterMethod("${baseName}", ${baseName})\n`
 			}
 		}
 
@@ -504,8 +489,8 @@ async function generateHostMethodRegistrations() {
 		// Get all TypeScript files in the service directory
 		const files = await globby("*.ts", { cwd: serviceDir })
 
-		// Filter out index.ts, methods.ts, and adapter.ts
-		const implementationFiles = files.filter((file) => file !== "index.ts" && file !== "methods.ts" && file !== "adapter.ts")
+		// Filter out index.ts and methods.ts
+		const implementationFiles = files.filter((file) => file !== "index.ts" && file !== "methods.ts")
 
 		// Create the methods.ts file with header
 		let methodsContent = `// AUTO-GENERATED FILE - DO NOT MODIFY DIRECTLY
@@ -514,13 +499,11 @@ async function generateHostMethodRegistrations() {
 // Import all method implementations
 import { registerMethod } from "./index"\n`
 
-		// Import adapters for host services
-		methodsContent += `import { ${implementationFiles
-			.map((file) => {
-				const baseName = path.basename(file, ".ts")
-				return `${baseName}Adapter`
-			})
-			.join(", ")} } from "./adapter"\n`
+		// Import implementations directly
+		for (const file of implementationFiles) {
+			const baseName = path.basename(file, ".ts")
+			methodsContent += `import { ${baseName} } from "./${baseName}"\n`
+		}
 
 		// Add streaming methods information
 		if (streamingMethods.length > 0) {
@@ -543,9 +526,9 @@ export function registerAllMethods(): void {
 			const isStreaming = streamingMethods.some((m) => m.name === baseName)
 
 			if (isStreaming) {
-				methodsContent += `\tregisterMethod("${baseName}", ${baseName}Adapter, { isStreaming: true })\n`
+				methodsContent += `\tregisterMethod("${baseName}", ${baseName}, { isStreaming: true })\n`
 			} else {
-				methodsContent += `\tregisterMethod("${baseName}", ${baseName}Adapter)\n`
+				methodsContent += `\tregisterMethod("${baseName}", ${baseName})\n`
 			}
 		}
 
