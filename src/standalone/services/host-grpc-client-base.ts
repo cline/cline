@@ -26,7 +26,7 @@ export type GrpcClientType<T extends ProtoService> = {
 					onResponse: (response: InstanceType<T["methods"][K]["responseType"]>) => void
 					onError?: (error: Error) => void
 					onComplete?: () => void
-				}
+				},
 			) => () => void // Returns a cancel function
 		: (request: InstanceType<T["methods"][K]["requestType"]>) => Promise<InstanceType<T["methods"][K]["responseType"]>>
 }
@@ -47,7 +47,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 					onResponse: (response: any) => void
 					onError?: (error: Error) => void
 					onComplete?: () => void
-				}
+				},
 			) => {
 				const requestId = uuidv4()
 
@@ -70,6 +70,8 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 				}
 
 				// Register the response handler with the registry
+				// TODO this seems weird, I think registration is only
+				// supposed to happen on the server side of gRPC
 				getRequestRegistry().registerRequest(
 					requestId,
 					() => {
@@ -79,7 +81,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 						}
 					},
 					{ type: "streaming_request", service: service.fullName, method: methodKey },
-					responseHandler
+					responseHandler,
 				)
 
 				// Call the handler with streaming=true

@@ -94,7 +94,7 @@ export class GrpcHandler {
 			// The stream will be closed when the client disconnects or when the service explicitly ends it
 		} catch (error) {
 			console.error(`Error handling streaming request ${requestId}:`, error)
-			
+
 			// Get the registered response handler from the registry
 			const requestInfo = requestRegistry.getRequestInfo(requestId)
 			if (requestInfo && requestInfo.responseStream) {
@@ -102,13 +102,13 @@ export class GrpcHandler {
 					// Send error to the client using the registered response handler
 					await requestInfo.responseStream(
 						{ error: error instanceof Error ? error.message : String(error) },
-						true // Mark as last message
+						true, // Mark as last message
 					)
 				} catch (e) {
 					console.error(`Error sending error response for ${requestId}:`, e)
 				}
 			}
-			
+
 			// Clean up the request
 			requestRegistry.cancelRequest(requestId)
 		}
