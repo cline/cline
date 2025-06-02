@@ -156,7 +156,9 @@
 					"provider-config/deepseek",
 					"provider-config/ollama",
 					"provider-config/openai",
-					"provider-config/openai-compatible"
+					"provider-config/openai-compatible",
+					"provider-config/openrouter",
+					"provider-config/requesty"
 				]
 			},
 			{
