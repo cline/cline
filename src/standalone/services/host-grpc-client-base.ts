@@ -95,7 +95,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 				// Return a function to cancel the stream
 				return () => {
 					console.log(`[DEBUG] Cancelling streaming request: ${requestId}`)
-					getRequestRegistry().cancelRequest(requestId)
+					grpcHandler.cancelRequest(requestId)
 				}
 			}) as any
 		} else {

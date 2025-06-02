@@ -62,6 +62,35 @@ export class GrpcHandler {
 	}
 
 	/**
+	 * Cancel a gRPC request
+	 * @param requestId The request ID to cancel
+	 * @returns True if the request was found and cancelled, false otherwise
+	 */
+	public async cancelRequest(requestId: string): Promise<boolean> {
+		const cancelled = requestRegistry.cancelRequest(requestId)
+
+		if (cancelled) {
+			// Get the registered response handler from the registry
+			const requestInfo = requestRegistry.getRequestInfo(requestId)
+			if (requestInfo && requestInfo.responseStream) {
+				try {
+					// Send cancellation confirmation using the registered response handler
+					await requestInfo.responseStream(
+						{ cancelled: true },
+						true, // Mark as last message
+					)
+				} catch (e) {
+					console.error(`Error sending cancellation response for ${requestId}:`, e)
+				}
+			}
+		} else {
+			console.log(`[DEBUG] Request not found for cancellation: ${requestId}`)
+		}
+
+		return cancelled
+	}
+
+	/**
 	 * Handle a streaming gRPC request
 	 * @param service The service name
 	 * @param method The method name
