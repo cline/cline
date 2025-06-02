@@ -625,6 +625,7 @@ export class McpHub {
 			await client.connect(transport)
 			connection.server.status = "connected"
 			connection.server.error = ""
+			connection.server.instructions = client.getInstructions()
 
 			// Initial fetch of tools and resources
 			connection.server.tools = await this.fetchToolsList(name, source)

@@ -1,7 +1,8 @@
 {
 	"title": "MCP-Server",
 	"done": "Fertig",
-	"description": "Aktiviere das Model Context Protocol (MCP), damit Roo Code zusätzliche Tools und Dienste von externen Servern nutzen kann. Dies erweitert, was Roo für dich tun kann. <0>Mehr erfahren</0>",
+	"description": "Das <0>Model Context Protocol</0> ermöglicht die Kommunikation mit lokal laufenden MCP-Servern, die zusätzliche Tools und Ressourcen zur Erweiterung der Fähigkeiten von Roo bereitstellen. Du kannst <1>von der Community erstellte Server</1> verwenden oder Roo bitten, neue Tools speziell für deinen Workflow zu erstellen (z.B. \"ein Tool hinzufügen, das die neueste npm-Dokumentation abruft\").",
+	"instructions": "Anweisungen",
 	"enableToggle": {
 		"title": "MCP-Server aktivieren",
 		"description": "Schalte dies EIN, damit Roo Tools von verbundenen MCP-Servern verwenden kann. Dies gibt Roo mehr Möglichkeiten. Wenn du diese zusätzlichen Tools nicht verwenden möchtest, schalte es AUS, um API-Token-Kosten zu senken."

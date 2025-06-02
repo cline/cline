@@ -1,7 +1,8 @@
 {
 	"title": "MCP 伺服器",
 	"done": "完成",
-	"description": "啟用 Model Context Protocol (MCP)，讓 Roo Code 可用外部伺服器的工具和服務，擴展 Roo 的能力。<0>了解更多</0>",
+	"description": "<0>Model Context Protocol</0> 能與本機執行的 MCP 伺服器通訊，提供額外的工具和資源來擴展 Roo 的功能。您可以使用<1>社群開發的伺服器</1>，或請 Roo 為您的工作流程建立新工具（例如「新增一個取得最新 npm 文件的工具」）。",
+	"instructions": "使用說明",
 	"enableToggle": {
 		"title": "啟用 MCP 伺服器",
 		"description": "開啟後 Roo 可用已連接 MCP 伺服器的工具，能力更強。不用這些工具時建議關閉，節省 API Token 費用。"

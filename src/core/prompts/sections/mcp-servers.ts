@@ -39,6 +39,7 @@ export async function getMcpServersSection(
 
 						return (
 							`## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
+							(server.instructions ? `\n\n### Instructions\n${server.instructions}` : "") +
 							(tools ? `\n\n### Available Tools\n${tools}` : "") +
 							(templates ? `\n\n### Resource Templates\n${templates}` : "") +
 							(resources ? `\n\n### Direct Resources\n${resources}` : "")

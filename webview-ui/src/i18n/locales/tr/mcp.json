@@ -1,7 +1,8 @@
 {
 	"title": "MCP Sunucuları",
-	"done": "Bitti",
-	"description": "Roo Code'un harici sunuculardan ek araçlar ve servisler kullanabilmesi için Model Context Protocol (MCP)'yi etkinleştir. Böylece Roo senin için daha fazlasını yapabilir. <0>Daha fazla bilgi</0>",
+	"done": "Tamam",
+	"description": "<0>Model Context Protocol</0>, Roo'nun yeteneklerini genişletmek için ek araçlar ve kaynaklar sağlayan yerel olarak çalışan MCP sunucularıyla iletişim kurmanızı sağlar. <1>Topluluk tarafından oluşturulan sunucuları</1> kullanabilir veya Roo'dan iş akışınıza özel yeni araçlar oluşturmasını isteyebilirsiniz (örneğin, \"en son npm belgelerini alan bir araç ekle\").",
+	"instructions": "Talimatlar",
 	"enableToggle": {
 		"title": "MCP Sunucularını Etkinleştir",
 		"description": "Bunu AÇ, böylece Roo bağlı MCP sunucularından araçlar kullanabilir. Roo'ya daha fazla yetenek kazandırır. Ekstra araçları kullanmayacaksan, API token maliyetini azaltmak için bunu KAPAT."

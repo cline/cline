@@ -356,6 +356,9 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 								{t("mcp:tabs.resources")} (
 								{[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
 							</VSCodePanelTab>
+							{server.instructions && (
+								<VSCodePanelTab id="instructions">{t("mcp:instructions")}</VSCodePanelTab>
+							)}
 							<VSCodePanelTab id="errors">
 								{t("mcp:tabs.errors")} ({server.errorHistory?.length || 0})
 							</VSCodePanelTab>
@@ -401,6 +404,16 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 									</div>
 								)}
 							</VSCodePanelView>
+
+							{server.instructions && (
+								<VSCodePanelView id="instructions-view">
+									<div style={{ padding: "10px 0", fontSize: "12px" }}>
+										<div className="opacity-80 whitespace-pre-wrap break-words">
+											{server.instructions}
+										</div>
+									</div>
+								</VSCodePanelView>
+							)}
 
 							<VSCodePanelView id="errors-view">
 								{server.errorHistory && server.errorHistory.length > 0 ? (
@@ -490,7 +503,9 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 						onClick={handleRestart}
 						disabled={server.status === "connecting"}
 						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}>
-						{server.status === "connecting" ? "Retrying..." : "Retry Connection"}
+						{server.status === "connecting"
+							? t("mcp:serverStatus.retrying")
+							: t("mcp:serverStatus.retryConnection")}
 					</VSCodeButton>
 				</div>
 			)}
