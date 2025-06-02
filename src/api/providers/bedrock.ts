@@ -713,6 +713,8 @@ export class AwsBedrockHandler implements ApiHandler {
 							return this.processImageContent(item)
 						}
 
+						// Log unsupported content types for debugging
+						console.warn(`Unsupported content type: ${(item as any).type}`)
 						return null
 					})
 					.filter((item): item is ContentBlock => item !== null)
