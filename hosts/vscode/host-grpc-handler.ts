@@ -66,23 +66,6 @@ export class GrpcHandler {
 	 * @param requestId The request ID for response correlation
 	 */
 	private async handleStreamingRequest(service: string, method: string, message: any, requestId: string): Promise<void> {
-		// Create a response stream function
-		const responseStream: StreamingResponseHandler = async (
-			response: any,
-			isLast: boolean = false,
-			sequenceNumber?: number,
-		) => {
-			// await this.controller.postMessageToWebview({
-			// 	type: "grpc_response",
-			// 	grpc_response: {
-			// 		message: response,
-			// 		request_id: requestId,
-			// 		is_streaming: !isLast,
-			// 		sequence_number: sequenceNumber,
-			// 	},
-			// })
-		}
-
 		try {
 			// Get the service handler from the config
 			const serviceConfig = hostServiceHandlers[service]
@@ -95,21 +78,35 @@ export class GrpcHandler {
 				throw new Error(`Service ${service} does not support streaming`)
 			}
 
+			// Get the registered response handler from the registry
+			const requestInfo = requestRegistry.getRequestInfo(requestId)
+			if (!requestInfo || !requestInfo.responseStream) {
+				throw new Error(`No response handler registered for request: ${requestId}`)
+			}
+
+			// Use the registered response handler
+			const responseStream = requestInfo.responseStream
+
 			// Handle streaming request and pass the requestId to all streaming handlers
 			await serviceConfig.streamingHandler(method, message, responseStream, requestId)
 
 			// Don't send a final message here - the stream should stay open for future updates
 			// The stream will be closed when the client disconnects or when the service explicitly ends it
 		} catch (error) {
-			// Send error response
-			// await this.controller.postMessageToWebview({
-			// 	type: "grpc_response",
-			// 	grpc_response: {
-			// 		error: error instanceof Error ? error.message : String(error),
-			// 		request_id: requestId,
-			// 		is_streaming: false,
-			// 	},
-			// })
+			console.error(`Error handling streaming request ${requestId}:`, error)
+			
+			// Get the registered response handler from the registry
+			const requestInfo = requestRegistry.getRequestInfo(requestId)
+			if (requestInfo && requestInfo.responseStream) {
+				// Send error to the client using the registered response handler
+				await requestInfo.responseStream(
+					{ error: error instanceof Error ? error.message : String(error) },
+					true // Mark as last message
+				)
+			}
+			
+			// Clean up the request
+			requestRegistry.cancelRequest(requestId)
 		}
 	}
 }
