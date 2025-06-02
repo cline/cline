@@ -39,6 +39,11 @@ export class SettingsService {
 	public initialize(): void {
 		this.loadCachedSettings()
 
+		// Clear cached settings if we have missed a log out.
+		if (this.authService.getState() == "logged-out" && this.settings) {
+			this.removeSettings()
+		}
+
 		this.authService.on("active-session", () => {
 			this.timer.start()
 		})
