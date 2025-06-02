@@ -46,13 +46,6 @@ export interface ExtensionMessage {
 	filePaths?: string[]
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
-	sapAiCoreConfig?: {
-		clientId: string
-		clientSecret: string
-		baseUrl: string
-		tokenUrl: string
-		resourceGroup: string
-	}
 	requestyModels?: Record<string, ModelInfo>
 	mcpServers?: McpServer[]
 	customToken?: string
