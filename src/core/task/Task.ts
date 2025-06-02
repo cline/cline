@@ -1320,7 +1320,7 @@ export class Task extends EventEmitter<ClineEvents> {
 						// `userContent` has a tool rejection, so interrupt the
 						// assistant's response to present the user's feedback.
 						assistantMessage += "\n\n[Response interrupted by user feedback]"
-						// Instead of setting this premptively, we allow the
+						// Instead of setting this preemptively, we allow the
 						// present iterator to finish and set
 						// userMessageContentReady when its ready.
 						// this.userMessageContentReady = true

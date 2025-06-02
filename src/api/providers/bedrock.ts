@@ -124,7 +124,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		let region = this.options.awsRegion
 
 		// process the various user input options, be opinionated about the intent of the options
-		// and determine the model to use during inference and for cost caclulations
+		// and determine the model to use during inference and for cost calculations
 		// There are variations on ARN strings that can be entered making the conditional logic
 		// more involved than the non-ARN branch of logic
 		if (this.options.awsCustomArn) {

@@ -69,7 +69,7 @@ describe("Bedrock ARN Handling", () => {
 	describe("parseArn direct tests", () => {
 		it("should correctly extract modelType and modelId from foundation-model ARN", () => {
 			const handler = createHandler()
-			//note: properly formated foundation-model ARNs don't have an account id.
+			//note: properly formatted foundation-model ARNs don't have an account id.
 			const arn = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0"
 
 			// Access the private method using type casting
@@ -79,7 +79,7 @@ describe("Bedrock ARN Handling", () => {
 			expect(result.isValid).toBe(true)
 			expect(result.modelType).toBe("foundation-model")
 
-			//verify the id is not the ARN for foudation models, but the ID
+			//verify the id is not the ARN for foundation models, but the ID
 			expect(result.modelId).toBe("anthropic.claude-3-sonnet-20240229-v1:0")
 			expect(result.crossRegionInference).toBe(false)
 		})
