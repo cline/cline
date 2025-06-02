@@ -33,92 +33,9 @@ import { arePathsEqual } from "@utils/path"
 import { secondsToMs } from "@utils/time"
 import { GlobalFileNames } from "@core/storage/disk"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
-
-// Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
-const DEFAULT_REQUEST_TIMEOUT_MS = 5000
-
-type Transport = StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
-
-export type McpConnection = {
-	server: McpServer
-	client: Client
-	transport: Transport
-}
-
-export type McpTransportType = "stdio" | "sse" | "http"
-
-export type McpServerConfig = z.infer<typeof ServerConfigSchema>
-
-const AutoApproveSchema = z.array(z.string()).default([])
-
-const BaseConfigSchema = z.object({
-	autoApprove: AutoApproveSchema.optional(),
-	disabled: z.boolean().optional(),
-	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
-})
-
-// Custom error messages for better user feedback
-const typeErrorMessage = "Server type must be one of: 'stdio', 'sse', or 'streamableHttp'"
-
-// Helper function to create a refined schema with better error messages
-const createServerTypeSchema = () => {
-	return z.union([
-		// Stdio config (has command field)
-		BaseConfigSchema.extend({
-			type: z.literal("stdio").optional(),
-			command: z.string(),
-			args: z.array(z.string()).optional(),
-			cwd: z.string().optional(),
-			env: z.record(z.string()).optional(),
-			// Explicitly disallow other types' fields
-			url: z.undefined().optional(),
-			headers: z.undefined().optional(),
-		})
-			.transform((data) => ({
-				...data,
-				type: "stdio" as const,
-			}))
-			.refine((data) => data.type === undefined || data.type === "stdio", { message: typeErrorMessage }),
-		// SSE config (has url field)
-		BaseConfigSchema.extend({
-			type: z.literal("sse").optional(),
-			url: z.string().url("URL must be a valid URL format"),
-			headers: z.record(z.string()).optional(),
-			// Explicitly disallow other types' fields
-			command: z.undefined().optional(),
-			args: z.undefined().optional(),
-			env: z.undefined().optional(),
-		})
-			.transform((data) => ({
-				...data,
-				type: "sse" as const,
-			}))
-			.refine((data) => data.type === undefined || data.type === "sse", { message: typeErrorMessage }),
-		// Streamable HTTP config (has url field)
-		BaseConfigSchema.extend({
-			type: z.literal("streamableHttp").optional(),
-			url: z.string().url("URL must be a valid URL format"),
-			headers: z.record(z.string()).optional(),
-			// Explicitly disallow other types' fields
-			command: z.undefined().optional(),
-			args: z.undefined().optional(),
-			env: z.undefined().optional(),
-		})
-			.transform((data) => ({
-				...data,
-				type: "streamableHttp" as const,
-			}))
-			.refine((data) => data.type === undefined || data.type === "streamableHttp", {
-				message: typeErrorMessage,
-			}),
-	])
-}
-
-const ServerConfigSchema = createServerTypeSchema()
-
-const McpSettingsSchema = z.object({
-	mcpServers: z.record(ServerConfigSchema),
-})
+import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
+import { Transport, McpConnection, McpTransportType, McpServerConfig } from "./types"
+import { BaseConfigSchema, ServerConfigSchema, McpSettingsSchema } from "./schemas"
 
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
