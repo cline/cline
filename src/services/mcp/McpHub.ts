@@ -174,8 +174,9 @@ export class McpHub {
 			{ path: settingsPath },
 			{
 				onResponse: async (response) => {
+					// TODO we are getting a double fire on mcp change
 					console.log(
-						`[DEBUG] MCP settings file ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
+						`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
 					)
 
 					// Only process the file if it was changed (not created or deleted)

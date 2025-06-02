@@ -6,6 +6,9 @@ import { GrpcRequestRegistry } from "../../src/core/controller/grpc-request-regi
  */
 export type StreamingResponseHandler = (response: any, isLast?: boolean, sequenceNumber?: number) => Promise<void>
 
+// Registry to track active gRPC requests and their cleanup functions
+const requestRegistry = new GrpcRequestRegistry()
+
 /**
  * Handles gRPC requests from the webview
  */
@@ -112,84 +115,6 @@ export class GrpcHandler {
 			// Clean up the request
 			requestRegistry.cancelRequest(requestId)
 		}
-	}
-}
-
-// Registry to track active gRPC requests and their cleanup functions
-const requestRegistry = new GrpcRequestRegistry()
-
-/**
- * Handle a gRPC request from the webview
- * @param request The gRPC request
- */
-export async function handleGrpcRequest(request: {
-	service: string
-	method: string
-	message: any
-	request_id: string
-	is_streaming?: boolean
-}) {
-	try {
-		const grpcHandler = new GrpcHandler()
-
-		// For streaming requests, handleRequest handles sending responses directly
-		if (request.is_streaming) {
-			try {
-				await grpcHandler.handleRequest(request.service, request.method, request.message, request.request_id, true)
-			} finally {
-				// Note: We don't automatically clean up here anymore
-				// The request will be cleaned up when it completes or is cancelled
-			}
-			return
-		}
-
-		// For unary requests, we get a response and send it back
-		const response = (await grpcHandler.handleRequest(
-			request.service,
-			request.method,
-			request.message,
-			request.request_id,
-			false,
-		)) as {
-			message?: any
-			error?: string
-			request_id: string
-		}
-
-		// Return the response directly to the caller
-		return response
-	} catch (error) {
-		// Return error response directly to the caller
-		return {
-			error: error instanceof Error ? error.message : String(error),
-			request_id: request.request_id,
-		}
-	}
-}
-
-/**
- * Handle a gRPC request cancellation from the webview
- * @param request The cancellation request
- */
-export async function handleGrpcRequestCancel(request: { request_id: string }) {
-	const cancelled = requestRegistry.cancelRequest(request.request_id)
-
-	if (cancelled) {
-		// Get the registered response handler from the registry
-		const requestInfo = requestRegistry.getRequestInfo(request.request_id)
-		if (requestInfo && requestInfo.responseStream) {
-			try {
-				// Send cancellation confirmation using the registered response handler
-				await requestInfo.responseStream(
-					{ cancelled: true },
-					true, // Mark as last message
-				)
-			} catch (e) {
-				console.error(`Error sending cancellation response for ${request.request_id}:`, e)
-			}
-		}
-	} else {
-		console.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
 	}
 }
 
