@@ -10,8 +10,8 @@ import { handleFileServiceRequest } from "../file"
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
-	console.log("[DEBUG] DOING NEW TASK")
 	await controller.initTask(request.text, request.images)
+	// TODO remove this host bridge test
 	try {
 		console.log("[DEBUG] DOING getRelativePaths TASK")
 		const res = await handleFileServiceRequest(controller, "getRelativePaths", { uris: ["/home/etrnl/"] })
