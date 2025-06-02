@@ -133,7 +133,6 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		let url: string
 		let payload: any
-
 		if (anthropicModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
