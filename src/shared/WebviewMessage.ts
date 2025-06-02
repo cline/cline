@@ -10,7 +10,6 @@ export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
 		| "requestVsCodeLmModels"
-		| "requestSapAiCoreDeployments"
 		| "authStateChanged"
 		| "fetchMcpMarketplace"
 		| "searchCommits"

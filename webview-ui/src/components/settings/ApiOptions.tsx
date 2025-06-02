@@ -62,7 +62,7 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useEvent, useInterval } from "react-use"
+import { useInterval } from "react-use"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
 import { useOpenRouterKeyInfo } from "../ui/hooks/useOpenRouterKeyInfo"
