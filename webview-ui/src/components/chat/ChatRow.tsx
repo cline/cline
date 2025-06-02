@@ -1101,7 +1101,9 @@ export const ChatRowContent = ({
 													}}
 												/>
 											</span>
-											<span className="ph-no-capture">{message.text}</span>
+											<div className="ph-no-capture">
+												<Markdown markdown={message.text} />
+											</div>
 										</div>
 									) : (
 										<div style={{ display: "flex", alignItems: "center" }}>
