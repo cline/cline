@@ -43,6 +43,7 @@ const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(RO
 // These services are implemented in the IDE extension and called by the standalone Cline Core
 const hostServiceNameMap = {
 	uri: "host.UriService",
+	watch: "host.WatchService",
 	// Add new host services here
 }
 const hostServiceDirs = Object.keys(hostServiceNameMap).map((serviceKey) => path.join(ROOT_DIR, "hosts", "vscode", serviceKey))

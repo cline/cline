@@ -98,11 +98,15 @@ export class GrpcHandler {
 			// Get the registered response handler from the registry
 			const requestInfo = requestRegistry.getRequestInfo(requestId)
 			if (requestInfo && requestInfo.responseStream) {
-				// Send error to the client using the registered response handler
-				await requestInfo.responseStream(
-					{ error: error instanceof Error ? error.message : String(error) },
-					true // Mark as last message
-				)
+				try {
+					// Send error to the client using the registered response handler
+					await requestInfo.responseStream(
+						{ error: error instanceof Error ? error.message : String(error) },
+						true // Mark as last message
+					)
+				} catch (e) {
+					console.error(`Error sending error response for ${requestId}:`, e)
+				}
 			}
 			
 			// Clean up the request
