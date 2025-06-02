@@ -209,8 +209,8 @@ const ApiOptions = ({
 			ollamaApiOptionsCtxNum: { provider: "ollama", field: "apiOptionsCtxNum" },
 
 			// LM Studio
-			"lmstudio?ModelId": { provider: "lmstudio?", field: "modelId" },
-			"lmstudio?BaseUrl": { provider: "lmstudio?", field: "baseUrl" },
+			lmstudioModelId: { provider: "lmstudio", field: "modelId" },
+			lmstudioBaseUrl: { provider: "lmstudio", field: "baseUrl" },
 
 			// VS Code LM
 			"vscode.modelSelector": { provider: "vscode", field: "modelSelector" },
@@ -461,7 +461,7 @@ const ApiOptions = ({
 					<VSCodeOption value="together">Together</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="doubao">Bytedance Doubao</VSCodeOption>
-					<VSCodeOption value="lmstudio?">LM Studio</VSCodeOption>
+					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="nebius">Nebius AI Studio</VSCodeOption>
@@ -1745,14 +1745,14 @@ const ApiOptions = ({
 						value={apiConfiguration?.lmstudio?.baseUrl || ""}
 						style={{ width: "100%" }}
 						type="url"
-						onInput={handleInputChange("lmstudio?BaseUrl")}
+						onInput={handleInputChange("lmstudioBaseUrl")}
 						placeholder={"Default: http://localhost:1234"}>
 						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.lmstudio?.modelId || ""}
 						style={{ width: "100%" }}
-						onInput={handleInputChange("lmstudio?ModelId")}
+						onInput={handleInputChange("lmstudioModelId")}
 						placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
@@ -1767,7 +1767,7 @@ const ApiOptions = ({
 								const value = (e.target as HTMLInputElement)?.value
 								// need to check value first since radio group returns empty string sometimes
 								if (value) {
-									handleInputChange("lmstudio?ModelId")({
+									handleInputChange("lmstudioModelId")({
 										target: { value },
 									})
 								}
@@ -1787,12 +1787,12 @@ const ApiOptions = ({
 						}}>
 						LM Studio allows you to run models locally on your computer. For instructions on how to get started, see
 						their
-						<VSCodeLink href="https://lmstudio?.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
+						<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
 							quickstart guide.
 						</VSCodeLink>
 						You will also need to start LM Studio's{" "}
 						<VSCodeLink
-							href="https://lmstudio?.ai/docs/basics/server"
+							href="https://lmstudio.ai/docs/basics/server"
 							style={{ display: "inline", fontSize: "inherit" }}>
 							local server
 						</VSCodeLink>{" "}

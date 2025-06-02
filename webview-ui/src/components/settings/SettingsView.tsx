@@ -148,7 +148,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
 
-	const handleSubmit = (withoutDone: boolean = false) => {
+	const handleSubmit = (withoutDone: boolean = false, newTabMode: "plan" | "act" | null = null) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
@@ -190,14 +190,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			}),
 		)
 			.then(() => {
-				// If there's a pendingTabChange, execute it now that settings are saved
-				if (pendingTabChange) {
+				// If there is a pending Plan/Act tab change, do it now
+				const tabToChange = newTabMode || pendingTabChange
+				if (tabToChange) {
+					console.log("Tab change detected: ", tabToChange)
 					// Call togglePlanActMode directly instead of waiting for didUpdateSettings message
 					StateServiceClient.togglePlanActMode(
 						TogglePlanActModeRequest.create({
 							chatSettings: convertDomainChatSettingsToProtoChatSettings({
 								...chatSettings,
-								mode: pendingTabChange,
+								mode: tabToChange as "plan" | "act", // Cast to remove null possibility
 							}),
 						}),
 					)
@@ -324,11 +326,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		switch (message.type) {
 			case "didUpdateSettings":
 				if (pendingTabChange) {
+					// We already check pendingTabChange is not null above, but TypeScript needs the cast
+					const tabToChange = pendingTabChange
 					StateServiceClient.togglePlanActMode(
 						TogglePlanActModeRequest.create({
 							chatSettings: convertDomainChatSettingsToProtoChatSettings({
 								...chatSettings,
-								mode: pendingTabChange,
+								mode: tabToChange as "plan" | "act", // Cast to remove null possibility
 								preferredLanguage: chatSettings.preferredLanguage,
 								openAIReasoningEffort: chatSettings.openAIReasoningEffort,
 							}),
@@ -386,7 +390,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			return
 		}
 		setPendingTabChange(tab)
-		handleSubmit(true)
+		handleSubmit(true, tab)
 	}
 
 	// Track active tab

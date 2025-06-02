@@ -8,6 +8,7 @@ import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { findLastIndex } from "@shared/array"
 import { UpdateSettingsRequest } from "@shared/proto/state"
 import {
 	convertDomainApiConfigurationToProtoApiConfiguration,
@@ -475,13 +476,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
-		setApiConfiguration: (value) => {
-			console.log("[DEBUG] ExtensionStateContext: setApiConfiguration called with:", value)
+		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
 				apiConfiguration: value,
-			}))
-		},
+			})),
 		setCustomInstructions: (value) =>
 			setState((prevState) => ({
 				...prevState,
