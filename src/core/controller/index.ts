@@ -294,7 +294,7 @@ export class Controller {
 			previousModeSapAiCoreClientSecret: newSapAiCoreClientSecret,
 			previousModeSapAiCoreBaseUrl: newSapAiCoreBaseUrl,
 			previousModeSapAiCoreTokenUrl: newSapAiCoreTokenUrl,
-			previousModeSapAiResourceGroup: newSapAiResourceGroup,
+			previousModeSapAiCoreResourceGroup: newSapAiResourceGroup,
 			previousModeSapAiCoreModelId: newSapAiCoreModelId,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
@@ -371,7 +371,11 @@ export class Controller {
 					)
 					await updateGlobalState(this.context, "previousModeSapAiCoreBaseUrl", apiConfiguration.sapAiCoreBaseUrl)
 					await updateGlobalState(this.context, "previousModeSapAiCoreTokenUrl", apiConfiguration.sapAiCoreTokenUrl)
-					await updateGlobalState(this.context, "previousModeSapAiResourceGroup", apiConfiguration.sapAiResourceGroup)
+					await updateGlobalState(
+						this.context,
+						"previousModeSapAiCoreResourceGroup",
+						apiConfiguration.sapAiResourceGroup,
+					)
 					await updateGlobalState(this.context, "previousModeSapAiCoreModelId", apiConfiguration.sapAiCoreModelId)
 					break
 			}

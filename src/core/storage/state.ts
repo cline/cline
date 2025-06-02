@@ -177,7 +177,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeSapAiCoreClientSecret,
 		previousModeSapAiCoreBaseUrl,
 		previousModeSapAiCoreTokenUrl,
-		previousModeSapAiResourceGroup,
+		previousModeSapAiCoreResourceGroup,
 		previousModeSapAiCoreModelId,
 	] = await Promise.all([
 		getGlobalState(context, "isNewUser") as Promise<boolean | undefined>,
@@ -281,7 +281,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "previousModeSapAiCoreClientSecret") as Promise<string | undefined>,
 		getGlobalState(context, "previousModeSapAiCoreBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "previousModeSapAiCoreTokenUrl") as Promise<string | undefined>,
-		getGlobalState(context, "previousModeSapAiResourceGroup") as Promise<string | undefined>,
+		getGlobalState(context, "previousModeSapAiCoreResourceGroup") as Promise<string | undefined>,
 		getGlobalState(context, "previousModeSapAiCoreModelId") as Promise<string | undefined>,
 	])
 
@@ -423,7 +423,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		previousModeSapAiCoreClientSecret,
 		previousModeSapAiCoreBaseUrl,
 		previousModeSapAiCoreTokenUrl,
-		previousModeSapAiResourceGroup,
+		previousModeSapAiCoreResourceGroup,
 		previousModeSapAiCoreModelId,
 		mcpMarketplaceEnabled: mcpMarketplaceEnabled,
 		mcpResponsesCollapsed: mcpResponsesCollapsed,
