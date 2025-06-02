@@ -1,29 +1,33 @@
 import { Controller } from "../index"
-import { EmptyRequest, Empty } from "@shared/proto/common"
+import { Empty } from "@shared/proto/common"
+import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
 
-// Keep track of active mcpButtonClicked subscriptions
-const activeMcpButtonClickedSubscriptions = new Set<StreamingResponseHandler>()
+// Track subscriptions with their provider type
+const mcpButtonClickedSubscriptions = new Map<StreamingResponseHandler, WebviewProviderType>()
 
 /**
  * Subscribe to mcpButtonClicked events
  * @param controller The controller instance
- * @param request The empty request
+ * @param request The webview provider type request
  * @param responseStream The streaming response handler
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToMcpButtonClicked(
 	controller: Controller,
-	request: EmptyRequest,
+	request: WebviewProviderTypeRequest,
 	responseStream: StreamingResponseHandler,
 	requestId?: string,
 ): Promise<void> {
-	// Add this subscription to the active subscriptions
-	activeMcpButtonClickedSubscriptions.add(responseStream)
+	const providerType = request.providerType
+	console.log(`[DEBUG] set up mcpButtonClicked subscription for ${WebviewProviderType[providerType]} webview`)
+
+	// Store the subscription with its provider type
+	mcpButtonClickedSubscriptions.set(responseStream, providerType)
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeMcpButtonClickedSubscriptions.delete(responseStream)
+		mcpButtonClickedSubscriptions.delete(responseStream)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -33,21 +37,24 @@ export async function subscribeToMcpButtonClicked(
 }
 
 /**
- * Send a mcpButtonClicked event to all active subscribers
+ * Send a mcpButtonClicked event to active subscribers based on webview type
+ * @param webviewType The type of webview that triggered the event (SIDEBAR or TAB)
  */
-export async function sendMcpButtonClickedEvent(): Promise<void> {
-	// Send the event to all active subscribers
-	const promises = Array.from(activeMcpButtonClickedSubscriptions).map(async (responseStream) => {
+export async function sendMcpButtonClickedEvent(webviewType?: WebviewProviderType): Promise<void> {
+	const event: Empty = {}
+
+	// Process all subscriptions, filtering based on the source
+	const promises = Array.from(mcpButtonClickedSubscriptions.entries()).map(async ([responseStream, providerType]) => {
+		// Only send to subscribers of the same type as the event source
+		if (webviewType !== providerType) {
+			return // Skip subscribers of different types
+		}
+
 		try {
-			const event: Empty = {}
-			await responseStream(
-				event,
-				false, // Not the last message
-			)
+			await responseStream(event, false)
 		} catch (error) {
-			console.error("Error sending mcpButtonClicked event:", error)
-			// Remove the subscription if there was an error
-			activeMcpButtonClickedSubscriptions.delete(responseStream)
+			console.error(`Error sending mcpButtonClicked event to ${WebviewProviderType[providerType]}:`, error)
+			mcpButtonClickedSubscriptions.delete(responseStream)
 		}
 	})
 

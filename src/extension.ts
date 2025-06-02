@@ -16,6 +16,7 @@ import { ErrorService } from "./services/error/ErrorService"
 import { initializeTestMode, cleanupTestMode } from "./services/test/TestMode"
 import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
 import { v4 as uuidv4 } from "uuid"
+import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
 import { WebviewProviderType } from "./shared/webview/types"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -109,9 +110,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", (webview: any) => {
 			console.log("[DEBUG] mcpButtonClicked", webview)
-			// We don't need to iterate through instances anymore as the gRPC event
-			// will be broadcast to all subscribers
-			sendMcpButtonClickedEvent()
+			// Pass the webview type to the event sender
+			const isSidebar = !webview
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
+			// Will send to appropriate subscribers based on the source webview type
+			sendMcpButtonClickedEvent(webviewType)
 		}),
 	)
 

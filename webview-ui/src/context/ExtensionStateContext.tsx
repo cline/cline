@@ -1,16 +1,14 @@
-import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import { StateServiceClient, UiServiceClient, ModelsServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
+import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
-import { EmptyRequest } from "@shared/proto/common"
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import { useEvent } from "react-use"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -20,7 +18,6 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { ModelsServiceClient, StateServiceClient } from "../services/grpc-client"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 
@@ -347,6 +344,26 @@ export const ExtensionStateContextProvider: React.FC<{
 				console.log("State subscription completed")
 			},
 		})
+
+		// Subscribe to MCP button clicked events with webview type
+		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType:
+					window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB,
+			}),
+			{
+				onResponse: () => {
+					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
+					navigateToMcp()
+				},
+				onError: (error) => {
+					console.error("Error in mcpButtonClicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("mcpButtonClicked subscription completed")
+				},
+			},
+		)
 
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })

@@ -47,11 +47,6 @@ const AppContent = () => {
 		}
 	}, [shouldShowAnnouncement])
 
-	useEffect(() => {
-		const providerType = window.WEBVIEW_PROVIDER_TYPE || WebviewProviderType.TAB
-		console.log("[DEBUG] webviewProviderType", providerType)
-	}, [])
-
 	if (!didHydrateState) {
 		return null
 	}
