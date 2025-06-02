@@ -31,4 +31,7 @@ service UiService {
   
   // Subscribe to MCP button clicked events
   rpc subscribeToMcpButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
+  
+  // Subscribe to history button click events
+  rpc subscribeToHistoryButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
 }

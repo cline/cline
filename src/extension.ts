@@ -18,6 +18,8 @@ import { telemetryService } from "./services/posthog/telemetry/TelemetryService"
 import { v4 as uuidv4 } from "uuid"
 import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/ui"
 import { WebviewProviderType } from "./shared/webview/types"
+import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
+
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -175,21 +177,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.historyButtonClicked", (webview: any) => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				const openHistory = async (instance?: WebviewProvider) => {
-					instance?.controller.postMessageToWebview({
-						type: "action",
-						action: "historyButtonClicked",
-					})
-				}
-				const isSidebar = !webview
-				if (isSidebar) {
-					openHistory(WebviewProvider.getSidebarInstance())
-				} else {
-					WebviewProvider.getTabInstances().forEach(openHistory)
-				}
-			})
+		vscode.commands.registerCommand("cline.historyButtonClicked", async (webview: any) => {
+			console.log("[DEBUG] historyButtonClicked", webview)
+			// Pass the webview type to the event sender
+			const isSidebar = !webview
+			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
+			// Send event to all subscribers using the gRPC streaming method
+			await sendHistoryButtonClickedEvent(webviewType)
 		}),
 	)
 

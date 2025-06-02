@@ -196,9 +196,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					case "settingsButtonClicked":
 						navigateToSettings()
 						break
-					case "historyButtonClicked":
-						navigateToHistory()
-						break
 					case "accountButtonClicked":
 						navigateToAccount()
 						break
@@ -272,9 +269,14 @@ export const ExtensionStateContextProvider: React.FC<{
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
+		// Determine the webview provider type
+		const webviewType =
+			window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
+
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response) => {
@@ -348,8 +350,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Subscribe to MCP button clicked events with webview type
 		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
 			WebviewProviderTypeRequest.create({
-				providerType:
-					window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB,
+				providerType: webviewType,
 			}),
 			{
 				onResponse: () => {
@@ -361,6 +362,26 @@ export const ExtensionStateContextProvider: React.FC<{
 				},
 				onComplete: () => {
 					console.log("mcpButtonClicked subscription completed")
+				},
+			},
+		)
+
+		// Set up history button clicked subscription with webview type
+		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType: webviewType,
+			}),
+			{
+				onResponse: () => {
+					// When history button is clicked, navigate to history view
+					console.log("[DEBUG] Received history button clicked event from gRPC stream")
+					navigateToHistory()
+				},
+				onError: (error) => {
+					console.error("Error in history button clicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("History button clicked subscription completed")
 				},
 			},
 		)
@@ -377,6 +398,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (mcpButtonUnsubscribeRef.current) {
 				mcpButtonUnsubscribeRef.current()
 				mcpButtonUnsubscribeRef.current = null
+			}
+			if (historyButtonClickedSubscriptionRef.current) {
+				historyButtonClickedSubscriptionRef.current()
+				historyButtonClickedSubscriptionRef.current = null
 			}
 		}
 	}, [])
