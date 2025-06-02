@@ -1,0 +1,48 @@
+---
+title: "OpenAI"
+description: "Learn how to configure and use official OpenAI models with Cline."
+---
+
+Cline supports accessing models directly through the official OpenAI API.
+
+**Website:** [https://openai.com/](https://openai.com/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Visit the [OpenAI Platform](https://platform.openai.com/). You'll need to create an account or sign in if you already have one.
+2.  **Navigate to API Keys:** Once logged in, go to the [API keys section](https://platform.openai.com/api-keys) of your account.
+3.  **Create a Key:** Click on "Create new secret key". It's good practice to give your key a descriptive name (e.g., "Cline API Key").
+4.  **Copy the Key:** **Crucial:** Copy the generated API key immediately. For security reasons, OpenAI will not show it to you again. Store this key in a safe and secure location.
+
+### Supported Models
+
+Cline is compatible with a variety of OpenAI models, including but not limited to:
+
+-   'o3'
+-   `o3-mini` (medium reasoning effort)
+-   'o4-mini'
+-   `o3-mini-high` (high reasoning effort)
+-   `o3-mini-low` (low reasoning effort)
+-   `o1`
+-   `o1-preview`
+-   `o1-mini`
+-   `gpt-4.5-preview`
+-   `gpt-4o`
+-   `gpt-4o-mini`
+-   'gpt-4.1'
+-   'gpt-4.1-mini'
+
+For the most current list of available models and their capabilities, please refer to the official [OpenAI Models documentation](https://platform.openai.com/docs/models).
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings gear icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "OpenAI" from the "API Provider" dropdown menu.
+3.  **Enter API Key:** Paste your OpenAI API key into the "OpenAI API Key" field.
+4.  **Select Model:** Choose your desired model from the "Model" dropdown list.
+5.  **(Optional) Base URL:** If you need to use a proxy or a custom base URL for the OpenAI API, you can enter it here. Most users will not need to change this from the default.
+
+### Tips and Notes
+
+-   **Pricing:** Be sure to review the [OpenAI Pricing page](https://openai.com/pricing) for detailed information on the costs associated with different models.
+-   **Azure OpenAI Service:** If you are looking to use the Azure OpenAI service, please note that specific documentation for Azure OpenAI with Cline may be found separately, or you might need to configure it as an OpenAI-compatible endpoint if such functionality is supported by Cline for custom configurations.
