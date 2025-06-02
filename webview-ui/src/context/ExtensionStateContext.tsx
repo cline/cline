@@ -1,12 +1,14 @@
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { useEvent } from "react-use"
+import { StateServiceClient, UiServiceClient, ModelsServiceClient } from "../services/grpc-client"
+import { EmptyRequest } from "@shared/proto/common"
+import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "@shared/ChatSettings"
 import { DEFAULT_PLATFORM, ExtensionMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { findLastIndex } from "@shared/array"
-import { EmptyRequest } from "@shared/proto/common"
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import { useEvent } from "react-use"
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -192,9 +194,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		switch (message.type) {
 			case "action": {
 				switch (message.action!) {
-					case "mcpButtonClicked":
-						navigateToMcp(message.tab)
-						break
 					case "historyButtonClicked":
 						navigateToHistory()
 						break
@@ -270,9 +269,10 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
+	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
-	// Subscribe to state updates using the new gRPC streaming API
+	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
@@ -344,20 +344,26 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Still send the webviewDidLaunch message for other initialization
-		vscode.postMessage({ type: "webviewDidLaunch" })
+		// Subscribe to MCP button clicked events with webview type
+		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
+			WebviewProviderTypeRequest.create({
+				providerType:
+					window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB,
+			}),
+			{
+				onResponse: () => {
+					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
+					navigateToMcp()
+				},
+				onError: (error) => {
+					console.error("Error in mcpButtonClicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("mcpButtonClicked subscription completed")
+				},
+			},
+		)
 
-		// Clean up subscription when component unmounts
-		return () => {
-			if (stateSubscriptionRef.current) {
-				stateSubscriptionRef.current()
-				stateSubscriptionRef.current = null
-			}
-		}
-	}, [])
-
-	// Subscribe to settings button clicked events
-	useEffect(() => {
 		// Set up settings button clicked subscription
 		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(EmptyRequest.create({}), {
 			onResponse: () => {
@@ -372,8 +378,19 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Clean up subscription when component unmounts
+		// Still send the webviewDidLaunch message for other initialization
+		vscode.postMessage({ type: "webviewDidLaunch" })
+
+		// Clean up subscriptions when component unmounts
 		return () => {
+			if (stateSubscriptionRef.current) {
+				stateSubscriptionRef.current()
+				stateSubscriptionRef.current = null
+			}
+			if (mcpButtonUnsubscribeRef.current) {
+				mcpButtonUnsubscribeRef.current()
+				mcpButtonUnsubscribeRef.current = null
+			}
 			if (settingsButtonClickedSubscriptionRef.current) {
 				settingsButtonClickedSubscriptionRef.current()
 				settingsButtonClickedSubscriptionRef.current = null

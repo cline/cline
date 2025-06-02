@@ -40,7 +40,6 @@ export interface ExtensionMessage {
 	text?: string
 	action?:
 		| "chatButtonClicked"
-		| "mcpButtonClicked"
 		| "historyButtonClicked"
 		| "didBecomeVisible"
 		| "accountLogoutClicked"
