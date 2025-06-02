@@ -105,20 +105,6 @@ export interface ApiHandlerOptions {
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
 	favoritedModelIds?: string[]
-	sapAiCoreClientId?: string
-	sapAiCoreClientSecret?: string
-	sapAiCoreBaseUrl?: string
-	sapAiCoreTokenUrl?: string
-	sapAiResourceGroup?: string
-	sapAiCoreModelId?: string
-}
-
-export interface SapAiCoreConfiguration {
-	sapAiCoreClientId: string
-	sapAiCoreClientSecret: string
-	sapAiResourceGroup: string
-	sapAiCoreTokenUrl: string
-	sapAiCoreBaseUrl: string
 }
 
 // Models
