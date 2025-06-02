@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
-import { hostServiceHandlers } from "../../../hosts/vscode/host-grpc-service-config"
+import { GrpcHandler } from "../../../hosts/vscode/host-grpc-handler"
 
 // Generic type for any protobuf service definition
 export type ProtoService = {
@@ -26,7 +26,7 @@ export type GrpcClientType<T extends ProtoService> = {
 					onResponse: (response: InstanceType<T["methods"][K]["responseType"]>) => void
 					onError?: (error: Error) => void
 					onComplete?: () => void
-				},
+				}
 			) => () => void // Returns a cancel function
 		: (request: InstanceType<T["methods"][K]["requestType"]>) => Promise<InstanceType<T["methods"][K]["responseType"]>>
 }
@@ -34,11 +34,11 @@ export type GrpcClientType<T extends ProtoService> = {
 // Create a client for any protobuf service with inferred types
 export function createGrpcClient<T extends ProtoService>(service: T): GrpcClientType<T> {
 	const client = {} as GrpcClientType<T>
+	const grpcHandler = new GrpcHandler()
 
-	// For each method in the service
 	Object.values(service.methods).forEach((method) => {
+		// Streaming method implementation
 		if (method.responseStream) {
-			// Streaming method implementation
 			// Use lowercase method name as the key in the client object
 			const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
 			client[methodKey as keyof GrpcClientType<T>] = ((
@@ -47,12 +47,13 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 					onResponse: (response: any) => void
 					onError?: (error: Error) => void
 					onComplete?: () => void
-				},
+				}
 			) => {
 				const requestId = uuidv4()
 
 				// TODO: Implement actual gRPC streaming call to the IDE host
-				console.log(`[DEBUG] Streaming gRPC call to ${service.fullName}.${method.name}`, request)
+				console.log(`[DEBUG] Streaming gRPC call to ${service.fullName}.${methodKey}`, request)
+				console.log("[DEBUG] TODO Streaming responses from host not implemented")
 
 				// For now, just simulate a response
 				setTimeout(() => {
@@ -71,11 +72,16 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 			const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
 			client[methodKey as keyof GrpcClientType<T>] = ((request: any) => {
 				return new Promise((resolve, reject) => {
-					console.log(`[DEBUG] gRPC call to ${service.fullName}.${method.name}`, request)
-					const handler = hostServiceHandlers[service.fullName]
-					if (handler) {
-						console.log("[DEBUG] requestHandler", methodKey, request)
-						handler.requestHandler(methodKey, request)
+					const requestId = uuidv4()
+					console.log(`[DEBUG] gRPC host call to ${service.fullName}.${methodKey} req:${requestId}`)
+					try {
+						const response = grpcHandler.handleRequest(service.fullName, methodKey, request, requestId, false)
+						console.log(`[DEBUG] gRPC host resp to ${service.fullName}.${methodKey} req:${requestId}`, response)
+						console.log("[DEBUG] TODO remove response")
+						resolve(response)
+					} catch (e) {
+						console.log(`[DEBUG] gRPC host ERR to ${service.fullName}.${methodKey} req:${requestId} err:${e}`)
+						reject(e)
 					}
 				})
 			}) as any
