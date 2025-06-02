@@ -17,7 +17,7 @@ interface Token {
 	scope: string
 	jti: string
 	token_type: string
-	exipres_at: number
+	expires_at: number
 }
 export class SapAiCoreHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -39,12 +39,12 @@ export class SapAiCoreHandler implements ApiHandler {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
 		const token = response.data as Token
-		token.exipres_at = Date.now() + token.expires_in * 1000
+		token.expires_at = Date.now() + token.expires_in * 1000
 		return token
 	}
 
 	private async getToken(): Promise<string> {
-		if (!this.token || this.token.exipres_at < Date.now()) {
+		if (!this.token || this.token.expires_at < Date.now()) {
 			this.token = await this.authenticate()
 		}
 		return this.token.access_token
