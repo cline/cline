@@ -136,7 +136,8 @@ export async function insertContentTool(
 			return
 		}
 
-		const { newProblemsMessage, userEdits, finalContent } = await cline.diffViewProvider.saveChanges()
+		// Call saveChanges to update the DiffViewProvider properties
+		await cline.diffViewProvider.saveChanges()
 
 		// Track file edit operation
 		if (relPath) {
@@ -145,34 +146,14 @@ export async function insertContentTool(
 
 		cline.didEditFile = true
 
-		if (!userEdits) {
-			pushToolResult(
-				`The content was successfully inserted in ${relPath.toPosix()} at line ${lineNumber}.${newProblemsMessage}`,
-			)
-			await cline.diffViewProvider.reset()
-			return
-		}
-
-		await cline.say(
-			"user_feedback_diff",
-			JSON.stringify({
-				tool: "insertContent",
-				path: getReadablePath(cline.cwd, relPath),
-				diff: userEdits,
-				lineNumber: lineNumber,
-			} satisfies ClineSayTool),
+		// Get the formatted response message
+		const message = await cline.diffViewProvider.pushToolWriteResult(
+			cline,
+			cline.cwd,
+			false, // Always false for insert_content
 		)
 
-		pushToolResult(
-			`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-				`The updated content has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
-				`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-				`Please note:\n` +
-				`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-				`2. Proceed with the task using this updated file content as the new baseline.\n` +
-				`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-				`${newProblemsMessage}`,
-		)
+		pushToolResult(message)
 
 		await cline.diffViewProvider.reset()
 	} catch (error) {
