@@ -84,13 +84,6 @@ export class OllamaHandler implements ApiHandler {
 		}
 	}
 
-	private getOllamaConfig(): OllamaConfig {
-		if (!this.options.ollama) {
-			throw new Error("Ollama configuration is required")
-		}
-		return this.options.ollama
-	}
-
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.getOllamaConfig().modelId || "",
@@ -98,5 +91,15 @@ export class OllamaHandler implements ApiHandler {
 				? { ...openAiModelInfoSaneDefaults, contextWindow: Number(this.getOllamaConfig().apiOptionsCtxNum) || 32768 }
 				: openAiModelInfoSaneDefaults,
 		}
+	}
+
+	/**
+	 * Get the Ollama configuration
+	 */
+	private getOllamaConfig(): OllamaConfig {
+		if (!this.options.ollama) {
+			throw new Error("Ollama configuration is required")
+		}
+		return this.options.ollama
 	}
 }

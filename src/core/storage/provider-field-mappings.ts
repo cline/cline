@@ -50,6 +50,11 @@ export const PROVIDER_FIELD_MAPPINGS = {
 			apiKey: "openAiNativeApiKey",
 		},
 	},
+	azure: {
+		globalState: {
+			apiVersion: "azureApiVersion",
+		},
+	},
 	aws: {
 		secrets: {
 			accessKey: "awsAccessKey",

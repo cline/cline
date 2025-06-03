@@ -12,13 +12,8 @@ export class LmStudioHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.lmstudio) {
-			throw new Error("LM Studio configuration is required")
-		}
-
 		this.client = new OpenAI({
-			baseURL: (this.options.lmstudio.baseUrl || "http://localhost:1234") + "/v1",
+			baseURL: (this.getLmStudioConfig().baseUrl || "http://localhost:1234") + "/v1",
 			apiKey: "noop",
 		})
 	}
@@ -66,6 +61,9 @@ export class LmStudioHandler implements ApiHandler {
 		}
 	}
 
+	/*
+	 * Get the LM Studio configuration
+	 */
 	private getLmStudioConfig(): LMStudioConfig {
 		if (!this.options.lmstudio) {
 			throw new Error("LM Studio configuration is required")

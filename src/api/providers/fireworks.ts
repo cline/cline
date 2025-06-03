@@ -12,14 +12,9 @@ export class FireworksHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.fireworks) {
-			throw new Error("Fireworks configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://api.fireworks.ai/inference/v1",
-			apiKey: this.options.fireworks.apiKey,
+			apiKey: this.getFireworksConfig().apiKey,
 		})
 	}
 
@@ -90,6 +85,9 @@ export class FireworksHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Get the Fireworks-specific configuration
+	 */
 	private getFireworksConfig(): FireworksConfig {
 		if (!this.options.fireworks) {
 			throw new Error("Fireworks configuration is required")

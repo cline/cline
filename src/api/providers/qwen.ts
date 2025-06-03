@@ -105,6 +105,9 @@ export class QwenHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Get the Qwen configuration
+	 */
 	private getQwenConfig(): QwenConfig {
 		if (!this.options.qwen) {
 			throw new Error("Qwen configuration is required")

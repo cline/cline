@@ -78,6 +78,9 @@ export class NebiusHandler implements ApiHandler {
 		return { id: nebiusDefaultModelId, info: nebiusModels[nebiusDefaultModelId] }
 	}
 
+	/**
+	 * Get the Nebius configuration
+	 */
 	private getNebiusConfig(): NebiusConfig {
 		if (!this.options.nebius) {
 			throw new Error("Nebius configuration is required")

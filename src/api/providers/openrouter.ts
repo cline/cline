@@ -152,6 +152,9 @@ export class OpenRouterHandler implements ApiHandler {
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 
+	/**
+	 * Get the OpenRouter-specific configuration
+	 */
 	private getOpenRouterConfig(): OpenRouterConfig {
 		if (!this.options.openrouter) {
 			throw new Error("OpenRouter configuration is required")

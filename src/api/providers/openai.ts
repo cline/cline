@@ -127,6 +127,9 @@ export class OpenAiHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Get the OpenAI configuration
+	 */
 	private getOpenAIConfig(): OpenAIConfig {
 		if (!this.options.openai) {
 			throw new Error("OpenAI configuration is required")

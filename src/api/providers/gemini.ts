@@ -3,7 +3,15 @@ import type { Anthropic } from "@anthropic-ai/sdk"
 import { GoogleGenAI, type GenerateContentConfig, type GenerateContentResponseUsageMetadata } from "@google/genai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo, GeminiConfig } from "@shared/api"
+import {
+	ApiHandlerOptions,
+	geminiDefaultModelId,
+	GeminiModelId,
+	geminiModels,
+	ModelInfo,
+	GeminiConfig,
+	VertexConfig,
+} from "@shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 import { telemetryService } from "@services/posthog/telemetry/TelemetryService"
@@ -45,12 +53,8 @@ export class GeminiHandler implements ApiHandler {
 
 		if (options.isVertex) {
 			// Initialize with Vertex AI configuration
-			if (!this.options.vertex) {
-				throw new Error("Vertex configuration is required when isVertex is true")
-			}
-
-			const project = this.options.vertex.projectId ?? "not-provided"
-			const location = this.options.vertex.region ?? "not-provided"
+			const project = this.getVertexConfig().projectId ?? "not-provided"
+			const location = this.getVertexConfig().region ?? "not-provided"
 
 			this.client = new GoogleGenAI({
 				vertexai: true,
@@ -59,15 +63,11 @@ export class GeminiHandler implements ApiHandler {
 			})
 		} else {
 			// Initialize with standard API key
-			if (!this.options.gemini) {
-				throw new Error("Gemini configuration is required")
-			}
-
-			if (!this.options.gemini.apiKey) {
+			if (!this.getGeminiConfig().apiKey) {
 				throw new Error("API key is required for Google Gemini when not using Vertex AI")
 			}
 
-			this.client = new GoogleGenAI({ apiKey: this.options.gemini.apiKey })
+			this.client = new GoogleGenAI({ apiKey: this.getGeminiConfig().apiKey })
 		}
 	}
 
@@ -386,5 +386,15 @@ export class GeminiHandler implements ApiHandler {
 			throw new Error("Gemini configuration is required")
 		}
 		return this.options.gemini
+	}
+
+	/**
+	 * Get the Vertex-specific configuration
+	 */
+	private getVertexConfig(): VertexConfig {
+		if (!this.options.vertex) {
+			throw new Error("Vertex configuration is required")
+		}
+		return this.options.vertex
 	}
 }

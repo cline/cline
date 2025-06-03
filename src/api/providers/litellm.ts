@@ -12,14 +12,9 @@ export class LiteLlmHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.litellm) {
-			throw new Error("LiteLLM configuration is required")
-		}
-
 		this.client = new OpenAI({
-			baseURL: this.options.litellm.baseUrl || "http://localhost:4000",
-			apiKey: this.options.litellm.apiKey || "noop",
+			baseURL: this.getLiteLLMConfig().baseUrl || "http://localhost:4000",
+			apiKey: this.getLiteLLMConfig().apiKey || "noop",
 		})
 	}
 
@@ -180,6 +175,9 @@ export class LiteLlmHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Get the LiteLLM configuration
+	 */
 	private getLiteLLMConfig(): LiteLLMConfig {
 		if (!this.options.litellm) {
 			throw new Error("LiteLLM configuration is required")

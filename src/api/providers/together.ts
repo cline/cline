@@ -78,6 +78,9 @@ export class TogetherHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Get the Together configuration
+	 */
 	private getTogetherConfig(): TogetherConfig {
 		if (!this.options.together) {
 			throw new Error("Together configuration is required")

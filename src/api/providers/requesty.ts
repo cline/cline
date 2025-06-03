@@ -124,6 +124,9 @@ export class RequestyHandler implements ApiHandler {
 		return { id: requestyDefaultModelId, info: requestyDefaultModelInfo }
 	}
 
+	/**
+	 * Get the Requesty configuration
+	 */
 	private getRequestyConfig(): RequestyConfig {
 		if (!this.options.requesty) {
 			throw new Error("Requesty configuration is required")

@@ -76,7 +76,7 @@ message UpdateSettingsRequest {
   optional bool enable_checkpoints_setting = 6;
   optional bool mcp_marketplace_enabled = 7;
   optional ChatSettings chat_settings = 8;
-  repeated string favorited_model_ids = 9;
+  repeated string favoritedModelIds = 9;
   optional int32 request_timeout_ms = 10;
 }
 
@@ -117,7 +117,7 @@ message ApiConfiguration {
   optional string reasoning_effort = 28;
   optional int32 thinking_budget_tokens = 29;
   optional int32 request_timeout_ms = 30;
-  repeated string favorited_model_ids = 31;
+  repeated string favoritedModelIds = 31;
 }
 
 // Provider-specific configuration messages

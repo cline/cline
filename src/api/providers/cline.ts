@@ -1,7 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ClineConfig, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import {
+	ApiHandlerOptions,
+	ClineConfig,
+	ModelInfo,
+	OpenRouterConfig,
+	openRouterDefaultModelId,
+	openRouterDefaultModelInfo,
+} from "@shared/api"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import axios from "axios"
@@ -15,14 +22,9 @@ export class ClineHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.cline) {
-			throw new Error("Cline configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://api.cline.bot/v1",
-			apiKey: this.options.cline.apiKey || "",
+			apiKey: this.getClineConfig().apiKey || "",
 			defaultHeaders: {
 				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on cline.bot rankings.
 				"X-Title": "Cline", // Optional. Shows in rankings on cline.bot.
@@ -42,7 +44,7 @@ export class ClineHandler implements ApiHandler {
 			this.getModel(),
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
-			this.options.openrouter?.providerSorting,
+			this.getOpenrouterConfig()?.providerSorting,
 		)
 
 		let didOutputUsage: boolean = false
@@ -136,6 +138,12 @@ export class ClineHandler implements ApiHandler {
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 
+	private getOpenrouterConfig(): OpenRouterConfig | undefined {
+		return this.options.openrouter
+	}
+	/**
+	 * Get the Cline provider configuration
+	 */
 	private getClineConfig(): ClineConfig {
 		if (!this.options.cline) {
 			throw new Error("Cline configuration is required")

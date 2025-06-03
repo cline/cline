@@ -242,6 +242,9 @@ export class VertexHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Get the Vertex configuration
+	 */
 	private getVertexConfig(): VertexConfig {
 		if (!this.options.vertex) {
 			throw new Error("Vertex configuration is required")

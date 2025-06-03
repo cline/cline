@@ -635,6 +635,9 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
+	/**
+	 * Get the VSCodeLM configuration
+	 */
 	private getVSCodeLMConfig(): VSCodeLMConfig {
 		if (!this.options.vscodelm) {
 			throw new Error("VSCode configuration is required")
