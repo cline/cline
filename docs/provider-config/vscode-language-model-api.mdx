@@ -15,17 +15,24 @@ Cline offers _experimental_ support for the [VS Code Language Model API](https:/
 -   **VS Code:** The Language Model API is accessible via VS Code (it is not currently supported by Cursor).
 -   **A Language Model Provider Extension:** An extension that furnishes a language model is required. Examples include:
     -   **GitHub Copilot:** With a Copilot subscription, the GitHub Copilot and GitHub Copilot Chat extensions can serve as model providers.
-    -   **Alternative Extensions:** Explore the VS Code Marketplace for extensions mentioning "Language Model API" or "lm". Other experimental options may be available.
+    -   **Alternative Extensions:** Explore the VS Code Marketplace for extensions mentioning "Language Model API" or "lm". Other experimental options may be available
 
 ### Configuration Steps
 
-1.  **Access Cline Settings:** Click the gear icon (⚙️) located in the Cline panel.
-2.  **Choose Provider:** Select "VS Code LM API" from the "API Provider" dropdown menu.
-3.  **Select Model:** The "Language Model" dropdown will (eventually) populate with available models. The naming convention is `vendor/family`. For instance, if Copilot is active, you might encounter options such as:
-    -   `copilot - claude-3.5-sonnet`
-    -   `copilot - o3-mini`
-    -   `copilot - o1-ga`
-    -   `copilot - gemini-2.0-flash`
+1. **Ensure Copilot Account is Active and Extensions are installed:** User logged into either the Copilot or Copilot Chat extension should be able to gain access via Cline.
+2. **Access Cline Settings:** Click the gear icon (⚙️) located in the Cline panel.
+3. **Choose Provider:** Select "VS Code LM API" from the "API Provider" dropdown menu.
+4. **Select Model:** If the Copilot extension(s) are installed and the user is logged into their Copilot account, the "Language Model" dropdown will populate with available models after a short time. The naming convention is `vendor/family`. For instance, if Copilot is active, you might encounter options such as:
+    - `copilot - gpt-3.5-turbo`
+    - `copilot - gpt-4o-mini`
+    - `copilot - gpt-4`
+    - `copilot - gpt-4-turbo`
+    - `copilot - gpt-4o`
+    - `copilot - claude-3.5-sonnet` **NOTE:** this model does not work.
+    - `copilot - gemini-2.0-flash`
+    - `copilot - gpt-4.1`
+
+For best results with the VSCode LM API Provider, we suggest using the OpenAI Models (GPT 3, 4, 4.1, 4o etc.)
 
 ### Current Limitations
 
