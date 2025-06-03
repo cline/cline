@@ -341,31 +341,19 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 	for (const key of context.globalState.keys()) {
 		await context.globalState.update(key, undefined)
 	}
-	const secretKeys: SecretKey[] = [
-		"apiKey",
-		"openRouterApiKey",
-		"awsAccessKey",
-		"awsSecretKey",
-		"awsSessionToken",
-		"openAiApiKey",
-		"geminiApiKey",
-		"openAiNativeApiKey",
-		"deepSeekApiKey",
-		"requestyApiKey",
-		"togetherApiKey",
-		"qwenApiKey",
-		"doubaoApiKey",
-		"mistralApiKey",
-		"clineApiKey",
-		"liteLlmApiKey",
-		"fireworksApiKey",
-		"asksageApiKey",
-		"xaiApiKey",
-		"sambanovaApiKey",
-		"cerebrasApiKey",
-		"nebiusApiKey",
-		"authNonce",
-	]
+
+	// Dynamically collect all secret keys from provider mappings
+	const secretKeys: SecretKey[] = ["authNonce"] // Core secret keys
+
+	// Add provider-specific secret keys
+	for (const mapping of Object.values(PROVIDER_FIELD_MAPPINGS)) {
+		if ("secrets" in mapping && mapping.secrets) {
+			for (const secretKey of Object.values(mapping.secrets)) {
+				secretKeys.push(secretKey as SecretKey)
+			}
+		}
+	}
+
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
 	}
