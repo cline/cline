@@ -104,7 +104,7 @@ export class McpHub {
 		getMcpServersPath: () => Promise<string>,
 		getSettingsDirectoryPath: () => Promise<string>,
 		postMessageToWebview: (message: ExtensionMessage) => Promise<void>,
-		clientVersion: string
+		clientVersion: string,
 	) {
 		this.getMcpServersPath = getMcpServersPath
 		this.getSettingsDirectoryPath = getSettingsDirectoryPath
@@ -130,7 +130,7 @@ export class McpHub {
   "mcpServers": {
     
   }
-}`
+}`,
 			)
 		}
 		return mcpSettingsFilePath
@@ -148,7 +148,7 @@ export class McpHub {
 				config = JSON.parse(content)
 			} catch (error) {
 				vscode.window.showErrorMessage(
-					"Invalid MCP settings format. Please ensure your settings follow the correct JSON format."
+					"Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
 				)
 				return undefined
 			}
@@ -180,7 +180,7 @@ export class McpHub {
 			{
 				onResponse: async (response) => {
 					console.log(
-						`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`
+						`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
 					)
 
 					// Only process the file if it was changed (not created or deleted)
@@ -203,7 +203,7 @@ export class McpHub {
 				onComplete: () => {
 					console.log("[DEBUG] MCP settings file watch completed")
 				},
-			}
+			},
 		)
 
 		// Add the cancellation function to disposables
@@ -219,7 +219,7 @@ export class McpHub {
 
 	private async connectToServerRPC(
 		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -233,7 +233,7 @@ export class McpHub {
 				},
 				{
 					capabilities: {},
-				}
+				},
 			)
 
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
@@ -335,7 +335,7 @@ export class McpHub {
 
 	private async connectToServer(
 		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema> | z.infer<typeof StreamableHTTPConfigSchema>,
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -349,7 +349,7 @@ export class McpHub {
 				},
 				{
 					capabilities: {},
-				}
+				},
 			)
 
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
@@ -777,7 +777,7 @@ export class McpHub {
 				console.error("Error details:", error.message, error.stack)
 			}
 			vscode.window.showErrorMessage(
-				`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`
+				`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
 			)
 			throw error
 		}
@@ -799,7 +799,7 @@ export class McpHub {
 					uri,
 				},
 			},
-			ReadResourceResultSchema
+			ReadResourceResultSchema,
 		)
 	}
 
@@ -807,7 +807,7 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
 			throw new Error(
-				`No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`
+				`No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
 			)
 		}
 
@@ -836,7 +836,7 @@ export class McpHub {
 			CallToolResultSchema,
 			{
 				timeout,
-			}
+			},
 		)
 
 		return {
@@ -974,7 +974,7 @@ export class McpHub {
 			// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
 			await fs.writeFile(
 				settingsPath,
-				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2)
+				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
 			)
 
 			await this.updateServerConnectionsRPC(settings.mcpServers)
@@ -1054,7 +1054,7 @@ export class McpHub {
 				console.error("Error details:", error.message, error.stack)
 			}
 			vscode.window.showErrorMessage(
-				`Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`
+				`Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
 			)
 			throw error
 		}

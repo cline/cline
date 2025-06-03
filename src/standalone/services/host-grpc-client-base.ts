@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
-import { GrpcHandler, getRequestRegistry, StreamingResponseHandler } from "../../../hosts/vscode/host-grpc-handler"
+import { GrpcHandler, StreamingCallbacks } from "../../../hosts/vscode/host-grpc-handler"
 
 // Generic type for any protobuf service definition
 export type ProtoService = {
@@ -22,11 +22,7 @@ export type GrpcClientType<T extends ProtoService> = {
 	[K in keyof T["methods"]]: T["methods"][K]["responseStream"] extends true
 		? (
 				request: InstanceType<T["methods"][K]["requestType"]>,
-				options: {
-					onResponse: (response: InstanceType<T["methods"][K]["responseType"]>) => void
-					onError?: (error: Error) => void
-					onComplete?: () => void
-				},
+				options: StreamingCallbacks<InstanceType<T["methods"][K]["responseType"]>>,
 			) => () => void // Returns a cancel function
 		: (request: InstanceType<T["methods"][K]["requestType"]>) => Promise<InstanceType<T["methods"][K]["responseType"]>>
 }
@@ -43,60 +39,39 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 			const methodKey = method.name.charAt(0).toLowerCase() + method.name.slice(1)
 			client[methodKey as keyof GrpcClientType<T>] = ((
 				request: any,
-				options: {
-					onResponse: (response: any) => void
-					onError?: (error: Error) => void
-					onComplete?: () => void
-				},
+				options: StreamingCallbacks<InstanceType<typeof method.responseType>>,
 			) => {
+				// Use handleRequest with streaming callbacks
 				const requestId = uuidv4()
+				console.log(`[DEBUG] Streaming gRPC host call to ${service.fullName}.${methodKey} req:${requestId}`)
 
-				// Create a response handler that will call the client's onResponse callback
-				const responseHandler: StreamingResponseHandler = async (response, isLast = false, sequenceNumber) => {
+				// We need to await the promise and then return the cancel function
+				return (async () => {
 					try {
-						// Call the client's onResponse callback with the response
-						options.onResponse(response)
+						const result = await grpcHandler.handleRequest<InstanceType<typeof method.responseType>>(
+							service.fullName,
+							methodKey,
+							request,
+							requestId,
+							options,
+						)
 
-						// If this is the last response, call the onComplete callback
-						if (isLast && options.onComplete) {
-							options.onComplete()
+						// If the result is a function, it's the cancel function
+						if (typeof result === "function") {
+							return result
+						} else {
+							// This shouldn't happen, but just in case
+							console.error(`Expected cancel function but got response object for streaming request: ${requestId}`)
+							return () => {}
 						}
 					} catch (error) {
-						// If there's an error in the callback, call the onError callback
+						console.error(`Error in streaming request: ${error}`)
 						if (options.onError) {
 							options.onError(error instanceof Error ? error : new Error(String(error)))
 						}
+						return () => {}
 					}
-				}
-
-				// Register the response handler with the registry
-				// TODO this seems weird, I think registration is only
-				// supposed to happen on the server side of gRPC
-				getRequestRegistry().registerRequest(
-					requestId,
-					() => {
-						console.log(`[DEBUG] Cleaning up streaming request: ${requestId}`)
-						if (options.onComplete) {
-							options.onComplete()
-						}
-					},
-					{ type: "streaming_request", service: service.fullName, method: methodKey },
-					responseHandler,
-				)
-
-				// Call the handler with streaming=true
-				console.log(`[DEBUG] Streaming gRPC host call to ${service.fullName}.${methodKey} req:${requestId}`)
-				grpcHandler.handleRequest(service.fullName, methodKey, request, requestId, true).catch((error) => {
-					if (options.onError) {
-						options.onError(error instanceof Error ? error : new Error(String(error)))
-					}
-				})
-
-				// Return a function to cancel the stream
-				return () => {
-					console.log(`[DEBUG] Cancelling streaming request: ${requestId}`)
-					grpcHandler.cancelRequest(requestId)
-				}
+				})()
 			}) as any
 		} else {
 			// Unary method implementation
@@ -106,9 +81,14 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 					const requestId = uuidv4()
 					console.log(`[DEBUG] gRPC host call to ${service.fullName}.${methodKey} req:${requestId}`)
 					try {
-						const response = await grpcHandler.handleRequest(service.fullName, methodKey, request, requestId, false)
+						const response = await grpcHandler.handleRequest(service.fullName, methodKey, request, requestId)
 						console.log(`[DEBUG] gRPC host resp to ${service.fullName}.${methodKey} req:${requestId}`)
-						if (response && response.message) {
+
+						// Check if the response is a function (streaming) or an object (unary)
+						if (typeof response === "function") {
+							// This shouldn't happen for unary requests
+							throw new Error("Received streaming response for unary request")
+						} else if (response && response.message) {
 							resolve(response.message)
 						} else {
 							throw new Error("gRPC response didn't have a message")
