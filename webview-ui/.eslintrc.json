@@ -26,6 +26,7 @@
 		"react-hooks/exhaustive-deps": "off",
 		"prefer-const": "off",
 		"no-extra-semi": "off",
+		"eslint-rules/no-protobuf-object-literals": "error",
 		"eslint-rules/no-grpc-client-object-literals": "error"
 	},
 	"ignorePatterns": ["build"]
