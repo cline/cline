@@ -196,9 +196,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					case "settingsButtonClicked":
 						navigateToSettings()
 						break
-					case "accountButtonClicked":
-						navigateToAccount()
-						break
 					case "chatButtonClicked":
 						navigateToChat()
 						break
@@ -270,6 +267,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const accountButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -389,6 +387,21 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
+		// Set up account button clicked subscription
+		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
+			onResponse: () => {
+				// When account button is clicked, navigate to account view
+				console.log("[DEBUG] Received account button clicked event from gRPC stream")
+				navigateToAccount()
+			},
+			onError: (error) => {
+				console.error("Error in account button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Account button clicked subscription completed")
+			},
+		})
+
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -402,6 +415,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (historyButtonClickedSubscriptionRef.current) {
 				historyButtonClickedSubscriptionRef.current()
 				historyButtonClickedSubscriptionRef.current = null
+			}
+			if (accountButtonClickedSubscriptionRef.current) {
+				accountButtonClickedSubscriptionRef.current()
+				accountButtonClickedSubscriptionRef.current = null
 			}
 		}
 	}, [])

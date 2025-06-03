@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
+import { v4 as uuidv4 } from "uuid"
 
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
@@ -65,6 +66,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
+	readonly id: string = uuidv4()
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
