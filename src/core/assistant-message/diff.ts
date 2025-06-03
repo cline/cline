@@ -2,6 +2,9 @@ const SEARCH_BLOCK_START = "------- SEARCH"
 const SEARCH_BLOCK_END = "======="
 const REPLACE_BLOCK_END = "+++++++ REPLACE"
 
+const SEARCH_BLOCK_CHAR = "-"
+const REPLACE_BLOCK_CHAR = "+"
+
 /**
  * Attempts a line-trimmed fallback match for the given search content in the original content.
  * It tries to match `searchContent` lines against a block of lines in `originalContent` starting
@@ -247,7 +250,7 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith("<") || lastLine.startsWith("=") || lastLine.startsWith(">")) &&
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
 		lastLine !== SEARCH_BLOCK_START &&
 		lastLine !== SEARCH_BLOCK_END &&
 		lastLine !== REPLACE_BLOCK_END
@@ -610,7 +613,7 @@ class NewFileContentConstructor {
 		if (!lineLimit) {
 			throw new Error("Invalid SEARCH/REPLACE block structure - no lines available to process")
 		}
-		let searchTagRegexp = /^[<]{3,} SEARCH$/
+		let searchTagRegexp = /^[-]{3,} SEARCH$/
 		const searchTagIndex = this.findLastMatchingLineIndex(searchTagRegexp, lineLimit)
 		if (searchTagIndex !== -1) {
 			let fixLines = this.pendingNonStandardLines.slice(searchTagIndex, lineLimit)
@@ -661,7 +664,7 @@ class NewFileContentConstructor {
 			throw new Error()
 		}
 
-		let replaceEndTagRegexp = /^[>]{3,} REPLACE$/
+		let replaceEndTagRegexp = /^[+]{3,} REPLACE$/
 		const replaceEndTagIndex = this.findLastMatchingLineIndex(replaceEndTagRegexp, lineLimit)
 		const likeReplaceEndTag = replaceEndTagIndex === lineLimit - 1
 		if (likeReplaceEndTag) {
@@ -710,7 +713,7 @@ export async function constructNewFileContentV2(diffContent: string, originalCon
 	const lastLine = lines[lines.length - 1]
 	if (
 		lines.length > 0 &&
-		(lastLine.startsWith("<") || lastLine.startsWith("=") || lastLine.startsWith(">")) &&
+		(lastLine.startsWith(SEARCH_BLOCK_CHAR) || lastLine.startsWith("=") || lastLine.startsWith(REPLACE_BLOCK_CHAR)) &&
 		lastLine !== SEARCH_BLOCK_START &&
 		lastLine !== SEARCH_BLOCK_END &&
 		lastLine !== REPLACE_BLOCK_END
