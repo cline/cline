@@ -218,9 +218,11 @@ export function convertProtoApiConfigurationToDomainApiConfiguration(protoConfig
 				} as CerebrasConfig)
 			: undefined,
 
-		vscodelm: protoConfig.vscode
+		vscodelm: protoConfig.vscodelm
 			? ({
-					modelSelector: protoConfig.vscode.modelSelector ? JSON.parse(protoConfig.vscode.modelSelector) : undefined,
+					modelSelector: protoConfig.vscodelm.modelSelector
+						? JSON.parse(protoConfig.vscodelm.modelSelector)
+						: undefined,
 				} as VSCodeLMConfig)
 			: undefined,
 
