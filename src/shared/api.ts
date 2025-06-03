@@ -25,6 +25,7 @@ export type ApiProvider =
 	| "xai"
 	| "sambanova"
 	| "cerebras"
+	| "groq"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -91,6 +92,9 @@ export interface ApiHandlerOptions {
 	reasoningEffort?: string
 	sambanovaApiKey?: string
 	cerebrasApiKey?: string
+	groqApiKey?: string
+	groqModelId?: string
+	groqModelInfo?: ModelInfo
 	requestTimeoutMs?: number
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 }
@@ -2063,6 +2067,133 @@ export const cerebrasModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "Advanced reasoning model with ~2300 tokens/s (private preview)",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Groq
+// https://console.groq.com/docs/models
+// https://groq.com/pricing/
+export type GroqModelId = keyof typeof groqModels
+export const groqDefaultModelId: GroqModelId = "llama-3.3-70b-versatile"
+export const groqModels = {
+	// Compound Beta Models - Hybrid architectures optimized for tool use
+	"compound-beta": {
+		maxTokens: 8192,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		description:
+			"Compound model using Llama 4 Scout for core reasoning with Llama 3.3 70B for routing and tool use. Excellent for plan/act workflows.",
+	},
+	"compound-beta-mini": {
+		maxTokens: 8192,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		description: "Lightweight compound model for faster inference while maintaining tool use capabilities.",
+	},
+	// DeepSeek Models - Reasoning-optimized
+	"deepseek-r1-distill-llama-70b": {
+		maxTokens: 8192,
+		contextWindow: 64000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.75,
+		outputPrice: 0.99,
+		description:
+			"DeepSeek R1 reasoning capabilities distilled into Llama 70B architecture. Excellent for complex problem-solving and planning.",
+	},
+	// Google Gemma Models
+	"gemma2-9b-it": {
+		maxTokens: 8192,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.2,
+		description: "Google's Gemma 2 9B instruction-tuned model with strong tool use capabilities and fast inference.",
+	},
+	// Llama 4 Models
+	"meta-llama/llama-4-maverick-17b-128e-instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+		description: "Meta's Llama 4 Maverick 17B model with 128 experts, supports vision and multimodal tasks.",
+	},
+	"meta-llama/llama-4-scout-17b-16e-instruct": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.31,
+		outputPrice: 0.36,
+		description: "Meta's Llama 4 Scout 17B model with 16 experts, optimized for fast inference and general tasks.",
+	},
+	// Llama 3.3 Models
+	"llama-3.3-70b-versatile": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.79,
+		outputPrice: 0.79,
+		description: "Meta's latest Llama 3.3 70B model optimized for versatile use cases with excellent performance and speed.",
+	},
+	// Llama 3.1 Models - Fast inference
+	"llama-3.1-8b-instant": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.08,
+		description: "Fast and efficient Llama 3.1 8B model optimized for speed, low latency, and reliable tool execution.",
+	},
+	// Llama 3 Models
+	"llama3-70b-8192": {
+		maxTokens: 8192,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.59,
+		outputPrice: 0.79,
+		description: "Meta's Llama 3 70B model with 8K context window for general tasks.",
+	},
+	"llama3-8b-8192": {
+		maxTokens: 8192,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.08,
+		description: "Meta's Llama 3 8B model with 8K context window, fast and efficient.",
+	},
+	// Mistral Models
+	"mistral-saba-24b": {
+		maxTokens: 32768,
+		contextWindow: 32768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.79,
+		outputPrice: 0.79,
+		description: "Mistral's Saba 24B model with balanced performance, efficiency, and strong tool use capabilities.",
+	},
+	// Qwen Models
+	"qwen-qwq-32b": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.29,
+		outputPrice: 0.39,
+		description: "Qwen QwQ 32B model with 128K context window, optimized for question-answering tasks.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
