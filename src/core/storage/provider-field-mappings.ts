@@ -1,14 +1,13 @@
 import { ApiConfiguration } from "@shared/api"
-import { GlobalStateKey, SecretKey } from "./state-keys"
 
 /**
  * Defines how provider configuration fields map to storage keys
  */
 export interface ProviderFieldMapping {
 	/** Fields that should be stored as secrets */
-	secrets?: Record<string, SecretKey>
+	secrets?: Record<string, string>
 	/** Fields that should be stored in global state */
-	globalState?: Record<string, GlobalStateKey>
+	globalState?: Record<string, string>
 }
 
 /**
@@ -16,7 +15,7 @@ export interface ProviderFieldMapping {
  * This defines how each provider's configuration fields map to storage keys
  * Only includes provider-specific configuration objects, not core fields like apiProvider, apiModelId, etc.
  */
-export const PROVIDER_FIELD_MAPPINGS: Record<string, ProviderFieldMapping> = {
+export const PROVIDER_FIELD_MAPPINGS = {
 	anthropic: {
 		secrets: {
 			apiKey: "apiKey",
@@ -156,11 +155,6 @@ export const PROVIDER_FIELD_MAPPINGS: Record<string, ProviderFieldMapping> = {
 			apiKey: "mistralApiKey",
 		},
 	},
-	azure: {
-		globalState: {
-			apiVersion: "azureApiVersion",
-		},
-	},
 	vscodelm: {
 		globalState: {
 			modelSelector: "vsCodeLmModelSelector",
@@ -199,4 +193,4 @@ export const PROVIDER_FIELD_MAPPINGS: Record<string, ProviderFieldMapping> = {
 			apiKey: "clineApiKey",
 		},
 	},
-}
+} as const

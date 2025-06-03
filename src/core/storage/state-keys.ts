@@ -1,65 +1,42 @@
-export type SecretKey =
-	| "apiKey"
-	| "clineApiKey"
-	| "openRouterApiKey"
-	| "awsAccessKey"
-	| "awsSecretKey"
-	| "awsSessionToken"
-	| "openAiApiKey"
-	| "geminiApiKey"
-	| "openAiNativeApiKey"
-	| "deepSeekApiKey"
-	| "requestyApiKey"
-	| "togetherApiKey"
-	| "fireworksApiKey"
-	| "qwenApiKey"
-	| "doubaoApiKey"
-	| "mistralApiKey"
-	| "liteLlmApiKey"
-	| "authNonce"
-	| "asksageApiKey"
-	| "xaiApiKey"
-	| "nebiusApiKey"
-	| "sambanovaApiKey"
-	| "cerebrasApiKey"
+import { PROVIDER_FIELD_MAPPINGS } from "./provider-field-mappings"
 
-export type GlobalStateKey =
+// Extract provider-specific secret keys from the mappings
+type ProviderSecretKeys = {
+	[K in keyof typeof PROVIDER_FIELD_MAPPINGS]: (typeof PROVIDER_FIELD_MAPPINGS)[K] extends {
+		secrets: infer S
+	}
+		? S extends Record<string, infer V>
+			? V
+			: never
+		: never
+}[keyof typeof PROVIDER_FIELD_MAPPINGS]
+
+// Extract provider-specific global state keys from the mappings
+type ProviderGlobalStateKeys = {
+	[K in keyof typeof PROVIDER_FIELD_MAPPINGS]: (typeof PROVIDER_FIELD_MAPPINGS)[K] extends {
+		globalState: infer G
+	}
+		? G extends Record<string, infer V>
+			? V
+			: never
+		: never
+}[keyof typeof PROVIDER_FIELD_MAPPINGS]
+
+// Core secret keys that aren't provider-specific
+type CoreSecretKeys = "authNonce"
+
+// Core global state keys that aren't provider-specific
+type CoreGlobalStateKeys =
 	| "apiProvider"
 	| "apiModelId"
-	| "awsRegion"
-	| "awsUseCrossRegionInference"
-	| "awsBedrockUsePromptCache"
-	| "awsBedrockEndpoint"
-	| "awsProfile"
-	| "awsUseProfile"
-	| "awsBedrockCustomSelected"
-	| "awsBedrockCustomModelBaseId"
-	| "vertexProjectId"
-	| "vertexRegion"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
 	| "taskHistory"
-	| "openAiBaseUrl"
-	| "openAiModelId"
-	| "openAiModelInfo"
-	| "openAiHeaders"
-	| "ollamaModelId"
-	| "ollamaBaseUrl"
-	| "ollamaApiOptionsCtxNum"
-	| "lmStudioModelId"
-	| "lmStudioBaseUrl"
-	| "anthropicBaseUrl"
-	| "geminiBaseUrl"
-	| "azureApiVersion"
-	| "openRouterModelId"
-	| "openRouterModelInfo"
-	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
 	| "globalClineRulesToggles"
 	| "globalWorkflowToggles"
 	| "browserSettings"
 	| "chatSettings"
-	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"
 	| "previousModeModelId"
@@ -69,20 +46,8 @@ export type GlobalStateKey =
 	| "previousModeAwsBedrockCustomSelected"
 	| "previousModeAwsBedrockCustomModelBaseId"
 	| "previousModeModelInfo"
-	| "liteLlmBaseUrl"
-	| "liteLlmModelId"
-	| "liteLlmModelInfo"
-	| "liteLlmUsePromptCache"
-	| "fireworksModelId"
-	| "fireworksModelMaxCompletionTokens"
-	| "fireworksModelMaxTokens"
-	| "qwenApiLine"
-	| "requestyModelId"
-	| "requestyModelInfo"
-	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
-	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "reasoningEffort"
 	| "planActSeparateModelsSetting"
@@ -93,4 +58,7 @@ export type GlobalStateKey =
 	| "shellIntegrationTimeout"
 	| "isNewUser"
 
+// Final exported types combining provider-specific and core keys
+export type SecretKey = ProviderSecretKeys | CoreSecretKeys
+export type GlobalStateKey = ProviderGlobalStateKeys | CoreGlobalStateKeys
 export type LocalStateKey = "localClineRulesToggles"

@@ -85,20 +85,20 @@ async function updateProviderConfigurations(context: vscode.ExtensionContext, ap
 
 		if (providerConfig) {
 			// Update secrets
-			if (mapping.secrets) {
+			if ("secrets" in mapping && mapping.secrets) {
 				for (const [fieldName, secretKey] of Object.entries(mapping.secrets)) {
 					const value = providerConfig[fieldName]
-					await storeSecret(context, secretKey, value)
+					await storeSecret(context, secretKey as SecretKey, value)
 				}
 			}
 
 			// Update global state
-			if (mapping.globalState) {
+			if ("globalState" in mapping && mapping.globalState) {
 				for (const [fieldName, globalStateKey] of Object.entries(mapping.globalState)) {
 					const value = providerConfig[fieldName]
 					// Handle special case for headers field which should default to empty object
 					const finalValue = fieldName === "headers" ? value || {} : value
-					await updateGlobalState(context, globalStateKey, finalValue)
+					await updateGlobalState(context, globalStateKey as GlobalStateKey, finalValue)
 				}
 			}
 		}
@@ -115,17 +115,17 @@ async function loadProviderStorageValues(context: vscode.ExtensionContext): Prom
 	// Collect all storage operations
 	for (const [providerName, mapping] of Object.entries(PROVIDER_FIELD_MAPPINGS)) {
 		// Add secret promises
-		if (mapping.secrets) {
+		if ("secrets" in mapping && mapping.secrets) {
 			for (const [fieldName, secretKey] of Object.entries(mapping.secrets)) {
-				promises.push(getSecret(context, secretKey))
+				promises.push(getSecret(context, secretKey as SecretKey))
 				keys.push(`${providerName}.${fieldName}`)
 			}
 		}
 
 		// Add global state promises
-		if (mapping.globalState) {
+		if ("globalState" in mapping && mapping.globalState) {
 			for (const [fieldName, globalStateKey] of Object.entries(mapping.globalState)) {
-				promises.push(getGlobalState(context, globalStateKey))
+				promises.push(getGlobalState(context, globalStateKey as GlobalStateKey))
 				keys.push(`${providerName}.${fieldName}`)
 			}
 		}
