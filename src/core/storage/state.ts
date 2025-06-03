@@ -701,6 +701,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"sambanovaApiKey",
 		"cerebrasApiKey",
 		"nebiusApiKey",
+		"authNonce",
 	]
 	for (const key of secretKeys) {
 		await storeSecret(context, key, undefined)
