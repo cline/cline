@@ -105,7 +105,7 @@ message ApiConfiguration {
   optional DoubaoConfig doubao = 18;
   optional MistralConfig mistral = 19;
   optional AzureConfig azure = 20;
-  optional VSCodeLMConfig vscode = 21;
+  optional VSCodeLMConfig vscodelm = 21;
   optional NebiusConfig nebius = 22;
   optional AskSageConfig asksage = 23;
   optional XAIConfig xai = 24;

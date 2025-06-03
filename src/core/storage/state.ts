@@ -81,14 +81,15 @@ async function migrateEnableCheckpointsSetting(enableCheckpointsSettingRaw: bool
 async function updateProviderConfigurations(context: vscode.ExtensionContext, apiConfiguration: ApiConfiguration) {
 	// Iterate through each provider in the mappings
 	for (const [providerName, mapping] of Object.entries(PROVIDER_FIELD_MAPPINGS)) {
-		const providerConfig = (apiConfiguration as any)[providerName]
+		const providerConfig = apiConfiguration[providerName as keyof ApiConfiguration] as Record<string, unknown> | undefined
 
-		if (providerConfig) {
+		if (providerConfig && typeof providerConfig === "object") {
 			// Update secrets
 			if ("secrets" in mapping && mapping.secrets) {
 				for (const [fieldName, secretKey] of Object.entries(mapping.secrets)) {
 					const value = providerConfig[fieldName]
-					await storeSecret(context, secretKey as SecretKey, value)
+					const secretValue = typeof value === "string" ? value : undefined
+					await storeSecret(context, secretKey as SecretKey, secretValue)
 				}
 			}
 

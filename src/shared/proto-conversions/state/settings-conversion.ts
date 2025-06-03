@@ -47,8 +47,8 @@ export function convertProtoApiConfigurationToDomainApiConfiguration(protoConfig
 		// Map nested configurations from proto to domain
 		anthropic: protoConfig.anthropic
 			? ({
-					apiKey: (protoConfig.anthropic as any).apiKey,
-					baseUrl: (protoConfig.anthropic as any).baseUrl,
+					apiKey: protoConfig.anthropic.apiKey,
+					baseUrl: protoConfig.anthropic.baseUrl,
 				} as AnthropicConfig)
 			: undefined,
 
@@ -235,9 +235,9 @@ export function convertProtoApiConfigurationToDomainApiConfiguration(protoConfig
 	const finalConfig = domainConfig as DomainApiConfiguration
 
 	// Use dynamic property access to add the legacy apiKey field
-	if (protoConfig.anthropic && typeof protoConfig.anthropic === "object") {
-		// Bypass TypeScript type checking by using index notation
-		;(finalConfig as any)["apiKey"] = (protoConfig.anthropic as any).apiKey
+	if (protoConfig.anthropic && typeof protoConfig.anthropic === "object" && protoConfig.anthropic.apiKey) {
+		// Use index signature for legacy compatibility
+		;(finalConfig as DomainApiConfiguration & { apiKey?: string })["apiKey"] = protoConfig.anthropic.apiKey
 	}
 
 	// Filter out empty configurations
