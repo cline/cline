@@ -87,7 +87,7 @@
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/react": "^16.2.0",
 		"@testing-library/user-event": "^14.6.1",
-		"@types/jest": "^27.5.2",
+		"@types/jest": "^29.0.0",
 		"@types/node": "^18.0.0",
 		"@types/react": "^18.3.23",
 		"@types/react-dom": "^18.3.5",
