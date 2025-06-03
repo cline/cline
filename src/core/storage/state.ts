@@ -288,7 +288,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			// General settings
 			thinkingBudgetTokens,
 			reasoningEffort,
-			favoritedModelIds,
 			requestTimeoutMs,
 		} as ApiConfiguration,
 		isNewUser: isNewUser ?? true,
@@ -322,15 +321,13 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 }
 
 export async function updateApiConfiguration(context: vscode.ExtensionContext, apiConfiguration: ApiConfiguration) {
-	const { apiProvider, apiModelId, thinkingBudgetTokens, reasoningEffort, favoritedModelIds, requestTimeoutMs } =
-		apiConfiguration
+	const { apiProvider, apiModelId, thinkingBudgetTokens, reasoningEffort, requestTimeoutMs } = apiConfiguration
 
 	// Update core fields
 	await updateGlobalState(context, "apiProvider", apiProvider)
 	await updateGlobalState(context, "apiModelId", apiModelId)
 	await updateGlobalState(context, "thinkingBudgetTokens", thinkingBudgetTokens)
 	await updateGlobalState(context, "reasoningEffort", reasoningEffort)
-	await updateGlobalState(context, "favoritedModelIds", favoritedModelIds)
 	await updateGlobalState(context, "requestTimeoutMs", requestTimeoutMs)
 
 	// Update provider-specific fields dynamically

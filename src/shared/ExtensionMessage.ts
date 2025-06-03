@@ -122,6 +122,7 @@ export interface ExtensionState {
 	}
 	version: string
 	distinctId: string
+	favoritedModelIds?: string[]
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
 	localWorkflowToggles: ClineRulesToggles

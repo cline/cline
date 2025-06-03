@@ -1166,6 +1166,8 @@ export class Controller {
 			isNewUser,
 		} = await getAllExtensionState(this.context)
 
+		const favoritedModelIds = (await getGlobalState(this.context, "favoritedModelIds")) as string[] | undefined
+
 		const localClineRulesToggles =
 			((await getWorkspaceState(this.context, "localClineRulesToggles")) as ClineRulesToggles) || {}
 
@@ -1200,6 +1202,7 @@ export class Controller {
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 			distinctId: telemetryService.distinctId,
+			favoritedModelIds,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},

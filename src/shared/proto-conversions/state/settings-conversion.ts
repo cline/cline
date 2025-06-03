@@ -43,7 +43,6 @@ export function convertProtoApiConfigurationToDomainApiConfiguration(protoConfig
 		apiModelId: protoConfig.apiModelId,
 		reasoningEffort: protoConfig.reasoningEffort,
 		thinkingBudgetTokens: protoConfig.thinkingBudgetTokens,
-		favoritedModelIds: protoConfig.favoritedModelIds,
 
 		// Map nested configurations from proto to domain
 		anthropic: protoConfig.anthropic
@@ -280,7 +279,6 @@ export function convertDomainApiConfigurationToProtoApiConfiguration(domainConfi
 		apiModelId: domainConfig.apiModelId,
 		reasoningEffort: domainConfig.reasoningEffort,
 		thinkingBudgetTokens: domainConfig.thinkingBudgetTokens,
-		favoritedModelIds: domainConfig.favoritedModelIds,
 	}
 
 	// Create nested configurations

@@ -59,7 +59,8 @@ const featuredModels = [
 ]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels, refreshOpenRouterModels } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, openRouterModels, refreshOpenRouterModels, favoritedModelIds } =
+		useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openrouter?.modelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -129,21 +130,23 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		const favoritedModelIds = apiConfiguration?.favoritedModelIds || []
+		const currentFavoritedModelIds = favoritedModelIds || []
 
 		// IMPORTANT: highlightjs has a bug where if you use sort/localCompare - "// results.sort((a, b) => a.id.localeCompare(b.id)) ...sorting like this causes ids in objects to be reordered and mismatched"
 
 		// First, get all favorited models
-		const favoritedModels = searchableItems.filter((item) => favoritedModelIds.includes(item.id))
+		const favoritedModels = searchableItems.filter((item) => currentFavoritedModelIds.includes(item.id))
 
 		// Then get search results for non-favorited models
 		const searchResults = searchTerm
-			? highlight(fuse.search(searchTerm), "model-item-highlight").filter((item) => !favoritedModelIds.includes(item.id))
-			: searchableItems.filter((item) => !favoritedModelIds.includes(item.id))
+			? highlight(fuse.search(searchTerm), "model-item-highlight").filter(
+					(item) => !currentFavoritedModelIds.includes(item.id),
+				)
+			: searchableItems.filter((item) => !currentFavoritedModelIds.includes(item.id))
 
 		// Combine favorited models with search results
 		return [...favoritedModels, ...searchResults]
-	}, [searchableItems, searchTerm, fuse, apiConfiguration?.favoritedModelIds])
+	}, [searchableItems, searchTerm, fuse, favoritedModelIds])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) return
@@ -275,7 +278,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 					{isDropdownVisible && (
 						<DropdownList ref={dropdownListRef}>
 							{modelSearchResults.map((item, index) => {
-								const isFavorite = (apiConfiguration?.favoritedModelIds || []).includes(item.id)
+								const isFavorite = (favoritedModelIds || []).includes(item.id)
 								return (
 									<DropdownItem
 										key={item.id}

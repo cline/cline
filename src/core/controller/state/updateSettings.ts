@@ -60,13 +60,13 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 	}
 
-	// Favorited model IDs   --- TODO review this
-	//if (request.favoritedModelIds && request.favoritedModelIds.length > 0) {
-	//	await updateGlobalState(controller.context, "favoritedModelIds", request.favoritedModelIds)
-	//	console.log("[DEBUG] Saving favoritedModelIds:", request.favoritedModelIds)
-	//}
-	//
-	//// Request timeout - Used by Ollama provider
+	// Favorited model IDs
+	if (request.favoritedModelIds && request.favoritedModelIds.length > 0) {
+		await updateGlobalState(controller.context, "favoritedModelIds", request.favoritedModelIds)
+		console.log("[DEBUG] Saving favoritedModelIds:", request.favoritedModelIds)
+	}
+
+	// Request timeout - Used by Ollama provider
 	if (typeof request.requestTimeoutMs === "number") {
 		console.log("[DEBUG] Saving requestTimeoutMs:", request.requestTimeoutMs)
 		await updateGlobalState(controller.context, "requestTimeoutMs", request.requestTimeoutMs)
