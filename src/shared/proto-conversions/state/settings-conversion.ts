@@ -134,6 +134,7 @@ export function convertProtoApiConfigurationToDomainApiConfiguration(protoConfig
 
 		fireworks: protoConfig.fireworks
 			? ({
+					apiKey: protoConfig.fireworks.apiKey,
 					modelId: protoConfig.fireworks.modelId,
 					modelMaxCompletionTokens: protoConfig.fireworks.modelMaxCompletionTokens,
 					modelMaxTokens: protoConfig.fireworks.modelMaxTokens,
@@ -383,6 +384,7 @@ export function convertDomainApiConfigurationToProtoApiConfiguration(domainConfi
 	// Fireworks
 	if (domainConfig.fireworks) {
 		protoConfig.fireworks = {
+			apiKey: domainConfig.fireworks.apiKey,
 			modelId: domainConfig.fireworks.modelId,
 			modelMaxCompletionTokens: domainConfig.fireworks.modelMaxCompletionTokens,
 			modelMaxTokens: domainConfig.fireworks.modelMaxTokens,

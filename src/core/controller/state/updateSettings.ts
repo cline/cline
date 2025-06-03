@@ -16,6 +16,8 @@ import {
  * @returns Empty response
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
+	console.log("[DEBUG] updateSettings called with request:", request)
+
 	// API configuration
 	if (request.apiConfiguration) {
 		const domainConfig = convertProtoApiConfigurationToDomainApiConfiguration(request.apiConfiguration)

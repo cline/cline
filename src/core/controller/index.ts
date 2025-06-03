@@ -253,7 +253,11 @@ export class Controller {
 					if (response && response.models) {
 						// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 						const { apiConfiguration } = await getAllExtensionState(this.context)
-						if (apiConfiguration.openrouter.modelId && response.models[apiConfiguration.openrouter.modelId]) {
+						if (
+							apiConfiguration.openrouter &&
+							apiConfiguration.openrouter.modelId &&
+							response.models[apiConfiguration.openrouter.modelId]
+						) {
 							await updateGlobalState(
 								this.context,
 								"openRouterModelInfo",
@@ -454,21 +458,30 @@ export class Controller {
 					break
 				case "bedrock":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
-					await updateGlobalState(
-						this.context,
-						"previousModeAwsBedrockCustomSelected",
-						apiConfiguration.aws.bedrockCustomSelected,
-					)
-					await updateGlobalState(
-						this.context,
-						"previousModeAwsBedrockCustomModelBaseId",
-						apiConfiguration.aws.bedrockCustomModelBaseId,
-					)
+
+					if (apiConfiguration.aws) {
+						await updateGlobalState(
+							this.context,
+							"previousModeAwsBedrockCustomSelected",
+							apiConfiguration.aws.bedrockCustomSelected,
+						)
+					}
+					if (apiConfiguration.aws) {
+						await updateGlobalState(
+							this.context,
+							"previousModeAwsBedrockCustomModelBaseId",
+							apiConfiguration.aws.bedrockCustomModelBaseId,
+						)
+					}
 					break
 				case "openrouter":
 				case "cline":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openrouter.modelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openrouter.modelInfo)
+					if (apiConfiguration.openrouter) {
+						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openrouter.modelId)
+					}
+					if (apiConfiguration.openrouter) {
+						await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openrouter.modelInfo)
+					}
 					break
 				case "vscode-lm":
 					// Important we don't set modelId to this, as it's an object not string (webview expects model id to be a string)
@@ -479,22 +492,38 @@ export class Controller {
 					)
 					break
 				case "openai":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openai.modelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openai.modelInfo)
+					if (apiConfiguration.openai) {
+						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.openai.modelId)
+					}
+					if (apiConfiguration.openai) {
+						await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.openai.modelInfo)
+					}
 					break
 				case "ollama":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollama.modelId)
+					if (apiConfiguration.ollama) {
+						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.ollama.modelId)
+					}
 					break
 				case "lmstudio":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmstudio.modelId)
+					if (apiConfiguration.lmstudio) {
+						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.lmstudio.modelId)
+					}
 					break
 				case "litellm":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.litellm.modelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.litellm.modelInfo)
+					if (apiConfiguration.litellm) {
+						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.litellm.modelId)
+					}
+					if (apiConfiguration.litellm) {
+						await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.litellm.modelInfo)
+					}
 					break
 				case "requesty":
-					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requesty.modelId)
-					await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requesty.modelInfo)
+					if (apiConfiguration.requesty) {
+						await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requesty.modelId)
+					}
+					if (apiConfiguration.requesty) {
+						await updateGlobalState(this.context, "previousModeModelInfo", apiConfiguration.requesty.modelInfo)
+					}
 					break
 			}
 
@@ -544,8 +573,9 @@ export class Controller {
 						await updateGlobalState(this.context, "lmStudioModelId", newModelId)
 						break
 					case "litellm":
-						await updateGlobalState(this.context, "liteLlmModelId", apiConfiguration.litellm.modelId)
-						await updateGlobalState(this.context, "liteLlmModelInfo", apiConfiguration.litellm.modelInfo)
+						if (apiConfiguration.litellm) {
+							await updateGlobalState(this.context, "liteLlmModelInfo", apiConfiguration.litellm.modelInfo)
+						}
 						break
 					case "requesty":
 						await updateGlobalState(this.context, "requestyModelId", newModelId)
