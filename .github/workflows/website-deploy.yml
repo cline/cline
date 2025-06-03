@@ -1,6 +1,11 @@
 name: Deploy roocode.com
 
 on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'apps/web-roo-code/**'
     workflow_dispatch:
 
 env:
@@ -10,6 +15,7 @@ env:
 jobs:
     deploy:
         runs-on: ubuntu-latest
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
