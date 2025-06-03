@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient, UiServiceClient, ModelsServiceClient } from "../services/grpc-client"
+import { StateServiceClient, UiServiceClient, ModelsServiceClient, McpServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
@@ -18,6 +18,7 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 
@@ -251,10 +252,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 				break
 			}
-			case "mcpServers": {
-				setMcpServers(message.mcpServers ?? [])
-				break
-			}
 			case "mcpMarketplaceCatalog": {
 				if (message.mcpMarketplaceCatalog) {
 					setMcpMarketplaceCatalog(message.mcpMarketplaceCatalog)
@@ -270,6 +267,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
+	const accountButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -386,6 +385,22 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
+		// Subscribe to MCP servers updates
+		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
+			onResponse: (response) => {
+				console.log("[DEBUG] Received MCP servers update from gRPC stream")
+				if (response.mcpServers) {
+					setMcpServers(convertProtoMcpServersToMcpServers(response.mcpServers))
+				}
+			},
+			onError: (error) => {
+				console.error("Error in MCP servers subscription:", error)
+			},
+			onComplete: () => {
+				console.log("MCP servers subscription completed")
+			},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -402,6 +417,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (historyButtonClickedSubscriptionRef.current) {
 				historyButtonClickedSubscriptionRef.current()
 				historyButtonClickedSubscriptionRef.current = null
+			}
+
+			if (mcpServersSubscriptionRef.current) {
+				mcpServersSubscriptionRef.current()
+				mcpServersSubscriptionRef.current = null
 			}
 		}
 	}, [])

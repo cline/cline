@@ -25,7 +25,6 @@ export interface ExtensionMessage {
 		| "openRouterModels"
 		| "openAiModels"
 		| "requestyModels"
-		| "mcpServers"
 		| "relinquishControl"
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
