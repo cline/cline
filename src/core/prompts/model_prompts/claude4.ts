@@ -29,16 +29,6 @@ Tool use is formatted using XML-style tags. The tool name is enclosed in opening
 ...
 </tool_name>
 
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-  Parameters:
-  - file_path (required): Absolute path to the file to modify
-  - edits (required): Array of edit operations, each containing:
-    - old_string (required): Exact text to replace
-    - new_string (required): The replacement text
-=======
->>>>>>> Stashed changes
 For example:
 
 <read_file>
@@ -118,23 +108,6 @@ Search and replace blocks here
 </diff> 
 </replace_in_file>
 
-<<<<<<< Updated upstream
-
-## search_files
-Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.
-Parameters:
-- path: (required) The path of the directory to search in (relative to the current working directory ${cwd.toPosix()}). This directory will be recursively searched.
-- regex: (required) The regular expression pattern to search for. Uses Rust regex syntax.
-- file_pattern: (optional) Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).
-Usage:
-<search_files>
-<path>Directory path here</path>
-<regex>Your regex pattern here</regex>
-<file_pattern>file pattern here (optional)</file_pattern>
-</search_files>
-
-=======
->>>>>>> Stashed changes
 ## list_files
 Description: Request to list files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not.
 Parameters:
@@ -193,8 +166,6 @@ Usage:
         : ""
 }
 
-<<<<<<< Updated upstream
-=======
 ## web_fetch
 Description: Fetches content from a specified URL and processes into markdown
 - Takes a URL as input
@@ -212,7 +183,6 @@ Usage:
 </web_fetch>
 
 
->>>>>>> Stashed changes
 ## use_mcp_tool
 Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.
 Parameters:
@@ -242,8 +212,6 @@ Usage:
 <uri>resource URI here</uri>
 </access_mcp_resource>
 
-<<<<<<< Updated upstream
-=======
 ## search_files
 Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context. IMPORTANT NOTE: Use this tool sparingly, and opt to explore the codebase using the \`list_files\` and \`read_file\` tools instead.
 Parameters:
@@ -257,7 +225,6 @@ Usage:
 <file_pattern>file pattern here (optional)</file_pattern>
 </search_files>
 
->>>>>>> Stashed changes
 ## ask_followup_question
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
@@ -301,11 +268,7 @@ Usage:
 </new_task>
 
 ## plan_mode_respond
-<<<<<<< Updated upstream
-Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
-=======
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution. IMPORTANT NOTE: You should NOT ask for permission to read files or explore the repo. Just do that proactively. This tool should only be used when you've already gathered enough information to make a plan.
->>>>>>> Stashed changes
 Parameters:
 - response: (required) The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.)
 Usage:
@@ -447,10 +410,6 @@ return (
 }
 </arguments>
 </use_mcp_tool>
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
 # Tool Use Guidelines
 
