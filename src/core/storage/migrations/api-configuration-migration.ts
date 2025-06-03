@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import { ApiConfiguration } from "@shared/api"
 import { getAllExtensionState, updateApiConfiguration } from "../state"
+import { PROVIDER_FIELD_MAPPINGS } from "../provider-field-mappings"
 
 // Define a type that represents the legacy flat structure
 // This allows us to access the old properties while migrating
@@ -8,7 +9,7 @@ interface LegacyApiConfiguration {
 	// Core properties
 	apiProvider?: string
 	apiModelId?: string
-	apiKey?: string // anthropic
+	apiKey?: string // anthropic (legacy)
 
 	// OpenRouter properties
 	openRouterApiKey?: string
@@ -122,13 +123,16 @@ interface LegacyApiConfiguration {
 	// General settings
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
-	favoritedModelIds?: string[]
 	requestTimeoutMs?: number
 }
 
 /**
  * Migration version identifier
  * Increment this when adding new migrations
+ *
+ * Version 1: Migrate from flat API configuration structure to nested provider-specific structure
+ * This migration uses PROVIDER_FIELD_MAPPINGS to dynamically handle all providers,
+ * making it more maintainable and ensuring new providers are automatically supported.
  */
 export const API_CONFIG_SCHEMA_VERSION = 1
 
@@ -146,12 +150,10 @@ export function needsApiConfigMigration(apiConfig: any): boolean {
 	// Cast to legacy type to access old properties
 	const legacyConfig = apiConfig as LegacyApiConfiguration
 
-	// Check if API config already has the nested structure
-	// by looking for a few key nested properties
+	// Check if API config already has the nested structure by looking for key indicators
+	// We'll check a few representative providers to determine if migration is needed
 
-	// Check if old format exists but new nested format doesn't
-
-	// Anthropic (use apiKey as indicator)
+	// Anthropic (use legacy apiKey as indicator)
 	if (legacyConfig.apiKey && !apiConfig.anthropic?.apiKey) {
 		return true
 	}
@@ -174,6 +176,25 @@ export function needsApiConfigMigration(apiConfig: any): boolean {
 	// Ollama
 	if (legacyConfig.ollamaModelId && !apiConfig.ollama?.modelId) {
 		return true
+	}
+
+	// Check for any other legacy fields that might indicate migration is needed
+	// This is a more comprehensive check using the provider field mappings
+	for (const [providerName, mapping] of Object.entries(PROVIDER_FIELD_MAPPINGS)) {
+		// Check if any legacy fields exist but the nested structure doesn't
+		const hasLegacyFields =
+			("secrets" in mapping &&
+				mapping.secrets &&
+				Object.values(mapping.secrets).some((legacyKey) => (legacyConfig as any)[legacyKey])) ||
+			("globalState" in mapping &&
+				mapping.globalState &&
+				Object.values(mapping.globalState).some((legacyKey) => (legacyConfig as any)[legacyKey]))
+
+		const hasNestedStructure = (apiConfig as any)[providerName] && Object.keys((apiConfig as any)[providerName]).length > 0
+
+		if (hasLegacyFields && !hasNestedStructure) {
+			return true
+		}
 	}
 
 	// If none of the above conditions match, migration is not needed
@@ -203,153 +224,57 @@ export async function migrateApiConfiguration(context: vscode.ExtensionContext):
 	console.log("[Migration] Migrating API configuration from flat to nested structure")
 
 	// Create the new nested structure while preserving old values
-	const updatedConfig = {
+	const updatedConfig: any = {
 		...apiConfig, // Keep all original properties for backward compatibility
-
-		// Add nested properties
-		anthropic: {
-			apiKey: legacyConfig.apiKey,
-			baseUrl: legacyConfig.anthropicBaseUrl,
-		},
-
-		openrouter: {
-			apiKey: legacyConfig.openRouterApiKey,
-			modelId: legacyConfig.openRouterModelId,
-			modelInfo: legacyConfig.openRouterModelInfo,
-			providerSorting: legacyConfig.openRouterProviderSorting,
-		},
-
-		openai: {
-			apiKey: legacyConfig.openAiApiKey,
-			modelId: legacyConfig.openAiModelId,
-			modelInfo: legacyConfig.openAiModelInfo,
-			baseUrl: legacyConfig.openAiBaseUrl,
-			headers: legacyConfig.openAiHeaders,
-		},
-
-		openaiNative: {
-			apiKey: legacyConfig.openAiNativeApiKey,
-		},
-
-		aws: {
-			accessKey: legacyConfig.awsAccessKey,
-			secretKey: legacyConfig.awsSecretKey,
-			sessionToken: legacyConfig.awsSessionToken,
-			region: legacyConfig.awsRegion,
-			useCrossRegionInference: legacyConfig.awsUseCrossRegionInference,
-			bedrockUsePromptCache: legacyConfig.awsBedrockUsePromptCache,
-			bedrockEndpoint: legacyConfig.awsBedrockEndpoint,
-			profile: legacyConfig.awsProfile,
-			useProfile: legacyConfig.awsUseProfile,
-			bedrockCustomSelected: legacyConfig.awsBedrockCustomSelected,
-			bedrockCustomModelBaseId: legacyConfig.awsBedrockCustomModelBaseId,
-		},
-
-		vertex: {
-			projectId: legacyConfig.vertexProjectId,
-			region: legacyConfig.vertexRegion,
-		},
-
-		ollama: {
-			modelId: legacyConfig.ollamaModelId,
-			baseUrl: legacyConfig.ollamaBaseUrl,
-			apiOptionsCtxNum: legacyConfig.ollamaApiOptionsCtxNum,
-		},
-
-		lmstudio: {
-			modelId: legacyConfig.lmStudioModelId,
-			baseUrl: legacyConfig.lmStudioBaseUrl,
-		},
-
-		gemini: {
-			apiKey: legacyConfig.geminiApiKey,
-			baseUrl: legacyConfig.geminiBaseUrl,
-		},
-
-		litellm: {
-			apiKey: legacyConfig.liteLlmApiKey,
-			modelId: legacyConfig.liteLlmModelId,
-			baseUrl: legacyConfig.liteLlmBaseUrl,
-			modelInfo: legacyConfig.liteLlmModelInfo,
-			usePromptCache: legacyConfig.liteLlmUsePromptCache,
-		},
-
-		fireworks: {
-			apiKey: legacyConfig.fireworksApiKey,
-			modelId: legacyConfig.fireworksModelId,
-			modelMaxCompletionTokens: legacyConfig.fireworksModelMaxCompletionTokens,
-			modelMaxTokens: legacyConfig.fireworksModelMaxTokens,
-		},
-
-		requesty: {
-			apiKey: legacyConfig.requestyApiKey,
-			modelId: legacyConfig.requestyModelId,
-			modelInfo: legacyConfig.requestyModelInfo,
-		},
-
-		together: {
-			apiKey: legacyConfig.togetherApiKey,
-			modelId: legacyConfig.togetherModelId,
-		},
-
-		deepseek: {
-			apiKey: legacyConfig.deepSeekApiKey,
-		},
-
-		qwen: {
-			apiKey: legacyConfig.qwenApiKey,
-			apiLine: legacyConfig.qwenApiLine,
-		},
-
-		doubao: {
-			apiKey: legacyConfig.doubaoApiKey,
-		},
-
-		mistral: {
-			apiKey: legacyConfig.mistralApiKey,
-		},
-
-		azure: {
-			apiVersion: legacyConfig.azureApiVersion,
-		},
-
-		vscode: {
-			modelSelector: legacyConfig.vsCodeLmModelSelector,
-		},
-
-		nebius: {
-			apiKey: legacyConfig.nebiusApiKey,
-		},
-
-		asksage: {
-			apiKey: legacyConfig.asksageApiKey,
-			apiUrl: legacyConfig.asksageApiUrl,
-		},
-
-		xai: {
-			apiKey: legacyConfig.xaiApiKey,
-		},
-
-		sambanova: {
-			apiKey: legacyConfig.sambanovaApiKey,
-		},
-
-		cerebras: {
-			apiKey: legacyConfig.cerebrasApiKey,
-		},
-
-		cline: {
-			apiKey: legacyConfig.clineApiKey,
-		},
-
-		// Preserve core configuration properties
-		apiProvider: legacyConfig.apiProvider,
-		apiModelId: legacyConfig.apiModelId,
-		thinkingBudgetTokens: legacyConfig.thinkingBudgetTokens,
-		reasoningEffort: legacyConfig.reasoningEffort,
-		favoritedModelIds: legacyConfig.favoritedModelIds,
-		requestTimeoutMs: legacyConfig.requestTimeoutMs,
 	}
+
+	// Dynamically build nested provider configurations using PROVIDER_FIELD_MAPPINGS
+	for (const [providerName, mapping] of Object.entries(PROVIDER_FIELD_MAPPINGS)) {
+		const providerConfig: any = {}
+
+		// Handle secrets fields
+		if ("secrets" in mapping && mapping.secrets) {
+			for (const [fieldName, legacyKey] of Object.entries(mapping.secrets)) {
+				const value = (legacyConfig as any)[legacyKey]
+				if (value !== undefined) {
+					providerConfig[fieldName] = value
+				}
+			}
+		}
+
+		// Handle global state fields
+		if ("globalState" in mapping && mapping.globalState) {
+			for (const [fieldName, legacyKey] of Object.entries(mapping.globalState)) {
+				const value = (legacyConfig as any)[legacyKey]
+				if (value !== undefined) {
+					providerConfig[fieldName] = value
+				}
+			}
+		}
+
+		// Only add the provider config if it has any fields
+		if (Object.keys(providerConfig).length > 0) {
+			updatedConfig[providerName] = providerConfig
+		}
+	}
+
+	// Handle special case for anthropic legacy apiKey
+	if (legacyConfig.apiKey && !updatedConfig.anthropic?.apiKey) {
+		if (!updatedConfig.anthropic) {
+			updatedConfig.anthropic = {}
+		}
+		updatedConfig.anthropic.apiKey = legacyConfig.apiKey
+	}
+
+	// Preserve core configuration properties
+	updatedConfig.apiProvider = legacyConfig.apiProvider
+	updatedConfig.apiModelId = legacyConfig.apiModelId
+	updatedConfig.thinkingBudgetTokens = legacyConfig.thinkingBudgetTokens
+	updatedConfig.reasoningEffort = legacyConfig.reasoningEffort
+	updatedConfig.requestTimeoutMs = legacyConfig.requestTimeoutMs
+
+	// Note: favoritedModelIds is NOT part of API configuration - it's stored separately as global state
+	// and doesn't need to be migrated here since it was never part of the flat API config structure
 
 	// Remove undefined properties to keep the object clean
 	Object.keys(updatedConfig).forEach((key) => {
