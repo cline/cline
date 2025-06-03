@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
+import { v4 as uuidv4 } from "uuid"
 
 import fs from "fs/promises"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
@@ -54,6 +55,7 @@ import { ClineRulesToggles } from "@shared/cline-rules"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendAddToInputEvent } from "./ui/subscribeToAddToInput"
 import { sendAuthCallbackEvent } from "./account/subscribeToAuthCallback"
+import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
 import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
@@ -65,6 +67,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
+	readonly id: string = uuidv4()
 	private postMessage: (message: ExtensionMessage) => Thenable<boolean> | undefined
 
 	private disposables: vscode.Disposable[] = []
@@ -1016,18 +1019,6 @@ export class Controller {
 		// FIXME: this seems to happen sometimes when the json file doesn't save to disk for some reason
 		await this.deleteTaskFromState(id)
 		throw new Error("Task not found")
-	}
-
-	async showTaskWithId(id: string) {
-		if (id !== this.task?.taskId) {
-			// non-current task
-			const { historyItem } = await this.getTaskWithId(id)
-			await this.initTask(undefined, undefined, undefined, historyItem) // clears existing task
-		}
-		await this.postMessageToWebview({
-			type: "action",
-			action: "chatButtonClicked",
-		})
 	}
 
 	async exportTaskWithId(id: string) {
