@@ -27,7 +27,6 @@ export class LmStudioHandler implements ApiHandler {
 			const stream = await this.client.chat.completions.create({
 				model: this.getModel().id,
 				messages: openAiMessages,
-				temperature: 0,
 				stream: true,
 			})
 			for await (const chunk of stream) {
@@ -36,6 +35,12 @@ export class LmStudioHandler implements ApiHandler {
 					yield {
 						type: "text",
 						text: delta.content,
+					}
+				}
+				if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+					yield {
+						type: "reasoning",
+						reasoning: (delta.reasoning_content as string | undefined) || "",
 					}
 				}
 			}
