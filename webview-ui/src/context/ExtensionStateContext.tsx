@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient, ModelsServiceClient, UiServiceClient } from "../services/grpc-client"
+import { StateServiceClient, ModelsServiceClient, UiServiceClient, FileServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
@@ -208,10 +208,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				}
 				break
 			}
-			case "workspaceUpdated": {
-				setFilePaths(message.filePaths ?? [])
-				break
-			}
 			case "partialMessage": {
 				const partialMessage = message.partialMessage!
 				setState((prevState) => {
@@ -268,6 +264,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -397,6 +394,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
+		// Subscribe to workspace file updates
+		workspaceUpdatesUnsubscribeRef.current = FileServiceClient.subscribeToWorkspaceUpdates(EmptyRequest.create({}), {
+			onResponse: (response) => {
+				console.log("[DEBUG] Received workspace update event from gRPC stream")
+				setFilePaths(response.values || [])
+			},
+			onError: (error) => {
+				console.error("Error in workspace updates subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -417,6 +426,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (chatButtonUnsubscribeRef.current) {
 				chatButtonUnsubscribeRef.current()
 				chatButtonUnsubscribeRef.current = null
+			}
+			if (workspaceUpdatesUnsubscribeRef.current) {
+				workspaceUpdatesUnsubscribeRef.current()
+				workspaceUpdatesUnsubscribeRef.current = null
 			}
 		}
 	}, [])
