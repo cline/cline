@@ -23,7 +23,7 @@ export async function resetState(controller: Controller, request: EmptyRequest):
 		vscode.window.showInformationMessage("State reset")
 		await controller.postStateToWebview()
 
-		await sendChatButtonClickedEvent()
+		await sendChatButtonClickedEvent(controller.id)
 
 		return Empty.create()
 	} catch (error) {

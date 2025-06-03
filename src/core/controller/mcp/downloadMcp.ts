@@ -78,7 +78,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		// Initialize task and show chat view
 		await controller.initTask(task)
-		await sendChatButtonClickedEvent()
+		await sendChatButtonClickedEvent(controller.id)
 
 		// Return an empty response - the client only cares if the call succeeded
 		return Empty.create()

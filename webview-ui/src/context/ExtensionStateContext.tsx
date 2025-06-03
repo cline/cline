@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { StateServiceClient, UiServiceClient, ModelsServiceClient, UiServiceClient } from "../services/grpc-client"
+import { StateServiceClient, ModelsServiceClient, UiServiceClient } from "../services/grpc-client"
 import { EmptyRequest } from "@shared/proto/common"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/ui"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
@@ -363,21 +363,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
-		// Subscribe to chat button clicked events
-		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(
-			{},
-			{
-				onResponse: () => {
-					// When chat button is clicked, navigate to chat
-					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
-					navigateToChat()
-				},
-				onError: (error) => {
-					console.error("Error in chat button subscription:", error)
-				},
-				onComplete: () => {},
+		// Subscribe to chat button clicked events with webview type
+		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When chat button is clicked, navigate to chat
+				console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+				navigateToChat()
 			},
-		)
+			onError: (error) => {
+				console.error("Error in chat button subscription:", error)
+			},
+			onComplete: () => {},
+		})
 
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
