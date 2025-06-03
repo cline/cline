@@ -69,21 +69,6 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 					}
 				}
 
-				// Register the response handler with the registry
-				// TODO this seems weird, I think registration is only
-				// supposed to happen on the server side of gRPC
-				getRequestRegistry().registerRequest(
-					requestId,
-					() => {
-						console.log(`[DEBUG] Cleaning up streaming request: ${requestId}`)
-						if (options.onComplete) {
-							options.onComplete()
-						}
-					},
-					{ type: "streaming_request", service: service.fullName, method: methodKey },
-					responseHandler,
-				)
-
 				// Call the handler with streaming=true
 				console.log(`[DEBUG] Streaming gRPC host call to ${service.fullName}.${methodKey} req:${requestId}`)
 				grpcHandler.handleRequest(service.fullName, methodKey, request, requestId, true).catch((error) => {
