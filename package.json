@@ -402,6 +402,7 @@
 		"tree-sitter-wasms": "^0.1.11",
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
+		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
 	}
