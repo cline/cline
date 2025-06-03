@@ -66,6 +66,7 @@ const StdioConfigSchema = BaseConfigSchema.extend({
 	command: z.string(),
 	args: z.array(z.string()).optional(),
 	env: z.record(z.string()).optional(),
+	cwd: z.string().optional(),
 }).transform((config) => ({
 	...config,
 	transportType: "stdio" as const,
@@ -349,6 +350,7 @@ export class McpHub {
 						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
 					},
 					stderr: "pipe", // necessary for stderr to be available
+					cwd: config.cwd,
 				})
 			}
 
