@@ -8,27 +8,14 @@ on:
     types: [opened, reopened, ready_for_review, synchronize]
     branches: [main]
 
-env:
-  NODE_VERSION: 20.19.2
-  PNPM_VERSION: 10.8.1
-
 jobs:
   check-translations:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
       - name: Verify all translations are complete
         run: node scripts/find-missing-translations.js
 
@@ -37,17 +24,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
       - name: Run knip checks
         run: pnpm knip
 
@@ -56,17 +34,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
       - name: Lint
         run: pnpm lint
       - name: Check types
@@ -80,17 +49,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
       - name: Run unit tests
         run: pnpm test
 
@@ -116,17 +76,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
       - name: Create .env.local file
         working-directory: apps/vscode-e2e
         run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.local

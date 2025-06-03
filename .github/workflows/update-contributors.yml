@@ -4,36 +4,23 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Allows manual triggering
-
-env:
-  NODE_VERSION: 20.19.2
-  PNPM_VERSION: 10.8.1
+  workflow_dispatch:
 
 jobs:
   update-contributors:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Needed for pushing changes
-      pull-requests: write  # Needed for creating PRs
+      contents: write  # Needed for pushing changes.
+      pull-requests: write  # Needed for creating PRs.
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
       - name: Disable Husky
         run: |
           echo "HUSKY=0" >> $GITHUB_ENV
           git config --global core.hooksPath /dev/null
-      - name: Install dependencies
-        run: pnpm install
       - name: Update contributors and format
         run: |
           pnpm update-contributors

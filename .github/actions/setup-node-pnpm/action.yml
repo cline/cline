@@ -1,0 +1,38 @@
+name: "Setup Node.js and pnpm"
+
+description: "Sets up Node.js and pnpm with caching and installs dependencies"
+
+inputs:
+    node-version:
+        description: "Node.js version to use"
+        required: false
+        default: "20.19.2"
+    pnpm-version:
+        description: "pnpm version to use"
+        required: false
+        default: "10.8.1"
+    skip-install:
+        description: "Skip dependency installation"
+        required: false
+        default: "false"
+    install-args:
+        description: "Additional arguments for pnpm install"
+        required: false
+        default: ""
+
+runs:
+    using: "composite"
+    steps:
+        - name: Install pnpm
+          uses: pnpm/action-setup@v4
+          with:
+              version: ${{ inputs.pnpm-version }}
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+              node-version: ${{ inputs.node-version }}
+              cache: "pnpm"
+        - name: Install dependencies
+          if: ${{ inputs.skip-install != 'true' }}
+          shell: bash
+          run: pnpm install ${{ inputs.install-args }}
