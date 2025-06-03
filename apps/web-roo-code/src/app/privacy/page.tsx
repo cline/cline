@@ -22,7 +22,7 @@ export default function Privacy() {
 						marketing website. For details on how your data is handled within the Roo Code extension itself,
 						please refer to our separate{" "}
 						<a
-							href="https://github.com/RooVetGit/Roo-Code/blob/main/PRIVACY.md"
+							href="https://github.com/RooCodeInc/Roo-Code/blob/main/PRIVACY.md"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="text-primary hover:underline">
@@ -161,7 +161,7 @@ export default function Privacy() {
 							By using the Roo Code marketing landing page, you agree to this Privacy Policy. If you use
 							the Roo Code extension, please see our separate{" "}
 							<a
-								href="https://github.com/RooVetGit/Roo-Code/blob/main/PRIVACY.md"
+								href="https://github.com/RooCodeInc/Roo-Code/blob/main/PRIVACY.md"
 								target="_blank"
 								rel="noopener noreferrer"
 								className="text-primary hover:underline">

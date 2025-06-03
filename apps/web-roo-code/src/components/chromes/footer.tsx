@@ -4,8 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { ChevronDown } from "lucide-react"
-import { RxGithubLogo, RxDiscordLogo } from "react-icons/rx"
-import { FaReddit } from "react-icons/fa6"
+import { FaBluesky, FaDiscord, FaGithub, FaLinkedin, FaReddit, FaTiktok, FaXTwitter } from "react-icons/fa6"
 
 import { EXTERNAL_LINKS, INTERNAL_LINKS } from "@/lib/constants"
 import { useLogoSrc } from "@/lib/hooks/use-logo-src"
@@ -40,13 +39,13 @@ export function Footer() {
 						<p className="max-w-md text-sm leading-6 text-muted-foreground md:pr-16 lg:pr-32">
 							Empowering developers to build better software faster with AI-powered tools and insights.
 						</p>
-						<div className="flex space-x-5">
+						<div className="flex space-x-4">
 							<a
 								href={EXTERNAL_LINKS.GITHUB}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="text-muted-foreground transition-colors hover:text-foreground">
-								<RxGithubLogo className="h-6 w-6" />
+								<FaGithub className="h-6 w-6" />
 								<span className="sr-only">GitHub</span>
 							</a>
 							<a
@@ -54,7 +53,7 @@ export function Footer() {
 								target="_blank"
 								rel="noopener noreferrer"
 								className="text-muted-foreground transition-colors hover:text-foreground">
-								<RxDiscordLogo className="h-6 w-6" />
+								<FaDiscord className="h-6 w-6" />
 								<span className="sr-only">Discord</span>
 							</a>
 							<a
@@ -64,6 +63,38 @@ export function Footer() {
 								className="text-muted-foreground transition-colors hover:text-foreground">
 								<FaReddit className="h-6 w-6" />
 								<span className="sr-only">Reddit</span>
+							</a>
+							<a
+								href={EXTERNAL_LINKS.X}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-muted-foreground transition-colors hover:text-foreground">
+								<FaXTwitter className="h-6 w-6" />
+								<span className="sr-only">X</span>
+							</a>
+							<a
+								href={EXTERNAL_LINKS.LINKEDIN}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-muted-foreground transition-colors hover:text-foreground">
+								<FaLinkedin className="h-6 w-6" />
+								<span className="sr-only">LinkedIn</span>
+							</a>
+							<a
+								href={EXTERNAL_LINKS.TIKTOK}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-muted-foreground transition-colors hover:text-foreground">
+								<FaTiktok className="h-6 w-6" />
+								<span className="sr-only">TikTok</span>
+							</a>
+							<a
+								href={EXTERNAL_LINKS.BLUESKY}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-muted-foreground transition-colors hover:text-foreground">
+								<FaBluesky className="h-6 w-6" />
+								<span className="sr-only">Bluesky</span>
 							</a>
 						</div>
 					</div>
