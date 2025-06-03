@@ -40,7 +40,6 @@ export interface ExtensionMessage {
 	text?: string
 	action?:
 		| "settingsButtonClicked"
-		| "historyButtonClicked"
 		| "didBecomeVisible"
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
