@@ -36,10 +36,18 @@ export class Position {
 	}
 
 	compareTo(other: Position): number {
-		if (this.line < other.line) return -1
-		if (this.line > other.line) return 1
-		if (this.character < other.character) return -1
-		if (this.character > other.character) return 1
+		if (this.line < other.line) {
+			return -1
+		}
+		if (this.line > other.line) {
+			return 1
+		}
+		if (this.character < other.character) {
+			return -1
+		}
+		if (this.character > other.character) {
+			return 1
+		}
 		return 0
 	}
 }
