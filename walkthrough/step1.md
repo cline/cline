@@ -4,4 +4,4 @@
 
 Watch Cline break down complex tasks, ask clarifying questions, and outline its approach. Understand the 'why' before any code is written, ensuring changes align with your architecture and intent.
 
-![Cline Plan Mode Demo](https://storage.googleapis.com/cline_public_images/cline-plan-hifi-1.gif)
+![Cline planning demonstration](https://storage.googleapis.com/cline_public_images/docs/assets/cline-plan-hifi-1_compress.webp)
