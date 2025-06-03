@@ -1,0 +1,13 @@
+services:
+  postgres:
+    container_name: postgres-evals
+    image: postgres:15.4
+    ports:
+      - 5432:5432
+    volumes:
+      - ./.docker/postgres:/var/lib/postgresql/data
+      - ./.docker/scripts/postgres:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DATABASES=evals_development,evals_test

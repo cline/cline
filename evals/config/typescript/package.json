@@ -1,7 +1,0 @@
-{
-	"name": "@evals/typescript-config",
-	"private": true,
-	"publishConfig": {
-		"access": "public"
-	}
-}

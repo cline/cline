@@ -1,1 +1,0 @@
-ALTER TABLE `runs` ADD `concurrency` integer DEFAULT 2 NOT NULL;

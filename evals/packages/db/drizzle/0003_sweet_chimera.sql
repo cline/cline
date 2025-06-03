@@ -1,1 +1,0 @@
-ALTER TABLE `taskMetrics` ADD `toolUsage` text;

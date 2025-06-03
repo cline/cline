@@ -1,8 +1,0 @@
-{
-	"extends": "@evals/typescript-config/base.json",
-	"compilerOptions": {
-		"types": ["vitest/globals"]
-	},
-	"include": ["src"],
-	"exclude": ["node_modules"]
-}

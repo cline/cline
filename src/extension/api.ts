@@ -16,13 +16,12 @@ import {
 	TaskCommandName,
 	TaskEvent,
 } from "@roo-code/types"
+import { IpcServer } from "@roo-code/ipc"
 
 import { Package } from "../shared/package"
 import { getWorkspacePath } from "../utils/path"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { openClineInNewTab } from "../activate/registerCommands"
-
-import { IpcServer } from "./ipc-server"
 
 export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	private readonly outputChannel: vscode.OutputChannel

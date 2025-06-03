@@ -11,7 +11,7 @@
 		"**/stories/**",
 		"bin/**",
 		"apps/vscode-e2e/**",
-		"evals/**",
+		"packages/evals/**",
 		"src/extension/**",
 		"src/activate/**",
 		"src/workers/**",
