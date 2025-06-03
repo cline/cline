@@ -51,7 +51,7 @@
 		"@roo-code/config-typescript": "workspace:^",
 		"@tailwindcss/postcss": "^4",
 		"@types/ps-tree": "^1.1.6",
-		"@types/react": "^18.3.18",
+		"@types/react": "^18.3.23",
 		"@types/react-dom": "^18.3.5",
 		"tailwindcss": "^4"
 	}

@@ -360,3 +360,21 @@ export const PROVIDER_SETTINGS_KEYS = keysOf<ProviderSettings>()([
 	"litellmApiKey",
 	"litellmModelId",
 ])
+
+export const MODEL_ID_KEYS: Partial<keyof ProviderSettings>[] = [
+	"apiModelId",
+	"glamaModelId",
+	"openRouterModelId",
+	"openAiModelId",
+	"ollamaModelId",
+	"lmStudioModelId",
+	"lmStudioDraftModelId",
+	"unboundModelId",
+	"requestyModelId",
+	"litellmModelId",
+]
+
+export const getModelId = (settings: ProviderSettings): string | undefined => {
+	const modelIdKey = MODEL_ID_KEYS.find((key) => settings[key])
+	return modelIdKey ? (settings[modelIdKey] as string) : undefined
+}
