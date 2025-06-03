@@ -72,9 +72,11 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 		// could be setting invalid model id/undefined info but validation will catch it
 		setApiConfiguration({
 			...apiConfiguration,
-			...{
-				openRouterModelId: newModelId,
-				openRouterModelInfo: openRouterModels[newModelId],
+			apiModelId: newModelId,
+			openrouter: {
+				...(apiConfiguration?.openrouter || {}),
+				modelId: newModelId,
+				modelInfo: openRouterModels[newModelId],
 			},
 		})
 		setSearchTerm(newModelId)

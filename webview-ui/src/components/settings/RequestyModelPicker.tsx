@@ -31,9 +31,11 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) =>
 		// could be setting invalid model id/undefined info but validation will catch it
 		setApiConfiguration({
 			...apiConfiguration,
-			...{
-				requestyModelId: newModelId,
-				requestyModelInfo: requestyModels[newModelId],
+			apiModelId: newModelId,
+			requesty: {
+				...(apiConfiguration?.requesty || {}),
+				modelId: newModelId,
+				modelInfo: requestyModels[newModelId],
 			},
 		})
 		setSearchTerm(newModelId)
