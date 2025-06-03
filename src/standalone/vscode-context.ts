@@ -1,58 +1,54 @@
-import * as vscode from "vscode"
+import { URI } from "vscode-uri"
 
-import { EventEmitter, JsonKeyValueStore, setContextProperty } from "./vscode-context-utils"
-import { extensionContext, outputChannel, postMessage } from "./vscode-context-stubs"
+import path from "path"
+import type { Extension, ExtensionContext } from "vscode"
+import { ExtensionKind, ExtensionMode } from "vscode"
+import { outputChannel, postMessage } from "./vscode-context-stubs"
+import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
 const DATA_DIR = process.env.DATA_DIR ?? "."
+const EXTENSION_DIR = process.env.EXTENSION_DIR ?? "."
+const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
-class SecretStore implements vscode.SecretStorage {
-	private data = new JsonKeyValueStore<string>(DATA_DIR, "secrets.json")
-	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
-
-	// Required by vscode.SecretStorage interface
-	readonly onDidChange: vscode.Event<vscode.SecretStorageChangeEvent> = this._onDidChange.event
-
-	get(key: string): Thenable<string | undefined> {
-		return Promise.resolve(this.data.get(key))
-	}
-
-	store(key: string, value: string): Thenable<void> {
-		this.data.put(key, value)
-		this._onDidChange.fire({ key })
-		return Promise.resolve()
-	}
-
-	delete(key: string): Thenable<void> {
-		this.data.delete(key)
-		this._onDidChange.fire({ key })
-		return Promise.resolve()
-	}
+const extension: Extension<void> = {
+	id: "saoudrizwan.claude-dev",
+	isActive: true,
+	extensionPath: EXTENSION_DIR,
+	extensionUri: URI.file(EXTENSION_DIR),
+	packageJSON: readJson(path.join(EXTENSION_DIR, "package.json")),
+	exports: undefined, // There are no API exports in the standalone version.
+	activate: async () => {},
+	extensionKind: ExtensionKind.UI,
 }
 
-// Create a class that implements Memento interface with the required setKeysForSync method
-class MementoStore implements vscode.Memento {
-	private data: JsonKeyValueStore<any>
+const extensionContext: ExtensionContext = {
+	extension: extension,
+	extensionMode: EXTENSION_MODE,
 
-	constructor(filename: string) {
-		this.data = new JsonKeyValueStore(DATA_DIR, filename)
-	}
-	keys(): readonly string[] {
-		return Array.from(this.data.keys())
-	}
-	get<T>(key: string): T | undefined {
-		return this.data.get(key) as T
-	}
-	update(key: string, value: any): Thenable<void> {
-		this.data.put(key, value)
-		return Promise.resolve()
-	}
-	setKeysForSync(_keys: readonly string[]): void {
-		throw new Error("Method not implemented.")
-	}
+	// Set up KV stores.
+	globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
+	secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
+
+	// Set up URIs.
+	storageUri: URI.file(DATA_DIR),
+	storagePath: DATA_DIR, // Deprecated, not used in cline.
+	globalStorageUri: URI.file(DATA_DIR),
+	globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
+
+	logUri: URI.file(DATA_DIR),
+	logPath: DATA_DIR, // Deprecated, not used in cline.
+
+	extensionUri: URI.file(EXTENSION_DIR),
+	extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
+	asAbsolutePath: (relPath: string) => path.join(EXTENSION_DIR, relPath),
+
+	subscriptions: [], // These need to be destroyed when the extension is deactivated.
+
+	environmentVariableCollection: new EnvironmentVariableCollection(),
+
+	// TODO(sjf): Workspace state needs to be per project/workspace.
+	workspaceState: new MementoStore(path.join(DATA_DIR, "workspaceState.json")),
 }
-
-setContextProperty(extensionContext, "globalState", new MementoStore("globalState.json"))
-setContextProperty(extensionContext, "secrets", new SecretStore())
 
 console.log("Finished loading vscode context...")
 
