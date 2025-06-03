@@ -44,16 +44,14 @@ const addLineNumbersMock = jest.fn().mockImplementation((text, startLine = 1) =>
 	return lines.map((line, i) => `${startLine + i} | ${line}`).join("\n")
 })
 
-const extractTextFromFileMock = jest.fn().mockImplementation((_filePath) => {
-	// Call addLineNumbersMock to register the call
-	addLineNumbersMock(mockInputContent)
-	return Promise.resolve(addLineNumbersMock(mockInputContent))
-})
+const extractTextFromFileMock = jest.fn()
+const getSupportedBinaryFormatsMock = jest.fn(() => [".pdf", ".docx", ".ipynb"])
 
 // Now assign the mocks to the module
 const extractTextModule = jest.requireMock("../../../integrations/misc/extract-text")
 extractTextModule.extractTextFromFile = extractTextFromFileMock
 extractTextModule.addLineNumbers = addLineNumbersMock
+extractTextModule.getSupportedBinaryFormats = getSupportedBinaryFormatsMock
 
 jest.mock("../../ignore/RooIgnoreController", () => ({
 	RooIgnoreController: class {
@@ -128,6 +126,9 @@ describe("read_file tool with maxReadFileLine setting", () => {
 		mockCline.say = jest.fn().mockResolvedValue(undefined)
 		mockCline.ask = jest.fn().mockResolvedValue({ response: "yesButtonClicked" })
 		mockCline.presentAssistantMessage = jest.fn()
+		mockCline.handleError = jest.fn().mockResolvedValue(undefined)
+		mockCline.pushToolResult = jest.fn()
+		mockCline.removeClosingTag = jest.fn((tag, content) => content)
 
 		mockCline.fileContextTracker = {
 			trackFileContext: jest.fn().mockResolvedValue(undefined),
@@ -409,6 +410,13 @@ describe("read_file tool XML output structure", () => {
 
 		mockedPathResolve.mockReturnValue(absoluteFilePath)
 		mockedIsBinaryFile.mockResolvedValue(false)
+
+		// Set default implementation for extractTextFromFile
+		mockedExtractTextFromFile.mockImplementation((filePath) => {
+			// Call addLineNumbersMock to register the call
+			addLineNumbersMock(mockInputContent)
+			return Promise.resolve(addLineNumbersMock(mockInputContent))
+		})
 
 		mockInputContent = fileContent
 
@@ -1126,34 +1134,101 @@ describe("read_file tool XML output structure", () => {
 			const textPath = "test/text.txt"
 			const binaryPath = "test/binary.pdf"
 			const numberedContent = "1 | Text file content"
+			const pdfContent = "1 | PDF content extracted"
+
+			// Mock path.resolve to return the expected paths
+			mockedPathResolve.mockImplementation((cwd, relPath) => `/${relPath}`)
 
 			// Mock binary file detection
-			mockedIsBinaryFile.mockImplementationOnce(() => Promise.resolve(false))
-			mockedIsBinaryFile.mockImplementationOnce(() => Promise.resolve(true))
+			mockedIsBinaryFile.mockImplementation((path) => {
+				if (path.includes("text.txt")) return Promise.resolve(false)
+				if (path.includes("binary.pdf")) return Promise.resolve(true)
+				return Promise.resolve(false)
+			})
 
-			// Mock content based on file type
+			mockedCountFileLines.mockImplementation((path) => {
+				return Promise.resolve(1)
+			})
+
 			mockedExtractTextFromFile.mockImplementation((path) => {
-				if (path.includes("binary")) {
-					return Promise.resolve("")
+				if (path.includes("binary.pdf")) {
+					return Promise.resolve(pdfContent)
 				}
 				return Promise.resolve(numberedContent)
 			})
-			mockedCountFileLines.mockImplementation((path) => {
-				return Promise.resolve(path.includes("binary") ? 0 : 1)
-			})
+
+			// Configure mocks for the test
 			mockProvider.getState.mockResolvedValue({ maxReadFileLine: -1 })
 
-			// Execute
-			const result = await executeReadFileTool(
-				{
+			// Create standalone mock functions
+			const mockAskApproval = jest.fn().mockResolvedValue({ response: "yesButtonClicked" })
+			const mockHandleError = jest.fn().mockResolvedValue(undefined)
+			const mockPushToolResult = jest.fn()
+			const mockRemoveClosingTag = jest.fn((tag, content) => content)
+
+			// Create a tool use object directly
+			const toolUse: ReadFileToolUse = {
+				type: "tool_use",
+				name: "read_file",
+				params: {
 					args: `<file><path>${textPath}</path></file><file><path>${binaryPath}</path></file>`,
 				},
-				{ totalLines: 1 },
+				partial: false,
+			}
+
+			// Call readFileTool directly
+			await readFileTool(
+				mockCline,
+				toolUse,
+				mockAskApproval,
+				mockHandleError,
+				mockPushToolResult,
+				mockRemoveClosingTag,
 			)
 
-			// Verify
-			expect(result).toBe(
-				`<files>\n<file><path>${textPath}</path>\n<content lines="1-1">\n${numberedContent}</content>\n</file>\n<file><path>${binaryPath}</path>\n<notice>Binary file</notice>\n</file>\n</files>`,
+			// Check the result
+			expect(mockPushToolResult).toHaveBeenCalledWith(
+				`<files>\n<file><path>${textPath}</path>\n<content lines="1-1">\n${numberedContent}</content>\n</file>\n<file><path>${binaryPath}</path>\n<content lines="1-1">\n${pdfContent}</content>\n</file>\n</files>`,
+			)
+		})
+
+		it("should block unsupported binary files", async () => {
+			// Setup
+			const unsupportedBinaryPath = "test/binary.exe"
+
+			mockedIsBinaryFile.mockImplementation(() => Promise.resolve(true))
+			mockedCountFileLines.mockImplementation(() => Promise.resolve(1))
+			mockProvider.getState.mockResolvedValue({ maxReadFileLine: -1 })
+
+			// Create standalone mock functions
+			const mockAskApproval = jest.fn().mockResolvedValue({ response: "yesButtonClicked" })
+			const mockHandleError = jest.fn().mockResolvedValue(undefined)
+			const mockPushToolResult = jest.fn()
+			const mockRemoveClosingTag = jest.fn((tag, content) => content)
+
+			// Create a tool use object directly
+			const toolUse: ReadFileToolUse = {
+				type: "tool_use",
+				name: "read_file",
+				params: {
+					args: `<file><path>${unsupportedBinaryPath}</path></file>`,
+				},
+				partial: false,
+			}
+
+			// Call readFileTool directly
+			await readFileTool(
+				mockCline,
+				toolUse,
+				mockAskApproval,
+				mockHandleError,
+				mockPushToolResult,
+				mockRemoveClosingTag,
+			)
+
+			// Check the result
+			expect(mockPushToolResult).toHaveBeenCalledWith(
+				`<files>\n<file><path>${unsupportedBinaryPath}</path>\n<notice>Binary file</notice>\n</file>\n</files>`,
 			)
 		})
 	})
@@ -1165,6 +1240,7 @@ describe("read_file tool XML output structure", () => {
 			const maxReadFileLine = -1
 			const totalLines = 0
 			mockedCountFileLines.mockResolvedValue(totalLines)
+			mockedIsBinaryFile.mockResolvedValue(false) // Ensure empty file is not detected as binary
 
 			// Execute
 			const result = await executeReadFileTool({}, { maxReadFileLine, totalLines })

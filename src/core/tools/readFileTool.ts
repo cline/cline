@@ -11,7 +11,7 @@ import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { getReadablePath } from "../../utils/path"
 import { countFileLines } from "../../integrations/misc/line-counter"
 import { readLines } from "../../integrations/misc/read-lines"
-import { extractTextFromFile, addLineNumbers } from "../../integrations/misc/extract-text"
+import { extractTextFromFile, addLineNumbers, getSupportedBinaryFormats } from "../../integrations/misc/extract-text"
 import { parseSourceCodeDefinitionsForFile } from "../../services/tree-sitter"
 import { parseXml } from "../../utils/xml"
 
@@ -435,13 +435,19 @@ export async function readFileTool(
 			try {
 				const [totalLines, isBinary] = await Promise.all([countFileLines(fullPath), isBinaryFile(fullPath)])
 
-				// Handle binary files
+				// Handle binary files (but allow specific file types that extractTextFromFile can handle)
 				if (isBinary) {
-					updateFileResult(relPath, {
-						notice: "Binary file",
-						xmlContent: `<file><path>${relPath}</path>\n<notice>Binary file</notice>\n</file>`,
-					})
-					continue
+					const fileExtension = path.extname(relPath).toLowerCase()
+					const supportedBinaryFormats = getSupportedBinaryFormats()
+
+					if (!supportedBinaryFormats.includes(fileExtension)) {
+						updateFileResult(relPath, {
+							notice: "Binary file",
+							xmlContent: `<file><path>${relPath}</path>\n<notice>Binary file</notice>\n</file>`,
+						})
+						continue
+					}
+					// For supported binary formats (.pdf, .docx, .ipynb), continue to extractTextFromFile
 				}
 
 				// Handle range reads (bypass maxReadFileLine)

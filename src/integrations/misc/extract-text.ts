@@ -5,34 +5,6 @@ import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 
-export async function extractTextFromFile(filePath: string): Promise<string> {
-	try {
-		await fs.access(filePath)
-	} catch (error) {
-		throw new Error(`File not found: ${filePath}`)
-	}
-
-	const fileExtension = path.extname(filePath).toLowerCase()
-
-	switch (fileExtension) {
-		case ".pdf":
-			return extractTextFromPDF(filePath)
-		case ".docx":
-			return extractTextFromDOCX(filePath)
-		case ".ipynb":
-			return extractTextFromIPYNB(filePath)
-		default: {
-			const isBinary = await isBinaryFile(filePath).catch(() => false)
-
-			if (!isBinary) {
-				return addLineNumbers(await fs.readFile(filePath, "utf8"))
-			} else {
-				throw new Error(`Cannot read text for file type: ${fileExtension}`)
-			}
-		}
-	}
-}
-
 async function extractTextFromPDF(filePath: string): Promise<string> {
 	const dataBuffer = await fs.readFile(filePath)
 	const data = await pdf(dataBuffer)
@@ -56,6 +28,47 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 	}
 
 	return addLineNumbers(extractedText)
+}
+
+/**
+ * Map of supported binary file formats to their extraction functions
+ */
+const SUPPORTED_BINARY_FORMATS = {
+	".pdf": extractTextFromPDF,
+	".docx": extractTextFromDOCX,
+	".ipynb": extractTextFromIPYNB,
+} as const
+
+/**
+ * Returns the list of supported binary file formats that can be processed by extractTextFromFile
+ */
+export function getSupportedBinaryFormats(): string[] {
+	return Object.keys(SUPPORTED_BINARY_FORMATS)
+}
+
+export async function extractTextFromFile(filePath: string): Promise<string> {
+	try {
+		await fs.access(filePath)
+	} catch (error) {
+		throw new Error(`File not found: ${filePath}`)
+	}
+
+	const fileExtension = path.extname(filePath).toLowerCase()
+
+	// Check if we have a specific extractor for this format
+	const extractor = SUPPORTED_BINARY_FORMATS[fileExtension as keyof typeof SUPPORTED_BINARY_FORMATS]
+	if (extractor) {
+		return extractor(filePath)
+	}
+
+	// Handle other files
+	const isBinary = await isBinaryFile(filePath).catch(() => false)
+
+	if (!isBinary) {
+		return addLineNumbers(await fs.readFile(filePath, "utf8"))
+	} else {
+		throw new Error(`Cannot read text for file type: ${fileExtension}`)
+	}
 }
 
 export function addLineNumbers(content: string, startLine: number = 1): string {
