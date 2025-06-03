@@ -32,7 +32,7 @@ export class ClineHandler implements ApiHandler {
 			},
 		})
 	}
-	
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		this.lastGenerationId = undefined

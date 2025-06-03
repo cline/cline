@@ -17,7 +17,7 @@ export class LmStudioHandler implements ApiHandler {
 			apiKey: "noop",
 		})
 	}
-	
+
 	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
