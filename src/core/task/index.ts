@@ -111,6 +111,8 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { featureFlagsService } from "@services/posthog/feature-flags/FeatureFlagsService"
 import { StreamingJsonReplacer, ChangeLocation } from "@core/assistant-message/diff-json"
 
+export const USE_EXPERIMENTAL_CLAUDE4_FEATURES = false
+
 export const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -2066,7 +2068,7 @@ export class Task {
 					if (typeof content === "string") {
 						const resultText = content || "(tool did not return anything)"
 
-						if (isClaude4ModelFamily) {
+						if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 							// Claude 4 family: Use function_results format
 							this.userMessageContent.push({
 								type: "text",
@@ -2242,9 +2244,8 @@ export class Task {
 								const currentFullJson = block.params.diff
 								// Check if we should use streaming (e.g., for specific models)
 								const isClaude4ModelFamily = await this.isClaude4ModelFamily()
-								console.log("[EDIT] currentFullJson " + currentFullJson)
 								// Going through claude family of models
-								if (isClaude4ModelFamily && currentFullJson) {
+								if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES && currentFullJson) {
 									console.log("[EDIT] Streaming JSON replacement")
 									const streamingResult = await this.handleStreamingJsonReplacement(
 										block,
@@ -4479,9 +4480,9 @@ export class Task {
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
 							const prevLength = this.assistantMessageContent.length
-							const enableFunctionCallsParsing = await this.isClaude4ModelFamily()
+							const isClaude4ModelFamily = await this.isClaude4ModelFamily()
 
-							if (enableFunctionCallsParsing) {
+							if (isClaude4ModelFamily && USE_EXPERIMENTAL_CLAUDE4_FEATURES) {
 								this.assistantMessageContent = parseAssistantMessageV3(assistantMessage)
 							} else {
 								this.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
