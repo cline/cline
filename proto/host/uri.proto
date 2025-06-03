@@ -9,13 +9,13 @@ import "common.proto";
 // UriService provides methods for working with URIs in the IDE
 service UriService {
   // Create a new file URI from a file path
-  rpc File(cline.StringRequest) returns (Uri);
+  rpc file(cline.StringRequest) returns (Uri);
   
   // Join a URI with additional path segments
-  rpc JoinPath(JoinPathRequest) returns (Uri);
+  rpc joinPath(JoinPathRequest) returns (Uri);
   
   // Parse a string URI into a Uri object
-  rpc Parse(cline.StringRequest) returns (Uri);
+  rpc parse(cline.StringRequest) returns (Uri);
 }
 
 // Uri represents a URI in the IDE
