@@ -1,5 +1,40 @@
 # Changelog
 
+## 3.18.0
+
+### Minor Changes
+
+-   ceb0900: Update `xaiModels` object and `xaiDefaultModelId` in `src/shared/api.ts`
+-   3a1cee2: Add stale workflow
+-   b38994f: Migrate mcpButtonClicked to protobus
+-   f1fef24: add suppport for parsing csv and xlsx
+-   d85c8ce: Migrate historyButtonClicked to protobus
+-   3a325a6: Add dev only button to open task conversation history
+-   cc9fc9b: update chat box ui
+-   5c3e7a3: scroll to task timeline
+-   084c0a7: Add grep tool with new parsing format
+-   97c25cb: Pass type of webview (tab or sidebar) to webview so it knows what type it is
+-   084c0a7: Add edit tool definition
+
+### Patch Changes
+
+-   fb3012f: add models to vertex ai
+-   c91ec4c: Remove hard-coded temperature from LM Studio API requests and add support for `reasoning_content` in LM Studio API responses.
+-   8171b88: Fix for checkpoints
+-   079d05c: fixing token counting for xai provider
+-   6626124: fix(bedrock): Use ignoreCache for profile-based AWS credential loading
+
+    Ensures that AWS Bedrock provider always fetches fresh credentials when using IAM profiles by setting `ignoreCache: true` for `fromNodeProviderChain`. This resolves issues where externally updated credentials (e.g., by AWS Identity Manager) were not detected by Cline, requiring an extension restart. Manual credential handling remains unchanged.
+
+-   3fb0360: Fixed search tool overloading conversation with massive outputs by setting a maximum overall byte limit for search tool responses
+-   6e50778: add model to nebius ai studio
+-   ec06442: bug fix for ollama
+-   da12437: update the openrouter model list when refreshing
+-   dcf59bc: Fix Title for windows in cline
+-   8f72bf1: optionsResponse protobus migration
+-   092bd17: Display delay information when retrying API calls
+-   c1e38e6: change proto type
+
 ## [3.17.8]
 
 -   Fix bug where terminal would get stuck and output "capture failure"
