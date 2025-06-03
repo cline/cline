@@ -285,7 +285,7 @@
 		"test": "npm-run-all test:unit test:integration",
 		"test:ci": "node scripts/test-ci.js",
 		"test:integration": "vscode-test",
-		"test:unit": "TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
+		"test:unit": "NODE_OPTIONS='--loader ts-node/esm --no-warnings=ExperimentalWarning' TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
 		"test:coverage": "vscode-test --coverage",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
