@@ -33,7 +33,7 @@
 		"lint-staged": "^15.2.11",
 		"mkdirp": "^3.0.1",
 		"only-allow": "^1.2.1",
-		"ovsx": "0.10.2",
+		"ovsx": "0.10.4",
 		"prettier": "^3.4.2",
 		"rimraf": "^6.0.1",
 		"turbo": "^2.5.3",
