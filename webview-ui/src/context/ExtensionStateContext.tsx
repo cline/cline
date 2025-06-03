@@ -321,7 +321,7 @@ export const ExtensionStateContextProvider: React.FC<{
 										config.qwen?.apiKey,
 										config.doubao?.apiKey,
 										config.mistral?.apiKey,
-										config.vscode?.modelSelector,
+										config.vscodelm?.modelSelector,
 										config.cline?.apiKey,
 										config.asksage?.apiKey,
 										config.xai?.apiKey,

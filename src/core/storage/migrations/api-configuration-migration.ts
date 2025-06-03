@@ -139,7 +139,9 @@ export const API_CONFIG_SCHEMA_VERSION = 1
  */
 export function needsApiConfigMigration(apiConfig: any): boolean {
 	// If no API configuration exists, no migration needed
-	if (!apiConfig) return false
+	if (!apiConfig) {
+		return false
+	}
 
 	// Cast to legacy type to access old properties
 	const legacyConfig = apiConfig as LegacyApiConfiguration

@@ -94,7 +94,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "vscode-lm":
-				if (!apiConfiguration.vscode?.modelSelector) {
+				if (!apiConfiguration.vscodelm?.modelSelector) {
 					return "You must provide a valid model selector."
 				}
 				break

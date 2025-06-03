@@ -15,7 +15,7 @@ import {
 	DeepSeekConfig,
 	AskSageConfig,
 	CerebrasConfig,
-	VSCodeConfig,
+	VSCodeLMConfig,
 	VertexConfig,
 	XAIConfig,
 	NebiusConfig,
@@ -217,10 +217,10 @@ export function convertProtoApiConfigurationToDomainApiConfiguration(protoConfig
 				} as CerebrasConfig)
 			: undefined,
 
-		vscode: protoConfig.vscode
+		vscodelm: protoConfig.vscode
 			? ({
 					modelSelector: protoConfig.vscode.modelSelector ? JSON.parse(protoConfig.vscode.modelSelector) : undefined,
-				} as VSCodeConfig)
+				} as VSCodeLMConfig)
 			: undefined,
 
 		cline: protoConfig.cline
@@ -479,9 +479,9 @@ export function convertDomainApiConfigurationToProtoApiConfiguration(domainConfi
 	}
 
 	// VSCode
-	if (domainConfig.vscode) {
+	if (domainConfig.vscodelm) {
 		protoConfig.vscode = {
-			modelSelector: domainConfig.vscode.modelSelector ? JSON.stringify(domainConfig.vscode.modelSelector) : undefined,
+			modelSelector: domainConfig.vscodelm.modelSelector ? JSON.stringify(domainConfig.vscodelm.modelSelector) : undefined,
 		}
 	}
 

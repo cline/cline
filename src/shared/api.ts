@@ -58,7 +58,7 @@ export interface ApiHandlerOptions {
 	doubao?: DoubaoConfig
 	mistral?: MistralConfig
 	azure?: AzureConfig
-	vscode?: VSCodeConfig
+	vscodelm?: VSCodeLMConfig
 	nebius?: NebiusConfig
 	asksage?: AskSageConfig
 	xai?: XAIConfig
@@ -180,7 +180,7 @@ export interface AzureConfig {
 	apiVersion?: string
 }
 
-export interface VSCodeConfig {
+export interface VSCodeLMConfig {
 	modelSelector?: LanguageModelChatSelector
 }
 

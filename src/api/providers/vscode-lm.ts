@@ -5,7 +5,7 @@ import { calculateApiCostAnthropic } from "@utils/cost"
 import { ApiStream } from "@api/transform/stream"
 import { convertToVsCodeLmMessages } from "@api/transform/vscode-lm-format"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
-import { ApiHandlerOptions, ModelInfo, VSCodeConfig, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ApiHandlerOptions, ModelInfo, VSCodeLMConfig, openAiModelInfoSaneDefaults } from "@shared/api"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 import { withRetry } from "../retry"
 
@@ -322,14 +322,14 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 	private async getClient(): Promise<vscode.LanguageModelChat> {
 		if (!this.client) {
 			console.debug("Cline <Language Model API>: Getting client with options:", {
-				modelSelector: this.options.vscode?.modelSelector,
+				modelSelector: this.options.vscodelm?.modelSelector,
 				hasOptions: !!this.options,
-				selectorKeys: this.options.vscode?.modelSelector ? Object.keys(this.options.vscode.modelSelector) : [],
+				selectorKeys: this.options.vscodelm?.modelSelector ? Object.keys(this.options.vscodelm.modelSelector) : [],
 			})
 
 			try {
 				// Use default empty selector if none provided to get all available models
-				const selector = this.getVSCodeConfig()?.modelSelector || {}
+				const selector = this.getVSCodeLMConfig()?.modelSelector || {}
 				console.debug("Cline <Language Model API>: Creating client with selector:", selector)
 				this.client = await this.createClient(selector)
 			} catch (error) {
@@ -597,8 +597,8 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		// Fallback when no client is available
-		const fallbackId = this.options.vscode?.modelSelector
-			? stringifyVsCodeLmModelSelector(this.options.vscode.modelSelector)
+		const fallbackId = this.options.vscodelm?.modelSelector
+			? stringifyVsCodeLmModelSelector(this.options.vscodelm.modelSelector)
 			: "vscode-lm"
 
 		console.debug("Cline <Language Model API>: No client available, using fallback model info")
@@ -635,10 +635,10 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	private getVSCodeConfig(): VSCodeConfig {
-		if (!this.options.vscode) {
+	private getVSCodeLMConfig(): VSCodeLMConfig {
+		if (!this.options.vscodelm) {
 			throw new Error("VSCode configuration is required")
 		}
-		return this.options.vscode
+		return this.options.vscodelm
 	}
 }

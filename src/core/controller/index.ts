@@ -476,7 +476,7 @@ export class Controller {
 					await updateGlobalState(
 						this.context,
 						"previousModeVsCodeLmModelSelector",
-						apiConfiguration.vscode?.modelSelector,
+						apiConfiguration.vscodelm?.modelSelector,
 					)
 					break
 				case "openai":

@@ -1687,8 +1687,8 @@ const ApiOptions = ({
 							<VSCodeDropdown
 								id="vscode-lm-model"
 								value={
-									apiConfiguration?.vscode?.modelSelector
-										? `${apiConfiguration.vscode.modelSelector.vendor ?? ""}/${apiConfiguration.vscode.modelSelector.family ?? ""}`
+									apiConfiguration?.vscodelm?.modelSelector
+										? `${apiConfiguration.vscodelm.modelSelector.vendor ?? ""}/${apiConfiguration.vscodelm.modelSelector.family ?? ""}`
 										: ""
 								}
 								onChange={(e) => {
@@ -2768,8 +2768,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		case "vscode-lm":
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.vscode?.modelSelector
-					? `${apiConfiguration.vscode.modelSelector.vendor}/${apiConfiguration.vscode.modelSelector.family}`
+				selectedModelId: apiConfiguration?.vscodelm?.modelSelector
+					? `${apiConfiguration.vscodelm.modelSelector.vendor}/${apiConfiguration.vscodelm.modelSelector.family}`
 					: "",
 				selectedModelInfo: {
 					...openAiModelInfoSaneDefaults,

@@ -402,7 +402,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		apiVersion: azureApiVersion,
 	}
 
-	const vscodeConfig = {
+	const vscodeLMConfig = {
 		modelSelector: vsCodeLmModelSelector,
 	}
 
@@ -455,7 +455,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			doubao: doubaoConfig,
 			mistral: mistralConfig,
 			azure: azureConfig,
-			vscode: vscodeConfig,
+			vscodelm: vscodeLMConfig,
 			nebius: nebiusConfig,
 			asksage: asksageConfig,
 			xai: xaiConfig,
@@ -638,8 +638,8 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	}
 
 	// VSCode
-	if (apiConfiguration.vscode) {
-		await updateGlobalState(context, "vsCodeLmModelSelector", apiConfiguration.vscode.modelSelector)
+	if (apiConfiguration.vscodelm) {
+		await updateGlobalState(context, "vsCodeLmModelSelector", apiConfiguration.vscodelm.modelSelector)
 	}
 
 	// Nebius
