@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import ReconnectingEventSource from "reconnecting-eventsource"
@@ -483,9 +483,8 @@ export class McpHub {
 					args: configInjected.args,
 					cwd: configInjected.cwd,
 					env: {
+						...getDefaultEnvironment(),
 						...(configInjected.env || {}),
-						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-						...(process.env.HOME ? { HOME: process.env.HOME } : {}),
 					},
 					stderr: "pipe",
 				})
