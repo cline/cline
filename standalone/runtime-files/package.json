@@ -7,6 +7,6 @@
 		"@grpc/reflection": "^1.0.4",
 		"grpc-health-check": "^2.0.2",
 		"open": "^10.1.2",
-		"vscode": "file:./vscode"
+		"vscode-uri": "^3.1.0"
 	}
 }

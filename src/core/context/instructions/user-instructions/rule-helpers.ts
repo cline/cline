@@ -1,5 +1,5 @@
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
-import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "@core/storage/state"
 import * as path from "path"
 import fs from "fs/promises"
@@ -172,9 +172,13 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 	try {
 		let filePath: string
 		if (isGlobal) {
-			// global means its implicitly clinerules
-			const globalClineRulesFilePath = await ensureRulesDirectoryExists()
-			filePath = path.join(globalClineRulesFilePath, filename)
+			if (type === "workflow") {
+				const globalClineWorkflowFilePath = await ensureWorkflowsDirectoryExists()
+				filePath = path.join(globalClineWorkflowFilePath, filename)
+			} else {
+				const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+				filePath = path.join(globalClineRulesFilePath, filename)
+			}
 		} else {
 			const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 
@@ -243,9 +247,15 @@ export async function deleteRuleFile(
 
 		// Update the appropriate toggles
 		if (isGlobal) {
-			const toggles = ((await getGlobalState(context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
-			delete toggles[rulePath]
-			await updateGlobalState(context, "globalClineRulesToggles", toggles)
+			if (type === "workflow") {
+				const toggles = ((await getGlobalState(context, "globalWorkflowToggles")) as ClineRulesToggles) || {}
+				delete toggles[rulePath]
+				await updateGlobalState(context, "globalWorkflowToggles", toggles)
+			} else {
+				const toggles = ((await getGlobalState(context, "globalClineRulesToggles")) as ClineRulesToggles) || {}
+				delete toggles[rulePath]
+				await updateGlobalState(context, "globalClineRulesToggles", toggles)
+			}
 		} else {
 			if (type === "workflow") {
 				const toggles = ((await getWorkspaceState(context, "workflowToggles")) as ClineRulesToggles) || {}

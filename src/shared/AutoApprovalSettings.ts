@@ -35,5 +35,5 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	},
 	maxRequests: 20,
 	enableNotifications: false,
-	favorites: ["enableAll", "readFiles", "editFiles"],
+	favorites: ["enableAutoApprove", "readFiles", "editFiles"],
 }
