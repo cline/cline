@@ -205,6 +205,59 @@ export const ExtensionStateContextProvider: React.FC<{
 				}
 				break
 			}
+			case "state": {
+				// Handler for direct state messages
+				if (message.state) {
+					const stateData = message.state as ExtensionState
+					console.log("[Webview Context Test Revert] Received direct 'state' message, updating state.")
+					setState((prevState) => {
+						// Versioning logic for autoApprovalSettings (copied from original onResponse)
+						const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+						const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+						const shouldUpdateAutoApproval = incomingVersion > currentVersion
+
+						const newState = {
+							...stateData,
+							autoApprovalSettings: shouldUpdateAutoApproval
+								? stateData.autoApprovalSettings
+								: prevState.autoApprovalSettings,
+						}
+
+						// Update welcome screen state based on API configuration (copied from original onResponse)
+						const config = stateData.apiConfiguration
+						const hasKey = config
+							? [
+									config.apiKey,
+									config.openRouterApiKey,
+									config.awsRegion,
+									config.vertexProjectId,
+									config.openAiApiKey,
+									config.ollamaModelId,
+									config.lmStudioModelId,
+									config.liteLlmApiKey,
+									config.geminiApiKey,
+									config.openAiNativeApiKey,
+									config.deepSeekApiKey,
+									config.requestyApiKey,
+									config.togetherApiKey,
+									config.qwenApiKey,
+									config.doubaoApiKey,
+									config.mistralApiKey,
+									config.vsCodeLmModelSelector,
+									config.clineApiKey,
+									config.asksageApiKey,
+									config.xaiApiKey,
+									config.sambanovaApiKey,
+								].some((key) => key !== undefined)
+							: false
+
+						setShowWelcome(!hasKey)
+						setDidHydrateState(true)
+						return newState
+					})
+				}
+				break
+			}
 			case "theme": {
 				if (message.text) {
 					setTheme(convertTextMateToHljs(JSON.parse(message.text)))
@@ -271,139 +324,14 @@ export const ExtensionStateContextProvider: React.FC<{
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 
-	// Subscribe to state updates and UI events using the gRPC streaming API
+	// For the test revert, ensure webviewDidLaunch is still sent if not done by the above useEffect
 	useEffect(() => {
-		// Determine the webview provider type
-		const webviewType =
-			window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
-
-		// Set up state subscription
-		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
-			onResponse: (response) => {
-				if (response.stateJson) {
-					try {
-						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						console.log("[DEBUG] parsed state JSON, updating state")
-						setState((prevState) => {
-							// Versioning logic for autoApprovalSettings
-							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
-							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-
-							const newState = {
-								...stateData,
-								autoApprovalSettings: shouldUpdateAutoApproval
-									? stateData.autoApprovalSettings
-									: prevState.autoApprovalSettings,
-							}
-
-							// Update welcome screen state based on API configuration
-							const config = stateData.apiConfiguration
-							const hasKey = config
-								? [
-										config.apiKey,
-										config.openRouterApiKey,
-										config.awsRegion,
-										config.vertexProjectId,
-										config.openAiApiKey,
-										config.ollamaModelId,
-										config.lmStudioModelId,
-										config.liteLlmApiKey,
-										config.geminiApiKey,
-										config.openAiNativeApiKey,
-										config.deepSeekApiKey,
-										config.requestyApiKey,
-										config.togetherApiKey,
-										config.qwenApiKey,
-										config.doubaoApiKey,
-										config.mistralApiKey,
-										config.vsCodeLmModelSelector,
-										config.clineApiKey,
-										config.asksageApiKey,
-										config.xaiApiKey,
-										config.sambanovaApiKey,
-									].some((key) => key !== undefined)
-								: false
-
-							setShowWelcome(!hasKey)
-							setDidHydrateState(true)
-
-							console.log("[DEBUG] returning new state in ESC")
-
-							return newState
-						})
-					} catch (error) {
-						console.error("Error parsing state JSON:", error)
-						console.log("[DEBUG] ERR getting state", error)
-					}
-				}
-				console.log('[DEBUG] ended "got subscribed state"')
-			},
-			onError: (error) => {
-				console.error("Error in state subscription:", error)
-			},
-			onComplete: () => {
-				console.log("State subscription completed")
-			},
-		})
-
-		// Subscribe to MCP button clicked events with webview type
-		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
-			WebviewProviderTypeRequest.create({
-				providerType: webviewType,
-			}),
-			{
-				onResponse: () => {
-					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
-					navigateToMcp()
-				},
-				onError: (error) => {
-					console.error("Error in mcpButtonClicked subscription:", error)
-				},
-				onComplete: () => {
-					console.log("mcpButtonClicked subscription completed")
-				},
-			},
-		)
-
-		// Set up history button clicked subscription with webview type
-		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
-			WebviewProviderTypeRequest.create({
-				providerType: webviewType,
-			}),
-			{
-				onResponse: () => {
-					// When history button is clicked, navigate to history view
-					console.log("[DEBUG] Received history button clicked event from gRPC stream")
-					navigateToHistory()
-				},
-				onError: (error) => {
-					console.error("Error in history button clicked subscription:", error)
-				},
-				onComplete: () => {
-					console.log("History button clicked subscription completed")
-				},
-			},
-		)
-
-		// Still send the webviewDidLaunch message for other initialization
+		// This effect now only sends webviewDidLaunch if the gRPC subscription is commented out.
+		// If the gRPC subscription is active, it sends webviewDidLaunch.
+		// To avoid sending it twice if you uncomment the above, you might add a flag.
+		// For this specific test (gRPC sub commented out), this is fine.
+		console.log("[Webview Context Test Revert] Sending webviewDidLaunch from separate useEffect.")
 		vscode.postMessage({ type: "webviewDidLaunch" })
-
-		// Clean up subscriptions when component unmounts
-		return () => {
-			if (stateSubscriptionRef.current) {
-				stateSubscriptionRef.current()
-				stateSubscriptionRef.current = null
-			}
-			if (mcpButtonUnsubscribeRef.current) {
-				mcpButtonUnsubscribeRef.current()
-				mcpButtonUnsubscribeRef.current = null
-			}
-			if (historyButtonClickedSubscriptionRef.current) {
-				historyButtonClickedSubscriptionRef.current()
-				historyButtonClickedSubscriptionRef.current = null
-			}
-		}
 	}, [])
 
 	const refreshOpenRouterModels = useCallback(() => {

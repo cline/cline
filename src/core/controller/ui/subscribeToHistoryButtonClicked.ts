@@ -50,7 +50,7 @@ export async function sendHistoryButtonClickedEvent(webviewType?: WebviewProvide
 		}
 
 		try {
-			const event: Empty = {}
+			const event = Empty.create({})
 			await responseStream(
 				event,
 				false, // Not the last message
