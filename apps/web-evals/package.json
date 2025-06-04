@@ -1,6 +1,7 @@
 {
 	"name": "@roo-code/web-evals",
-	"private": true,
+	"version": "0.0.0",
+	"type": "module",
 	"scripts": {
 		"lint": "next lint",
 		"check-types": "tsc -b",

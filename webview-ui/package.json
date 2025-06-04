@@ -14,7 +14,7 @@
 		"preview": "vite preview",
 		"storybook": "storybook dev -p 6006",
 		"build-storybook": "storybook build",
-		"clean": "rimraf build tsconfig.tsbuildinfo .turbo"
+		"clean": "rimraf ../src/webview-ui/build ../apps/vscode-nightly/build/webview-ui tsconfig.tsbuildinfo .turbo"
 	},
 	"dependencies": {
 		"@radix-ui/react-alert-dialog": "^1.1.6",

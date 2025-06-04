@@ -1,0 +1,15 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"bundle:nightly": {
+			"dependsOn": ["^build", "@roo-code/vscode-webview#build:nightly"],
+			"outputs": ["build/**"]
+		},
+		"vsix:nightly": {
+			"dependsOn": ["bundle:nightly"],
+			"inputs": ["build/**"],
+			"outputs": ["../../../bin/**"]
+		}
+	}
+}

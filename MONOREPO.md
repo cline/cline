@@ -24,7 +24,7 @@ pnpm install
 If things are in good working order then you should be able to build a vsix and install it in VSCode:
 
 ```sh
-pnpm build -- --out ../bin/roo-code-main.vsix && \
+pnpm vsix -- --out ../bin/roo-code-main.vsix && \
   code --install-extension bin/roo-code-main.vsix
 ```
 
@@ -34,9 +34,40 @@ To fully stress the monorepo setup, run the following:
 pnpm clean && pnpm lint
 pnpm clean && pnpm check-types
 pnpm clean && pnpm test
-pnpm clean && pnpm bundle
 pnpm clean && pnpm build
+pnpm clean && pnpm bundle
+pnpm clean && pnpm bundle:nightly
+
 pnpm clean && pnpm npx turbo watch:bundle
 pnpm clean && pnpm npx turbo watch:tsc
-cd apps/vscode-e2e && pnpm test:ci
+
+pnpm --filter @roo-code/vscode-e2e test:ci
+
+pnpm clean && \
+  pnpm vsix -- --out ../bin/roo-code.vsix && \
+  code --install-extension bin/roo-code.vsix
+
+pnpm clean && \
+  pnpm vsix:nightly -- --out ../../../bin/roo-code-nightly.vsix && \
+  code --install-extension bin/roo-code-nightly.vsix
 ```
+
+### Turborepo
+
+Note that this excludes the `build` task for next.js apps (@roo-code/web-\*).
+
+Tasks: `build` -> `bundle` -> `vsix`
+
+build:
+
+- `@roo-code/build` [input: src, package.json, tsconfig.json | output: dist]
+- `@roo-code/types` [input: src, package.json, tsconfig.json, tsup.config.ts | output: dist]
+- `@roo-code/webview-ui` [input: src, package.json, tsconfig.json, vite.config.ts | output: ../src/webview-ui]
+
+bundle:
+
+- `roo-cline` [input: * | output: dist]
+
+vsix:
+
+- `roo-cline` [input: dist | output: bin]

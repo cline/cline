@@ -46,7 +46,7 @@ jobs:
             console.log(`🔖 Nightly version set to ${pkg.version}`);
           EOF
       - name: Build VSIX
-        run: pnpm build:nightly # Produces bin/roo-code-nightly-0.0.[count].vsix
+        run: pnpm vsix:nightly # Produces bin/roo-code-nightly-0.0.[count].vsix
       - name: Publish to VS Code Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}

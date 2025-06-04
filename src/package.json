@@ -350,7 +350,7 @@
 		"publish:marketplace": "vsce publish --no-dependencies && ovsx publish --no-dependencies",
 		"watch:bundle": "pnpm bundle --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"clean": "rimraf README.md CHANGELOG.md LICENSE dist webview-ui out mock .turbo"
+		"clean": "rimraf README.md CHANGELOG.md LICENSE dist mock .turbo"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",

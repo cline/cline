@@ -12,28 +12,7 @@
 		},
 		"build": {
 			"outputs": ["dist/**"],
-			"inputs": ["src/**", "package.json", "tsconfig.json", "tsup.config.ts"]
-		},
-		"build:nightly": {},
-		"bundle": {
-			"dependsOn": ["^build"],
-			"cache": false
-		},
-		"bundle:nightly": {
-			"dependsOn": ["^build"],
-			"cache": false
-		},
-		"vsix": {
-			"dependsOn": ["bundle", "@roo-code/vscode-webview#build"],
-			"cache": false
-		},
-		"vsix:nightly": {
-			"dependsOn": ["bundle:nightly", "@roo-code/vscode-webview#build:nightly"],
-			"cache": false
-		},
-		"watch:bundle": {
-			"dependsOn": ["@roo-code/build#build", "@roo-code/types#build"],
-			"cache": false
+			"inputs": ["src/**", "package.json", "tsconfig.json", "tsup.config.ts", "vite.config.ts"]
 		},
 		"watch:tsc": {
 			"cache": false

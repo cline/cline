@@ -48,10 +48,9 @@ async function main() {
 	console.log(`[${name}] buildDir: ${buildDir}`)
 	console.log(`[${name}] distDir: ${distDir}`)
 
-	// Clean build directory before starting new build
-	if (fs.existsSync(buildDir)) {
-		console.log(`[${name}] Cleaning build directory: ${buildDir}`)
-		fs.rmSync(buildDir, { recursive: true, force: true })
+	if (fs.existsSync(distDir)) {
+		console.log(`[${name}] Cleaning dist directory: ${distDir}`)
+		fs.rmSync(distDir, { recursive: true, force: true })
 	}
 
 	/**

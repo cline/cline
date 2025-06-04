@@ -145,7 +145,7 @@ Changes to the webview will appear immediately. Changes to the core extension wi
 Alternatively you can build a .vsix and install it directly in VSCode:
 
 ```sh
-pnpm build
+pnpm vsix
 ```
 
 A `.vsix` file will appear in the `bin/` directory which can be installed with:
