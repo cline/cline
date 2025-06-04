@@ -92,6 +92,7 @@ export class ClineProvider
 	public static readonly tabPanelId = `${Package.name}.TabPanelProvider`
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
+	private webviewDisposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private clineStack: Task[] = []
 	private codeIndexStatusSubscription?: vscode.Disposable
@@ -228,6 +229,15 @@ export class ClineProvider
 	- https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
+	private clearWebviewResources() {
+		while (this.webviewDisposables.length) {
+			const x = this.webviewDisposables.pop()
+			if (x) {
+				x.dispose()
+			}
+		}
+	}
+
 	async dispose() {
 		this.log("Disposing ClineProvider...")
 		await this.removeClineFromStack()
@@ -237,6 +247,8 @@ export class ClineProvider
 			this.view.dispose()
 			this.log("Disposed webview")
 		}
+
+		this.clearWebviewResources()
 
 		while (this.disposables.length) {
 			const x = this.disposables.pop()
@@ -254,7 +266,6 @@ export class ClineProvider
 		this.log("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 
-		// Unregister from McpServerManager
 		McpServerManager.unregisterProvider(this)
 	}
 
@@ -425,8 +436,7 @@ export class ClineProvider
 					values: update,
 				})
 			})
-			// Add the subscription to the main disposables array
-			this.disposables.push(this.codeIndexStatusSubscription)
+			this.webviewDisposables.push(this.codeIndexStatusSubscription)
 		}
 
 		// Logs show up in bottom panel > Debug Console
@@ -437,26 +447,20 @@ export class ClineProvider
 		if ("onDidChangeViewState" in webviewView) {
 			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
 			// panel
-			webviewView.onDidChangeViewState(
-				() => {
-					if (this.view?.visible) {
-						this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
-					}
-				},
-				null,
-				this.disposables,
-			)
+			const viewStateDisposable = webviewView.onDidChangeViewState(() => {
+				if (this.view?.visible) {
+					this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+				}
+			})
+			this.webviewDisposables.push(viewStateDisposable)
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
-			webviewView.onDidChangeVisibility(
-				() => {
-					if (this.view?.visible) {
-						this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
-					}
-				},
-				null,
-				this.disposables,
-			)
+			const visibilityDisposable = webviewView.onDidChangeVisibility(() => {
+				if (this.view?.visible) {
+					this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+				}
+			})
+			this.webviewDisposables.push(visibilityDisposable)
 		}
 
 		// Listen for when the view is disposed
@@ -467,7 +471,10 @@ export class ClineProvider
 					this.log("Disposing ClineProvider instance for tab view")
 					await this.dispose()
 				} else {
-					this.log("Preserving ClineProvider instance for sidebar view reuse")
+					this.log("Clearing webview resources for sidebar view")
+					this.clearWebviewResources()
+					this.codeIndexStatusSubscription?.dispose()
+					this.codeIndexStatusSubscription = undefined
 				}
 			},
 			null,
@@ -475,16 +482,13 @@ export class ClineProvider
 		)
 
 		// Listen for when color changes
-		vscode.workspace.onDidChangeConfiguration(
-			async (e) => {
-				if (e && e.affectsConfiguration("workbench.colorTheme")) {
-					// Sends latest theme name to webview
-					await this.postMessageToWebview({ type: "theme", text: JSON.stringify(await getTheme()) })
-				}
-			},
-			null,
-			this.disposables,
-		)
+		const configDisposable = vscode.workspace.onDidChangeConfiguration(async (e) => {
+			if (e && e.affectsConfiguration("workbench.colorTheme")) {
+				// Sends latest theme name to webview
+				await this.postMessageToWebview({ type: "theme", text: JSON.stringify(await getTheme()) })
+			}
+		})
+		this.webviewDisposables.push(configDisposable)
 
 		// If the extension is starting a new session, clear previous task state.
 		await this.removeClineFromStack()
@@ -767,7 +771,8 @@ export class ClineProvider
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		const onReceiveMessage = async (message: WebviewMessage) => webviewMessageHandler(this, message)
 
-		webview.onDidReceiveMessage(onReceiveMessage, null, this.disposables)
+		const messageDisposable = webview.onDidReceiveMessage(onReceiveMessage)
+		this.webviewDisposables.push(messageDisposable)
 	}
 
 	/**
