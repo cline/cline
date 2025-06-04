@@ -268,6 +268,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const didBecomeVisibleUnsubscribeRef = useRef<(() => void) | null>(null)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -397,6 +398,18 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
+		// Subscribe to didBecomeVisible events
+		didBecomeVisibleUnsubscribeRef.current = UiServiceClient.subscribeToDidBecomeVisible(EmptyRequest.create({}), {
+			onResponse: () => {
+				console.log("[DEBUG] Received didBecomeVisible event from gRPC stream")
+				window.dispatchEvent(new CustomEvent("focusChatInput"))
+			},
+			onError: (error) => {
+				console.error("Error in didBecomeVisible subscription:", error)
+			},
+			onComplete: () => {},
+		})
+
 		// Still send the webviewDidLaunch message for other initialization
 		vscode.postMessage({ type: "webviewDidLaunch" })
 
@@ -417,6 +430,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (chatButtonUnsubscribeRef.current) {
 				chatButtonUnsubscribeRef.current()
 				chatButtonUnsubscribeRef.current = null
+			}
+			if (didBecomeVisibleUnsubscribeRef.current) {
+				didBecomeVisibleUnsubscribeRef.current()
+				didBecomeVisibleUnsubscribeRef.current = null
 			}
 		}
 	}, [])

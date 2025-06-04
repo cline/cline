@@ -37,4 +37,7 @@ service UiService {
   
   // Subscribe to chat button clicked events (when the chat button is clicked in VSCode)
   rpc subscribeToChatButtonClicked(EmptyRequest) returns (stream Empty);
+  
+  // Subscribe to webview visibility change events
+  rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);
 }

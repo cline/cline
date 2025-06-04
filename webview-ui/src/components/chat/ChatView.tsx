@@ -694,11 +694,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			switch (message.type) {
 				case "action":
 					switch (message.action!) {
-						case "didBecomeVisible":
-							if (!isHidden && !sendingDisabled && !enableButtons) {
-								textAreaRef.current?.focus()
-							}
-							break
 						case "focusChatInput":
 							textAreaRef.current?.focus()
 							if (isHidden) {
@@ -714,6 +709,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	useEvent("message", handleMessage)
+
+	// Listen for focusChatInput custom event from ExtensionStateContext
+	useEffect(() => {
+		const handleFocusChatInput = () => {
+			if (!isHidden && !sendingDisabled && !enableButtons) {
+				textAreaRef.current?.focus()
+			}
+		}
+
+		window.addEventListener("focusChatInput", handleFocusChatInput)
+		return () => window.removeEventListener("focusChatInput", handleFocusChatInput)
+	}, [isHidden, sendingDisabled, enableButtons])
 
 	// Set up addToInput subscription
 	useEffect(() => {

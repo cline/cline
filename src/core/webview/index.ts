@@ -8,6 +8,7 @@ import { findLast } from "@shared/array"
 import { readFile } from "fs/promises"
 import path from "node:path"
 import { WebviewProviderType } from "@/shared/webview/types"
+import { sendDidBecomeVisibleEvent } from "../controller/ui/subscribeToDidBecomeVisible"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -95,12 +96,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
 			// panel
 			webviewView.onDidChangeViewState(
-				() => {
+				async () => {
 					if (this.view?.visible) {
-						this.controller.postMessageToWebview({
-							type: "action",
-							action: "didBecomeVisible",
-						})
+						await sendDidBecomeVisibleEvent(this.controller.id)
 					}
 				},
 				null,
@@ -109,12 +107,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
 			webviewView.onDidChangeVisibility(
-				() => {
+				async () => {
 					if (this.view?.visible) {
-						this.controller.postMessageToWebview({
-							type: "action",
-							action: "didBecomeVisible",
-						})
+						await sendDidBecomeVisibleEvent(this.controller.id)
 					}
 				},
 				null,
