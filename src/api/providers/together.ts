@@ -13,14 +13,9 @@ export class TogetherHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.together) {
-			throw new Error("Together configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://api.together.xyz/v1",
-			apiKey: this.options.together.apiKey,
+			apiKey: this.getTogetherConfig().apiKey,
 		})
 	}
 

@@ -4,6 +4,7 @@ import { withRetry } from "../retry"
 import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "@shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
+import { AnthropicConfig } from "@/shared/api"
 
 export class AnthropicHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -11,14 +12,9 @@ export class AnthropicHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.anthropic) {
-			throw new Error("Anthropic configuration is required")
-		}
-
 		this.client = new Anthropic({
-			apiKey: this.options.anthropic.apiKey,
-			baseURL: this.options.anthropic.baseUrl || undefined,
+			apiKey: this.getAnthropicConfig().apiKey,
+			baseURL: this.getAnthropicConfig().baseUrl || undefined,
 		})
 	}
 
@@ -229,5 +225,15 @@ export class AnthropicHandler implements ApiHandler {
 			id: anthropicDefaultModelId,
 			info: anthropicModels[anthropicDefaultModelId],
 		}
+	}
+
+	/*
+	 * Get the Anthropic configuration
+	 */
+	private getAnthropicConfig(): AnthropicConfig {
+		if (!this.options.anthropic) {
+			throw new Error("Anthropic configuration is required")
+		}
+		return this.options.anthropic
 	}
 }

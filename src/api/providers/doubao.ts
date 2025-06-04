@@ -5,20 +5,16 @@ import OpenAI from "openai"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
+import { DoubaoConfig } from "@/shared/api"
 
 export class DoubaoHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.doubao) {
-			throw new Error("Doubao configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://ark.cn-beijing.volces.com/api/v3/",
-			apiKey: this.options.doubao.apiKey,
+			apiKey: this.getDoubaoConfig().apiKey,
 		})
 	}
 
@@ -71,5 +67,15 @@ export class DoubaoHandler implements ApiHandler {
 				}
 			}
 		}
+	}
+
+	/*
+	 * Get the Doubao configuration
+	 */
+	private getDoubaoConfig(): DoubaoConfig {
+		if (!this.options.doubao) {
+			throw new Error("Doubao configuration is required")
+		}
+		return this.options.doubao
 	}
 }

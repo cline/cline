@@ -20,30 +20,25 @@ export class OpenAiHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.openai) {
-			throw new Error("OpenAI configuration is required")
-		}
-
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 		// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
 		if (
 			this.options.azure?.apiVersion ||
-			((this.options.openai.baseUrl?.toLowerCase().includes("azure.com") ||
-				this.options.openai.baseUrl?.toLowerCase().includes("azure.us")) &&
-				!this.options.openai.modelId?.toLowerCase().includes("deepseek"))
+			((this.getOpenAIConfig().baseUrl?.toLowerCase().includes("azure.com") ||
+				this.getOpenAIConfig().baseUrl?.toLowerCase().includes("azure.us")) &&
+				!this.getOpenAIConfig().modelId?.toLowerCase().includes("deepseek"))
 		) {
 			this.client = new AzureOpenAI({
-				baseURL: this.options.openai.baseUrl,
-				apiKey: this.options.openai.apiKey,
+				baseURL: this.getOpenAIConfig().baseUrl,
+				apiKey: this.getOpenAIConfig().apiKey,
 				apiVersion: this.options.azure?.apiVersion || azureOpenAiDefaultApiVersion,
-				defaultHeaders: this.options.openai.headers,
+				defaultHeaders: this.getOpenAIConfig().headers,
 			})
 		} else {
 			this.client = new OpenAI({
-				baseURL: this.options.openai.baseUrl,
-				apiKey: this.options.openai.apiKey,
-				defaultHeaders: this.options.openai.headers,
+				baseURL: this.getOpenAIConfig().baseUrl,
+				apiKey: this.getOpenAIConfig().apiKey,
+				defaultHeaders: this.getOpenAIConfig().headers,
 			})
 		}
 	}

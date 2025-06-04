@@ -6,6 +6,7 @@ import { convertToOpenAiMessages } from "@api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { withRetry } from "../retry"
+import { XAIConfig } from "@/shared/api"
 
 export class XAIHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -13,14 +14,9 @@ export class XAIHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.xai) {
-			throw new Error("XAI configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://api.x.ai/v1",
-			apiKey: this.options.xai.apiKey,
+			apiKey: this.getXAIConfig().apiKey,
 		})
 	}
 
@@ -86,5 +82,15 @@ export class XAIHandler implements ApiHandler {
 			id: xaiDefaultModelId,
 			info: xaiModels[xaiDefaultModelId],
 		}
+	}
+
+	/**
+	 * Get the XAI configuration
+	 */
+	private getXAIConfig(): XAIConfig {
+		if (!this.options.xai) {
+			throw new Error("XAI configuration is required")
+		}
+		return this.options.xai
 	}
 }

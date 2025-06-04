@@ -7,6 +7,7 @@ import { calculateApiCostOpenAI } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
+import { DeepSeekConfig } from "@/shared/api"
 
 export class DeepSeekHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -14,14 +15,9 @@ export class DeepSeekHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.deepseek) {
-			throw new Error("DeepSeek configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://api.deepseek.com/v1",
-			apiKey: this.options.deepseek.apiKey,
+			apiKey: this.getDeepSeekConfig().apiKey,
 		})
 	}
 
@@ -114,5 +110,15 @@ export class DeepSeekHandler implements ApiHandler {
 			id: deepSeekDefaultModelId,
 			info: deepSeekModels[deepSeekDefaultModelId],
 		}
+	}
+
+	/*
+	 * Get the DeepSeek configuration
+	 */
+	private getDeepSeekConfig(): DeepSeekConfig {
+		if (!this.options.deepseek) {
+			throw new Error("DeepSeek configuration is required")
+		}
+		return this.options.deepseek
 	}
 }

@@ -2,7 +2,14 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, ModelInfo, openAiNativeDefaultModelId, OpenAiNativeModelId, openAiNativeModels } from "@shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	OpenAINativeConfig,
+	openAiNativeDefaultModelId,
+	OpenAiNativeModelId,
+	openAiNativeModels,
+} from "@shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
@@ -14,13 +21,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.openaiNative) {
-			throw new Error("OpenAI Native configuration is required")
-		}
-
 		this.client = new OpenAI({
-			apiKey: this.options.openaiNative.apiKey,
+			apiKey: this.getOpenAiNativeConfig().apiKey,
 		})
 	}
 
@@ -126,5 +128,12 @@ export class OpenAiNativeHandler implements ApiHandler {
 			id: openAiNativeDefaultModelId,
 			info: openAiNativeModels[openAiNativeDefaultModelId],
 		}
+	}
+
+	private getOpenAiNativeConfig(): OpenAINativeConfig {
+		if (!this.options.openaiNative) {
+			throw new Error("OpenAI Native configuration is required")
+		}
+		return this.options.openaiNative
 	}
 }

@@ -16,14 +16,9 @@ export class OpenRouterHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.openrouter) {
-			throw new Error("OpenRouter configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://openrouter.ai/api/v1",
-			apiKey: this.options.openrouter.apiKey,
+			apiKey: this.getOpenRouterConfig().apiKey,
 			defaultHeaders: {
 				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
 				"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.

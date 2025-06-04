@@ -14,10 +14,6 @@ export class VertexHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 
-		if (!this.options.vertex) {
-			throw new Error("Vertex configuration is required")
-		}
-
 		// Create a GeminiHandler with isVertex flag for Gemini models
 		this.geminiHandler = new GeminiHandler({
 			...options,

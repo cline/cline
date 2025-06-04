@@ -12,13 +12,8 @@ export class OllamaHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.ollama) {
-			throw new Error("Ollama configuration is required")
-		}
-
 		this.client = new Ollama({
-			host: this.options.ollama.baseUrl || "http://localhost:11434",
+			host: this.getOllamaConfig().baseUrl || "http://localhost:11434",
 		})
 	}
 

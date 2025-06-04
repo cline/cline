@@ -18,10 +18,6 @@ export class NebiusHandler implements ApiHandler {
 	private client: OpenAI
 
 	constructor(private readonly options: ApiHandlerOptions) {
-		if (!this.options.nebius) {
-			throw new Error("Nebius configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://api.studio.nebius.ai/v1",
 			apiKey: this.getNebiusConfig().apiKey,

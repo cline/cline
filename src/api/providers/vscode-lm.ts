@@ -322,7 +322,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 	private async getClient(): Promise<vscode.LanguageModelChat> {
 		if (!this.client) {
 			console.debug("Cline <Language Model API>: Getting client with options:", {
-				modelSelector: this.options.vscodelm?.modelSelector,
+				modelSelector: this.getVSCodeLMConfig().modelSelector,
 				hasOptions: !!this.options,
 				selectorKeys: this.options.vscodelm?.modelSelector ? Object.keys(this.options.vscodelm.modelSelector) : [],
 			})

@@ -6,6 +6,7 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "@/api/transform/openai-format"
 import { ApiStream } from "@api/transform/stream"
 import { convertToR1Format } from "@api/transform/r1-format"
+import { SambanovaConfig } from "@/shared/api"
 
 export class SambanovaHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -13,14 +14,9 @@ export class SambanovaHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.sambanova) {
-			throw new Error("SambaNova configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://api.sambanova.ai/v1",
-			apiKey: this.options.sambanova.apiKey,
+			apiKey: this.getSambanovaConfig().apiKey,
 		})
 	}
 
@@ -76,5 +72,15 @@ export class SambanovaHandler implements ApiHandler {
 			id: sambanovaDefaultModelId,
 			info: sambanovaModels[sambanovaDefaultModelId],
 		}
+	}
+
+	/**
+	 * Get the Sambanova configuration
+	 */
+	private getSambanovaConfig(): SambanovaConfig {
+		if (!this.options.sambanova) {
+			throw new Error("Sambanova configuration is required")
+		}
+		return this.options.sambanova
 	}
 }

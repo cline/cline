@@ -138,6 +138,9 @@ export class ClineHandler implements ApiHandler {
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 
+	/**
+	 * Get the OpenRouter provider configuration
+	 */
 	private getOpenrouterConfig(): OpenRouterConfig | undefined {
 		return this.options.openrouter
 	}

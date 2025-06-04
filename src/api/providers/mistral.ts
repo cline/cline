@@ -5,6 +5,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, mistralDefaultModelId, MistralModelId, mistralModels, ModelInfo } from "@shared/api"
 import { convertToMistralMessages } from "../transform/mistral-format"
 import { ApiStream } from "../transform/stream"
+import { MistralConfig } from "@/shared/api"
 
 export class MistralHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -12,13 +13,8 @@ export class MistralHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.mistral) {
-			throw new Error("Mistral configuration is required")
-		}
-
 		this.client = new Mistral({
-			apiKey: this.options.mistral.apiKey,
+			apiKey: this.getMistralConfig().apiKey,
 		})
 	}
 
@@ -77,5 +73,15 @@ export class MistralHandler implements ApiHandler {
 			id: mistralDefaultModelId,
 			info: mistralModels[mistralDefaultModelId],
 		}
+	}
+
+	/*
+	 * Get the Mistral configuration
+	 */
+	private getMistralConfig(): MistralConfig {
+		if (!this.options.mistral) {
+			throw new Error("Mistral configuration is required")
+		}
+		return this.options.mistral
 	}
 }

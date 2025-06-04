@@ -4,6 +4,7 @@ import { withRetry } from "../retry"
 import { ApiHandlerOptions, ModelInfo, CerebrasModelId, cerebrasDefaultModelId, cerebrasModels } from "@shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "@api/transform/stream"
+import { CerebrasConfig } from "@/shared/api"
 
 export class CerebrasHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -12,12 +13,8 @@ export class CerebrasHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 
-		if (!this.options.cerebras) {
-			throw new Error("Cerebras configuration is required")
-		}
-
 		// Clean and validate the API key
-		const cleanApiKey = this.options.cerebras.apiKey?.trim()
+		const cleanApiKey = this.getCerebrasConfig().apiKey?.trim()
 
 		if (!cleanApiKey) {
 			throw new Error("Cerebras API key is required")
@@ -169,5 +166,15 @@ export class CerebrasHandler implements ApiHandler {
 		const outputCost = (outputPrice / 1_000_000) * outputTokens
 
 		return inputCost + outputCost
+	}
+
+	/*
+	 * Get the Cerebras configuration
+	 */
+	private getCerebrasConfig(): CerebrasConfig {
+		if (!this.options.cerebras) {
+			throw new Error("Cerebras configuration is required")
+		}
+		return this.options.cerebras
 	}
 }

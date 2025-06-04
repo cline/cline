@@ -10,6 +10,7 @@ import {
 } from "@shared/api"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
+import { AskSageConfig } from "@/shared/api"
 
 type AskSageRequest = {
 	system_prompt: string
@@ -37,13 +38,8 @@ export class AskSageHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.asksage) {
-			throw new Error("AskSage configuration is required")
-		}
-
-		this.apiKey = this.options.asksage.apiKey || ""
-		this.apiUrl = this.options.asksage.apiUrl || askSageDefaultURL
+		this.apiKey = this.getAskSageConfig().apiKey || ""
+		this.apiUrl = this.getAskSageConfig().apiUrl || askSageDefaultURL
 
 		if (!this.apiKey) {
 			throw new Error("AskSage API key is required")
@@ -117,5 +113,15 @@ export class AskSageHandler implements ApiHandler {
 			id: askSageDefaultModelId,
 			info: askSageModels[askSageDefaultModelId],
 		}
+	}
+
+	/*
+	 * Get the AskSage configuration
+	 */
+	private getAskSageConfig(): AskSageConfig {
+		if (!this.options.asksage) {
+			throw new Error("AskSage configuration is required")
+		}
+		return this.options.asksage
 	}
 }

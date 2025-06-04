@@ -23,14 +23,9 @@ export class RequestyHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.requesty) {
-			throw new Error("Requesty configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL: "https://router.requesty.ai/v1",
-			apiKey: this.options.requesty.apiKey,
+			apiKey: this.getRequestyConfig().apiKey,
 			defaultHeaders: {
 				"HTTP-Referer": "https://cline.bot",
 				"X-Title": "Cline",

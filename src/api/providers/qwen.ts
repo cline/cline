@@ -23,17 +23,12 @@ export class QwenHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-
-		if (!this.options.qwen) {
-			throw new Error("Qwen configuration is required")
-		}
-
 		this.client = new OpenAI({
 			baseURL:
-				this.options.qwen.apiLine === "china"
+				this.getQwenConfig().apiLine === "china"
 					? "https://dashscope.aliyuncs.com/compatible-mode/v1"
 					: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-			apiKey: this.options.qwen.apiKey,
+			apiKey: this.getQwenConfig().apiKey,
 		})
 	}
 
