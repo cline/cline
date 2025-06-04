@@ -53,6 +53,7 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	enableCheckpointsSetting?: boolean
 	mcpMarketplaceEnabled?: boolean
+	mcpDefaultPanelState?: "expanded" | "collapsed"
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
 	mentionsRequestId?: string

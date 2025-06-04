@@ -393,6 +393,10 @@ export class Controller {
 					await updateGlobalState(this.context, "mcpMarketplaceEnabled", message.mcpMarketplaceEnabled)
 				}
 
+				if (message.mcpDefaultPanelState) {
+					await updateGlobalState(this.context, "mcpDefaultPanelState", message.mcpDefaultPanelState)
+				}
+
 				// chat settings (including preferredLanguage and openAIReasoningEffort)
 				if (message.chatSettings) {
 					await updateGlobalState(this.context, "chatSettings", message.chatSettings)
@@ -1217,7 +1221,7 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			isNewUser,
-			mcpDefaultPanelState: mcpDefaultPanelState || "collapsed",
+			mcpDefaultPanelState,
 		}
 	}
 

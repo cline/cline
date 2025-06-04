@@ -126,6 +126,8 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setEnableCheckpointsSetting,
 		mcpMarketplaceEnabled,
 		setMcpMarketplaceEnabled,
+		mcpDefaultPanelState,
+		setMcpDefaultPanelState,
 		setApiConfiguration,
 	} = useExtensionState()
 
@@ -137,6 +139,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpDefaultPanelState,
 		chatSettings,
 	})
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -178,6 +181,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			telemetrySetting,
 			enableCheckpointsSetting,
 			mcpMarketplaceEnabled,
+			mcpDefaultPanelState,
 			apiConfiguration: apiConfigurationToSubmit,
 		})
 
@@ -200,6 +204,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			planActSeparateModelsSetting !== originalState.current.planActSeparateModelsSetting ||
 			enableCheckpointsSetting !== originalState.current.enableCheckpointsSetting ||
 			mcpMarketplaceEnabled !== originalState.current.mcpMarketplaceEnabled ||
+			mcpDefaultPanelState !== originalState.current.mcpDefaultPanelState ||
 			JSON.stringify(chatSettings) !== JSON.stringify(originalState.current.chatSettings)
 
 		setHasUnsavedChanges(hasChanges)
@@ -210,6 +215,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		planActSeparateModelsSetting,
 		enableCheckpointsSetting,
 		mcpMarketplaceEnabled,
+		mcpDefaultPanelState,
 		chatSettings,
 	])
 
@@ -241,6 +247,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 							: false,
 					)
 				}
+				if (typeof setMcpDefaultPanelState === "function") {
+					setMcpDefaultPanelState(originalState.current.mcpDefaultPanelState || "expanded")
+				}
 				// Close settings view
 				onDone()
 			}
@@ -258,6 +267,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		setApiConfiguration,
 		setEnableCheckpointsSetting,
 		setMcpMarketplaceEnabled,
+		setMcpDefaultPanelState,
 	])
 
 	// Handle confirmation dialog actions

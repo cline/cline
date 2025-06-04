@@ -91,6 +91,7 @@ export type GlobalStateKey =
 	| "favoritedModelIds"
 	| "requestTimeoutMs"
 	| "shellIntegrationTimeout"
+	| "mcpDefaultPanelState"
 	| "isNewUser"
 
 export type LocalStateKey = "localClineRulesToggles"
