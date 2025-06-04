@@ -332,15 +332,10 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	private async calculateTotalInputTokens(
-		systemPrompt: string,
-		vsCodeLmMessages: vscode.LanguageModelChatMessage[],
-	): Promise<number> {
-		const systemTokens: number = await this.countTokens(systemPrompt)
-
+	private async calculateTotalInputTokens(vsCodeLmMessages: vscode.LanguageModelChatMessage[]): Promise<number> {
 		const messageTokens: number[] = await Promise.all(vsCodeLmMessages.map((msg) => this.countTokens(msg)))
 
-		return systemTokens + messageTokens.reduce((sum: number, tokens: number): number => sum + tokens, 0)
+		return messageTokens.reduce((sum: number, tokens: number): number => sum + tokens, 0)
 	}
 
 	private ensureCleanState(): void {
@@ -462,7 +457,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		this.currentRequestCancellation = new vscode.CancellationTokenSource()
 
 		// Calculate input tokens before starting the stream
-		const totalInputTokens: number = await this.calculateTotalInputTokens(systemPrompt, vsCodeLmMessages)
+		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
 
 		// Accumulate the text and count at the end of the stream to reduce token counting overhead.
 		let accumulatedText: string = ""
