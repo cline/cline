@@ -1,6 +1,6 @@
-import { Controller } from "../index"
 import { Empty, EmptyRequest } from "@shared/proto/common"
 import { StreamingResponseHandler, getRequestRegistry } from "../grpc-handler"
+import { Controller } from "../index"
 
 // Track subscriptions by controller ID
 const activeSubscriptions = new Map<string, StreamingResponseHandler>()
@@ -46,7 +46,7 @@ export async function sendAccountButtonClickedEvent(controllerId: string): Promi
 	}
 
 	try {
-		const event: Empty = {}
+		const event: Empty = Empty.create()
 		await responseStream(event, false)
 	} catch (error) {
 		console.error(`Error sending account button clicked event to controller ${controllerId}:`, error)
